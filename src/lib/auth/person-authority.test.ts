@@ -127,6 +127,10 @@ describe("PERSON_RECORD_FIELD_CATEGORY — a derived caption is governed exactly
     ["expectedGraduationYearSource", "academic"],
     ["degreeFieldSource", "academic"],
     ["dateOfBirthSource", "restricted"],
+    // LAN-275 correction round 1, F2. The two person facts LAN-267 added carry
+    // the same kind of caption, and were the two the table did not cover.
+    ["studentNumberSource", "academic"],
+    ["bafaRegistrationNumberSource", "academic"],
   ])("%s is categorised %s, matching the field it captions", (key, category) => {
     expect(PERSON_RECORD_FIELD_CATEGORY[key]).toBe(category);
   });

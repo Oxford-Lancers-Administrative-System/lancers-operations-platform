@@ -16,6 +16,8 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({ submitAddRecruit: vi.fn() }));
 
+import { submitAddRecruit } from "./actions";
+import { INITIAL_ADD_RECRUIT_STATE } from "./create-state";
 import AddRecruitForm from "./add-recruit-form";
 
 describe("V-1, correction round 2 — inline phone and email validation", () => {
@@ -49,6 +51,53 @@ describe("V-1, correction round 2 — inline phone and email validation", () => 
 
     expect(screen.getByText(/does not look like an email address/i)).not.toBeNull();
     expect(screen.getByTestId("add-recruit-check")).toBeDisabled();
+  });
+
+  /**
+   * LAN-275 correction round 1, F1. The college email was validated inline but
+   * left out of the aggregate that disables the two submit controls, so a
+   * non-Oxford address turned the field red and still let the operator press
+   * Check for duplicates / Create — V-1 says both.
+   *
+   * `Create` only exists once the duplicate check has answered, so the check is
+   * driven first (the action is mocked, and answers with an empty candidate
+   * list) to bring that button onto the page before the malformed value is
+   * typed.
+   */
+  it("disables both Check for duplicates and Create for a non-Oxford college email", async () => {
+    const user = userEvent.setup();
+    vi.mocked(submitAddRecruit).mockResolvedValue({
+      ...INITIAL_ADD_RECRUIT_STATE,
+      candidates: [],
+    });
+    render(<AddRecruitForm seasonLabel="2026-27" />);
+
+    // The browser's own constraint validation refuses to submit a form with an
+    // empty required field, so the four required fields are filled with valid
+    // values first — the malformed one is typed afterwards.
+    const named = (name: string) =>
+      document.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+    await user.type(named("givenName"), "Ada");
+    await user.type(named("familyName"), "Nkemelu");
+    const mobile = screen.getByTestId("mobile-field").querySelector("input") as HTMLInputElement;
+    await user.type(mobile, "07700 900461");
+    const collegeEmail = screen
+      .getByTestId("college-email-field")
+      .querySelector("input") as HTMLInputElement;
+    await user.type(collegeEmail, "ada.nkemelu@balliol.ox.ac.uk");
+
+    await user.click(screen.getByTestId("add-recruit-check"));
+    const create = await screen.findByTestId("add-recruit-create");
+    expect(create).not.toBeDisabled();
+
+    await user.clear(collegeEmail);
+    await user.type(collegeEmail, "someone@gmail.com");
+
+    expect(screen.getByTestId("add-recruit-format-invalid").textContent).toContain(
+      "Correct the field marked in red",
+    );
+    expect(screen.getByTestId("add-recruit-check")).toBeDisabled();
+    expect(screen.getByTestId("add-recruit-create")).toBeDisabled();
   });
 
   it("clears the error and re-enables Check once the number is corrected", async () => {

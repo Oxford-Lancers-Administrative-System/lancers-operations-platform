@@ -128,6 +128,13 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
   const formatInvalid = Boolean(
     mobileFormatError ||
+    // LAN-275 correction round 1, F1. The college email is validated inline
+    // like every other field on this form, so it has to gate the two submit
+    // controls like every other field too — V-1 is "a malformed value shows
+    // its own message inline **and disables Check for duplicates / Create**",
+    // and leaving this one term out let a non-Oxford address round-trip to a
+    // server that was only ever going to refuse it.
+    collegeEmailFormatError ||
     emailFormatError ||
     matricFormatError ||
     gradFormatError ||
