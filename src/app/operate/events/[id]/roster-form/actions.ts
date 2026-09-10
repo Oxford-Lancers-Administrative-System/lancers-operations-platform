@@ -3,10 +3,7 @@
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { recordRosterFormGenerated, type Kit } from "@/lib/services/roster-form";
-import {
-  ROSTER_FORM_GENERATE_FAILED,
-  type GenerateRosterFormState,
-} from "./action-state";
+import { ROSTER_FORM_GENERATE_FAILED, type GenerateRosterFormState } from "./action-state";
 
 /**
  * The one write this surface makes — LAN-267: "A one-line audit event when a
