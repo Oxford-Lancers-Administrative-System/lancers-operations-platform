@@ -208,7 +208,7 @@ async function approvedEvent(size = 3, overrides: Partial<EventDraftInput> = {})
   const event = await createEventDraft(actorPersonId, draft(overrides));
 
   const catalogue = await withTransaction((tx) =>
-    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
   );
   const keys = catalogue.candidates
     .filter((candidate) => candidate.capacity === "player" && seededPeople.has(candidate.personId))

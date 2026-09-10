@@ -30,11 +30,14 @@ import {
   saveEventAudience,
 } from "./event-approval";
 import {
+  audiencePeople,
   EMPTY_AUDIENCE_MESSAGE,
   EMPTY_AUDIENCE_RULE,
+  groupSelectionKeys,
   listAudienceCatalogueIn,
   resolveSelection,
   selectionKey,
+  UNKNOWN_SELECTION_RULE,
   type AudienceCatalogue,
 } from "./event-audience";
 import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
@@ -175,11 +178,11 @@ async function insertDraftDirectly(input: {
   scheduledOn: string;
   /** `null` for the confirmed-date-but-no-kick-off case, which is legal. */
   startsAt?: string | null;
-}): Promise<{ id: string; seasonId: string; scheduledOn: string }> {
+}): Promise<{ id: string; seasonId: string; scheduledOn: string; eventType: string }> {
   const season = await observer.query<{ id: string }>(
     "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
   );
-  const inserted = await observer.query<{ id: string }>(
+  const inserted = await observer.query<{ id: string; event_type: string }>(
     // `event_type` is read off the template rather than passed: LAN-265 made
     // `events_template_fkey` composite, so the pair on the row has to agree
     // with the template's own class or the insert is refused.
@@ -190,7 +193,7 @@ async function insertDraftDirectly(input: {
             true, $5
        from public.event_templates tpl
       where tpl.id = $3::uuid
-     returning id`,
+     returning id, event_type::text as event_type`,
     [
       season.rows[0].id,
       input.name,
@@ -204,6 +207,7 @@ async function insertDraftDirectly(input: {
     id: inserted.rows[0].id,
     seasonId: season.rows[0].id,
     scheduledOn: input.scheduledOn,
+    eventType: inserted.rows[0].event_type,
   };
 }
 
@@ -218,9 +222,10 @@ async function insertDraftDirectly(input: {
 async function catalogueFor(event: {
   seasonId: string;
   scheduledOn: string | null;
+  eventType: string;
 }): Promise<AudienceCatalogue> {
   const full = await withTransaction((tx) =>
-    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
   );
   // Recruits are exempt from the `seededPeople` narrowing below: the seeded
   // dataset carries exactly two, each captured on its own later date (Source
@@ -243,7 +248,7 @@ async function catalogueFor(event: {
 }
 
 async function keysFor(
-  event: { seasonId: string; scheduledOn: string | null },
+  event: { seasonId: string; scheduledOn: string | null; eventType: string },
   capacity: "player" | "coach" | "committee" | "recruit",
   limit = 3,
 ): Promise<string[]> {
@@ -272,7 +277,7 @@ async function keysFor(
  * rather than a second copy of the rule the preview applies.
  */
 async function reachableKeysFor(
-  event: { seasonId: string; scheduledOn: string | null },
+  event: { seasonId: string; scheduledOn: string | null; eventType: string },
   limit: number,
 ): Promise<string[]> {
   const catalogue = await catalogueFor(event);
@@ -1854,8 +1859,8 @@ describe("an event outside the operating season", () => {
     expect(membership.rows[0], "the archived season has no memberships").toBeDefined();
     await observer.query(
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id)
-       values ($1, $2, 'player', $3)`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id)
+       values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3))`,
       [eventId, season.rows[0].season_id, membership.rows[0].id],
     );
 
@@ -1926,7 +1931,7 @@ describe("a season-scoped role that is not a coaching seat", () => {
     );
 
     const after = await withTransaction((tx) =>
-      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
     );
 
     // The manager appears nowhere: not as a coach, and not under any other
@@ -1943,7 +1948,7 @@ describe("a season-scoped role that is not a coaching seat", () => {
     // The other half again: the narrowing must not have emptied the group.
     const event = await newDraft();
     const catalogue = await withTransaction((tx) =>
-      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
     );
 
     expect(catalogue.counts.coach).toBeGreaterThan(0);
@@ -2016,7 +2021,7 @@ describe("a coaching seat the catalogue added", () => {
     );
 
     const after = await withTransaction((tx) =>
-      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
     );
 
     expect(after.counts.coach).toBe(before.counts.coach + 1);
@@ -2114,5 +2119,214 @@ describe("the audience heading counts everybody in the audience", () => {
     // a lapsed membership is not that.
     expect(after.others).toBe(4);
     expect(after.others + after.noLongerSelectable).toBe(after.total);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-294 / LAN-295 — one row per person, and recruits only on a recruitment
+// event
+// ---------------------------------------------------------------------------
+
+/**
+ * Brian, 2026-09-10, walking the G7 review environment and opening the audience
+ * picker on a practice event: "One invitation per person per event." A person
+ * who is a player, a coach and a committee member is one person.
+ *
+ * The seeded club has no such triple — Bertram and Caspian each hold two
+ * capacities — so this suite makes one, by giving somebody who already plays and
+ * already sits on the committee a coaching seat as well, and takes it back
+ * afterwards.
+ */
+describe("a person in three groups is one row, one invitation, one participant", () => {
+  const NOTE = "LAN-294 audience check";
+
+  afterEach(async () => {
+    await observer.query("delete from public.role_assignments where note = $1", [NOTE]);
+  });
+
+  /** Returns the person and membership of somebody who now holds all three. */
+  async function personInThreeGroups(): Promise<{ personId: string; membershipId: string }> {
+    const season = await observer.query<{ id: string }>(
+      "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
+    );
+    const both = await observer.query<{ person_id: string; membership_id: string }>(
+      `select m.person_id, m.id as membership_id
+         from public.season_memberships m
+         join public.role_assignments ra on ra.person_id = m.person_id
+         join public.roles r on r.id = ra.role_id and r.scope = 'committee_year'
+        where m.season_id = $1
+          and m.status = 'active'
+          and ra.effective_from <= date '2026-10-18'
+          and (ra.effective_to is null or ra.effective_to > date '2026-10-18')
+        order by m.person_id
+        limit 1`,
+      [season.rows[0].id],
+    );
+    expect(
+      both.rows,
+      "the seeded club offers nobody who both plays and sits on the committee",
+    ).toHaveLength(1);
+
+    const role = await observer.query<{ id: string }>(
+      "select id from public.roles where code = 'quarterbacks_coach'",
+    );
+    await observer.query(
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, season_id, effective_from, note)
+       values ($1, $2, 'season', false, $3, '2026-09-01', $4)`,
+      [both.rows[0].person_id, role.rows[0].id, season.rows[0].id, NOTE],
+    );
+
+    return { personId: both.rows[0].person_id, membershipId: both.rows[0].membership_id };
+  }
+
+  it("offers them as one row in the catalogue, carrying all three capacities", async () => {
+    const who = await personInThreeGroups();
+    const event = await newDraft();
+    const catalogue = await catalogueFor(event);
+
+    // Three candidate rows, because the groups are defined by capacity…
+    const rows = catalogue.candidates.filter((candidate) => candidate.personId === who.personId);
+    expect(rows.map((row) => row.capacity).sort()).toEqual(["coach", "committee", "player"]);
+
+    // …and one row on the picker, which is what Brian asked for.
+    const people = audiencePeople(catalogue.candidates).filter(
+      (person) => person.personId === who.personId,
+    );
+    expect(people).toHaveLength(1);
+    expect(people[0].capacities).toEqual(["player", "coach", "committee"]);
+    expect(people[0].keys).toHaveLength(3);
+  });
+
+  it("writes one audience row, one invitation and one participation row on approval", async () => {
+    const who = await personInThreeGroups();
+    const event = await newDraft();
+    const catalogue = await catalogueFor(event);
+    const person = audiencePeople(catalogue.candidates).find(
+      (entry) => entry.personId === who.personId,
+    );
+
+    // Every key they hold goes in, exactly as ticking their row does.
+    await approve(event.id, person?.keys ?? []);
+
+    const counts = await countsFor(event.id);
+    expect(counts.audience).toBe(1);
+    expect(counts.invitations).toBe(1);
+    expect(counts.uninvited).toBe(0);
+
+    // Invariant P7's population — the participation table's own read.
+    const participation = await observer.query<{ count: string; capacity: string | null }>(
+      `select count(*)::text as count, min(capacity::text) as capacity
+         from public.invitation_response_state where event_id = $1`,
+      [event.id],
+    );
+    expect(Number(participation.rows[0].count)).toBe(1);
+
+    // Anchored to the membership at player capacity: the precedence rule, which
+    // the picker and the transaction have to agree on (invariant P8).
+    const written = await observer.query<{ capacity: string; season_membership_id: string | null }>(
+      `select capacity::text as capacity, season_membership_id
+         from public.event_audience_members where event_id = $1`,
+      [event.id],
+    );
+    expect(written.rows[0].capacity).toBe("player");
+    expect(written.rows[0].season_membership_id).toBe(who.membershipId);
+  });
+
+  it("counts them once when all three groups are pressed at once", async () => {
+    const who = await personInThreeGroups();
+    const event = await newDraft();
+    const catalogue = await catalogueFor(event);
+
+    const keys = [
+      ...groupSelectionKeys(catalogue.candidates, "active_players"),
+      ...groupSelectionKeys(catalogue.candidates, "active_coaches"),
+      ...groupSelectionKeys(catalogue.candidates, "active_committee"),
+    ];
+    await approve(event.id, keys);
+
+    const rows = await observer.query<{ person_id: string }>(
+      `select coalesce(a.person_id, m.person_id) as person_id
+         from public.event_audience_members a
+         left join public.season_memberships m on m.id = a.season_membership_id
+        where a.event_id = $1`,
+      [event.id],
+    );
+    // The property, said as a set rather than as a number so a changing seed
+    // cannot make it vacuous.
+    expect(new Set(rows.rows.map((row) => row.person_id)).size).toBe(rows.rows.length);
+    expect(rows.rows.filter((row) => row.person_id === who.personId)).toHaveLength(1);
+  });
+});
+
+/**
+ * LAN-295 — "Recruits should only ever be selectable and only ever be available
+ * for a recruitment event. Every other event, they're non-factors." (Brian,
+ * 2026-09-10.)
+ *
+ * D46 used to live only in `AUDIENCE_GROUPS`, which withheld the Recruits
+ * *button*. The recruits themselves stayed in the catalogue on every event type
+ * as individually tickable rows, so an operator could put six prospects on a
+ * Wednesday practice and approval would invite them. The gate is now the
+ * catalogue read itself, which is the one thing every path — picker, template
+ * default, approval preview and the approval write — shares.
+ */
+describe("recruits belong to a recruitment event and nowhere else", () => {
+  it("is not in a practice event's catalogue, and is in a recruitment event's", async () => {
+    const practice = await newDraft();
+    const recruitment = await newDraft({
+      templateId: SEEDED_TEMPLATE_IDS.recruitment,
+      scheduledOn: "2026-11-20",
+    });
+
+    const onPractice = await catalogueFor(practice);
+    const onRecruitment = await catalogueFor(recruitment);
+
+    expect(onPractice.counts.recruit).toBe(0);
+    expect(onPractice.candidates.some((candidate) => candidate.capacity === "recruit")).toBe(false);
+    // The other half: the narrowing must not have emptied the group.
+    expect(onRecruitment.counts.recruit).toBeGreaterThan(0);
+    // …and the rest of the catalogue is untouched by the gate.
+    expect(onPractice.counts.player).toBe(onRecruitment.counts.player);
+  });
+
+  it("refuses a recruit chosen on a practice event rather than quietly dropping them", async () => {
+    // The key is real — it comes from the recruitment event's own catalogue —
+    // so this is the forged-selection path, not a typo.
+    const recruitment = await newDraft({
+      templateId: SEEDED_TEMPLATE_IDS.recruitment,
+      scheduledOn: "2026-11-20",
+    });
+    const recruitKeys = await keysFor(recruitment, "recruit", 1);
+    expect(recruitKeys).toHaveLength(1);
+
+    const practice = await newDraft();
+    const playerKeys = await keysFor(practice, "player", 2);
+
+    const error = await caught(() =>
+      saveEventAudience(actorPersonId, practice.id, [...playerKeys, ...recruitKeys]),
+    );
+
+    expect(error.rule).toBe(UNKNOWN_SELECTION_RULE);
+    // Total, not partial: a save that silently shrank would store a list the
+    // operator never confirmed.
+    expect((await countsFor(practice.id)).audience).toBe(0);
+  });
+
+  it("still invites recruits when the event is recruitment class", async () => {
+    const recruitment = await newDraft({
+      templateId: SEEDED_TEMPLATE_IDS.recruitment,
+      scheduledOn: "2026-11-20",
+    });
+    const recruitKeys = await keysFor(recruitment, "recruit", 2);
+
+    await approve(recruitment.id, recruitKeys);
+
+    const invited = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.invitations
+        where event_id = $1 and capacity = 'recruit'`,
+      [recruitment.id],
+    );
+    expect(Number(invited.rows[0].count)).toBe(recruitKeys.length);
   });
 });

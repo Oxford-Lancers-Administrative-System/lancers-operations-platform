@@ -135,9 +135,13 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   };
 }
 
-async function catalogueFor(event: { seasonId: string; scheduledOn: string | null }) {
+async function catalogueFor(event: {
+  seasonId: string;
+  scheduledOn: string | null;
+  eventType: string;
+}) {
   const full: AudienceCatalogue = await withTransaction((tx) =>
-    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
   );
   return full.candidates.filter((candidate) => seededPeople.has(candidate.personId));
 }

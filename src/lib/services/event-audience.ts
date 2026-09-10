@@ -4,6 +4,7 @@ import type { Tx } from "@/lib/db";
 import { COACH_ROLE_CODES } from "@/lib/auth/capabilities";
 import { personDisplayAliasSql } from "./sql-text";
 import {
+  RECRUITMENT_EVENT_TYPE,
   type AudienceCandidate,
   type AudienceCapacity,
   type AudienceCatalogue,
@@ -77,6 +78,7 @@ import {
 
 export {
   AUDIENCE_GROUPS,
+  audiencePeople,
   groupsForEventType,
   templateGroupsForEventType,
   summariseAudienceGroups,
@@ -87,6 +89,7 @@ export {
   groupSelectionKeys,
   groupSize,
   toggleGroup,
+  RECRUITMENT_EVENT_TYPE,
   resolveSelection,
   selectionKey,
   UNKNOWN_SELECTION_MESSAGE,
@@ -97,6 +100,7 @@ export {
   type AudienceGroup,
   type AudienceGroupKey,
   type AudienceGroupSummary,
+  type AudiencePerson,
   type ResolvedAudienceMember,
   type SelectionResolution,
 } from "./audience-selection";
@@ -158,23 +162,72 @@ const CONTACT_EXPRESSION = `
       order by c.is_preferred desc, c.created_at desc limit 1))`;
 
 /**
+ * D46, at the level approval actually invites from — LAN-295.
+ *
+ * Recruits are read from the funnel rather than from the roster, because that is
+ * where a prospect lives: modelling them as provisional memberships would
+ * pollute the roster with people who never commit (model §1.2).
+ *
+ * Joined is excluded because a joined prospect IS a member and appears under the
+ * player capacity; disengaged, declined and void are excluded because D45 says
+ * inactive people are never invited, somebody who said no is exactly that, and a
+ * void row is not a person to invite at all (LAN-201).
+ */
+const RECRUIT_ARM = `
+     select 'recruit' as capacity,
+            p.id as anchor_id,
+            p.id as person_id,
+            p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
+            initcap(rp.status::text) as standing,
+            null as unit,
+            ${CONTACT_EXPRESSION} as contact,
+            false as is_bps
+       from public.recruitment_prospects rp
+       join public.people p on p.id = rp.person_id
+      where rp.season_id = $1
+        and rp.status in ('identified', 'engaged', 'committed')`;
+
+/**
  * Every person selectable for an event in `seasonId`, in every capacity they
  * qualify under, as at `scheduledOn` — the event's own date, falling back to
  * today for a draft that has none yet.
  *
- * The three arms are one statement so the catalogue is a single consistent read:
- * a role expiring between two queries would otherwise produce a list whose
- * counts disagree with its rows.
+ * The arms are one statement so the catalogue is a single consistent read: a
+ * role expiring between two queries would otherwise produce a list whose counts
+ * disagree with its rows.
  *
- * A person qualifying twice appears twice **here**, deliberately — the builder
- * lists coaches and players separately, and collapsing them at this level would
- * hide a coach from the coaching group. The collapse happens in
- * `resolveSelection`, once, at the point it matters.
+ * A person qualifying twice appears twice **here**, deliberately — the derived
+ * groups are defined by capacity, and collapsing at this level would hide a
+ * coach from the coaching group. The collapse into one row per human happens
+ * once at each of the two points it matters: `audiencePeople` for what the
+ * picker shows, `resolveSelection` for what is written.
+ *
+ * ## `eventType` is required, and it is what keeps recruits off a practice
+ *
+ * D46 puts recruits on a Recruitment event alone, and Brian restated it on
+ * 2026-09-10: "Recruits should only ever be selectable and only ever be
+ * available for a recruitment event. Every other event, they're non-factors."
+ * Before LAN-295 that rule lived only in `AUDIENCE_GROUPS` — the *Recruits
+ * button* was withheld, while the recruits themselves stayed in the catalogue as
+ * individually tickable rows that `resolveSelection` would happily resolve and
+ * approval would happily invite.
+ *
+ * So the gate is here, in the read every one of those paths shares, and it is a
+ * required parameter rather than an optional filter: a caller that forgets it
+ * does not compile. On a non-Recruitment event a recruit is not merely hidden —
+ * they are not in the catalogue, so their key resolves to nothing and
+ * `saveEventAudience` refuses the selection outright.
+ *
+ * The class is the event's own `events.event_type`, never a template's name.
+ * After LAN-265 an operator names templates freely and every template they
+ * create is `practice` class, so a name is not something a rule can key on.
  */
 export async function listAudienceCatalogueIn(
   tx: Tx,
   seasonId: string,
   scheduledOn: string | null,
+  eventType: string,
 ): Promise<AudienceCatalogue> {
   const result = await tx.query<CandidateRow>(
     `with as_of as (select coalesce($2::date, current_date) as day)
@@ -242,31 +295,7 @@ export async function listAudienceCatalogueIn(
         -- hangs. See COACH_ROLE_CODES.
         and (r.scope <> 'season' or (ra.season_id = $1 and r.code = any($3::text[])))
 
-      union all
-
-     -- D46. The recruits group, offered on a Recruitment event alone. Read from
-     -- the funnel rather than from the roster, because that is where a prospect
-     -- lives: modelling them as provisional memberships would pollute the roster
-     -- with people who never commit (model §1.2).
-     --
-     -- Joined is excluded because a joined prospect IS a member and appears
-     -- above under the player capacity; disengaged, declined and void are
-     -- excluded because D45 says inactive people are never invited, somebody
-     -- who said no is exactly that, and a void row is not a person to invite
-     -- at all (LAN-201).
-     select 'recruit' as capacity,
-            p.id as anchor_id,
-            p.id as person_id,
-            p.given_name, p.family_name,
-              ${personDisplayAliasSql("p")} as display_alias,
-            initcap(rp.status::text) as standing,
-            null as unit,
-            ${CONTACT_EXPRESSION} as contact,
-            false as is_bps
-       from public.recruitment_prospects rp
-       join public.people p on p.id = rp.person_id
-      where rp.season_id = $1
-        and rp.status in ('identified', 'engaged', 'committed')
+     ${eventType === RECRUITMENT_EVENT_TYPE ? `union all ${RECRUIT_ARM}` : ""}
 
       order by 1, 6, 5`,
     [seasonId, scheduledOn, COACH_ROLE_CODES],

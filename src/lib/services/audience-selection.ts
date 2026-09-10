@@ -33,6 +33,17 @@
 export type AudienceCapacity = "player" | "coach" | "committee" | "recruit";
 
 /**
+ * The one behavioural class recruits belong to — `public.event_type`'s
+ * `recruitment` — named once so D46 is stated in exactly one place.
+ *
+ * It is the **class**, never a template name. After LAN-265 an operator names
+ * templates freely and everything they create is `practice` class, so a rule
+ * that keyed on a name would be one rename away from inviting six prospects to a
+ * Wednesday practice.
+ */
+export const RECRUITMENT_EVENT_TYPE = "recruitment";
+
+/**
  * Which capacity wins when one person qualifies under several.
  *
  * Player first because the overwhelmingly common collision is a committee
@@ -163,11 +174,18 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
   }),
   // D46. A recruitment event is the one occasion the club invites people who
   // are not on the roster, so this is the one type the group appears on.
+  //
+  // LAN-295: this used to be the *only* place the rule was stated, which made it
+  // a rule about a button rather than about who may be invited — the recruits
+  // themselves stayed in the catalogue on every event type, tickable one by one.
+  // `listAudienceCatalogueIn` now keeps them out of the catalogue entirely
+  // unless the event is `recruitment` class, and this entry is what stops the
+  // group appearing on the two screens that would otherwise offer an empty one.
   Object.freeze({
     key: "recruits" as const,
     label: "Recruits",
     capacities: Object.freeze(["recruit" as const]),
-    eventTypes: Object.freeze(["recruitment"]),
+    eventTypes: Object.freeze([RECRUITMENT_EVENT_TYPE]),
   }),
   // Correction round 2, item 7 (`WP-operator-record`, LAN-217): the roster's
   // own BPS column, offered here too. Every event type, like every group
@@ -228,6 +246,103 @@ export interface AudienceCatalogue {
 
 export function selectionKey(capacity: AudienceCapacity, anchorId: string): string {
   return `${capacity}:${anchorId}`;
+}
+
+/**
+ * One selectable **human** — the row the picker actually offers. LAN-294.
+ *
+ * ## Why this sits beside `AudienceCandidate` rather than replacing it
+ *
+ * The catalogue is one row per *capacity*, on purpose: the derived groups are
+ * defined by capacity, so collapsing at that level would hide a coach from the
+ * coaching group and would make `toggleGroup`'s careful key-wise removal
+ * inexpressible. The capacity rows therefore stay, and this is the view over
+ * them.
+ *
+ * Brian, 2026-09-10, opening the picker on a practice event and finding Bertram
+ * and Caspian listed twice each: a person who is a player, a coach and a
+ * committee member appears **once**, and "it can be one thing; it can be
+ * subdivided, doesn't really matter" — the row's second line may combine the
+ * roles. One invitation per person per event.
+ *
+ * The row therefore carries *every* key the human holds, not only the winning
+ * one, and ticking it means all of them. That is what keeps the group buttons
+ * honest: press **All active committee** and Bertram's committee key is in the
+ * selection, so pressing it again removes exactly that key and leaves him in as
+ * a player — precisely as it did when he was two rows.
+ */
+export interface AudiencePerson {
+  /** `people.id`. The row is the person; the memberships hang off it. */
+  personId: string;
+  /** Every selection key this human holds, in `CAPACITY_PRECEDENCE` order. */
+  keys: string[];
+  /** The capacity a write resolves them to — the first of `capacities`. */
+  capacity: AudienceCapacity;
+  /** Every capacity they qualify under, in `CAPACITY_PRECEDENCE` order. */
+  capacities: AudienceCapacity[];
+  /** Their standing in each of `capacities`, in the same order. */
+  standings: string[];
+  displayName: string;
+  /** Their playing unit, where they have one. */
+  unit: string | null;
+  contact: string | null;
+  isBps: boolean;
+}
+
+/**
+ * The catalogue as people rather than as capacities — one row per human,
+ * alphabetically, each carrying every capacity they hold.
+ *
+ * Deliberately the same collapse `resolveSelection` performs, by the same rule
+ * (`CAPACITY_PRECEDENCE`), so the row an operator ticks and the row the
+ * transaction writes cannot disagree about the capacity a person is invited
+ * under. That is why it lives here rather than in the component: a screen that
+ * re-implemented the collapse would eventually differ from the write by one
+ * person, and nobody would know which of the two was lying.
+ */
+export function audiencePeople(candidates: readonly AudienceCandidate[]): AudiencePerson[] {
+  const rank = (capacity: AudienceCapacity) => CAPACITY_PRECEDENCE.indexOf(capacity);
+  const byPerson = new Map<string, AudiencePerson>();
+
+  // Sorted rather than scanned twice, so the first candidate seen for a person
+  // is the one that wins and `capacities` comes out in precedence order without
+  // a second pass. `Array.prototype.sort` is stable, so two candidates of equal
+  // rank keep the catalogue's own order.
+  for (const candidate of [...candidates].sort((a, b) => rank(a.capacity) - rank(b.capacity))) {
+    const held = byPerson.get(candidate.personId);
+
+    if (!held) {
+      byPerson.set(candidate.personId, {
+        personId: candidate.personId,
+        keys: [candidate.key],
+        capacity: candidate.capacity,
+        capacities: [candidate.capacity],
+        standings: [candidate.standing],
+        displayName: candidate.displayName,
+        unit: candidate.unit,
+        contact: candidate.contact,
+        isBps: candidate.isBps ?? false,
+      });
+      continue;
+    }
+
+    held.keys.push(candidate.key);
+    // The catalogue already joins several seats held in one capacity into one
+    // line. This is that same join one level up, and it is here so that a second
+    // row within a capacity can never silently become a second person.
+    const at = held.capacities.indexOf(candidate.capacity);
+    if (at === -1) {
+      held.capacities.push(candidate.capacity);
+      held.standings.push(candidate.standing);
+    } else {
+      held.standings[at] = `${held.standings[at]}, ${candidate.standing}`;
+    }
+    held.unit = held.unit ?? candidate.unit;
+    held.contact = held.contact ?? candidate.contact;
+    held.isBps = held.isBps || (candidate.isBps ?? false);
+  }
+
+  return [...byPerson.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 /** One resolved audience member — exactly what a row and an invitation need. */

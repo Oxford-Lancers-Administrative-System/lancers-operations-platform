@@ -626,8 +626,9 @@ const GUARD_CASES: readonly GuardCase[] = [
     arrange: async (c) => {
       const eventId = await createScenarioEvent(c);
       await c.query(
-        `insert into public.event_audience_members (event_id, season_id, capacity, person_id)
+        `insert into public.event_audience_members (event_id, season_id, capacity, person_id, invitee_person_id)
          values ($1, (select season_id from public.events where id = $1), 'coach',
+                 (select id from public.people limit 1),
                  (select id from public.people limit 1))`,
         [eventId],
       );

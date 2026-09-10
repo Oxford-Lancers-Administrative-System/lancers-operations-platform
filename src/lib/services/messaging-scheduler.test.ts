@@ -395,8 +395,8 @@ async function fixture(
 
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-       values ($1, $2, 'player', $3, $4) returning id`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
       [eventId, seasonId, membership.rows[0].id, personId],
     );
 
@@ -1420,8 +1420,8 @@ async function noticeFixture(
 
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-       values ($1, $2, 'player', $3, $4) returning id`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
       [eventId, seasonId, membership.rows[0].id, personId],
     );
 

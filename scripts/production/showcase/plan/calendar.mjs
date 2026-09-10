@@ -410,11 +410,20 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
     // and two invitations for one human — which the database would then refuse
     // on the invitation's own idempotency key. The squad membership wins,
     // because that is the capacity the event was drawn for.
+    //
+    // LAN-294: this said `person` and compared **membership ids** for players
+    // against **person ids** for staff — two different id spaces, so one human
+    // never collided with themselves and the dedupe this comment describes
+    // silently did nothing across the seam it was written for. 840 person/event
+    // pairs carried two audience rows and two invitations each, which is what
+    // Brian read off the participation table and the confirmed-audience count on
+    // 2026-09-10. The database now refuses the second row outright
+    // (`event_audience_members_one_per_human_per_event`, on the denormalised
+    // `invitee_person_id`); this is the seed saying it before it gets there.
     const byPerson = new Set();
     const unique = members.filter((member) => {
-      const person = member.kind === "player" ? member.membershipId : member.personId;
-      if (byPerson.has(person)) return false;
-      byPerson.add(person);
+      if (byPerson.has(member.personId)) return false;
+      byPerson.add(member.personId);
       return true;
     });
 
@@ -428,6 +437,9 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           capacity: member.capacity,
           season_membership_id: member.kind === "player" ? member.membershipId : null,
           person_id: member.kind === "player" ? null : member.personId,
+          // Invariant P9 (LAN-294): the human, denormalised so one row per
+          // person per event is a unique index.
+          invitee_person_id: member.personId,
           added_at: confirmedAt,
           added_by_person_id: actorPersonId,
         },

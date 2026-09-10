@@ -180,8 +180,10 @@ async function approveScenarioEvent(eventId: string): Promise<void> {
 
   await client.query(
     `insert into public.event_audience_members
-       (event_id, season_id, capacity, season_membership_id, added_at, added_by_person_id)
-     select $1, $2, 'player', membership.id, now(), $3
+       (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_at, added_by_person_id)
+     select $1, $2, 'player', membership.id,
+            (select m.person_id from public.season_memberships m where m.id = membership.id),
+            now(), $3
        from unnest($4::uuid[]) as membership(id)`,
     [eventId, season.season_id, approver.id, MEMBERSHIPS],
   );
@@ -540,8 +542,8 @@ describe("cleanup.sql removes the scenario and only the scenario", () => {
     const audience = await one<{ id: string }>(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id)
-       values ($1, $2, 'player', $3) returning id`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id)
+       values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3)) returning id`,
       [other.id, other.season_id, MEMBERSHIPS[0]],
     );
     await client.query(

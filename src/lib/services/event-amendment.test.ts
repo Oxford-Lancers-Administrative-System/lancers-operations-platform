@@ -153,8 +153,12 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   };
 }
 
-async function catalogueFor(seasonId: string, on: string | null): Promise<AudienceCatalogue> {
-  const full = await withTransaction((tx) => listAudienceCatalogueIn(tx, seasonId, on));
+async function catalogueFor(
+  seasonId: string,
+  on: string | null,
+  eventType: string,
+): Promise<AudienceCatalogue> {
+  const full = await withTransaction((tx) => listAudienceCatalogueIn(tx, seasonId, on, eventType));
   const candidates = full.candidates.filter((candidate) => seededPeople.has(candidate.personId));
   return { candidates, counts: full.counts };
 }
@@ -168,7 +172,7 @@ async function catalogueFor(seasonId: string, on: string | null): Promise<Audien
  */
 async function approvedEvent(overrides: Partial<EventDraftInput> = {}) {
   const event = await createEventDraft(actorPersonId, draft(overrides));
-  const catalogue = await catalogueFor(event.seasonId, event.scheduledOn);
+  const catalogue = await catalogueFor(event.seasonId, event.scheduledOn, event.eventType);
   const keys = catalogue.candidates.slice(0, 6).map((candidate) => candidate.key);
   expect(keys.length).toBe(6);
 

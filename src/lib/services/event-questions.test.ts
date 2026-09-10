@@ -177,14 +177,19 @@ async function statusOf(eventId: string): Promise<string> {
 /** Puts a real audience on a draft, so approval has something to confirm. */
 async function giveAudience(eventId: string): Promise<number> {
   const keys = await withTransaction(async (tx) => {
-    const event = await tx.query<{ season_id: string; scheduled_on: Date | null }>(
-      "select season_id, scheduled_on from public.events where id = $1",
+    const event = await tx.query<{
+      season_id: string;
+      scheduled_on: Date | null;
+      event_type: string;
+    }>(
+      "select season_id, scheduled_on, event_type::text as event_type from public.events where id = $1",
       [eventId],
     );
     const catalogue = await listAudienceCatalogueIn(
       tx,
       event.rows[0].season_id,
       event.rows[0].scheduled_on?.toISOString().slice(0, 10) ?? null,
+      event.rows[0].event_type,
     );
     return catalogue.candidates
       .filter((candidate) => candidate.capacity === "player")

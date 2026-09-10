@@ -192,13 +192,19 @@ describe("invariant P7 — all five states are derivable", () => {
 
 describe("the resolved audience as a relation", () => {
   it("refuses duplicate membership of an event's audience", async () => {
+    // Either name is the same refusal since LAN-294: repeating an anchor
+    // necessarily repeats the human, so the older partial index and the newer
+    // total one both hold. Which of them answers is PostgreSQL's business.
+    const sameInvitee = /one_per_player_per_event|one_per_person_per_event|one_per_human_per_event/;
+
     await expectRejected(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id)
-       values ($1, $2, 'player', $3)`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id)
+       values ($1, $2, 'player', $3,
+               (select m.person_id from public.season_memberships m where m.id = $3))`,
       [base.approvedEventId, base.seasonId, base.membershipId],
-      "event_audience_members_one_per_player_per_event",
+      sameInvitee,
     );
 
     const person = await confirmAudienceMember(
@@ -211,10 +217,107 @@ describe("the resolved audience as a relation", () => {
     await expectRejected(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, person_id)
-       values ($1, $2, 'committee', $3)`,
+         (event_id, season_id, capacity, person_id, invitee_person_id)
+       values ($1, $2, 'committee', $3, $3)`,
       [base.approvedEventId, base.seasonId, base.otherPersonId],
-      "event_audience_members_one_per_person_per_event",
+      sameInvitee,
+    );
+  });
+
+  /**
+   * Invariant P9 — LAN-294, and the gap the two indexes above could not see.
+   *
+   * Each of them is *partial*, and they are anchored on different columns:
+   * `one_per_player_per_event` on `season_membership_id`,
+   * `one_per_person_per_event` on `person_id`. Invariant P8's
+   * `anchor_matches_capacity` then forces a player row to fill only the first
+   * and every other capacity only the second — so one human admitted as a
+   * player *and* as a committee member violates neither. Between them they say
+   * "one row per invitee **per anchor**", which is a weaker sentence than the
+   * one they read as.
+   *
+   * It was not hypothetical: both seeds wrote that pair for anybody who plays
+   * and also holds a seat, and Brian read the consequence off the screen on
+   * 2026-09-10 — Bertram and Caspian counted twice in the confirmed audience
+   * and listed twice in the participation table.
+   */
+  it("refuses the same human twice across the two anchors", async () => {
+    // `base.membershipId` belongs to `base.personId`, and the baseline already
+    // confirmed them as a player. Adding them again as a committee member fills
+    // a different column, so neither older index fires.
+    await expectRejected(
+      client,
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, person_id, invitee_person_id)
+       values ($1, $2, 'committee', $3, $3)`,
+      [base.approvedEventId, base.seasonId, base.personId],
+      "event_audience_members_one_per_human_per_event",
+    );
+  });
+
+  it("still admits a second human under the other anchor", async () => {
+    // The negative case, because a guard that refused everything would pass the
+    // test above and break every real approval.
+    await expectAccepted(
+      client,
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, person_id, invitee_person_id)
+       values ($1, $2, 'committee', $3, $3)`,
+      [base.approvedEventId, base.seasonId, base.otherPersonId],
+    );
+  });
+
+  it("refuses a row whose human disagrees with the membership it anchors to", async () => {
+    // The copy has to be kept honest or it guards nothing: a player row naming
+    // somebody else's person would let two humans share one slot. ADR 0008's
+    // device — the child carries the parent's discriminator, joined back by a
+    // composite foreign key — is what stops it, rather than trust.
+    await expectRejected(
+      client,
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id)
+       values ($1, $2, 'player', $3, $4)`,
+      // On the draft, whose audience is empty, so the composite foreign key is
+      // the only rule this row can break.
+      [base.draftEventId, base.seasonId, base.membershipId, base.otherPersonId],
+      "event_audience_members_invitee_holds_the_membership",
+    );
+  });
+
+  it("refuses a non-player row whose human disagrees with its own anchor", async () => {
+    await expectRejected(
+      client,
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, person_id, invitee_person_id)
+       values ($1, $2, 'committee', $3, $4)`,
+      [base.draftEventId, base.seasonId, base.otherPersonId, base.personId],
+      "event_audience_members_invitee_is_the_anchor_person",
+    );
+  });
+
+  it("carries one invitation per human with it, without a rule of its own", async () => {
+    // Brian, 2026-09-10: "One invitation per person per event." Nothing on
+    // `invitations` enforces that directly and nothing needs to:
+    // `invitations_belong_to_the_resolved_audience` binds every invitation to
+    // one audience member's event, capacity and participant, and an audience
+    // member is now one human. So the only way to invite somebody twice is two
+    // audience rows, which the index above refuses.
+    const bound = await one<{ count: string }>(
+      client,
+      `select count(*) as count from pg_constraint
+        where conrelid = 'public.invitations'::regclass
+          and conname = 'invitations_belong_to_the_resolved_audience'`,
+    );
+    expect(Number(bound.count)).toBe(1);
+
+    await expectRejected(
+      client,
+      `insert into public.invitations
+         (event_id, event_status, season_id, audience_member_id,
+          capacity, season_membership_id)
+       values ($1, 'approved', $2, $3, 'player', $4)`,
+      [base.approvedEventId, base.seasonId, base.audienceMemberId, base.membershipId],
+      "invitations_one_per_player_per_event",
     );
   });
 
@@ -222,8 +325,9 @@ describe("the resolved audience as a relation", () => {
     await expectRejected(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id)
-       values ('00000000-0000-4000-8000-000000000000', $1, 'player', $2)`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id)
+       values ('00000000-0000-4000-8000-000000000000', $1, 'player', $2,
+               (select m.person_id from public.season_memberships m where m.id = $2))`,
       [base.seasonId, base.otherMembershipId],
       /event_audience_members_event_id_fkey|event_audience_members_event_same_season/,
     );
@@ -233,8 +337,9 @@ describe("the resolved audience as a relation", () => {
     await expectRejected(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, person_id)
-       values ($1, $2, 'coach', '00000000-0000-4000-8000-000000000000')`,
+         (event_id, season_id, capacity, person_id, invitee_person_id)
+       values ($1, $2, 'coach', '00000000-0000-4000-8000-000000000000',
+               '00000000-0000-4000-8000-000000000000')`,
       [base.approvedEventId, base.seasonId],
       "event_audience_members_person_id_fkey",
     );
@@ -244,8 +349,9 @@ describe("the resolved audience as a relation", () => {
     await expectRejected(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id)
-       values ($1, $2, 'player', $3)`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id)
+       values ($1, $2, 'player', $3,
+               (select m.person_id from public.season_memberships m where m.id = $3))`,
       [base.approvedEventId, base.otherSeasonId, base.otherMembershipId],
       "event_audience_members_event_same_season",
     );
@@ -254,9 +360,9 @@ describe("the resolved audience as a relation", () => {
   it("refuses an audience member with no anchor at all", async () => {
     await expectRejected(
       client,
-      `insert into public.event_audience_members (event_id, season_id, capacity)
-       values ($1, $2, 'player')`,
-      [base.approvedEventId, base.seasonId],
+      `insert into public.event_audience_members (event_id, season_id, capacity, invitee_person_id)
+       values ($1, $2, 'player', $3)`,
+      [base.approvedEventId, base.seasonId, base.otherPersonId],
       "event_audience_members_anchor_matches_capacity",
     );
   });
@@ -265,8 +371,9 @@ describe("the resolved audience as a relation", () => {
     await expectAccepted(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id)
-       values ($1, $2, 'player', $3)`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id)
+       values ($1, $2, 'player', $3,
+               (select m.person_id from public.season_memberships m where m.id = $3))`,
       [base.draftEventId, base.seasonId, base.membershipId],
     );
   });

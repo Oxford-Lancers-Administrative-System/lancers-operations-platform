@@ -128,6 +128,33 @@ alone** (D46). The unit control filters who is on screen and creates no group
 (D44). Inactive people are never offered (D45). The sentence under the heading
 names the template that supplied the default audience, or says nothing arrived.
 
+**One row per person** (LAN-294, Brian 2026-09-10). The list is people, not
+memberships: somebody who plays, coaches and sits on the committee is one row
+with one tick, wherever the audience is shown or used — this picker, the
+audience summary, the approval review, the invitations written on approval, the
+participation table and every count. The row's second line carries all their
+roles, and how it is subdivided does not matter ("it can be one thing; it can be
+subdivided"); the build writes each capacity with its standing, the playing unit
+against the player capacity, and one contact at the close — labels and values
+only, no sentence. Ticking a row takes the whole person in or out. **One
+invitation per person per event**, which the database now refuses to break
+(invariant P9's `event_audience_members_one_per_human_per_event`; invitations
+inherit it), and the capacity written is the highest of theirs by
+`CAPACITY_PRECEDENCE` — player first.
+
+The **Capacity** filter reads as "is this person a coach", not "is this row a
+coaching row", so a coach who also plays is still found under Coaches.
+
+**Recruits are not merely hidden off a Recruitment event — they are not
+offered** (LAN-295, Brian 2026-09-10: "Recruits should only ever be selectable
+and only ever be available for a recruitment event. Every other event, they're
+non-factors"). The gate is the audience service, not the screen: on any event
+whose behavioural class is not `recruitment` the catalogue contains no recruit
+at all, so there is no row to tick, no Recruits entry in the Capacity filter, and
+a recruit key posted by any other means is refused rather than dropped. The rule
+keys on `events.event_type`, never on a template's name — after LAN-265 an
+operator names templates freely and everything they create is `practice` class.
+
 ### `W4-03` — the approval review
 
 - **The audience is named by its groups before its people** — "All active
@@ -247,6 +274,8 @@ not and why**, and what will not move at all. The button says what it will do.
 | **Saving a template — create, rename or an ordinary edit — returns to the list**     | LAN-276 correction round 1, Brian 2026-09-10 |
 | A template supplies a default audience                                               | D47, reversing LAN-77                        |
 | Four standing groups, plus recruits on Recruitment alone                             | D43, D46                                     |
+| **One row per person everywhere; one invitation per person per event**               | LAN-294, Brian 2026-09-10                    |
+| **Recruits are not offered at all off a Recruitment-class event**                    | LAN-295, Brian 2026-09-10                    |
 | No unit or kit groups; the unit control filters                                      | D44                                          |
 | Inactive people are never invited                                                    | D45                                          |
 | Description and required equipment are separate fields                               | D17, D18                                     |

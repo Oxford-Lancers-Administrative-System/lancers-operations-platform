@@ -291,8 +291,8 @@ async function fixture(
 
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
-       (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-     values ($1, $2, 'player', $3, $4) returning id`,
+       (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+     values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
       [eventId, seasonId, membership.rows[0].id, personId],
     );
 
@@ -367,8 +367,8 @@ async function addInvitee(tag: string, phone = "07700 900444") {
 
   const audience = await observer.query<{ id: string }>(
     `insert into public.event_audience_members
-       (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-     values ($1, $2, 'player', $3, $4) returning id`,
+       (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+     values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
     [event.rows[0].id, event.rows[0].season_id, membership.rows[0].id, personId],
   );
 
@@ -1939,8 +1939,8 @@ describe("the recruit consent gate — LAN-203", () => {
 
       const audience = await observer.query<{ id: string }>(
         `insert into public.event_audience_members
-           (event_id, season_id, capacity, person_id, added_by_person_id)
-         values ($1, $2, 'recruit', $3, $3) returning id`,
+           (event_id, season_id, capacity, person_id, invitee_person_id, added_by_person_id)
+         values ($1, $2, 'recruit', $3, $3, $3) returning id`,
         [eventId, seasonId, personId],
       );
 

@@ -2734,6 +2734,9 @@ function addAudienceMember(event, { membership = null, person = null, capacity }
     capacity,
     season_membership_id: membership?.id ?? null,
     person_id: person?.id ?? null,
+    // Invariant P9 (LAN-294): the human, denormalised so one row per person per
+    // event is a unique index. A player row still anchors to the membership.
+    invitee_person_id: person?.id ?? membership.person_id,
     added_at: event.audience_confirmed_at ?? event.created_at,
     added_by_person_id: event.audience_confirmed_by_person_id,
   });
@@ -2777,13 +2780,26 @@ invitedEvents.forEach((event, index) => {
   const confirmed = invitableMemberships.slice(0, audienceSize);
   const skipCount = UNINVITED_AUDIENCE.get(index) ?? 0;
 
+  // LAN-294. One row per human, whatever they are on the team. Several of the
+  // seeded committee and coaching seats are held by people who also hold a
+  // season membership in `confirmed`, and each of them used to be written twice
+  // — once anchored to the membership as a player, once anchored to the person
+  // as staff. Neither of the table's two partial unique indexes could see that,
+  // because a player row fills `season_membership_id` and a staff row fills
+  // `person_id`; the trigger added with this seed's fix does, and refuses it.
+  // The playing membership wins, matching `CAPACITY_PRECEDENCE`.
+  const alreadyIn = new Set();
+
   confirmed.forEach((membership, position) => {
+    alreadyIn.add(membership.person_id);
     const member = addAudienceMember(event, { membership, capacity: "player" });
     if (position >= confirmed.length - skipCount) return;
     inviteAudienceMember(event, member, "pending");
   });
 
   for (const { person, capacity } of staffInvitees) {
+    if (alreadyIn.has(person.id)) continue;
+    alreadyIn.add(person.id);
     const member = addAudienceMember(event, { person, capacity });
     inviteAudienceMember(event, member, "pending");
   }
@@ -2806,6 +2822,7 @@ function inviteRecruit(event, person) {
     capacity: "recruit",
     season_membership_id: null,
     person_id: person.id,
+    invitee_person_id: person.id,
     added_at: event.audience_confirmed_at ?? event.created_at,
     added_by_person_id: event.audience_confirmed_by_person_id,
   });
@@ -5300,6 +5317,7 @@ const WRITE_PLAN = [
       "capacity",
       "season_membership_id",
       "person_id",
+      "invitee_person_id",
       "added_at",
       "added_by_person_id",
     ],

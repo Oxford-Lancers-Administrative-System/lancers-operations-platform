@@ -304,6 +304,38 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
       { rule: "event_audience_members_anchor_matches_capacity", context },
     ),
 
+  // Invariant P9, LAN-294 — and the reason it needed saying at all. A person who
+  // plays, coaches and sits on the committee is one person, and the club sends
+  // them one message. The pair of partial unique indexes above this could not
+  // say that between them: a player anchors to a membership and everybody else
+  // to a person, so one human under two capacities fills two different columns
+  // and collides with neither. `invitee_person_id` is what makes the human
+  // indexable; these are the sentences an operator gets when the index fires.
+  event_audience_members_one_per_human_per_event: (context) =>
+    new ConstraintViolated(
+      "That person is already in this event's audience. Somebody who plays and also " +
+        "coaches or sits on the committee is invited once, not once per role.",
+      { rule: "event_audience_members_one_per_human_per_event", context },
+    ),
+
+  // The copy of the human that makes the rule above indexable, kept honest. A
+  // player's row must name the person who actually holds the membership it
+  // anchors to, and everybody else's must name their own anchor — a row that
+  // said otherwise would let two people share one slot in an event's audience.
+  event_audience_members_invitee_holds_the_membership: (context) =>
+    new ConstraintViolated(
+      "That audience row names a different person from the season membership it was " +
+        "added through. Rebuild the audience and try again.",
+      { rule: "event_audience_members_invitee_holds_the_membership", context },
+    ),
+
+  event_audience_members_invitee_is_the_anchor_person: (context) =>
+    new ConstraintViolated(
+      "That audience row names a different person from the one it was added for. " +
+        "Rebuild the audience and try again.",
+      { rule: "event_audience_members_invitee_is_the_anchor_person", context },
+    ),
+
   // The same rule on the attendance table, and the one place it is genuinely
   // easy to get wrong: a player is recorded against their **membership** at
   // player capacity, and everybody else against the durable **person** — a

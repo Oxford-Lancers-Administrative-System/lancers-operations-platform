@@ -286,8 +286,8 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     // member is allowed against a draft — resolving one is what LAN-77 does
     // before approval — and the invitation that would follow is not.
     const member = await observer.query<{ id: string }>(
-      `insert into public.event_audience_members (event_id, season_id, capacity, person_id)
-       values ($1, $2, 'coach', $3) returning id`,
+      `insert into public.event_audience_members (event_id, season_id, capacity, person_id, invitee_person_id)
+       values ($1, $2, 'coach', $3, $3) returning id`,
       [event.id, event.seasonId, actorPersonId],
     );
 
