@@ -153,6 +153,23 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
     expectedGraduationYearSource: "academic",
     degreeField: "academic",
     degreeFieldSource: "academic",
+    // LAN-267's two identifiers. `academic` rather than `standing`, and
+    // deliberately not a sixth category.
+    //
+    // They are durable, non-contact facts about the person, exactly like
+    // college and matriculation year, and LAN-267's own words for how they are
+    // held are "under the same privacy handling as the other personal facts" —
+    // which is this row. `standing` would be wrong in the one direction that
+    // matters: it is the category `missingRequiredFields` sits in, the widest
+    // thing on the record, and a personal identifier does not belong in the
+    // widest category. A new category is an authority decision (`Q-4`), not
+    // one this package makes; if a later grant needs to separate a BAFA
+    // number from a college, that is an edit to one row here, which is exactly
+    // what the category design is for.
+    studentNumber: "academic",
+    studentNumberSource: "academic",
+    bafaRegistrationNumber: "academic",
+    bafaRegistrationNumberSource: "academic",
     dateOfBirth: "restricted",
     dateOfBirthSource: "restricted",
     emergencyContact: "restricted",

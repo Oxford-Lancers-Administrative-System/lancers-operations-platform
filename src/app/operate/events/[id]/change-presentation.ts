@@ -77,6 +77,8 @@ export const QUEUED_MESSAGES_HEADING = "Messages already queued";
 /** W5-01 and W6-01's two ways out of an approved event. */
 export const EDIT_EVENT_LABEL = "Edit event";
 export const CANCEL_EVENT_LABEL = "Cancel event";
+/** LAN-267. A game-day action, on a game only. */
+export const ROSTER_FORM_LABEL = "Roster form";
 
 /** The label on the button that commits the amendment. */
 export function saveAndNotifyLabel(notify: boolean, recipients: number): string {

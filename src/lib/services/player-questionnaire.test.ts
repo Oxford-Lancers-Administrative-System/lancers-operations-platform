@@ -144,9 +144,12 @@ function baseDetailsInput(
       matriculation_year: "2024",
       expected_graduation_year: "2027",
       degree_field: "Engineering Science",
+      student_number: "1234567",
+      bafa_registration_number: "BAFA-1234",
       date_of_birth: "2005-03-14",
     },
     mobile: "07700 900123",
+    collegeEmail: `${unique("player")}@balliol.ox.ac.uk`,
     personalEmail: `${unique("player")}@example.ox.ac.uk`,
     emergencyContact: {
       givenName: "Casey",

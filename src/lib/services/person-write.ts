@@ -430,6 +430,20 @@ export type PersonFieldUpdate =
   | { field: "matriculation_year"; value: number | null }
   | { field: "expected_graduation_year"; value: number | null }
   | { field: "degree_field"; value: string | null }
+  /**
+   * The university's own identifier. LAN-267: collected on the player
+   * questionnaire and printed beside the name on the BAFRA roster form. Free
+   * text — the club has no authority over its shape, and refusing a real one
+   * would lose it.
+   */
+  | { field: "student_number"; value: string | null }
+  /**
+   * LAN-267, and the reason it is here rather than questionnaire-only: a coach
+   * is invited and given a role assignment and never sees a questionnaire, so
+   * if this could only arrive that way the roster form's coach table would
+   * print blank at every game — which is the half the officials need.
+   */
+  | { field: "bafa_registration_number"; value: string | null }
   /** `YYYY-MM-DD`, or `null`. Restricted — `REQ-restricted-fields` — but this is the one edit surface it is reached from. */
   | { field: "date_of_birth"; value: string | null };
 
@@ -440,6 +454,8 @@ const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> 
   matriculation_year: "the matriculation year",
   expected_graduation_year: "expected graduation",
   degree_field: "the degree field",
+  student_number: "the student number",
+  bafa_registration_number: "the BAFA registration number",
   date_of_birth: "date of birth",
 });
 
@@ -450,6 +466,8 @@ const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>>
   matriculation_year: "matriculation_year",
   expected_graduation_year: "expected_graduation_year",
   degree_field: "degree_field",
+  student_number: "student_number",
+  bafa_registration_number: "bafa_registration_number",
   date_of_birth: "date_of_birth",
 });
 

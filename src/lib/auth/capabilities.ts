@@ -299,8 +299,24 @@ export const PROTECTED_LEADERSHIP_AUTHORITY: Readonly<
  * enforcement when it is neither. The Availability Management mission owns it,
  * and this note is where it starts.
  */
+/**
+ * The head coach's own seat code, named here rather than at its call site.
+ *
+ * LAN-267's roster form has to tell the head coach from the other coaching
+ * seats — "head coach → HC, every other coaching seat → AC" (Brian,
+ * 2026-09-09) — and `tests/capability-map-single-source.test.ts` makes this
+ * module the only place in `src/` permitted to name a `public.roles` code in a
+ * string literal. That rule is why this is a constant and not a comparison in
+ * `roster-form.ts`: a role code deciding anything, anywhere else, is a second
+ * place the catalogue can drift from.
+ *
+ * It is the first entry of {@link FIXED_COACHING_ROLE_CODES} and is asserted
+ * to stay so, so the two can never disagree about which seat this is.
+ */
+export const HEAD_COACH_ROLE_CODE = "head_coach";
+
 export const FIXED_COACHING_ROLE_CODES: readonly string[] = Object.freeze([
-  "head_coach",
+  HEAD_COACH_ROLE_CODE,
   "offence_coach",
   "defence_coach",
   "quarterbacks_coach",

@@ -80,12 +80,33 @@ export const SECTION_EMERGENCY_CONTACT = "Emergency contact";
 export const FIELD_GIVEN_NAME = "First name";
 export const FIELD_FAMILY_NAME = "Last name";
 export const FIELD_MOBILE = "Mobile phone";
+/**
+ * LAN-268. The club's own proof that whoever is filling this in is at the
+ * university, so it sits with the name and the phone as a required fact, not
+ * with the academic ones. The hint carries the rule the refusal will name.
+ */
+export const FIELD_COLLEGE_EMAIL = "College email";
+export const FIELD_COLLEGE_EMAIL_HINT = "Your university address — it ends in ox.ac.uk.";
 export const FIELD_PERSONAL_EMAIL = "Personal email";
 export const FIELD_COLLEGE = "College";
 export const FIELD_MATRICULATION_YEAR = "Matriculation year";
 export const FIELD_EXPECTED_GRADUATION = "Expected graduation";
 export const FIELD_DEGREE_FIELD = "Degree field";
 export const FIELD_DATE_OF_BIRTH = "Date of birth";
+
+/**
+ * LAN-267's two identifiers. Neither is required: a player who does not know
+ * their BAFA number at sign-up must not be blocked by it, and the roster form
+ * prints a blank row and names them in its warning line instead. The section
+ * says plainly what they are for, because "student number" out of context
+ * reads as an administrative demand rather than the game-day requirement it
+ * is.
+ */
+export const SECTION_GAME_DAY = "For game day";
+export const SECTION_GAME_DAY_NOTE =
+  "The officials' roster form asks for these at every game. Leave either blank if you do not have it yet.";
+export const FIELD_STUDENT_NUMBER = "Student number";
+export const FIELD_BAFA_NUMBER = "BAFA registration number";
 
 export const FIELD_EC_GIVEN_NAME = "Emergency contact first name";
 export const FIELD_EC_FAMILY_NAME = "Emergency contact last name";

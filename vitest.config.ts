@@ -95,6 +95,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/recruitment-signup-codes.test.ts",
   "src/lib/services/recruitment-signup.test.ts",
   "src/lib/services/roster-board.test.ts",
+  "src/lib/services/roster-form-read.test.ts",
   "src/lib/services/roster-import.test.ts",
   "src/lib/services/roster.test.ts",
   "src/lib/services/rsvp-tokens.test.ts",

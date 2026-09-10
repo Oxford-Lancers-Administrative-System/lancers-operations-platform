@@ -1116,7 +1116,7 @@ function EventDetailView({
 
         <Stack spacing={2} sx={{ maxWidth: 420 }}>
           {mayApprove && event.status === "approved" ? (
-            <ApprovedEventActions eventId={event.id} />
+            <ApprovedEventActions eventId={event.id} isGame={event.eventType === "game"} />
           ) : null}
 
           {mayAdministerDelivery && !preApproval ? (

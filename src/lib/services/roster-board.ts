@@ -9,6 +9,7 @@ import {
 } from "./membership";
 import type { AssembledStatus, PersonFactPresence } from "./person-required";
 import { missingRequiredFields } from "./person-required";
+import { isOxfordCollegeEmail } from "./person-validation";
 import type { Season } from "./seasons";
 
 /**
@@ -337,6 +338,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         degree_field: string | null;
         date_of_birth: string | null;
         has_personal_email: boolean;
+        college_email: string | null;
       }>(
         `select id, college, matriculation_year, expected_graduation_year, degree_field,
                 to_char(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
@@ -344,7 +346,15 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
                   select 1 from public.contact_points c
                    where c.person_id = people.id and c.kind = 'email'
                      and c.scope = 'personal' and c.valid_until is null
-                ) as has_personal_email
+                ) as has_personal_email,
+                -- The value, not a boolean: whether it counts is the Oxford
+                -- rule's answer, and that rule has one home (LAN-268).
+                (select coalesce(nullif(btrim(c.normalised_value), ''), c.raw_value)
+                   from public.contact_points c
+                  where c.person_id = people.id and c.kind = 'email'
+                    and c.scope = 'college' and c.valid_until is null
+                  order by c.is_preferred desc, c.valid_from desc
+                  limit 1) as college_email
            from public.people people
           where id = any($1::uuid[])`,
         [personIds],
@@ -519,6 +529,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         givenName: true,
         familyName: entry.familyName !== null,
         mobile: entry.phone !== null,
+        collegeEmail: isOxfordCollegeEmail(person?.college_email ?? null),
         personalEmail: person?.has_personal_email ?? false,
         college: (person?.college ?? null) !== null,
         matriculationYear: (person?.matriculation_year ?? null) !== null,

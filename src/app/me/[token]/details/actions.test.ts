@@ -79,6 +79,8 @@ const VALID_FIELDS: Record<string, string> = {
   given_name: "Jordan",
   family_name: "Ashworth",
   mobile: "07700 900000",
+  // LAN-268: required on step 1, alongside the name and the phone.
+  college_email: "jordan.ashworth@stpeters.ox.ac.uk",
   personal_email: "jordan@example.com",
   college: "St Peter's",
   matriculation_year: "2023",

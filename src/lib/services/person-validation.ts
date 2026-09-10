@@ -345,3 +345,119 @@ export function validateDateOfBirth(raw: string, today: Date = new Date()): Cont
     message: "This is a valid date of birth.",
   };
 }
+
+/**
+ * The Oxford college address — LAN-268, Brian 2026-09-09.
+ *
+ * > "I had a weird online guy trying to join one year and he wasn't a student.
+ * > At the end of the day, every student at freshers fair or MBA will have this
+ * > very basic item."
+ *
+ * The college email is the club's own proof that a recruit or a player is
+ * actually at the university, so the forms ask the tough question: an address
+ * is a college address only when its domain is `ox.ac.uk` or a subdomain of
+ * it. Every Oxford college and department address ends that way —
+ * `@ox.ac.uk`, `@balliol.ox.ac.uk`, `@sbs.ox.ac.uk`,
+ * `@dept.college.ox.ac.uk`. Nothing else is accepted: not `gmail.com`, not
+ * another university, and not the look-alikes that matter most.
+ * `oxford.ac.uk` is a different domain, `notox.ac.uk` merely ends in the same
+ * letters, and `ox.ac.uk.evil.com` is somebody else's domain wearing the name.
+ *
+ * ## One rule, one message, one function
+ *
+ * LAN-268's own instruction. Four surfaces ask this question — the sign-up
+ * door, add-by-hand, the player questionnaire's step 1, and the operator's
+ * edit form — and a second copy of a rule whose whole job is to keep the wrong
+ * person out is a copy that drifts. Everything below is pure and carries no
+ * `server-only`, exactly like its siblings, so a form's own check and the
+ * write path that finally commits the value give the same answer.
+ *
+ * ## Shape first, domain second
+ *
+ * `validateEmailAddress` already owns "does this look like an email at all",
+ * and this defers to it rather than re-deriving it: a value that is not an
+ * email is refused as one, naming the shape rule, and only something that got
+ * that far is asked which domain it is in. So a player who typed their name
+ * into the box is told they have not typed an address, not that their address
+ * is not Oxford's.
+ *
+ * ## Required-ness is somewhere else
+ *
+ * This says whether a supplied value is a college address. Whether a college
+ * address is *required* of a particular person is `person-required.ts`'s tier
+ * table, and whether a blank field blocks a particular form is that form's own
+ * required-ness check. The three are kept apart on purpose, exactly as they
+ * already are for every other fact: a coach who supplies no college email is
+ * not chased for one, but a coach who supplies `x@gmail.com` is still refused,
+ * because a value stored as a college address has to be one.
+ */
+
+/** The one sentence every surface shows. LAN-268: "the refusal names the rule". */
+export const COLLEGE_EMAIL_RULE_MESSAGE = "Enter your Oxford address; it ends in ox.ac.uk";
+
+/**
+ * `@ox.ac.uk`, or `@` any number of subdomain labels then `.ox.ac.uk`.
+ *
+ * Anchored at the end, so `ox.ac.uk.evil.com` cannot match; the `@` or `.`
+ * immediately before `ox` is what refuses `notox.ac.uk` and `oxford.ac.uk`.
+ * Applied to the lower-cased address, because a domain is case-insensitive and
+ * `@Balliol.OX.AC.UK` is the same college.
+ */
+const OXFORD_DOMAIN = /@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*ox\.ac\.uk$/;
+
+/**
+ * Whether this address is an Oxford one. The pure predicate, for the places
+ * that want the answer rather than the sentence — the missing-data queue asks
+ * it of a value already on file, where "not an Oxford address" and "no
+ * address" are the same outcome (LAN-268: "a person whose stored college email
+ * fails the rule, or who has none, shows in the missing-data queue").
+ *
+ * A value that is not a well-formed email at all is not an Oxford address
+ * either, so this answers `false` rather than throwing.
+ */
+export function isOxfordCollegeEmail(raw: string | null | undefined): boolean {
+  if (typeof raw !== "string") return false;
+  const trimmed = raw.trim();
+  if (!EMAIL_SHAPE.test(trimmed)) return false;
+  return OXFORD_DOMAIN.test(trimmed.toLowerCase());
+}
+
+/**
+ * Validates one college email, naming the rule — the same shape every other
+ * function in this module returns, so a caller switches on `rule` and shows
+ * `message` without knowing which check refused.
+ *
+ * A blank value is `college_email_blank`. Required-ness is the caller's
+ * decision, and a caller that does not require the field simply never asks
+ * this about a blank one.
+ */
+export function validateCollegeEmail(raw: string): ContactValidation {
+  const trimmed = raw.trim();
+
+  if (trimmed === "") {
+    return {
+      valid: false,
+      rule: "college_email_blank",
+      message: "A college email is required.",
+    };
+  }
+
+  // Shape before domain: "that is not an address" is a more useful sentence
+  // than "that is not an Oxford address" when somebody typed their name.
+  const shape = validateEmailAddress(trimmed);
+  if (!shape.valid) return shape;
+
+  if (!OXFORD_DOMAIN.test(trimmed.toLowerCase())) {
+    return {
+      valid: false,
+      rule: "college_email_not_oxford",
+      message: COLLEGE_EMAIL_RULE_MESSAGE,
+    };
+  }
+
+  return {
+    valid: true,
+    rule: "college_email_oxford",
+    message: "This is a valid Oxford address.",
+  };
+}

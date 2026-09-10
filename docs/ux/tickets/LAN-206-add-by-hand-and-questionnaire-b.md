@@ -140,6 +140,16 @@ required rule ("mobile or email") is not loosened; this door adds its own
 stricter field error and its own service-layer backstop
 (`requireMobileProvided`) on top of it.
 
+## The required set at this door (LAN-268, LAN-211)
+
+The same four things the recruit's own sign-up door asks for: first name, last
+name, mobile and college email. An operator adding somebody by hand records the
+same fact about the same person, so the door is held to the same rule rather
+than a looser one, and the college email is validated to the Oxford rule (see
+`LAN-202-signup-consent-gate.md`) inline as it is typed and again on the
+server. The mobile and the emergency contact's phone are both the shared
+two-part control (LAN-211).
+
 ## The send machinery — `declareRecruitmentCycleJobsIn`, called once
 
 With opt-in evidence recorded, `finishRecruitmentAddIn` grants

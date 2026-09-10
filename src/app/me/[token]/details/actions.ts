@@ -178,9 +178,12 @@ export async function saveDetails(
       matriculation_year: values.matriculation_year,
       expected_graduation_year: values.expected_graduation_year,
       degree_field: values.degree_field,
+      student_number: values.student_number,
+      bafa_registration_number: values.bafa_registration_number,
       date_of_birth: values.date_of_birth,
     },
     mobile: values.mobile,
+    collegeEmail: values.college_email,
     personalEmail: values.personal_email,
     emergencyContact: {
       givenName: values.ec_given_name,

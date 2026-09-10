@@ -216,6 +216,13 @@ describe("readPersonRecord — assembly", () => {
       scope: "personal",
       rawValue: "bertram@example.com",
     });
+    // LAN-268: a player is required to have an Oxford college address, so a
+    // record without one is not a complete record any more.
+    await insertContact(personId, {
+      kind: "email",
+      scope: "college",
+      rawValue: "bertram.fielding@merton.ox.ac.uk",
+    });
     await insertEmergencyContact(personId, {
       givenName: "Jo",
       familyName: "Fielding",
@@ -235,8 +242,43 @@ describe("readPersonRecord — assembly", () => {
       phone: "+447700900999",
       email: null,
     });
-    expect(record.contacts).toHaveLength(2);
+    expect(record.contacts).toHaveLength(3);
     expect(record.missingRequiredFields).toEqual([]);
+  });
+
+  it("counts a stored college email that is not an Oxford one as missing", async () => {
+    // LAN-268: "A person whose stored college email fails the rule, or who has
+    // none, shows in the missing-data queue." Both are the same outcome, and
+    // this is the half prose alone would not catch.
+    const personId = await insertPerson({
+      givenName: unique("NonOxford"),
+      familyName: "Fielding",
+      college: "Merton",
+      matriculationYear: 2023,
+      expectedGraduationYear: 2027,
+      degreeField: "Engineering",
+      dateOfBirth: "2004-01-01",
+    });
+    await insertMembership(personId, "active");
+    await insertContact(personId, { kind: "phone", rawValue: "+447700900124" });
+    await insertContact(personId, {
+      kind: "email",
+      scope: "personal",
+      rawValue: "nonoxford@example.com",
+    });
+    await insertContact(personId, {
+      kind: "email",
+      scope: "college",
+      rawValue: "nonoxford@gmail.com",
+    });
+    await insertEmergencyContact(personId, {
+      givenName: "Jo",
+      familyName: "Fielding",
+      phone: "+447700900998",
+    });
+
+    const record = await readPersonRecord(personId);
+    expect(record.missingRequiredFields).toContain("college_email");
   });
 
   it("a recruit reads Recruit without holding a membership", async () => {
@@ -272,6 +314,14 @@ describe("readPersonRecord — assembly", () => {
     const personId = await insertPerson({ givenName: unique("NoSurname") });
     await insertProspect(personId);
     await insertContact(personId, { kind: "phone", rawValue: "+447700900111" });
+    // LAN-268 put the college email in the recruit tier too, so it is supplied
+    // here — this test is about the last name, and leaving it out would make
+    // the assertion about two things at once.
+    await insertContact(personId, {
+      kind: "email",
+      scope: "college",
+      rawValue: "nosurname@balliol.ox.ac.uk",
+    });
 
     const record = await readPersonRecord(personId);
 

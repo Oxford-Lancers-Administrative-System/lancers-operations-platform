@@ -18,6 +18,8 @@ export interface EditFieldErrors {
   matriculationYear?: string;
   expectedGraduationYear?: string;
   degreeField?: string;
+  studentNumber?: string;
+  bafaRegistrationNumber?: string;
   dateOfBirth?: string;
   emergencyGivenName?: string;
   emergencyFamilyName?: string;
@@ -49,6 +51,9 @@ export interface CorrectionReasonFormValues {
   matriculationYearReason: string;
   expectedGraduationYearReason: string;
   degreeFieldReason: string;
+  /** LAN-267. Same rule as every other person field: required to correct, never to fill. */
+  studentNumberReason: string;
+  bafaRegistrationNumberReason: string;
   dateOfBirthReason: string;
   emergencyGivenNameReason: string;
   emergencyFamilyNameReason: string;
@@ -94,6 +99,9 @@ export interface EditFormValues extends CorrectionReasonFormValues {
   matriculationYear: string;
   expectedGraduationYear: string;
   degreeField: string;
+  /** LAN-267. Operator-editable, because a coach never sees the player questionnaire. */
+  studentNumber: string;
+  bafaRegistrationNumber: string;
   dateOfBirth: string;
   emergencyGivenName: string;
   emergencyFamilyName: string;
@@ -123,6 +131,10 @@ export function readEditFormValues(formData: FormData): EditFormValues {
     expectedGraduationYearReason: optional(formData.get("expectedGraduationYearReason")),
     degreeField: optional(formData.get("degreeField")),
     degreeFieldReason: optional(formData.get("degreeFieldReason")),
+    studentNumber: optional(formData.get("studentNumber")),
+    studentNumberReason: optional(formData.get("studentNumberReason")),
+    bafaRegistrationNumber: optional(formData.get("bafaRegistrationNumber")),
+    bafaRegistrationNumberReason: optional(formData.get("bafaRegistrationNumberReason")),
     dateOfBirth: optional(formData.get("dateOfBirth")),
     dateOfBirthReason: optional(formData.get("dateOfBirthReason")),
     emergencyGivenName: optional(formData.get("emergencyGivenName")),

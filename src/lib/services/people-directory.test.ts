@@ -347,6 +347,13 @@ describe("listPeople — season scoping", () => {
       scope: "personal",
       rawValue: "complete@mail.example",
     });
+    // LAN-268 put the college email in the player tier, and it has to be an
+    // Oxford address to count at all.
+    await insertContact(complete, {
+      kind: "email",
+      scope: "college",
+      rawValue: "complete@merton.ox.ac.uk",
+    });
     // An active player's rung asks for the full player tier — every field
     // below has to be filled or this fixture is not actually complete.
     await observer.query(
@@ -369,6 +376,44 @@ describe("listPeople — season scoping", () => {
     const ids = list.entries.map((e) => e.personId);
     expect(ids).toContain(incomplete);
     expect(ids).not.toContain(complete);
+
+    // LAN-268: "A person whose stored college email fails the rule, or who has
+    // none, shows in the missing-data queue." The queue builds presence in its
+    // own SQL, so this is a different code path from the person record's, and
+    // a stale gmail address is the case that would otherwise look complete.
+    const stale = await insertPerson({ givenName: unique("Stale"), familyName: "Lanthorne" });
+    await insertMembership(stale, seasonId, "active");
+    await insertContact(stale, { kind: "phone", rawValue: "+447700900002" });
+    await insertContact(stale, {
+      kind: "email",
+      scope: "personal",
+      rawValue: "stale@mail.example",
+    });
+    await insertContact(stale, {
+      kind: "email",
+      scope: "college",
+      rawValue: "stale@gmail.com",
+    });
+    await observer.query(
+      `update public.people
+          set college = 'Merton', matriculation_year = 2023, expected_graduation_year = 2027,
+              degree_field = 'Engineering', date_of_birth = '2004-01-01'
+        where id = $1::uuid`,
+      [stale],
+    );
+    await observer.query(
+      `insert into public.person_emergency_contacts (person_id, given_name, phone)
+       values ($1::uuid, 'Test Contact', '+447700900997')`,
+      [stale],
+    );
+
+    const withStale = await listPeople({
+      scope: "in_season",
+      missingOnly: true,
+      status: "active",
+    });
+    const staleEntry = withStale.entries.find((e) => e.personId === stale);
+    expect(staleEntry?.missingRequiredFields).toContain("college_email");
   });
 
   it("sorts by how much is missing", async () => {

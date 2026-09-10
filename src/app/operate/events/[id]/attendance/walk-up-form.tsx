@@ -9,6 +9,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import { Field } from "@/components/field";
+import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 import { recordWalkUpAction } from "./actions";
 import { EMPTY_WALK_UP_STATE } from "./action-state";
@@ -116,10 +117,12 @@ export function WalkUpForm({ eventId }: { eventId: string }) {
             required
           />
 
-          <Field
-            label={WALK_UP_PHONE_LABEL}
+          {/* LAN-211. The one surface a coach reaches, and the one where a
+              mistyped country code costs the club a contact it can never
+              recover — the person is standing there once. */}
+          <PhoneField
             name="phone"
-            type="tel"
+            label={WALK_UP_PHONE_LABEL}
             defaultValue={values?.phone ?? ""}
             required
           />

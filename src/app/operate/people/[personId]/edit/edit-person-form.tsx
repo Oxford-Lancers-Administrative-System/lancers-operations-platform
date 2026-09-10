@@ -10,6 +10,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import { Field, DateField } from "@/components/field";
+import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
 import type { PersonRecord } from "@/lib/services/person-record";
@@ -140,6 +141,7 @@ export default function EditPersonForm({
               name="mobile"
               reasonName="mobileReason"
               label="Mobile phone"
+              phone
               original={mobile?.rawValue ?? ""}
               error={state.errors.mobile}
               renderExtra={(value, changed) =>
@@ -159,12 +161,17 @@ export default function EditPersonForm({
               original={personalEmail?.rawValue ?? ""}
               error={state.errors.personalEmail}
             />
+            {/* LAN-268: the same rule the two recruitment doors and the
+                player questionnaire apply. The operator's edit form refuses a
+                non-Oxford address before any write, with no override — a
+                value stored as a college address has to be one. */}
             <CorrectableField
               name="collegeEmail"
               reasonName="collegeEmailReason"
               label="College email"
               original={collegeEmail?.rawValue ?? ""}
               error={state.errors.collegeEmail}
+              unchangedHelperText="Their university address — it ends in ox.ac.uk."
             />
           </Stack>
         </Section>
@@ -196,6 +203,24 @@ export default function EditPersonForm({
               reasonName="degreeFieldReason"
               label="Degree field"
               original={record.degreeField ?? ""}
+            />
+            {/* LAN-267. The BAFA number is operator-editable *because* a coach
+                never sees the player questionnaire: if it could only be
+                collected there, no coach would ever have one and the roster
+                form's coach table would print blank at every game. */}
+            <CorrectableField
+              name="studentNumber"
+              reasonName="studentNumberReason"
+              label="Student number"
+              original={record.studentNumber ?? ""}
+              unchangedHelperText="Printed beside their name on the officials' roster form."
+            />
+            <CorrectableField
+              name="bafaRegistrationNumber"
+              reasonName="bafaRegistrationNumberReason"
+              label="BAFA registration number"
+              original={record.bafaRegistrationNumber ?? ""}
+              unchangedHelperText="Printed beside every coach and sideline person on the officials' roster form."
             />
           </Stack>
         </Section>
@@ -238,6 +263,7 @@ export default function EditPersonForm({
                   name="emergencyPhone"
                   reasonName="emergencyPhoneReason"
                   label="Phone"
+                  phone
                   original={ec?.phone ?? ""}
                 />
                 <CorrectableField
@@ -283,6 +309,7 @@ function CorrectableField({
   required,
   unchangedHelperText,
   renderExtra,
+  phone,
 }: {
   name: string;
   reasonName: string;
@@ -293,6 +320,8 @@ function CorrectableField({
   required?: boolean;
   unchangedHelperText?: string;
   renderExtra?: (value: string, changed: boolean) => React.ReactNode;
+  /** LAN-211: the shared two-part control in place of one free-text box. */
+  phone?: boolean;
 }) {
   const [value, setValue] = useState(original);
   const [pickerDate, setPickerDate] = useState<Date | null | undefined>(undefined);
@@ -301,7 +330,21 @@ function CorrectableField({
 
   return (
     <>
-      {type === "date" ? (
+      {phone ? (
+        // The control owns how it is typed; this component still owns whether
+        // a change needs a reason, and it compares the same joined string the
+        // hidden input posts, so putting the original number back makes the
+        // reason box disappear exactly as it does for every other field.
+        <PhoneField
+          name={name}
+          label={label}
+          defaultValue={original}
+          required={required}
+          error={Boolean(error)}
+          helperText={error ?? (changed ? undefined : unchangedHelperText)}
+          onValueChange={setValue}
+        />
+      ) : type === "date" ? (
         <DateField
           name={name}
           label={label}

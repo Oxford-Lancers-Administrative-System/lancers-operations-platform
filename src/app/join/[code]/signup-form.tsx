@@ -9,10 +9,12 @@ import Button from "@mui/material/Button";
 import { Surface } from "@/components/surface";
 import Stack from "@mui/material/Stack";
 import { Field, CheckField } from "@/components/field";
+import { PhoneField } from "@/components/phone-field";
 import { Section } from "@/components/section";
 import Typography from "@mui/material/Typography";
 import {
   validateAcademicYear,
+  validateCollegeEmail,
   validateEmailAddress,
   validatePhoneNumber,
 } from "@/lib/services/person-validation";
@@ -29,14 +31,26 @@ import {
  *     starts filled in, and there is no duplicate question at all, "because
  *     there is nothing to ask" (`W7`).
  *
- * First name, last name, mobile and the consent tick are the required fields
- * — superseded, Brian, 2026-09-01: "Mobile is required no matter what…
- * Missing never blocks except for phone… Nothing else works if we don't have
- * a phone number." Enforced here for the disabled `Save` button (standards
- * rule 4, "a disabled control says what would enable it") and, independently
- * and authoritatively, by `recruitment-signup.ts`'s `validateSignupSubmission`
- * — this component never talks to the service layer directly; every write
- * goes through the `submit` prop, a server action the page supplies.
+ * First name, last name, mobile, **college email** and the consent tick are
+ * the required fields. Mobile joined the set on Brian, 2026-09-01 ("Mobile is
+ * required no matter what… Nothing else works if we don't have a phone
+ * number"), and the college email on Brian, 2026-09-09 (LAN-268), which
+ * supersedes LAN-246's three-field minimum: "the required set on both the
+ * onboarding questionnaire and the recruitment forms is four things: first
+ * name, last name, phone number, college email." It is the club's own proof
+ * that whoever is at the stand is actually a student — "I had a weird online
+ * guy trying to join one year and he wasn't a student."
+ *
+ * Enforced here for the disabled `Save` button (standards rule 4, "a disabled
+ * control says what would enable it") and, independently and authoritatively,
+ * by `recruitment-signup.ts`'s `validateSignupSubmission` — this component
+ * never talks to the service layer directly; every write goes through the
+ * `submit` prop, a server action the page supplies.
+ *
+ * The mobile is the shared two-part control (LAN-211): the country code is a
+ * dropdown, so a fresher at a stand never carries the burden of writing "+44"
+ * correctly, and the value this form still hands the server is the same single
+ * string `validatePhoneNumber` has always received.
  *
  * Mobile, email, matriculation year and expected graduation are all
  * validated inline with the same `person-validation.ts` functions the
@@ -48,6 +62,8 @@ export interface SignupFieldValues {
   readonly givenName: string;
   readonly familyName: string;
   readonly mobile: string;
+  /** LAN-268. Required, and only an `ox.ac.uk` address is accepted. */
+  readonly collegeEmail: string;
   readonly email: string;
   readonly knownAs: string;
   readonly college: string;
@@ -92,6 +108,7 @@ const EMPTY_ALIAS: SignupFieldValues = {
   givenName: "",
   familyName: "",
   mobile: "",
+  collegeEmail: "",
   email: "",
   knownAs: "",
   college: "",
@@ -126,6 +143,7 @@ export default function SignupForm({
 
   const nameMissing = values.givenName.trim() === "" || values.familyName.trim() === "";
   const mobileMissing = values.mobile.trim() === "";
+  const collegeEmailMissing = values.collegeEmail.trim() === "";
 
   // Every one of the four format checks below is the same
   // person-validation.ts function the server repeats — one shared standard,
@@ -139,6 +157,16 @@ export default function SignupForm({
 
   const emailValidation = values.email.trim() === "" ? null : validateEmailAddress(values.email);
   const emailError = emailValidation && !emailValidation.valid ? emailValidation.message : null;
+
+  // LAN-268. The same `validateCollegeEmail` the server repeats, so the field
+  // goes red on the exact value the write path would refuse — and, like the
+  // mobile above, a field nobody has filled in yet is not marked in red: that
+  // is what `disabledReason` is for.
+  const collegeEmailValidation = collegeEmailMissing
+    ? null
+    : validateCollegeEmail(values.collegeEmail);
+  const collegeEmailError =
+    collegeEmailValidation && !collegeEmailValidation.valid ? collegeEmailValidation.message : null;
 
   const matriculationValidation =
     values.matriculationYear.trim() === ""
@@ -156,15 +184,18 @@ export default function SignupForm({
   const graduationError =
     graduationValidation && !graduationValidation.valid ? graduationValidation.message : null;
 
-  const requiredMissing = nameMissing || mobileMissing;
-  const formatInvalid = Boolean(mobileError || emailError || matriculationError || graduationError);
+  const requiredMissing = nameMissing || mobileMissing || collegeEmailMissing;
+  const formatInvalid = Boolean(
+    mobileError || emailError || collegeEmailError || matriculationError || graduationError,
+  );
   const ready = !requiredMissing && !formatInvalid && consent;
+  const REQUIRED_FOUR = "a first name, a last name, a mobile number and your Oxford email";
   const disabledReason = formatInvalid
     ? "Correct the field marked in red to enable this."
     : requiredMissing && !consent
-      ? "Enter a first name, a last name and a mobile number, and tick the box below, to enable this."
+      ? `Enter ${REQUIRED_FOUR}, and tick the box below, to enable this.`
       : requiredMissing
-        ? "Enter a first name, a last name and a mobile number to enable this."
+        ? `Enter ${REQUIRED_FOUR} to enable this.`
         : "Tick the box below to enable this.";
 
   async function doSubmit(confirmedExistingMatch: boolean) {
@@ -300,7 +331,8 @@ export default function SignupForm({
               : "We already have most of this. Check it, change anything that is wrong, and tell us how we may contact you."}
           </Typography>
           <Typography sx={{ fontSize: 15, fontWeight: 600, mt: 1.5 }}>
-            Your name, your mobile number and the tick below are needed. The rest can wait.
+            Your name, your mobile number, your Oxford email and the tick below are needed. The rest
+            can wait.
           </Typography>
         </Box>
 
@@ -308,19 +340,30 @@ export default function SignupForm({
 
         <Field label="First name" required {...field("givenName")} />
         <Field label="Last name" required {...field("familyName")} />
-        <Field
+        <PhoneField
+          name="mobile"
           label="Mobile number"
           required
-
+          defaultValue={initial.mobile}
           error={Boolean(mobileError)}
           helperText={mobileError ?? "How the club will message you about sessions."}
-          {...field("mobile")}
+          onValueChange={(joined) => {
+            setError(null);
+            setValues((current) => ({ ...current, mobile: joined }));
+          }}
+        />
+        <Field
+          label="College email"
+          required
+          error={Boolean(collegeEmailError)}
+          helperText={collegeEmailError ?? "Your university address — it ends in ox.ac.uk."}
+          {...field("collegeEmail")}
         />
         <Field
           label="Email address"
 
           error={Boolean(emailError)}
-          helperText={emailError ?? undefined}
+          helperText={emailError ?? "A personal address, if you would rather the club used one."}
           {...field("email")}
         />
         <Field

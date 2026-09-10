@@ -26,13 +26,19 @@ export default function PrivacyPage() {
       <PolicySection title="Information the platform holds">
         <Typography>
           Depending on your involvement with the club, records may include your name, contact
-          details, university and membership information, date of birth, emergency contact details,
-          recruitment answers, onboarding progress and agreement records.
+          details including your university email address, university and membership information,
+          your student number, your BAFA registration number, date of birth, emergency contact
+          details, recruitment answers, onboarding progress and agreement records.
         </Typography>
         <Typography>
           The platform also records event invitations, your responses and answers, attendance,
           availability status, messaging preferences, message delivery results, account access and a
           history of administrative changes.
+        </Typography>
+        <Typography>
+          Your student number and, for coaching and sideline personnel, your BAFA registration
+          number are printed on the roster form the club hands to the match officials at a game.
+          That form is produced from these records at the time it is needed and is not stored.
         </Typography>
         <Typography>
           Information comes from you, authorised club officers and existing club records, including

@@ -17,6 +17,7 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
 import { Field as InputField } from "@/components/field";
+import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
 import type { PersonCandidate } from "@/lib/services/roster";
@@ -107,6 +108,17 @@ function DetailsStep({
     />
   );
 
+  /** LAN-211. The same slot, the shared two-part control. */
+  const phoneField = (name: keyof IntakeFormValues, label: string) => (
+    <PhoneField
+      name={name}
+      label={label}
+      defaultValue={values[name]}
+      error={Boolean(errors[name])}
+      helperText={errors[name]}
+    />
+  );
+
   return (
     <Stack spacing={3}>
       <PageHeader title="Add player" back={{ href: "/operate/roster", label: "Back to roster" }} />
@@ -131,7 +143,7 @@ function DetailsStep({
         {field("givenName", "First name", { autoComplete: "off" })}
         {field("familyName", "Last name", { autoComplete: "off" })}
         {field("email", "Email", { type: "email", autoComplete: "off" })}
-        {field("phone", "Phone", { type: "tel", autoComplete: "off" })}
+        {phoneField("phone", "Phone")}
       </Stack>
 
       <ActionBar

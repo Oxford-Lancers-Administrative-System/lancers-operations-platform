@@ -24,6 +24,7 @@ import {
   describeRoleRequirement,
   describeRoles,
   FIXED_COACHING_ROLE_CODES,
+  HEAD_COACH_ROLE_CODE,
   isNarrowAttendanceRecorder,
   LEADERSHIP_TIER_SEATS,
   LEADERSHIP_TIERS,
@@ -1203,5 +1204,15 @@ describe("LAN-129 — the ten fixed coaching seats", () => {
   it("refuses a mutation at runtime", () => {
     expect(() => (FIXED_COACHING_ROLE_CODES as string[]).push("assistant_coach")).toThrow();
     expect(FIXED_COACHING_ROLE_CODES).toHaveLength(10);
+  });
+});
+
+describe("HEAD_COACH_ROLE_CODE — LAN-267", () => {
+  it("is the first coaching seat, so the roster form and the catalogue cannot disagree", () => {
+    // `roster-form.ts` derives HC from this constant. If it ever stopped being
+    // a real coaching seat, every coach on the officials' form would print AC
+    // and nobody would notice until a match official did.
+    expect(FIXED_COACHING_ROLE_CODES[0]).toBe(HEAD_COACH_ROLE_CODE);
+    expect(FIXED_COACHING_ROLE_CODES).toContain(HEAD_COACH_ROLE_CODE);
   });
 });

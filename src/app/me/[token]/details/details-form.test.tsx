@@ -33,11 +33,14 @@ const FILLED_VALUES: DetailsFormValues = {
   given_name: "Jordan",
   family_name: "Ashworth",
   mobile: "07700 900000",
+  college_email: "jordan.ashworth@stpeters.ox.ac.uk",
   personal_email: "jordan@example.com",
   college: "St Peter's",
   matriculation_year: "2023",
   expected_graduation_year: "2026",
   degree_field: "Engineering",
+  student_number: "1234567",
+  bafa_registration_number: "BAFA-1234",
   date_of_birth: "2004-01-01",
   ec_given_name: "Alex",
   ec_family_name: "Ashworth",
@@ -189,16 +192,34 @@ describe("what the player typed survives a failed submit", () => {
     });
     const { container } = renderForm(FILLED_VALUES);
 
+    // The mobile is the shared two-part control now (LAN-211), and it holds
+    // what the player typed in its own state rather than re-reading it from
+    // the action's echo on every redraw. So this types into it, which is what
+    // a player actually does, instead of asserting that an echoed value the
+    // player never typed appears in the box.
+    const numberBox = screen.getByRole("textbox", {
+      name: labelStartingWith("Mobile phone"),
+    }) as HTMLInputElement;
+    fireEvent.change(numberBox, { target: { value: "398393" } });
+
     await submit(container);
 
+    expect(numberBox.value).toBe("398393");
+    // And what the form actually posts is that number joined to the country
+    // the player picked — the one string `validatePhoneNumber` receives.
     expect(
-      (screen.getByLabelText(labelStartingWith("Mobile phone")) as HTMLInputElement).value,
-    ).toBe("398393");
+      (container.querySelector('input[type="hidden"][name="mobile"]') as HTMLInputElement).value,
+    ).toBe("+44398393");
     expect(
       (screen.getByLabelText(labelStartingWith("Personal email")) as HTMLInputElement).value,
     ).toBe("b@b.com");
-    expect((screen.getByLabelText(labelStartingWith("College")) as HTMLInputElement).value).toBe(
+    // By name, not by label: LAN-268 puts a "College email" field on this form
+    // too, so "College" is no longer a unique label prefix.
+    expect((container.querySelector('input[name="college"]') as HTMLInputElement).value).toBe(
       FILLED_VALUES.college,
+    );
+    expect((container.querySelector('input[name="college_email"]') as HTMLInputElement).value).toBe(
+      FILLED_VALUES.college_email,
     );
   });
 });

@@ -321,6 +321,14 @@ function currentContact(view: QuestionnaireView, kind: "phone" | "email"): strin
   return contact?.rawValue ?? "";
 }
 
+/** LAN-268. The current college address, or empty — the same read, one scope over. */
+function currentCollegeEmail(view: QuestionnaireView): string {
+  const contact = view.person.contacts.find(
+    (c) => c.kind === "email" && c.scope === "college" && c.validUntil === null,
+  );
+  return contact?.rawValue ?? "";
+}
+
 /**
  * F4 (LAN-230): the source line for one of the seven disputable fields, read
  * from who actually supplied it (`view.fieldSuppliedBy`) rather than a
@@ -354,11 +362,14 @@ function DetailsStepPage({ view, token }: { view: QuestionnaireView; token: stri
     given_name: p.givenName,
     family_name: p.familyName ?? "",
     mobile: currentContact(view, "phone"),
+    college_email: currentCollegeEmail(view),
     personal_email: currentContact(view, "email"),
     college: p.college ?? "",
     matriculation_year: p.matriculationYear?.toString() ?? "",
     expected_graduation_year: p.expectedGraduationYear?.toString() ?? "",
     degree_field: p.degreeField ?? "",
+    student_number: p.studentNumber ?? "",
+    bafa_registration_number: p.bafaRegistrationNumber ?? "",
     date_of_birth: p.dateOfBirth ?? "",
     ec_given_name: ec?.givenName ?? "",
     ec_family_name: ec?.familyName ?? "",

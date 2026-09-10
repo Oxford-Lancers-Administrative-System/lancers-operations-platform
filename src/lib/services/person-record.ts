@@ -7,6 +7,7 @@ import {
   type RequiredField,
   missingRequiredFields,
 } from "./person-required";
+import { isOxfordCollegeEmail } from "./person-validation";
 import {
   escapeLikePattern,
   personAssembledStatusSql,
@@ -120,6 +121,14 @@ export interface PersonRecord {
   degreeField: string | null;
   /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   degreeFieldSource: string | null;
+  /** LAN-267. A personal fact, shown to an authorised operator and printed on the roster form. */
+  studentNumber: string | null;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  studentNumberSource: string | null;
+  /** LAN-267. Operator-editable as well as questionnaire-collected — a coach never sees a questionnaire. */
+  bafaRegistrationNumber: string | null;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  bafaRegistrationNumberSource: string | null;
   /** `REQ-restricted-fields`: four-role only, and never on a list, board or queue. */
   dateOfBirth: string | null;
   /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
@@ -170,6 +179,8 @@ interface PersonRow {
   matriculation_year: number | null;
   expected_graduation_year: number | null;
   degree_field: string | null;
+  student_number: string | null;
+  bafa_registration_number: string | null;
   date_of_birth: string | null;
   merged_into_person_id: string | null;
   display_alias: string | null;
@@ -195,6 +206,7 @@ async function readPersonRowIn(tx: Tx, personId: string): Promise<PersonRow> {
   const result = await tx.query<PersonRow>(
     `select p.id as person_id, p.given_name, p.family_name,
             p.college, p.matriculation_year, p.expected_graduation_year, p.degree_field,
+            p.student_number, p.bafa_registration_number,
             to_char(p.date_of_birth, 'YYYY-MM-DD') as date_of_birth,
             p.merged_into_person_id,
             ${personDisplayAliasSql("p")} as display_alias,
@@ -312,6 +324,8 @@ const DERIVED_PROVENANCE_FIELDS = [
   "matriculation_year",
   "expected_graduation_year",
   "degree_field",
+  "student_number",
+  "bafa_registration_number",
   "date_of_birth",
 ] as const;
 
@@ -375,6 +389,16 @@ function presenceFrom(
     givenName: true, // people.given_name is `not null` in the schema
     familyName: row.family_name !== null,
     mobile: contacts.some((c) => c.kind === "phone" && c.validUntil === null),
+    // LAN-268: a stored college address that is not an Oxford one counts as
+    // missing, so the queue chases it. The rule is asked of the one validator
+    // rather than restated here.
+    collegeEmail: contacts.some(
+      (c) =>
+        c.kind === "email" &&
+        c.scope === "college" &&
+        c.validUntil === null &&
+        isOxfordCollegeEmail(c.normalisedValue ?? c.rawValue),
+    ),
     personalEmail: contacts.some(
       (c) => c.kind === "email" && c.scope === "personal" && c.validUntil === null,
     ),
@@ -421,6 +445,10 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
     expectedGraduationYearSource: fieldProvenance.expected_graduation_year,
     degreeField: row.degree_field,
     degreeFieldSource: fieldProvenance.degree_field,
+    studentNumber: row.student_number,
+    studentNumberSource: fieldProvenance.student_number,
+    bafaRegistrationNumber: row.bafa_registration_number,
+    bafaRegistrationNumberSource: fieldProvenance.bafa_registration_number,
     dateOfBirth: row.date_of_birth,
     dateOfBirthSource: fieldProvenance.date_of_birth,
     emergencyContact,
@@ -467,6 +495,7 @@ interface SummaryRow {
   status: AssembledStatus;
   has_mobile: boolean;
   has_personal_email: boolean;
+  college_email: string | null;
   merged_into_person_id: string | null;
 }
 
@@ -475,6 +504,10 @@ function toSummary(row: SummaryRow): PersonSummary {
     givenName: true,
     familyName: row.family_name !== null,
     mobile: row.has_mobile,
+    // Knowable from a summary row and therefore answered honestly, exactly as
+    // mobile and personal email already are — a college address is not one of
+    // the restricted facts a list may not carry.
+    collegeEmail: isOxfordCollegeEmail(row.college_email),
     personalEmail: row.has_personal_email,
     // A list row never carries these facts (`REQ-restricted-fields`), so they
     // cannot be known to be missing from here — `readPersonRecord` is where a
@@ -541,7 +574,17 @@ export async function searchPeople(
                 select 1 from public.contact_points c
                  where c.person_id = p.id and c.kind = 'email' and c.scope = 'personal'
                    and c.valid_until is null
-              ) as has_personal_email
+              ) as has_personal_email,
+              -- The value, not a boolean: whether it counts is the Oxford
+              -- rule's answer (LAN-268), and that rule lives in exactly one
+              -- place, in TypeScript. Restating it in SQL here would be the
+              -- second copy the ticket forbids.
+              (select coalesce(nullif(btrim(c.normalised_value), ''), c.raw_value)
+                 from public.contact_points c
+                where c.person_id = p.id and c.kind = 'email' and c.scope = 'college'
+                  and c.valid_until is null
+                order by c.is_preferred desc, c.valid_from desc
+                limit 1) as college_email
          from public.people p
         where p.merged_into_person_id is null
           and (
