@@ -291,9 +291,14 @@ const STATE_ROWS = [
   ],
   [
     "membership.entry.returning",
-    "A returner carried forward from last season",
+    // LAN-255 (Brian, decided) and LAN-254 item 8: Returning means the club
+    // has had this player before, not that an import carried the row forward.
+    // A player an operator adds by hand and marks Returning is Returning, with
+    // no `carried_forward_from_id` to show for it, and the old definition
+    // would have had a tester report the honest row as a defect.
+    "A membership whose entry reads Returning, however it was created",
     "public.season_memberships",
-    "t.entry = 'returning' and t.carried_forward_from_id is not null",
+    "t.entry = 'returning'",
     20,
   ],
   [
@@ -337,6 +342,52 @@ const STATE_ROWS = [
     "public.position_assignments",
     "t.effective_to is null",
     30,
+  ],
+  // LAN-261 and LAN-262. `position.assigned` counted 130 rows and said nothing
+  // about the Special teams column, which was empty on all 65 roster rows, in
+  // every membership record and in the audience builder's "Special teams" unit
+  // — and a walker read the column as rendering correctly. A column the
+  // product renders gets a state of its own, so `verify` refuses a dataset
+  // that would hand a tester an empty one.
+  [
+    "position.special-teams",
+    "A special-teams position — the roster board's third position column and the audience builder's Special teams unit",
+    "public.position_assignments",
+    "t.effective_to is null and t.side = 'special_teams'",
+    6,
+  ],
+  // The unit itself, not just the assignment. `event-audience.ts` reads a
+  // player's unit as Offence / Defence / Both / Special teams and answers
+  // "Special teams" only when no offence or defence assignment is effective —
+  // so a squad where every special-teams holder also plays a side of the ball
+  // leaves the unit unreachable however many special-teams rows exist, and the
+  // special-teams coach seat has nothing to select. Counting the assignments
+  // would not have caught that; counting the specialists does.
+  [
+    "position.special-teams-only",
+    "A player whose only position is special teams, so the audience unit reads Special teams",
+    "public.position_assignments",
+    "t.effective_to is null and t.side = 'special_teams' and not exists (select 1 from public.position_assignments o where o.season_membership_id = t.season_membership_id and o.effective_to is null and o.side <> 'special_teams')",
+    2,
+  ],
+  // The other two one-sided readings, for the same reason. `Defence` was
+  // unreachable until LAN-270: every player who held a defence position held
+  // an offence one too, so the unit read `Both` for all of them and the
+  // dataset could not produce the word at all. The absence check found it the
+  // first time it was run; these two states are how it stays found.
+  [
+    "position.offence-only",
+    "A player with an offence position and no defence one, so the audience unit reads Offence",
+    "public.position_assignments",
+    "t.effective_to is null and t.side = 'offence' and not exists (select 1 from public.position_assignments o where o.season_membership_id = t.season_membership_id and o.effective_to is null and o.side = 'defence')",
+    2,
+  ],
+  [
+    "position.defence-only",
+    "A player with a defence position and no offence one, so the audience unit reads Defence",
+    "public.position_assignments",
+    "t.effective_to is null and t.side = 'defence' and not exists (select 1 from public.position_assignments o where o.season_membership_id = t.season_membership_id and o.effective_to is null and o.side = 'offence')",
+    2,
   ],
   ["jersey.assigned", "A jersey number", "public.jersey_assignments", "t.is_predominant", 20],
   ["eligibility.recorded", "An eligibility record", "public.eligibility_records", "true", 20],
@@ -742,14 +793,13 @@ const STATE_ROWS = [
     "t.revoked_at is null and t.expires_at > now()",
     0,
   ],
-  ["club-link.live", "A live club link", "public.club_link_tokens", "t.revoked_at is null", 1],
-  [
-    "club-link.revoked",
-    "A revoked club link",
-    "public.club_link_tokens",
-    "t.revoked_at is not null",
-    1,
-  ],
+  // `club-link.live` and `club-link.revoked` are gone — LAN-241. The loader
+  // cannot produce either: a club link's plaintext is signed with the
+  // deployment's `CLUB_LINK_SECRET`, which the parameter file deliberately
+  // does not hold, so a seeded row is refused at every door it is presented
+  // at. Counting rows nothing can write would have `verify` certify a dataset
+  // whose links are all dead — which is exactly what it did. The tester
+  // creates the link through Share link instead, and M2 W7 says so.
   [
     "amendment.notified",
     "A schedule change that was announced",
@@ -823,7 +873,12 @@ const STATE_ROWS = [
   ],
   [
     "job.held",
-    "A reminder held after an amendment",
+    // LAN-254 item 3. The rows exist; no page shows them. The delivery page
+    // lists invitation messages only and every held row is a reminder, and
+    // `amendApprovedEvent` releases every job it holds in the same
+    // transaction, so held is never a resting state a live amendment leaves
+    // behind either. Named here as data, not as something to go and look at.
+    "A reminder held after an amendment — data only, surfaced on no page",
     "public.notification_jobs",
     "t.held_at is not null and t.held_reason is not null",
     5,
@@ -1304,7 +1359,7 @@ export const WORKFLOWS = Object.freeze([
     "tester3",
     ["/operate/admin/operators/{operator.other-seat}"],
     ["operator.deactivated"],
-    "Deactivate asks for a reason and ends sign-in without ending roles; Restore brings it back with a preview of the permissions.",
+    "Deactivate asks for a reason and ends sign-in without ending roles. Restore asks for an optional reason and explains in one sentence that the same account works again and only the roles still in effect come back. There is no preview or list of the permissions being restored — neither the packet nor its prototype asks for one, so its absence is correct.",
   ),
   wf(
     M1,
@@ -1407,8 +1462,11 @@ export const WORKFLOWS = Object.freeze([
       "event.draft.no-audience",
       "event.questions",
       "event.alternative",
+      "position.offence-only",
+      "position.defence-only",
+      "position.special-teams-only",
     ],
-    "A draft with its audience arrives ready to approve; approving is refused on a draft with no audience; the transport questions and the alternative-slot group render.",
+    "A draft with its audience arrives ready to approve; approving is refused on a draft with no audience; the transport questions and the alternative-slot group render. The audience list's Unit column reads Offence, Defence, Both or Special teams — all four appear on the squad, and a reading that appears on nobody is a finding.",
   ),
   wf(
     M2,
@@ -1452,21 +1510,18 @@ export const WORKFLOWS = Object.freeze([
     [
       "/operate/events/{event.occurred.register}",
       "/operate/events/{event.occurred.register}/attendance",
-      // The generic key, not one named event's: the plan offers five live club
-      // links and each seat is dealt its own, because opening one records a use
-      // against the token it was opened with.
-      "/e/{link.club.any}",
-      "/e/{link.club.reissued}",
+      // No seeded `/e/…` link to open — LAN-241. A club link is signed with the
+      // deployment's own secret at the moment it is created, so a link written
+      // by the loader is refused everywhere it is opened. The tester makes one
+      // instead, which is also the workflow the seat is here to exercise.
     ],
     [
       "event.occurred.register",
       "attendance.walk-up",
       "attendance.said-no-attended",
       "attendance.said-yes-absent",
-      "club-link.live",
-      "club-link.revoked",
     ],
-    "The participation table with answers beside presence; the register with walk-ups; the club link opens read-only with no operator controls and the revoked one does not.",
+    "The participation table with answers beside presence; the register with walk-ups. Then press Share link on that event, press Create the link, copy it, and open it in a private window signed out: it shows the event read-only with no operator controls. Revoke it and open it again: it does not.",
   ),
   wf(
     M2,
@@ -1576,7 +1631,7 @@ export const WORKFLOWS = Object.freeze([
     "tester1",
     ["/operate/events/{event.held}", "/operate/events/{event.held}/delivery"],
     ["event.held", "job.held", "job.schedule-change-notice"],
-    "The Film Review's remaining reminders read Held with the reason; the change notice was sent; nothing about the old venue can go out.",
+    "The change notice was sent, the event's own change history names what moved, and nothing carrying the old venue can go out. **Nothing on either page reads Held, and that is correct** — the delivery page lists invitation messages, every message this amendment stopped is a reminder, and held is a transient state the product never rests in: a live amendment releases every job it holds in the same transaction that holds it. Do not report the absence of a Held row.",
   ),
 
   // M5 — people and roster
@@ -1654,11 +1709,12 @@ export const WORKFLOWS = Object.freeze([
       "availability.red",
       "jersey.assigned",
       "position.assigned",
+      "position.special-teams",
       "eligibility.recorded",
       "blues.awarded",
       "person.missing-required",
     ],
-    "Every column banded Person · Onboarding · Season; filter by standing; edit a cell and see it commit; the Missing count links to the queue.",
+    "Every column banded Person · Onboarding · Season; filter by standing; edit a cell and see it commit; the Missing count links to the queue. Offence, Defence and Special teams each carry a value on some rows and not others — a column that is blank on every row is a finding.",
   ),
   wf(
     M5,
@@ -1675,9 +1731,10 @@ export const WORKFLOWS = Object.freeze([
       "membership.status-event",
       "availability.green",
       "membership.entry.returning",
+      "position.special-teams",
       "onboarding.membership.active-with-outstanding",
     ],
-    "The ladder with dated milestones, the full status history, positions, jersey, availability, eligibility, formalwear, Blues, and this season's RSVP and attendance history.",
+    "The ladder with dated milestones, the full status history, positions — Offence, Defence and, on about one player in four, Special teams — jersey, availability, eligibility, formalwear, Blues, and this season's RSVP and attendance history.",
   ),
   wf(
     M5,
@@ -1772,7 +1829,7 @@ export const WORKFLOWS = Object.freeze([
     "tester5",
     ["/join/{link.join.live}", "/operate/recruitment/qr"],
     ["signup-code.live", "signup-code.retired", "consent.granted"],
-    "The public form on the club's own page; consent is required to submit; you are told if you are already in the list; the QR page shows the live code.",
+    "The public form on the club's own page; you are told if you are already in the list; the QR page shows the live code. Sign-up is refused until first name, last name, phone number and the consent tick are all there, and the disabled button says which one is missing — a required phone is the rule, not a defect. College email joins the required set with LAN-268 and is still optional today.",
   ),
   wf(
     M6,
@@ -1905,7 +1962,7 @@ export const WORKFLOWS = Object.freeze([
     "tester5",
     ["/me/{link.me.player}"],
     ["dispute.open"],
-    "Returning through the same link shows everything held; changing an operator-recorded value raises a dispute rather than overwriting.",
+    "Returning through the same link shows everything held. Changing a value the club recorded takes effect immediately — last write wins, decided 2026-09-04 (Q-9) — and the person record's audit history carries the old value, the new one and who supplied it. No dispute is raised and no contested-value notice appears; that mechanism was withdrawn before the build shipped.",
   ),
   wf(
     M7,
@@ -1930,7 +1987,7 @@ export const WORKFLOWS = Object.freeze([
       "onboarding.log.answer",
       "onboarding.agreement.code_of_conduct",
     ],
-    "Every item with its state and who set it; an item's full history; complete, waive (no reason), not applicable, reopen; the activity log grouped by section.",
+    "Every item with its state and who set it; an item's full history; the activity log grouped by section. Each item offers only its own list and nothing else — Subscription invoiced Not invoiced / Invoiced; Subscription paid Not paid / Paid / Waived, and Waived is the only one anywhere; Kit Distributed, Squad photo, Code of Conduct and Photo release No / Yes; Comms groups Not assigned / Assigned and invited / In the group; Hudl access Not invited / Invited / Claimed; BUCS Play those three and Confirmed. There is no Reopen verb and no Not applicable: a state is changed by picking another entry from the same list.",
   ),
   wf(
     M7,
@@ -1940,7 +1997,7 @@ export const WORKFLOWS = Object.freeze([
     "tester2",
     ["/operate/people/{person.disputed}"],
     ["dispute.open", "dispute.resolved"],
-    "Both values with both attributions; keep the club's or take the player's; the losing value retained.",
+    "**Withdrawn on 2026-09-04 (Q-9), so there is nothing here to settle.** The record shows the person's plain fields with who supplied each one, and the audit history underneath. There is no disputed state, no second contested value, no Keep / Take control: a player's answer overwrites the club's outright and the history carries what changed. The `person_fact_disputes` rows this page once read are historical and are shown nowhere. Absence of the control is correct — do not file it.",
   ),
   wf(
     M7,
