@@ -77,6 +77,16 @@ export interface SignedRsvpPage {
   readonly startsAt: string | null;
   readonly endsAt: string | null;
   readonly venue: string | null;
+  /**
+   * D17, LAN-264. What to bring, as the operator typed it, line breaks and all.
+   *
+   * The player's own page is where "it must not be buried in the description
+   * paragraph" actually pays: this is the one screen an invited person opens,
+   * and until LAN-264 it was the one screen that did not say what to bring.
+   * Same tier as `venue`, which this page has always shown — the invitation is
+   * theirs, and no boundary moves to tell them about their own session.
+   */
+  readonly requiredEquipment: string | null;
   /** The instant the write window closes. */
   readonly eventStartsAt: Date;
   /** The player, as they would be addressed. */
@@ -116,6 +126,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     starts_at: string | null;
     ends_at: string | null;
     venue: string | null;
+    required_equipment: string | null;
     event_starts_at: Date;
     player_name: string;
     response_deadline: Date | null;
@@ -132,6 +143,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
             to_char(e.starts_at, 'HH24:MI') as starts_at,
             to_char(e.ends_at, 'HH24:MI') as ends_at,
             e.venue,
+            e.required_equipment,
             (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
               at time zone 'Europe/London' as event_starts_at,
             -- concat_ws rather than a plain concatenation: family_name is
@@ -174,6 +186,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     venue: row.venue,
+    requiredEquipment: row.required_equipment,
     eventStartsAt: row.event_starts_at,
     playerName: row.player_name,
     responseDeadline: row.response_deadline,
