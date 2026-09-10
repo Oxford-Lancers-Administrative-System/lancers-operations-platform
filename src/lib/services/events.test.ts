@@ -965,6 +965,42 @@ describe("row 8 — the form's rules, checked without a database", () => {
     expect(result.value.deliveryMode).toBe("in_person");
   });
 
+  // LAN-264 — the phantom amendment a textarea produced.
+  it("normalises a textarea's CRLF newlines, so re-saving a kit list is not a change", () => {
+    // HTML submits a <textarea> with CRLF newlines whatever was typed into it
+    // and whatever was rendered into it. Description and required equipment
+    // became multi-line under LAN-264, so without this every later amendment to
+    // an event with a kit list recorded a second, invented change — "Required
+    // equipment: <three lines> → <the same three lines>" — and rewrote the
+    // column to CRLF on its way past.
+    const typed = validateEventDraft({
+      ...complete,
+      requiredEquipment: "Gumshield\nStuds\nWater",
+    });
+    const resubmitted = validateEventDraft({
+      ...complete,
+      requiredEquipment: "Gumshield\r\nStuds\r\nWater",
+    });
+
+    expect(typed.ok && resubmitted.ok).toBe(true);
+    if (!typed.ok || !resubmitted.ok) return;
+    expect(resubmitted.value.requiredEquipment).toBe("Gumshield\nStuds\nWater");
+    expect(resubmitted.value.requiredEquipment).toBe(typed.value.requiredEquipment);
+  });
+
+  it("keeps the lines themselves rather than collapsing them", () => {
+    const result = validateEventDraft({
+      ...complete,
+      description: "One.\r\n\r\nTwo.",
+      requiredEquipment: "A\rB",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.description).toBe("One.\n\nTwo.");
+    expect(result.value.requiredEquipment).toBe("A\nB");
+  });
+
   it("refuses a time that is not a five-minute step — D78", () => {
     const result = validateEventDraft({ ...complete, startsAt: "20:02" });
 

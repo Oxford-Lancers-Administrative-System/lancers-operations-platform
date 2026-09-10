@@ -473,8 +473,23 @@ export function deriveTermCoordinate(
 // Shared string handling
 // ---------------------------------------------------------------------------
 
+/**
+ * Trimmed, with line endings normalised to `\n` — LAN-264.
+ *
+ * The normalisation is not tidiness. HTML says a `<textarea>` submits its value
+ * with every newline as CRLF, whatever was typed and whatever was rendered into
+ * it, so the moment description and required equipment became multi-line the
+ * stored `\n` came back as `\r\n` on the very next save. Nothing had changed and
+ * `diffAmendment` compares the normalised value, so every amendment to an event
+ * with a kit list recorded a second, invented change — "Required equipment:
+ * <three lines> → <the same three lines>" — and rewrote the column to CRLF.
+ *
+ * Normalising here fixes both halves at once, because this is the function the
+ * write path and the diff both go through: what is stored is always `\n`, and a
+ * value that merely round-tripped through a form is equal to itself.
+ */
 export function trimmed(value: string | null | undefined): string {
-  return typeof value === "string" ? value.trim() : "";
+  return typeof value === "string" ? value.replace(/\r\n|\r/g, "\n").trim() : "";
 }
 
 export function optional(value: string | null | undefined): string | null {

@@ -283,6 +283,16 @@ describe("mergeAmendment — a form cannot revert a field it never touched", () 
     expect(applied.requiredEquipment).toBeNull();
   });
 
+  it("treats a textarea's CRLF newlines as untouched — LAN-264", () => {
+    // The form re-posts what it rendered, with CRLF newlines. Nothing changed,
+    // so nothing may be recorded as having changed.
+    const withKit = moved({ requiredEquipment: "Gumshield\nStuds\nWater" });
+    const reposted = moved({ requiredEquipment: "Gumshield\r\nStuds\r\nWater" });
+
+    expect(diffAmendment(withKit, reposted)).toEqual([]);
+    expect(mergeAmendment(withKit, withKit, reposted)).toEqual(withKit);
+  });
+
   it("treats a trailing space as untouched, exactly as diffAmendment does", () => {
     const applied = mergeAmendment(CURRENT, BASE, moved({ description: "Full contact.  " }));
 
