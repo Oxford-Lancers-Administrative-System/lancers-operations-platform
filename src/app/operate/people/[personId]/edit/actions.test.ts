@@ -207,6 +207,39 @@ describe("filling and correcting", () => {
     expect(result.errors.mobile).toBeTruthy();
   });
 
+  /**
+   * LAN-258, walker M5's finding M5-03: 01/01/2099 reached
+   * `people_date_of_birth_in_the_past` and came back as "The database refused
+   * this change because it breaks one of the club's recorded rules. Nothing
+   * was saved." — the field and the rule were never named. `LAN-185` asks for
+   * validation "per field, naming the rule, before any write", which is what
+   * the malformed mobile above already got.
+   */
+  it("refuses a future date of birth per field, before any write — LAN-258", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Emrys"), familyName: "Caldbeck" });
+    await observer.query(`update public.people set college = 'Beaumont' where id = $1::uuid`, [
+      personId,
+    ]);
+
+    const data = await formFrom(personId, {
+      dateOfBirth: "2099-01-01",
+      dateOfBirthReason: "Corrected after seeing a passport",
+      college: "Merton",
+      collegeReason: "Transferred colleges",
+    });
+
+    const result = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+    expect(result.errors.dateOfBirth).toBe("A date of birth has to be in the past.");
+    expect(result.formError).toBeUndefined();
+
+    // "Before any write" is the half that matters: the college change in the
+    // same submission is refused with it rather than committed and orphaned.
+    const after = await readPersonRecord(personId);
+    expect(after.dateOfBirth).toBeNull();
+    expect(after.college).toBe("Beaumont");
+  });
+
   it("saves every correct form of a mobile number", async () => {
     signedInAs();
     for (const raw of ["+44 7700 900988", "07700 900988", "07700900988", "+1 415 555 0142"]) {

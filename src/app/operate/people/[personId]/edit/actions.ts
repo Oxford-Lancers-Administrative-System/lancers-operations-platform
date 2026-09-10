@@ -14,7 +14,7 @@ import {
 } from "@/lib/services/person-write";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
-import { validatePhoneNumber } from "@/lib/services/person-validation";
+import { validateDateOfBirth, validatePhoneNumber } from "@/lib/services/person-validation";
 import {
   GENERIC_FAILURE,
   readEditFormValues,
@@ -84,6 +84,21 @@ export async function submitPersonEdit(
     if (!validation.valid) errors.mobile = validation.message;
   } else if (mobileChanged && values.mobile.trim() === "" && currentMobile(current)) {
     errors.mobile = "A mobile number cannot be cleared here — supersede it with a new one instead.";
+  }
+
+  // ---- Date of birth: named here, before any write ------------------------
+  // LAN-258 (walker M5, finding M5-03). The write used to reach
+  // `people_date_of_birth_in_the_past` and come back as "The database refused
+  // this change because it breaks one of the club's recorded rules. Nothing
+  // was saved." — true, and useless: neither the field nor the rule was ever
+  // named. `LAN-185`'s own contract asks for validation "per field, naming the
+  // rule, before any write", which is what the mobile field above already
+  // does, from the same module and in the same shape. Clearing a date of birth
+  // stays a legitimate correction and is not validated.
+  const dateOfBirthChanged = values.dateOfBirth.trim() !== (current.dateOfBirth ?? "");
+  if (dateOfBirthChanged && values.dateOfBirth.trim() !== "") {
+    const validation = validateDateOfBirth(values.dateOfBirth);
+    if (!validation.valid) errors.dateOfBirth = validation.message;
   }
 
   // ---- Every other field, only where it changed -----------------------
@@ -193,7 +208,7 @@ export async function submitPersonEdit(
         expectedVersion: nextExpectedVersion(),
       });
     }
-    if (values.dateOfBirth.trim() !== (current.dateOfBirth ?? "")) {
+    if (dateOfBirthChanged) {
       await updatePersonField({
         actorPersonId: operator.personId,
         personId,

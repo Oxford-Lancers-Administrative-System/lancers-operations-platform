@@ -15,6 +15,7 @@ import {
   readOnboardingActivityLogBySectionIn,
   type OnboardingActivityKind,
 } from "./onboarding-activity-log";
+import { readOnboardingSendStatusIn, type OnboardingSendStatus } from "./onboarding-chase";
 import type { OnboardingActorKind } from "./onboarding-item-history";
 import { readPersonRecord, type PersonRecord } from "./person-record";
 import {
@@ -323,6 +324,13 @@ export interface PlayerRecordData {
   attendance: AttendanceEvent[];
   /** The full, unredacted person record. The caller redacts for the viewer's role. */
   person: PersonRecord;
+  /**
+   * What the record's own **Send onboarding questionnaire** control shows and
+   * whether it may be pressed — LAN-266. Read from the missing-data queue's
+   * own functions so the record and the queue can never describe the same
+   * player's chase two different ways.
+   */
+  send: OnboardingSendStatus;
 }
 
 const BOARD_ELIGIBILITY_COMPETITION = "club_play";
@@ -694,6 +702,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     attendance,
     itemHistoryByItem,
     activityLog,
+    send,
   ] = await withTransaction(async (tx) =>
     Promise.all([
       readSeasonFactsIn(tx, membershipId, membership.seasonId),
@@ -705,6 +714,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
       readAttendanceHistoryIn(tx, membershipId, membership.seasonId),
       readOnboardingItemHistoryDisplayIn(tx, membership.onboardingItems),
       readOnboardingActivityLogDisplayIn(tx, membershipId),
+      readOnboardingSendStatusIn(tx, membershipId),
     ]),
   );
 
@@ -736,6 +746,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     otherSeasons,
     attendance,
     person,
+    send,
   };
 
   return { kind: "record", data };

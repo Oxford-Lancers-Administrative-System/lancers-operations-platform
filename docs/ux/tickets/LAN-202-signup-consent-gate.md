@@ -39,13 +39,24 @@ the same `/me/` prefix.
 
 ## Required set, and why the form still asks nine questions
 
-Brian, 2026-09-01: first name, last name and the consent tick are the only
-required fields, on **both** doors. Every other field (mobile, email, Known as,
+Brian, 2026-09-09, superseding his own 2026-09-01 note: the required set is
+**first name, last name, phone number and college email**, on **both** doors,
+and the consent tick is required alongside them. The club cannot reach a
+recruit it has no number for, and the reason the mobile was ever optional —
+that a recruit might not want to give one — was outweighed by a board full of
+rows nobody can contact.
+
+The build enforces the first three today; LAN-268 adds the college email, and
+until it lands a blank college email still saves. Everything else (Known as,
 college, matriculation year, expected graduation, degree) is filled from
 Questionnaire A, visibly optional, and a blank one never blocks the save
 (`REQ-missing-never-blocks`). The Save/Sign-up button is disabled until the
 required set is satisfied, and the disabled-state caption names exactly what is
 missing — standards rule 4.
+
+LAN-246 was filed against the paragraph this one replaces, reporting the
+build's own phone requirement as a defect. It is canceled: the build was
+right and this contract was stale.
 
 ## The QR door's duplicate question
 
@@ -69,8 +80,11 @@ to address that person. Confirming "Yes, that's me" sends back only that same
 boolean; the write path (`submitQrSignup`) re-runs the identical strict match
 itself, from the name and mobile the recruit has typed at that moment, to
 decide who to link. "No, I'm new" and a blank mobile both go straight to
-creating a new person. Neither branch is ever refused. LAN-144, not this
-package, decides whether either endpoint is rate-limited.
+creating a new person. Neither branch is ever refused. The blank-mobile branch
+is no longer reachable from the form itself, now the mobile is part of the
+required set; it stays because the probe and the write are separate entry
+points and neither may assume the other ran. LAN-144, not this package,
+decides whether either endpoint is rate-limited.
 
 ## Consent
 
@@ -103,10 +117,14 @@ consent, likewise not this package's). This module writes only
 ## Departures from the mockup, and why they are decidable rather than escalated
 
 1. **The mockup's `ready` gate required a mobile number and did not require the
-   consent tick.** Superseded outright by LAN-202's own amendment note ("the
-   consent tick is required to submit"), which the issue records as amending
-   the mockup after Brian's walkthrough. Not a departure this package
-   introduced — the issue text is the correction.
+   consent tick.** Half of that stands and half does not. The consent tick
+   **is** required to submit, per LAN-202's own amendment note, which the issue
+   records as amending the mockup after Brian's walkthrough. The mobile number
+   is required too — the mockup was right about it, and this contract's
+   earlier claim that it was optional was the mistake; see "Required set"
+   above for Brian's 2026-09-09 decision and for the college email LAN-268
+   adds beside it. So the only departure from the mockup here is the added
+   consent tick.
 2. **`recruitment_questionnaire_responses` is not written.** Questionnaire A's
    fields are `people`/`contact_points`/`person_aliases` columns per `W4`'s own
    "locked" core decision; the generic responses table is Questionnaire B's

@@ -14,6 +14,7 @@
 
 import { id } from "../ids.mjs";
 import { dramaPhone, exampleEmail } from "./context.mjs";
+import { SPECIAL_TEAMS_SLOT_BY_CODE } from "./reference.mjs";
 
 const GIVEN = Object.freeze([
   "Alaric",
@@ -581,11 +582,52 @@ export function buildPeople(ctx, reference) {
     if (activatedOn || status === "onboarding") {
       const offence = ["QB", "RB", "WR", "WR", "TE", "T", "G", "C", "FB", "WB"][index % 10];
       const defence = ["S", "CB", "LB", "E", "N/T", "CB", "LB", "S", "E", "LB"][(index * 3) % 10];
+      // One player in four also holds a special-teams position, dealt round the
+      // four slots — LAN-261. Not everyone: a squad where every row carried one
+      // would prove no more than a squad where none did, and the board's own
+      // "no special teams" reading has to be visible too. One in four across
+      // sixty-five people leaves every slot with several holders, so the
+      // audience builder's "Special teams" unit selects a real group and the
+      // column reads as a mixture rather than a constant.
+      const specialTeams = index % 4 === 0 ? ["KO", "KR", "PUNT", "FG"][(index / 4) % 4] : null;
+      // A third of those hold nothing else. The audience builder derives a
+      // player's unit as Offence / Defence / Both / Special teams, and reads
+      // "Special teams" only when there is no offence or defence assignment at
+      // all — so without a few genuine specialists the unit is unreachable
+      // however many special-teams rows exist, and tester 4's special-teams
+      // coach seat has nothing to select. A kicker who does not play a down on
+      // either side of the ball is the ordinary case this represents.
+      const specialistOnly = specialTeams !== null && index % 12 === 0;
+      const offenceOnly = !specialistOnly && index % 7 === 6;
+      const defenceOnly = !specialistOnly && index % 7 === 3;
+      const unitState = specialistOnly
+        ? "position.special-teams-only"
+        : offenceOnly
+          ? "position.offence-only"
+          : defenceOnly
+            ? "position.defence-only"
+            : null;
+      const unitTaggedSlot = specialistOnly
+        ? SPECIAL_TEAMS_SLOT_BY_CODE[specialTeams]
+        : offenceOnly
+          ? "offence"
+          : "defence";
       for (const [code, slot] of [
-        [offence, "offence"],
-        [defence, "defence"],
+        ...(specialistOnly
+          ? []
+          : [
+              [offence, "offence"],
+              [defence, "defence"],
+            ]),
+        ...(specialTeams ? [[specialTeams, SPECIAL_TEAMS_SLOT_BY_CODE[specialTeams]]] : []),
       ]) {
-        if (index % 7 === 6 && slot === "defence") continue; // one-sided players exist
+        // One-sided players exist, on both sides. The offence-only case was
+        // here already; the defence-only case was not, and the audience
+        // builder reads a unit as Offence / Defence / Both / Special teams, so
+        // "Defence" was a reading no row in the dataset could produce. The
+        // same absence the Special teams column had, one column over.
+        if (index % 7 === 6 && slot === "defence") continue;
+        if (index % 7 === 3 && slot === "offence") continue;
         const position = positionIds.get(code);
         add(
           "public.position_assignments",
@@ -603,7 +645,15 @@ export function buildPeople(ctx, reference) {
           },
           "illustrative",
           { source: `player ${key}` },
-          ["position.assigned"],
+          [
+            "position.assigned",
+            ...(position.side === "special_teams" ? ["position.special-teams"] : []),
+            // The unit reading this membership produces on the audience list.
+            // Tagged on exactly one of its rows — the specialist's
+            // special-teams row, or the one side a one-sided player holds — so
+            // the count is memberships and not assignments.
+            ...(unitState !== null && slot === unitTaggedSlot ? [unitState] : []),
+          ],
         );
       }
     }
@@ -785,7 +835,7 @@ export function buildPeople(ctx, reference) {
   }
 
   // ---------------------------------------------------------------------------
-  // Two returners still to confirm — they exist only in last season.
+  // Five returners still to confirm — they exist only in last season.
   // ---------------------------------------------------------------------------
   for (const [key, givenName, familyName] of [
     ["r-last-1", "Cressida", "Wolstenholme"],
@@ -850,8 +900,13 @@ export function buildPeople(ctx, reference) {
         person_id: personId,
         kind: "phone",
         scope: null,
-        raw_value: dramaPhone(key === "r-last-1" ? 601 : 602, "spaced"),
-        normalised_value: `07700900${key === "r-last-1" ? "601" : "602"}`,
+        // One number each, 601 to 605 — LAN-260. Four of the five used to
+        // share 602, so importing a CSV row for any of them surfaced a
+        // duplicate panel with five candidates on one number and every tester
+        // met the same tangle. The exercise is one clean pair per tester, and
+        // that needs five distinct numbers.
+        raw_value: dramaPhone(600 + Number(key.slice("r-last-".length)), "spaced"),
+        normalised_value: `07700900${600 + Number(key.slice("r-last-".length))}`,
         is_preferred: true,
         valid_from: "2025-09-01",
         valid_until: null,

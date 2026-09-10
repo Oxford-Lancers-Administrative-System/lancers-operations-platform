@@ -50,6 +50,9 @@ vi.mock("./record-actions", () => ({
   recordCommitEligibilityAction: vi.fn().mockResolvedValue({ error: null }),
   recordCommitAvailabilityAction: vi.fn().mockResolvedValue({ error: null }),
   recordResolveOnboardingItemAction: vi.fn().mockResolvedValue({ error: null }),
+  recordSendOnboardingQuestionnaireAction: vi
+    .fn()
+    .mockResolvedValue({ error: null, outcome: "accepted", reason: null }),
 }));
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
@@ -60,7 +63,11 @@ import type {
   PlayerRecordData,
   PlayerRecordResult,
 } from "@/lib/services/player-record";
-import { recordResolveOnboardingItemAction, recordSetStatusAction } from "./record-actions";
+import {
+  recordResolveOnboardingItemAction,
+  recordSendOnboardingQuestionnaireAction,
+  recordSetStatusAction,
+} from "./record-actions";
 import PlayerRecordPage from "./page";
 import { STATUSES, STATUS_OPTION_LABELS } from "../board-columns";
 
@@ -127,6 +134,17 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
     jerseyHolders: { blue: {}, white: {} },
     otherSeasons: [],
     attendance: [],
+    send: {
+      onboarding: true,
+      lastContact: null,
+      next: { kind: "scheduled", at: new Date("2026-08-14T13:36:00Z") },
+      hasReachableNumber: true,
+      isUnder18: false,
+      deliveredCount: 0,
+      chaseCount: 4,
+      lastAsk: null,
+      withheldReason: null,
+    },
     person: {
       personId: PERSON_ID,
       givenName: "Avery",
@@ -1127,6 +1145,200 @@ describe("the shipped activation control, folded into Status", () => {
     expect(screen.getByTestId("outstanding-note")).toHaveTextContent(
       "One required item is still outstanding: Kit sorted.",
     );
+  });
+});
+
+/**
+ * LAN-266. Brian, 2026-09-09, with the recruit record as the model: the same
+ * control, in the same position and style, under the card holding the items
+ * and the outstanding banner, with the same status line beneath it.
+ *
+ * Visual correction (Brian, 2026-09-09, on `feb9d6d`): the control is the
+ * recruit button's own props exactly — contained, small, no `fullWidth` — so it
+ * is content-width and left-aligned inside the card rather than stretched
+ * across it. The assertion below is what stops a third style reappearing.
+ */
+describe("Send onboarding questionnaire — the record's own manual ask", () => {
+  it("sits inside the Onboarding card, content width, and reads Not sent before anything is queued", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const onboarding = within(screen.getByTestId("section-onboarding"));
+    const button = onboarding.getByTestId("onboarding-send-questionnaire");
+    expect(button).toHaveTextContent("SEND ONBOARDING QUESTIONNAIRE");
+    expect(button).not.toBeDisabled();
+    // Brian's 2026-09-09 visual correction: identical to the recruit record's
+    // send buttons, which are never full width.
+    expect(button.className).not.toMatch(/fullWidth/);
+    expect(onboarding.getByTestId("onboarding-send-caption-0")).toHaveTextContent("Not sent");
+  });
+
+  it("reads the sent moment and its delivery state once an ask has been queued", async () => {
+    givenRecord({
+      send: {
+        onboarding: true,
+        lastContact: null,
+        next: { kind: "scheduled", at: new Date("2026-09-12T09:00:00Z") },
+        hasReachableNumber: true,
+        isUnder18: false,
+        deliveredCount: 2,
+        chaseCount: 4,
+        lastAsk: {
+          requestedAt: new Date("2026-09-09T13:02:00Z"),
+          delivery: "delivered",
+          reason: null,
+        },
+        withheldReason: null,
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const onboarding = within(screen.getByTestId("section-onboarding"));
+    expect(onboarding.getByTestId("onboarding-send-questionnaire")).toHaveTextContent(
+      "RESEND ONBOARDING QUESTIONNAIRE",
+    );
+    expect(onboarding.getByTestId("onboarding-send-caption-0")).toHaveTextContent("· delivered");
+    // The count, then the queue's own Next wording — "the same words the
+    // queue already uses".
+    expect(onboarding.getByTestId("onboarding-send-caption-1")).toHaveTextContent(
+      "Chase 2 of 4 sent · next",
+    );
+  });
+
+  it("reads the queue's own exhaustion wording without a count in front of it", async () => {
+    givenRecord({
+      send: {
+        onboarding: true,
+        lastContact: null,
+        next: { kind: "exhausted" },
+        hasReachableNumber: true,
+        isUnder18: false,
+        deliveredCount: 4,
+        chaseCount: 4,
+        lastAsk: {
+          requestedAt: new Date("2026-09-09T13:02:00Z"),
+          delivery: "delivered",
+          reason: null,
+        },
+        withheldReason: null,
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+    expect(screen.getByTestId("onboarding-send-caption-1")).toHaveTextContent("Chase exhausted");
+  });
+
+  it("names the reason in the dialog, and refuses to send, when there is no reachable number", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    givenRecord({
+      send: {
+        onboarding: true,
+        lastContact: null,
+        next: { kind: "unmessageable", reason: "no_channel" },
+        hasReachableNumber: false,
+        isUnder18: false,
+        deliveredCount: 0,
+        chaseCount: 4,
+        lastAsk: null,
+        withheldReason: "No phone number on file",
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    // Withheld, and the record says why without the operator pressing
+    // anything — the queue's own wording, on the record's own status line.
+    expect(screen.getByTestId("onboarding-send-caption-1")).toHaveTextContent(
+      "No phone number on file",
+    );
+
+    // W2-04: the button still opens, because a control that cannot be pressed
+    // cannot explain itself. The dialog is what refuses.
+    fireEvent.click(screen.getByTestId("onboarding-send-questionnaire"));
+    expect(await screen.findByTestId("onboarding-send-questionnaire-refused")).toHaveTextContent(
+      "No phone number on file",
+    );
+    expect(screen.getByTestId("onboarding-send-questionnaire-confirm")).toBeDisabled();
+  });
+
+  it("sends through the same action the queue's Nudge uses, and reports the outcome", async () => {
+    const { fireEvent, act } = await import("@testing-library/react");
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    fireEvent.click(screen.getByTestId("onboarding-send-questionnaire"));
+    const confirm = await screen.findByTestId("onboarding-send-questionnaire-confirm");
+    await act(async () => fireEvent.click(confirm));
+
+    expect(recordSendOnboardingQuestionnaireAction).toHaveBeenCalledWith({
+      membershipId: MEMBERSHIP_ID,
+    });
+    expect(await screen.findByTestId("onboarding-send-questionnaire-outcome")).toHaveTextContent(
+      "Sent.",
+    );
+  });
+
+  /**
+   * LAN-266 requirement 3: "Refusals name the reason on the record, not 'could
+   * not be completed'." The M7 re-walk found this the hard way — with delivery
+   * unconfigured, the job's own `last_error` named the five missing settings
+   * and that it needs the club's administrator, and none of it reached either
+   * the dialog or the status line.
+   */
+  it("names a failed delivery's own reason, on the record and in the dialog", async () => {
+    const { fireEvent, act } = await import("@testing-library/react");
+    const reason =
+      "Automated delivery is not configured on this deployment, so nothing was sent. " +
+      "This needs the club's administrator, not an operator.";
+    vi.mocked(recordSendOnboardingQuestionnaireAction).mockResolvedValueOnce({
+      error: null,
+      outcome: "refused",
+      reason,
+    });
+    givenRecord({
+      send: {
+        onboarding: true,
+        lastContact: null,
+        next: { kind: "scheduled", at: new Date("2026-09-12T09:00:00Z") },
+        hasReachableNumber: true,
+        isUnder18: false,
+        deliveredCount: 0,
+        chaseCount: 4,
+        lastAsk: { requestedAt: new Date("2026-09-09T13:02:00Z"), delivery: "failed", reason },
+        withheldReason: null,
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    // On the record, without pressing anything.
+    expect(screen.getByTestId("onboarding-send-caption-0")).toHaveTextContent(
+      "failed — Automated delivery is not configured",
+    );
+
+    // And again at the moment of action, rather than a generic sentence.
+    fireEvent.click(screen.getByTestId("onboarding-send-questionnaire"));
+    const confirm = await screen.findByTestId("onboarding-send-questionnaire-confirm");
+    await act(async () => fireEvent.click(confirm));
+    expect(await screen.findByTestId("onboarding-send-questionnaire-outcome")).toHaveTextContent(
+      "Automated delivery is not configured",
+    );
+  });
+
+  it("is disabled outright on a closed membership, which has nothing left to chase", async () => {
+    givenRecord({
+      status: "departed",
+      send: {
+        onboarding: false,
+        lastContact: null,
+        next: { kind: "no_automated_chase" },
+        hasReachableNumber: true,
+        isUnder18: false,
+        deliveredCount: 0,
+        chaseCount: 4,
+        lastAsk: null,
+        withheldReason: "This membership is not onboarding, so there is nothing to chase.",
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+    expect(screen.getByTestId("onboarding-send-questionnaire")).toBeDisabled();
   });
 });
 

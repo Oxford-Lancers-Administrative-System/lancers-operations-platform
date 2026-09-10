@@ -1529,6 +1529,80 @@ describe("one role's record", () => {
       expect(screen.getByTestId("choose-somebody-first")).not.toHaveTextContent(/find the person/i);
     });
   });
+
+  /**
+   * LAN-251 filed the opposite of what these pin: that a candidate's name in
+   * Assign role and Replace role was a link to the operator record, so
+   * clicking it navigated away and discarded the in-progress assignment,
+   * leaving only the small radio as a way to choose.
+   *
+   * It is not, and it never was — the row is a `FormControlLabel`, the name is
+   * a `Typography` inside its label, and clicking it selects, exactly as the
+   * Invite operator screen's identically built list does. Both dialogs were
+   * walked at 1440 through the real application on this branch's base
+   * (`0964e95`) before these were written, and both selected the candidate and
+   * stayed on the page. What is pinned here is therefore the property the
+   * finding asked for, so that a later change which does put a link in the row
+   * fails a test instead of costing another walk.
+   */
+  describe("choosing a candidate — LAN-251", () => {
+    const CANDIDATE = {
+      personId: "cccccccc-1111-4111-8111-111111111111",
+      name: "Marigold Ashgrovemoor",
+      email: "marigold@lan141.example",
+      phone: null,
+      matchedOn: ["email"],
+      operatorState: null,
+      operatorAccountId: "aaaaaaaa-1111-4111-8111-111111111111",
+    };
+
+    // Assign is offered on a vacant seat; Replace only on a seat with exactly
+    // one holder. `role-kit-manager` is the catalogue's vacant seat and
+    // `role-1` its single-holder one, so each dialog is opened where it is
+    // actually offered.
+    const DIALOGS = [
+      ["assign-panel", "Assign role", "role-kit-manager", "personId"],
+      ["replace-panel", "Replace role", "role-1", "successorPersonId"],
+    ] as const;
+
+    async function candidateRowIn(testId: string, button: string, roleId: string) {
+      vi.mocked(searchCandidatesAction).mockResolvedValue({
+        ...EMPTY_ADMIN_ACTION_STATE,
+        candidates: [CANDIDATE],
+      });
+
+      render(await RoleRecordPage(pageProps({ roleId })));
+      fireEvent.click(screen.getByRole("button", { name: button }));
+      const panel = screen.getByTestId(testId);
+      fireEvent.submit(panel.querySelectorAll("form")[0]);
+      await screen.findByTestId("candidate-choice");
+      return { panel, row: within(panel).getByTestId("candidate-choice") };
+    }
+
+    it.each(DIALOGS)(
+      "selects the candidate when the name itself is clicked, in %s",
+      async (testId, button, roleId, field) => {
+        const { panel, row } = await candidateRowIn(testId, button, roleId);
+
+        fireEvent.click(within(row).getByText(CANDIDATE.name));
+
+        expect(row.querySelector('input[type="radio"]')).toBeChecked();
+        expect(panel.querySelector(`input[name="${field}"]`)).toHaveValue(CANDIDATE.personId);
+      },
+    );
+
+    it.each(DIALOGS)(
+      "puts no link in the row that could abandon the form, in %s",
+      async (testId, button, roleId) => {
+        const { row } = await candidateRowIn(testId, button, roleId);
+
+        // The operator record is reachable from the holder rows on the page
+        // behind; a link here would leave the search, the effective date and
+        // the reason behind with it.
+        expect(row.querySelectorAll("a")).toHaveLength(0);
+      },
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

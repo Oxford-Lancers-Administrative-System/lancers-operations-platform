@@ -237,3 +237,111 @@ export function validateAcademicYear(raw: string, label: string): ContactValidat
 
   return { valid: true, rule: "year_well_formed", message: `${label} is a valid year.` };
 }
+
+/**
+ * The one date-of-birth rule — LAN-245 and LAN-258, fixed from one place.
+ *
+ * Two surfaces refused a future date of birth two different ways, and neither
+ * of them named the field. The player questionnaire's own step 1
+ * (`/me/[token]/details`) let the value through to `updatePersonField`, where
+ * `people_date_of_birth_in_the_past` refused it and the resulting error
+ * escaped the server action — the player got the generic error boundary and a
+ * 500, with no idea which of fourteen fields was wrong (LAN-245, walker M7
+ * finding M7-03). The operator's own edit form
+ * (`/operate/people/[personId]/edit`) reached the identical constraint and
+ * showed "The database refused this change because it breaks one of the
+ * club's recorded rules" — true, but it never said *which* rule or *which*
+ * field (LAN-258, walker M5 finding M5-03).
+ *
+ * `DEC-w2-09`'s "validated before the save is offered, per field, naming the
+ * rule" is what both surfaces were missing, and it is what every other
+ * function in this module already provides. So this is that function, in the
+ * same shape, sitting beside its siblings rather than being written twice:
+ * the player form calls it through `saveDetailsStep`, the operator form calls
+ * it before its first write, and `updatePersonField` calls it as the service
+ * layer's own backstop so no third caller can reach the constraint raw.
+ *
+ * ## Why it duplicates the database's check rather than replacing it
+ *
+ * `people_date_of_birth_in_the_past` stays exactly as it is. A check
+ * constraint is the club's last line and must never be the *first* one an
+ * operator or a player meets: the constraint's job is to make the bad state
+ * unrepresentable, and this function's job is to explain, in the club's own
+ * words and against the right field, why a value will not be accepted. The
+ * two agree by construction — "strictly before today" is the constraint's own
+ * text — and `today` is injectable only so a test can pin it.
+ *
+ * ## The lower bound
+ *
+ * The database has no lower bound on a date of birth, and this does not
+ * invent one as a club rule. It refuses a year outside the same 1900–2200
+ * window `validateAcademicYear` already applies, for the same reason that
+ * window exists: a segmented picker and a typed date both produce "0002" as
+ * readily as "2002", and a year that cannot be a living person's is a typo,
+ * named as one, not a fact the club is recording.
+ */
+export function validateDateOfBirth(raw: string, today: Date = new Date()): ContactValidation {
+  const trimmed = raw.trim();
+
+  if (trimmed === "") {
+    return { valid: false, rule: "date_of_birth_blank", message: "A date of birth is required." };
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return {
+      valid: false,
+      rule: "date_of_birth_not_a_date",
+      message: `"${trimmed}" is not a date — a date of birth is a day, a month and a year.`,
+    };
+  }
+
+  const [year, month, day] = trimmed.split("-").map((part) => Number.parseInt(part, 10));
+
+  // Checked before the date is constructed, not after: `Date.UTC` reads a
+  // year below 100 as 1900 + that year, so "0002-01-01" would come back as
+  // 1902 and be reported as an impossible day rather than as the implausible
+  // year it actually is. The range check is also the cheaper, more specific
+  // answer, and the one an operator can act on.
+  if (year < YEAR_MIN || year > YEAR_MAX) {
+    return {
+      valid: false,
+      rule: "date_of_birth_out_of_range",
+      message: `A date of birth has to be in a year between ${YEAR_MIN} and ${YEAR_MAX} — "${trimmed}" is not.`,
+    };
+  }
+
+  // `Date.UTC` rolls an impossible day forward into the next month
+  // ("2005-02-30" becomes 2 March), so the parts are read back and compared
+  // rather than trusted to have survived the round trip.
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return {
+      valid: false,
+      rule: "date_of_birth_not_a_date",
+      message: `"${trimmed}" is not a real date — that day does not exist in that month.`,
+    };
+  }
+
+  // The constraint's own comparison, in the constraint's own terms: strictly
+  // before today, taken as a calendar day rather than an instant, so a date
+  // recorded on the day it is entered is refused exactly where the database
+  // would refuse it and nowhere else.
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  if (parsed.getTime() >= todayUtc) {
+    return {
+      valid: false,
+      rule: "people_date_of_birth_in_the_past",
+      message: "A date of birth has to be in the past.",
+    };
+  }
+
+  return {
+    valid: true,
+    rule: "date_of_birth_in_the_past",
+    message: "This is a valid date of birth.",
+  };
+}

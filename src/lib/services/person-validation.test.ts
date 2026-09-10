@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_CALLING_CODE,
   validateAcademicYear,
+  validateDateOfBirth,
   validateEmailAddress,
   validatePhoneNumber,
 } from "./person-validation";
@@ -157,5 +158,65 @@ describe("validateAcademicYear", () => {
     const result = validateAcademicYear("-2024", "Matriculation year");
     expect(result.valid).toBe(false);
     expect(result.rule).toBe("year_not_numeric");
+  });
+});
+
+/**
+ * LAN-245 and LAN-258 — the one rule both the player's questionnaire and the
+ * operator's edit form ask before offering a save. `today` is pinned so the
+ * boundary cases are the boundary cases and not whatever day CI runs on.
+ */
+describe("validateDateOfBirth", () => {
+  const TODAY = new Date("2026-09-09T14:02:00Z");
+
+  it("accepts an ordinary date of birth", () => {
+    const result = validateDateOfBirth("2005-03-11", TODAY);
+    expect(result.valid).toBe(true);
+    expect(result.rule).toBe("date_of_birth_in_the_past");
+  });
+
+  it("refuses a date in the future, naming the database's own rule", () => {
+    const result = validateDateOfBirth("2030-12-31", TODAY);
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("people_date_of_birth_in_the_past");
+    expect(result.message).toBe("A date of birth has to be in the past.");
+  });
+
+  it("refuses today itself — the constraint is strictly before today", () => {
+    const result = validateDateOfBirth("2026-09-09", TODAY);
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("people_date_of_birth_in_the_past");
+  });
+
+  it("accepts yesterday, so the boundary refuses one day and not two", () => {
+    expect(validateDateOfBirth("2026-09-08", TODAY).valid).toBe(true);
+  });
+
+  it("refuses a blank value rather than treating it as a valid date", () => {
+    const result = validateDateOfBirth("   ", TODAY);
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("date_of_birth_blank");
+  });
+
+  it("refuses a value that is not written as a date at all", () => {
+    const result = validateDateOfBirth("11 March 2005", TODAY);
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("date_of_birth_not_a_date");
+  });
+
+  it("refuses a day that does not exist in its month, rather than rolling it forward", () => {
+    const result = validateDateOfBirth("2005-02-30", TODAY);
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("date_of_birth_not_a_date");
+  });
+
+  it("accepts 29 February in a leap year", () => {
+    expect(validateDateOfBirth("2004-02-29", TODAY).valid).toBe(true);
+  });
+
+  it("refuses a year no living person was born in — a typed or picked typo", () => {
+    const result = validateDateOfBirth("0002-01-01", TODAY);
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("date_of_birth_out_of_range");
   });
 });

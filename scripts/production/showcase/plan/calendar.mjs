@@ -3,7 +3,8 @@
  *
  * Series, alternative groups, an event in every lifecycle state the schema can
  * express, audiences, invitations, answers, questions, registers, walk-ups,
- * RSVP and club-link tokens, amendments, and the messaging ladder in every
+ * RSVP tokens (club links are minted by the application, never here — see the
+ * note where they used to be written), amendments, and the messaging ladder in every
  * state a reviewer has to be able to look at: delivered, reminded, the email
  * rung, a terminal failure, a WhatsApp failure carried by email, somebody with
  * no usable route, a held job, a cancelled job, a raised flag with the
@@ -1960,105 +1961,31 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
     );
   }
 
-  // Club links: live on the next held event and the last home game, revoked on one.
-  const clubLinkFor = (record, { revoked = false, example = null } = {}) => {
-    const minted = mintToken("club_link_tokens", record.key);
-    add(
-      "public.club_link_tokens",
-      {
-        id: id("club_link_tokens", labels.currentSeason, record.key, revoked ? "revoked" : "live"),
-        event_id: record.eventId,
-        token_hash: minted.hash,
-        issued_at: record.approvedAt ?? at(-1, "10:00"),
-        issued_by_person_id: actorPersonId,
-        revoked_at: revoked ? addHours(record.approvedAt, 48) : null,
-        revoked_reason: revoked ? "Shared too widely; reissued." : null,
-        last_used_at: revoked ? addHours(record.approvedAt, 24) : null,
-        use_count: revoked ? 3 : 0,
-      },
-      "illustrative",
-      { source: `club link for ${record.key}` },
-      [revoked ? "club-link.revoked" : "club-link.live"],
-      example,
-    );
-    if (!revoked) {
-      ctx.example(`link.club.${record.key}`, minted.plaintext);
-      // Also offered under the generic key, so five seats each get a club
-      // link of their own rather than sharing one event's.
-      ctx.example("link.club.any", minted.plaintext);
-    }
-    return minted;
-  };
-  const heldEvent = events.find((record) => record.spec.ladder === "held");
-  const homeGame = events.find((record) => record.key === "game:home-1");
-  if (heldEvent) clubLinkFor(heldEvent, { example: "club-link.live" });
-  // Five live club links, not one. Every tester opens a club link, and the
-  // page records a use against the token it was opened with — one link between
-  // five people means one row carrying five testers' visits.
-  for (const record of events
-    .filter(
-      (entry) =>
-        entry !== heldEvent &&
-        entry !== homeGame &&
-        entry.spec.status === "approved" &&
-        entry.spec.audience !== "none",
-    )
-    .slice(0, 4)) {
-    clubLinkFor(record, {});
-  }
-  if (homeGame) {
-    clubLinkFor(homeGame, { revoked: true, example: "club-link.revoked" });
-    const minted = mintToken("club_link_tokens", homeGame.key, "reissued");
-    add(
-      "public.club_link_tokens",
-      {
-        id: id("club_link_tokens", labels.currentSeason, homeGame.key, "reissued"),
-        event_id: homeGame.eventId,
-        token_hash: minted.hash,
-        issued_at: addHours(homeGame.approvedAt, 49),
-        issued_by_person_id: actorPersonId,
-        revoked_at: null,
-        revoked_reason: null,
-        last_used_at: addHours(homeGame.approvedAt, 60),
-        use_count: 4,
-      },
-      "illustrative",
-      { source: `reissued club link for ${homeGame.key}` },
-      ["club-link.live"],
-    );
-    ctx.example("link.club.reissued", minted.plaintext);
-  }
-  // Four more revoked-then-reissued pairs. Revoking a link is the workflow, and
-  // it consumes the live link it was issued for.
-  for (const [n, record] of events
-    .filter(
-      (entry) => entry.spec.status === "approved" && entry !== homeGame && entry !== heldEvent,
-    )
-    .slice(4, 8)
-    .entries()) {
-    const minted = mintToken("club_link_tokens", record.key, `reissued-${n}`);
-    add(
-      "public.club_link_tokens",
-      {
-        id: id("club_link_tokens", labels.currentSeason, record.key, `reissued-${n}`),
-        event_id: record.eventId,
-        token_hash: minted.hash,
-        issued_at: addHours(record.approvedAt, 49),
-        issued_by_person_id: actorPersonId,
-        revoked_at: null,
-        revoked_reason: null,
-        last_used_at: addHours(record.approvedAt, 60),
-        use_count: 4 - n,
-      },
-      "illustrative",
-      { source: `reissued club link for ${record.key}` },
-      ["club-link.live"],
-    );
-    ctx.example("link.club.reissued", minted.plaintext);
-  }
+  // Club links are minted by the application, never seeded — LAN-241.
+  //
+  // A seeded row could not work. `resolveClubLinkIn` finds the row by the
+  // SHA-256 of the token in the URL and then re-derives what that token ought
+  // to have been as HMAC(`CLUB_LINK_SECRET`, event id, row id), refusing on a
+  // mismatch. This loader mints its plaintext from the private `tokenSecret`
+  // in the parameter file, which is not, and must not become, the deployment's
+  // signing secret — so every link it wrote was refused on every deployment,
+  // and the Share link dialog, which recomputes the token rather than reading
+  // it back, displayed a URL whose hash had never been stored. Both the seeded
+  // links and the dialog's own were dead, on hosted included, and the tester
+  // checklists handed them out.
+  //
+  // Of the three ways out — carry the deployment secret in the parameter file,
+  // have the application store the plaintext rather than derive it, or stop
+  // seeding — the third is the only one that neither widens what the parameter
+  // file holds nor weakens the derivation check. So the club link is now made
+  // the way a real one is made: the operator presses Share link and then
+  // Create. The M2 W7 checklist row says exactly that, and `verify` no longer
+  // counts a state nothing writes.
 
   // Ladders, now that every event and invitation exists.
   for (const record of events) ladderFor(record);
+
+  const heldEvent = events.find((record) => record.spec.ladder === "held");
 
   return { events, jobs, invitationsByEvent, squad, staffInvitees, heldEvent, approvedPast };
 }

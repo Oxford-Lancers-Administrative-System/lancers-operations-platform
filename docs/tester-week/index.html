@@ -509,7 +509,7 @@
         <div class="summary">
           <div><b>54</b> workflows across six missions</div>
           <div><b>0</b> arriving with Mission 7's remaining packages</div>
-          <div><b>172</b> data states the loader produces and verifies</div>
+          <div><b>174</b> data states the loader produces and verifies</div>
           <div><b>4</b> states that arrive later</div>
           <div><b>21</b> for Tester 1</div>
           <div><b>14</b> for Tester 2</div>
@@ -730,8 +730,11 @@
           <p class="placement"><em>/operate/admin/operators/[operatorId]</em></p>
           <h3>What the tester should see</h3>
           <p>
-            Deactivate asks for a reason and ends sign-in without ending roles; Restore brings it
-            back with a preview of the permissions.
+            Deactivate asks for a reason and ends sign-in without ending roles. Restore asks for an
+            optional reason and explains in one sentence that the same account works again and only
+            the roles still in effect come back. There is no preview or list of the permissions
+            being restored — neither the packet nor its prototype asks for one, so its absence is
+            correct.
           </p>
           <h3>Actions on the page</h3>
           <ul>
@@ -1197,7 +1200,9 @@
           <h3>What the tester should see</h3>
           <p>
             A draft with its audience arrives ready to approve; approving is refused on a draft with
-            no audience; the transport questions and the alternative-slot group render.
+            no audience; the transport questions and the alternative-slot group render. The audience
+            list's Unit column reads Offence, Defence, Both or Special teams — all four appear on
+            the squad, and a reading that appears on nobody is a finding.
           </p>
           <h3>Actions on the page</h3>
           <ol>
@@ -1253,6 +1258,21 @@
             <span class="state" title="An event asking questions — floor 2">event.questions</span>
             <span class="state" title="An event in an alternative-slot group — floor 2"
               >event.alternative</span
+            >
+            <span
+              class="state"
+              title="A player with an offence position and no defence one, so the audience unit reads Offence — floor 2"
+              >position.offence-only</span
+            >
+            <span
+              class="state"
+              title="A player with a defence position and no offence one, so the audience unit reads Defence — floor 2"
+              >position.defence-only</span
+            >
+            <span
+              class="state"
+              title="A player whose only position is special teams, so the audience unit reads Special teams — floor 2"
+              >position.special-teams-only</span
             >
           </p>
           <h3>Screens</h3>
@@ -1419,14 +1439,14 @@
           <ul class="routes">
             <li><code>/operate/events/{event.occurred.register}</code></li>
             <li><code>/operate/events/{event.occurred.register}/attendance</code></li>
-            <li><code>/e/{link.club.any}</code></li>
-            <li><code>/e/{link.club.reissued}</code></li>
           </ul>
 
           <h3>What the tester should see</h3>
           <p>
-            The participation table with answers beside presence; the register with walk-ups; the
-            club link opens read-only with no operator controls and the revoked one does not.
+            The participation table with answers beside presence; the register with walk-ups. Then
+            press Share link on that event, press Create the link, copy it, and open it in a private
+            window signed out: it shows the event read-only with no operator controls. Revoke it and
+            open it again: it does not.
           </p>
           <h3>Actions on the page</h3>
           <p><em>No required-actions section in the ledger.</em></p>
@@ -1447,8 +1467,6 @@
             <span class="state" title="Said yes, marked absent — floor 2"
               >attendance.said-yes-absent</span
             >
-            <span class="state" title="A live club link — floor 1">club-link.live</span>
-            <span class="state" title="A revoked club link — floor 1">club-link.revoked</span>
           </p>
           <h3>Screens</h3>
           <p>
@@ -2089,8 +2107,13 @@
           </p>
           <h3>What the tester should see</h3>
           <p>
-            The Film Review's remaining reminders read Held with the reason; the change notice was
-            sent; nothing about the old venue can go out.
+            The change notice was sent, the event's own change history names what moved, and nothing
+            carrying the old venue can go out.
+            <strong>Nothing on either page reads Held, and that is correct</strong> — the delivery
+            page lists invitation messages, every message this amendment stopped is a reminder, and
+            held is a transient state the product never rests in: a live amendment releases every
+            job it holds in the same transaction that holds it. Do not report the absence of a Held
+            row.
           </p>
           <h3>Actions on the page</h3>
           <p><em>No required-actions section in the ledger.</em></p>
@@ -2100,7 +2123,11 @@
             <span class="state" title="An event with reminders on hold after an amendment — floor 1"
               >event.held</span
             >
-            <span class="state" title="A reminder held after an amendment — floor 5">job.held</span>
+            <span
+              class="state"
+              title="A reminder held after an amendment — data only, surfaced on no page — floor 5"
+              >job.held</span
+            >
             <span class="state" title="A change notice, sent — floor 10"
               >job.schedule-change-notice</span
             >
@@ -2613,7 +2640,9 @@
           <h3>What the tester should see</h3>
           <p>
             Every column banded Person · Onboarding · Season; filter by standing; edit a cell and
-            see it commit; the Missing count links to the queue.
+            see it commit; the Missing count links to the queue. Offence, Defence and Special teams
+            each carry a value on some rows and not others — a column that is blank on every row is
+            a finding.
           </p>
           <h3>Actions on the page</h3>
           <ul>
@@ -2749,6 +2778,11 @@
             >
             <span class="state" title="A jersey number — floor 20">jersey.assigned</span>
             <span class="state" title="A position assignment — floor 30">position.assigned</span>
+            <span
+              class="state"
+              title="A special-teams position — the roster board's third position column and the audience builder's Special teams unit — floor 6"
+              >position.special-teams</span
+            >
             <span class="state" title="An eligibility record — floor 20">eligibility.recorded</span>
             <span class="state" title="A Blue on record — floor 2">blues.awarded</span>
             <span class="state" title="A player with a required fact not recorded — floor 5"
@@ -2859,9 +2893,9 @@
           </p>
           <h3>What the tester should see</h3>
           <p>
-            The ladder with dated milestones, the full status history, positions, jersey,
-            availability, eligibility, formalwear, Blues, and this season's RSVP and attendance
-            history.
+            The ladder with dated milestones, the full status history, positions — Offence, Defence
+            and, on about one player in four, Special teams — jersey, availability, eligibility,
+            formalwear, Blues, and this season's RSVP and attendance history.
           </p>
           <h3>Actions on the page</h3>
           <ul>
@@ -2952,8 +2986,15 @@
             <span class="state" title="Availability green, confirmed — floor 20"
               >availability.green</span
             >
-            <span class="state" title="A returner carried forward from last season — floor 20"
+            <span
+              class="state"
+              title="A membership whose entry reads Returning, however it was created — floor 20"
               >membership.entry.returning</span
+            >
+            <span
+              class="state"
+              title="A special-teams position — the roster board's third position column and the audience builder's Special teams unit — floor 6"
+              >position.special-teams</span
             >
             <span
               class="state"
@@ -3642,8 +3683,11 @@
           <p class="placement"><em>A public page on the club's own domain</em></p>
           <h3>What the tester should see</h3>
           <p>
-            The public form on the club's own page; consent is required to submit; you are told if
-            you are already in the list; the QR page shows the live code.
+            The public form on the club's own page; you are told if you are already in the list; the
+            QR page shows the live code. Sign-up is refused until first name, last name, phone
+            number and the consent tick are all there, and the disabled button says which one is
+            missing — a required phone is the rule, not a defect. College email joins the required
+            set with LAN-268 and is still optional today.
           </p>
           <h3>Actions on the page</h3>
           <ol>
@@ -5096,8 +5140,11 @@
           </p>
           <h3>What the tester should see</h3>
           <p>
-            Returning through the same link shows everything held; changing an operator-recorded
-            value raises a dispute rather than overwriting.
+            Returning through the same link shows everything held. Changing a value the club
+            recorded takes effect immediately — last write wins, decided 2026-09-04 (Q-9) — and the
+            person record's audit history carries the old value, the new one and who supplied it. No
+            dispute is raised and no contested-value notice appears; that mechanism was withdrawn
+            before the build shipped.
           </p>
           <h3>Actions on the page</h3>
           <ol>
@@ -5213,8 +5260,14 @@
           </p>
           <h3>What the tester should see</h3>
           <p>
-            Every item with its state and who set it; an item's full history; complete, waive (no
-            reason), not applicable, reopen; the activity log grouped by section.
+            Every item with its state and who set it; an item's full history; the activity log
+            grouped by section. Each item offers only its own list and nothing else — Subscription
+            invoiced Not invoiced / Invoiced; Subscription paid Not paid / Paid / Waived, and Waived
+            is the only one anywhere; Kit Distributed, Squad photo, Code of Conduct and Photo
+            release No / Yes; Comms groups Not assigned / Assigned and invited / In the group; Hudl
+            access Not invited / Invited / Claimed; BUCS Play those three and Confirmed. There is no
+            Reopen verb and no Not applicable: a state is changed by picking another entry from the
+            same list.
           </p>
           <h3>Actions on the page</h3>
           <ul>
@@ -5337,8 +5390,12 @@
           </p>
           <h3>What the tester should see</h3>
           <p>
-            Both values with both attributions; keep the club's or take the player's; the losing
-            value retained.
+            <strong>Withdrawn on 2026-09-04 (Q-9), so there is nothing here to settle.</strong> The
+            record shows the person's plain fields with who supplied each one, and the audit history
+            underneath. There is no disputed state, no second contested value, no Keep / Take
+            control: a player's answer overwrites the club's outright and the history carries what
+            changed. The <code>person_fact_disputes</code> rows this page once read are historical
+            and are shown nowhere. Absence of the control is correct — do not file it.
           </p>
           <h3>Actions on the page</h3>
           <ol>

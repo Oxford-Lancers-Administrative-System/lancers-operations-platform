@@ -57,6 +57,7 @@ import {
   DISPUTED_NOTICE,
   IF_SOMETHING_WRONG_HEADING,
   R3G_REASSURANCE,
+  stepLabel,
   WHAT_CLUB_HAS_HEADING,
 } from "./presentation";
 
@@ -121,6 +122,7 @@ function view(overrides: Partial<QuestionnaireView> = {}): QuestionnaireView {
       date_of_birth: null,
     },
     agreements: { code_of_conduct: null, photo_release: null },
+    documentAgreed: { code_of_conduct: false, photo_release: false },
     itemStatus: {
       code_of_conduct: "pending",
       photo_release: "pending",
@@ -449,5 +451,105 @@ describe("F3 — the BUCS Play screen carries its status box and both footer not
     const text = container.textContent ?? "";
     expect(text).toContain(BUCS_CLAIM_SUBNOTE);
     expect(text).toContain(BUCS_CONTINUE_ANYWAY_NOTE);
+  });
+});
+
+/**
+ * LAN-289. The step navigator drew its chip from the item's stored status and
+ * its label from a separate `=== "claimed"` test, so a BUCS Play item the club
+ * had **confirmed** — resolved, and a state beyond claimed — sat under a chip
+ * coloured complete with the word "Outstanding" beside it. Two signals about
+ * one row, contradicting each other, on the page LAN-216 asks to have the
+ * navigator's "label and its chip state agree".
+ */
+describe("LAN-289 — the navigator's label and its chip agree", () => {
+  function trailRowFor(container: HTMLElement, label: string): HTMLElement {
+    const row = Array.from(container.querySelectorAll("li")).find((item) =>
+      item.textContent?.includes(label),
+    );
+    expect(row).toBeDefined();
+    return row as HTMLElement;
+  }
+
+  it("never reads 'Outstanding' for a confirmed BUCS Play item", async () => {
+    givenValid(
+      view({
+        nextStep: "hudl",
+        itemStatus: {
+          code_of_conduct: "pending",
+          photo_release: "pending",
+          bucs_play: "complete",
+          hudl_access: "pending",
+        },
+      }),
+    );
+    const { container } = await renderPage({ step: "hudl" });
+
+    const bucs = trailRowFor(container, stepLabel("bucs_play"));
+    expect(bucs.textContent).toContain("Confirmed");
+    expect(bucs.textContent).not.toContain("Outstanding");
+
+    // The item genuinely still owed keeps the word, so this is not a blanket
+    // silencing of it.
+    expect(trailRowFor(container, stepLabel("hudl")).textContent).toContain("Outstanding");
+  });
+
+  it("says 'Claimed' for a claimed Hudl item, which is not the same as resolved", async () => {
+    givenValid(
+      view({
+        nextStep: "bucs_play",
+        itemStatus: {
+          code_of_conduct: "pending",
+          photo_release: "pending",
+          bucs_play: "pending",
+          hudl_access: "claimed",
+        },
+      }),
+    );
+    const { container } = await renderPage({ step: "bucs_play" });
+
+    const hudl = trailRowFor(container, stepLabel("hudl"));
+    expect(hudl.textContent).toContain("Claimed");
+    expect(hudl.textContent).not.toContain("Outstanding");
+  });
+
+  it("still reads 'Outstanding' for an item that has only been invited", async () => {
+    givenValid(
+      view({
+        nextStep: "bucs_play",
+        itemStatus: {
+          code_of_conduct: "pending",
+          photo_release: "pending",
+          bucs_play: "invited",
+          hudl_access: "pending",
+        },
+      }),
+    );
+    const { container } = await renderPage({ step: "bucs_play" });
+
+    expect(trailRowFor(container, stepLabel("bucs_play")).textContent).toContain("Outstanding");
+  });
+
+  it("says the same thing on the Done list as in the navigator", async () => {
+    givenValid(
+      view({
+        nothingOutstanding: true,
+        nextStep: "done",
+        detailsComplete: true,
+        needsConsentStep: false,
+        itemStatus: {
+          code_of_conduct: "complete",
+          photo_release: "complete",
+          bucs_play: "complete",
+          hudl_access: "claimed",
+        },
+      }),
+    );
+    const { container } = await renderPage({ step: "done" });
+    const text = container.textContent ?? "";
+
+    expect(text).not.toContain("Outstanding");
+    expect(text).toContain("Confirmed");
+    expect(text).toContain("Claimed");
   });
 });
