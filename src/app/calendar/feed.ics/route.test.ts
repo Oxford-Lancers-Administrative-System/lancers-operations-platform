@@ -86,6 +86,7 @@ describe("GET /calendar/feed.ics", () => {
           isCancelled: false,
           description: null,
           requiredEquipment: null,
+          joiningUrl: null,
           updatedAt: "2026-10-01T12:00:00.000Z",
         },
       ],

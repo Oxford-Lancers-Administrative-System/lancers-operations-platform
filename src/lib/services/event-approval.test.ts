@@ -26,6 +26,7 @@ import {
   approveEvent,
   readApprovalPreview,
   readEventAudience,
+  readEventAudienceGroupSummary,
   saveEventAudience,
 } from "./event-approval";
 import {
@@ -2007,5 +2008,62 @@ describe("the seeded identity records", () => {
     expect(stamps.rows).toHaveLength(1);
     expect(stamps.rows[0].created_at.getTime()).toBeLessThan(Date.now());
     expect(Number(stamps.rows[0].count)).toBeGreaterThan(20);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The audience's shape, once somebody in it has gone inactive -- LAN-242
+// ---------------------------------------------------------------------------
+
+describe("the audience heading counts everybody in the audience", () => {
+  /**
+   * The defect three walkers reported on seven events (LAN-239, M2/M4/M6):
+   * "WHO THIS IS FOR / 0 people" above a list of sixty-one names.
+   *
+   * `summariseAudienceGroups` resolved the saved selection through
+   * `resolveSelection`, which refuses an unknown key **outright** -- correctly,
+   * for a write. One lapsed membership since the audience was saved therefore
+   * collapsed the whole summary to zero, on the event page, the approval review
+   * and the cancel screen alike. Reproduced here end to end, because the unit
+   * test can only state the rule; this states that the rule is the one the
+   * screen's own read actually applies.
+   */
+  it("does not read zero when one member has left the catalogue since", async () => {
+    const event = await createEventDraft(actorPersonId, draft());
+    const catalogue = await catalogueFor(event);
+    const players = catalogue.candidates
+      .filter((candidate) => candidate.capacity === "player")
+      .slice(0, 5);
+    expect(players.length).toBe(5);
+
+    await saveEventAudience(
+      actorPersonId,
+      event.id,
+      players.map((candidate) => candidate.key),
+    );
+
+    const whole = await readEventAudienceGroupSummary(event.id);
+    expect(whole.total).toBe(5);
+    expect(whole.noLongerSelectable).toBe(0);
+
+    // One of them goes inactive. The row in `event_audience_members` stays -- the
+    // audience is frozen -- but the builder would no longer offer them.
+    await observer.query("update public.season_memberships set status = 'inactive' where id = $1", [
+      players[0].anchorId,
+    ]);
+
+    const after = await readEventAudienceGroupSummary(event.id);
+    const audience = await readEventAudience(event.id);
+
+    expect(audience).toHaveLength(5);
+    expect(audience.filter((member) => !member.stillSelectable)).toHaveLength(1);
+    expect(after.total).toBe(5);
+    expect(after.noLongerSelectable).toBe(1);
+    // These five are not the whole of any group, so none is named and the four
+    // still-listed players are `others`. The one who went inactive is not among
+    // them: "chosen by hand" is a statement about how somebody was picked, and
+    // a lapsed membership is not that.
+    expect(after.others).toBe(4);
+    expect(after.others + after.noLongerSelectable).toBe(after.total);
   });
 });

@@ -110,8 +110,10 @@ until now the route prefix at least correlated with the reader. It no longer
 does.
 
 What carries the boundary instead is the **projection**: the public reads select
-different columns, so a joining URL, a participation count or a status is never
-read out of the database rather than withheld after loading. The elevated
+different columns, so a participation count or a status is never read out of the
+database rather than withheld after loading. An online event's joining URL used
+to be on that list and is not any more — LAN-284, Brian 2026-09-09 — because the
+protection belongs on the meeting rather than on the schedule. The elevated
 projection is reached only through a service-layer guard. Both are recorded in
 [`tickets/LAN-153-public-calendar-and-tiers.md`](tickets/LAN-153-public-calendar-and-tiers.md),
 with the three tiers D2 and D3 approved.

@@ -162,6 +162,21 @@ other." Fixed without touching `record-shell.tsx` — the shared shell supplies
 `Section`/`Row`/`RecordField` only, never the page's own outer layout, so the
 player record (which was already correct) needed no change.
 
+That round fixed the pair Brian named and left **Recruitment events and Notes**
+in a two-column `Grid` of their own, so the record went full width, then half
+width, then full width again. LAN-239's M6 walk caught it and filed LAN-253;
+Brian ruled the same way on 2026-09-09 — stack them, they should not be side by
+side — and they now do. The sentence above is therefore true of every card on
+this record, which is what it always said.
+
+**First contact is set the moment a recruit is captured, through every door.**
+The walk-up door always recorded it, from the event's own date. The hand-add
+(`W6`) and QR sign-up (`W7`) doors did not, so the field read "not recorded"
+for the rest of the season and the board's default sort had nothing to sort a
+new recruit by — LAN-247. Both now record today, on the club's clock, on the
+row they create; a second sign-up or a second add keeps the day the club first
+met them.
+
 **SEND / RESEND**, one button per questionnaire, each opening a dialog naming
 the last-sent date or that it has never been sent — see "The send machinery."
 Whether either button is reachable now differs by track — see item 9 below.

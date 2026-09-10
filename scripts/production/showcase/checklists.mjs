@@ -103,11 +103,33 @@ export function seatViews(plan) {
       // each seat is dealt a *different* seat's record — a shift of two rather
       // than a reversal, because reversing an odd-length list leaves the middle
       // seat pointed at its own account, the one record it must not deactivate.
+      //
+      // LAN-254, item 5: the shift is a starting point, not the answer. A load
+      // where a seat carries no `authUserId` — every local rehearsal, which
+      // creates two review logins rather than five, and any hosted load where
+      // Brian has not finished creating the accounts — has no operator record
+      // for that seat, and the shift used to stop there. Four checklist rows
+      // per affected seat then read "no example row for `operator.other-seat`
+      // in this load; skip and report", and Deactivate, Restore, Assign or end
+      // a role, the audit evidence and the whole activated-operator email
+      // rehome went untested. Walk on round the seats instead and take the
+      // first account that is not this seat's own: with five accounts every
+      // seat still gets the shift-of-two record and nothing changes, and with
+      // two it gets a real one instead of a hole.
       if (key === "operator.other-seat") {
-        const mine = order[(order.indexOf(testerKey) + 2) % order.length];
-        const account = plan.examples?.get(`operator.${mine}`);
-        if (account !== undefined && mine !== testerKey) {
-          view.set(key, account);
+        const start = order.indexOf(testerKey);
+        let dealt;
+        for (let step = 2; step < 2 + order.length; step += 1) {
+          const mine = order[(start + step) % order.length];
+          if (mine === testerKey) continue;
+          const account = plan.examples?.get(`operator.${mine}`);
+          if (account !== undefined) {
+            dealt = account;
+            break;
+          }
+        }
+        if (dealt !== undefined) {
+          view.set(key, dealt);
           continue;
         }
       }

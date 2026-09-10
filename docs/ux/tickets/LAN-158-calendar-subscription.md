@@ -89,17 +89,20 @@ world-readable, Brian's explicit acceptance), a cancelled event stays and is
 marked cancelled, a deleted draft disappears, an amendment updates the
 existing entry.
 
-| In the feed                  | Not in the feed                                     |
-| ---------------------------- | --------------------------------------------------- |
-| Name, type (in the name)     | Any person, in any capacity                         |
-| Date and time, Europe/London | Audience, invitation, RSVP, attendance              |
-| Venue, or that it is online  | **The joining URL of an online event**              |
-| Cancelled, when it is        | Delivery state, or anything requiring the club link |
+| In the feed                   | Not in the feed                                     |
+| ----------------------------- | --------------------------------------------------- |
+| Name, type (in the name)      | Any person, in any capacity                         |
+| Date and time, Europe/London  | Audience, invitation, RSVP, attendance              |
+| Venue, or that it is online   | Delivery state, or anything requiring the club link |
+| An online event's joining URL | —                                                   |
+| Cancelled, when it is         | —                                                   |
 
-**`VEVENT` properties** — the Lead's determination, and the complete list:
-`UID`, `DTSTAMP`, `DTSTART`, `DTEND`, `SUMMARY`, `LOCATION`, `STATUS`,
-`SEQUENCE`. No `DESCRIPTION`, no `CATEGORIES` — `SUMMARY` already carries the
-type where an operator wrote it into the event's name.
+**`VEVENT` properties** — the Lead's determination, plus what has since been
+added to it: `UID`, `DTSTAMP`, `DTSTART`, `DTEND`, `SUMMARY`, `LOCATION`,
+`DESCRIPTION` (Q-29 — the event's description and required equipment), `URL`
+(LAN-284 — an online event's joining link), `STATUS`, `SEQUENCE`. No
+`CATEGORIES` — `SUMMARY` already carries the type where an operator wrote it into
+the event's name.
 
 **Identity.** `UID` is the event's own id plus `@app.oxfordlancers.com`,
 never regenerated. `SEQUENCE` is whole seconds between `events.updated_at`
@@ -144,8 +147,14 @@ guaranteed to reach on time.
   creates no row in any of the five participation tables.
 - **No person appears in the feed**, so there is no consent question in it —
   asserted on the payload, not the page.
-- **An online event's joining URL is never emitted.** The type the feed reads
-  (`FeedEvent`) has no field for one.
+- **An online event's joining URL is emitted, in the `URL` property.** LAN-284
+  reversed the never-public rule (Brian, 2026-09-09): the calendar stays open
+  and the protection lives on the meeting, which requires its own passcode. It
+  goes in `URL` rather than `DESCRIPTION` so a subscribed calendar renders it as
+  a tappable link, and it is the one property in the document emitted unescaped —
+  `URL` is URI-typed, and escaping a real meeting link would break it, so
+  `safeUri` refuses any value carrying a line break or a scheme other than
+  http/https.
 - **The feed URL cannot move** without a permanent redirect — it joins
   LAN-126's existing cutover rule for issued links. This ships on the
   permanent hostname (`app.oxfordlancers.com`) and adds no configuration for

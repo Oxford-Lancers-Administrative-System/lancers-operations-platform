@@ -35,6 +35,7 @@ import {
   validateEventDraft,
   type EventDraftInput,
 } from "./events";
+import { JOINING_URL_MESSAGE } from "./event-input";
 import { readCurrentSeason } from "./seasons";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -965,6 +966,42 @@ describe("row 8 — the form's rules, checked without a database", () => {
     expect(result.value.deliveryMode).toBe("in_person");
   });
 
+  // LAN-264 — the phantom amendment a textarea produced.
+  it("normalises a textarea's CRLF newlines, so re-saving a kit list is not a change", () => {
+    // HTML submits a <textarea> with CRLF newlines whatever was typed into it
+    // and whatever was rendered into it. Description and required equipment
+    // became multi-line under LAN-264, so without this every later amendment to
+    // an event with a kit list recorded a second, invented change — "Required
+    // equipment: <three lines> → <the same three lines>" — and rewrote the
+    // column to CRLF on its way past.
+    const typed = validateEventDraft({
+      ...complete,
+      requiredEquipment: "Gumshield\nStuds\nWater",
+    });
+    const resubmitted = validateEventDraft({
+      ...complete,
+      requiredEquipment: "Gumshield\r\nStuds\r\nWater",
+    });
+
+    expect(typed.ok && resubmitted.ok).toBe(true);
+    if (!typed.ok || !resubmitted.ok) return;
+    expect(resubmitted.value.requiredEquipment).toBe("Gumshield\nStuds\nWater");
+    expect(resubmitted.value.requiredEquipment).toBe(typed.value.requiredEquipment);
+  });
+
+  it("keeps the lines themselves rather than collapsing them", () => {
+    const result = validateEventDraft({
+      ...complete,
+      description: "One.\r\n\r\nTwo.",
+      requiredEquipment: "A\rB",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.description).toBe("One.\n\nTwo.");
+    expect(result.value.requiredEquipment).toBe("A\nB");
+  });
+
   it("refuses a time that is not a five-minute step — D78", () => {
     const result = validateEventDraft({ ...complete, startsAt: "20:02" });
 
@@ -986,6 +1023,62 @@ describe("row 8 — the form's rules, checked without a database", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.issues.map((issue) => issue.field)).toContain("joiningUrl");
+  });
+
+  // Finding F1 of the LAN-272 review. LAN-284 made this field public, on the
+  // event page as an `href` and in the subscription feed as a raw `URL`
+  // property, and nothing checked what it was. `javascript:alert(...)` pasted
+  // into "Joining link" became an anchor on an unauthenticated page whose href
+  // ran script in this application's own origin. The write path refuses it
+  // first, because that is the only layer the operator hears from.
+  it.each([
+    ["a javascript: scheme", "javascript:alert(document.cookie)"],
+    ["a data: URI", "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="],
+    ["a vbscript: scheme", "vbscript:msgbox(1)"],
+    ["something that is not a URL at all", "teams.example.invalid/x"],
+  ])("refuses %s as a joining link — F1", (_label, joiningUrl) => {
+    const result = validateEventDraft({ ...complete, deliveryMode: "online", joiningUrl });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues).toContainEqual({
+      field: "joiningUrl",
+      message: JOINING_URL_MESSAGE,
+    });
+  });
+
+  it("names the rule rather than the refusal — F1", () => {
+    // The operator has to learn what to type, not that they got it wrong.
+    expect(JOINING_URL_MESSAGE).toBe("Enter a full web address starting with https://");
+  });
+
+  it("refuses a joining link carrying a line break — F1", () => {
+    // The feed emits this value raw, as RFC 5545 requires of a URI-typed
+    // property, so a newline in it would end the content line early and let
+    // what followed be parsed as its own iCalendar property.
+    const result = validateEventDraft({
+      ...complete,
+      deliveryMode: "online",
+      joiningUrl: "https://teams.example.invalid/x\r\nSUMMARY:injected",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues.map((issue) => issue.field)).toContain("joiningUrl");
+  });
+
+  it("accepts a real Teams joining link — F1", () => {
+    const result = validateEventDraft({
+      ...complete,
+      deliveryMode: "online",
+      joiningUrl: "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.joiningUrl).toBe(
+      "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0",
+    );
   });
 
   it("keeps the description, the equipment and the online destination", () => {
@@ -1449,6 +1542,9 @@ describe("the public tier reads a narrower event", () => {
       "id",
       "isCancelled",
       "isMandatory",
+      // LAN-284. The public tier gained exactly one key, and this exact-key-set
+      // assertion is what proves nothing else came with it.
+      "joiningUrl",
       "name",
       "requiredEquipment",
       "scheduledOn",
@@ -1457,9 +1553,10 @@ describe("the public tier reads a narrower event", () => {
     ]);
   });
 
-  it("says an online event is online, and never how to join it", async () => {
-    // `REQ-no-joining-url`. The operator's read carries the URL; the public one
-    // has no field for it and never selected the column.
+  it("says an online event is online, and how to join it — LAN-284", async () => {
+    // The inverse of the assertion it replaces. `REQ-no-joining-url` was
+    // reversed on 2026-09-09: both tiers now read the same link, because the
+    // protection lives on the meeting rather than on the schedule.
     const operatorList = await listCurrentSeasonEvents();
     const online = operatorList.events.find((event) => event.deliveryMode === "online");
     expect(online, "the seeded season has no online event").toBeDefined();
@@ -1469,7 +1566,45 @@ describe("the public tier reads a narrower event", () => {
 
     const publicDetail = await readPublicEvent(online!.id);
     expect(publicDetail.deliveryMode).toBe("online");
-    expect(JSON.stringify(publicDetail)).not.toContain(operatorDetail.joiningUrl!);
+    expect(publicDetail.joiningUrl).toBe(operatorDetail.joiningUrl);
+  });
+
+  it("strips a stored joining link that is not a web address, at both tiers — F1", async () => {
+    // The second layer of the F1 correction. The form refuses such a value now,
+    // so this row cannot be created through the application at all — which is
+    // exactly why it is written here with SQL. A value that predates the
+    // refusal, or that arrives by any route the form does not own, must still
+    // never reach a screen as a link. A draft, because an approved event needs a
+    // date and an audience that this row has no reason to carry, and neither
+    // read filters on status. It carries the file's marker, so `afterEach`
+    // removes it.
+    const season = await readCurrentSeason();
+    const inserted = await observer.query<{ id: string }>(
+      `insert into public.events (season_id, name, event_type, origin, status, scheduled_on,
+                                  delivery_mode, is_mandatory, joining_url)
+       values ($1, $2, 'chalk', 'club_controlled', 'draft', $3, 'online', false, $4)
+       returning id`,
+      [
+        season.id,
+        `${NAME_MARKER} legacy joining link`,
+        michaelmasWeek1Wednesday,
+        "javascript:alert(document.cookie)",
+      ],
+    );
+    const eventId = inserted.rows[0].id;
+
+    expect((await readPublicEvent(eventId)).joiningUrl).toBeNull();
+    expect((await readEvent(eventId)).joiningUrl).toBeNull();
+  });
+
+  it("carries no joining link for an in-person event", async () => {
+    // The schema's own constraint, read back at the public tier: only an online
+    // event may hold one, so publishing the column widens nothing else.
+    const operatorList = await listCurrentSeasonEvents();
+    const inPerson = operatorList.events.find((event) => event.deliveryMode === "in_person");
+    expect(inPerson, "the seeded season has no in-person event").toBeDefined();
+
+    expect((await readPublicEvent(inPerson!.id)).joiningUrl).toBeNull();
   });
 
   it("refuses an event from a season the club is not operating", async () => {

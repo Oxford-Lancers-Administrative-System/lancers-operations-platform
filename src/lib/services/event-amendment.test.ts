@@ -313,6 +313,98 @@ describe("an approved event is amended in place", () => {
     expect(statuses.rows).toEqual([{ event_status: "approved", count: "6" }]);
   });
 
+  // -------------------------------------------------------------------------
+  // Two tabs on one event -- LAN-244
+  // -------------------------------------------------------------------------
+
+  describe("a stale second save", () => {
+    it("cannot revert a field it never touched, and records no reversion", async () => {
+      // Walker M2's reproduction, as a transaction. Tab A and tab B both load
+      // the event; tab A saves a new venue; tab B, never refreshed, saves a
+      // description and carries tab A's superseded venue along with it. Before
+      // this fix the venue silently reverted and the change history stated the
+      // reversion as an amendment somebody made.
+      const fixture = await approvedEvent();
+      const loaded = draft();
+
+      await amendApprovedEvent(
+        actorPersonId,
+        fixture.eventId,
+        { ...loaded, venue: "M2W Tab A Venue" },
+        { notify: false, silenceConfirmed: true, baseline: loaded },
+      );
+
+      const outcome = await amendApprovedEvent(
+        actorPersonId,
+        fixture.eventId,
+        { ...loaded, description: "Tab B's note." },
+        { notify: false, baseline: loaded },
+      );
+
+      expect(outcome.event.venue).toBe("M2W Tab A Venue");
+      expect(outcome.event.description).toBe("Tab B's note.");
+      expect(outcome.changes.map((change) => change.field)).toEqual(["description"]);
+
+      const history = await readEventChangeHistory(fixture.eventId);
+      const amendments = history.filter((entry) => entry.kind === "amended");
+      expect(amendments).toHaveLength(2);
+      for (const entry of amendments) {
+        for (const change of entry.changes) {
+          expect(change.next, `the history records a reversion to ${String(change.next)}`).not.toBe(
+            "Iffley Road Astro",
+          );
+        }
+      }
+    });
+
+    it("is refused as nothing changed when everything it typed is already stored", async () => {
+      const fixture = await approvedEvent();
+      const loaded = draft();
+
+      await amendApprovedEvent(
+        actorPersonId,
+        fixture.eventId,
+        { ...loaded, venue: "University Parks" },
+        { notify: false, silenceConfirmed: true, baseline: loaded },
+      );
+
+      // Tab B posts its untouched snapshot. Every field it carries is stale or
+      // unchanged, so there is no amendment in it at all.
+      const failure = await serviceFailure(() =>
+        amendApprovedEvent(actorPersonId, fixture.eventId, loaded, {
+          notify: false,
+          baseline: loaded,
+        }),
+      );
+
+      expect(failure.rule).toBe(NOTHING_CHANGED_RULE);
+      expect((await readEvent(fixture.eventId)).venue).toBe("University Parks");
+    });
+
+    it("still applies a field it did change, and records it from the value that was there", async () => {
+      const fixture = await approvedEvent();
+      const loaded = draft();
+
+      await amendApprovedEvent(
+        actorPersonId,
+        fixture.eventId,
+        { ...loaded, venue: "M2W Tab A Venue" },
+        { notify: false, silenceConfirmed: true, baseline: loaded },
+      );
+
+      const outcome = await amendApprovedEvent(
+        actorPersonId,
+        fixture.eventId,
+        { ...loaded, venue: "Tab B's venue" },
+        { notify: false, silenceConfirmed: true, baseline: loaded },
+      );
+
+      expect(outcome.event.venue).toBe("Tab B's venue");
+      const change = outcome.changes.find((entry) => entry.field === "venue");
+      expect(change?.previous).toBe("M2W Tab A Venue");
+    });
+  });
+
   it("writes nothing at all when nothing moved", async () => {
     const fixture = await approvedEvent();
     const historyBefore = await readEventChangeHistory(fixture.eventId);

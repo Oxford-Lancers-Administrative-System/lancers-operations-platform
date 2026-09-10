@@ -10,6 +10,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
+import { todayInClubZone } from "@/lib/club-time";
 import { closePool, withTransaction } from "@/lib/db";
 import { createPerson } from "./person-create";
 import {
@@ -406,5 +407,69 @@ describe("finishRecruitmentAddIn", () => {
 
     expect(second.prospectId).toBe(first.prospectId);
     expect(second.prospectCreated).toBe(false);
+  });
+
+  it("LAN-247 — records today as the recruit's first contact", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "FirstContact", mobile: uniquePhone() },
+      decision: { kind: "create_new" },
+    });
+
+    const result = await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        givenName: MARKER,
+        seasonId,
+        academic: {},
+      }),
+    );
+
+    const prospect = await observer.query<{ first_contact_on: string | null }>(
+      `select to_char(first_contact_on, 'YYYY-MM-DD') as first_contact_on
+         from public.recruitment_prospects where id = $1::uuid`,
+      [result.prospectId],
+    );
+    expect(prospect.rows[0].first_contact_on).toBe(todayInClubZone());
+  });
+
+  it("LAN-247 — a second add keeps the day the club first met them", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "FirstContactKept", mobile: uniquePhone() },
+      decision: { kind: "create_new" },
+    });
+
+    const first = await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        givenName: MARKER,
+        seasonId,
+        academic: {},
+      }),
+    );
+    await observer.query(
+      "update public.recruitment_prospects set first_contact_on = $2::date where id = $1::uuid",
+      [first.prospectId, "2026-01-02"],
+    );
+
+    await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        givenName: MARKER,
+        seasonId,
+        academic: {},
+      }),
+    );
+
+    const prospect = await observer.query<{ first_contact_on: string | null }>(
+      `select to_char(first_contact_on, 'YYYY-MM-DD') as first_contact_on
+         from public.recruitment_prospects where id = $1::uuid`,
+      [first.prospectId],
+    );
+    expect(prospect.rows[0].first_contact_on).toBe("2026-01-02");
   });
 });

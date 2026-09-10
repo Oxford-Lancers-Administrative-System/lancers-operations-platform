@@ -6,8 +6,8 @@
  * when there is nothing to show, and where every row leads.
  *
  * The two things a mock cannot prove — that reading creates no record, and that
- * no payload carries a joining URL, a person, an answer or an attendance record
- * — are proved against the real database in
+ * no payload carries a person, an answer or an attendance record — are proved
+ * against the real database in
  * `tests/public-calendar-side-effects.test.ts`. This file deliberately does not
  * restate them, because a mocked service cannot write and cannot leak.
  */
@@ -127,6 +127,7 @@ function detail(overrides: Partial<PublicEventDetail> = {}): PublicEventDetail {
     ...entry({ id: EVENT_ID, name: "Chalk — michaelmas week 4" }),
     description: null,
     requiredEquipment: null,
+    joiningUrl: null,
     ...overrides,
   };
 }
@@ -615,17 +616,74 @@ describe("the public event page", () => {
     }
   });
 
-  it("never explains why the joining link is absent", async () => {
-    // Brian has rejected the application narrating its own rules. The page says
-    // the event is online and stops.
+  it("publishes an online event's joining link, as a link — LAN-284", async () => {
     vi.mocked(readPublicEvent).mockResolvedValue(
-      detail({ deliveryMode: "online", venue: "Teams" }),
+      detail({
+        deliveryMode: "online",
+        venue: "Teams",
+        joiningUrl: "https://teams.microsoft.com/l/meetup-join/abc",
+      }),
+    );
+
+    render(await PublicEventPage(eventProps()));
+
+    const fact = screen.getByTestId("public-event-joining-url");
+    const anchor = within(fact).getByRole("link");
+    expect(anchor.getAttribute("href")).toBe("https://teams.microsoft.com/l/meetup-join/abc");
+  });
+
+  it("carries no joining link for an event that has none", async () => {
+    vi.mocked(readPublicEvent).mockResolvedValue(
+      detail({ deliveryMode: "online", venue: "Teams", joiningUrl: null }),
+    );
+
+    render(await PublicEventPage(eventProps()));
+
+    expect(screen.queryByTestId("public-event-joining-url")).toBeNull();
+  });
+
+  // Finding F1 of the LAN-272 review, as its regression. The reviewer proved
+  // the defect by mocking exactly this value and reading the rendered href
+  // back: it came out verbatim, so a visitor clicking it ran script in this
+  // application's own origin, with an operator's session live in the same
+  // browser. The page is the last of three layers — the form refuses such a
+  // value and `readPublicEvent` strips one that predates the form — and this
+  // test holds the last one, because it is the one an href actually passes
+  // through.
+  it.each([
+    ["a javascript: scheme", "javascript:alert(document.cookie)"],
+    ["a data: URI", "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="],
+    ["a line break", "https://teams.example.invalid/x\r\nSUMMARY:injected"],
+    ["a bare host", "teams.example.invalid/x"],
+  ])("renders no anchor for a joining link that is %s — F1", async (_label, joiningUrl) => {
+    vi.mocked(readPublicEvent).mockResolvedValue(
+      detail({ deliveryMode: "online", venue: "Teams", joiningUrl }),
+    );
+
+    const { container } = render(await PublicEventPage(eventProps()));
+
+    for (const anchor of container.querySelectorAll("a")) {
+      expect(anchor.getAttribute("href")).not.toBe(joiningUrl);
+    }
+    expect(screen.queryByTestId("public-event-joining-url")).toBeNull();
+  });
+
+  it("never explains the joining link's own rules", async () => {
+    // Brian has rejected the application narrating its own rules. The public
+    // page shows the link and stops: the warning about publishing one belongs
+    // on the editor, where the operator can act on it.
+    vi.mocked(readPublicEvent).mockResolvedValue(
+      detail({
+        deliveryMode: "online",
+        venue: "Teams",
+        joiningUrl: "https://teams.microsoft.com/l/meetup-join/abc",
+      }),
     );
 
     const { container } = render(await PublicEventPage(eventProps()));
     const text = flatten(container.textContent);
 
-    expect(text).not.toMatch(/joining details|sent to the people|not shown|is never public/i);
+    expect(text).not.toMatch(/joining details|sent to the people|not shown|passcode/i);
   });
 
   it("marks a cancelled event as cancelled", async () => {

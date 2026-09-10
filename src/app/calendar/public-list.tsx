@@ -171,9 +171,11 @@ export default function PublicList({
  * Where the event is, at the public tier.
  *
  * An in-person event states its address. An online one states that it is online
- * and stops — the destination it is *called* is `venue` (D21) and it is safe to
- * show, but the link to join it is never public (`REQ-no-joining-url`), and this
- * component has no access to one either way.
+ * and stops — the destination it is *called* is `venue` (D21). The link to join
+ * it is published, but on the event's own page (LAN-284): a list row says what
+ * and where, and a page of thirty join links is not a calendar.
+ * `PublicEventListEntry` has no field for one, so this component has no access
+ * to one either way.
  */
 function whereItIs(event: PublicEventListEntry): string {
   if (event.deliveryMode === "online") {

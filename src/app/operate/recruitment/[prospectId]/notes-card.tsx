@@ -11,6 +11,7 @@ import { NotRecorded } from "@/components/fact";
 import { useOutcomeSlot } from "@/components/outcome-slot";
 import Typography from "@mui/material/Typography";
 import type { RecruitmentProspectNote } from "@/lib/services/recruitment-prospect";
+import { formatWhen } from "../../roster/presentation";
 import { addRecruitmentNoteAction } from "./actions";
 
 /** `W2`'s Notes card — prose, attributed and dated, with somewhere to write the next one. */
@@ -46,7 +47,11 @@ export default function NotesCard({
               {index > 0 ? <Divider sx={{ mb: 1.5 }} /> : null}
               <Typography variant="body2">{note.note}</Typography>
               <Typography variant="caption" color="text.secondary">
-                {note.authorLabel} · {new Date(note.createdAt).toLocaleString()}
+                {/* Same formatter as the Status history two cards below —
+                  LAN-248. A note stamped `9/8/2026, 7:31:20 PM` beside a
+                  status change stamped `8 Sep 2026, 19:31` reads as two
+                  different dates on one record. */}
+                {note.authorLabel} · {formatWhen(new Date(note.createdAt))}
               </Typography>
             </Box>
           ))

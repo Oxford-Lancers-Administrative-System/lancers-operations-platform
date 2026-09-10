@@ -587,6 +587,30 @@ describe("turning notification off", () => {
     expect(screen.queryByTestId("section-amend-silence-step")).toBeNull();
   });
 
+  // LAN-264 — required equipment is free text that behaves exactly like
+  // Description. It was a one-line input here, so a kit list could not be
+  // written at all and Enter submitted the form.
+  it("offers Required equipment as a multi-line field, like Description", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    const equipment = screen.getByLabelText("Required equipment");
+    expect(equipment.tagName).toBe("TEXTAREA");
+    expect(screen.getByLabelText("Description").tagName).toBe("TEXTAREA");
+  });
+
+  it("carries a typed kit list through the review, line breaks intact", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    fireEvent.change(screen.getByLabelText("Required equipment"), {
+      target: { value: "Gumshield\nCleats\nWater bottle" },
+    });
+    fireEvent.click(screen.getByTestId("continue-to-review"));
+    await screen.findByTestId("section-amend-review-step");
+
+    const line = screen.getByTestId("change-requiredEquipment").textContent ?? "";
+    expect(line).toContain("Gumshield\nCleats\nWater bottle");
+  });
+
   it("asks nothing when only the description moved", async () => {
     render(await AmendEventPage(amendProps()));
     fireEvent.change(screen.getByLabelText("Description"), {
@@ -711,10 +735,15 @@ describe("the change history", () => {
 
 describe("the cancellation screen", () => {
   it("leads with the number of people expecting to be there", async () => {
+    // LAN-242. The invited count is in the same sentence, so a freshly approved
+    // event — nobody has answered yet — no longer leads with a bare "0 people
+    // are expecting to be there" over sixty-one live invitations. "Expecting to
+    // be there" still means said yes; that vocabulary is settled elsewhere and
+    // is not what changed.
     render(await CancelEventPage(cancelProps()));
 
     expect(flatten(screen.getByTestId("expecting").textContent)).toBe(
-      "25 people are expecting to be there.",
+      "25 of 37 invited are expecting to be there.",
     );
     expect(
       flatten(
@@ -787,7 +816,7 @@ describe("the cancellation screen", () => {
     expect(
       flatten(within(confirmation).getByTestId("cancel-silence-consequence").textContent),
     ).toBe(
-      "25 people are expecting to be there at Iffley Road Astro. " +
+      "25 of 37 invited are expecting to be there at Iffley Road Astro. " +
         "If you cancel without telling them, nobody will be told it is off.",
     );
     expect(screen.getByTestId("cancel-silence-confirmed")).toHaveValue("false");

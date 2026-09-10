@@ -94,6 +94,7 @@ const PAGE: SignedRsvpPage = {
   startsAt: "20:00",
   endsAt: "22:30",
   venue: "Iffley Road Astro",
+  requiredEquipment: null,
   eventStartsAt: new Date("2026-10-14T19:00:00Z"),
   playerName: "Avery Fielding",
   responseDeadline: new Date("2026-10-13T17:00:00Z"),
@@ -156,6 +157,28 @@ describe("UX-60 — the invitation", () => {
     // The response deadline, which is NOT the write cutoff.
     expect(text).toContain("Tuesday, 13 October at 18:00");
     expect(text).toContain("Late responses accepted until start");
+  });
+
+  // LAN-264 — D17's whole reason for a separate field is the player, and this
+  // was the one screen an invited player opens that never said what to bring.
+  it("says what to bring, keeping the lines the operator typed", async () => {
+    givenToken("valid", {
+      ...PAGE,
+      requiredEquipment: "Gumshield\nStuds\nWater bottle",
+    });
+    const { container } = await renderPage();
+
+    const fact = container.querySelector('[data-testid="rsvp-equipment"]');
+    expect(fact?.textContent).toContain("What to bring");
+    expect(fact?.textContent).toContain("Gumshield");
+    expect(fact?.querySelector("dd p")).toHaveStyle({ whiteSpace: "pre-line" });
+  });
+
+  it("says nothing about equipment for an event that lists none", async () => {
+    givenToken("valid");
+    const { container } = await renderPage();
+
+    expect(container.querySelector('[data-testid="rsvp-equipment"]')).toBeNull();
   });
 
   it("says what kind of event it is, in the same words the operator screens use", async () => {

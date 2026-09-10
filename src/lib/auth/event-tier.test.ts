@@ -98,10 +98,11 @@ describe("the tiers themselves", () => {
     expect(tierSees("public", "delivery")).toBe(false);
   });
 
-  it("never gives the public tier an online event's joining URL", () => {
-    // `REQ-no-joining-url`. Chalk is on Teams (D20), and a publicly readable
-    // joining link is an open door into a club meeting.
-    expect(tierSees("public", "joining_url")).toBe(false);
+  it("gives the public tier an online event's joining URL — LAN-284", () => {
+    // The inverse of the assertion it replaces. Brian reversed
+    // `REQ-no-joining-url` on 2026-09-09: the link is published, and the
+    // protection lives on the meeting, which requires its own passcode.
+    expect(tierSees("public", "joining_url")).toBe(true);
   });
 
   it("adds participation at the club link, and delivery only at the operator", () => {

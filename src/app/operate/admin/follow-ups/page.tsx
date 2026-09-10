@@ -65,14 +65,40 @@ interface FollowUpsFilters {
   readonly search: string;
   readonly status: string;
   readonly period: EventPeriod;
+  /** LAN-281's range, as `YYYY-MM-DD` or empty on either side. */
+  readonly from: string;
+  readonly to: string;
   readonly sort: string;
   readonly direction: string;
+}
+
+/** A calendar day as the query string carries one. A shape, not a validity check. */
+const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function dayParam(value: unknown): string {
+  return typeof value === "string" && CALENDAR_DAY.test(value) ? value : "";
+}
+
+/**
+ * Every filter key this page's URL carries, so a sort link or a keystroke in
+ * the search box preserves the others — LAN-281 adds `from` and `to` to the
+ * three that were already here, which is also what makes the range survive a
+ * reload the way the rest of the board's filters do: it is in the URL.
+ */
+function filterParams(filters: FollowUpsFilters): Record<string, string> {
+  return {
+    q: filters.search,
+    status: filters.status,
+    period: filters.period,
+    from: filters.from,
+    to: filters.to,
+  };
 }
 
 function followUpsSortHref(basePath: string, filters: FollowUpsFilters, column: string): string {
   return sortColumnHref(
     basePath,
-    { q: filters.search, status: filters.status, period: filters.period },
+    filterParams(filters),
     "sort",
     "dir",
     filters.sort,
@@ -127,12 +153,16 @@ function followUpsSortValue(row: QueueRow, column: FollowUpsSortColumn): string 
 }
 
 /**
- * Whether a row's event falls inside the chosen date period — OWNER-LAN173-05.
+ * Whether a row's event falls inside a pair of day boundaries, either of which
+ * may be absent — OWNER-LAN173-05's period, and LAN-281's explicit range, which
+ * are the same question asked twice and so are answered here once.
+ *
  * An event with no recorded date is never excluded, the same rule
  * `bucketEventsByPeriod` gives an undated event on the Events list: it has no
- * period to be filtered out of.
+ * date to be filtered out by. `scheduled_on` is a `date` column read as text,
+ * so `YYYY-MM-DD` strings compare as days without parsing either side.
  */
-function matchesPeriod(
+function withinBounds(
   row: Pick<QueueRow, "scheduledOn">,
   bounds: { startsOn: string | null; endsOn: string | null },
 ): boolean {
@@ -243,11 +273,20 @@ export default async function FollowUpsPage({
   const period: EventPeriod = (EVENT_PERIODS as readonly string[]).includes(rawPeriod)
     ? (rawPeriod as EventPeriod)
     : "all";
+  // LAN-281. Clint asked for one date range over this list, keeping the
+  // by-player organisation he said he likes — forward-looking as much as back
+  // ("who's not responding to the stuff that we need them to respond to next
+  // week?"). Anything that is not a calendar day is no boundary at all rather
+  // than an error: a hand-edited URL narrows nothing instead of emptying the
+  // queue with no way to see why. The two sides are independent, so one alone
+  // is a perfectly good open-ended range.
+  const from = dayParam(query.from);
+  const to = dayParam(query.to);
   const rawSort = typeof query.sort === "string" ? query.sort : "";
   const sort = isFollowUpsSort(rawSort) ? rawSort : "";
   const rawDirection = typeof query.dir === "string" ? query.dir : "";
   const direction = rawDirection === "desc" ? "desc" : rawDirection === "asc" ? "asc" : "";
-  const filters: FollowUpsFilters = { search, status, period, sort, direction };
+  const filters: FollowUpsFilters = { search, status, period, from, to, sort, direction };
 
   let events: readonly FollowUpEvent[];
   try {
@@ -274,7 +313,11 @@ export default async function FollowUpsPage({
     (row) =>
       (status === "" || row.status === status) &&
       (needle === "" || row.personName.toLowerCase().includes(needle)) &&
-      matchesPeriod(row, bounds),
+      withinBounds(row, bounds) &&
+      // Each control narrows: the range is read alongside "When", never
+      // instead of it, because removing a filter this queue already offers is
+      // not what LAN-281 asks for.
+      withinBounds(row, { startsOn: from || null, endsOn: to || null }),
   );
 
   const sortColumn: FollowUpsSortColumn = isFollowUpsSort(sort) ? sort : "when";
@@ -304,6 +347,8 @@ export default async function FollowUpsPage({
         search={search}
         status={status}
         period={period}
+        from={from}
+        to={to}
         sort={sort}
         direction={direction}
       />
