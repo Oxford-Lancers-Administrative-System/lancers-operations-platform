@@ -35,6 +35,7 @@ import {
   validateEventDraft,
   type EventDraftInput,
 } from "./events";
+import { JOINING_URL_MESSAGE } from "./event-input";
 import { readCurrentSeason } from "./seasons";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -1024,6 +1025,62 @@ describe("row 8 — the form's rules, checked without a database", () => {
     expect(result.issues.map((issue) => issue.field)).toContain("joiningUrl");
   });
 
+  // Finding F1 of the LAN-272 review. LAN-284 made this field public, on the
+  // event page as an `href` and in the subscription feed as a raw `URL`
+  // property, and nothing checked what it was. `javascript:alert(...)` pasted
+  // into "Joining link" became an anchor on an unauthenticated page whose href
+  // ran script in this application's own origin. The write path refuses it
+  // first, because that is the only layer the operator hears from.
+  it.each([
+    ["a javascript: scheme", "javascript:alert(document.cookie)"],
+    ["a data: URI", "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="],
+    ["a vbscript: scheme", "vbscript:msgbox(1)"],
+    ["something that is not a URL at all", "teams.example.invalid/x"],
+  ])("refuses %s as a joining link — F1", (_label, joiningUrl) => {
+    const result = validateEventDraft({ ...complete, deliveryMode: "online", joiningUrl });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues).toContainEqual({
+      field: "joiningUrl",
+      message: JOINING_URL_MESSAGE,
+    });
+  });
+
+  it("names the rule rather than the refusal — F1", () => {
+    // The operator has to learn what to type, not that they got it wrong.
+    expect(JOINING_URL_MESSAGE).toBe("Enter a full web address starting with https://");
+  });
+
+  it("refuses a joining link carrying a line break — F1", () => {
+    // The feed emits this value raw, as RFC 5545 requires of a URI-typed
+    // property, so a newline in it would end the content line early and let
+    // what followed be parsed as its own iCalendar property.
+    const result = validateEventDraft({
+      ...complete,
+      deliveryMode: "online",
+      joiningUrl: "https://teams.example.invalid/x\r\nSUMMARY:injected",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues.map((issue) => issue.field)).toContain("joiningUrl");
+  });
+
+  it("accepts a real Teams joining link — F1", () => {
+    const result = validateEventDraft({
+      ...complete,
+      deliveryMode: "online",
+      joiningUrl: "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.joiningUrl).toBe(
+      "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0",
+    );
+  });
+
   it("keeps the description, the equipment and the online destination", () => {
     const result = validateEventDraft({
       ...complete,
@@ -1510,6 +1567,34 @@ describe("the public tier reads a narrower event", () => {
     const publicDetail = await readPublicEvent(online!.id);
     expect(publicDetail.deliveryMode).toBe("online");
     expect(publicDetail.joiningUrl).toBe(operatorDetail.joiningUrl);
+  });
+
+  it("strips a stored joining link that is not a web address, at both tiers — F1", async () => {
+    // The second layer of the F1 correction. The form refuses such a value now,
+    // so this row cannot be created through the application at all — which is
+    // exactly why it is written here with SQL. A value that predates the
+    // refusal, or that arrives by any route the form does not own, must still
+    // never reach a screen as a link. A draft, because an approved event needs a
+    // date and an audience that this row has no reason to carry, and neither
+    // read filters on status. It carries the file's marker, so `afterEach`
+    // removes it.
+    const season = await readCurrentSeason();
+    const inserted = await observer.query<{ id: string }>(
+      `insert into public.events (season_id, name, event_type, origin, status, scheduled_on,
+                                  delivery_mode, is_mandatory, joining_url)
+       values ($1, $2, 'chalk', 'club_controlled', 'draft', $3, 'online', false, $4)
+       returning id`,
+      [
+        season.id,
+        `${NAME_MARKER} legacy joining link`,
+        michaelmasWeek1Wednesday,
+        "javascript:alert(document.cookie)",
+      ],
+    );
+    const eventId = inserted.rows[0].id;
+
+    expect((await readPublicEvent(eventId)).joiningUrl).toBeNull();
+    expect((await readEvent(eventId)).joiningUrl).toBeNull();
   });
 
   it("carries no joining link for an in-person event", async () => {

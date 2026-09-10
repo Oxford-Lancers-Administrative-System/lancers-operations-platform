@@ -21,6 +21,7 @@ import {
   TYPE_LABELS,
 } from "@/lib/services/event-vocabulary";
 import { readPublicEvent, type PublicEventDetail } from "@/lib/services/events";
+import { safeUri } from "@/lib/services/safe-uri";
 import PublicShell from "../public-shell";
 import { PUBLIC_CALENDAR_PATH } from "../routes";
 import SubscribeToCalendarButton from "../subscribe-dialog";
@@ -59,6 +60,21 @@ import { readEventYear } from "../year";
  * meeting has a passcode set, so an operator who pastes an open meeting
  * publishes it to the world. The editor warns them; the control is theirs.
  *
+ * What the operator types is not what this page links to. `safeUri` decides,
+ * and it is the same function the subscription feed and the form's own
+ * validation use. That is finding F1 of the LAN-272 review: this page shipped
+ * with the link straight off the row, so a `javascript:` value pasted into
+ * "Joining link" became an anchor on an unauthenticated page whose href ran
+ * script in this application's own origin — with the operator's session live in
+ * the same browser. The form refuses such a value now, and `readPublicEvent`
+ * strips one that predates the form's refusal, so this call is the third of
+ * three and should never be the one that fires. It is here because it is the
+ * last place before an `href`, and because a guard that only exists upstream is
+ * a guard the next renderer of this field will not know about.
+ *
+ * A refused value is not rendered as broken text either: the row simply is not
+ * there, exactly as it is for an in-person event.
+ *
  * ## Scoped to the open season
  *
  * `REQ-one-open-season`. An id from a season the club is not operating reads as
@@ -91,6 +107,7 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
 
   const today = todayInClubZone();
   const year = await readEventYear([event], { today });
+  const joiningUrl = safeUri(event.joiningUrl);
 
   return (
     <PublicShell seasonLabel={null} action={<SubscribeToCalendarButton />}>
@@ -129,20 +146,21 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
               label="Attendance"
               value={describeAttendance(event.isMandatory)}
             />
-            {/* LAN-284. Online events only, by the schema's own constraint. */}
-            {event.joiningUrl ? (
+            {/* LAN-284. Online events only, by the schema's own constraint, and
+                only ever a web address — see this file's header, F1. */}
+            {joiningUrl !== null ? (
               <Fact
                 testId="public-event-joining-url"
                 label={JOINING_LINK_LABEL}
                 value={
                   <Link
-                    href={event.joiningUrl}
+                    href={joiningUrl}
                     variant="body2"
                     rel="noopener noreferrer"
                     target="_blank"
                     sx={{ overflowWrap: "anywhere" }}
                   >
-                    {event.joiningUrl}
+                    {joiningUrl}
                   </Link>
                 }
               />

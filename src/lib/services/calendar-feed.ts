@@ -1,6 +1,7 @@
 import { addDays } from "./calendar";
 import { CLUB_TIME_ZONE } from "@/lib/club-time";
 import { EQUIPMENT_LABEL } from "./event-vocabulary";
+import { safeUri } from "./safe-uri";
 
 /**
  * The RFC 5545 document `W2`'s subscription feed serves. LAN-158.
@@ -194,44 +195,6 @@ export function escapeText(value: string): string {
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
     .replace(/\r\n|\r|\n/g, "\\n");
-}
-
-/**
- * The `URL` property's value, or `null` to omit the property — LAN-284.
- *
- * `URL` is RFC 5545's one URI-typed property in this document, so its value is
- * **not** run through {@link escapeText}: a URI is emitted as written, and
- * escaping a real meeting link's commas and semicolons would break it. That
- * makes this the one place where operator-entered text reaches the document
- * unescaped, so this function is the guard rather than a tidy-up:
- *
- *   * **No control characters, and no line break of any kind.** This is the
- *     load-bearing check. A newline in a raw value would end the content line
- *     early and let whatever followed be parsed as its own iCalendar property —
- *     the injection that escaping prevents everywhere else in the file.
- *   * **`http` or `https` only, parsed rather than pattern-matched.** A
- *     `javascript:` or `data:` value is not a joining link, and no subscriber's
- *     calendar should be handed one. Anything that is not an absolute URL at
- *     all is simply omitted; the operator's own event page still shows what
- *     they typed, so nothing is lost and nothing invalid is published.
- *
- * A refusal here omits the property. It never falls back to `DESCRIPTION`,
- * which would smuggle the same value into the document by another route.
- */
-export function safeUri(value: string | null): string | null {
-  if (value === null) return null;
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  if (/[\u0000-\u001f\u007f]/.test(trimmed)) return null;
-
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
-  return trimmed;
 }
 
 const MAX_LINE_OCTETS = 75;
@@ -429,8 +392,14 @@ function buildVEventLines(event: FeedEvent, now: Date): string[] {
   lines.push(`SUMMARY:${escapeText(event.name)}`);
   if (location !== null) lines.push(`LOCATION:${escapeText(location)}`);
   if (description !== null) lines.push(`DESCRIPTION:${escapeText(description)}`);
-  // LAN-284. A URI value, so deliberately not escaped — see `safeUri`, which is
-  // the guard that makes emitting it raw safe.
+  // LAN-284. RFC 5545 3.3.13 types `URL` as a URI, so this is the one value in
+  // the document that is deliberately **not** run through `escapeText`: escaping
+  // a real meeting link's commas and semicolons would hand the subscriber a link
+  // that does not resolve. Emitting it raw is only safe because `safeUri` has
+  // already refused every control character and line break — the injection that
+  // escaping prevents everywhere else in this file — and every scheme but
+  // `http` and `https`. A refusal omits the property; it never falls back to
+  // `DESCRIPTION`, which would smuggle the same value in by another route.
   if (joiningUrl !== null) lines.push(`URL:${joiningUrl}`);
   lines.push(`STATUS:${event.isCancelled ? "CANCELLED" : "CONFIRMED"}`);
   lines.push(`SEQUENCE:${deriveSequence(event.updatedAt)}`);

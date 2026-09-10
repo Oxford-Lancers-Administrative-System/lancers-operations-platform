@@ -102,6 +102,11 @@ Everything else in both tickets stands, including the empty-audience refusal
   2026-09-09). The editor warns the operator whenever the delivery mode is
   online: the link is published on the public calendar and in the subscription
   feed, so the meeting itself must require a passcode.
+  Because it is published as a link rather than as text, the form accepts only
+  a whole web address on `http` or `https` with no line break in it, and says
+  so beside the field: "Enter a full web address starting with https://". The
+  public event page and the subscription feed apply the same rule again when
+  they read, so a value that predates the check is never rendered as a link.
 - **Times are five-minute increments, in Europe/London, with the zone stated**
   (D78, D86). Entering a start fills the end from the type's default length; an
   end the operator sets is left alone. The control is a deliberately-drawn

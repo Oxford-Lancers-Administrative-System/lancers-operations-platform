@@ -642,6 +642,32 @@ describe("the public event page", () => {
     expect(screen.queryByTestId("public-event-joining-url")).toBeNull();
   });
 
+  // Finding F1 of the LAN-272 review, as its regression. The reviewer proved
+  // the defect by mocking exactly this value and reading the rendered href
+  // back: it came out verbatim, so a visitor clicking it ran script in this
+  // application's own origin, with an operator's session live in the same
+  // browser. The page is the last of three layers — the form refuses such a
+  // value and `readPublicEvent` strips one that predates the form — and this
+  // test holds the last one, because it is the one an href actually passes
+  // through.
+  it.each([
+    ["a javascript: scheme", "javascript:alert(document.cookie)"],
+    ["a data: URI", "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="],
+    ["a line break", "https://teams.example.invalid/x\r\nSUMMARY:injected"],
+    ["a bare host", "teams.example.invalid/x"],
+  ])("renders no anchor for a joining link that is %s — F1", async (_label, joiningUrl) => {
+    vi.mocked(readPublicEvent).mockResolvedValue(
+      detail({ deliveryMode: "online", venue: "Teams", joiningUrl }),
+    );
+
+    const { container } = render(await PublicEventPage(eventProps()));
+
+    for (const anchor of container.querySelectorAll("a")) {
+      expect(anchor.getAttribute("href")).not.toBe(joiningUrl);
+    }
+    expect(screen.queryByTestId("public-event-joining-url")).toBeNull();
+  });
+
   it("never explains the joining link's own rules", async () => {
     // Brian has rejected the application narrating its own rules. The public
     // page shows the link and stops: the warning about publishing one belongs

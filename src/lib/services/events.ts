@@ -38,6 +38,7 @@ import { actorRequirement } from "./actor";
 import { SHOWED_PRESENCES } from "./attendance-vocabulary";
 import { requireEventOperatorTier } from "@/lib/auth/event-tier";
 import { readCurrentSeasonIn, type Season } from "./seasons";
+import { safeUri } from "./safe-uri";
 import { escapeLikePattern, personDisplayNameSql } from "./sql-text";
 import { todayInClubZone } from "@/lib/club-time";
 
@@ -837,7 +838,8 @@ export async function readPublicEvent(eventId: string): Promise<PublicEventDetai
       ...toPublicEntry(row),
       description: row.description,
       requiredEquipment: row.required_equipment,
-      joiningUrl: row.joining_url,
+      // The public tier never hands a reader a value it could not publish.
+      joiningUrl: safeUri(row.joining_url),
     };
   });
 }
@@ -928,7 +930,7 @@ export async function listPublicSeasonEventsForFeed(): Promise<{
         ...toPublicEntry(row),
         description: row.description,
         requiredEquipment: row.required_equipment,
-        joiningUrl: row.joining_url,
+        joiningUrl: safeUri(row.joining_url),
         updatedAt: toIsoInstant(row.updated_at),
       })),
     };
@@ -1055,7 +1057,7 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
     ...toListEntry(row),
     description: row.description,
     requiredEquipment: row.required_equipment,
-    joiningUrl: row.joining_url,
+    joiningUrl: safeUri(row.joining_url),
     origin: row.origin,
     termId: row.term_id,
     termLabel:
