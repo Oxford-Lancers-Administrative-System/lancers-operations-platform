@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useCallback, useMemo, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
 import { ActionBar } from "@/components/action-bar";
@@ -138,8 +138,18 @@ export function AudienceBuilder({
   /** The catalogue as humans — one row each, however many capacities they hold. */
   const roster = useMemo(() => audiencePeople(candidates), [candidates]);
 
-  /** Ticked when any of a person's keys is in the selection. */
-  const isChosen = (person: AudiencePerson) => person.keys.some((key) => selected.has(key));
+  /**
+   * Ticked when any of a person's keys is in the selection.
+   *
+   * One definition, used by the checkbox and by the chosen-first sort: a
+   * reloaded draft holds one key per person rather than one per capacity, so
+   * "are they in" has to be asked of the whole set and the two must not be able
+   * to answer differently.
+   */
+  const isChosen = useCallback(
+    (person: AudiencePerson) => person.keys.some((key) => selected.has(key)),
+    [selected],
+  );
 
   /**
    * Chosen people first, then everybody else, each alphabetically.
@@ -152,7 +162,6 @@ export function AudienceBuilder({
    */
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const chosen = (person: AudiencePerson) => person.keys.some((key) => selected.has(key));
     return roster
       .filter((person) => {
         // A capacity filter asks "is this person a coach", not "is this row a
@@ -168,10 +177,10 @@ export function AudienceBuilder({
         );
       })
       .sort((a, b) => {
-        const order = Number(chosen(b)) - Number(chosen(a));
+        const order = Number(isChosen(b)) - Number(isChosen(a));
         return order !== 0 ? order : a.displayName.localeCompare(b.displayName);
       });
-  }, [roster, search, capacity, unit, selected]);
+  }, [roster, search, capacity, unit, isChosen]);
 
   /**
    * In or out as a whole person.
