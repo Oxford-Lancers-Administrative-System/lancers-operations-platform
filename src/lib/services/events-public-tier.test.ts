@@ -30,8 +30,8 @@
  * so every statement the code would have issued is captured verbatim — which is
  * strictly more than a live run could assert, because a live run sees results
  * rather than text. The behavioural backstops that *do* need a database — the
- * exact key set of the public payload, and the joining URL's value never
- * appearing in it — stay in `tests/public-calendar-side-effects.test.ts`, where
+ * exact key set of the public payload, and which of its values reach the
+ * rendered page — stay in `tests/public-calendar-side-effects.test.ts`, where
  * they caught three of the four leak injections review threw at them.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -189,13 +189,17 @@ describe("the public tier's statements touch no participation data", () => {
     }
   });
 
-  it("never selects the joining URL at either public read", async () => {
-    // `REQ-no-joining-url`, at the layer where it is decided rather than at the
-    // layer where it would be noticed.
+  it("selects the joining URL at the public read — LAN-284 reversed the never-public rule", async () => {
+    // This assertion is the inverse of the one it replaces, and deliberately so.
+    // `REQ-no-joining-url` used to be decided here, at the projection, and the
+    // test proved the column was never read. Brian reversed it on 2026-09-09:
+    // the calendar stays public and the protection lives on the meeting, so the
+    // public tier gains this one column. Everything else about the projection —
+    // every participation table, asserted above — is unchanged.
     await listPublicSeasonEvents();
     await readPublicEvent(EVENT_ID);
 
-    expect(issuedSql()).not.toContain("joining_url");
+    expect(issuedSql()).toContain("joining_url");
   });
 
   it("proves the check has teeth, by failing the operator's statement", async () => {

@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { validateEventDraft } from "@/lib/services/events";
-import { amendApprovedEvent, cancelEvent, renotifyEvent } from "@/lib/services/event-amendment";
+import {
+  amendApprovedEvent,
+  cancelEvent,
+  renotifyEvent,
+  type AmendableEvent,
+} from "@/lib/services/event-amendment";
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "../form-state";
 import type { CancelFormState } from "./change-state";
@@ -97,6 +102,30 @@ function readDraft(formData: FormData): RawEventDraft {
   };
 }
 
+/**
+ * The event as the submitting form loaded it — LAN-244.
+ *
+ * Posted as one JSON hidden field rather than eleven shadow inputs, because it
+ * is one value with one meaning: "this is the version I was editing". Read
+ * defensively — a missing or unparseable field yields `undefined`, which
+ * `amendApprovedEvent` treats as "apply the whole submission", the behaviour
+ * every caller had before this existed. There is no authorization in it either
+ * way: the guard above is what decides whether this operator may amend at all,
+ * and a forged baseline can only produce an amendment this operator was already
+ * entitled to make.
+ */
+function readBaseline(formData: FormData): AmendableEvent | undefined {
+  const raw = formData.get("baseline");
+  if (typeof raw !== "string" || raw === "") return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return undefined;
+    return parsed as AmendableEvent;
+  } catch {
+    return undefined;
+  }
+}
+
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
   if (error.kind === "not_permitted") throw error;
@@ -140,6 +169,7 @@ export async function amendEventAction(
     await amendApprovedEvent(operator.personId, eventId, validation.value, {
       notify: checked(formData, "notify"),
       silenceConfirmed: checked(formData, "silenceConfirmed"),
+      baseline: readBaseline(formData),
     });
   } catch (error) {
     return {

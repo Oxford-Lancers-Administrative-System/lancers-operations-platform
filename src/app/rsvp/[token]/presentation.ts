@@ -35,6 +35,12 @@ export const PRIVACY_NOTE =
 export const PLAYER_LABEL = "Player";
 export const INVITATION_LABEL = "Your invitation";
 export const VENUE_LABEL = "Venue";
+/**
+ * D17, LAN-264. The club's shared word for `required_equipment`, imported
+ * rather than re-typed, so the public event page, the subscription feed and the
+ * player's own page all call it the same thing (`docs/ux/standards.md` rule 7).
+ */
+export { EQUIPMENT_LABEL } from "@/lib/services/event-vocabulary";
 export const DEADLINE_LABEL = "Response deadline";
 export const DEADLINE_NOTE = "Late responses accepted until start";
 export const CURRENT_ANSWER_LABEL = "Current answer";

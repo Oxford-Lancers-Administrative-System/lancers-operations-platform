@@ -619,10 +619,15 @@ derived from the date rather than entered beside it.
 Sign out, or open a private window, and go to **`/calendar`**.
 
 The same events, at the public tier: name, type, date, term and week, and where.
-No status column, no invited count, no said-yes count, no attendance — and, on an
-online event, no joining link. Open one from the list and the event page states
-the whole record — type, when, where, term and week, mandatory or optional,
-required equipment, description — and nothing about people.
+No status column, no invited count, no said-yes count, no attendance. Open one
+from the list and the event page states the whole record — type, when, where,
+term and week, mandatory or optional, required equipment, description, and, on an
+online event, the joining link — and nothing about people.
+
+The joining link is published deliberately (Brian, 2026-09-09, reversing the
+earlier never-public rule). The calendar itself stays open, with no password: the
+protection lives on the meeting, which requires its own passcode. The event
+editor warns the operator of that whenever the delivery mode is online.
 
 `/calendar/view` gives the same two calendar arrangements. Nothing on any of these
 pages asks you to sign in, and reading them creates no record of any kind.

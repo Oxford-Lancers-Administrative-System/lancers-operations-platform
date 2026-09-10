@@ -55,7 +55,7 @@ import {
   DUPLICATE_ACTION,
   formatDetailWhen,
   formatTermAndWeek,
-  JOINING_URL_IS_NEVER_PUBLIC,
+  JOINING_URL_IS_PUBLIC_WARNING,
   labelFor,
   NO_AUDIENCE_YET,
   NO_DISTRIBUTION_DETAIL,
@@ -196,7 +196,7 @@ export default function EventPreview({
             <Fact
               label="Joining link"
               value={event.joiningUrl}
-              note={JOINING_URL_IS_NEVER_PUBLIC}
+              note={JOINING_URL_IS_PUBLIC_WARNING}
               emphasis
             />
           ) : null}

@@ -98,10 +98,11 @@ export interface PersonCandidate {
    * recently recorded. `null` when they have no current email at all — a
    * superseded college address does not appear here.
    *
-   * Not strictly "the preferred one" — this module records a supplied contact
-   * as *not* preferred when the person already has one of that kind, and a
-   * candidate list showing those as "—" would drop the field the operator's
-   * decision most depends on.
+   * Not strictly "the preferred one": a person can hold a current email that
+   * nothing ever marked preferred — an earlier intake left one, or the
+   * missing-data queue has not classified it yet — and a candidate list
+   * showing those as "—" would drop the field the operator's decision most
+   * depends on.
    */
   email: string | null;
   /** A current phone, on exactly the same rule as `email`. */
@@ -134,6 +135,14 @@ export interface ReturnerIntakeResult {
   aliasCreated: boolean;
   /** The contact points this submission wrote, in the order written. */
   contactsRecorded: RecordedContact[];
+  /**
+   * LAN-257 — what the operator typed that this submission deliberately did
+   * not write, so the confirmation can say so. Only ever non-empty on the
+   * "Use selected person" path: a value the chosen person does not already
+   * hold is discarded rather than appended to their record. Empty when they
+   * already hold it, because then nothing was discarded either.
+   */
+  contactsNotRecorded: TypedContact[];
   confirmedOn: string;
   /**
    * LAN-215, W2's own addition: the welcome queued in the same transaction as
@@ -150,10 +159,21 @@ export interface RecordedContact {
   /** Exactly as the operator typed it. */
   rawValue: string;
   /**
-   * `false` when the person already had a preferred contact of this kind. The
-   * existing one is left completely untouched — see `insertContactPoint`.
+   * `false` when the person already had a preferred contact of this kind.
+   * Since LAN-257 only a person this submission minted is written to at all,
+   * so in practice this is always `true` — the flag is kept because it is
+   * what the confirmation screen states, and a screen that derives "preferred"
+   * from an assumption rather than from the write is how the old behaviour
+   * went unnoticed.
    */
   isPreferred: boolean;
+}
+
+/** A value the operator typed, named by its kind — LAN-257's "this was not written". */
+export interface TypedContact {
+  kind: "email" | "phone";
+  /** Exactly as the operator typed it. */
+  rawValue: string;
 }
 
 /** The open season every membership in this slice is created in. */
@@ -509,7 +529,27 @@ export async function enterReturningPlayer(params: {
     // `findPersonCandidates` matches on aliases, a mistyped "Known as" would
     // permanently widen that person's future duplicate matching.
     const aliasCreated = personCreated ? await insertAliasIfDistinct(tx, personId, input) : false;
-    const contactsRecorded = await insertContactPoints(tx, personId, input);
+
+    // LAN-257, and the same rule as the alias above for the same reason.
+    //
+    // "Use selected person" used to append every typed value to the chosen
+    // person's `contact_points`. A number typed from memory that differed from
+    // the one on file went in as a second, non-preferred row — which no screen
+    // in the product lists, so the operator saw their number accepted, saw the
+    // person's real number on the confirmation, and had no way to tell that a
+    // third value now existed. Meanwhile `/operate/people/new`'s "This is
+    // them" wrote nothing at all. Two link flows, two behaviours, neither
+    // stated.
+    //
+    // Both now discard. Linking says "this human is that human"; it is not an
+    // edit of that human's record, and an intake form is not where somebody's
+    // known-good number gets superseded or quietly doubled. What was discarded
+    // is returned so the confirmation says so — `contactsNotRecorded`. The
+    // person record's own edit surface (`W2`) is where a contact changes.
+    const contactsRecorded = personCreated ? await insertContactPoints(tx, personId, input) : [];
+    const contactsNotRecorded = personCreated
+      ? []
+      : await typedContactsNotOnRecord(tx, personId, input);
 
     const confirmedOn = await currentDate(tx);
     const membershipId = await insertMembership(tx, {
@@ -604,6 +644,11 @@ export async function enterReturningPlayer(params: {
         entry: "returning",
         dedupe_decision: personCreated ? "new_person" : "existing_person",
         person_created: personCreated,
+        // LAN-257: which kinds were typed and deliberately not written, so
+        // the discard is on the record too and not only on the screen. The
+        // values themselves are not audited — the point is that they were not
+        // kept.
+        contact_kinds_not_recorded: contactsNotRecorded.map((contact) => contact.kind),
         // The transitions themselves live in season_membership_status_events;
         // this names where to read them rather than restating them (D9).
         transitions_recorded_in: "season_membership_status_events",
@@ -618,6 +663,7 @@ export async function enterReturningPlayer(params: {
       personCreated,
       aliasCreated,
       contactsRecorded,
+      contactsNotRecorded,
       confirmedOn,
       welcomeQueued: welcome.queued,
     };
@@ -732,6 +778,39 @@ async function insertAliasIfDistinct(
   return result.rowCount === 1;
 }
 
+/**
+ * The typed values this submission is about to discard — LAN-257.
+ *
+ * A value the person already holds is not a discard: nothing was lost, and
+ * telling the operator "not recorded" about a number that is right there on
+ * the record would be its own false statement. Compared the same way
+ * `insertContactPoint` compares, so "already on record" means the same thing
+ * in both places. Every current *and* historical row counts, because a number
+ * the club superseded last season is still a number the club holds.
+ */
+async function typedContactsNotOnRecord(
+  tx: Tx,
+  personId: string,
+  input: NormalisedInput,
+): Promise<TypedContact[]> {
+  const typed: TypedContact[] = [];
+  if (input.email) typed.push({ kind: "email", rawValue: input.email.raw });
+  if (input.phone) typed.push({ kind: "phone", rawValue: input.phone.raw });
+  if (typed.length === 0) return [];
+
+  const discarded: TypedContact[] = [];
+  for (const contact of typed) {
+    const existing = await tx.query<{ matches: number }>(
+      `select count(*)::int as matches from public.contact_points
+        where person_id = $1::uuid and kind = $2::public.contact_point_kind
+          and lower(btrim(raw_value)) = lower(btrim($3::text))`,
+      [personId, contact.kind, contact.rawValue],
+    );
+    if (existing.rows[0].matches === 0) discarded.push(contact);
+  }
+  return discarded;
+}
+
 async function insertContactPoints(
   tx: Tx,
   personId: string,
@@ -751,22 +830,24 @@ async function insertContactPoints(
  * filling it in here would make this function the place a phone format policy
  * lives — which is explicitly out of LAN-74's scope.
  *
- * ## Why `is_preferred` is conditional
+ * ## Why `is_preferred` is still conditional
  *
  * `contact_points_one_preferred_per_kind` is a partial unique index: a person
- * may hold exactly one preferred email and one preferred phone at a time. When
- * the operator picks an **existing** person who already has a preferred contact
- * of this kind, this records the new value as *not* preferred rather than
- * demoting the old one.
+ * may hold exactly one preferred email and one preferred phone at a time.
  *
- * That is the conservative direction on purpose. Superseding a contact is a
- * real operation with real consequences — it is what the club will send an RSVP
- * link to — and an intake form is not where somebody's known-good phone number
- * gets replaced by a number typed from memory. The old value is untouched, the
- * new value is on record, and a later screen with an explicit "make this the
- * preferred number" action can promote it. The confirmation screen says which
- * happened so the operator is never left believing they changed something they
- * did not.
+ * This used to be reached for an **existing** person too, and recorded the new
+ * value as *not* preferred rather than demoting the old one. That was the
+ * conservative direction on the demotion, but it was still a write onto
+ * somebody's record from a form that never said it would edit one — and
+ * because no screen in the product lists a non-preferred contact point, the
+ * row it left was invisible. LAN-257 stopped that at the call site: only a
+ * person this submission minted reaches here, and a typed value that would
+ * have become that second row is discarded and named on the confirmation
+ * instead.
+ *
+ * The condition stays because the invariant it respects is real and this
+ * function must not be the place that breaks it if it is ever called again on
+ * a person who already holds one.
  *
  * A value already recorded for this person under the same kind is not written
  * twice.

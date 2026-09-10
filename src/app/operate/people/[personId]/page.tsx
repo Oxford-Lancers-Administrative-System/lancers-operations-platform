@@ -78,6 +78,12 @@ function first(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
+/** LAN-257 — the operator's own words for the two contacts `Add a person` collects. */
+const TYPED_CONTACT_LABELS: Readonly<Record<"email" | "phone", string>> = Object.freeze({
+  email: "Personal email",
+  phone: "Mobile",
+});
+
 /** Provenance is shown only when the record supplies an actor. */
 function By({ who }: { who: string | null }) {
   return who ? (
@@ -137,6 +143,16 @@ export default async function PersonRecordPage({
   ]);
 
   const sp = await searchParams;
+  // LAN-257: "This is them" wrote nothing onto this person, and now says so
+  // here rather than landing silently on a record showing a different number
+  // from the one the operator just typed. Kinds only — the value is personal
+  // data and a query string is bookmarked, kept in history and logged.
+  const justLinked = first(sp.linked) === "1";
+  const unsavedContacts = justLinked
+    ? first(sp.unsaved)
+        .split(",")
+        .filter((kind): kind is "email" | "phone" => kind === "email" || kind === "phone")
+    : [];
   const historyExpanded = first(sp.history) === "expanded";
   const historyField = first(sp.field);
   const historyActor = first(sp.actor);
@@ -152,6 +168,7 @@ export default async function PersonRecordPage({
   const mobile = currentContact(record, "phone", null);
   const personalEmail = currentContact(record, "email", "personal");
   const collegeEmail = currentContact(record, "email", "college");
+  const unclassifiedEmail = currentContact(record, "email", null);
 
   const currentRoles = roles.filter((role) => !role.hasEnded);
   const clubRoleSummary =
@@ -198,6 +215,20 @@ export default async function PersonRecordPage({
           </>
         }
       />
+
+      {unsavedContacts.length > 0 ? (
+        <Notice severity="info" testId="linked-contact-not-recorded">
+          Linked to this record. Not recorded:{" "}
+          {unsavedContacts.map((kind) => TYPED_CONTACT_LABELS[kind]).join(" · ")}.{" "}
+          <Button
+            href={`/operate/people/${personId}/edit`}
+            sx={{ p: 0, minHeight: 0, textTransform: "none", color: "inherit", fontWeight: 700 }}
+            data-testid="linked-contact-correct-link"
+          >
+            Correct this record →
+          </Button>
+        </Notice>
+      ) : null}
 
       {predecessors.map((predecessor) => (
         <Notice key={predecessor.personId} severity="info" testId="merge-notice">
@@ -263,6 +294,20 @@ export default async function PersonRecordPage({
           <Fact label="College email" note={collegeEmail?.source ?? undefined}>
             {collegeEmail ? <>{collegeEmail.rawValue}</> : <NotRecorded />}
           </Fact>
+          {/* LAN-257 — `contact_points.scope` is null for an email nobody has
+              yet said is personal or college, which is exactly what
+              `/operate/roster/new` writes for a person it mints: its one field
+              is "Email", and guessing the scope from the domain would be
+              inventing data about a real person. Null is the truth, and the
+              missing-data queue is what fills it in — but until this row
+              existed the address the club held was on no screen at all, which
+              is the same invisible write LAN-257 is about. Rendered only when
+              there is one, so a classified record is unchanged. */}
+          {unclassifiedEmail ? (
+            <Fact label="Email · not classified" note={unclassifiedEmail.source ?? undefined}>
+              {unclassifiedEmail.rawValue}
+            </Fact>
+          ) : null}
         </Section>
       ) : null}
 

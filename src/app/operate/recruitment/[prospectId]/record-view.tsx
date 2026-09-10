@@ -7,7 +7,6 @@ import { Metric, MetricRow } from "@/components/metric";
 import { StatusChip } from "@/components/status-chip";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -311,96 +310,105 @@ export default function RecruitmentRecordView({
           </Section>
         </Stack>
 
-        <Grid container spacing={3}>
+        {/* Recruitment events, Notes and Status history continue the same
+          single column Person and Recruitment are in — Brian, 2026-09-09:
+          stack them, they should not be side by side (LAN-253). The
+          `LAN-204` contract already said so for the whole record ("Every card
+          is full width, stacked one above the other, in table order"); the
+          2026-09-02 correction that stacked Person and Recruitment left this
+          pair in a two-up Grid, which is the half of that sentence this
+          finishes. Status history was already full width and keeps its
+          place at the foot. */}
+        <Stack spacing={3} data-testid="recruitment-record-lower-bands">
           {/* ------------------------------------------------- Recruitment events -- */}
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Section variant="banded" band="attendance" title="Recruitment events" testId="events">
-              {record.events.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-                  {NOT_RECORDED}
-                </Typography>
-              ) : (
-                <Box sx={{ overflowX: "auto" }}>
-                  <Table size="small" data-testid="recruitment-record-events">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Event</TableCell>
-                        <TableCell>Date</TableCell>
-                        <TableCell>RSVP</TableCell>
-                        <TableCell>Attendance</TableCell>
-                        <TableCell>Event status</TableCell>
+          <Section variant="banded" band="attendance" title="Recruitment events" testId="events">
+            {record.events.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                {NOT_RECORDED}
+              </Typography>
+            ) : (
+              <Box sx={{ overflowX: "auto" }}>
+                <Table size="small" data-testid="recruitment-record-events">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Event</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell>RSVP</TableCell>
+                      <TableCell>Attendance</TableCell>
+                      <TableCell>Event status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {record.events.map((event) => (
+                      <TableRow key={event.eventId}>
+                        <TableCell>{event.name}</TableCell>
+                        <TableCell>{event.date ? formatDay(event.date) : NOT_RECORDED}</TableCell>
+                        <TableCell>{event.rsvp ? RSVP_LABEL[event.rsvp] : NOT_RECORDED}</TableCell>
+                        <TableCell>
+                          {event.attendance ? ATTENDANCE_LABEL[event.attendance] : NOT_RECORDED}
+                        </TableCell>
+                        <TableCell>{EVENT_STATUS_LABEL[event.eventStatus]}</TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {record.events.map((event) => (
-                        <TableRow key={event.eventId}>
-                          <TableCell>{event.name}</TableCell>
-                          <TableCell>{event.date ? formatDay(event.date) : NOT_RECORDED}</TableCell>
-                          <TableCell>
-                            {event.rsvp ? RSVP_LABEL[event.rsvp] : NOT_RECORDED}
-                          </TableCell>
-                          <TableCell>
-                            {event.attendance ? ATTENDANCE_LABEL[event.attendance] : NOT_RECORDED}
-                          </TableCell>
-                          <TableCell>{EVENT_STATUS_LABEL[event.eventStatus]}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Box>
-              )}
-            </Section>
-          </Grid>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            )}
+          </Section>
 
           {/* ------------------------------------------------------------- Notes -- */}
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Section variant="banded" band="person" title="Notes" testId="notes">
-              <Box sx={{ py: 1 }}>
-                <NotesCard prospectId={record.prospectId} notes={record.notes} />
-              </Box>
-            </Section>
-          </Grid>
+          <Section variant="banded" band="person" title="Notes" testId="notes">
+            <Box sx={{ py: 1 }}>
+              <NotesCard prospectId={record.prospectId} notes={record.notes} />
+            </Box>
+          </Section>
 
           {/* ---------------------------------------------------- Status history -- */}
-          <Grid size={{ xs: 12 }}>
-            <Section collapsible title="Status history" testId="status-history">
-              {record.statusHistory.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-                  {NOT_RECORDED}
-                </Typography>
-              ) : (
-                <Box sx={{ overflowX: "auto" }}>
-                  <Table size="small" data-testid="recruitment-record-history">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>From</TableCell>
-                        <TableCell>To</TableCell>
-                        <TableCell>When</TableCell>
-                        <TableCell>By</TableCell>
-                        <TableCell>Reason</TableCell>
+          <Section collapsible title="Status history" testId="status-history">
+            {record.statusHistory.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                {NOT_RECORDED}
+              </Typography>
+            ) : (
+              <Box sx={{ overflowX: "auto" }}>
+                <Table size="small" data-testid="recruitment-record-history">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>From</TableCell>
+                      <TableCell>To</TableCell>
+                      <TableCell>When</TableCell>
+                      <TableCell>By</TableCell>
+                      <TableCell>Reason</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {record.statusHistory.map((event) => (
+                      <TableRow key={event.id}>
+                        <TableCell>
+                          {event.fromStatus
+                            ? PROSPECT_STATUS_LABELS[event.fromStatus]
+                            : NOT_RECORDED}
+                        </TableCell>
+                        <TableCell>{PROSPECT_STATUS_LABELS[event.toStatus]}</TableCell>
+                        {/* The shared formatter, not `toLocaleString()` —
+                            LAN-248. Unqualified, it answered in whatever
+                            locale the server or the browser happened to be
+                            set to (`9/8/2026, 7:31:20 PM`) on a page whose
+                            every other date already read `8 Sep 2026`, and it
+                            hydrated differently on the two of them.
+                            `docs/ux/standards.md` rule 3: a recorded moment
+                            reads `27 Aug 2026, 14:22`, on club time. */}
+                        <TableCell>{formatWhen(new Date(event.occurredAt))}</TableCell>
+                        <TableCell>{event.actorLabel}</TableCell>
+                        <TableCell>{event.reason ?? NOT_RECORDED}</TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {record.statusHistory.map((event) => (
-                        <TableRow key={event.id}>
-                          <TableCell>
-                            {event.fromStatus
-                              ? PROSPECT_STATUS_LABELS[event.fromStatus]
-                              : NOT_RECORDED}
-                          </TableCell>
-                          <TableCell>{PROSPECT_STATUS_LABELS[event.toStatus]}</TableCell>
-                          <TableCell>{new Date(event.occurredAt).toLocaleString()}</TableCell>
-                          <TableCell>{event.actorLabel}</TableCell>
-                          <TableCell>{event.reason ?? NOT_RECORDED}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Box>
-              )}
-            </Section>
-          </Grid>
-        </Grid>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            )}
+          </Section>
+        </Stack>
       </Box>
     </OutcomeSlotProvider>
   );

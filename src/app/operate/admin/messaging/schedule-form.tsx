@@ -12,7 +12,7 @@ import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import type { RecruitmentCycleStep } from "@/lib/services/recruitment-cycle";
 import type { OnboardingChaseSettings } from "@/lib/services/onboarding-chase";
-import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
+import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../action-state";
 import {
   Outcome as AdminOutcome,
   OutcomeSlotProvider,
@@ -73,6 +73,36 @@ export interface ScheduleRowData {
  */
 const TIMING_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(0, 3);
 const LADDER_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(3, 6);
+
+/**
+ * A saved result describes the values that produced it, so editing one of
+ * them makes it stale — LAN-250.
+ *
+ * `docs/ux/standards.md` rule 1 already says a result never outlives the
+ * thing it describes, and every panel here claims the outcome slot on
+ * `onSubmit` so the previous result disappears when the next action starts.
+ * The gap that finding walked into is a submit that never starts: these
+ * fields carry `min`/`max`, so typing `999999` into "RSVP by" and pressing
+ * Save makes the browser's own constraint check block the submit. No request
+ * fires, `onSubmit` never runs, and the server's previous sentence —
+ * "Practice: player rsvp by cannot be left blank." — stays on screen
+ * describing a field that is no longer blank and a value the operator can
+ * see is not empty. The message is then worse than no message: it names the
+ * wrong fault.
+ *
+ * So the trigger is the edit, not the submit. A `change` from any field in
+ * the form marks the result the operator was reading as belonging to the
+ * previous values; the next result the action returns is a new object, so it
+ * is not stale and draws again. Nothing here suppresses a real refusal — it
+ * only stops one outliving the values it was about.
+ */
+function useResultClearedByEditing(state: AdminActionState): {
+  showing: boolean;
+  onChange: () => void;
+} {
+  const [staleFor, setStaleFor] = useState<AdminActionState | null>(null);
+  return { showing: staleFor !== state, onChange: () => setStaleFor(state) };
+}
 
 /**
  * The whole editable schedule — three sections (W10, Brian 2026-08-31):
@@ -188,9 +218,16 @@ function CycleStepRow({
   );
 
   const slot = useOutcomeSlot(`cycle-${steps.map((step) => step.step).join("-")}`);
+  const edited = useResultClearedByEditing(state);
 
   return (
-    <Box component="form" action={formAction} onSubmit={slot.claim} data-testid="cycle-step-row">
+    <Box
+      component="form"
+      action={formAction}
+      onSubmit={slot.claim}
+      onChange={edited.onChange}
+      data-testid="cycle-step-row"
+    >
       <Section headingLevel={3} title={rowLabel} titleTestId="cycle-step-row-label">
         <input type="hidden" name="steps" value={steps.map((step) => step.step).join(",")} />
 
@@ -237,7 +274,7 @@ function CycleStepRow({
             }
           />
 
-          <AdminOutcome state={state} showing={slot.showing} />
+          <AdminOutcome state={state} showing={slot.showing && edited.showing} />
         </Stack>
       </Section>
     </Box>
@@ -259,12 +296,14 @@ function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings })
   );
 
   const slot = useOutcomeSlot("onboarding");
+  const edited = useResultClearedByEditing(state);
 
   return (
     <Box
       component="form"
       action={formAction}
       onSubmit={slot.claim}
+      onChange={edited.onChange}
       data-testid="onboarding-chase-row"
     >
       <Section
@@ -307,7 +346,7 @@ function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings })
             }
           />
 
-          <AdminOutcome state={state} showing={slot.showing} />
+          <AdminOutcome state={state} showing={slot.showing && edited.showing} />
         </Stack>
       </Section>
     </Box>
@@ -358,9 +397,16 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
   );
 
   const slot = useOutcomeSlot(`event-${row.eventType}`);
+  const edited = useResultClearedByEditing(state);
 
   return (
-    <Box component="form" action={formAction} onSubmit={slot.claim} data-testid="schedule-row">
+    <Box
+      component="form"
+      action={formAction}
+      onSubmit={slot.claim}
+      onChange={edited.onChange}
+      data-testid="schedule-row"
+    >
       <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
         <input type="hidden" name="eventType" value={row.eventType} />
 
@@ -419,7 +465,7 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
             }
           />
 
-          <AdminOutcome state={state} showing={slot.showing} />
+          <AdminOutcome state={state} showing={slot.showing && edited.showing} />
 
           <Box>
             <Button
@@ -493,9 +539,16 @@ function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
   );
 
   const slot = useOutcomeSlot(`event-${row.eventType}`);
+  const edited = useResultClearedByEditing(state);
 
   return (
-    <Box component="form" action={formAction} onSubmit={slot.claim} data-testid="schedule-row">
+    <Box
+      component="form"
+      action={formAction}
+      onSubmit={slot.claim}
+      onChange={edited.onChange}
+      data-testid="schedule-row"
+    >
       <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
         <input type="hidden" name="eventType" value={row.eventType} />
 
@@ -577,7 +630,7 @@ function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
             }
           />
 
-          <AdminOutcome state={state} showing={slot.showing} />
+          <AdminOutcome state={state} showing={slot.showing && edited.showing} />
 
           <Box>
             <Button

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
@@ -287,12 +288,25 @@ export async function finishRecruitmentAddIn(
   const evidenceValue = academic.optInEvidence?.trim() || null;
   const evidenceLabel = evidenceValue ? (OPT_IN_LABEL.get(evidenceValue) ?? null) : null;
 
+  // `first_contact_on` is the day somebody made contact, and on this door that
+  // is today: an operator is typing this recruit in because the club has just
+  // met them. Left unset (LAN-247) it stayed null forever — the record read
+  // "First contact: not recorded" after the flip to joined, and the board's
+  // default sort ("ladder order, then most recent first contact", LAN-204) had
+  // nothing to sort a hand-added recruit by. The walk-up door
+  // (`attendance.ts`) already records the fact this way, from the event's own
+  // date; the club's zone decides which day today is, never the server's.
   const inserted = await tx.query<{ id: string }>(
-    `insert into public.recruitment_prospects (person_id, season_id, source)
-     values ($1::uuid, $2::uuid, $3)
+    `insert into public.recruitment_prospects (person_id, season_id, source, first_contact_on)
+     values ($1::uuid, $2::uuid, $3, $4::date)
      on conflict (person_id, season_id) do nothing
      returning id`,
-    [personId, seasonId, evidenceLabel ? `Operator add · ${evidenceLabel}` : "Operator add"],
+    [
+      personId,
+      seasonId,
+      evidenceLabel ? `Operator add · ${evidenceLabel}` : "Operator add",
+      todayInClubZone(),
+    ],
   );
   let prospectId: string;
   let prospectCreated: boolean;

@@ -41,9 +41,11 @@ even an approximation of who is reading. Two mechanisms carry it, and neither is
 a rendering decision:
 
 1. **The projection.** `listPublicSeasonEvents` and `readPublicEvent` select
-   different columns from `listCurrentSeasonEvents` and `readEvent`. A joining
-   URL, a count or a status is not withheld from the public payload — it is never
-   read out of the database, and the public types have no field for one.
+   different columns from `listCurrentSeasonEvents` and `readEvent`. A count or a
+   status is not withheld from the public payload — it is never read out of the
+   database, and the public types have no field for one. An online event's
+   joining URL was on that list until LAN-284; it is now read and published, and
+   nothing else about the projection moved.
 2. **The guard.** The elevated projection is reached only through
    `listEventsForOperator`, which calls `requireEventOperatorTier()` before it
    reads anything. Deleting a gate from a page cannot grant it.
@@ -99,16 +101,16 @@ derived from the date, and `week_number` is constrained to −1..8 — it cannot
   One sort control governs the whole page, so `Already happened` reads in the
   same direction as the tables above it rather than reversing itself.
 
-| Column                                | Public       | Operator               |
-| ------------------------------------- | ------------ | ---------------------- |
-| Name (a link to the event)            | ✅           | ✅                     |
-| Type                                  | ✅           | ✅                     |
-| Date (Europe/London)                  | ✅           | ✅                     |
-| Term and week                         | ✅           | ✅                     |
-| Where — address, or `Online`          | ✅           | ✅                     |
-| The joining URL of an online event    | ❌ **never** | ✅ (on the event page) |
-| Status                                | ❌           | ✅                     |
-| Invited · Said yes · Showed / Invited | ❌           | ✅                     |
+| Column                                | Public                 | Operator               |
+| ------------------------------------- | ---------------------- | ---------------------- |
+| Name (a link to the event)            | ✅                     | ✅                     |
+| Type                                  | ✅                     | ✅                     |
+| Date (Europe/London)                  | ✅                     | ✅                     |
+| Term and week                         | ✅                     | ✅                     |
+| Where — address, or `Online`          | ✅                     | ✅                     |
+| The joining URL of an online event    | ✅ (on the event page) | ✅ (on the event page) |
+| Status                                | ❌                     | ✅                     |
+| Invited · Said yes · Showed / Invited | ❌                     | ✅                     |
 
 `Showed / Invited` reads `—` until a register has been saved and `0 / 47` once one
 has been saved with everybody absent (D73, D74) — the two are a different fact and
@@ -221,9 +223,8 @@ Two places, both recorded rather than left to be found as a contradiction.
    view", and "Joining details are sent to the people invited". Brian, 21 August
    2026: "I hate the callouts … That should not be in the real UI", and the
    decision table records that explanatory callouts belong to the review artifact
-   and never to the product. The last of them would also have been false: this
-   mission stores the joining URL and shows it to operators, and delivering it is
-   deliberately unsolved.
+   and never to the product. The last of them would also have been false: the
+   joining URL is published on this page (LAN-284), not sent separately.
 
 The same rule removed the operator calendar's read-only note ("Every linked,
 active operator can read this calendar…"). The absence of the **Create event**
@@ -273,7 +274,13 @@ form and the templates. The club-link tier's seam exists in
 `src/lib/auth/event-tier.ts` so that work adds a resolver rather than inventing a
 second vocabulary.
 
-**How an invited person receives an online event's joining URL is unsolved and
-must not be forgotten** — carried as a nonblocking unknown in `W1` with its
-handling rule. This mission stores it and shows it to operators; it neither
-publishes nor delivers it.
+**How an invited person receives an online event's joining URL** was carried as a
+nonblocking unknown in `W1`, on the premise that the link could not be published.
+LAN-284 removed the premise (Brian, 2026-09-09): the link is on the public event
+page and in the subscription feed, so an invited person reaches it the same way
+anybody else does. What is published is a link that admits nobody on its own —
+the meeting requires its own passcode, shared privately, on top of the
+Oxford-domain approval — and the application cannot verify that a given meeting
+has one. That is accepted knowingly; the event editor warns the operator, and the
+control is operator discipline. A passworded calendar was proposed on the same
+call and is **not** in this release.

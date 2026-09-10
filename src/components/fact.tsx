@@ -42,6 +42,7 @@ export function Fact({
   provenance,
   layout = "stacked",
   emphasis = false,
+  multiline = false,
   testId,
 }: {
   label: string;
@@ -53,12 +54,26 @@ export function Fact({
   layout?: "stacked" | "inline";
   /** The value at `body1` 600, for the one or two facts a card is opened to find. */
   emphasis?: boolean;
+  /**
+   * For a value the operator typed into a multi-line field — a description, a
+   * list of kit — where the line breaks are part of what was written (LAN-264).
+   *
+   * `pre-line` rather than `pre`: runs of spaces still collapse, so this is not
+   * a licence to lay a value out with whitespace, only to keep the lines
+   * somebody actually pressed Enter for. Off by default, because every other
+   * fact on every screen is a single value and a stray newline in one of those
+   * would be a defect to fix rather than a shape to preserve.
+   */
+  multiline?: boolean;
   testId?: string;
 }) {
   const rendered = isAbsent(value) ? (
     <NotRecorded />
   ) : typeof value === "string" || typeof value === "number" ? (
-    <Typography variant={emphasis ? "body1" : "body2"} sx={{ fontWeight: emphasis ? 600 : 400 }}>
+    <Typography
+      variant={emphasis ? "body1" : "body2"}
+      sx={{ fontWeight: emphasis ? 600 : 400, ...(multiline ? { whiteSpace: "pre-line" } : {}) }}
+    >
       {value}
     </Typography>
   ) : (

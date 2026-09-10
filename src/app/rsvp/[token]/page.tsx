@@ -58,6 +58,7 @@ import {
   SAVE_NOT_ATTENDING,
   SAVED_HEADING,
   SAVED_NOTE,
+  EQUIPMENT_LABEL,
   VENUE_LABEL,
   cancelledSentence,
   eventSummary,
@@ -297,6 +298,19 @@ function Invitation({
       <FactGrid>
         <Fact label={PLAYER_LABEL} value={page.playerName} note={INVITATION_LABEL} />
         {page.venue ? <Fact label={VENUE_LABEL} value={page.venue} /> : null}
+        {/*
+          D17, LAN-264. The one screen an invited player opens, and until now
+          the one that did not say what to bring. `multiline` because this is
+          free text the operator typed and a kit list is a list.
+        */}
+        {page.requiredEquipment ? (
+          <Fact
+            label={EQUIPMENT_LABEL}
+            value={page.requiredEquipment}
+            multiline
+            testId="rsvp-equipment"
+          />
+        ) : null}
         {deadline ? <Fact label={DEADLINE_LABEL} value={deadline} note={DEADLINE_NOTE} /> : null}
         <Fact
           label={CURRENT_ANSWER_LABEL}

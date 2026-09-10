@@ -91,6 +91,53 @@ decisions rather than owner ones:
   it. It is the recovery the shared contract's Validation and Error rows imply,
   but it is an added action and this is where that is said.
 
+## LAN-257 — linking a person is not editing them, and UX-13 says so
+
+Found by the LAN-239 QA sweep (walker M5, finding M5-02) and fixed under
+LAN-273. This section amends "Transactional person/contact/membership result"
+above; where the two disagree, this one is later and wins.
+
+**What shipped, and why it was wrong.** "Use selected person" wrote every typed
+contact onto the chosen person. A number that differed from the one on file
+went in as a second, _non-preferred_ row. That demoted nothing, which was the
+conservative half — but no screen in the product lists a non-preferred contact
+point (`currentContact()` picks the preferred one), so the row was invisible.
+The operator saw their number accepted, saw the person's real number on the
+confirmation, and had no way to learn a third value now existed. Meanwhile
+"This is them" on `/operate/people/new`, the equivalent decision one door
+along, wrote nothing at all. Two link flows, two behaviours, neither stated.
+
+**What ships now — one behaviour, both doors.** A link **discards** the typed
+values. Linking says "this human is that human"; it is not an edit of that
+human's record, and an intake form is not where somebody's known-good number is
+superseded or quietly doubled. This is the rule `insertAliasIfDistinct` already
+applied to a name form, for the same reason, and it is the behaviour
+`/operate/people/new` already had.
+
+Both confirmations now say what happened:
+
+- **UX-13** (`/operate/roster/[membershipId]?created=1`). The subtitle no
+  longer claims a person was created when one was not — a linked intake reads
+  "&lt;season&gt; membership was added to a person already on record." A typed
+  contact that was discarded is named by field, with a link to the person's own
+  edit surface, which is where a contact actually changes.
+- **`/operate/people/[personId]`** after "This is them" carries the same notice.
+
+Named **by kind, never by value**: the discarded number or address is personal
+data, and a query string is bookmarked, kept in browser history, and written to
+every access log in between. A value the person already holds is not reported
+at all — nothing was discarded, and saying "not recorded" about a value printed
+on the record below would be its own false statement. The discard is audited on
+`returner_membership_confirmed` as `contact_kinds_not_recorded`.
+
+**A contact point the app writes is on the record.** A person this submission
+_mints_ still gets their typed contacts. Intake's one email field writes
+`contact_points.scope = null` — "not classified yet", because guessing personal
+versus college from a domain would be inventing data about a real person — and
+until LAN-273 the person record showed only the personal and college rows, so
+that address appeared on no screen at all. The record now carries an
+`Email · not classified` row when there is one, and nothing when there is not.
+
 ## UX-conformance checklist
 
 | Acceptance criterion                                                     | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |

@@ -28,7 +28,7 @@ import {
   describeTermCoordinate,
   duplicatedFrom,
   formatLongDate,
-  JOINING_URL_IS_NEVER_PUBLIC,
+  JOINING_URL_IS_PUBLIC_WARNING,
   labelFor,
   TYPE_LABELS,
 } from "./presentation";
@@ -506,10 +506,11 @@ export default function EventForm({
             )}
 
             {/*
-              REQ-no-joining-url. Stored on the event and never public, never in
-              a subscription feed and never in a payload behind one. How an
-              invited person receives it is deliberately unsolved, and this form
-              does not pretend otherwise.
+              LAN-284 reversed REQ-no-joining-url: this link is published on
+              the public event page and carried in the subscription feed. The
+              helper text is the warning, and it is a warning rather than a
+              gate — nothing here can check whether a meeting has a passcode
+              set, so the only real control is the operator's own care.
             */}
             {where === "online" ? (
               <Field
@@ -518,7 +519,7 @@ export default function EventForm({
                 data-field="joiningUrl"
                 defaultValue={value("joiningUrl")}
                 error={Boolean(issueFor(state, "joiningUrl"))}
-                helperText={issueFor(state, "joiningUrl") ?? JOINING_URL_IS_NEVER_PUBLIC}
+                helperText={issueFor(state, "joiningUrl") ?? JOINING_URL_IS_PUBLIC_WARNING}
               />
             ) : null}
           </Stack>
@@ -541,7 +542,12 @@ export default function EventForm({
               minRows={3}
             />
 
-            {/* D17: its own field, so it is not buried in a paragraph. */}
+            {/*
+              D17: its own field, so it is not buried in a paragraph — and
+              free text that behaves exactly like Description above (Brian,
+              2026-09-09; LAN-264). It was a one-line input, which meant Enter
+              submitted the form and a kit list could not be written at all.
+            */}
             <Field
               label="Required equipment"
               name="requiredEquipment"
@@ -552,6 +558,8 @@ export default function EventForm({
               helperText={
                 issueFor(state, "requiredEquipment") ?? "What to bring. Leave empty if nothing."
               }
+              multiline
+              minRows={3}
             />
 
             <ChoiceField

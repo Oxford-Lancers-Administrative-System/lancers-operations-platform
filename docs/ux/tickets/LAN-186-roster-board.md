@@ -219,6 +219,21 @@ minimum touch target and the same accessible name.
 - Saved views — deferred by the approved workflow, not rejected.
 - `is_predominant` jersey selection — player detail's fuller editor.
 
+## LAN-259 — the three pinned filters carry an accessible name
+
+Found by the LAN-239 QA sweep (walker M5, finding M5-04) and fixed under
+LAN-273. `PinnedSelect` rendered `<InputLabel>` beside `<Select label=…>` with
+no `id` on the label and no `labelId` on the Select. MUI derives a combobox's
+`aria-labelledby` from `labelId` and from nothing else — `label` only reserves
+the notch in the outline — so Status, Availability and Missing onboarding data
+all reported `aria-labelledby: null` and read to a screen reader as three
+unnamed comboboxes. Functionally they always worked; they had no name.
+
+The pair is now `useId()`-derived, so two boards on one page, or a label whose
+text repeats, still name their own control. `board-screens.test.tsx` asks for
+each filter _by its accessible name_, which fails the moment the pair is
+dropped again.
+
 ## Acceptance criteria
 
 The twenty checkboxes under **Acceptance** on the live LAN-186 issue are
