@@ -250,3 +250,13 @@ export function describeAttendance(isMandatory: boolean): string {
  * vocabulary of its own (Q-29).
  */
 export const EQUIPMENT_LABEL = "What to bring";
+
+/**
+ * The label for `joining_url` — LAN-284.
+ *
+ * Shared, because the operator's event page and the public event page now show
+ * the same field and must call it the same thing (`docs/ux/standards.md`
+ * rule 7). The operator's page carries a warning underneath; the public page
+ * carries none, because to a reader it is simply how you join.
+ */
+export const JOINING_LINK_LABEL = "Joining link";

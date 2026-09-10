@@ -298,6 +298,7 @@ export default function TemplateEditor({
                 ]}
               />
 
+              {/* LAN-264. Free text that behaves exactly like Description below. */}
               <Field
                 label="Required equipment"
                 name="defaultRequiredEquipment"
@@ -307,6 +308,8 @@ export default function TemplateEditor({
                 error={Boolean(issueFor(state, "defaultRequiredEquipment"))}
                 helperText={issueFor(state, "defaultRequiredEquipment")}
                 disabled={busy}
+                multiline
+                minRows={3}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
 

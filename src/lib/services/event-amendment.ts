@@ -15,6 +15,7 @@ import {
   diffAmendment,
   isFutureEvent,
   isTerminal,
+  mergeAmendment,
   silenceNeedsConfirmation,
   type AmendableEvent,
   type AmendmentChange,
@@ -429,6 +430,17 @@ export interface AmendmentOptions {
    * confirmation is required.
    */
   silenceConfirmed?: boolean;
+  /**
+   * The event as the form that is submitting loaded it — LAN-244.
+   *
+   * Given it, this call amends only the fields that differ from it, and every
+   * other field keeps whatever the row holds now. Omitted, `input` is applied
+   * whole, which is the behaviour that let a stale second tab revert a field it
+   * never touched and record the reversion as somebody's amendment. Every
+   * screen passes it; it is optional only so that a service-level test may
+   * state an amendment as one complete intention.
+   */
+  baseline?: AmendableEvent;
 }
 
 export interface AmendmentOutcome {
@@ -481,15 +493,24 @@ export async function amendApprovedEvent(
       );
     }
 
+    // LAN-244. What this form actually asks to change, against the row as it
+    // stands under the lock — not the whole snapshot it happens to be carrying.
+    // `mergeAmendment` explains why a form that never touched a field must not
+    // be able to revert it, and the history entry below is built from `applied`
+    // for the same reason: it must describe the amendment that happened.
+    const applied = options.baseline
+      ? mergeAmendment(snapshotOf(before), options.baseline, snapshotOfInput(input))
+      : snapshotOfInput(input);
+
     // Invariant E1a. An approved event has a date, so an amendment that would
     // take it away is refused rather than allowed to reach an integrity error.
-    if (input.scheduledOn === null) {
+    if (applied.scheduledOn === null) {
       throw new ConstraintViolated(AMENDMENT_NEEDS_A_DATE_MESSAGE, {
         rule: AMENDMENT_NEEDS_A_DATE_RULE,
       });
     }
 
-    const changes = diffAmendment(snapshotOf(before), snapshotOfInput(input));
+    const changes = diffAmendment(snapshotOf(before), applied);
     if (changes.length === 0) {
       throw new ConstraintViolated(NOTHING_CHANGED_MESSAGE, { rule: NOTHING_CHANGED_RULE });
     }
@@ -500,7 +521,7 @@ export async function amendApprovedEvent(
     // people have to hear about.
     const today = todayInClubZone();
     const isFuture =
-      isFutureEvent(before, today) || isFutureEvent({ scheduledOn: input.scheduledOn }, today);
+      isFutureEvent(before, today) || isFutureEvent({ scheduledOn: applied.scheduledOn }, today);
 
     if (!options.notify && silenceNeedsConfirmation(changes, { isFuture })) {
       if (options.silenceConfirmed !== true) {
@@ -510,7 +531,7 @@ export async function amendApprovedEvent(
       }
     }
 
-    const term = deriveTermCoordinate(input.scheduledOn, await listTermWindowsIn(tx));
+    const term = deriveTermCoordinate(applied.scheduledOn, await listTermWindowsIn(tx));
 
     // `status` is deliberately absent from the set list, and `where status =
     // 'approved'` is deliberately present. The first is REQ-amend-in-place; the
@@ -528,19 +549,19 @@ export async function amendApprovedEvent(
        returning id`,
       [
         eventId,
-        input.name,
-        input.eventType,
-        input.scheduledOn,
-        input.startsAt,
-        input.endsAt,
-        input.deliveryMode,
-        input.venue,
-        input.description,
-        input.requiredEquipment,
-        input.joiningUrl,
+        applied.name,
+        applied.eventType,
+        applied.scheduledOn,
+        applied.startsAt,
+        applied.endsAt,
+        applied.deliveryMode,
+        applied.venue,
+        applied.description,
+        applied.requiredEquipment,
+        applied.joiningUrl,
         term.termId,
         term.weekNumber,
-        input.isMandatory,
+        applied.isMandatory,
       ],
     );
 
@@ -555,7 +576,7 @@ export async function amendApprovedEvent(
       actorPersonId,
       eventId,
       before,
-      input,
+      applied,
       notified: options.notify,
     });
 
@@ -589,7 +610,7 @@ export async function amendApprovedEvent(
     );
     const scheduleNeedsWork = rescheduled || hasMessagingPlan.rowCount === 0;
     const recomputed = scheduleNeedsWork
-      ? await recomputeScheduleOnRescheduleIn(tx, eventId, input)
+      ? await recomputeScheduleOnRescheduleIn(tx, eventId, applied)
       : null;
 
     // W8, "Held is never a resting state". Unconditional, and after the
@@ -605,8 +626,8 @@ export async function amendApprovedEvent(
         })
       : 0;
 
-    const thresholdDays = await readChaseThresholdDaysIn(tx, input.eventType);
-    const threshold = chaseThresholdOn(input.scheduledOn, thresholdDays);
+    const thresholdDays = await readChaseThresholdDaysIn(tx, applied.eventType);
+    const threshold = chaseThresholdOn(applied.scheduledOn, thresholdDays);
 
     await recordAudit(tx, {
       actorPersonId,
@@ -1063,7 +1084,7 @@ async function backfillInvitationJobsIn(tx: Tx, eventId: string): Promise<number
 async function recomputeScheduleOnRescheduleIn(
   tx: Tx,
   eventId: string,
-  input: EventDraftInput,
+  input: AmendableEvent,
 ): Promise<{ responseDeadlineAt: Date }> {
   const plan = await resolveMessagingPlanIn(
     tx,
@@ -1201,11 +1222,12 @@ async function recordScheduleChangeIn(
     actorPersonId: string;
     eventId: string;
     before: EventDetail;
-    input: EventDraftInput;
+    /** LAN-244: what is actually being written, not what the form posted. */
+    applied: AmendableEvent;
     notified: boolean;
   },
 ): Promise<string | null> {
-  const { before, input } = args;
+  const { before, applied: input } = args;
   const moved =
     before.scheduledOn !== input.scheduledOn ||
     before.startsAt !== input.startsAt ||
@@ -1348,6 +1370,7 @@ export {
   diffAmendment,
   hasMaterialChange,
   isFutureEvent,
+  mergeAmendment,
   silenceNeedsConfirmation,
   cancellationSilenceNeedsConfirmation,
   type AmendableEvent,

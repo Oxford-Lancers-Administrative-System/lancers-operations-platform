@@ -184,7 +184,7 @@ export default function EventFormPreview({
               label="Joining link"
               name="joiningUrl"
               field="joiningUrl"
-              helperText="Stored on the event and never public."
+              helperText="Published on the public calendar and in the subscription feed."
             />
           ) : null}
         </Stack>

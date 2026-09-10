@@ -3,7 +3,8 @@
  * `/calendar/feed.ics` against the real database — LAN-158, `W2`.
  *
  * `tests/public-calendar-side-effects.test.ts` is the pattern this file
- * follows for the read-creates-nothing and no-person-no-joining-URL proofs.
+ * follows for the read-creates-nothing and no-person proofs — and, since
+ * LAN-284 reversed the never-public rule, for the joining URL's presence.
  * Three things need the real database and cannot be proved with hand-built
  * `FeedEvent` rows (`src/lib/services/calendar-feed.test.ts` covers those):
  *
@@ -268,22 +269,42 @@ describe("cancellation — D57", () => {
 });
 
 describe("what the feed carries", () => {
-  it("carries no person and no joining URL, asserted on the payload", async () => {
+  it("carries no person, asserted on the payload", async () => {
     await draftFixtureEvent();
-    const online = await seededOnlineEventWithJoiningUrl();
     const surname = await seededInvitedPersonSurname();
 
     const { document } = await fetchFeedDocument();
 
-    expect(document).not.toContain(online.joiningUrl);
     expect(document).not.toContain(surname);
-    for (const forbidden of ["rsvp", "invit", "attend", "joiningurl", "joining_url"]) {
+    for (const forbidden of ["rsvp", "invit", "attend"]) {
       expect(document.toLowerCase(), `feed payload carries "${forbidden}"`).not.toContain(
         forbidden,
       );
     }
   }, 60_000);
+
+  it("carries an online event's joining URL in the URL property — LAN-284", async () => {
+    // The inverse of the assertion this replaces. Brian reversed the
+    // never-public rule on 2026-09-09: the feed publishes the link, and it
+    // publishes it as `URL` rather than inside `DESCRIPTION`, because that is
+    // what a subscribed Google or Apple calendar renders as a tappable link.
+    // Asserted against the seeded row rather than a fixture, for the reason
+    // the whole file exists: the value proved is the one the database holds.
+    const online = await seededOnlineEventWithJoiningUrl();
+
+    const { document } = await fetchFeedDocument();
+    const block = unfold(vEventBlock(document, buildEventUid(online.id)));
+
+    expect(block).toContain(`URL:${online.joiningUrl}`);
+    const description = block.split("\r\n").find((line) => line.startsWith("DESCRIPTION:")) ?? "";
+    expect(description).not.toContain(online.joiningUrl);
+  }, 60_000);
 });
+
+/** RFC 5545 §3.1 line folding, undone, so a long property reads as one line. */
+function unfold(document: string): string {
+  return document.replace(/\r\n /g, "");
+}
 
 /** How many times a substring occurs — used to prove "exactly one entry", not just "at least one". */
 function occurrencesOf(haystack: string, needle: string): number {
