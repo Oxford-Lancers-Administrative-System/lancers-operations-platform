@@ -6,6 +6,7 @@ import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { listTermWindows } from "@/lib/services/seasons";
 import { readEventFormDefaults } from "@/lib/services/event-templates";
+import { DEFAULT_TEMPLATE_CLASS } from "@/lib/services/event-template-input";
 import {
   joinQuestionChoices,
   readEvent,
@@ -99,6 +100,21 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
           attendance: source.isMandatory ? "mandatory" : "optional",
         };
 
+  /**
+   * The questions a blank form opens with — the ones its opening template gives.
+   *
+   * The same rule `EventForm` uses to decide which template the Type control
+   * opens on, because the two have to agree: a form showing Practice's name and
+   * Chalk's questions would be lying about where either came from. Expressed
+   * against the behavioural class rather than the literal `practice` key it used
+   * to be, since LAN-265 lets a club rename or delete any template.
+   */
+  const openingQuestions =
+    (
+      Object.values(templates).find((option) => option.eventType === DEFAULT_TEMPLATE_CLASS) ??
+      Object.values(templates)[0]
+    )?.questions ?? [];
+
   return (
     <Stack spacing={3}>
       <PageHeader
@@ -111,10 +127,10 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
         terms={terms}
         templates={templates}
         initial={initial}
-        // A blank form opens on Practice, so it opens with the Practice
-        // template's questions; changing the Type swaps them for the new
-        // type's, inside the form. A duplicate brings its source's own.
-        initialQuestions={source === null ? (templates.practice?.questions ?? []) : sourceQuestions}
+        // A blank form opens on a practice, so it opens with that template's
+        // questions; changing the Type swaps them for the new template's,
+        // inside the form. A duplicate brings its source's own.
+        initialQuestions={source === null ? openingQuestions : sourceQuestions}
         duplicatedFromName={source?.name}
         cancelHref="/operate/events"
       />

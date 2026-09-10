@@ -73,6 +73,23 @@ export interface EventTypeFormDefaults {
   questions: RawEventQuestion[];
 }
 
+/**
+ * The behavioural class a template an operator creates carries.
+ *
+ * LAN-265: "the seven existing templates keep theirs, and a new template picks
+ * the closest one at creation, with 'Practice' the default." Nothing on any
+ * screen offers the choice, so in practice this *is* the class of every template
+ * created from now on — which is right, because the classes that behave
+ * differently (recruitment's audience rules, a game's report bucket) are the
+ * ones a migration and a Brian decision would introduce.
+ *
+ * Here rather than in `event-templates.ts` because the create-and-edit form is a
+ * Client Component and needs it: D15's "a blank form opens on a practice" is
+ * expressed against the class now that no name can be relied on. That module is
+ * `server-only`, so a value both sides need lives on the pure side.
+ */
+export const DEFAULT_TEMPLATE_CLASS = "practice";
+
 /** The narrowest and widest a default length may be — the schema's own bounds. */
 export const MIN_TEMPLATE_DURATION_MINUTES = 5;
 export const MAX_TEMPLATE_DURATION_MINUTES = 1440;

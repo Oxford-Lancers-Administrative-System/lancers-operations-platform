@@ -7,6 +7,7 @@ import { todayInClubZone } from "@/lib/club-time";
 import { UUID_PATTERN, type EventDeliveryMode, type EventStatus } from "./event-input";
 import { createMessagingScheduleIn, DEFAULT_MESSAGING_SCHEDULE } from "./messaging-schedule";
 import {
+  DEFAULT_TEMPLATE_CLASS,
   endTimeFromStart,
   type EventTemplateInput,
   type EventTypeFormDefaults,
@@ -94,6 +95,7 @@ import {
  */
 
 export {
+  DEFAULT_TEMPLATE_CLASS,
   describeDuration,
   endTimeFromStart,
   validateEventTemplate,
@@ -195,18 +197,6 @@ export const TEMPLATE_NOT_FOUND_MESSAGE =
   "That template no longer exists. It may have been deleted while this page was open.";
 
 export const TEMPLATE_TYPE_RULE = "event_template_unknown";
-
-/**
- * The behavioural class a template an operator creates carries.
- *
- * LAN-265: "the seven existing templates keep theirs, and a new template picks
- * the closest one at creation, with 'Practice' the default." Nothing on any
- * screen offers the choice, so in practice this *is* the class of every template
- * created from now on — which is right, because the classes that behave
- * differently (recruitment's audience rules, a game's report bucket) are the
- * ones a migration and a Brian decision would introduce.
- */
-export const DEFAULT_TEMPLATE_CLASS = "practice";
 
 // ---------------------------------------------------------------------------
 // Reads

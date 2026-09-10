@@ -14,7 +14,7 @@ import {
   type RawEventDraft,
   type TermWindow,
 } from "@/lib/services/event-input";
-import { endTimeFromStart } from "@/lib/services/event-template-input";
+import { DEFAULT_TEMPLATE_CLASS, endTimeFromStart } from "@/lib/services/event-template-input";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { EventTypeFormDefaults } from "@/lib/services/event-template-input";
 import { createEventDraftAction, updateEventDraftAction } from "./actions";
@@ -178,17 +178,25 @@ export default function EventForm({
   const templateList = Object.values(templates);
 
   /**
-   * What the Template control opens on.
+   * What the Type control opens on.
    *
-   * An edit and a refused submission both bring their own; a blank create takes
-   * the first template the club has. It used to be the literal `practice`,
-   * which was safe while the seven types were the seven templates and one of
-   * them was always called Practice. After LAN-265 a club can rename or delete
-   * any of them, so the honest default is "the first one on the list" — and a
-   * club with no templates at all gets an empty control and a refusal on save
-   * rather than a form that silently posts a template id nobody has.
+   * An edit and a refused submission both bring their own. A blank create opens
+   * on a **practice**, which is what D15 settled and what the club schedules
+   * most of — and it used to be the literal string `practice`, which was safe
+   * while the seven types were the seven templates and one of them was always
+   * called Practice.
+   *
+   * After LAN-265 a club can rename or delete any of them, so the rule is
+   * expressed against the behavioural class instead: the first practice-class
+   * template on the list, which is the Practice template on a club that has not
+   * created its own and remains a practice on one that renamed it. A club whose
+   * templates are all something else opens on the first of them, and one with no
+   * templates at all gets an empty control and a refusal on save rather than a
+   * form that silently posts an id nobody has.
    */
-  const startingTemplateId = value("templateId") || (templateList[0]?.id ?? "");
+  const openingTemplate =
+    templateList.find((option) => option.eventType === DEFAULT_TEMPLATE_CLASS) ?? templateList[0];
+  const startingTemplateId = value("templateId") || (openingTemplate?.id ?? "");
 
   /**
    * What this form opens with, before anybody has typed anything.
