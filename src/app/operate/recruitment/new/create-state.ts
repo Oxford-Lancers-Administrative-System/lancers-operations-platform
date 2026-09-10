@@ -11,6 +11,13 @@ export interface AddRecruitFormValues {
   givenName: string;
   familyName: string;
   mobile: string;
+  /**
+   * LAN-268, Brian 2026-09-09. Required, and only an `ox.ac.uk` address is
+   * accepted — the operator adding somebody by hand is held to the same rule
+   * as the recruit filling the door in themselves, because it is the same
+   * fact about the same person.
+   */
+  collegeEmail: string;
   personalEmail: string;
   /**
    * V-2, correction round 2 — the shipped intake forms' own field set
@@ -39,6 +46,7 @@ export const EMPTY_VALUES: AddRecruitFormValues = {
   givenName: "",
   familyName: "",
   mobile: "",
+  collegeEmail: "",
   personalEmail: "",
   knownAs: "",
   college: "",
@@ -109,6 +117,7 @@ export function readAddRecruitValues(formData: FormData): AddRecruitFormValues {
     givenName: read("givenName"),
     familyName: read("familyName"),
     mobile: read("mobile"),
+    collegeEmail: read("collegeEmail"),
     personalEmail: read("personalEmail"),
     knownAs: read("knownAs"),
     college: read("college"),

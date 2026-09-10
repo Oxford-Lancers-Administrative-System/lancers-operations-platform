@@ -30,6 +30,7 @@ function values(overrides: Partial<SignupFieldValues> = {}): SignupFieldValues {
     givenName: MARKER,
     familyName: "Recruit",
     mobile: "07700 900556",
+    collegeEmail: "lan202.token@balliol.ox.ac.uk",
     email: "",
     knownAs: "",
     college: "",

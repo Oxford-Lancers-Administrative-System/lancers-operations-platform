@@ -60,6 +60,14 @@ the one consent function this package calls; `withdrawSeasonMessagingConsentIn`
 is never imported here, so there is no code path by which a crafted request
 could revoke it (`OD7-oneway-tick`).
 
+Step 1 also collects the **college email** (LAN-268 — required, validated to
+the Oxford rule recorded in `LAN-202-signup-consent-gate.md`), and, in a
+section of their own, the **student number** and **BAFA registration number**
+(LAN-267). Neither number is required: a player who does not have one yet must
+not be blocked by it, and the roster form prints a blank row and names them in
+its warning line instead. The mobile and the emergency contact's phone are the
+shared two-part control (LAN-211).
+
 The required set is `person-required.ts`'s player tier, read rather than
 restated, plus the emergency contact's four required fields
 (`person-required.ts`'s own `emergency_contact` aggregate covers "a row

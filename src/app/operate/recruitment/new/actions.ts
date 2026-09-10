@@ -256,6 +256,7 @@ function requiredErrors(values: {
   givenName: string;
   familyName: string;
   mobile: string;
+  collegeEmail: string;
   personalEmail: string;
 }): AddRecruitFieldErrors {
   const errors: AddRecruitFieldErrors = {};
@@ -265,6 +266,12 @@ function requiredErrors(values: {
   // "mobile or email" — `requireMobileProvided` is the service layer's own
   // backstop of the same rule; this is the form-facing field error for it.
   if (values.mobile.trim() === "") errors.mobile = "A mobile number is required at this door.";
+  // LAN-268, Brian 2026-09-09: the required set at this door is the same four
+  // things the recruit's own sign-up door asks for. Whether the value is an
+  // Oxford address is `validateCollegeEmail`'s answer, surfaced through
+  // `validationFieldErrors` below; this is only "you left it blank".
+  if (values.collegeEmail.trim() === "")
+    errors.collegeEmail = "A college email is required at this door.";
   return errors;
 }
 
@@ -272,6 +279,11 @@ function validationFieldErrors(error: unknown): AddRecruitFieldErrors | null {
   if (!isServiceError(error)) return null;
   if (typeof error.rule !== "string") return null;
   if (error.rule.startsWith("phone_")) return { mobile: error.message };
+  // Before the generic `email_` prefix: `validateCollegeEmail` defers to the
+  // shared shape check, so a college address that is not an address at all
+  // comes back as `email_not_well_formed` and would otherwise land the
+  // message on the wrong field.
+  if (error.rule.startsWith("college_email_")) return { collegeEmail: error.message };
   if (error.rule.startsWith("email_")) return { personalEmail: error.message };
   if (error.rule === "people_given_name_not_blank") return { givenName: error.message };
   if (error.rule === "people_family_name_not_blank") return { familyName: error.message };

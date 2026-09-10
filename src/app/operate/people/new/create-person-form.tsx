@@ -10,6 +10,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import { Field } from "@/components/field";
+import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
 import type { PersonDuplicateCandidate } from "@/lib/services/person-duplicate";
@@ -108,7 +109,11 @@ export default function CreatePersonForm() {
               error={Boolean(errors.familyName)}
               helperText={errors.familyName}
             />
-            <Field
+            {/* LAN-211: the shared two-part control. This door mints coaches
+                and committee members as well as players, and none of them is
+                asked for a college email here — `person-required.ts`'s
+                everyone-else tier does not ask for one. */}
+            <PhoneField
               name="mobile"
               label="Mobile phone"
               defaultValue={values.mobile}

@@ -42,6 +42,7 @@ function toSubmission(values: SignupFieldValues & { consent: boolean }): SignupS
     givenName: values.givenName,
     familyName: values.familyName,
     mobile: values.mobile || null,
+    collegeEmail: values.collegeEmail || null,
     email: values.email || null,
     knownAs: values.knownAs || null,
     college: values.college || null,

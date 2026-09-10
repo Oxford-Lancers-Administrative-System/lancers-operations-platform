@@ -45,6 +45,10 @@ function baseSubmission(overrides: Partial<SignupSubmission> = {}): SignupSubmis
     // carries a fresh, valid one by default; a test about mobile itself
     // overrides it.
     mobile: uniquePhone(),
+    // College email is required too (Brian, 2026-09-09, LAN-268) and is held
+    // to the Oxford rule. Every fixture carries a valid one by default; a test
+    // about the college email itself overrides it.
+    collegeEmail: `${MARKER.toLowerCase()}.${phoneCounter || 1}@balliol.ox.ac.uk`,
     consent: true,
     ...overrides,
   };
@@ -699,9 +703,10 @@ describe("readSignupPrefillIn", () => {
     );
     const personId = existing.rows[0].id;
     await observer.query(
-      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
-       values ($1::uuid, 'phone', '07700900461', true, 'test fixture'),
-              ($1::uuid, 'email', 'm.ashdown@example.ac.uk', true, 'test fixture')`,
+      `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', null, '07700900461', true, 'test fixture'),
+              ($1::uuid, 'email', null, 'm.ashdown@example.ac.uk', true, 'test fixture'),
+              ($1::uuid, 'email', 'college', 'm.ashdown@kestrelhall.ox.ac.uk', true, 'test fixture')`,
       [personId],
     );
 
@@ -710,11 +715,35 @@ describe("readSignupPrefillIn", () => {
       givenName: MARKER,
       familyName: "Prefill",
       mobile: "07700900461",
+      // LAN-268: the two scopes are two different boxes on the door now, so
+      // the prefill has to tell them apart. The unclassified email — `scope`
+      // is null on every email recorded before LAN-182 — still fills the
+      // personal box, which is where it went when there was only one.
+      collegeEmail: "m.ashdown@kestrelhall.ox.ac.uk",
       email: "m.ashdown@example.ac.uk",
       college: "Kestrelhall",
       matriculationYear: 2026,
       expectedGraduationYear: 2029,
       degreeField: "Law",
     });
+  });
+
+  it("never offers a college address as the personal one", async () => {
+    // The failure that would leave the required college-email box blank while
+    // showing its value in the optional box beside it.
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'CollegeOnly') returning id`,
+      [MARKER],
+    );
+    const personId = existing.rows[0].id;
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred, source)
+       values ($1::uuid, 'email', 'college', 'only@kestrelhall.ox.ac.uk', true, 'test fixture')`,
+      [personId],
+    );
+
+    const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+    expect(prefill.collegeEmail).toBe("only@kestrelhall.ox.ac.uk");
+    expect(prefill.email).toBeNull();
   });
 });

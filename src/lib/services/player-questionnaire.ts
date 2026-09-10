@@ -31,7 +31,11 @@ import {
   type EmergencyContactFieldUpdate,
   type PersonFieldUpdate,
 } from "./person-write";
-import { validateAcademicYear, validateDateOfBirth } from "./person-validation";
+import {
+  validateAcademicYear,
+  validateCollegeEmail,
+  validateDateOfBirth,
+} from "./person-validation";
 import { readSeasonLabelIn } from "./seasons";
 import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
@@ -123,6 +127,14 @@ export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "matriculation_year",
   "expected_graduation_year",
   "degree_field",
+  // LAN-267's two identifiers join the list for the same reason every other
+  // entry is on it: the player's questionnaire writes them, so the record has
+  // to be able to say who supplied the value that is on it. They travel the
+  // same `applyDisputableFieldIn` path, take the same
+  // `person_<field>_updated` audit action, and show the same "You"/"The club"
+  // source line as college and degree field already do.
+  "student_number",
+  "bafa_registration_number",
   "date_of_birth",
 ]);
 
@@ -640,6 +652,8 @@ const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> 
   matriculation_year: "person_matriculation_year_updated",
   expected_graduation_year: "person_expected_graduation_year_updated",
   degree_field: "person_degree_field_updated",
+  student_number: "person_student_number_updated",
+  bafa_registration_number: "person_bafa_registration_number_updated",
   date_of_birth: "person_date_of_birth_updated",
 });
 
@@ -712,6 +726,8 @@ const PERSON_FIELD_SOURCE_KEY: Readonly<Record<DisputedPersonField, keyof Person
     matriculation_year: "matriculationYearSource",
     expected_graduation_year: "expectedGraduationYearSource",
     degree_field: "degreeFieldSource",
+    student_number: "studentNumberSource",
+    bafa_registration_number: "bafaRegistrationNumberSource",
     date_of_birth: "dateOfBirthSource",
   });
 
@@ -723,6 +739,8 @@ const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonR
     matriculation_year: "matriculationYear",
     expected_graduation_year: "expectedGraduationYear",
     degree_field: "degreeField",
+    student_number: "studentNumber",
+    bafa_registration_number: "bafaRegistrationNumber",
     date_of_birth: "dateOfBirth",
   });
 
@@ -737,6 +755,10 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
     case "college":
       return { field, value };
     case "degree_field":
+      return { field, value };
+    case "student_number":
+      return { field, value };
+    case "bafa_registration_number":
       return { field, value };
     case "date_of_birth":
       return { field, value };
@@ -846,6 +868,12 @@ export interface DetailsStepInput {
   grantConsent: boolean;
   fields: Partial<Record<DisputedPersonField, string>>;
   mobile: string;
+  /**
+   * LAN-268. Validated to the Oxford rule before it is written, and refused
+   * with the rule's one sentence — a blank one is never a shape failure here,
+   * exactly as a blank mobile is not: required-ness is the form's own check.
+   */
+  collegeEmail: string;
   personalEmail: string;
   emergencyContact: {
     givenName: string;
@@ -904,6 +932,23 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
   const emailChanged =
     input.personalEmail.trim() !== "" && needsPersonalEmailWrite(current, input.personalEmail);
   if (emailChanged && !looksLikeEmail(input.personalEmail)) errors.personalEmail = EMAIL_SHAPE;
+  // LAN-268. The college email is the one email on this form with a rule
+  // beyond shape, and it is asked of the one validator rather than restated:
+  // `validateCollegeEmail` already defers to the shared shape check first, so
+  // "that is not an address" and "that is not an Oxford address" are two
+  // different sentences from the same call. A value that fails is left
+  // unwritten and the old one stays on file, which is the same
+  // never-all-or-nothing behaviour every other slot in this function has.
+  const collegeEmailChanged =
+    input.collegeEmail.trim() !== "" && needsCollegeEmailWrite(current, input.collegeEmail);
+  let collegeEmailValid = true;
+  if (input.collegeEmail.trim() !== "") {
+    const validation = validateCollegeEmail(input.collegeEmail);
+    if (!validation.valid) {
+      errors.collegeEmail = validation.message;
+      collegeEmailValid = false;
+    }
+  }
   const ecPhoneInvalid =
     input.emergencyContact.phone.trim() !== "" && !looksLikePhone(input.emergencyContact.phone);
   if (ecPhoneInvalid) errors.ec_phone = PHONE_SHAPE;
@@ -986,6 +1031,17 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
       reason: "Player self-service correction.",
     });
   }
+  if (collegeEmailChanged && collegeEmailValid) {
+    await supersedeContactPoint({
+      actorPersonId: input.personId,
+      personId: input.personId,
+      kind: "email",
+      scope: "college",
+      rawValue: input.collegeEmail,
+      source: "player self-service",
+      reason: "Player self-service correction.",
+    });
+  }
 
   // A malformed emergency-contact phone or email is blanked before reaching
   // `writeEmergencyContactIn`, whose own "never clears a field" rule then
@@ -1024,6 +1080,13 @@ function needsMobileWrite(record: PersonRecord, raw: string): boolean {
 function needsPersonalEmailWrite(record: PersonRecord, raw: string): boolean {
   const current = record.contacts.find(
     (c) => c.kind === "email" && c.scope === "personal" && c.validUntil === null,
+  );
+  return (current?.rawValue ?? "") !== raw.trim();
+}
+
+function needsCollegeEmailWrite(record: PersonRecord, raw: string): boolean {
+  const current = record.contacts.find(
+    (c) => c.kind === "email" && c.scope === "college" && c.validUntil === null,
   );
   return (current?.rawValue ?? "") !== raw.trim();
 }

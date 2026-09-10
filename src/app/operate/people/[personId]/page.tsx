@@ -329,6 +329,22 @@ export default async function PersonRecordPage({
           <Fact label="Degree field" note={record.degreeFieldSource ?? undefined}>
             {record.degreeField !== null ? <>{record.degreeField}</> : <NotRecorded />}
           </Fact>
+          {/* LAN-267. Two personal facts under the same handling as the rest
+              of this section — shown here to an authorised operator, never on
+              a list, board or queue, and named in the privacy notice. */}
+          <Fact label="Student number" note={record.studentNumberSource ?? undefined}>
+            {record.studentNumber !== null ? <>{record.studentNumber}</> : <NotRecorded />}
+          </Fact>
+          <Fact
+            label="BAFA registration number"
+            note={record.bafaRegistrationNumberSource ?? undefined}
+          >
+            {record.bafaRegistrationNumber !== null ? (
+              <>{record.bafaRegistrationNumber}</>
+            ) : (
+              <NotRecorded />
+            )}
+          </Fact>
         </Section>
       ) : null}
 

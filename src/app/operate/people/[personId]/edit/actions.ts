@@ -14,7 +14,11 @@ import {
 } from "@/lib/services/person-write";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
-import { validateDateOfBirth, validatePhoneNumber } from "@/lib/services/person-validation";
+import {
+  validateCollegeEmail,
+  validateDateOfBirth,
+  validatePhoneNumber,
+} from "@/lib/services/person-validation";
 import {
   GENERIC_FAILURE,
   readEditFormValues,
@@ -86,6 +90,21 @@ export async function submitPersonEdit(
     errors.mobile = "A mobile number cannot be cleared here — supersede it with a new one instead.";
   }
 
+  // ---- College email: the Oxford rule, before any write -------------------
+  // LAN-268, Brian 2026-09-09. The operator's edit form "refuses the same way"
+  // as the two recruitment doors and the player questionnaire, "before any
+  // write, naming the rule. No override." Asked of the one validator, in the
+  // same per-field shape the mobile above already uses. Clearing a college
+  // email stays a legitimate correction — a person may genuinely have none,
+  // and the missing-data queue is where that is chased — so only a supplied
+  // value is checked.
+  const collegeEmailChanged =
+    values.collegeEmail.trim() !== (currentEmail(current, "college")?.rawValue ?? "");
+  if (collegeEmailChanged && values.collegeEmail.trim() !== "") {
+    const validation = validateCollegeEmail(values.collegeEmail);
+    if (!validation.valid) errors.collegeEmail = validation.message;
+  }
+
   // ---- Date of birth: named here, before any write ------------------------
   // LAN-258 (walker M5, finding M5-03). The write used to reach
   // `people_date_of_birth_in_the_past` and come back as "The database refused
@@ -145,7 +164,7 @@ export async function submitPersonEdit(
       }
     }
 
-    if (values.collegeEmail.trim() !== (currentEmail(current, "college")?.rawValue ?? "")) {
+    if (collegeEmailChanged) {
       try {
         await supersedeContactPoint({
           actorPersonId: operator.personId,
@@ -205,6 +224,29 @@ export async function submitPersonEdit(
         field: "degree_field",
         value: values.degreeField.trim() === "" ? null : values.degreeField.trim(),
         reason: values.degreeFieldReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
+    // LAN-267. Both are ordinary person fields on this form: filled without a
+    // reason, corrected with one, audited the same way as college or degree.
+    if (values.studentNumber.trim() !== (current.studentNumber ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "student_number",
+        value: values.studentNumber.trim() === "" ? null : values.studentNumber.trim(),
+        reason: values.studentNumberReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
+    if (values.bafaRegistrationNumber.trim() !== (current.bafaRegistrationNumber ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "bafa_registration_number",
+        value:
+          values.bafaRegistrationNumber.trim() === "" ? null : values.bafaRegistrationNumber.trim(),
+        reason: values.bafaRegistrationNumberReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }

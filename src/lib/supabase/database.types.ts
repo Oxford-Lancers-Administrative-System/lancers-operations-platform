@@ -2562,6 +2562,7 @@ export type Database = {
       }
       people: {
         Row: {
+          bafa_registration_number: string | null
           college: string | null
           created_at: string
           date_of_birth: string | null
@@ -2576,9 +2577,11 @@ export type Database = {
           merged_by_person_id: string | null
           merged_into_person_id: string | null
           past_member_override: boolean | null
+          student_number: string | null
           updated_at: string
         }
         Insert: {
+          bafa_registration_number?: string | null
           college?: string | null
           created_at?: string
           date_of_birth?: string | null
@@ -2593,9 +2596,11 @@ export type Database = {
           merged_by_person_id?: string | null
           merged_into_person_id?: string | null
           past_member_override?: boolean | null
+          student_number?: string | null
           updated_at?: string
         }
         Update: {
+          bafa_registration_number?: string | null
           college?: string | null
           created_at?: string
           date_of_birth?: string | null
@@ -2610,6 +2615,7 @@ export type Database = {
           merged_by_person_id?: string | null
           merged_into_person_id?: string | null
           past_member_override?: boolean | null
+          student_number?: string | null
           updated_at?: string
         }
         Relationships: [

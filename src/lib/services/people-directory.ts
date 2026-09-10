@@ -7,6 +7,7 @@ import {
   type RequiredField,
   missingRequiredFields,
 } from "./person-required";
+import { isOxfordCollegeEmail } from "./person-validation";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 import { personAssembledStatusSql, personDisplayNameSql } from "./sql-text";
 
@@ -174,6 +175,7 @@ interface DirectoryRow {
   latest_role_label: string | null;
   has_mobile: boolean;
   has_personal_email: boolean;
+  college_email: string | null;
   has_family_name: boolean;
   has_college: boolean;
   has_matriculation_year: boolean;
@@ -261,6 +263,17 @@ async function fetchDirectoryRows(
           where c.person_id = p.id and c.kind = 'email' and c.scope = 'personal'
             and c.valid_until is null
        ) as has_personal_email,
+       -- The value, not a boolean. LAN-268 counts a stored college address
+       -- that fails the Oxford rule as missing, and that rule has exactly one
+       -- home, isOxfordCollegeEmail; asking it in SQL as well would be the
+       -- second copy the ticket forbids, in the language where a drift is
+       -- hardest to see.
+       (select coalesce(nullif(btrim(c.normalised_value), ''), c.raw_value)
+          from public.contact_points c
+         where c.person_id = p.id and c.kind = 'email' and c.scope = 'college'
+           and c.valid_until is null
+         order by c.is_preferred desc, c.valid_from desc
+         limit 1) as college_email,
        (p.family_name is not null) as has_family_name,
        (p.college is not null) as has_college,
        (p.matriculation_year is not null) as has_matriculation_year,
@@ -299,6 +312,7 @@ function presenceOf(row: DirectoryRow): PersonFactPresence {
     givenName: true,
     familyName: row.has_family_name,
     mobile: row.has_mobile,
+    collegeEmail: isOxfordCollegeEmail(row.college_email),
     personalEmail: row.has_personal_email,
     college: row.has_college,
     matriculationYear: row.has_matriculation_year,

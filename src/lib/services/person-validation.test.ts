@@ -6,8 +6,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  COLLEGE_EMAIL_RULE_MESSAGE,
   DEFAULT_CALLING_CODE,
+  isOxfordCollegeEmail,
   validateAcademicYear,
+  validateCollegeEmail,
   validateDateOfBirth,
   validateEmailAddress,
   validatePhoneNumber,
@@ -218,5 +221,79 @@ describe("validateDateOfBirth", () => {
     const result = validateDateOfBirth("0002-01-01", TODAY);
     expect(result.valid).toBe(false);
     expect(result.rule).toBe("date_of_birth_out_of_range");
+  });
+});
+
+/**
+ * LAN-268's own test table, in the ticket's own words: "one test table
+ * covering `@ox.ac.uk`, `@college.ox.ac.uk`, `@dept.college.ox.ac.uk`,
+ * mixed case, and the rejects (`gmail.com`, `ox.ac.uk.evil.com`,
+ * `notox.ac.uk`, `oxford.ac.uk`)."
+ *
+ * The three rejects at the bottom are the ones that matter. Each is a value a
+ * looser rule would have let through, and each is somebody who is not at this
+ * university getting onto the club's roster — which is the whole reason Brian
+ * asked for the field.
+ */
+describe("validateCollegeEmail — the Oxford rule", () => {
+  const accepted = [
+    "avery@ox.ac.uk",
+    "avery@balliol.ox.ac.uk",
+    "avery@sbs.ox.ac.uk",
+    "avery@dept.college.ox.ac.uk",
+    "Avery.Blake@Balliol.OX.AC.UK",
+    "avery-blake@st-annes.ox.ac.uk",
+  ];
+
+  it.each(accepted)("accepts %s", (address) => {
+    const result = validateCollegeEmail(address);
+    expect(result.valid).toBe(true);
+    expect(result.rule).toBe("college_email_oxford");
+    expect(isOxfordCollegeEmail(address)).toBe(true);
+  });
+
+  const refused = [
+    "avery@gmail.com",
+    "avery@oxford.ac.uk",
+    "avery@notox.ac.uk",
+    "avery@ox.ac.uk.evil.com",
+    "avery@cam.ac.uk",
+    "avery@ox.ac.uk.co",
+  ];
+
+  it.each(refused)("refuses %s, naming the rule", (address) => {
+    const result = validateCollegeEmail(address);
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("college_email_not_oxford");
+    expect(result.message).toBe(COLLEGE_EMAIL_RULE_MESSAGE);
+    expect(isOxfordCollegeEmail(address)).toBe(false);
+  });
+
+  it("names the rule in one sentence, the same one everywhere", () => {
+    expect(COLLEGE_EMAIL_RULE_MESSAGE).toBe("Enter your Oxford address; it ends in ox.ac.uk");
+  });
+
+  it("says the field is blank rather than that it is not Oxford", () => {
+    const result = validateCollegeEmail("   ");
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("college_email_blank");
+  });
+
+  it("refuses a value that is not an email at all as a shape problem", () => {
+    // "That is not an address" is a more useful sentence than "that is not an
+    // Oxford address" when somebody has typed their name into the box.
+    const result = validateCollegeEmail("Avery Blake");
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("email_not_well_formed");
+  });
+
+  it("trims, because a pasted address carries whitespace", () => {
+    expect(validateCollegeEmail("  avery@ox.ac.uk  ").valid).toBe(true);
+  });
+
+  it("treats a missing value as not an Oxford address rather than throwing", () => {
+    expect(isOxfordCollegeEmail(null)).toBe(false);
+    expect(isOxfordCollegeEmail(undefined)).toBe(false);
+    expect(isOxfordCollegeEmail("")).toBe(false);
   });
 });
