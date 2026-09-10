@@ -2786,7 +2786,7 @@ invitedEvents.forEach((event, index) => {
   // — once anchored to the membership as a player, once anchored to the person
   // as staff. Neither of the table's two partial unique indexes could see that,
   // because a player row fills `season_membership_id` and a staff row fills
-  // `person_id`; the trigger added with this seed's fix does, and refuses it.
+  // `person_id`; the unique index added with this seed's fix does, and refuses it.
   // The playing membership wins, matching `CAPACITY_PRECEDENCE`.
   const alreadyIn = new Set();
 

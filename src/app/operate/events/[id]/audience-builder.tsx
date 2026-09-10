@@ -317,7 +317,7 @@ export function AudienceBuilder({
                   name={`candidate-${person.personId}`}
                   checked={isChosen(person)}
                   onChange={() => toggle(person)}
-                  inputLabel={`Include ${person.displayName}`}
+                  inputLabel={`Include ${person.displayName} — ${describeAudienceRow(person)}`}
                   label={
                     <Box sx={{ py: 1, minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
