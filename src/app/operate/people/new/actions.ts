@@ -6,6 +6,7 @@ import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { createPerson } from "@/lib/services/person-create";
+import type { PersonRecord } from "@/lib/services/person-record";
 import {
   GENERIC_FAILURE,
   readCreateValues,
@@ -60,14 +61,14 @@ export async function submitCreatePerson(
 
   if (intent === "link") {
     const personId = linkPersonId as string;
-    let landingPersonId: string;
+    let landing: string;
     try {
       const result = await createPerson({
         actorPersonId: operator.personId,
         input: values,
         decision: { kind: "link_existing", personId },
       });
-      landingPersonId = result.personId;
+      landing = linkedHref(result.personId, values, result.record);
     } catch (error) {
       return {
         values,
@@ -79,7 +80,7 @@ export async function submitCreatePerson(
     }
     // Outside the try: `redirect` signals by throwing, and catching it here
     // would turn a successful link into a generic failure message.
-    redirect(`/operate/people/${landingPersonId}`);
+    redirect(landing);
   }
 
   if (intent === "create") {
@@ -136,6 +137,59 @@ export async function submitCreatePerson(
   }
 
   return { ...previous, formError: GENERIC_FAILURE };
+}
+
+/**
+ * Where "This is them" lands, and what it has to admit — LAN-257.
+ *
+ * `link_existing` writes nothing to the chosen person: linking says "this
+ * human is that human", not "edit that human's record". That was already the
+ * behaviour, and it is now the behaviour on `/operate/roster/new` too — but
+ * neither screen said so. An operator who typed a mobile number, pressed "This
+ * is them" and landed on a record showing a *different* number had no way to
+ * know whether theirs had been kept, ignored, or added somewhere they could
+ * not see.
+ *
+ * Named by field rather than by value, for the reason `confirmationHref` in
+ * `../../roster/new/actions.ts` gives: a query string is bookmarked, kept in
+ * history and logged, and this one is about somebody's phone number.
+ */
+function linkedHref(
+  personId: string,
+  values: { mobile: string; personalEmail: string },
+  record: PersonRecord,
+): string {
+  const unsaved: string[] = [];
+  if (typedValueIsNew(values.mobile, record, "phone", null)) unsaved.push("phone");
+  if (typedValueIsNew(values.personalEmail, record, "email", "personal")) unsaved.push("email");
+  if (unsaved.length === 0) return `/operate/people/${personId}`;
+
+  const query = new URLSearchParams({ linked: "1", unsaved: unsaved.join(",") });
+  return `/operate/people/${personId}?${query.toString()}`;
+}
+
+/**
+ * Whether a typed value is one this person does not already hold.
+ *
+ * A value they already hold was not discarded — nothing was lost — and saying
+ * "not recorded" about a value printed on the record below would be its own
+ * false statement. Historical rows count: a superseded address is still an
+ * address the club holds, and the operator did not lose it by typing it again.
+ */
+function typedValueIsNew(
+  typed: string,
+  record: PersonRecord,
+  kind: "email" | "phone",
+  scope: "personal" | "college" | null,
+): boolean {
+  const value = typed.trim();
+  if (value === "") return false;
+  return !record.contacts.some(
+    (contact) =>
+      contact.kind === kind &&
+      contact.scope === scope &&
+      contact.rawValue.trim().toLowerCase() === value.toLowerCase(),
+  );
 }
 
 function requiredErrors(values: {

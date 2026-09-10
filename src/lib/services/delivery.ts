@@ -505,10 +505,30 @@ async function claimJobIn(
     noUrl = playerAnswerUrl(context.appBaseUrl, no.token);
   }
 
+  // The upsert is LAN-252's other half. A job that failed before the provider
+  // because the deployment was unconfigured leaves a concluded placeholder in
+  // this attempt's slot (`attempt_count + 1` at the time, which is exactly the
+  // number the claim above has just incremented to), because that failure
+  // deliberately does not spend an attempt. Configuring the deployment and
+  // pressing Retry then arrives here for the same slot, and this is the real
+  // attempt: it takes the row over, names the provider it is actually calling,
+  // carries this dispatch's token, and clears the placeholder's conclusion so
+  // the row is live again rather than a failure with a message id bolted on.
+  // Nothing else can reach it — every other writer of this table is keyed to a
+  // number `attempt_count` has already passed.
   const attempt = await tx.query<{ id: string }>(
     `insert into public.delivery_attempts
        (notification_job_id, attempt_number, channel, provider, rsvp_access_token_id)
      values ($1, $2, $3, $4, $5)
+     on conflict (notification_job_id, attempt_number) do update
+        set channel = excluded.channel,
+            provider = excluded.provider,
+            rsvp_access_token_id = excluded.rsvp_access_token_id,
+            requested_at = now(),
+            accepted_at = null,
+            provider_message_id = null,
+            concluded_at = null,
+            failure_reason = null
      returning id`,
     [jobId, job.attempt_count, context.channel, context.provider.name, token.tokenId],
   );
@@ -665,6 +685,20 @@ export const EVENT_HAS_NO_START_TIME_REASON =
  */
 export const NO_CONSENT_REASON =
   "No recorded consent to message this recruit for this season, so nothing was sent.";
+
+/**
+ * LAN-252. What stands in `delivery_attempts.provider` for the attempt that
+ * never reached one.
+ *
+ * `provider` is `not null` and may not be blank, and the column is documented
+ * as the provider's own stable key — rows are matched on it. A job that fails
+ * because the deployment is unconfigured resolved no provider at all, so
+ * naming WhatsApp Cloud or the email sender there would put a provider that
+ * was never called into a diagnostics row an operator reads and a callback
+ * could in principle match. This says the true thing instead, and says it in
+ * one place so the row is recognisable wherever it surfaces.
+ */
+export const UNCONFIGURED_PROVIDER = "not configured";
 
 /**
  * Marks a job failed without having attempted a send — no number, no email.
@@ -872,6 +906,43 @@ export async function dispatchJob(
         [jobId, resolution.reason, MAX_ATTEMPTS],
       );
       if (claimed.rowCount === 0) return;
+
+      // The attempt row this failure is owed — LAN-252.
+      //
+      // `describeMissingConfiguration` says of its own sentence that it "is
+      // written to `delivery_attempts.failure_reason`, which an operator
+      // reads", and until now nothing wrote it there: every failed job in the
+      // LAN-239 sweep carried the reason in `notification_jobs.last_error`
+      // and had zero attempt rows. The per-attempt trail the delivery page
+      // and the event repair flow read was therefore empty for this whole
+      // failure class, and a documented contract that nothing keeps is worse
+      // than one nobody wrote down.
+      //
+      // `attempt_count + 1` is the slot this dispatch *would* have used. The
+      // count itself is still not incremented (above), so configuring the
+      // deployment and pressing Retry reaches `claimJobIn`, which increments
+      // to that same number and takes this slot over — which is why the
+      // attempt insert there upserts rather than colliding with the
+      // placeholder. `provider` is {@link UNCONFIGURED_PROVIDER} for the
+      // reason recorded there.
+      await tx.query(
+        `insert into public.delivery_attempts
+           (notification_job_id, attempt_number, channel, provider, requested_at,
+            concluded_at, failure_reason)
+         values ($1, $2, $3::public.notification_channel, $4, now(), now(), $5)
+         on conflict (notification_job_id, attempt_number) do update
+            set requested_at = now(),
+                concluded_at = now(),
+                failure_reason = excluded.failure_reason`,
+        [
+          jobId,
+          claimed.rows[0].attempt_count + 1,
+          channel,
+          UNCONFIGURED_PROVIDER,
+          resolution.reason,
+        ],
+      );
+
       await recordAudit(tx, {
         actorLabel: DISPATCH_ACTOR_LABEL,
         action: "delivery.failed",

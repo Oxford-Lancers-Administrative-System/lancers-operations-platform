@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 
 import { requireGeneralOperator } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
-import { enterReturningPlayer, findPersonCandidates } from "@/lib/services/roster";
+import {
+  enterReturningPlayer,
+  findPersonCandidates,
+  type ReturnerIntakeResult,
+} from "@/lib/services/roster";
 import { GENERIC_FAILURE, personLabel, type IntakeState } from "./intake-state";
 import { readIntakeValues, validateIntake, type IntakeFormValues } from "./validation";
 
@@ -114,9 +118,9 @@ export async function submitReturnerIntake(
     };
   }
 
-  let membershipId: string;
+  let result: ReturnerIntakeResult;
   try {
-    const result = await enterReturningPlayer({
+    result = await enterReturningPlayer({
       actorPersonId: operator.personId,
       input,
       decision:
@@ -124,14 +128,39 @@ export async function submitReturnerIntake(
           ? { kind: "existing", personId: selectedPersonId as string }
           : { kind: "new", confirmed: true },
     });
-    membershipId = result.membershipId;
   } catch (error) {
     return buildFailureState(error, values, input, selectedPersonId);
   }
 
-  // Outside the try: `redirect` signals by throwing, and catching it here would
-  // turn a successful intake into a generic failure message.
-  redirect(`/operate/roster/${membershipId}?created=1`);
+  // Outside the try, and so is composing the destination: `redirect` signals
+  // by throwing, and catching it here would turn a successful intake into a
+  // generic failure message. The write has already committed by this point, so
+  // nothing after it belongs anywhere a `catch` could call it a failure.
+  redirect(confirmationHref(result));
+}
+
+/**
+ * Where UX-13 lives, and what it has to be able to say — LAN-257.
+ *
+ * The confirmation is the player record with `?created=1`, and it used to be
+ * told nothing but that. It then said "Person and <season> membership were
+ * created together" whether or not a person had been created, and said nothing
+ * at all about a typed contact the write had discarded. Both facts travel in
+ * the query string.
+ *
+ * Deliberately by *kind*, never by value: the discarded number or address is
+ * personal data, and a query string is bookmarked, kept in history and written
+ * to every access log between here and the browser. The operator typed it a
+ * moment ago; naming the field is what they need, and the record below the
+ * banner shows what the club actually holds.
+ */
+function confirmationHref(result: ReturnerIntakeResult): string {
+  const query = new URLSearchParams({ created: "1" });
+  if (!result.personCreated) query.set("linked", "1");
+  if (result.contactsNotRecorded.length > 0) {
+    query.set("unsaved", result.contactsNotRecorded.map((contact) => contact.kind).join(","));
+  }
+  return `/operate/roster/${result.membershipId}?${query.toString()}`;
 }
 
 /**

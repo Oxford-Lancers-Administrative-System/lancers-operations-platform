@@ -416,3 +416,45 @@ export async function recordClubLinkUse(linkId: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * The same stamp, keyed by the token a reader presented — LAN-269.
+ *
+ * `readClubLinkParticipation` used to call `recordClubLinkUse` itself, at the
+ * end of the page's `GET`. A club link is handed to coaches over WhatsApp, and
+ * WhatsApp fetches the URL to build its preview card before anybody taps it, so
+ * the count included every crawler that had ever seen the message. Q2 asks
+ * whether coaches still open these links; a bot is not a coach.
+ *
+ * So the read stamps nothing, and this is called from a server action the page
+ * fires after a real browser has rendered it. Preview crawlers execute no
+ * JavaScript and never arrive here.
+ *
+ * Resolving the token first would cost a second round trip and re-open the very
+ * window W157-R1 closed. The digest is the key; one statement settles it. It
+ * keeps `skip locked`, so concurrent readers of one link never queue, and it
+ * never throws — a coach staring at an error panel because a counter did not
+ * move is the outcome this whole mechanism exists to avoid.
+ */
+export async function recordClubLinkUseByToken(token: string): Promise<boolean> {
+  if (!CLUB_LINK_TOKEN_PATTERN.test(token)) return false;
+
+  try {
+    return await withTransaction(async (tx) => {
+      const stamped = await tx.query(
+        `update public.club_link_tokens as t
+            set use_count = t.use_count + 1, last_used_at = now()
+           from (
+             select id from public.club_link_tokens
+              where token_hash = $1
+              for update skip locked
+           ) as taken
+          where t.id = taken.id`,
+        [hashClubLinkToken(token)],
+      );
+      return (stamped.rowCount ?? 0) > 0;
+    });
+  } catch {
+    return false;
+  }
+}

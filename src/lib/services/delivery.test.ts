@@ -36,6 +36,7 @@ import {
   readEventDeliveryDiagnostics,
   retryDelivery,
   revokeAndReissue,
+  UNCONFIGURED_PROVIDER,
 } from "./delivery";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -546,6 +547,82 @@ describe("dispatching after approval", () => {
     expect(current.failureReason).toContain("WHATSAPP_ACCESS_TOKEN");
     // The names of the settings, never their values.
     expect(current.failureReason).not.toContain("not-a-real-token");
+  });
+
+  /**
+   * LAN-252. `describeMissingConfiguration` says its sentence "is written to
+   * `delivery_attempts.failure_reason`, which an operator reads", and until
+   * this test nothing wrote it there: every failed job in the LAN-239 sweep
+   * had the reason on the job and zero attempt rows, so the per-attempt trail
+   * the delivery page and the event repair flow read was empty for this whole
+   * failure class.
+   */
+  it("writes the not-configured reason as a delivery attempt an operator can read", async () => {
+    const { eventId } = await fixture();
+
+    await dispatchEventInvitations(eventId, { source: {}, transport: accepts() });
+
+    const attempt = await observer.query<{
+      attempt_number: number;
+      channel: string;
+      provider: string;
+      failure_reason: string | null;
+      concluded_at: Date | null;
+      provider_message_id: string | null;
+    }>(
+      `select a.attempt_number, a.channel::text as channel, a.provider, a.failure_reason,
+              a.concluded_at, a.provider_message_id
+         from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    expect(attempt.rows).toHaveLength(1);
+    expect(attempt.rows[0].attempt_number).toBe(1);
+    expect(attempt.rows[0].channel).toBe("whatsapp");
+    expect(attempt.rows[0].provider).toBe(UNCONFIGURED_PROVIDER);
+    expect(attempt.rows[0].concluded_at).not.toBeNull();
+    expect(attempt.rows[0].provider_message_id).toBeNull();
+    // The same sentence the job carries — the settings' names, never a value.
+    expect(attempt.rows[0].failure_reason).toBe((await row(eventId)).failureReason);
+    expect(attempt.rows[0].failure_reason).toContain("WHATSAPP_ACCESS_TOKEN");
+    expect(attempt.rows[0].failure_reason).not.toContain("not-a-real-token");
+  });
+
+  /**
+   * The other half of LAN-252: the placeholder above deliberately does not
+   * spend an attempt, so configuring the deployment and retrying claims the
+   * very slot it is sitting in. That must be a repair, not a unique-constraint
+   * violation — and the row must end up describing the send that really
+   * happened.
+   */
+  it("lets a retry after configuration take over the not-configured attempt row", async () => {
+    const { eventId, jobId } = await fixture();
+    const person = await anyPerson();
+
+    await dispatchEventInvitations(eventId, { source: {}, transport: accepts() });
+    expect((await row(eventId)).attemptCount).toBe(0);
+
+    await retryDelivery(person, jobId, { source: CONFIGURED, transport: accepts() });
+
+    const attempt = await observer.query<{
+      attempt_number: number;
+      provider: string;
+      failure_reason: string | null;
+      accepted_at: Date | null;
+    }>(
+      `select a.attempt_number, a.provider, a.failure_reason, a.accepted_at
+         from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    expect(attempt.rows).toHaveLength(1);
+    expect(attempt.rows[0].attempt_number).toBe(1);
+    expect(attempt.rows[0].provider).toBe(WHATSAPP_CLOUD_PROVIDER);
+    expect(attempt.rows[0].failure_reason).toBeNull();
+    expect(attempt.rows[0].accepted_at).not.toBeNull();
+    expect((await row(eventId)).state).toBe("attempted");
   });
 
   it("refuses an invitee with no usable number, without burning a token", async () => {

@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import { Notice } from "@/components/notice";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { CALENDAR_DESCRIPTION, publicPageMetadata } from "@/lib/brand";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import {
@@ -66,6 +68,12 @@ function modeOf(value: string): CalendarMode {
 function gregorianHref(month: string): string {
   return `${PUBLIC_CALENDAR_VIEW_PATH}?mode=gregorian&month=${month}`;
 }
+
+/**
+ * The same noticeboard, arranged as a month — LAN-269 item 4. One calendar, two
+ * arrangements, so one card: a link to either should read the same in a chat.
+ */
+export const metadata: Metadata = publicPageMetadata("Club calendar", CALENDAR_DESCRIPTION);
 
 export default async function PublicCalendarViewPage({
   searchParams,

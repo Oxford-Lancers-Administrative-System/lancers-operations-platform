@@ -23,7 +23,7 @@ import LoginForm from "./login-form";
  * arrives here, so this is a message, not a state.
  */
 export const metadata: Metadata = {
-  title: "Sign in — Lancers Operations",
+  title: "Sign in",
   robots: { index: false, follow: false },
 };
 

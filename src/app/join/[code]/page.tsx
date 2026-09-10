@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/public-shell";
 
+import { CLUB_NAME, JOIN_DESCRIPTION, JOIN_TITLE } from "@/lib/brand";
 import { withTransaction } from "@/lib/db";
 import { resolveRecruitmentGroupLink } from "@/lib/services/recruitment-config";
 import { resolveRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
@@ -20,9 +21,41 @@ import SignupForm, { EMPTY_ALIAS } from "./signup-form";
  * season this code opens the form for; everything else here is a fresh,
  * empty form.
  */
+/**
+ * The one link the club pushes at strangers, and the one card that sells it —
+ * LAN-279.
+ *
+ * The image is `./opengraph-image.tsx`, drawn from the application mark; Next
+ * finds it by convention and emits `og:image` and `twitter:image` for this
+ * segment, overriding the club-wide card the rest of the application shows.
+ *
+ * **Static, not `generateMetadata`.** LAN-279 asks for the latter, but the card
+ * it specifies contains no season and no code — the two things `params` could
+ * supply — and deliberately so: a card that printed the code would leave it in
+ * the chat transcript of everyone who ever saw the link. With nothing dynamic
+ * to read, `generateMetadata` would be a function that ignores its argument and
+ * returns a constant. This is that constant.
+ *
+ * `robots` is unchanged and still keeps the door out of search indexes. It does
+ * not affect unfurling: WhatsApp, iMessage and Facebook fetch the card from
+ * their own crawlers, which read the Open Graph tags and not this directive.
+ */
 export const metadata: Metadata = {
-  title: "Join the Oxford Lancers",
+  title: { absolute: JOIN_TITLE },
+  description: JOIN_DESCRIPTION,
   robots: { index: false, follow: false },
+  openGraph: {
+    type: "website",
+    siteName: CLUB_NAME,
+    locale: "en_GB",
+    title: JOIN_TITLE,
+    description: JOIN_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: JOIN_TITLE,
+    description: JOIN_DESCRIPTION,
+  },
 };
 
 export const dynamic = "force-dynamic";

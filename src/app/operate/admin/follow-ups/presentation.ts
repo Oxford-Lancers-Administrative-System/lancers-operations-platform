@@ -27,6 +27,24 @@ export const TABLE_STATUS = "Status";
 
 export const SEARCH_LABEL = "Search name or contact";
 
+/**
+ * The date-range filter's own two labels — LAN-281, Clint's ask of 2026-09-09.
+ *
+ * He was shown this board, said he likes it organised by player, and asked for
+ * one thing: "the only thing I think that would be good to filter is to just
+ * have it be like filter by a date range… who's not responding to the stuff
+ * that we need them to respond to next week?" So the range is over the event's
+ * own date — the "When" column — and reaches forward as readily as back.
+ *
+ * They name the event rather than saying only "From" and "To" because a filter
+ * control is read on its own by anybody using a screen reader, and "From" alone
+ * does not say from what. LAN-259 found this board's neighbours with no
+ * accessible name at all; these carry one because `DateField` renders the label
+ * as the input's own.
+ */
+export const RANGE_FROM_LABEL = "Events from";
+export const RANGE_TO_LABEL = "Events to";
+
 /** `FollowUpStatus`, in the club's words — W5's own three chips plus the vacancy. */
 export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   delivery_problem: "Delivery problem",

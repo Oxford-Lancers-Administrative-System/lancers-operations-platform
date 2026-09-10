@@ -8,7 +8,7 @@
  * plan.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -58,6 +58,7 @@ import {
   type OnboardingChaseSettings,
 } from "@/lib/services/onboarding-chase";
 import MessagingSchedulePage from "./page";
+import { updateOneMessagingScheduleAction } from "./actions";
 
 function administrator(seat = "president"): ResolvedOperator {
   return {
@@ -613,5 +614,105 @@ describe("the Recruitment event row's two audiences — DEC-split-on-the-schedul
       .find((row) => row.textContent?.startsWith("Practice"))!;
     expect(practiceRow.querySelectorAll('[data-testid="audience-group-heading"]')).toHaveLength(0);
     expect(practiceRow.querySelector('input[name="recruitInvitationLeadDays"]')).toBeNull();
+  });
+});
+
+/**
+ * LAN-250. `docs/ux/standards.md` rule 1 — "a result never outlives the thing
+ * it describes" — held for every submit that actually started, because every
+ * panel claims the outcome slot on `onSubmit`. It did not hold for a submit
+ * the browser's own `min`/`max` check blocked before it started: no request
+ * fired, `onSubmit` never ran, and the previous refusal stayed on screen
+ * naming a field the operator could see was no longer blank. jsdom does not
+ * run native constraint validation, so the trigger under test is the edit
+ * itself, which is the trigger the fix uses.
+ */
+describe("a saved result never outlives the values it described — LAN-250", () => {
+  const BLANK_REFUSAL = "Practice: player rsvp by cannot be left blank.";
+
+  it("clears the server's message as soon as the field it named is edited", async () => {
+    vi.mocked(updateOneMessagingScheduleAction).mockResolvedValue({
+      notice: null,
+      error: BLANK_REFUSAL,
+      refusal: null,
+      candidates: null,
+    });
+
+    render(await MessagingSchedulePage());
+    const practiceRow = screen
+      .getAllByTestId("schedule-row")
+      .find((row) => row.textContent?.startsWith("Practice"))!;
+
+    await act(async () => {
+      fireEvent.submit(practiceRow);
+    });
+    expect(practiceRow.textContent).toContain(BLANK_REFUSAL);
+
+    await act(async () => {
+      fireEvent.change(practiceRow.querySelector('input[name="rsvpByDays"]')!, {
+        target: { value: "999999" },
+      });
+    });
+    expect(practiceRow.textContent).not.toContain(BLANK_REFUSAL);
+  });
+
+  it("shows the next result, so clearing is not silence", async () => {
+    vi.mocked(updateOneMessagingScheduleAction).mockResolvedValue({
+      notice: null,
+      error: BLANK_REFUSAL,
+      refusal: null,
+      candidates: null,
+    });
+
+    render(await MessagingSchedulePage());
+    const practiceRow = screen
+      .getAllByTestId("schedule-row")
+      .find((row) => row.textContent?.startsWith("Practice"))!;
+
+    await act(async () => {
+      fireEvent.submit(practiceRow);
+    });
+    await act(async () => {
+      fireEvent.change(practiceRow.querySelector('input[name="rsvpByDays"]')!, {
+        target: { value: "3" },
+      });
+    });
+
+    vi.mocked(updateOneMessagingScheduleAction).mockResolvedValue({
+      notice: "Practice saved.",
+      error: null,
+      refusal: null,
+      candidates: null,
+    });
+    await act(async () => {
+      fireEvent.submit(practiceRow);
+    });
+
+    expect(practiceRow.textContent).toContain("Practice saved.");
+  });
+
+  it("leaves the other rows' results alone — the edit is this row's own", async () => {
+    vi.mocked(updateOneMessagingScheduleAction).mockResolvedValue({
+      notice: null,
+      error: BLANK_REFUSAL,
+      refusal: null,
+      candidates: null,
+    });
+
+    render(await MessagingSchedulePage());
+    const rowsOnScreen = screen.getAllByTestId("schedule-row");
+    const practiceRow = rowsOnScreen.find((row) => row.textContent?.startsWith("Practice"))!;
+    const otherRow = rowsOnScreen.find((row) => !row.textContent?.startsWith("Practice"))!;
+
+    await act(async () => {
+      fireEvent.submit(practiceRow);
+    });
+    await act(async () => {
+      fireEvent.change(otherRow.querySelector('input[name="rsvpByDays"]')!, {
+        target: { value: "4" },
+      });
+    });
+
+    expect(practiceRow.textContent).toContain(BLANK_REFUSAL);
   });
 });

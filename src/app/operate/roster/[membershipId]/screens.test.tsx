@@ -255,6 +255,57 @@ describe("REQ-authority — the whole surface, four-role only", () => {
   });
 });
 
+// LAN-257 — UX-13. The confirmation used to claim a person had been created
+// however the operator answered "is this them?", and said nothing at all about
+// a typed contact the write discarded.
+describe("UX-13 — the confirmation says what the intake actually did", () => {
+  it("still says a person was created when one was", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps({ created: "1" })));
+
+    expect(screen.getByTestId("created-summary")).toHaveTextContent(
+      "Person and 2026-27 membership were created together.",
+    );
+    expect(screen.queryByTestId("intake-contact-not-recorded")).not.toBeInTheDocument();
+  });
+
+  it("says the membership was added to somebody already on record when it was", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps({ created: "1", linked: "1" })));
+
+    expect(screen.getByTestId("created-summary")).toHaveTextContent(
+      "2026-27 membership was added to a person already on record.",
+    );
+  });
+
+  it("names the typed contact it did not record, and where to record it", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps({ created: "1", linked: "1", unsaved: "phone" })));
+
+    const notice = screen.getByTestId("intake-contact-not-recorded");
+    expect(notice).toHaveTextContent("Not recorded on Avery Fielding’s record: Phone.");
+    expect(within(notice).getByTestId("intake-contact-correct-link")).toHaveAttribute(
+      "href",
+      `/operate/people/${PERSON_ID}/edit`,
+    );
+  });
+
+  it("ignores a hand-typed unsaved value that names nothing this product writes", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps({ created: "1", unsaved: "date_of_birth" })));
+
+    expect(screen.queryByTestId("intake-contact-not-recorded")).not.toBeInTheDocument();
+  });
+
+  it("says none of it on an ordinary visit to the same record", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps({ linked: "1", unsaved: "phone" })));
+
+    expect(screen.queryByTestId("created-summary")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("intake-contact-not-recorded")).not.toBeInTheDocument();
+  });
+});
+
 describe("Person · Onboarding · Season banding", () => {
   beforeEach(() => {
     givenRecord({

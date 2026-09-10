@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 import { Section } from "@/components/section";
 import { Fact, FactGrid } from "@/components/fact";
@@ -7,6 +8,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
+import { CALENDAR_DESCRIPTION, publicPageMetadata } from "@/lib/brand";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import {
@@ -80,6 +82,19 @@ import { readEventYear } from "../year";
  * gone, in the same words as an id that never existed — a public address that
  * resolved one would be a way to reach another season, which no surface offers.
  */
+/**
+ * One event's card — LAN-269 item 4.
+ *
+ * Static, and it names no event. Naming one would mean resolving the id in
+ * `generateMetadata`, which is a second read of the same row on every render of
+ * a page that is already one of the heaviest public reads in the application.
+ * A per-event card is worth having and is worth a ticket; it is not worth
+ * doubling this page's cost to get it, and LAN-269 puts per-event preview
+ * artwork out of scope. So a shared event link unfurls as the calendar it
+ * belongs to, which is true of every one of them.
+ */
+export const metadata: Metadata = publicPageMetadata("Club calendar", CALENDAR_DESCRIPTION);
+
 export default async function PublicEventPage({ params }: PageProps<"/calendar/[id]">) {
   const { id } = await params;
 

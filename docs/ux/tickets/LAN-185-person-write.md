@@ -331,6 +331,53 @@ diff at all — LAN-185 does not own `messaging-scheduler.test.ts` or any
 other part of LAN-169's messaging package, and this is the one, narrow,
 Brian-approved exception.
 
+## LAN-256 — the merge comparison answers nothing for the operator
+
+Found by the LAN-239 QA sweep (walker M5, finding M5-01) and fixed under
+LAN-273. This section amends the merge behaviour described above; where the two
+disagree, this one is later and wins.
+
+**What shipped, and why it was wrong.** `merge-comparison.tsx` rendered the
+survivor's side of every comparison row with `defaultSelected` — blank or not.
+That made "the operator answered nothing" indistinguishable from "the operator
+chose the survivor", and `mergePersons` read an undeclared choice as "keep the
+survivor's own value". Merging `Yor` (a near-duplicate holding almost nothing)
+with `Yorick` (a complete record), filling only the reason and pressing Merge,
+kept seven blanks and discarded seven recorded facts — last name, college,
+matriculation year, expected graduation, degree field, date of birth and
+emergency contact. The survivor then read "8 required facts are missing". The
+component's own comment already claimed the flow "moves nothing until the
+operator has answered every one of them"; it did not.
+
+**What ships now.**
+
+- A row whose two sides hold the same value is not a question. It renders as
+  the one value both records hold, rather than as two identical radios.
+- A row whose two sides differ — **in either direction, a blank against a value
+  included** — renders two unselected sides. Nothing is pre-selected anywhere.
+- Merge stays disabled until every such row has an answer, and the count still
+  outstanding is on screen beside the button: a disabled control that will not
+  say why is its own defect.
+- `mergePersons` refuses the same submission itself
+  (`person_merge_requires_a_choice_per_difference`), naming the fields it is
+  waiting on. A server action is a POST endpoint the browser can call directly,
+  so the rule cannot live only in the component that draws the radios.
+- The aliases row is unchanged and still un-choosable: both sides' aliases are
+  kept on the survivor either way.
+
+**What this does not change.** `differs` — B-004's warning chip — still means
+"both sides hold a value and those values disagree". Absence is still not a
+difference, and that reading is Brian's. Whether a row is a _question_ is a
+separate property (`needsChoice`), because a blank about to overwrite a
+recorded fact is exactly the case B-004 correctly declines to call a
+disagreement.
+
+**B-003 is amended, not reversed.** "If it is a merge, they obviously get to
+choose" stands. What cannot also stand is "an unanswered consent row silently
+keeps the survivor's state": two disagreeing states are now a question like any
+other, and an unanswered one refuses the merge rather than resolving itself. A
+colliding season whose two states already agree needs no answer.
+
 ## Acceptance criteria
 
 The twenty-two checkboxes under **Acceptance** on the LAN-185 Linear issue are

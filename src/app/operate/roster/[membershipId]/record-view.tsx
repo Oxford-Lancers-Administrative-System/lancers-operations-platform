@@ -119,15 +119,27 @@ import {
 const CLOSED_MEMBERSHIP_REASON =
   "This membership is closed, so nothing further is sent to this player.";
 
+/** LAN-257 — the operator's own words for the two things intake collects. */
+const TYPED_CONTACT_LABELS: Readonly<Record<"email" | "phone", string>> = Object.freeze({
+  email: "Email",
+  phone: "Phone",
+});
+
 export default function PlayerRecordView({
   record,
   person,
   justCreated,
+  linkedExisting = false,
+  unsavedContacts = [],
 }: {
   record: PlayerRecordData;
   /** Redacted for the viewer's role — `REQ-authority`. May be missing keys a category did not grant. */
   person: Partial<PersonRecord>;
   justCreated: boolean;
+  /** LAN-257 — the intake used a person already on record rather than minting one. */
+  linkedExisting?: boolean;
+  /** LAN-257 — kinds the operator typed that were deliberately not written to that person. */
+  unsavedContacts?: ("email" | "phone")[];
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -284,13 +296,36 @@ export default function PlayerRecordView({
         subtitle={
           justCreated ? (
             <span data-testid="created-summary">
-              Person and {record.seasonLabel} membership were created together.
+              {linkedExisting
+                ? // LAN-257: nobody was created. Saying so was not a nicety —
+                  // the operator had just been asked "is this them?", and the
+                  // confirmation answered a different question.
+                  `${record.seasonLabel} membership was added to a person already on record.`
+                : `Person and ${record.seasonLabel} membership were created together.`}
             </span>
           ) : (
             <span data-testid="membership-subtitle">{`${record.seasonLabel} membership · ${labelFor(ENTRY_LABELS, record.entry)} · ${labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}`}</span>
           )
         }
       />
+      {/* LAN-257. The intake wrote nothing onto a person it only linked to,
+          and this is where it says so — by field, beside the values the club
+          actually holds, with the one surface that can change them. Silence
+          here is what left an operator believing they had updated a number
+          they had not. */}
+      {justCreated && unsavedContacts.length > 0 ? (
+        <Notice severity="info" testId="intake-contact-not-recorded">
+          Not recorded on {person.displayName ?? "this person"}&rsquo;s record:{" "}
+          {unsavedContacts.map((kind) => TYPED_CONTACT_LABELS[kind]).join(" · ")}.{" "}
+          <Button
+            href={`/operate/people/${record.personId}/edit`}
+            sx={{ p: 0, minHeight: 0, textTransform: "none", color: "inherit", fontWeight: 700 }}
+            data-testid="intake-contact-correct-link"
+          >
+            Correct this record →
+          </Button>
+        </Notice>
+      ) : null}
       <MetricRow columns={3}>
         <Metric
           value={

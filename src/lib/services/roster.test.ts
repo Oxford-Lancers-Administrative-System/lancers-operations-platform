@@ -675,14 +675,27 @@ describe("enterReturningPlayer — an existing person", () => {
     expect(audit.rows.map((row) => row.action)).toEqual(["returner_membership_confirmed"]);
   });
 
-  it("records a new contact without demoting the one already preferred", async () => {
-    // Matrix row 7. An intake form is not where somebody's known-good number
-    // gets replaced by one typed from memory; the new value is recorded, the
-    // old one is left exactly as it was, and the caller is told which happened.
+  // Matrix row 7, as LAN-257 rewrote it. The old behaviour recorded a typed
+  // value that differed from the one on file as a second, *non-preferred* row.
+  // It demoted nothing, which was the conservative half — but no screen in the
+  // product lists a non-preferred contact point, so the operator saw their
+  // number accepted, saw the person's real number on the confirmation, and had
+  // no way to learn a third value now existed. Linking is not editing.
+  it("writes no contact point at all onto a person the operator merely selected", async () => {
+    const before = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.contact_points where person_id = $1::uuid",
+      [withoutMembership.id],
+    );
     const existingPreferred = await observer.query<{ raw_value: string; id: string }>(
       "select id, raw_value from public.contact_points where person_id = $1::uuid and kind = 'email' and is_preferred",
       [withoutMembership.id],
     );
+    // Asserted, not branched on. An early `return` here would let this test go
+    // silently vacuous the day the seed stops giving this person an email.
+    expect(
+      existingPreferred.rowCount,
+      "the seeded person this test picks must already have a preferred email",
+    ).toBe(1);
 
     const result = await enterReturningPlayer({
       actorPersonId,
@@ -690,16 +703,14 @@ describe("enterReturningPlayer — an existing person", () => {
       decision: { kind: "existing", personId: withoutMembership.id },
     });
 
-    const recorded = result.contactsRecorded.find((contact) => contact.kind === "email");
+    expect(result.contactsRecorded).toEqual([]);
+    const after = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.contact_points where person_id = $1::uuid",
+      [withoutMembership.id],
+    );
+    expect(after.rows[0].count).toBe(before.rows[0].count);
 
-    // Asserted, not branched on. An early `return` here would let this test go
-    // silently vacuous the day the seed stops giving this person an email.
-    expect(
-      existingPreferred.rowCount,
-      "the seeded person this test picks must already have a preferred email",
-    ).toBe(1);
-    expect(recorded?.isPreferred).toBe(false);
-
+    // And their known-good address is exactly as it was.
     const stillPreferred = await observer.query<{ raw_value: string }>(
       "select raw_value from public.contact_points where id = $1::uuid and is_preferred",
       [existingPreferred.rows[0].id],
@@ -707,7 +718,43 @@ describe("enterReturningPlayer — an existing person", () => {
     expect(stillPreferred.rows[0].raw_value).toBe(existingPreferred.rows[0].raw_value);
   });
 
-  it("does not write the same contact value twice", async () => {
+  it("names the typed value it discarded, so the confirmation can say so", async () => {
+    const result = await enterReturningPlayer({
+      actorPersonId,
+      input: {
+        givenName: withoutMembership.givenName,
+        email: "brand.new@example.invalid",
+        phone: "07700 900504",
+      },
+      decision: { kind: "existing", personId: withoutMembership.id },
+    });
+
+    expect(result.personCreated).toBe(false);
+    expect(result.contactsNotRecorded).toEqual(
+      expect.arrayContaining([
+        { kind: "email", rawValue: "brand.new@example.invalid" },
+        { kind: "phone", rawValue: "07700 900504" },
+      ]),
+    );
+  });
+
+  it("audits the discard, not only the screen", async () => {
+    const result = await enterReturningPlayer({
+      actorPersonId,
+      input: { givenName: withoutMembership.givenName, phone: "07700 900504" },
+      decision: { kind: "existing", personId: withoutMembership.id },
+    });
+
+    const audit = await observer.query<{ kinds: string[] }>(
+      `select array(select jsonb_array_elements_text(context -> 'contact_kinds_not_recorded')) as kinds
+         from public.audit_events
+        where entity_id = $1::uuid and action = 'returner_membership_confirmed'`,
+      [result.membershipId],
+    );
+    expect(audit.rows[0].kinds).toEqual(["phone"]);
+  });
+
+  it("calls nothing discarded when the person already holds the value typed", async () => {
     const existing = await observer.query<{ raw_value: string }>(
       "select raw_value from public.contact_points where person_id = $1::uuid and kind = 'email' limit 1",
       [withoutMembership.id],
@@ -722,12 +769,16 @@ describe("enterReturningPlayer — an existing person", () => {
       [withoutMembership.id],
     );
 
-    await enterReturningPlayer({
+    const result = await enterReturningPlayer({
       actorPersonId,
       input: { givenName: withoutMembership.givenName, email: existing.rows[0].raw_value },
       decision: { kind: "existing", personId: withoutMembership.id },
     });
 
+    // Nothing was written and nothing was lost, so the confirmation has
+    // nothing to report — telling an operator "not recorded" about a value
+    // printed on the record below would be its own false statement.
+    expect(result.contactsNotRecorded).toEqual([]);
     const after = await observer.query<{ count: string }>(
       "select count(*)::text as count from public.contact_points where person_id = $1::uuid",
       [withoutMembership.id],

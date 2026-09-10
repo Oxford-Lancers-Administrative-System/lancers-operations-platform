@@ -24,6 +24,7 @@ import {
   hashToken,
   issueTokenIn,
   mintToken,
+  recordRsvpTokenUse,
   resolveRsvpToken,
   revokeTokensIn,
   TOKEN_PATTERN,
@@ -382,7 +383,11 @@ describe("revocation", () => {
 });
 
 describe("resolving", () => {
-  it("counts repeat access", async () => {
+  it("counts nothing, because resolving is what a preview crawler does — LAN-269", async () => {
+    // The links carrying these tokens are pasted into WhatsApp and iMessage,
+    // which fetch the URL to build the card shown in the chat — before the
+    // player has seen the message, and once per participant's client. Every one
+    // of those fetches used to land here and count as an access.
     const { invitationId } = await fixture(48);
     const issued = await withTransaction((tx) => issueTokenIn(tx, invitationId));
 
@@ -393,8 +398,32 @@ describe("resolving", () => {
       "select use_count, last_used_at from public.rsvp_access_tokens where id = $1",
       [issued.tokenId],
     );
+    expect(row.rows[0].use_count).toBe(0);
+    expect(row.rows[0].last_used_at).toBeNull();
+  });
+
+  it("counts repeat access when a real browser opens the link", async () => {
+    // Brian's rule is unchanged — "repeat access is allowed and shows the
+    // current response; update last-used time and use count" — but access now
+    // means `recordRsvpTokenUse`, which `/rsvp/[token]`'s beacon calls once the
+    // page has actually run in a browser.
+    const { invitationId } = await fixture(48);
+    const issued = await withTransaction((tx) => issueTokenIn(tx, invitationId));
+
+    expect(await recordRsvpTokenUse(issued.token)).toBe(true);
+    expect(await recordRsvpTokenUse(issued.token)).toBe(true);
+
+    const row = await observer.query<{ use_count: number; last_used_at: Date | null }>(
+      "select use_count, last_used_at from public.rsvp_access_tokens where id = $1",
+      [issued.tokenId],
+    );
     expect(row.rows[0].use_count).toBe(2);
     expect(row.rows[0].last_used_at).not.toBeNull();
+  });
+
+  it("counts nothing for a token nobody was issued", async () => {
+    expect(await recordRsvpTokenUse("q".repeat(43))).toBe(false);
+    expect(await recordRsvpTokenUse("not a token")).toBe(false);
   });
 
   it("counts nothing for a token that does not resolve", async () => {

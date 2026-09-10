@@ -12,6 +12,7 @@ import {
   startUniformClock,
 } from "@/lib/rsvp/public-surface";
 import { NO_REQUIRES_A_REASON_RULE, recordSignedLinkResponse } from "@/lib/services/rsvp";
+import { recordRsvpTokenUse } from "@/lib/services/rsvp-tokens";
 import {
   BUSY_ERROR,
   CLOSED_ERROR,
@@ -150,4 +151,33 @@ function failureFor(error: unknown): string {
     return REASON_REQUIRED_ERROR;
   }
   return CLOSED_ERROR;
+}
+
+/**
+ * Counts one real opening of this invitation — LAN-269.
+ *
+ * Fired by `LinkOpenedBeacon` after the browser has run the page, and by
+ * nothing else. The render itself stamps nothing, because a render is what a
+ * WhatsApp or iMessage preview crawler triggers when the link is pasted into a
+ * chat — see `resolveRsvpTokenIn`.
+ *
+ * Throttled on the same budget as the page, because this is a `POST` an
+ * anonymous caller can reach with a guessed token and must not be able to spend
+ * database round trips through. A throttled call is silent: it is not the
+ * player's problem, and telling a scanner it was counted would defeat the
+ * uniform terminal response the whole surface is built on.
+ *
+ * Returns nothing and never throws. `recordRsvpTokenUse` refuses a malformed
+ * token without a round trip and swallows its own failures, and an unknown
+ * token updates no row — so this stays silent for a guess exactly as the page
+ * does.
+ */
+export async function noteRsvpLinkOpened(token: string): Promise<void> {
+  const decision = allowRsvpRequest(clientKeyFrom(await headers()), token);
+  if (!decision.allowed) {
+    logThrottledRsvpRequest(decision.reason!);
+    return;
+  }
+
+  await recordRsvpTokenUse(token);
 }

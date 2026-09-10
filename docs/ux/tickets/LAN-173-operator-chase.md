@@ -230,8 +230,16 @@ Restated from `acceptance/W4.md`, `W5.md`, `W6.md` and `W8.md` as what was built
   to record that only the search box was built, against `W5-01`'s mockup showing Status and Entry
   dropdown filters beside it. That is no longer the state of the code: the Status filter shipped
   (OWNER-LAN173-01) and a When (date) filter was added afterwards (OWNER-LAN173-05); both are
-  live on the Follow-ups queue today. Only the mockup's second dropdown, "Entry", was deliberately
-  never built — no W5 spec text defines what it filters, and Brian has not defined it, so building
+  live on the Follow-ups queue today, and **LAN-281 adds a third: an explicit date range, `Events
+from` and `Events to`, over the same event date the When select narrows.** That range is Clint's
+  own ask from the 2026-09-09 testing session — "the only thing I think that would be good to
+  filter is to just have it be like filter by a date range", for "who's not responding to the stuff
+  that we need them to respond to next week?" — so it reaches forward as readily as back, either
+  side may be left open, and it is read alongside When rather than replacing it. Nothing about the
+  queue's organisation changed with it: the by-player grouping Clint said he likes, the sort and
+  the columns are exactly as they were, and the event-pivot view argued for in the same
+  conversation is explicitly a later release. Only the mockup's second dropdown, "Entry", was
+  deliberately never built — no W5 spec text defines what it filters, and Brian has not defined it, so building
   it would have meant inventing a meaning nobody approved. That remains true and is not a
   deviation this package owes an apology for; it is recorded because Done requires this document to
   match shipped behaviour, not because the choice was wrong.

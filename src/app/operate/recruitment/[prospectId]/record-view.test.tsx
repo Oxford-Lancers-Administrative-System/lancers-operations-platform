@@ -212,6 +212,69 @@ describe("the Person and Recruitment bands — stacked, not side by side (Brian,
     const children = Array.from(container.children);
     expect(children.indexOf(person)).toBeLessThan(children.indexOf(recruitment));
   });
+
+  // LAN-253, and the same shape for the same reason (Brian, 2026-09-09:
+  // stack them; they should not be side by side). The 2026-09-02 correction
+  // above stacked Person and Recruitment and left Recruitment events and
+  // Notes in a two-up Grid, so the record went full width, then half width,
+  // then full width again. `LAN-204-recruit-board-record-exits-flip.md`:
+  // "Every card is full width, stacked one above the other, in table order".
+  it("renders Recruitment events, Notes and Status history as siblings of one full-width container, in that order", () => {
+    render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+    const events = screen.getByTestId("section-events");
+    const notes = screen.getByTestId("section-notes");
+    const history = screen.getByTestId("section-status-history");
+
+    expect(events.parentElement).not.toBeNull();
+    expect(events.parentElement).toBe(notes.parentElement);
+    expect(events.parentElement).toBe(history.parentElement);
+
+    const children = Array.from((events.parentElement as HTMLElement).children);
+    expect(children.indexOf(events)).toBeLessThan(children.indexOf(notes));
+    expect(children.indexOf(notes)).toBeLessThan(children.indexOf(history));
+  });
+});
+
+describe("LAN-248 — every recorded moment on the record reads the club's way", () => {
+  const RECORD_WITH_HISTORY: RecruitmentProspectRecord = {
+    ...BASE_RECORD,
+    statusHistory: [
+      {
+        id: "event-1",
+        fromStatus: "identified",
+        toStatus: "engaged",
+        occurredAt: "2026-09-08T18:31:20.000Z",
+        actorLabel: "Wilhelmina Astor",
+        reason: null,
+      },
+    ],
+    notes: [
+      {
+        id: "note-1",
+        note: "Spoke at the fair.",
+        authorLabel: "Wilhelmina Astor",
+        createdAt: "2026-09-08T18:31:20.000Z",
+      },
+    ],
+  };
+
+  // `9/8/2026, 7:31:20 PM` was what `toLocaleString()` with no arguments
+  // produced here, on a page whose every other date reads day-month-year.
+  // `docs/ux/standards.md` rule 3 fixes both the order and the clock.
+  it("reads the Status history 'When' column as day-month-year on club time", () => {
+    render(<RecruitmentRecordView record={RECORD_WITH_HISTORY} person={NO_PERSON} />);
+    const history = screen.getByTestId("recruitment-record-history");
+    expect(history.textContent).toContain("8 Sept 2026, 19:31");
+    expect(history.textContent).not.toContain("9/8/2026");
+    expect(history.textContent).not.toContain("PM");
+  });
+
+  it("stamps a note the same way, so one record never shows two spellings of one date", () => {
+    render(<RecruitmentRecordView record={RECORD_WITH_HISTORY} person={NO_PERSON} />);
+    const notes = screen.getByTestId("section-notes");
+    expect(notes.textContent).toContain("8 Sept 2026, 19:31");
+    expect(notes.textContent).not.toContain("9/8/2026");
+  });
 });
 
 describe("V-7, correction round 2 — the status pill names its subject", () => {

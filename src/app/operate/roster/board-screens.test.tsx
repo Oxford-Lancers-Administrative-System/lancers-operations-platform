@@ -239,6 +239,22 @@ describe("the board itself", () => {
     expect(headers).not.toContain("Phone");
   });
 
+  // LAN-259: an `<InputLabel>` beside `<Select label=…>` names nothing — MUI
+  // derives the combobox's `aria-labelledby` from `labelId` alone, and all
+  // three pinned filters reported `aria-labelledby: null`. This asks for each
+  // filter *by its accessible name*, so it fails the moment the `id`/`labelId`
+  // pair is dropped again.
+  it("gives each pinned filter an accessible name", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    for (const name of ["Status", "Availability", "Missing onboarding data"]) {
+      const combobox = screen.getByRole("combobox", { name });
+      expect(combobox).toBeInTheDocument();
+      expect(combobox.getAttribute("aria-labelledby")).toBeTruthy();
+    }
+  });
+
   it("renders the board inside its own named scroll container", async () => {
     // jsdom does not compute MUI's emotion-driven `overflow: auto`, so the
     // scrolling contract itself is proved by the browser preflight at 1280
