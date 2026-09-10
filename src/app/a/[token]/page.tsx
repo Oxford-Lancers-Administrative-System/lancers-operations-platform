@@ -60,7 +60,6 @@ import {
   attendingSentence,
   cancelledSentence,
   confirmLabel,
-  eventTypeLabel,
   otherOutstandingSentence,
 } from "./presentation";
 
@@ -278,7 +277,7 @@ function Confirm({
   return (
     <Shell>
       <Typography variant="overline" color="text.secondary">
-        {eventTypeLabel(base.eventType)}
+        {base.templateName}
       </Typography>
       <PageHeader title={answer === "yes" ? YES_HEADING : NO_HEADING} />
       <Typography sx={{ fontSize: { xs: 17, sm: 19 }, fontWeight: 600, mt: 1 }}>
@@ -480,7 +479,7 @@ function RecruitConfirm({
   return (
     <Shell>
       <Typography variant="overline" color="text.secondary">
-        {eventTypeLabel(base.eventType)}
+        {base.templateName}
       </Typography>
       <PageHeader title={answer === "yes" ? RECRUIT_YES_HEADING : RECRUIT_NO_HEADING} />
       <Typography sx={{ fontSize: { xs: 17, sm: 19 }, fontWeight: 600, mt: 1 }}>

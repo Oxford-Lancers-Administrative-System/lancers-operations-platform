@@ -13,6 +13,8 @@ const VALID: MessagingScheduleChange = {
 
 /** `scheduleChanged`'s `current` reads a full stored row, not a bare change. */
 const CURRENT: MessagingSchedule = {
+  templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  templateName: "Practice",
   eventType: "practice",
   ...VALID,
   recruitInvitationLeadDays: null,
@@ -34,8 +36,8 @@ function rowFormData(overrides: Record<string, string> = {}): FormData {
 }
 
 describe("readOneScheduleChange", () => {
-  it("reads one event type's row when every field is well formed", () => {
-    const result = readOneScheduleChange("practice", rowFormData());
+  it("reads one template's row when every field is well formed", () => {
+    const result = readOneScheduleChange("Practice", "practice", rowFormData());
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
@@ -43,7 +45,7 @@ describe("readOneScheduleChange", () => {
   });
 
   it("refuses a blank field, naming the type and the field", () => {
-    const result = readOneScheduleChange("game", rowFormData({ rsvpByDays: "" }));
+    const result = readOneScheduleChange("Game", "game", rowFormData({ rsvpByDays: "" }));
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
@@ -52,7 +54,11 @@ describe("readOneScheduleChange", () => {
   });
 
   it("refuses a non-integer value", () => {
-    const result = readOneScheduleChange("social", rowFormData({ reminderCadenceHours: "24.5" }));
+    const result = readOneScheduleChange(
+      "Social",
+      "social",
+      rowFormData({ reminderCadenceHours: "24.5" }),
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
@@ -68,7 +74,7 @@ describe("readOneScheduleChange", () => {
     ["emailReminderCount", "-1"],
     ["escalationHours", "721"],
   ])("refuses %s out of its bounds (%s)", (field, value) => {
-    const result = readOneScheduleChange("chalk", rowFormData({ [field]: value }));
+    const result = readOneScheduleChange("Chalk", "chalk", rowFormData({ [field]: value }));
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
@@ -77,6 +83,7 @@ describe("readOneScheduleChange", () => {
 
   it("refuses an invitation lead shorter than the RSVP deadline it precedes", () => {
     const result = readOneScheduleChange(
+      "Meeting",
       "meeting",
       rowFormData({ rsvpByDays: "5", invitationLeadDays: "3" }),
     );
@@ -87,9 +94,10 @@ describe("readOneScheduleChange", () => {
   });
 
   it("accepts the invitation lead exactly equal to the RSVP deadline", () => {
-    // Any event type but "recruitment" — LAN-203 gives that one two further
-    // required fields (below), which is not what this case is testing.
+    // Any behavioural class but "recruitment" — LAN-203 gives that one two
+    // further required fields (below), which is not what this case is testing.
     const result = readOneScheduleChange(
+      "Game",
       "game",
       rowFormData({ rsvpByDays: "5", invitationLeadDays: "5" }),
     );
@@ -102,7 +110,7 @@ describe("readOneScheduleChange", () => {
     data.set("recruitInvitationLeadDays", "5");
     data.set("recruitFollowUpCadenceHours", "72");
 
-    const result = readOneScheduleChange("recruitment", data);
+    const result = readOneScheduleChange("Recruitment", "recruitment", data);
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
@@ -111,7 +119,7 @@ describe("readOneScheduleChange", () => {
   });
 
   it("refuses the Recruitment row when the Recruits group is left blank", () => {
-    const result = readOneScheduleChange("recruitment", rowFormData());
+    const result = readOneScheduleChange("Recruitment", "recruitment", rowFormData());
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
@@ -123,7 +131,7 @@ describe("readOneScheduleChange", () => {
     data.set("recruitInvitationLeadDays", "5");
     data.set("recruitFollowUpCadenceHours", "72");
 
-    const result = readOneScheduleChange("game", data);
+    const result = readOneScheduleChange("Game", "game", data);
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
@@ -187,6 +195,8 @@ describe("scheduleChanged", () => {
   it("is true when the Recruitment row's own recruit fields change", () => {
     const recruitmentCurrent: MessagingSchedule = {
       ...CURRENT,
+      templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+      templateName: "Recruitment",
       eventType: "recruitment",
       recruitInvitationLeadDays: 5,
       recruitFollowUpCadenceHours: 72,

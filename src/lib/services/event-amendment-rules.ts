@@ -41,10 +41,19 @@ import { optional, trimmed, type EventDeliveryMode, type EventStatus } from "./e
  * made reachable on an approved event rather than a second form with its own
  * ideas. `status` is not among them and cannot be: an amendment never leaves
  * `approved` (REQ-amend-in-place).
+ *
+ * **The template is not among them either, since LAN-265.** Brian, 2026-09-09:
+ * "New event picks a template. Amend does not change template." A template
+ * decides what an event *is* — its class, its default audience, its questions
+ * and the cadence forty people were already messaged on — and swapping it on an
+ * approved event would reclassify the event underneath all four without a single
+ * one of them being recomputed. The honest way to hold a different kind of event
+ * is to cancel this one and create that one. It was `eventType` here until
+ * LAN-265, on the reasoning that whatever `W4`'s editor shows, `W5` compares;
+ * `W4`'s editor no longer shows it either.
  */
 export type AmendableField =
   | "name"
-  | "eventType"
   | "scheduledOn"
   | "startsAt"
   | "endsAt"
@@ -58,7 +67,16 @@ export type AmendableField =
 /** The comparable shape of an event, before or after. */
 export interface AmendableEvent {
   name: string;
-  eventType: string;
+  /**
+   * The template, carried but never compared — LAN-265.
+   *
+   * It is on this shape because the amendment has to recompute a response
+   * deadline and a chase threshold, and both are read from the template. It is
+   * absent from `AMENDABLE_FIELDS` because an amendment cannot change it, so it
+   * is identity travelling with the snapshot rather than a field with a before
+   * and an after.
+   */
+  templateId: string;
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -97,9 +115,9 @@ export interface AmendmentChange {
  * as moving to University Parks does, and strands them harder.
  *
  * What is deliberately **not** here: `name`, `description`, `requiredEquipment`,
- * `eventType`, `joiningUrl` and `isMandatory`. D55 lists description, equipment
+ * `joiningUrl` and `isMandatory`. D55 lists description, equipment
  * and name as the silent ones, and D14 says a name change is not material
- * because the name is where the club writes "vs Bath". The remaining three are
+ * because the name is where the club writes "vs Bath". The remaining two are
  * not on D55's list in either direction; treating them as silent-by-default is
  * the same answer as the fields they most resemble, and the operator can still
  * turn the tick on for any of them with no confirmation asked.
@@ -114,7 +132,6 @@ export const MATERIAL_FIELDS: readonly AmendableField[] = Object.freeze([
 
 const FIELD_LABELS: Readonly<Record<AmendableField, string>> = Object.freeze({
   name: "Name",
-  eventType: "Type",
   scheduledOn: "Date",
   startsAt: "Start",
   endsAt: "End",
@@ -129,7 +146,6 @@ const FIELD_LABELS: Readonly<Record<AmendableField, string>> = Object.freeze({
 /** Every field an amendment compares, in the order the editor shows them. */
 export const AMENDABLE_FIELDS: readonly AmendableField[] = Object.freeze([
   "name",
-  "eventType",
   "scheduledOn",
   "startsAt",
   "endsAt",
@@ -153,8 +169,6 @@ function renderValue(event: AmendableEvent, field: AmendableField): string | nul
       return event.deliveryMode === "online" ? "Online" : "In person";
     case "name":
       return trimmed(event.name) === "" ? null : trimmed(event.name);
-    case "eventType":
-      return optional(event.eventType);
     // R156-B4. `scheduledOn` is a stored calendar date ("2026-11-11"), and this
     // is the one place that value becomes the string the review screen and the
     // change history print. Left raw, it read as `2026-11-11` on both —
@@ -257,9 +271,6 @@ export function mergeAmendment(
         break;
       case "name":
         merged.name = submitted.name;
-        break;
-      case "eventType":
-        merged.eventType = submitted.eventType;
         break;
       default:
         merged[field] = submitted[field];

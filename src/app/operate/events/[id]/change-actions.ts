@@ -89,7 +89,7 @@ function checked(formData: FormData, field: string): boolean {
 function readDraft(formData: FormData): RawEventDraft {
   return {
     name: text(formData, "name"),
-    eventType: text(formData, "eventType"),
+    templateId: text(formData, "templateId"),
     scheduledOn: text(formData, "scheduledOn"),
     startsAt: text(formData, "startsAt"),
     endsAt: text(formData, "endsAt"),

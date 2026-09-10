@@ -10,12 +10,18 @@ import {
   endTimeFromStart,
   MAX_TEMPLATE_DURATION_MINUTES,
   MIN_TEMPLATE_DURATION_MINUTES,
+  TEMPLATE_COLOUR_KEYS,
   validateEventTemplate,
   type RawEventTemplate,
 } from "./event-template-input";
 
 function template(overrides: Partial<RawEventTemplate> = {}): RawEventTemplate {
   return {
+    // LAN-265's one required field. Every case below is about a field that is
+    // optional, so the name is supplied here and never the thing under test.
+    name: "Practice",
+    // LAN-276 correction round 1's other required field, for the same reason.
+    colourKey: "blue",
     defaultVenue: "",
     defaultDeliveryMode: "unset",
     defaultDurationMinutes: "",
@@ -34,8 +40,8 @@ function accepted(raw: RawEventTemplate) {
   return outcome.value;
 }
 
-describe("every field is optional (Brian, 2026-08-21)", () => {
-  it("accepts a template that has decided nothing at all", () => {
+describe("every field but the name is optional (Brian, 2026-08-21)", () => {
+  it("accepts a template that has decided nothing but what it is called", () => {
     // "the template does not mean that everything needs to be changed ... You
     // can have some details not decided."
     const value = accepted(template());
@@ -57,6 +63,43 @@ describe("every field is optional (Brian, 2026-08-21)", () => {
 
   it("treats whitespace as undecided rather than as a value", () => {
     expect(accepted(template({ defaultVenue: "   " })).defaultVenue).toBeNull();
+  });
+});
+
+/**
+ * LAN-276 correction round 1. Brian, walking the review environment,
+ * 2026-09-10: "In the template, swatch color should be something that gets
+ * chosen, so it gets added as part of the template." Unlike every field
+ * above, colour is **not** optional — a template without a chosen colour is
+ * not the fact this correction asks for, so it is checked exactly as the
+ * name is.
+ */
+describe("colour is chosen from a fixed palette, and required (Brian, 2026-09-10)", () => {
+  it("round-trips a colour from the palette", () => {
+    for (const key of TEMPLATE_COLOUR_KEYS) {
+      expect(accepted(template({ colourKey: key })).colourKey).toBe(key);
+    }
+  });
+
+  it("refuses a template with no colour chosen, and one that is only whitespace", () => {
+    for (const colourKey of ["", "   ", null, undefined]) {
+      const outcome = validateEventTemplate(template({ colourKey }));
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) throw new Error("expected a refusal");
+      expect(outcome.issues.map((issue) => issue.field)).toContain("colourKey");
+    }
+  });
+
+  it("refuses a free hex value, and any key outside the palette", () => {
+    // The whole point of the correction: a colour is chosen from the fixed
+    // set, never typed as a hex value the check constraint would have to
+    // parse.
+    for (const outsideThePalette of ["#1565c0", "chartreuse", "Blue"]) {
+      const outcome = validateEventTemplate(template({ colourKey: outsideThePalette }));
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) throw new Error("expected a refusal");
+      expect(outcome.issues.map((issue) => issue.field)).toContain("colourKey");
+    }
   });
 });
 
@@ -86,21 +129,35 @@ describe("a default length, never a default start time (D78)", () => {
     expect(validateEventTemplate(template({ defaultDurationMinutes: "two hours" })).ok).toBe(false);
   });
 
-  it("has nowhere at all to put a start time, a date or a name", () => {
+  it("has nowhere at all to put a start time or a date, and names the kind rather than the event", () => {
     // Brian, 2026-08-21: "the name is always going to be unique ... Usual time
-    // doesn't make any sense to me. That is not a field you would have." A type
-    // recurs; a particular Wednesday does not.
+    // doesn't make any sense to me. That is not a field you would have." That
+    // is about the **event's** name, and it holds — nothing here supplies one.
+    // LAN-265 added `name`, which is what the club calls this *kind* of event.
     const value = accepted(template({ defaultDurationMinutes: "90" }));
 
     expect(Object.keys(value).sort()).toEqual([
       "audienceGroups",
+      "colourKey",
       "defaultDeliveryMode",
       "defaultDescription",
       "defaultDurationMinutes",
       "defaultIsMandatory",
       "defaultRequiredEquipment",
       "defaultVenue",
+      "name",
     ]);
+  });
+
+  it("refuses a template with no name, and one whose name is only whitespace", () => {
+    // The name is the only thing an operator ever sees of a template, so a
+    // nameless one could not be picked, listed or read.
+    for (const name of ["", "   "]) {
+      const outcome = validateEventTemplate(template({ name }));
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) throw new Error("expected a refusal");
+      expect(outcome.issues[0].field).toBe("name");
+    }
   });
 
   it("carries no RSVP timing of any kind, because that is Mission 4's", () => {

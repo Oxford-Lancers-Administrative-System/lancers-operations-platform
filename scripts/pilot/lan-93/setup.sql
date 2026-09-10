@@ -259,14 +259,15 @@ on conflict (id) do nothing;
 
 -- 6. A draft event. Draft, so it can never be approved, never resolve an
 --    audience, and never issue an invitation or a notification to anybody.
-insert into public.events (id, season_id, name, event_type, status)
+insert into public.events (id, season_id, name, event_type, status, template_id)
 values (
   '00930093-0093-4093-8093-000000000006',
   '00930093-0093-4093-8093-000000000003',
   'PILOT-LAN-93 scenario practice',
   'practice',
   'draft'
-)
+,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------

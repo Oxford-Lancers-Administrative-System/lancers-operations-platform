@@ -68,7 +68,15 @@ export interface SignedRsvpPage {
    */
   readonly capacity: string;
   readonly eventName: string;
-  /** `events.event_type`, raw. The page turns it into the club's word for it. */
+  /**
+   * What the club calls this kind of event, from its template — LAN-265.
+   *
+   * The word itself rather than a code the page maps: after LAN-265 there is no
+   * closed list a player-facing page could map from, and a rename has to reach
+   * this page like every other.
+   */
+  readonly templateName: string;
+  /** `events.event_type`, raw. Carried for nothing this page displays. */
   readonly eventType: string;
   readonly eventStatus: string;
   /** Calendar date of the event, `YYYY-MM-DD`, in the club's zone. */
@@ -120,6 +128,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     invitation_id: string;
     capacity: string;
     event_name: string;
+    template_name: string;
     event_type: string;
     event_status: string;
     scheduled_on: string | null;
@@ -137,6 +146,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     `select i.id as invitation_id,
             i.capacity::text as capacity,
             e.name as event_name,
+            tpl.name as template_name,
             e.event_type::text as event_type,
             e.status::text as event_status,
             to_char(e.scheduled_on, 'YYYY-MM-DD') as scheduled_on,
@@ -159,6 +169,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
             r.responded_at
        from public.invitations i
        join public.events e on e.id = i.event_id
+       join public.event_templates tpl on tpl.id = e.template_id
        left join public.season_memberships m on m.id = i.season_membership_id
        join public.people p on p.id = coalesce(i.person_id, m.person_id)
        left join public.current_rsvp r on r.invitation_id = i.id
@@ -180,6 +191,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     invitationId: row.invitation_id,
     capacity: row.capacity,
     eventName: row.event_name,
+    templateName: row.template_name,
     eventType: row.event_type,
     eventStatus: row.event_status,
     scheduledOn: row.scheduled_on,

@@ -25,6 +25,8 @@ vi.mock("../../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("./actions", () => ({
   previewEventTemplateAction: vi.fn(),
   saveEventTemplateAction: vi.fn(),
+  createEventTemplateAction: vi.fn(),
+  deleteEventTemplateAction: vi.fn(),
 }));
 vi.mock("@/lib/services/event-templates", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-templates")>();
@@ -32,6 +34,7 @@ vi.mock("@/lib/services/event-templates", async (importOriginal) => {
     ...actual,
     listEventTemplates: vi.fn(),
     readEventTemplate: vi.fn(),
+    countEventsFromTemplate: vi.fn(),
     planEventTemplateChange: vi.fn(),
     saveEventTemplate: vi.fn(),
   };
@@ -40,6 +43,7 @@ vi.mock("@/lib/services/event-templates", async (importOriginal) => {
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
+  countEventsFromTemplate,
   listEventTemplates,
   readEventTemplate,
   type EventTemplate,
@@ -47,20 +51,43 @@ import {
   type TemplateChangePlan,
 } from "@/lib/services/event-templates";
 import { groupsForEventType } from "@/lib/services/audience-selection";
-import { previewEventTemplateAction, saveEventTemplateAction } from "./actions";
+import { TEMPLATE_COLOUR_PALETTE } from "@/lib/services/event-template-input";
+import {
+  createEventTemplateAction,
+  previewEventTemplateAction,
+  saveEventTemplateAction,
+} from "./actions";
 import EventTemplatesPage from "./page";
-import EventTemplatePage from "./[type]/page";
+import EventTemplatePage from "./[templateId]/page";
+import { TEMPLATES_DELETE_RULE } from "./presentation";
 import TemplateEditor from "./template-editor";
 
-const SEVEN_TYPES = [
-  "practice",
-  "strength_and_conditioning",
-  "chalk",
-  "game",
-  "social",
-  "recruitment",
-  "meeting",
+/**
+ * The seven templates the migration seeds — LAN-265.
+ *
+ * Their identifiers are fixed literals in
+ * `20260916090000_event_templates.sql`, so a fixture names one rather than
+ * inventing one, and the names are what the screens print.
+ */
+const SEVEN_TEMPLATES: readonly { id: string; name: string; eventType: string }[] = [
+  { id: "7e34a764-7ed1-535e-8cef-73e00a62eafc", name: "Practice", eventType: "practice" },
+  {
+    id: "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+    name: "Strength and conditioning",
+    eventType: "strength_and_conditioning",
+  },
+  { id: "b547e0b3-f48c-5601-9dc6-e8725fc434f9", name: "Chalk", eventType: "chalk" },
+  { id: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae", name: "Game", eventType: "game" },
+  { id: "8de00424-52a8-52ad-9c9f-a29823f9c4bf", name: "Social", eventType: "social" },
+  {
+    id: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+    name: "Recruitment",
+    eventType: "recruitment",
+  },
+  { id: "660cdcb7-51e3-5a19-aaa2-08c5256af288", name: "Meeting", eventType: "meeting" },
 ];
+
+const PRACTICE = SEVEN_TEMPLATES[0];
 
 function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
   return {
@@ -74,17 +101,24 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
 
 function summary(overrides: Partial<EventTemplateSummary> = {}): EventTemplateSummary {
   return {
+    id: PRACTICE.id,
+    name: PRACTICE.name,
+    colourKey: "blue",
     eventType: "practice",
     audienceGroups: [],
     defaultVenue: null,
     defaultDeliveryMode: null,
     questionCount: 0,
+    eventCount: 0,
     ...overrides,
   };
 }
 
 function template(overrides: Partial<EventTemplate> = {}): EventTemplate {
   return {
+    id: PRACTICE.id,
+    name: PRACTICE.name,
+    colourKey: "blue",
     eventType: "practice",
     defaultVenue: null,
     defaultDeliveryMode: null,
@@ -100,6 +134,9 @@ function template(overrides: Partial<EventTemplate> = {}): EventTemplate {
 
 function plan(overrides: Partial<TemplateChangePlan> = {}): TemplateChangePlan {
   return {
+    templateId: PRACTICE.id,
+    name: PRACTICE.name,
+    renamedFrom: null,
     eventType: "practice",
     fieldChanges: [],
     questionChanges: [],
@@ -112,11 +149,11 @@ function plan(overrides: Partial<TemplateChangePlan> = {}): TemplateChangePlan {
   };
 }
 
-function typeProps(type = "practice") {
+function typeProps(templateId = PRACTICE.id) {
   return {
-    params: Promise.resolve({ type }),
+    params: Promise.resolve({ templateId }),
     searchParams: Promise.resolve({}),
-  } as unknown as PageProps<"/operate/events/templates/[type]">;
+  } as unknown as PageProps<"/operate/events/templates/[templateId]">;
 }
 
 function flatten(text: string | null): string {
@@ -126,8 +163,9 @@ function flatten(text: string | null): string {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
+  vi.mocked(countEventsFromTemplate).mockResolvedValue(0);
   vi.mocked(listEventTemplates).mockResolvedValue(
-    SEVEN_TYPES.map((eventType) => summary({ eventType })),
+    SEVEN_TEMPLATES.map(({ id, name, eventType }) => summary({ id, name, eventType })),
   );
   vi.mocked(readEventTemplate).mockResolvedValue(template());
 });
@@ -136,37 +174,65 @@ beforeEach(() => {
 // W8-01
 // ---------------------------------------------------------------------------
 
-describe("W8-01 — seven types, seven templates", () => {
-  it("lists all seven, and links each to its own template", async () => {
+describe("W8-01 — the club's templates", () => {
+  it("lists them, and links each to its own template", async () => {
     render(await EventTemplatesPage());
 
     const rows = screen.getAllByTestId("template-row");
     expect(rows).toHaveLength(7);
+    // By id since LAN-265, and that is the point of the id: a route segment
+    // made of the name would break every link an operator kept the moment
+    // somebody renamed the template.
     expect(within(rows[0]).getByRole("link", { name: "Practice" }).getAttribute("href")).toBe(
-      "/operate/events/templates/practice",
+      `/operate/events/templates/${PRACTICE.id}`,
     );
   });
 
   it("offers no way to add a template without standing policy copy", async () => {
-    // The place an operator would look for **Add a type** is the place to say
-    // that adding one is a decision about the club's own model.
-    const { container } = render(await EventTemplatesPage());
+    // LAN-265 reversed this. It used to assert the opposite — that there was no
+    // way to add one, and that the screen said so — because the seven types
+    // were the seven templates and an eighth was a migration. Creating one is
+    // an ordinary administrative act now.
+    render(await EventTemplatesPage());
 
-    const labels = [...container.querySelectorAll("button, a")].map((node) =>
-      flatten(node.textContent).toLowerCase(),
+    expect(screen.getByTestId("new-template").getAttribute("href")).toBe(
+      "/operate/events/templates/new",
     );
-    expect(labels.some((label) => label.includes("add") && label.includes("template"))).toBe(false);
-    expect(labels.some((label) => label.includes("new type"))).toBe(false);
     expect(screen.queryByTestId("templates-are-fixed")).not.toBeInTheDocument();
   });
 
-  it("offers no way to delete one either", async () => {
-    const { container } = render(await EventTemplatesPage());
+  it("says when a template can be deleted, where the control would be", async () => {
+    // The other half of the same courtesy. Delete lives on the template's own
+    // page and only while nothing was created from it, so the list is where to
+    // say why somebody may not find it there.
+    render(await EventTemplatesPage());
 
-    const labels = [...container.querySelectorAll("button, a")].map((node) =>
-      flatten(node.textContent).toLowerCase(),
+    expect(flatten(screen.getByTestId("templates-delete-rule").textContent)).toBe(
+      TEMPLATES_DELETE_RULE,
     );
-    expect(labels.some((label) => label.includes("delete"))).toBe(false);
+  });
+
+  it("offers Delete on a template nothing was created from, and not on one in use", async () => {
+    const editor = (eventCount: number) => (
+      <TemplateEditor
+        templateId={PRACTICE.id}
+        eventTypeLabel="Practice"
+        eventCount={eventCount}
+        initial={{}}
+        initialQuestions={[]}
+        groups={groupsForEventType("practice")}
+      />
+    );
+
+    const unused = render(editor(0));
+    expect(unused.queryByTestId("delete-template")).toBeInTheDocument();
+    unused.unmount();
+
+    // Absent rather than disabled: a control that is always there and usually
+    // refuses teaches an operator to ignore it, and the service refuses
+    // regardless — `events_template_fkey` is `on delete restrict`.
+    const inUse = render(editor(4));
+    expect(inUse.queryByTestId("delete-template")).not.toBeInTheDocument();
   });
 
   it("says what each type invites, where it is, and how many questions it asks", async () => {
@@ -290,15 +356,18 @@ describe("W8-02 — one template", () => {
     ).toContain("recruits");
   });
 
-  it("has no field for a name, a date or a start time", async () => {
+  it("names the template itself, and still has no date or start time", async () => {
     // Brian, 2026-08-21: "the name is always going to be unique ... Usual time
-    // doesn't make any sense to me. That is not a field you would have."
+    // doesn't make any sense to me. That is not a field you would have." That
+    // is about the **event's** name, and it holds: nothing here supplies one.
+    // LAN-265 added the **template's** own name, which is what the club calls
+    // this kind of event and the only thing an operator ever sees of it.
     const { container } = render(await EventTemplatePage(typeProps()));
 
     const names = [...container.querySelectorAll("input, textarea")].map((node) =>
       node.getAttribute("name"),
     );
-    expect(names).not.toContain("name");
+    expect(names).toContain("name");
     expect(names).not.toContain("scheduledOn");
     expect(names).not.toContain("startsAt");
   });
@@ -334,8 +403,9 @@ describe("W8-02 — one template", () => {
   it("reads back a saved length in the club's words", async () => {
     render(
       <TemplateEditor
-        eventType="practice"
+        templateId={PRACTICE.id}
         eventTypeLabel="Practice"
+        eventCount={0}
         initial={{ defaultDurationMinutes: "120" }}
         initialQuestions={[]}
         groups={groupsForEventType("practice")}
@@ -355,8 +425,9 @@ describe("W8-02 — one template", () => {
     it("offers exactly the eight 30-minute-to-4-hour options, worded in hours and minutes", async () => {
       render(
         <TemplateEditor
-          eventType="practice"
+          templateId={PRACTICE.id}
           eventTypeLabel="Practice"
+          eventCount={0}
           initial={{}}
           initialQuestions={[]}
           groups={groupsForEventType("practice")}
@@ -382,8 +453,9 @@ describe("W8-02 — one template", () => {
     it("posts the minutes the chosen words mean", async () => {
       const { container } = render(
         <TemplateEditor
-          eventType="practice"
+          templateId={PRACTICE.id}
           eventTypeLabel="Practice"
+          eventCount={0}
           initial={{}}
           initialQuestions={[]}
           groups={groupsForEventType("practice")}
@@ -405,8 +477,9 @@ describe("W8-02 — one template", () => {
     it("keeps and truthfully labels an existing off-grid value, rather than snapping it", async () => {
       const { container } = render(
         <TemplateEditor
-          eventType="practice"
+          templateId={PRACTICE.id}
           eventTypeLabel="Practice"
+          eventCount={0}
           initial={{ defaultDurationMinutes: "75" }}
           initialQuestions={[]}
           groups={groupsForEventType("practice")}
@@ -428,8 +501,9 @@ describe("W8-02 — one template", () => {
     it("drops the off-grid option once the operator picks one of the eight", async () => {
       const { container } = render(
         <TemplateEditor
-          eventType="practice"
+          templateId={PRACTICE.id}
           eventTypeLabel="Practice"
+          eventCount={0}
           initial={{ defaultDurationMinutes: "75" }}
           initialQuestions={[]}
           groups={groupsForEventType("practice")}
@@ -448,6 +522,102 @@ describe("W8-02 — one template", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Colour — LAN-276 correction round 1
+// ---------------------------------------------------------------------------
+
+/**
+ * Brian, walking the review environment, 2026-09-10: "In the template, swatch
+ * color should be something that gets chosen, so it gets added as part of the
+ * template." A fixed palette of swatches, never a free hex value.
+ */
+describe("colour is chosen from a fixed palette (Brian, 2026-09-10)", () => {
+  function editor(initial: { colourKey?: string } = {}) {
+    return render(
+      <TemplateEditor
+        templateId={PRACTICE.id}
+        eventTypeLabel="Practice"
+        eventCount={0}
+        initial={initial}
+        initialQuestions={[]}
+        groups={groupsForEventType("practice")}
+      />,
+    );
+  }
+
+  it("offers every colour the palette holds, as a swatch each", () => {
+    editor();
+
+    const swatches = screen.getAllByTestId("template-colour-swatch");
+    expect(swatches.map((node) => node.getAttribute("data-colour"))).toEqual(
+      TEMPLATE_COLOUR_PALETTE.map((colour) => colour.key),
+    );
+  });
+
+  it("shows the template's stored colour pressed, and posts it", () => {
+    const { container } = editor({ colourKey: "purple" });
+
+    const pressed = screen
+      .getAllByTestId("template-colour-swatch")
+      .filter((node) => node.getAttribute("aria-pressed") === "true");
+    expect(pressed.map((node) => node.getAttribute("data-colour"))).toEqual(["purple"]);
+
+    expect(container.querySelector<HTMLInputElement>('input[name="colourKey"]')?.value).toBe(
+      "purple",
+    );
+  });
+
+  it("chooses a colour on a click, and only that one reads as pressed", () => {
+    const { container } = editor({ colourKey: "blue" });
+
+    fireEvent.click(
+      screen
+        .getAllByTestId("template-colour-swatch")
+        .find((node) => node.getAttribute("data-colour") === "green")!,
+    );
+
+    expect(container.querySelector<HTMLInputElement>('input[name="colourKey"]')?.value).toBe(
+      "green",
+    );
+
+    const pressed = screen
+      .getAllByTestId("template-colour-swatch")
+      .filter((node) => node.getAttribute("aria-pressed") === "true");
+    expect(pressed.map((node) => node.getAttribute("data-colour"))).toEqual(["green"]);
+  });
+
+  it("shows a refused colour as the field's own error, in place of the help text", async () => {
+    vi.mocked(createEventTemplateAction).mockResolvedValue({
+      phase: "editing",
+      issues: [{ field: "colourKey", message: "Choose a colour for this template." }],
+      questionIssues: [],
+      error: null,
+      values: null,
+      questions: null,
+      plan: null,
+    });
+
+    render(
+      <TemplateEditor
+        templateId={null}
+        eventTypeLabel="New template"
+        eventCount={0}
+        initial={{}}
+        initialQuestions={[]}
+        groups={groupsForEventType("practice")}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("preview-template"));
+    });
+
+    expect(screen.getByTestId("template-colour-help")).toHaveTextContent(
+      "Choose a colour for this template.",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The audience toggles, driven
 // ---------------------------------------------------------------------------
 
@@ -455,8 +625,9 @@ describe("choosing what a type invites by default (D47)", () => {
   function editor(initialGroups: string[] = []) {
     return render(
       <TemplateEditor
-        eventType="practice"
+        templateId={PRACTICE.id}
         eventTypeLabel="Practice"
+        eventCount={0}
         initial={{ audienceGroups: initialGroups }}
         initialQuestions={[]}
         groups={groupsForEventType("practice")}
@@ -513,8 +684,9 @@ describe("W8-03 — what the change will touch", () => {
   function editor() {
     return render(
       <TemplateEditor
-        eventType="practice"
+        templateId={PRACTICE.id}
         eventTypeLabel="Practice"
+        eventCount={0}
         initial={{}}
         initialQuestions={[]}
         groups={groupsForEventType("practice")}
@@ -559,8 +731,9 @@ describe("the confirmation reads as W8-03 specifies", () => {
 
     render(
       <TemplateEditor
-        eventType="practice"
+        templateId={PRACTICE.id}
         eventTypeLabel="Practice"
+        eventCount={0}
         initial={{}}
         initialQuestions={[]}
         groups={groupsForEventType("practice")}
@@ -745,7 +918,10 @@ describe("the confirmation reads as W8-03 specifies", () => {
     const names = [...saveForm.querySelectorAll("input")].map((input) =>
       input.getAttribute("name"),
     );
-    expect(names).toContain("eventType");
+    // LAN-265: the identifier the save is keyed by, and the name it may be
+    // changing, both travel with the rest of the form.
+    expect(names).toContain("templateId");
+    expect(names).toContain("name");
     expect(names).toContain("defaultVenue");
     expect(names).toContain("defaultDurationMinutes");
     expect(names).toContain("defaultAttendance");

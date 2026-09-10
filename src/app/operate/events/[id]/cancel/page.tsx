@@ -8,7 +8,7 @@ import {
   type AmendmentContext,
 } from "@/lib/services/event-amendment";
 import { gateShellPage } from "../../../gate";
-import { formatDetailWhen, labelFor, TYPE_LABELS } from "../../presentation";
+import { formatDetailWhen } from "../../presentation";
 import CancelForm from "./cancel-form";
 
 /**
@@ -62,7 +62,7 @@ export default async function CancelEventPage({
 
       <CancelForm
         eventId={event.id}
-        typeLabel={labelFor(TYPE_LABELS, event.eventType)}
+        typeLabel={event.templateName}
         invited={context.audience.invited}
         saidYes={context.audience.saidYes}
         venue={event.venue}

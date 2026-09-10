@@ -528,9 +528,11 @@ describe("cleanup.sql removes the scenario and only the scenario", () => {
       client,
       `insert into public.events (season_id, name, event_type, status, scheduled_on,
                                   approved_at, approved_by_person_id,
-                                  audience_confirmed_at, audience_confirmed_by_person_id)
+                                  audience_confirmed_at, audience_confirmed_by_person_id, template_id)
        select season_id, 'Unrelated club event', 'practice', 'approved', current_date + 3,
-              now(), $2::uuid, now(), $2::uuid
+              now(), $2::uuid, now(), $2::uuid,
+              (select tpl.id from public.event_templates tpl
+                 where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
          from public.events where id = $1
        returning id, season_id`,
       [APPROVAL_EVENT, approver.id],

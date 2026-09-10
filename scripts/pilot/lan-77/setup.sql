@@ -270,7 +270,7 @@ on conflict (id) do nothing;
 -- date the operator edits through the application rather than a third event.
 insert into public.events
   (id, season_id, name, event_type, origin, status, scheduled_on, starts_at, ends_at,
-   venue, is_mandatory)
+   venue, is_mandatory, template_id)
 select
   scenario.id,
   season.id,
@@ -282,7 +282,9 @@ select
   '19:00',
   '21:00',
   'PILOT-LAN-77 synthetic venue',
-  true
+  true,
+  (select tpl.id from public.event_templates tpl
+    where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
 from (values
   ('00770077-0077-4077-8077-000000000050'::uuid, 'PILOT-LAN-77 Approval scenario'),
   ('00770077-0077-4077-8077-000000000051'::uuid, 'PILOT-LAN-77 Rollback scenario')

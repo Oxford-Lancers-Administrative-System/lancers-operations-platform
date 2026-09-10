@@ -49,6 +49,16 @@ import type { TermWindow } from "./event-input";
 export interface CalendarEvent {
   id: string;
   name: string;
+  /** The word the tile prints for this kind of event — LAN-265. */
+  templateName: string;
+  /**
+   * The template's own colour, which is what the tile is coloured by —
+   * LAN-276 correction round 1. A key into `TEMPLATE_COLOUR_PALETTE`
+   * (`@/lib/services/event-template-input`), chosen on the template editor
+   * rather than derived from `eventType`.
+   */
+  templateColour: string;
+  /** The behavioural class. Never rendered — see `templateColour`. */
   eventType: string;
   /** `YYYY-MM-DD`, or `null` for an event whose date is not decided yet. */
   scheduledOn: string | null;

@@ -62,7 +62,6 @@ import {
   VENUE_LABEL,
   cancelledSentence,
   eventSummary,
-  eventTypeLabel,
   formatDeadline,
   formatEventDate,
   formatEventDateShort,
@@ -247,7 +246,7 @@ function Invitation({
         say: "vs Ivybridge Ravens" does, "Michaelmas week 3" does not.
       */}
       <Typography variant="overline" color="text.secondary">
-        {eventTypeLabel(page.eventType)}
+        {page.templateName}
       </Typography>
       <PageHeader title={page.eventName} />
       {/*

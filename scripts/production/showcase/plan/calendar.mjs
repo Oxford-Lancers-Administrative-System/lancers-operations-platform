@@ -24,6 +24,7 @@
  */
 
 import { id } from "../ids.mjs";
+import { SEEDED_TEMPLATE_IDS, seededTemplateIdFor } from "../../../lib/event-template-ids.mjs";
 import { OPERATOR_KEYS } from "./reference.mjs";
 import { addHours, addMinutes, weekdayOf } from "./context.mjs";
 
@@ -119,6 +120,37 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       recruit_invitation_lead_days: eventType === "recruitment" ? 5 : null,
       recruit_follow_up_cadence_hours: eventType === "recruitment" ? 72 : null,
     };
+
+  /**
+   * The template every event this plan writes belongs to — LAN-265.
+   *
+   * `events.template_id` is `not null` and `events_template_fkey` is composite,
+   * so the pair written here has to agree with the template's own class or the
+   * insert is refused.
+   *
+   * The database's answer wins, because a hosted target may carry a template an
+   * operator created for a class the workbook also uses; `db.mjs` resolves one
+   * per class and prefers the seeded one. The fallback is the seeded identifier
+   * itself — a fixed literal, identical everywhere — which is what lets a plan
+   * be built and asserted with no database at all, as `tests/showcase-plan.test.ts`
+   * does. Both paths produce the same id against any database the migrations
+   * have been applied to; they differ only where an operator has been at work.
+   */
+  const templates = existing.eventTemplates ?? new Map();
+  const templateIdFor = (eventType) =>
+    templates.get(eventType)?.id ?? seededTemplateIdFor(eventType);
+
+  // W8's checklist link. `/operate/events/templates/[templateId]` is a uuid
+  // route since LAN-265, and the tester needs a real one rather than the literal
+  // `{type.practice}` the checklist used to print with a "skip and report" note.
+  // Offered rather than written: the loader does not own these rows — the
+  // migration does — and `example` records which one is *the* one to open. All
+  // seven classes, not only the ones this plan happened to schedule, because a
+  // checklist route names a template the map chose rather than one an event did.
+  const SEEDED_TEMPLATE_CLASSES = Object.keys(SEEDED_TEMPLATE_IDS);
+  for (const eventType of SEEDED_TEMPLATE_CLASSES) {
+    ctx.example(`template.${eventType}`, templateIdFor(eventType));
+  }
 
   const liveFor = new Set(params.liveLinksFor ?? OPERATOR_KEYS);
   const nowIso = `${anchor}T00:00:00Z`;
@@ -254,6 +286,10 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
               : "event.occurred.no-register"
             : "event.approved.upcoming",
       spec.mandatory ? "event.mandatory" : "event.optional",
+      // LAN-265. Every event names a template, and the class on the row is that
+      // template's own — tagged on all of them rather than on a chosen few,
+      // because it is an invariant of the rekey and not a scenario.
+      "event.template.named",
       ...(spec.online ? ["event.online"] : []),
       ...(spec.groupId ? ["event.alternative"] : []),
       ...(spec.termCard ? ["event.term-card"] : []),
@@ -271,6 +307,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
         week_number: spec.termCard ? spec.week : null,
         name: spec.name,
         event_type: spec.eventType,
+        template_id: templateIdFor(spec.eventType),
         origin: spec.origin ?? (spec.eventType === "game" ? "negotiated" : "club_controlled"),
         status,
         scheduled_on: scheduledOn,

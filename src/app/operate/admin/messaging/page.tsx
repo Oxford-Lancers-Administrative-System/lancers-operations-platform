@@ -4,7 +4,6 @@ import { isServiceError } from "@/lib/db";
 import { listMessagingSchedulesWithPreview } from "@/lib/services/messaging-schedule";
 import { listRecruitmentCycleSteps } from "@/lib/services/recruitment-cycle";
 import { readOnboardingChaseSettings } from "@/lib/services/onboarding-chase";
-import { TYPE_LABELS, labelFor } from "@/lib/services/event-vocabulary";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import AdminPageHeading from "../page-heading";
@@ -28,11 +27,14 @@ import { RECRUIT_SCHEDULE_FIELDS, SCHEDULE_FIELDS } from "./validation";
  *
  * ## What survives from ADR 0021, unchanged
  *
- * Editable **per event type, never per event** — there is no event picker
+ * Editable **per template, never per event** — there is no event picker
  * anywhere on this page, because `public.messaging_schedules` has no event
- * column to point one at. The table is complete over `public.event_type`
- * with no default arm: every row already exists, from the migration, so this
- * page only ever updates a row and never creates or deletes one.
+ * column to point one at. The table is complete over `public.event_templates`
+ * with no default arm: a template's row is created with it and deleted with it
+ * (LAN-265), so this page only ever updates a row and never creates or deletes
+ * one. A template the club created a minute ago is already here, carrying
+ * `DEFAULT_MESSAGING_SCHEDULE`, which is the half of the decision that makes
+ * creating a template worth anything.
  *
  * ## The worked example is real arithmetic, not a second copy of it
  *
@@ -72,8 +74,9 @@ export default async function MessagingSchedulePage() {
             )
           : null;
       return {
+        templateId: schedule.templateId,
         eventType: schedule.eventType,
-        label: labelFor(TYPE_LABELS, schedule.eventType),
+        label: schedule.templateName,
         values,
         recruitValues,
         preview: buildSchedulePreview(preview, schedule),
@@ -92,7 +95,7 @@ export default async function MessagingSchedulePage() {
 
   return (
     <Stack spacing={3}>
-      <AdminPageHeading title={MESSAGING_SCHEDULE_TITLE} subtitle={`${rows.length} event types`} />
+      <AdminPageHeading title={MESSAGING_SCHEDULE_TITLE} subtitle={`${rows.length} templates`} />
 
       <Typography variant="body2" color="text.secondary">
         {MESSAGING_SCHEDULE_INTRO}

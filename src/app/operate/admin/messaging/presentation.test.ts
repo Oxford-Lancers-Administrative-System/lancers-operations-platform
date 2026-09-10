@@ -3,6 +3,8 @@ import { buildSchedulePreview, formatScheduleWhen } from "./presentation";
 import type { MessagingPlan, MessagingSchedule } from "@/lib/services/messaging-schedule";
 
 const SCHEDULE: MessagingSchedule = {
+  templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  templateName: "Practice",
   eventType: "practice",
   rsvpByDays: 2,
   invitationLeadDays: 5,
@@ -19,7 +21,7 @@ function planForSchedule(overrides: Partial<MessagingPlan> = {}): MessagingPlan 
   const invitationAt = new Date("2026-09-15T19:00:00Z");
   const responseDeadlineAt = new Date("2026-09-20T19:00:00Z");
   return {
-    eventType: SCHEDULE.eventType,
+    templateId: SCHEDULE.templateId,
     schedule: SCHEDULE,
     eventStartsAt: new Date("2026-09-22T19:00:00Z"),
     responseDeadlineAt,

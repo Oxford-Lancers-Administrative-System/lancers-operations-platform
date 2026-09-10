@@ -167,10 +167,63 @@ const TYPE_ALIASES: Readonly<Record<string, string>> = Object.freeze({
   meeting: "meeting",
 });
 
-/** The seven, as the refusal sentence lists them. */
+/** One spelling of a name or a token, compared the way a person would. */
+function normaliseTypeToken(value: string): string {
+  return trimmed(value).toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * The template a `type` cell names — LAN-265.
+ *
+ * Two passes, in this order and for two different reasons.
+ *
+ *   1. **By name.** After LAN-265 the club's templates are whatever it created,
+ *      and the only thing an operator can write in a spreadsheet is what the
+ *      template is called. "Kicking Clinic" has no token and never will.
+ *   2. **By class token.** `Practice`, `S&C`, `Chalk` and the rest are Brian's
+ *      own vocabulary from `W3` and are what `IMPORT_PROMPT` asks an outside
+ *      tool to produce. Keeping them means a file written last term still
+ *      imports after somebody renames a template — `Chalk` finds the chalk-class
+ *      template even once it reads "Film Review" on screen.
+ *
+ * Name first, so a template actually called "Practice" wins over the class token
+ * that happens to spell the same word. `null` where the cell matches neither,
+ * which is a per-row refusal naming what it read.
+ */
+function resolveTemplate(
+  token: string,
+  templates: readonly ImportableTemplate[],
+): ImportableTemplate | null {
+  const key = normaliseTypeToken(token);
+  if (key === "") return null;
+
+  const byName = templates.find((template) => normaliseTypeToken(template.name) === key);
+  if (byName) return byName;
+
+  const eventType = TYPE_ALIASES[key];
+  if (!eventType) return null;
+  return templates.find((template) => template.eventType === eventType) ?? null;
+}
+
+/**
+ * The seven shipped tokens, as the refusal sentence and the prompt list them.
+ *
+ * Still the seven, and still static, after LAN-265 — and that is a deliberately
+ * narrow claim. The `type` column accepts **any template's name** as well
+ * (`resolveTemplate`), which is what makes "Kicking Clinic" importable at all;
+ * what this list is for is telling an outside tool converting a fixture list
+ * what the club's standing vocabulary looks like, and telling an operator whose
+ * cell matched nothing what a recognised one reads like. A list of the club's
+ * current template names would be the better sentence, and it is not written
+ * here because `IMPORT_PROMPT` is a static versioned block an operator keeps a
+ * copy of.
+ */
 export const TYPE_TOKEN_LIST = DRAFTABLE_EVENT_TYPES.map((type) => CSV_TYPE_TOKENS[type]).join(
   ", ",
 );
+
+/** What a `type` cell may say, in the words a refusal uses. */
+const TYPE_CELL_EXPECTATION = `It must be one of your template names, or one of ${TYPE_TOKEN_LIST}.`;
 
 /** `yes` and `no`, and the spellings a spreadsheet substitutes for them. */
 const YES = new Set(["yes", "y", "true", "1"]);
@@ -253,9 +306,29 @@ export function importTemplateCsv(): string {
  * `events_joining_url_is_for_online_events` to reject at the last moment, and it
  * is carried through an update untouched.
  */
+/**
+ * A template the file's `type` column may name — LAN-265.
+ *
+ * The importer used to resolve a token straight to a `public.event_type` value,
+ * because the seven types were the seven templates. They are not any more, so
+ * the caller hands over what the club actually has and this module matches
+ * against it. `eventType` is still here as the second pass: a club that renamed
+ * "Chalk" to "Film Review" has a file somewhere that still says `Chalk`, and
+ * that file should go on meaning the template it always meant.
+ */
+export interface ImportableTemplate {
+  id: string;
+  name: string;
+  eventType: string;
+}
+
 export interface ImportableEvent {
   id: string;
   name: string;
+  /** LAN-265. What the row is compared and rewritten against. */
+  templateId: string;
+  /** The word the `type` column prints and the file may name it by. */
+  templateName: string;
   eventType: string;
   status: EventStatus;
   scheduledOn: string | null;
@@ -359,6 +432,8 @@ export interface PlanImportOptions {
   fileName?: string | null;
   /** Every event in the open season, cancelled ones included. */
   events: readonly ImportableEvent[];
+  /** Every template the club has — what the `type` column may name (LAN-265). */
+  templates: readonly ImportableTemplate[];
 }
 
 /**
@@ -402,7 +477,7 @@ export function planImport(options: PlanImportOptions): ImportPlanResult {
   for (const raw of parsed.rows.slice(1)) {
     line += 1;
     if (isEmptyCsvRow(raw)) continue;
-    rows.push(planRow(line, cellsOf(raw, header.index), byId, duplicated));
+    rows.push(planRow(line, cellsOf(raw, header.index), byId, duplicated, options.templates));
   }
 
   const totals: ImportTotals = { new: 0, updated: 0, unchanged: 0, refused: 0 };
@@ -537,6 +612,7 @@ function planRow(
   cells: Record<ImportColumn, string>,
   byId: ReadonlyMap<string, ImportableEvent>,
   duplicated: ReadonlySet<string>,
+  templates: readonly ImportableTemplate[],
 ): PlannedRow {
   const reasons: string[] = [];
   const rawId = trimmed(cells.id);
@@ -545,13 +621,11 @@ function planRow(
   // --- what each cell says, before anything is decided about the row --------
   const parsedName = said(cells.name) ? trimmed(cells.name) : null;
 
-  let parsedType: string | null = null;
+  let parsedTemplate: ImportableTemplate | null = null;
   if (said(cells.type)) {
-    const alias = TYPE_ALIASES[trimmed(cells.type).toLowerCase().replace(/\s+/g, " ")];
-    if (alias === undefined) {
-      reasons.push(`“type” reads “${trimmed(cells.type)}”. It must be one of ${TYPE_TOKEN_LIST}.`);
-    } else {
-      parsedType = alias;
+    parsedTemplate = resolveTemplate(cells.type, templates);
+    if (parsedTemplate === null) {
+      reasons.push(`“type” reads “${trimmed(cells.type)}”. ${TYPE_CELL_EXPECTATION}`);
     }
   }
 
@@ -598,17 +672,18 @@ function planRow(
         "A new row needs a name. Add one, or put back the id of the event you meant to change.",
       );
     }
-    if (parsedType === null) {
-      reasons.push(`A new row needs a type. It must be one of ${TYPE_TOKEN_LIST}.`);
+    if (parsedTemplate === null) {
+      reasons.push(`A new row needs a type. ${TYPE_CELL_EXPECTATION}`);
     }
     if (parsedStart !== null && parsedEnd !== null && parsedEnd <= parsedStart) {
       reasons.push(`“end” (${parsedEnd}) is not after “start” (${parsedStart}).`);
     }
     if (reasons.length > 0) return refused(line, displayName, null, cells, reasons);
 
-    const input: EventDraftInput = {
+    const input: PlannedInput = {
       name: parsedName as string,
-      eventType: parsedType as string,
+      templateId: (parsedTemplate as ImportableTemplate).id,
+      templateName: (parsedTemplate as ImportableTemplate).name,
       scheduledOn: parsedDate,
       startsAt: parsedStart,
       endsAt: parsedEnd,
@@ -639,9 +714,10 @@ function planRow(
   }
 
   // --- an existing event: blank leaves every field alone --------------------
-  const merged: EventDraftInput = {
+  const merged: PlannedInput = {
     name: parsedName ?? match.name,
-    eventType: parsedType ?? match.eventType,
+    templateId: parsedTemplate?.id ?? match.templateId,
+    templateName: parsedTemplate?.name ?? match.templateName,
     scheduledOn: parsedDate ?? match.scheduledOn,
     startsAt: parsedStart ?? match.startsAt,
     endsAt: parsedEnd ?? match.endsAt,
@@ -800,8 +876,12 @@ function valueOf(event: CompareShape, column: ImportColumn): string {
       return "";
     case "name":
       return event.name;
+    // LAN-265. The template's own name, not a class token: it is what the
+    // screens print, what `resolveTemplate` reads back, and the only value that
+    // survives a rename. An export re-imports unchanged because the name it
+    // wrote matches by name on the way back in.
     case "type":
-      return CSV_TYPE_TOKENS[event.eventType] ?? event.eventType;
+      return event.templateName;
     case "date":
       return event.scheduledOn ?? "";
     case "start":
@@ -821,9 +901,22 @@ function valueOf(event: CompareShape, column: ImportColumn): string {
   }
 }
 
+/**
+ * What one planned row will write, plus the one thing the table has to print
+ * that the write itself does not carry — LAN-265.
+ *
+ * `EventDraftInput` holds a `templateId`, because that is what
+ * `createEventDraft` needs; the `type` **column** shows the template's name.
+ * Rather than have the confirmation table look a name up per row, the row that
+ * resolved the template carries it here, so the value printed and the value
+ * written came from the same resolution.
+ */
+type PlannedInput = EventDraftInput & { templateName: string };
+
 interface CompareShape {
   name: string;
-  eventType: string;
+  /** LAN-265. The `type` column prints the template's name, so it compares it. */
+  templateName: string;
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -850,7 +943,7 @@ function blankCells(): Record<ImportColumn, PlanCell> {
   return cells;
 }
 
-function newCells(input: EventDraftInput): Record<ImportColumn, PlanCell> {
+function newCells(input: PlannedInput): Record<ImportColumn, PlanCell> {
   const cells = blankCells();
   for (const column of COMPARED_COLUMNS)
     cells[column] = { value: valueOf(input, column), previous: null };

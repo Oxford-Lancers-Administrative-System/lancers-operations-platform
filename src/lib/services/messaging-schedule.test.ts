@@ -43,14 +43,39 @@ afterAll(async () => {
  * therefore leaves a one-day gap ahead of the deadline until the club edits
  * it by hand.
  */
-const PRACTICE = { eventType: "practice", scheduledOn: "2026-10-18", startsAt: "20:00" };
+const PRACTICE = {
+  templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  scheduledOn: "2026-10-18",
+  startsAt: "20:00",
+};
 
 /** A game: RSVP seven days before, invitation ten days before. */
-const GAME = { eventType: "game", scheduledOn: "2026-10-18", startsAt: "14:00" };
+const GAME = {
+  templateId: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+  scheduledOn: "2026-10-18",
+  startsAt: "14:00",
+};
 
 function planFor(event: typeof PRACTICE, asOf: string) {
   return withTransaction((tx) => resolveMessagingPlanIn(tx, event, new Date(asOf)));
 }
+
+/**
+ * The seven templates the migration seeds, by behavioural class — LAN-265.
+ *
+ * `messaging_schedules` is keyed by `template_id` now, and these are the fixed
+ * literals `20260916090000_event_templates.sql` writes, so a test can name a
+ * template without reading it back.
+ */
+const TEMPLATE: Readonly<Record<string, string>> = {
+  practice: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  strength_and_conditioning: "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+  chalk: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+  game: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+  social: "8de00424-52a8-52ad-9c9f-a29823f9c4bf",
+  recruitment: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+  meeting: "660cdcb7-51e3-5a19-aaa2-08c5256af288",
+};
 
 describe("the deadline", () => {
   it("counts back from the event's own start, not from a fixed clock", async () => {
@@ -72,7 +97,11 @@ describe("the deadline", () => {
     const plan = await withTransaction((tx) =>
       resolveMessagingPlanIn(
         tx,
-        { eventType: "practice", scheduledOn: "2026-10-27", startsAt: "20:00" },
+        {
+          templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+          scheduledOn: "2026-10-27",
+          startsAt: "20:00",
+        },
         new Date("2026-10-01T09:00:00Z"),
       ),
     );
@@ -239,11 +268,15 @@ describe("escalation", () => {
     // afterwards.
     await withTransaction(async (tx) => {
       await tx.query(
-        "update public.messaging_schedules set escalation_hours = 0 where event_type = 'chalk'",
+        "update public.messaging_schedules set escalation_hours = 0 where template_id = 'b547e0b3-f48c-5601-9dc6-e8725fc434f9'",
       );
       const plan = await resolveMessagingPlanIn(
         tx,
-        { eventType: "chalk", scheduledOn: "2026-10-18", startsAt: "20:00" },
+        {
+          templateId: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+          scheduledOn: "2026-10-18",
+          startsAt: "20:00",
+        },
         new Date("2026-10-01T09:00:00Z"),
       );
       expect(plan.escalationAt?.toISOString()).toBe(plan.responseDeadlineAt.toISOString());
@@ -251,11 +284,11 @@ describe("escalation", () => {
       // back explicitly, in the same transaction, so this suite leaves the
       // club's configuration exactly as it found it.
       await tx.query(
-        "update public.messaging_schedules set escalation_hours = 12 where event_type = 'chalk'",
+        "update public.messaging_schedules set escalation_hours = 12 where template_id = 'b547e0b3-f48c-5601-9dc6-e8725fc434f9'",
       );
     });
 
-    const restored = await withTransaction((tx) => readMessagingScheduleIn(tx, "chalk"));
+    const restored = await withTransaction((tx) => readMessagingScheduleIn(tx, TEMPLATE.chalk));
     expect(restored.escalationHours).toBe(12);
   });
 });
@@ -290,9 +323,11 @@ describe("saving a schedule change, and the audit row that must accompany it", (
     }
   }
 
-  it("writes the schedule row and an audit row naming the actor, even though the row's own key is not a uuid", async () => {
+  it("writes the schedule row and an audit row naming the template it changed", async () => {
     await withAuditActor(async (actorPersonId) => {
-      const before = await withTransaction((tx) => readMessagingScheduleIn(tx, "recruitment"));
+      const before = await withTransaction((tx) =>
+        readMessagingScheduleIn(tx, TEMPLATE.recruitment),
+      );
       const restore: MessagingScheduleChange = {
         rsvpByDays: before.rsvpByDays,
         invitationLeadDays: before.invitationLeadDays,
@@ -308,12 +343,14 @@ describe("saving a schedule change, and the audit row that must accompany it", (
         // database — not mocked. This is exactly the call that used to roll
         // back silently.
         const updated = await withTransaction((tx) =>
-          updateMessagingScheduleIn(tx, actorPersonId, "recruitment", changed),
+          updateMessagingScheduleIn(tx, actorPersonId, TEMPLATE.recruitment, changed),
         );
         expect(updated.escalationHours).toBe(9);
 
         // The schedule row actually changed…
-        const reread = await withTransaction((tx) => readMessagingScheduleIn(tx, "recruitment"));
+        const reread = await withTransaction((tx) =>
+          readMessagingScheduleIn(tx, TEMPLATE.recruitment),
+        );
         expect(reread.escalationHours).toBe(9);
 
         // …and the audit row actually exists, naming the actor and carrying
@@ -340,19 +377,19 @@ describe("saving a schedule change, and the audit row that must accompany it", (
         expect(auditRow.actor_person_id).toBe(actorPersonId);
         expect(auditRow.action).toBe("messaging_schedule.changed");
         expect(auditRow.entity_table).toBe("messaging_schedules");
-        // Derived, deterministic, and a real uuid — not the literal
-        // "recruitment" that used to reach this uuid-typed column and be
-        // rejected by Postgres.
-        expect(auditRow.entity_id).toBe(
-          deriveEntityIdFromNaturalKey("messaging_schedules", "recruitment"),
-        );
+        // The template's own identifier. It used to be a UUIDv5 derived from
+        // the class, because the table's key was `public.event_type` and the
+        // literal "recruitment" reached this uuid-typed column and was rejected
+        // by Postgres (OWNER-LAN171-01). LAN-265 gave the table a real uuid key,
+        // so the audit row names the row it is about and the derivation is gone.
+        expect(auditRow.entity_id).toBe(TEMPLATE.recruitment);
         expect(auditRow.context.before.escalationHours).toBe(before.escalationHours);
         expect(auditRow.context.after.escalationHours).toBe(9);
       } finally {
         // Leave the club's configuration exactly as this suite found it —
         // `withTransaction` commits, so the restore has to be explicit.
         await withTransaction((tx) =>
-          updateMessagingScheduleIn(tx, actorPersonId, "recruitment", restore),
+          updateMessagingScheduleIn(tx, actorPersonId, TEMPLATE.recruitment, restore),
         );
       }
     });
@@ -372,16 +409,20 @@ describe("saving a schedule change, and the audit row that must accompany it", (
 });
 
 describe("the configuration itself", () => {
-  it("is complete over every event type, with no default arm", async () => {
+  it("is complete over every template, with no default arm", async () => {
+    // LAN-265 rekeyed this table from the enum to the template, and the rule
+    // got stronger rather than weaker: `messaging_schedules_pkey` on
+    // `template_id` and the cascading foreign key make a template with no
+    // cadence unrepresentable. So the walk is over the templates the club has,
+    // not over `public.event_type`.
     const rows = await withTransaction(async (tx) =>
-      tx.query<{ event_type: string }>(
-        `select unnest(enum_range(null::public.event_type))::text as event_type`,
-      ),
+      tx.query<{ id: string }>(`select id from public.event_templates order by lower(name)`),
     );
+    expect(rows.rows.length).toBeGreaterThanOrEqual(7);
 
-    for (const { event_type: eventType } of rows.rows) {
-      const schedule = await withTransaction((tx) => readMessagingScheduleIn(tx, eventType));
-      expect(schedule.eventType).toBe(eventType);
+    for (const { id: templateId } of rows.rows) {
+      const schedule = await withTransaction((tx) => readMessagingScheduleIn(tx, templateId));
+      expect(schedule.templateId).toBe(templateId);
       // `REQ-schedule-defaults`: cadence 24 hours, 2 WhatsApp and 1 email,
       // escalation 12 hours after the deadline, for every type.
       expect(schedule.reminderCadenceHours).toBe(24);
@@ -403,27 +444,34 @@ describe("the configuration itself", () => {
     }
   });
 
-  it("lists every schedule in the enum's own declared order, not alphabetically", async () => {
-    // A regression on its own right: the column list casts `event_type` to
-    // text for its output alias, and an unqualified `order by event_type`
-    // resolves against that same-named output alias rather than the
-    // underlying enum column — sorting "chalk, game, meeting, practice…"
-    // instead of the declared "practice, strength_and_conditioning, chalk,
-    // game…". LAN-171's settings page groups its rows in this order.
+  it("lists every schedule by the template's name, which is the only order a reader can check", async () => {
+    // It used to be `public.event_type`'s own declared order — "practice,
+    // strength_and_conditioning, chalk, game…" — which LAN-171's settings page
+    // grouped by. LAN-265 made the class no longer the identity: several
+    // templates may share one, and every row on that page is labelled with a
+    // name the club chose. So the order is the name's, and `lower()` keeps a
+    // capital letter from deciding a row's neighbourhood.
     const rows = await withTransaction((tx) => listMessagingSchedulesIn(tx));
 
-    expect(rows.map((row) => row.eventType)).toEqual([
-      "practice",
-      "strength_and_conditioning",
-      "chalk",
-      "game",
-      "social",
-      "recruitment",
-      "meeting",
+    expect(rows.map((row) => row.templateName)).toEqual([
+      "Chalk",
+      "Game",
+      "Meeting",
+      "Practice",
+      "Recruitment",
+      "Social",
+      "Strength and conditioning",
     ]);
   });
 
-  it("refuses an event type nobody has agreed a schedule for", async () => {
+  it("refuses a template nobody has agreed a schedule for", async () => {
+    // Two shapes of miss, one sentence. A well-formed identifier for a template
+    // that was deleted, and a value that is not an identifier at all — which
+    // used to reach the `uuid` column and come back as "the database could not
+    // complete this change".
+    await expect(
+      withTransaction((tx) => readMessagingScheduleIn(tx, "00000000-0000-4000-8000-000000000000")),
+    ).rejects.toThrowError(/No messaging schedule has been agreed/);
     await expect(
       withTransaction((tx) => readMessagingScheduleIn(tx, "kit_collection")),
     ).rejects.toThrowError(/No messaging schedule has been agreed/);
@@ -432,7 +480,11 @@ describe("the configuration itself", () => {
   it("refuses an event with no date, naming the fact that is missing", async () => {
     await expect(
       withTransaction((tx) =>
-        resolveMessagingPlanIn(tx, { eventType: "practice", scheduledOn: null, startsAt: "20:00" }),
+        resolveMessagingPlanIn(tx, {
+          templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+          scheduledOn: null,
+          startsAt: "20:00",
+        }),
       ),
     ).rejects.toThrowError(/needs a date/);
   });
@@ -444,7 +496,11 @@ describe("the configuration itself", () => {
     const plan = await withTransaction((tx) =>
       resolveMessagingPlanIn(
         tx,
-        { eventType: "practice", scheduledOn: "2026-10-18", startsAt: null },
+        {
+          templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+          scheduledOn: "2026-10-18",
+          startsAt: null,
+        },
         new Date("2026-10-01T09:00:00Z"),
       ),
     );
@@ -460,7 +516,11 @@ describe("no quiet hours", () => {
     const plan = await withTransaction((tx) =>
       resolveMessagingPlanIn(
         tx,
-        { eventType: "practice", scheduledOn: "2026-10-18", startsAt: "07:00" },
+        {
+          templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+          scheduledOn: "2026-10-18",
+          startsAt: "07:00",
+        },
         new Date("2026-10-01T09:00:00Z"),
       ),
     );
@@ -568,7 +628,7 @@ describe("the schedule page's worked example", () => {
     // rather than always reporting clean.
     await withTransaction((tx) =>
       tx.query(
-        "update public.messaging_schedules set invitation_lead_days = invitation_lead_days + 5 where event_type = 'practice'",
+        "update public.messaging_schedules set invitation_lead_days = invitation_lead_days + 5 where template_id = '7e34a764-7ed1-535e-8cef-73e00a62eafc'",
       ),
     );
 
@@ -597,12 +657,12 @@ describe("the schedule page's worked example", () => {
     } finally {
       await withTransaction((tx) =>
         tx.query(
-          "update public.messaging_schedules set invitation_lead_days = invitation_lead_days - 5 where event_type = 'practice'",
+          "update public.messaging_schedules set invitation_lead_days = invitation_lead_days - 5 where template_id = '7e34a764-7ed1-535e-8cef-73e00a62eafc'",
         ),
       );
     }
 
-    const restored = await withTransaction((tx) => readMessagingScheduleIn(tx, "practice"));
+    const restored = await withTransaction((tx) => readMessagingScheduleIn(tx, TEMPLATE.practice));
     expect(restored.invitationLeadDays).toBe(5);
   });
 });

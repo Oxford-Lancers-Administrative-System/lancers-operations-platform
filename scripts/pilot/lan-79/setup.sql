@@ -265,7 +265,7 @@ insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
    is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
-   approved_at, approved_by_person_id, response_deadline_at, decision_reason)
+   approved_at, approved_by_person_id, response_deadline_at, decision_reason, template_id)
 select
   event.id::uuid,
   (select id from public.seasons where status in ('open', 'active')),
@@ -282,7 +282,9 @@ select
   now(),
   '00790079-0079-4079-8079-000000000001',
   event.deadline_at::timestamptz,
-  event.decision_reason
+  event.decision_reason,
+  (select tpl.id from public.event_templates tpl
+    where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
 from (values
   -- The ordinary case: fourteen days ahead, deadline twelve days ahead.
   ('00790079-0079-4079-8079-000000000021',

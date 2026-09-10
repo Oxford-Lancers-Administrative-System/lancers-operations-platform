@@ -337,7 +337,7 @@ insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
    is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
-   approved_at, approved_by_person_id, response_deadline_at)
+   approved_at, approved_by_person_id, response_deadline_at, template_id)
 select
   scenario.id::uuid,
   (select id from public.seasons where status in ('open', 'active')),
@@ -353,7 +353,9 @@ select
   '01100110-0110-4110-8110-000000000003',
   now(),
   '01100110-0110-4110-8110-000000000003',
-  scenario.deadline_at::timestamptz
+  scenario.deadline_at::timestamptz,
+  (select tpl.id from public.event_templates tpl
+    where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
 from (values
   -- The one with the invitees and the contrasting RSVP answers. Two days ago,
   -- so it sits in **Earlier** with its register already open.

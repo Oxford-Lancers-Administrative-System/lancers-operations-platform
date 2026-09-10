@@ -1,13 +1,13 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-
 import { ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import { todayInClubZone } from "@/lib/club-time";
-import { DRAFTABLE_EVENT_TYPES, type EventDeliveryMode, type EventStatus } from "./event-input";
+import { UUID_PATTERN, type EventDeliveryMode, type EventStatus } from "./event-input";
+import { createMessagingScheduleIn, DEFAULT_MESSAGING_SCHEDULE } from "./messaging-schedule";
 import {
+  DEFAULT_TEMPLATE_CLASS,
   endTimeFromStart,
   type EventTemplateInput,
   type EventTypeFormDefaults,
@@ -65,13 +65,26 @@ import {
  * and the alternative, a per-field provenance marker on every event, is a schema
  * change this work package does not own.
  *
- * ## Everything else is a refusal
+ * ## Operators create, rename and delete templates — LAN-265
  *
- * There are exactly seven templates. None is created and none is deleted, which
- * is why `event_templates` is granted `select, update` and nothing else: adding
- * an eighth type is a change to the approved domain model and Brian's decision,
- * not an administrative act. `requireTemplateType` refuses an unknown type here
- * so the operator gets a sentence rather than an integrity error.
+ * This module used to say the opposite, and the reversal is Brian's, with Stu
+ * and Clint, on 2026-09-09: "A template is anything the operators want to
+ * create." There were exactly seven, none created and none deleted, which was
+ * why `event_templates` was granted `select, update` and nothing else — adding
+ * an eighth *type* was a change to the approved domain model. It still is: what
+ * LAN-265 separated is the **template**, which is an ordinary administrative
+ * act, from the **behavioural class** underneath it, which remains a migration
+ * and Brian's decision. Every template carries a class; nothing on any screen
+ * shows or chooses one, and anything an operator creates gets
+ * `DEFAULT_TEMPLATE_CLASS`.
+ *
+ * Three consequences run through the rest of this file. A template is read by
+ * its own `id` rather than by a class, so a rename cannot break a link.
+ * `createEventTemplate` writes the template, its messaging cadence and its
+ * settings row in one transaction, because a template that could be picked and
+ * would then refuse at approval fails in front of the wrong person.
+ * `deleteEventTemplate` refuses once any event names the template, because
+ * after LAN-265 the template's name is the only label an event has.
  *
  * ## And no timing of any kind
  *
@@ -82,13 +95,18 @@ import {
  */
 
 export {
+  DEFAULT_TEMPLATE_CLASS,
+  DEFAULT_TEMPLATE_COLOUR_KEY,
   describeDuration,
   endTimeFromStart,
+  TEMPLATE_COLOUR_PALETTE,
+  templateColourFor,
   validateEventTemplate,
   type EventTemplateInput,
   type EventTypeFormDefaults,
   type EventTemplateValidation,
   type RawEventTemplate,
+  type TemplateColourSwatch,
   type TemplateFieldIssue,
 } from "./event-template-input";
 
@@ -98,6 +116,13 @@ export {
 
 /** One template, as stored. Every value is optional — the template may not say. */
 export interface EventTemplate {
+  /** LAN-265. The identity, which survives a rename. */
+  id: string;
+  /** The club's own word for this kind of event, and the only label ever shown. */
+  name: string;
+  /** LAN-276 correction round 1. A key into `TEMPLATE_COLOUR_PALETTE`. */
+  colourKey: string;
+  /** The behavioural class underneath. Never shown to an operator. */
   eventType: string;
   defaultVenue: string | null;
   defaultDeliveryMode: EventDeliveryMode | null;
@@ -112,13 +137,27 @@ export interface EventTemplate {
   questions: EventQuestion[];
 }
 
-/** One row of the seven-row list — W8-01. */
+/** One row of the template list — W8-01, as LAN-265 reopened it. */
 export interface EventTemplateSummary {
+  id: string;
+  name: string;
+  /** LAN-276 correction round 1. A key into `TEMPLATE_COLOUR_PALETTE`. */
+  colourKey: string;
   eventType: string;
   audienceGroups: AudienceGroupKey[];
   defaultVenue: string | null;
   defaultDeliveryMode: EventDeliveryMode | null;
   questionCount: number;
+  /**
+   * How many events were ever created from this template.
+   *
+   * On the list so that **Delete** can be absent rather than present-and-
+   * refusing on a template the club has used: a control that is always there and
+   * usually says no teaches an operator to ignore it. The number is also the
+   * honest answer to "may I get rid of this one", which is the question somebody
+   * looking at a list of templates is actually asking.
+   */
+  eventCount: number;
 }
 
 /**
@@ -163,21 +202,18 @@ export function templateDefaults(template: {
 }
 
 export const TEMPLATE_NOT_FOUND_MESSAGE =
-  "There is no template for that kind of event. There are seven kinds of event and seven templates.";
+  "That template no longer exists. It may have been deleted while this page was open.";
 
-export const TEMPLATE_TYPE_RULE = "event_template_type_unknown";
-
-function requireTemplateType(eventType: string): void {
-  if (!DRAFTABLE_EVENT_TYPES.includes(eventType)) {
-    throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE });
-  }
-}
+export const TEMPLATE_TYPE_RULE = "event_template_unknown";
 
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
 
 interface TemplateRow {
+  id: string;
+  name: string;
+  colour_key: string;
   event_type: string;
   default_venue: string | null;
   default_delivery_mode: EventDeliveryMode | null;
@@ -205,54 +241,115 @@ function toTemplateShape(row: TemplateRow) {
   };
 }
 
-const TEMPLATE_COLUMNS = `event_type::text as event_type, default_venue,
+const TEMPLATE_COLUMNS = `id, name, colour_key, event_type::text as event_type, default_venue,
         default_delivery_mode::text as default_delivery_mode, default_duration_minutes,
         default_description, default_required_equipment, default_is_mandatory`;
 
-/** The seven templates, in the order the club lists its event types (D12). */
+/**
+ * Every template, in the club's own alphabetical order.
+ *
+ * By name, and not by `public.event_type`'s declared order, since LAN-265: the
+ * class is no longer the identity, several templates may share one, and an
+ * operator scanning a list they wrote themselves is looking for a word. `lower()`
+ * so "chalk" and "Chalk" cannot sort into two different neighbourhoods.
+ */
 export async function listEventTemplates(): Promise<EventTemplateSummary[]> {
   return withTransaction(async (tx) => {
     const templates = await tx.query<TemplateRow>(
-      `select ${TEMPLATE_COLUMNS} from public.event_templates`,
+      `select ${TEMPLATE_COLUMNS} from public.event_templates order by lower(name)`,
     );
-    const groups = await tx.query<{ event_type: string; audience_group: AudienceGroupKey }>(
-      `select event_type::text as event_type, audience_group::text as audience_group
+    const groups = await tx.query<{ template_id: string; audience_group: AudienceGroupKey }>(
+      `select template_id, audience_group::text as audience_group
          from public.event_template_audience_groups`,
     );
-    const counts = await tx.query<{ event_type: string; count: string }>(
-      `select event_type::text as event_type, count(*)::text as count
+    const counts = await tx.query<{ template_id: string; count: string }>(
+      `select template_id, count(*)::text as count
          from public.event_template_questions
-        group by event_type`,
+        group by template_id`,
+    );
+    const events = await tx.query<{ template_id: string; count: string }>(
+      `select template_id, count(*)::text as count from public.events group by template_id`,
     );
 
-    const byType = new Map(templates.rows.map((row) => [row.event_type, row] as const));
-    return DRAFTABLE_EVENT_TYPES.filter((type) => byType.has(type)).map((type) => {
-      const row = byType.get(type)!;
-      return {
-        eventType: type,
-        audienceGroups: orderedGroups(
-          type,
-          groups.rows.filter((group) => group.event_type === type).map((g) => g.audience_group),
-        ),
-        defaultVenue: row.default_venue,
-        defaultDeliveryMode: row.default_delivery_mode,
-        questionCount: Number(counts.rows.find((count) => count.event_type === type)?.count ?? "0"),
-      };
-    });
+    return templates.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      colourKey: row.colour_key,
+      eventType: row.event_type,
+      audienceGroups: orderedGroups(
+        row.event_type,
+        groups.rows.filter((group) => group.template_id === row.id).map((g) => g.audience_group),
+      ),
+      defaultVenue: row.default_venue,
+      defaultDeliveryMode: row.default_delivery_mode,
+      questionCount: Number(
+        counts.rows.find((count) => count.template_id === row.id)?.count ?? "0",
+      ),
+      eventCount: Number(events.rows.find((count) => count.template_id === row.id)?.count ?? "0"),
+    }));
+  });
+}
+
+/** Just enough of a template to offer it in a control — LAN-265. */
+export interface EventTemplateOption {
+  id: string;
+  name: string;
+}
+
+/**
+ * Every template as a pickable option, for the two list filters.
+ *
+ * Deliberately not `listEventTemplates`, which also counts questions and events
+ * and resolves each template's audience groups: the operator's Type filter and
+ * the public calendar's need a name and an id, and the public calendar in
+ * particular is a page `REQ-public-calendar` requires to render without touching
+ * anything it does not need.
+ */
+export async function listEventTemplateOptions(): Promise<EventTemplateOption[]> {
+  return withTransaction(async (tx) => {
+    const result = await tx.query<EventTemplateOption>(
+      "select id, name from public.event_templates order by lower(name)",
+    );
+    return result.rows;
+  });
+}
+
+/**
+ * How many events were ever created from this template — LAN-265.
+ *
+ * The number **Delete** is offered or withheld on. Its own read rather than a
+ * field on `EventTemplate`, because the editor is the one screen that needs it
+ * and every other reader of a template would be paying for a count over
+ * `public.events` it never looks at.
+ */
+export async function countEventsFromTemplate(templateId: string): Promise<number> {
+  if (!isUuid(templateId)) return 0;
+  return withTransaction(async (tx) => {
+    const result = await tx.query<{ count: string }>(
+      "select count(*)::text as count from public.events where template_id = $1::uuid",
+      [templateId],
+    );
+    return Number(result.rows[0].count);
   });
 }
 
 /** One template, with its questions and its default audience. */
-export async function readEventTemplate(eventType: string): Promise<EventTemplate> {
-  return withTransaction(async (tx) => readEventTemplateIn(tx, eventType));
+export async function readEventTemplate(templateId: string): Promise<EventTemplate> {
+  return withTransaction(async (tx) => readEventTemplateIn(tx, templateId));
 }
 
-export async function readEventTemplateIn(tx: Tx, eventType: string): Promise<EventTemplate> {
-  requireTemplateType(eventType);
+export async function readEventTemplateIn(tx: Tx, templateId: string): Promise<EventTemplate> {
+  // Checked before the parameter reaches PostgreSQL. `template_id` is a `uuid`,
+  // and a hand-typed route segment that is not one raises an invalid-input error
+  // rather than returning no rows — which would surface as "the database could
+  // not complete this change" instead of the sentence below.
+  if (!isUuid(templateId)) {
+    throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE });
+  }
 
   const result = await tx.query<TemplateRow>(
-    `select ${TEMPLATE_COLUMNS} from public.event_templates where event_type = $1::public.event_type`,
-    [eventType],
+    `select ${TEMPLATE_COLUMNS} from public.event_templates where id = $1::uuid`,
+    [templateId],
   );
   const row = result.rows[0];
   if (!row) throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE });
@@ -260,8 +357,8 @@ export async function readEventTemplateIn(tx: Tx, eventType: string): Promise<Ev
   const groups = await tx.query<{ audience_group: AudienceGroupKey }>(
     `select audience_group::text as audience_group
        from public.event_template_audience_groups
-      where event_type = $1::public.event_type`,
-    [eventType],
+      where template_id = $1::uuid`,
+    [templateId],
   );
 
   const questions = await tx.query<{
@@ -274,13 +371,16 @@ export async function readEventTemplateIn(tx: Tx, eventType: string): Promise<Ev
   }>(
     `select id, prompt, answer_type::text as answer_type, choices, is_required, sort_order
        from public.event_template_questions
-      where event_type = $1::public.event_type
+      where template_id = $1::uuid
       order by sort_order, prompt`,
-    [eventType],
+    [templateId],
   );
 
   return {
-    eventType,
+    id: row.id,
+    name: row.name,
+    colourKey: row.colour_key,
+    eventType: row.event_type,
     defaultVenue: row.default_venue,
     defaultDeliveryMode: row.default_delivery_mode,
     defaultDurationMinutes: row.default_duration_minutes,
@@ -288,7 +388,7 @@ export async function readEventTemplateIn(tx: Tx, eventType: string): Promise<Ev
     defaultRequiredEquipment: row.default_required_equipment,
     defaultIsMandatory: row.default_is_mandatory,
     audienceGroups: orderedGroups(
-      eventType,
+      row.event_type,
       groups.rows.map((group) => group.audience_group),
     ),
     questions: questions.rows.map((question) => ({
@@ -331,6 +431,8 @@ function orderedGroups(eventType: string, stored: readonly string[]): AudienceGr
  * the reads would produce an event assembled from two different templates.
  */
 export interface NewEventInheritance {
+  /** The class the event takes from its template, which it never chooses itself. */
+  eventType: string;
   defaults: TemplateDefaults;
   questions: EventQuestionInput[];
   audienceGroups: AudienceGroupKey[];
@@ -338,47 +440,55 @@ export interface NewEventInheritance {
 
 export async function readTemplateInheritanceIn(
   tx: Tx,
-  eventType: string,
+  templateId: string,
 ): Promise<NewEventInheritance> {
-  const template = await readEventTemplateIn(tx, eventType);
+  const template = await readEventTemplateIn(tx, templateId);
   return {
+    eventType: template.eventType,
     defaults: templateDefaults(template),
-    questions: await readTemplateQuestionsAsEventInputIn(tx, eventType),
+    questions: await readTemplateQuestionsAsEventInputIn(tx, templateId),
     audienceGroups: template.audienceGroups,
   };
 }
 
 /**
- * The seven templates in the shape the create-and-edit form fills itself from.
+ * Every template in the shape the create-and-edit form fills itself from.
  *
- * All seven at once, and not one, because the form's Type control changes which
- * template applies while the operator is typing. D41's rule then has to run in
- * the browser — a field nobody has touched takes the new type's value, a field
- * somebody wrote keeps what they wrote — and it cannot do that with a round trip
- * for every change of a select.
+ * All of them at once, and not one, because the form's Template control changes
+ * which template applies while the operator is typing. D41's rule then has to run
+ * in the browser — a field nobody has touched takes the new template's value, a
+ * field somebody wrote keeps what they wrote — and it cannot do that with a round
+ * trip for every change of a select.
+ *
+ * Keyed by template id, and each entry carries its own `name`, because after
+ * LAN-265 the key is not something a screen can print and the name is the only
+ * thing it ever prints.
  */
 export async function readEventFormDefaults(): Promise<Record<string, EventTypeFormDefaults>> {
   return withTransaction(async (tx) => {
     const templates = await tx.query<TemplateRow>(
-      `select ${TEMPLATE_COLUMNS} from public.event_templates`,
+      `select ${TEMPLATE_COLUMNS} from public.event_templates order by lower(name)`,
     );
     const questions = await tx.query<{
-      event_type: string;
+      template_id: string;
       prompt: string;
       answer_type: string;
       choices: string[] | null;
       is_required: boolean;
     }>(
-      `select event_type::text as event_type, prompt, answer_type::text as answer_type,
+      `select template_id, prompt, answer_type::text as answer_type,
               choices, is_required
          from public.event_template_questions
-        order by event_type, sort_order, prompt`,
+        order by template_id, sort_order, prompt`,
     );
 
     const defaults: Record<string, EventTypeFormDefaults> = {};
     for (const row of templates.rows) {
       const resolved = templateDefaults(toTemplateShape(row));
-      defaults[row.event_type] = {
+      defaults[row.id] = {
+        id: row.id,
+        name: row.name,
+        eventType: row.event_type,
         deliveryMode: resolved.deliveryMode,
         venue: resolved.venue ?? "",
         description: resolved.description ?? "",
@@ -386,7 +496,7 @@ export async function readEventFormDefaults(): Promise<Record<string, EventTypeF
         attendance: resolved.isMandatory ? "mandatory" : "optional",
         durationMinutes: resolved.durationMinutes,
         questions: questions.rows
-          .filter((question) => question.event_type === row.event_type)
+          .filter((question) => question.template_id === row.id)
           .map((question) => ({
             prompt: question.prompt,
             answerType: question.answer_type,
@@ -465,7 +575,12 @@ export interface DraftHoldingItsOwn {
  * the sentence the operator reads and the rows that move cannot disagree.
  */
 export interface TemplateChangePlan {
+  templateId: string;
+  /** The name as it stands after the change — what the confirmation calls it. */
+  name: string;
   eventType: string;
+  /** LAN-265. `null` unless the operator renamed it, in which case the old name. */
+  renamedFrom: string | null;
   fieldChanges: TemplateFieldChange[];
   questionChanges: TemplateQuestionChange[];
   /** The default audience, before and after, as group labels. */
@@ -596,32 +711,32 @@ const COLUMN_OF: Readonly<Record<InheritedField, string>> = Object.freeze({
  * untouched on a value it no longer holds, and the edit would be overwritten —
  * which is the exact destruction this rule exists to prevent.
  */
-async function lockAffectedDraftsIn(tx: Tx, eventType: string, today: string) {
+async function lockAffectedDraftsIn(tx: Tx, templateId: string, today: string) {
   const result = await tx.query<DraftRow>(
     `select id, name, scheduled_on, starts_at::text as starts_at, ends_at::text as ends_at,
             delivery_mode::text as delivery_mode, venue, description, required_equipment,
             is_mandatory, season_id, status::text as status
        from public.events
-      where event_type = $1::public.event_type
+      where template_id = $1::uuid
         and status = 'draft'
         and (scheduled_on is null or scheduled_on >= $2::date)
       order by scheduled_on nulls last, name
         for update`,
-    [eventType, today],
+    [templateId, today],
   );
   return result.rows;
 }
 
 /** The two "nothing else changes" counts W8-03 states beside the change. */
-async function countUntouchedIn(tx: Tx, eventType: string, today: string) {
+async function countUntouchedIn(tx: Tx, templateId: string, today: string) {
   const result = await tx.query<{ approved: string; past: string }>(
     `select count(*) filter (where status <> 'draft')::text as approved,
             count(*) filter (where status = 'draft'
                                and scheduled_on is not null
                                and scheduled_on < $2::date)::text as past
        from public.events
-      where event_type = $1::public.event_type`,
-    [eventType, today],
+      where template_id = $1::uuid`,
+    [templateId, today],
   );
   return {
     approved: Number(result.rows[0].approved),
@@ -654,25 +769,27 @@ function sameQuestion(
  */
 async function planOrApply(
   tx: Tx,
-  eventType: string,
+  templateId: string,
   input: EventTemplateInput,
   questions: readonly EventQuestionInput[],
   apply: boolean,
 ): Promise<TemplateChangePlan> {
-  requireTemplateType(eventType);
+  if (!isUuid(templateId)) {
+    throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE });
+  }
 
   // The template row is locked first, so two operators saving the same template
   // at once are serialized rather than each deciding from the other's "before".
-  const locked = await tx.query<{ event_type: string }>(
-    `select event_type from public.event_templates
-      where event_type = $1::public.event_type for update`,
-    [eventType],
+  const locked = await tx.query<{ id: string }>(
+    `select id from public.event_templates where id = $1::uuid for update`,
+    [templateId],
   );
   if (locked.rowCount === 0) {
     throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE });
   }
 
-  const before = await readEventTemplateIn(tx, eventType);
+  const before = await readEventTemplateIn(tx, templateId);
+  const eventType = before.eventType;
   const beforeDefaults = templateDefaults(before);
   const afterDefaults = templateDefaults({
     defaultVenue: input.defaultVenue,
@@ -691,7 +808,7 @@ async function planOrApply(
   }
 
   const today = todayInClubZone();
-  const drafts = await lockAffectedDraftsIn(tx, eventType, today);
+  const drafts = await lockAffectedDraftsIn(tx, templateId, today);
 
   // --- which scalar fields moved, and which drafts still hold the old default
   const movedFields: InheritedField[] = [];
@@ -829,16 +946,20 @@ async function planOrApply(
   if (apply) {
     await tx.query(
       `update public.event_templates
-          set default_venue = $2,
-              default_delivery_mode = $3::public.event_delivery_mode,
-              default_duration_minutes = $4,
-              default_description = $5,
-              default_required_equipment = $6,
-              default_is_mandatory = $7,
+          set name = $2,
+              colour_key = $3,
+              default_venue = $4,
+              default_delivery_mode = $5::public.event_delivery_mode,
+              default_duration_minutes = $6,
+              default_description = $7,
+              default_required_equipment = $8,
+              default_is_mandatory = $9,
               updated_at = now()
-        where event_type = $1::public.event_type`,
+        where id = $1::uuid`,
       [
-        eventType,
+        templateId,
+        input.name,
+        input.colourKey,
         input.defaultVenue,
         input.defaultDeliveryMode,
         input.defaultDurationMinutes,
@@ -849,28 +970,28 @@ async function planOrApply(
     );
 
     await tx.query(
-      "delete from public.event_template_audience_groups where event_type = $1::public.event_type",
-      [eventType],
+      "delete from public.event_template_audience_groups where template_id = $1::uuid",
+      [templateId],
     );
     for (const group of audienceGroups) {
       await tx.query(
-        `insert into public.event_template_audience_groups (event_type, audience_group)
-         values ($1::public.event_type, $2::public.audience_group)`,
-        [eventType, group],
+        `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
+         values ($1::uuid, $2::public.event_type, $3::public.audience_group)`,
+        [templateId, eventType, group],
       );
     }
 
-    await tx.query(
-      "delete from public.event_template_questions where event_type = $1::public.event_type",
-      [eventType],
-    );
+    await tx.query("delete from public.event_template_questions where template_id = $1::uuid", [
+      templateId,
+    ]);
     for (const [index, question] of questions.entries()) {
       await tx.query(
         `insert into public.event_template_questions
-           (event_type, prompt, answer_type, choices, is_required, sort_order)
-         values ($1::public.event_type, $2, $3::public.question_answer_type, $4::text[], $5,
-                 $6::smallint)`,
+           (template_id, event_type, prompt, answer_type, choices, is_required, sort_order)
+         values ($1::uuid, $2::public.event_type, $3, $4::public.question_answer_type, $5::text[],
+                 $6, $7::smallint)`,
         [
+          templateId,
           eventType,
           question.prompt,
           question.answerType,
@@ -883,14 +1004,20 @@ async function planOrApply(
   }
 
   return {
+    templateId,
+    name: input.name,
     eventType,
+    // Compared case-sensitively, so correcting "Chalk" to "chalk" still reads as
+    // a rename on the confirmation. It is one: the club will see the new casing
+    // everywhere, including on last term's sessions.
+    renamedFrom: before.name === input.name ? null : before.name,
     fieldChanges,
     questionChanges,
     audienceBefore: labelsFor(eventType, before.audienceGroups),
     audienceAfter: labelsFor(eventType, audienceGroups),
     taking,
     holding,
-    untouched: await countUntouchedIn(tx, eventType, today),
+    untouched: await countUntouchedIn(tx, templateId, today),
   };
 }
 
@@ -1068,17 +1195,34 @@ async function replaceDraftAudienceIn(
  * `saveEventTemplate` recomputes everything under fresh ones.
  */
 export async function planEventTemplateChange(
-  eventType: string,
+  templateId: string,
   input: EventTemplateInput,
   questions: readonly EventQuestionInput[],
 ): Promise<TemplateChangePlan> {
   return withTransaction(async (tx) => {
-    const plan = await planOrApply(tx, eventType, input, questions, false);
+    const plan = await planOrApply(tx, templateId, input, questions, false);
     return plan;
   });
 }
 
 export const TEMPLATE_SAVED_ACTION = "event_template.updated";
+export const TEMPLATE_CREATED_ACTION = "event_template.created";
+export const TEMPLATE_DELETED_ACTION = "event_template.deleted";
+
+export const TEMPLATE_IN_USE_RULE = "event_template_in_use";
+
+/**
+ * A name two templates cannot share is refused by the database, not here.
+ *
+ * `event_templates_name_unique` is a case-insensitive unique index, and
+ * `src/lib/db/errors.ts` turns it into the club's own sentence, as it does for
+ * every other named constraint — that module's own note is explicit that no
+ * other layer should be reading constraint names. A pre-check here would be a
+ * second opinion that is sometimes wrong: two operators can each be holding a
+ * form that says "Kicking Clinic", and the index is the only place that is
+ * decided.
+ */
+export const TEMPLATE_NAME_TAKEN_RULE = "event_templates_name_unique";
 
 /**
  * Saves the template and updates every draft the rule reaches, in one
@@ -1091,22 +1235,29 @@ export const TEMPLATE_SAVED_ACTION = "event_template.updated";
  */
 export async function saveEventTemplate(
   actorPersonId: string,
-  eventType: string,
+  templateId: string,
   input: EventTemplateInput,
   questions: readonly EventQuestionInput[],
 ): Promise<TemplateChangePlan> {
   requireActor(actorPersonId);
 
   return withTransaction(async (tx) => {
-    const plan = await planOrApply(tx, eventType, input, questions, true);
+    const plan = await planOrApply(tx, templateId, input, questions, true);
 
     await recordAudit(tx, {
       actorPersonId,
       action: TEMPLATE_SAVED_ACTION,
       entityTable: "event_templates",
-      entityId: templateEntityId(eventType),
+      entityId: templateId,
       context: {
-        eventType,
+        name: plan.name,
+        // LAN-265. A rename is retroactive across every event ever created from
+        // this template, so the ledger records what the club used to call it —
+        // otherwise the only record of the old word is in people's memories, and
+        // "why does last term's chalk say Film Review" has no answer.
+        renamedFrom: plan.renamedFrom,
+        colourKey: input.colourKey,
+        eventType: plan.eventType,
         fieldsChanged: plan.fieldChanges.map((change) => change.field),
         questionsChanged: plan.questionChanges.length,
         audienceGroups: input.audienceGroups,
@@ -1121,27 +1272,208 @@ export async function saveEventTemplate(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Creating and deleting a template — LAN-265
+// ---------------------------------------------------------------------------
+
 /**
- * The audit ledger's identifier for one template.
+ * Creates a template, and the messaging cadence that makes it usable.
  *
- * `audit_events.entity_id` is a `uuid not null` and `event_templates` has no
- * surrogate key — its identity *is* the event type, because there are exactly
- * seven and nobody creates one. Rather than add a column to a table this work
- * package does not own, the type name is hashed into a stable UUID: every audit
- * row about the Practice template shares one id, `context.eventType` names it in
- * plain words, and nothing anywhere treats the value as a foreign key. The audit
- * table is explicitly polymorphic and explicitly not a foreign key, which is
- * what makes this legitimate rather than a fiction.
+ * Brian, 2026-09-09: "Creating a template also creates its messaging cadence,
+ * which starts from a default cadence and can then be edited on the Messaging
+ * schedule screen like the seven existing ones."
+ *
+ * All three rows in one transaction, and that is the whole design. A template
+ * without a `messaging_schedules` row could be picked on the create form and
+ * would then refuse at approval, naming a table no operator has heard of — the
+ * failure would land on whoever approved next Wednesday's session rather than on
+ * whoever created the template, days later and on a different screen. The
+ * primary key and the cascading foreign key added by
+ * `20260916090000_event_templates.sql` make the pairing structural; this
+ * function is what keeps it true at the moment of creation.
+ *
+ * The new template arrives empty of defaults. Nothing is copied from another
+ * template: "Kicking Clinic" is not a variant of Practice, and pre-filling it
+ * with Practice's venue and questions would put words in the operator's mouth on
+ * a screen whose whole purpose is that they get to choose.
  */
-export function templateEntityId(eventType: string): string {
-  const digest = createHash("md5").update(`event_template:${eventType}`).digest("hex");
-  return [
-    digest.slice(0, 8),
-    digest.slice(8, 12),
-    digest.slice(12, 16),
-    digest.slice(16, 20),
-    digest.slice(20, 32),
-  ].join("-");
+export async function createEventTemplate(
+  actorPersonId: string,
+  input: EventTemplateInput,
+  questions: readonly EventQuestionInput[] = [],
+): Promise<EventTemplate> {
+  requireActor(actorPersonId);
+
+  return withTransaction(async (tx) => {
+    const eventType = DEFAULT_TEMPLATE_CLASS;
+
+    const inserted = await tx.query<{ id: string }>(
+      `insert into public.event_templates
+           (name, colour_key, event_type, default_venue, default_delivery_mode,
+            default_duration_minutes, default_description, default_required_equipment,
+            default_is_mandatory)
+         values ($1, $2, $3::public.event_type, $4, $5::public.event_delivery_mode, $6, $7, $8, $9)
+         returning id`,
+      [
+        input.name,
+        input.colourKey,
+        eventType,
+        input.defaultVenue,
+        input.defaultDeliveryMode,
+        input.defaultDurationMinutes,
+        input.defaultDescription,
+        input.defaultRequiredEquipment,
+        input.defaultIsMandatory,
+      ],
+    );
+
+    const templateId = inserted.rows[0].id;
+
+    const audienceGroups = orderedGroups(eventType, input.audienceGroups);
+    if (audienceGroups.length !== input.audienceGroups.length) {
+      throw new ConstraintViolated("One of those groups is not offered for this kind of event.", {
+        rule: "event_template_audience_group_not_offered",
+      });
+    }
+    for (const group of audienceGroups) {
+      await tx.query(
+        `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
+         values ($1::uuid, $2::public.event_type, $3::public.audience_group)`,
+        [templateId, eventType, group],
+      );
+    }
+
+    for (const [index, question] of questions.entries()) {
+      await tx.query(
+        `insert into public.event_template_questions
+           (template_id, event_type, prompt, answer_type, choices, is_required, sort_order)
+         values ($1::uuid, $2::public.event_type, $3, $4::public.question_answer_type, $5::text[],
+                 $6, $7::smallint)`,
+        [
+          templateId,
+          eventType,
+          question.prompt,
+          question.answerType,
+          question.answerType === "choice" ? question.choices : null,
+          question.isRequired,
+          index,
+        ],
+      );
+    }
+
+    await createMessagingScheduleIn(tx, templateId, eventType);
+    await createEventTypeSettingsIn(tx, templateId, eventType);
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: TEMPLATE_CREATED_ACTION,
+      entityTable: "event_templates",
+      entityId: templateId,
+      context: {
+        name: input.name,
+        colourKey: input.colourKey,
+        eventType,
+        audienceGroups,
+        questionCount: questions.length,
+        messagingSchedule: DEFAULT_MESSAGING_SCHEDULE,
+        chaseThresholdDays: DEFAULT_CHASE_THRESHOLD_DAYS,
+      },
+    });
+
+    return readEventTemplateIn(tx, templateId);
+  });
+}
+
+/**
+ * D75, D77's chase threshold for a template the club has just invented.
+ *
+ * Two days, which is what six of the seven shipped rows say and what the
+ * migration calls "the routine events". A game's seven and a social's five are
+ * decisions about a game and a social, not about an unnamed new kind of event.
+ */
+export const DEFAULT_CHASE_THRESHOLD_DAYS = 2;
+
+async function createEventTypeSettingsIn(
+  tx: Tx,
+  templateId: string,
+  eventType: string,
+): Promise<void> {
+  await tx.query(
+    `insert into public.event_type_settings (template_id, event_type, chase_threshold_days)
+     values ($1::uuid, $2::public.event_type, $3)`,
+    [templateId, eventType, DEFAULT_CHASE_THRESHOLD_DAYS],
+  );
+}
+
+export const TEMPLATE_DELETE_REFUSAL =
+  "Events have already been created from this template, so it cannot be deleted. " +
+  "Rename it instead — the new name reaches every one of them.";
+
+/**
+ * Deletes a template nothing was ever created from.
+ *
+ * "Delete when unused" is the whole rule, and the reason is what a name is for
+ * after LAN-265: an event's label is read from its template, so a deleted
+ * template would leave its events with nothing to be called. The refusal names
+ * the alternative, because renaming is exactly what somebody trying to delete a
+ * template they no longer use probably wants — and unlike deleting, it is free
+ * and reaches everything.
+ *
+ * The count and the delete are one statement's apart inside one transaction, and
+ * `events_template_fkey`'s `on delete restrict` is the backstop underneath: an
+ * event created between the check and the delete makes the delete fail rather
+ * than orphan it.
+ */
+export async function deleteEventTemplate(
+  actorPersonId: string,
+  templateId: string,
+): Promise<EventTemplate> {
+  requireActor(actorPersonId);
+
+  return withTransaction(async (tx) => {
+    const template = await readEventTemplateIn(tx, templateId);
+
+    const used = await tx.query<{ count: string }>(
+      "select count(*)::text as count from public.events where template_id = $1::uuid",
+      [templateId],
+    );
+    if (Number(used.rows[0].count) > 0) {
+      throw new ConstraintViolated(TEMPLATE_DELETE_REFUSAL, { rule: TEMPLATE_IN_USE_RULE });
+    }
+
+    // The questions, the default audience, the messaging schedule and the
+    // settings row all carry `on delete cascade`, so this one statement takes
+    // the whole template with it. Written as one delete rather than five, so
+    // that a table added to the template later cannot be forgotten here.
+    await tx.query("delete from public.event_templates where id = $1::uuid", [templateId]);
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: TEMPLATE_DELETED_ACTION,
+      entityTable: "event_templates",
+      entityId: templateId,
+      context: {
+        name: template.name,
+        eventType: template.eventType,
+        questionCount: template.questions.length,
+        audienceGroups: template.audienceGroups,
+      },
+    });
+
+    return template;
+  });
+}
+
+/**
+ * Whether a route segment can be a `uuid` at all.
+ *
+ * The pattern is `event-input.ts`'s, not a second copy: the only job here is to
+ * keep a hand-typed URL from reaching a `uuid` parameter, where PostgreSQL would
+ * raise an invalid-input error that surfaces as "the database could not complete
+ * this change" rather than as "that template no longer exists".
+ */
+function isUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
 }
 
 const requireActor = actorRequirement("A template change has to name the operator who made it.");

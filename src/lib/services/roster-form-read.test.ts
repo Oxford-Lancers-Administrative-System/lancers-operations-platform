@@ -162,9 +162,11 @@ beforeAll(async () => {
     // approver and an explicitly confirmed audience.
     `insert into public.events
        (season_id, name, event_type, status, scheduled_on, delivery_mode, is_mandatory,
-        approved_at, approved_by_person_id, audience_confirmed_at, audience_confirmed_by_person_id)
+        approved_at, approved_by_person_id, audience_confirmed_at, audience_confirmed_by_person_id,
+        template_id)
      values ($1::uuid, $2, 'game', 'approved', current_date + 7, 'in_person', true,
-             now(), $3::uuid, now(), $3::uuid)
+             now(), $3::uuid, now(), $3::uuid,
+             (select tpl.id from public.event_templates tpl where tpl.event_type = 'game' order by lower(tpl.name) limit 1))
      returning id`,
     [seasonId, `${MARKER} vs Fictional Opposition`, actorPersonId],
   );

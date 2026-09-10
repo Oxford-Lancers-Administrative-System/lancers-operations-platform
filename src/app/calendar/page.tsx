@@ -7,7 +7,7 @@ import { CALENDAR_DESCRIPTION, publicPageMetadata } from "@/lib/brand";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import { bucketEventsByPeriod, bucketedCount, PERIOD_LABELS } from "@/lib/services/event-periods";
-import { DRAFTABLE_EVENT_TYPES } from "@/lib/services/event-input";
+import { listEventTemplateOptions, type EventTemplateOption } from "@/lib/services/event-templates";
 import {
   listPublicSeasonEvents,
   PUBLIC_EVENT_SORT_COLUMNS,
@@ -68,13 +68,20 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
   const today = todayInClubZone();
 
   let list: PublicEventList;
+  let templates: EventTemplateOption[];
   try {
-    list = await listPublicSeasonEvents({
-      search: query.search,
-      eventType: query.eventType,
-      sort: query.sort,
-      direction: query.direction,
-    });
+    [list, templates] = await Promise.all([
+      listPublicSeasonEvents({
+        search: query.search,
+        templateId: query.templateId,
+        sort: query.sort,
+        direction: query.direction,
+      }),
+      // LAN-265. The Type filter offers the club's own templates by name, so it
+      // has to read them; the seven-value enum it used to offer is no longer
+      // what any of these events is called.
+      listEventTemplateOptions(),
+    ]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -142,9 +149,9 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
         />
 
         <PublicFilters
-          types={DRAFTABLE_EVENT_TYPES}
+          templates={templates}
           search={query.search}
-          eventType={query.eventType}
+          templateId={query.templateId}
           sort={query.sort}
           direction={query.direction}
           sortColumns={PUBLIC_SORT_OPTIONS}

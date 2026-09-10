@@ -172,8 +172,9 @@ describe("invariant P7 — all five states are derivable", () => {
       client,
       `insert into public.events
          (season_id, name, event_type, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', now(), $2, now(), $2)
+          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
+       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', now(), $2, now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'meeting' order by lower(tpl.name) limit 1))
        returning id`,
       [base.seasonId, base.personId],
     );
@@ -411,8 +412,9 @@ describe("invariant E1 — what the database proves, and what it does not", () =
     await expectRejected(
       client,
       `insert into public.events
-         (season_id, name, event_type, status, scheduled_on, approved_at, approved_by_person_id)
-       values ($1, 'No confirmation', 'practice', 'approved', '2026-11-04', now(), $2)`,
+         (season_id, name, event_type, status, scheduled_on, approved_at, approved_by_person_id, template_id)
+       values ($1, 'No confirmation', 'practice', 'approved', '2026-11-04', now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
       [base.seasonId, base.personId],
       "events_approval_requires_date_and_audience",
     );
@@ -430,9 +432,10 @@ describe("invariant E1 — what the database proves, and what it does not", () =
       client,
       `insert into public.events
          (season_id, name, event_type, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
        values ($1, 'Approved with an empty audience', 'practice', 'approved', '2026-11-04',
-               now(), $2, now(), $2)`,
+               now(), $2, now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
       [base.seasonId, base.personId],
     );
 

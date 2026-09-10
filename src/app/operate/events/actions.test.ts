@@ -119,7 +119,9 @@ function draftForm(overrides: Record<string, string> = {}): FormData {
   const form = new FormData();
   const fields: Record<string, string> = {
     name: "Wednesday practice",
-    eventType: "practice",
+    // LAN-265. The form posts a template, not a class: the class is read off
+    // the template inside the transaction that writes the row.
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",

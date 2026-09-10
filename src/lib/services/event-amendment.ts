@@ -294,7 +294,7 @@ export async function readAmendmentContext(eventId: string): Promise<AmendmentCo
           and status in ('pending', 'ready', 'failed')`,
       [eventId],
     );
-    const days = await readChaseThresholdDaysIn(tx, event.eventType);
+    const days = await readChaseThresholdDaysIn(tx, event.templateId);
     const history = await readEventChangeHistoryIn(tx, eventId);
 
     return {
@@ -310,21 +310,21 @@ export async function readAmendmentContext(eventId: string): Promise<AmendmentCo
 }
 
 /**
- * D75 and D77's per-type threshold, as stored.
+ * D75 and D77's threshold, as stored — per template since LAN-265.
  *
- * `event_type_settings` has one row for every one of the seven types, created
- * by LAN-151's migration and never created or deleted by an operator, so a
- * missing row is a schema fault rather than a state. It is still defended
- * against here, because returning a silent zero would make the recomputed
- * threshold read as "chase on the day", which is a plausible-looking wrong
- * answer rather than an obvious one.
+ * `event_type_settings` has one row for every template, created with it by
+ * `createEventTemplate` and deleted with it by the cascade, so a missing row is
+ * a schema fault rather than a state. It is still defended against here, because
+ * returning a silent zero would make the recomputed threshold read as "chase on
+ * the day", which is a plausible-looking wrong answer rather than an obvious
+ * one.
  */
-async function readChaseThresholdDaysIn(tx: Tx, eventType: string): Promise<number> {
+async function readChaseThresholdDaysIn(tx: Tx, templateId: string): Promise<number> {
   const result = await tx.query<{ days: number }>(
     `select chase_threshold_days as days
        from public.event_type_settings
-      where event_type = $1::public.event_type`,
-    [eventType],
+      where template_id = $1::uuid`,
+    [templateId],
   );
   const row = result.rows[0];
   if (!row) {
@@ -538,19 +538,22 @@ export async function amendApprovedEvent(
     // second refuses an amendment that raced a cancellation, rather than
     // resurrecting a cancelled event by writing its fields.
     const updated = await tx.query<{ id: string }>(
+      // Neither `template_id` nor `event_type` is in the set list, since
+      // LAN-265: an amendment cannot change what kind of event this is (see
+      // `AMENDABLE_FIELDS`), and the two columns are held equal to the
+      // template's own row by `events_template_fkey`.
       `update public.events
-          set name = $2, event_type = $3::public.event_type,
-              scheduled_on = $4, starts_at = $5::time, ends_at = $6::time,
-              delivery_mode = $7::public.event_delivery_mode, venue = $8,
-              description = $9, required_equipment = $10, joining_url = $11,
-              term_id = $12, week_number = $13, is_mandatory = $14,
+          set name = $2,
+              scheduled_on = $3, starts_at = $4::time, ends_at = $5::time,
+              delivery_mode = $6::public.event_delivery_mode, venue = $7,
+              description = $8, required_equipment = $9, joining_url = $10,
+              term_id = $11, week_number = $12, is_mandatory = $13,
               updated_at = now()
         where id = $1 and status = 'approved'
        returning id`,
       [
         eventId,
         applied.name,
-        applied.eventType,
         applied.scheduledOn,
         applied.startsAt,
         applied.endsAt,
@@ -626,7 +629,7 @@ export async function amendApprovedEvent(
         })
       : 0;
 
-    const thresholdDays = await readChaseThresholdDaysIn(tx, applied.eventType);
+    const thresholdDays = await readChaseThresholdDaysIn(tx, applied.templateId);
     const threshold = chaseThresholdOn(applied.scheduledOn, thresholdDays);
 
     await recordAudit(tx, {
@@ -1088,7 +1091,7 @@ async function recomputeScheduleOnRescheduleIn(
 ): Promise<{ responseDeadlineAt: Date }> {
   const plan = await resolveMessagingPlanIn(
     tx,
-    { eventType: input.eventType, scheduledOn: input.scheduledOn, startsAt: input.startsAt },
+    { templateId: input.templateId, scheduledOn: input.scheduledOn, startsAt: input.startsAt },
     new Date(),
   );
 
@@ -1273,7 +1276,7 @@ async function recordScheduleChangeIn(
 function snapshotOf(event: EventDetail): AmendableEvent {
   return {
     name: event.name,
-    eventType: event.eventType,
+    templateId: event.templateId,
     scheduledOn: event.scheduledOn,
     startsAt: event.startsAt,
     endsAt: event.endsAt,
@@ -1289,7 +1292,7 @@ function snapshotOf(event: EventDetail): AmendableEvent {
 function snapshotOfInput(input: EventDraftInput): AmendableEvent {
   return {
     name: input.name,
-    eventType: input.eventType,
+    templateId: input.templateId,
     scheduledOn: input.scheduledOn,
     startsAt: input.startsAt,
     endsAt: input.endsAt,

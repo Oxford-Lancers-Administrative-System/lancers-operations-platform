@@ -185,7 +185,7 @@ afterAll(async () => {
 function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Wednesday practice`,
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
@@ -239,9 +239,12 @@ async function occurredEvent(size = 3) {
   return approvedEvent(size, { scheduledOn: daysFromToday(-7) });
 }
 
-/** The same, but `eventType: "recruitment"` — W12's own sheet. */
+/** The same, but `templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7"` — W12's own sheet. */
 async function recruitmentEvent(size = 1) {
-  return approvedEvent(size, { eventType: "recruitment", scheduledOn: daysFromToday(-7) });
+  return approvedEvent(size, {
+    templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+    scheduledOn: daysFromToday(-7),
+  });
 }
 
 /** `YYYY-MM-DD`, `offset` days from today in the club's own zone. */

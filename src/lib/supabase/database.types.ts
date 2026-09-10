@@ -1167,22 +1167,25 @@ export type Database = {
         Row: {
           audience_group: Database["public"]["Enums"]["audience_group"]
           event_type: Database["public"]["Enums"]["event_type"]
+          template_id: string
         }
         Insert: {
           audience_group: Database["public"]["Enums"]["audience_group"]
           event_type: Database["public"]["Enums"]["event_type"]
+          template_id: string
         }
         Update: {
           audience_group?: Database["public"]["Enums"]["audience_group"]
           event_type?: Database["public"]["Enums"]["event_type"]
+          template_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "event_template_audience_groups_event_type_fkey"
-            columns: ["event_type"]
+            foreignKeyName: "event_template_audience_groups_template_fkey"
+            columns: ["template_id", "event_type"]
             isOneToOne: false
             referencedRelation: "event_templates"
-            referencedColumns: ["event_type"]
+            referencedColumns: ["id", "event_type"]
           },
         ]
       }
@@ -1197,6 +1200,7 @@ export type Database = {
           is_required: boolean
           prompt: string
           sort_order: number
+          template_id: string
         }
         Insert: {
           answer_type?: Database["public"]["Enums"]["question_answer_type"]
@@ -1208,6 +1212,7 @@ export type Database = {
           is_required?: boolean
           prompt: string
           sort_order?: number
+          template_id: string
         }
         Update: {
           answer_type?: Database["public"]["Enums"]["question_answer_type"]
@@ -1219,19 +1224,21 @@ export type Database = {
           is_required?: boolean
           prompt?: string
           sort_order?: number
+          template_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "event_template_questions_event_type_fkey"
-            columns: ["event_type"]
+            foreignKeyName: "event_template_questions_template_fkey"
+            columns: ["template_id", "event_type"]
             isOneToOne: false
             referencedRelation: "event_templates"
-            referencedColumns: ["event_type"]
+            referencedColumns: ["id", "event_type"]
           },
         ]
       }
       event_templates: {
         Row: {
+          colour_key: string
           default_delivery_mode:
             | Database["public"]["Enums"]["event_delivery_mode"]
             | null
@@ -1241,9 +1248,12 @@ export type Database = {
           default_required_equipment: string | null
           default_venue: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          id: string
+          name: string
           updated_at: string
         }
         Insert: {
+          colour_key: string
           default_delivery_mode?:
             | Database["public"]["Enums"]["event_delivery_mode"]
             | null
@@ -1253,9 +1263,12 @@ export type Database = {
           default_required_equipment?: string | null
           default_venue?: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          id?: string
+          name: string
           updated_at?: string
         }
         Update: {
+          colour_key?: string
           default_delivery_mode?:
             | Database["public"]["Enums"]["event_delivery_mode"]
             | null
@@ -1265,6 +1278,8 @@ export type Database = {
           default_required_equipment?: string | null
           default_venue?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
+          id?: string
+          name?: string
           updated_at?: string
         }
         Relationships: []
@@ -1273,19 +1288,30 @@ export type Database = {
         Row: {
           chase_threshold_days: number
           event_type: Database["public"]["Enums"]["event_type"]
+          template_id: string
           updated_at: string
         }
         Insert: {
           chase_threshold_days: number
           event_type: Database["public"]["Enums"]["event_type"]
+          template_id: string
           updated_at?: string
         }
         Update: {
           chase_threshold_days?: number
           event_type?: Database["public"]["Enums"]["event_type"]
+          template_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "event_type_settings_template_fkey"
+            columns: ["template_id", "event_type"]
+            isOneToOne: false
+            referencedRelation: "event_templates"
+            referencedColumns: ["id", "event_type"]
+          },
+        ]
       }
       events: {
         Row: {
@@ -1316,6 +1342,7 @@ export type Database = {
           series_id: string | null
           starts_at: string | null
           status: Database["public"]["Enums"]["event_status"]
+          template_id: string
           term_id: string | null
           updated_at: string
           venue: string | null
@@ -1349,6 +1376,7 @@ export type Database = {
           series_id?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
+          template_id: string
           term_id?: string | null
           updated_at?: string
           venue?: string | null
@@ -1382,6 +1410,7 @@ export type Database = {
           series_id?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
+          template_id?: string
           term_id?: string | null
           updated_at?: string
           venue?: string | null
@@ -1450,6 +1479,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_series"
             referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "events_template_fkey"
+            columns: ["template_id", "event_type"]
+            isOneToOne: false
+            referencedRelation: "event_templates"
+            referencedColumns: ["id", "event_type"]
           },
           {
             foreignKeyName: "events_term_id_fkey"
@@ -1824,6 +1860,7 @@ export type Database = {
           recruit_invitation_lead_days: number | null
           reminder_cadence_hours: number
           rsvp_by_days: number
+          template_id: string
           updated_at: string
           whatsapp_reminder_count: number
         }
@@ -1836,6 +1873,7 @@ export type Database = {
           recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
           rsvp_by_days: number
+          template_id: string
           updated_at?: string
           whatsapp_reminder_count?: number
         }
@@ -1848,10 +1886,19 @@ export type Database = {
           recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
           rsvp_by_days?: number
+          template_id?: string
           updated_at?: string
           whatsapp_reminder_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "messaging_schedules_template_fkey"
+            columns: ["template_id", "event_type"]
+            isOneToOne: false
+            referencedRelation: "event_templates"
+            referencedColumns: ["id", "event_type"]
+          },
+        ]
       }
       nonresponse_flags: {
         Row: {

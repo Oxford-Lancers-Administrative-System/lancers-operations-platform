@@ -142,6 +142,7 @@ const EVENT = {
   name: "Practice — hilary week 5",
   status: "approved",
   eventType: "practice",
+  templateName: "Practice",
   scheduledOn: "2027-02-17",
   // Minute precision, matching what `readEventIn`'s own `asTime` actually
   // returns to `readEventFactsIn` (`events.ts`, `participation.ts`) — not a
@@ -1066,24 +1067,25 @@ describe("the event facts", () => {
     expect(container.textContent).not.toContain("-1th");
   });
 
-  it("names every event type in the club's own words — R157C-A1", () => {
+  it("names the kind of event in the club's own words — R157C-A1, LAN-265", () => {
     // The second half of the duplication `W157-F2` half-removed. This file kept
-    // a private copy of the seven type names beside the `TERM_LABELS` map that
-    // was deleted; byte-identical then, and one rename or one eighth type away
-    // from falling through `?? event.eventType` and printing a raw
-    // `strength_and_conditioning` to an unauthenticated audience — which is
-    // exactly what the sibling copy did do.
+    // a private copy of the seven type names; byte-identical then, and one
+    // rename away from printing a raw `strength_and_conditioning` to an
+    // unauthenticated audience — which is exactly what the sibling copy did do.
     //
-    // Asserted against `@/lib/services/event-vocabulary`'s map rather than
-    // against copied strings, for the reason the term-and-week case above gives:
-    // a test holding its own third copy would drift with the second.
+    // LAN-265 settled it from the other end. There is no map to keep in step
+    // any more: the word is the template's own `name`, read off the row, and it
+    // is what the operator screens print for the same event. The enum value is
+    // still carried on the shape, and this proves it never reaches a reader.
     for (const eventType of Object.keys(TYPE_LABELS)) {
-      const { container, unmount } = render(<EventFacts event={{ ...CLUB.event, eventType }} />);
-      expect(container.textContent, eventType).toContain(labelFor(TYPE_LABELS, eventType));
-      // And the enum value itself is not what a reader is shown. `chalk` and
-      // `game` are their own labels, so the check only means anything for the
-      // ones the club spells differently.
-      if (labelFor(TYPE_LABELS, eventType) !== eventType) {
+      const templateName = labelFor(TYPE_LABELS, eventType);
+      const { container, unmount } = render(
+        <EventFacts event={{ ...CLUB.event, eventType, templateName }} />,
+      );
+      expect(container.textContent, eventType).toContain(templateName);
+      // `chalk` and `game` are their own names, so the check below only means
+      // anything for the ones the club spells differently.
+      if (templateName !== eventType) {
         expect(container.textContent, eventType).not.toContain(eventType);
       }
       unmount();

@@ -13,12 +13,7 @@ import { operatorEventHref } from "@/app/calendar/routes";
 import { formatShowedAgainstInvited } from "@/app/operate/events/[id]/attendance/presentation";
 import type { PeriodBucket } from "@/lib/services/event-periods";
 import type { EventListEntry } from "@/lib/services/events";
-import {
-  DELIVERY_MODE_LABELS,
-  formatShortDate,
-  labelFor,
-  TYPE_LABELS,
-} from "@/lib/services/event-vocabulary";
+import { DELIVERY_MODE_LABELS, formatShortDate, labelFor } from "@/lib/services/event-vocabulary";
 
 /**
  * The operator's event list — the one they live in. LAN-153, `REQ-list-shape`.
@@ -137,7 +132,7 @@ export default function OperatorList({
                           {`${event.startsAt ?? "No time"} · ${whereItIs(event)}`}
                         </Typography>
                       </TableCell>
-                      <TableCell>{labelFor(TYPE_LABELS, event.eventType)}</TableCell>
+                      <TableCell>{event.templateName}</TableCell>
                       <TableCell>{formatShortDate(event.scheduledOn)}</TableCell>
                       <TableCell>{coordinateOf(event)}</TableCell>
                       <TableCell>
@@ -177,7 +172,7 @@ export default function OperatorList({
                 }
                 sublines={[
                   formatShortDate(event.scheduledOn),
-                  labelFor(TYPE_LABELS, event.eventType),
+                  event.templateName,
                   coordinateOf(event),
                   whereItIs(event),
                   <span

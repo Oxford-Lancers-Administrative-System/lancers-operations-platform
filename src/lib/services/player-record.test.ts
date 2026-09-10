@@ -232,9 +232,10 @@ describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
     const event = await observer.query<{ id: string }>(
       `insert into public.events (
          season_id, name, event_type, status, scheduled_on, is_mandatory,
-         audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+         audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
        values ($1::uuid, $2, 'practice', 'approved', current_date - 7, $3,
-               now(), $4::uuid, now(), $4::uuid)
+               now(), $4::uuid, now(), $4::uuid,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
        returning id`,
       [seasonId, name, isMandatory, actorPersonId],
     );

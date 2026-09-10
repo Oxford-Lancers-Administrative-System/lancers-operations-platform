@@ -389,6 +389,12 @@ describe("checklists", () => {
     // Role pages are addressed by the catalogue's own identifiers, adopted.
     for (const row of (await client.query<{ id: string }>("select id from public.roles")).rows)
       known.add(row.id);
+    // LAN-265. So is a template page: `/operate/events/templates/[templateId]`
+    // is a uuid route, and the seven templates are the migration's rows the
+    // loader reads rather than writes — the same adoption the catalogue gets.
+    for (const row of (await client.query<{ id: string }>("select id from public.event_templates"))
+      .rows)
+      known.add(row.id);
     const covered = new Set<string>();
     const unresolved = new Set<string>();
     for (const file of files) {

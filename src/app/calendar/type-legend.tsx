@@ -2,18 +2,29 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { CalendarEvent } from "@/lib/services/calendar";
-import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
-import { typeColour } from "./presentation";
+import { templateColour } from "./presentation";
 
 /**
  * What the colours on the calendar mean. LAN-114.
  *
- * ## Only the types actually in view
+ * ## Only the kinds actually in view
  *
- * The club has seven event types (D12) and a given month or term rarely shows
- * more than four. A fixed legend of all seven would be mostly noise and would
- * teach an operator to stop reading it. This one is built from the events being
- * displayed, so it is short, and everything in it is on the screen below it.
+ * A given month or term rarely shows more than four, and a fixed legend of every
+ * template the club has would be mostly noise and would teach an operator to
+ * stop reading it. This one is built from the events being displayed, so it is
+ * short, and everything in it is on the screen below it.
+ *
+ * ## One entry per template, coloured by the template's own colour — LAN-276
+ *
+ * The entries are the club's own templates, by name, because that is what every
+ * tile below now says. The **colour** used to be `typeColour(eventType)`, keyed
+ * by the behavioural class — which meant two templates that share a class
+ * (every operator-created template, since they all get `practice`) showed as
+ * two named entries with the same swatch. Correction round 1 moved the colour
+ * onto the template itself, chosen on its editor, so that stops being true:
+ * an operator's template is free to look different from Practice, and from
+ * every other template, because somebody chose that rather than the class
+ * choosing it for them.
  *
  * ## Why a legend at all, when every tile names its type
  *
@@ -24,18 +35,23 @@ import { typeColour } from "./presentation";
  * depends on distinguishing two hues.
  */
 export default function TypeLegend({ events }: { events: readonly CalendarEvent[] }) {
-  // Ordered by the club's own vocabulary rather than by first appearance, so
-  // the legend does not reshuffle itself as an operator moves between months.
-  const present = Object.keys(TYPE_LABELS).filter((type) =>
-    events.some((event) => event.eventType === type),
-  );
+  // Ordered by name rather than by first appearance, so the legend does not
+  // reshuffle itself as an operator moves between months. Keyed by name: two
+  // events of the same template always carry the same class and colour, so
+  // the first occurrence speaks for all of them.
+  const kinds = [
+    ...new Map(
+      events.map(
+        (event) =>
+          [
+            event.templateName,
+            { eventType: event.eventType, colourKey: event.templateColour },
+          ] as const,
+      ),
+    ),
+  ].sort(([a], [b]) => a.localeCompare(b, "en-GB"));
 
-  const unknown = [...new Set(events.map((event) => event.eventType))]
-    .filter((type) => !(type in TYPE_LABELS))
-    .sort();
-
-  const types = [...present, ...unknown];
-  if (types.length === 0) return null;
+  if (kinds.length === 0) return null;
 
   return (
     <Stack
@@ -45,16 +61,16 @@ export default function TypeLegend({ events }: { events: readonly CalendarEvent[
       data-testid="type-legend"
       sx={{ flexWrap: "wrap", gap: 1.5, listStyle: "none", p: 0, m: 0 }}
     >
-      {types.map((type) => {
-        const colour = typeColour(type);
+      {kinds.map(([name, { eventType, colourKey }]) => {
+        const colour = templateColour(colourKey);
         return (
           <Stack
-            key={type}
+            key={name}
             component="li"
             direction="row"
             spacing={0.75}
             data-testid="type-legend-item"
-            data-event-type={type}
+            data-event-type={eventType}
             sx={{ alignItems: "center" }}
           >
             <Box
@@ -69,7 +85,7 @@ export default function TypeLegend({ events }: { events: readonly CalendarEvent[
               }}
             />
             <Typography variant="caption" color="text.secondary">
-              {labelFor(TYPE_LABELS, type)}
+              {name}
             </Typography>
           </Stack>
         );

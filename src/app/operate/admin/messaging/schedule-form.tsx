@@ -44,6 +44,9 @@ import { RECRUIT_SCHEDULE_FIELDS, SCHEDULE_FIELDS, type FieldBoundsShape } from 
 
 /** One event type's row: its current values and its already-resolved preview. */
 export interface ScheduleRowData {
+  /** LAN-265. The row the SAVE posts, and the key every control is named by. */
+  readonly templateId: string;
+  /** The behavioural class, which decides whether the recruit fields appear. */
   readonly eventType: string;
   readonly label: string;
   /** Keyed by `SCHEDULE_FIELDS[].key`. */
@@ -174,9 +177,9 @@ export default function MessagingScheduleForm({
           <Stack spacing={1.5}>
             {rows.map((row) =>
               row.eventType === "recruitment" ? (
-                <RecruitmentScheduleRow key={row.eventType} row={row} />
+                <RecruitmentScheduleRow key={row.templateId} row={row} />
               ) : (
-                <ScheduleRow key={row.eventType} row={row} />
+                <ScheduleRow key={row.templateId} row={row} />
               ),
             )}
           </Stack>
@@ -355,11 +358,12 @@ function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings })
 
 /** One field: its label, its narrow input, and its unit — the event page's own field idiom. */
 function ScheduleField({
-  eventType,
+  fieldPrefix,
   field,
   defaultValue,
 }: {
-  eventType: string;
+  /** The row's template id, which makes every control's `id` unique on the page. */
+  fieldPrefix: string;
   field: FieldBoundsShape;
   defaultValue: number;
 }) {
@@ -367,7 +371,7 @@ function ScheduleField({
     <Box data-field={field.key} sx={{ minWidth: 0 }}>
       <Field
         name={field.key}
-        id={`${eventType}.${field.key}`}
+        id={`${fieldPrefix}.${field.key}`}
         label={field.label}
         type="number"
         defaultValue={defaultValue}
@@ -396,7 +400,7 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
     EMPTY_ADMIN_ACTION_STATE,
   );
 
-  const slot = useOutcomeSlot(`event-${row.eventType}`);
+  const slot = useOutcomeSlot(`event-${row.templateId}`);
   const edited = useResultClearedByEditing(state);
 
   return (
@@ -408,7 +412,7 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
       data-testid="schedule-row"
     >
       <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
-        <input type="hidden" name="eventType" value={row.eventType} />
+        <input type="hidden" name="templateId" value={row.templateId} />
 
         {/*
         Q-23: the row heading is a style question, not structure — the
@@ -432,7 +436,7 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
             {TIMING_FIELDS.map((field) => (
               <ScheduleField
                 key={field.key}
-                eventType={row.eventType}
+                fieldPrefix={row.templateId}
                 field={field}
                 defaultValue={row.values[field.key]}
               />
@@ -449,7 +453,7 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
             {LADDER_FIELDS.map((field) => (
               <ScheduleField
                 key={field.key}
-                eventType={row.eventType}
+                fieldPrefix={row.templateId}
                 field={field}
                 defaultValue={row.values[field.key]}
               />
@@ -538,7 +542,7 @@ function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
     EMPTY_ADMIN_ACTION_STATE,
   );
 
-  const slot = useOutcomeSlot(`event-${row.eventType}`);
+  const slot = useOutcomeSlot(`event-${row.templateId}`);
   const edited = useResultClearedByEditing(state);
 
   return (
@@ -550,7 +554,7 @@ function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
       data-testid="schedule-row"
     >
       <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
-        <input type="hidden" name="eventType" value={row.eventType} />
+        <input type="hidden" name="templateId" value={row.templateId} />
 
         <Stack spacing={2} sx={{ mt: 0.5 }}>
           <Typography
@@ -571,7 +575,7 @@ function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
             {TIMING_FIELDS.map((field) => (
               <ScheduleField
                 key={field.key}
-                eventType={row.eventType}
+                fieldPrefix={row.templateId}
                 field={field}
                 defaultValue={row.values[field.key]}
               />
@@ -588,7 +592,7 @@ function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
             {LADDER_FIELDS.map((field) => (
               <ScheduleField
                 key={field.key}
-                eventType={row.eventType}
+                fieldPrefix={row.templateId}
                 field={field}
                 defaultValue={row.values[field.key]}
               />
@@ -613,7 +617,7 @@ function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
             {RECRUIT_SCHEDULE_FIELDS.map((field) => (
               <Box key={field.key} sx={{ minWidth: 200, flex: "0 1 240px" }}>
                 <ScheduleField
-                  eventType={row.eventType}
+                  fieldPrefix={row.templateId}
                   field={field}
                   defaultValue={row.recruitValues?.[field.key] ?? 0}
                 />

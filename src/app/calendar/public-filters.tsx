@@ -1,7 +1,6 @@
 "use client";
 
 import ListFilters from "@/app/operate/list-filters";
-import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
 
 /**
  * Search and type, on the public list. LAN-153, `REQ-list-shape`.
@@ -25,17 +24,18 @@ import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
  * implementation of the same interaction.
  */
 export default function PublicFilters({
-  types,
+  templates,
   search,
-  eventType,
+  templateId,
   sort,
   direction,
   sortColumns,
   period,
 }: {
-  types: readonly string[];
+  /** LAN-265. The club's own templates, offered by name and selected by id. */
+  templates: readonly { id: string; name: string }[];
   search: string;
-  eventType: string;
+  templateId: string;
   sort: string;
   direction: string;
   sortColumns: readonly { value: string; label: string }[];
@@ -55,10 +55,10 @@ export default function PublicFilters({
         {
           name: "type",
           label: "Type",
-          value: eventType,
+          value: templateId,
           allLabel: "All types",
           minWidth: 170,
-          options: types.map((value) => ({ value, label: labelFor(TYPE_LABELS, value) })),
+          options: templates.map((template) => ({ value: template.id, label: template.name })),
         },
       ]}
       sortColumns={sortColumns}

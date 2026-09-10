@@ -105,7 +105,6 @@ import {
   PLAN_MISSING_HEADLINE,
   PLAN_MISSING_NOTE,
   STATUS_LABELS,
-  TYPE_LABELS,
   venueLabel,
   DUPLICATE_ACTION,
   INCOMPLETE_EVENT_ACTION,
@@ -217,12 +216,13 @@ export default async function EventDetailPage({
     if (step === "audience") {
       // D47. Read for the sentence above the tick list only: what is *selected*
       // is what is stored on the draft, which may since have been edited.
-      const template = await readEventTemplate(event.eventType);
+      const template = await readEventTemplate(event.templateId);
       return (
         <ApprovalLayout event={event}>
           <AudienceBuilder
             eventId={event.id}
             eventType={event.eventType}
+            templateName={event.templateName}
             candidates={preview.catalogue.candidates}
             counts={preview.catalogue.counts}
             initialKeys={preview.audience.map((member) => `${member.capacity}:${member.anchorId}`)}
@@ -539,7 +539,7 @@ function ApprovalReview({
         >
           <Fact
             label="Event"
-            value={`${labelFor(TYPE_LABELS, event.eventType)} · ${event.venue ?? "No venue yet"}`}
+            value={`${event.templateName} · ${event.venue ?? "No venue yet"}`}
             note={`${describeAttendance(event.isMandatory)} · ${labelFor(
               DELIVERY_MODE_LABELS,
               event.deliveryMode,
@@ -867,7 +867,7 @@ function EventDetailView({
       >
         <PageHeader
           title={event.name}
-          eyebrow={labelFor(TYPE_LABELS, event.eventType)}
+          eyebrow={event.templateName}
           back={{ href: "/operate/events", label: "Back to events" }}
           subtitle={<span data-testid="event-subtitle">{formatDetailWhen(event)}</span>}
           status={
@@ -940,7 +940,7 @@ function EventDetailView({
 
         <Section title="Details">
           <FactGrid>
-            <Fact label="Type" value={labelFor(TYPE_LABELS, event.eventType)} />
+            <Fact label="Type" value={event.templateName} />
             <Fact label="Where" value={labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)} />
             <Fact
               label={venueLabel(event.deliveryMode)}

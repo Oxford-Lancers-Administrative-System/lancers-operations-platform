@@ -89,6 +89,7 @@ const BASE: SignedRsvpPage = {
   invitationId: "00000000-0000-4000-8000-000000000079",
   capacity: "player",
   eventName: "Team Practice",
+  templateName: "Game",
   eventType: "game",
   eventStatus: "approved",
   scheduledOn: "2026-10-14",

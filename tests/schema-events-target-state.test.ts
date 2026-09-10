@@ -110,36 +110,112 @@ describe("event-type templates — D40, D41, D42, D47", () => {
     );
   });
 
-  it("takes default questions, and refuses two with the same prompt on one type", async () => {
+  /**
+   * LAN-276 correction round 1. Brian, walking the review environment,
+   * 2026-09-10: "In the template, swatch color should be something that
+   * gets chosen, so it gets added as part of the template." The column
+   * stores a palette **key**, never a hex value, and the check constraint is
+   * the backstop under `validateEventTemplate`'s own refusal — the same
+   * two-layer shape every other template field gets.
+   */
+  describe("colour — LAN-276 correction round 1", () => {
+    it("gives each of the seven seeded templates the colour the calendar always painted it", async () => {
+      const rows = await client.query<{ event_type: string; colour_key: string }>(
+        "select event_type::text as event_type, colour_key from public.event_templates order by event_type::text",
+      );
+      expect(Object.fromEntries(rows.rows.map((row) => [row.event_type, row.colour_key]))).toEqual({
+        practice: "blue",
+        strength_and_conditioning: "teal",
+        chalk: "purple",
+        game: "red",
+        social: "orange",
+        recruitment: "green",
+        meeting: "slate",
+      });
+    });
+
+    it("accepts every key the palette offers", async () => {
+      await expectAccepted(
+        client,
+        `update public.event_templates set colour_key = 'indigo' where event_type = 'practice'`,
+      );
+    });
+
+    it("refuses a colour outside the fixed palette, including a hex value", async () => {
+      for (const outsideThePalette of ["chartreuse", "#1565c0"]) {
+        await expectRejected(
+          client,
+          "update public.event_templates set colour_key = $1 where event_type = 'practice'",
+          [outsideThePalette],
+          "event_templates_colour_key_known",
+        );
+      }
+    });
+
+    it("refuses a null colour — every template has one, undecided or not", async () => {
+      await expectRejected(
+        client,
+        `update public.event_templates set colour_key = null where event_type = 'practice'`,
+        [],
+        "colour_key",
+      );
+    });
+  });
+
+  it("takes default questions, and refuses two with the same prompt on one template", async () => {
+    // LAN-265 rekeyed the child tables from the class to the template, and made
+    // the reference composite — `(template_id, event_type)` — so a row cannot
+    // name a template and a class that disagree. Both halves are supplied from
+    // the template's own row, which is the only way an insert here can be true.
+    const fromPractice = `select tpl.id, tpl.event_type from public.event_templates tpl
+                           where tpl.event_type = 'practice' order by lower(tpl.name) limit 1`;
     await expectAccepted(
       client,
-      `insert into public.event_template_questions (event_type, prompt, answer_type)
-       values ('practice', 'Do you need a lift?', 'boolean')`,
+      `insert into public.event_template_questions (template_id, event_type, prompt, answer_type)
+       select tpl.id, tpl.event_type, 'Do you need a lift?', 'boolean' from (${fromPractice}) tpl`,
     );
     await expectRejected(
       client,
-      `insert into public.event_template_questions (event_type, prompt, answer_type)
-       values ('practice', 'Do you need a lift?', 'boolean')`,
+      `insert into public.event_template_questions (template_id, event_type, prompt, answer_type)
+       select tpl.id, tpl.event_type, 'Do you need a lift?', 'boolean' from (${fromPractice}) tpl`,
       [],
-      "event_template_questions_unique_per_type",
+      "event_template_questions_unique_per_template",
+    );
+  });
+
+  it("refuses a question whose class disagrees with its template's own", async () => {
+    // The composite foreign key, stated as a test rather than left implied. It
+    // is what keeps `event_template_audience_groups_recruits_are_recruitment_only`
+    // meaningful, because that check reads this denormalised column.
+    await expectRejected(
+      client,
+      `insert into public.event_template_questions (template_id, event_type, prompt, answer_type)
+       select tpl.id, 'game', 'Which coach is driving?', 'text'
+         from public.event_templates tpl
+        where tpl.event_type = 'practice' order by lower(tpl.name) limit 1`,
+      [],
+      "event_template_questions_template_fkey",
     );
   });
 
   it("takes a default audience as groups, and keeps recruits to Recruitment (D46)", async () => {
+    const templateOf = (eventType: string) =>
+      `select tpl.id, tpl.event_type from public.event_templates tpl
+        where tpl.event_type = '${eventType}' order by lower(tpl.name) limit 1`;
     await expectAccepted(
       client,
-      `insert into public.event_template_audience_groups (event_type, audience_group)
-       values ('practice', 'active_players')`,
+      `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
+       select tpl.id, tpl.event_type, 'active_players' from (${templateOf("practice")}) tpl`,
     );
     await expectAccepted(
       client,
-      `insert into public.event_template_audience_groups (event_type, audience_group)
-       values ('recruitment', 'recruits')`,
+      `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
+       select tpl.id, tpl.event_type, 'recruits' from (${templateOf("recruitment")}) tpl`,
     );
     await expectRejected(
       client,
-      `insert into public.event_template_audience_groups (event_type, audience_group)
-       values ('social', 'recruits')`,
+      `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
+       select tpl.id, tpl.event_type, 'recruits' from (${templateOf("social")}) tpl`,
       [],
       "event_template_audience_groups_recruits_are_recruitment_only",
     );
@@ -345,10 +421,14 @@ describe("the access posture on everything LAN-151 added", () => {
     for (const key of Object.keys(held)) held[key].sort();
 
     expect(held).toEqual({
-      // Seven rows each, created by the migration and never created or deleted
-      // by an operator (D40) — so neither is grantable `insert` or `delete`.
-      event_type_settings: ["SELECT", "UPDATE"],
-      event_templates: ["SELECT", "UPDATE"],
+      // LAN-265 reversed D40's "created by the migration and never created or
+      // deleted by an operator". Creating a template is an ordinary
+      // administrative act now, and it creates its settings row and its
+      // messaging cadence with it, so all three tables gained `insert` and
+      // `delete`. `anon` and `authenticated` gained nothing, which the case
+      // above still proves.
+      event_type_settings: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+      event_templates: ["DELETE", "INSERT", "SELECT", "UPDATE"],
       // A template's questions and its default audience are edited freely.
       event_template_questions: ["DELETE", "INSERT", "SELECT", "UPDATE"],
       event_template_audience_groups: ["DELETE", "INSERT", "SELECT", "UPDATE"],

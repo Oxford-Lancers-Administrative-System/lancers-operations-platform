@@ -266,7 +266,7 @@ insert into public.events
    is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
    approved_at, approved_by_person_id,
-   response_deadline_at)
+   response_deadline_at, template_id)
 select
   event.id::uuid,
   (select id from public.seasons where status in ('open', 'active')),
@@ -282,7 +282,9 @@ select
   '00810081-0081-4081-8081-000000000001',
   now(),
   '00810081-0081-4081-8081-000000000001',
-  event.deadline_at::timestamptz
+  event.deadline_at::timestamptz,
+  (select tpl.id from public.event_templates tpl
+    where tpl.event_type = event.event_type::public.event_type order by lower(tpl.name) limit 1)
 from (values
   ('00810081-0081-4081-8081-000000000021',
    'PILOT-LAN-81 Reporting week practice',

@@ -771,7 +771,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   it("saves a practice as a draft, with no separate submit step", async () => {
     const draft = await createEventDraft(operator.personId, {
       name: `${MARKER} Michaelmas practice`,
-      eventType: "practice",
+      templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
       scheduledOn: EVENT_ON,
       startsAt: EVENT_STARTS_AT,
       endsAt: EVENT_ENDS_AT,

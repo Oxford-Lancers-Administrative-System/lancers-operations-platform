@@ -518,6 +518,7 @@ async function readEventFactsIn(tx: Tx, eventId: string) {
       id: event.id,
       name: event.name,
       status: event.status,
+      templateName: event.templateName,
       eventType: event.eventType,
       scheduledOn: event.scheduledOn,
       startsAt: event.startsAt,

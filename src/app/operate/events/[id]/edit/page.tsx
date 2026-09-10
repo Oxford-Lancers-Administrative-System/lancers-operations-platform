@@ -62,7 +62,7 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
 
   const initial: RawEventDraft = {
     name: event.name,
-    eventType: event.eventType,
+    templateId: event.templateId,
     scheduledOn: event.scheduledOn ?? "",
     startsAt: event.startsAt ?? "",
     endsAt: event.endsAt ?? "",

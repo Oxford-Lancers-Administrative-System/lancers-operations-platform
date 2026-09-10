@@ -345,9 +345,10 @@ async function fixture(
              (season_id, name, event_type, status, scheduled_on, starts_at,
               response_deadline_at,
               audience_confirmed_at, audience_confirmed_by_person_id,
-              approved_at, approved_by_person_id)
+              approved_at, approved_by_person_id, template_id)
            values ($1, $2, 'practice', 'approved', $3::date, $4::time,
-                   now() + interval '24 hours', now(), $5, now(), $5)
+                   now() + interval '24 hours', now(), $5, now(), $5,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
            returning id`,
           [
             seasonId,
@@ -363,11 +364,12 @@ async function fixture(
              (season_id, name, event_type, status, scheduled_on, starts_at,
               response_deadline_at,
               audience_confirmed_at, audience_confirmed_by_person_id,
-              approved_at, approved_by_person_id)
+              approved_at, approved_by_person_id, template_id)
            select $1, $2, 'practice', 'approved',
                   (select local::date from target), (select local::time from target),
-                  now() + interval '24 hours', now(), $3, now(), $3
-           returning id`,
+                  now() + interval '24 hours', now(), $3, now(), $3,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       returning id`,
           [seasonId, `${MARKER} practice ${fixtureTag()}`, personId],
         );
     const eventId = event.rows[0].id;
@@ -1387,9 +1389,10 @@ async function noticeFixture(
              (season_id, name, event_type, status, scheduled_on, starts_at,
               response_deadline_at,
               audience_confirmed_at, audience_confirmed_by_person_id,
-              approved_at, approved_by_person_id)
+              approved_at, approved_by_person_id, template_id)
            values ($1, $2, 'practice', 'approved', $3::date, $4::time,
-                   now() + interval '24 hours', now(), $5, now(), $5)
+                   now() + interval '24 hours', now(), $5, now(), $5,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
            returning id`,
           [
             seasonId,
@@ -1405,11 +1408,12 @@ async function noticeFixture(
              (season_id, name, event_type, status, scheduled_on, starts_at,
               response_deadline_at,
               audience_confirmed_at, audience_confirmed_by_person_id,
-              approved_at, approved_by_person_id)
+              approved_at, approved_by_person_id, template_id)
            select $1, $2, 'practice', 'approved',
                   (select local::date from target), (select local::time from target),
-                  now() + interval '24 hours', now(), $3, now(), $3
-           returning id`,
+                  now() + interval '24 hours', now(), $3, now(), $3,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       returning id`,
           [seasonId, `${MARKER} notice ${fixtureTag()}`, personId],
         );
     const eventId = event.rows[0].id;

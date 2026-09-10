@@ -25,15 +25,38 @@ import {
   plannedWrites,
   workedExampleCsv,
   type ImportableEvent,
+  type ImportableTemplate,
   type ImportPlan,
   type PlannedRow,
 } from "./event-csv";
 
 const HEADER = IMPORT_COLUMNS.join(",");
 
+/**
+ * The seven templates the migration seeds, by behavioural class — LAN-265.
+ *
+ * Fixed literals in `20260916090000_event_templates.sql`, so a fixture can name
+ * one without reading it back.
+ */
+const SEEDED_TEMPLATES: readonly ImportableTemplate[] = Object.freeze([
+  { id: "7e34a764-7ed1-535e-8cef-73e00a62eafc", name: "Practice", eventType: "practice" },
+  {
+    id: "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+    name: "Strength and conditioning",
+    eventType: "strength_and_conditioning",
+  },
+  { id: "b547e0b3-f48c-5601-9dc6-e8725fc434f9", name: "Chalk", eventType: "chalk" },
+  { id: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae", name: "Game", eventType: "game" },
+  { id: "8de00424-52a8-52ad-9c9f-a29823f9c4bf", name: "Social", eventType: "social" },
+  { id: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7", name: "Recruitment", eventType: "recruitment" },
+  { id: "660cdcb7-51e3-5a19-aaa2-08c5256af288", name: "Meeting", eventType: "meeting" },
+]);
+
 const DRAFT: ImportableEvent = {
   id: "11111111-1111-4111-8111-111111111111",
   name: "Practice — michaelmas week 3",
+  templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  templateName: "Practice",
   eventType: "practice",
   status: "draft",
   scheduledOn: "2026-10-28",
@@ -59,6 +82,8 @@ const CANCELLED: ImportableEvent = {
   ...DRAFT,
   id: "33333333-3333-4333-8333-333333333333",
   name: "Chalk — michaelmas week 2",
+  templateId: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+  templateName: "Chalk",
   eventType: "chalk",
   status: "cancelled",
   scheduledOn: "2026-10-20",
@@ -67,13 +92,18 @@ const CANCELLED: ImportableEvent = {
 const SEASON: readonly ImportableEvent[] = Object.freeze([DRAFT, APPROVED, CANCELLED]);
 
 function plan(csvText: string, events: readonly ImportableEvent[] = SEASON): ImportPlan {
-  const result = planImport({ csvText, events, fileName: "michaelmas-2026.csv" });
+  const result = planImport({
+    csvText,
+    events,
+    templates: SEEDED_TEMPLATES,
+    fileName: "michaelmas-2026.csv",
+  });
   if (!result.ok) throw new Error(`expected a plan, got: ${result.reason}`);
   return result.plan;
 }
 
 function refusalOf(csvText: string, events: readonly ImportableEvent[] = SEASON): string {
-  const result = planImport({ csvText, events, fileName: null });
+  const result = planImport({ csvText, events, templates: SEEDED_TEMPLATES, fileName: null });
   if (result.ok) throw new Error("expected the file to be refused whole");
   return result.reason;
 }
@@ -145,7 +175,12 @@ describe("what a row's id does", () => {
     expect(planned.outcome).toBe("new");
     expect(planned.write).toEqual({
       kind: "create",
-      input: expect.objectContaining({ name: "Alumni touch game", eventType: "social" }),
+      // LAN-265. The `type` cell names a template, and what the row writes is
+      // that template's id; the class comes off the template's own row.
+      input: expect.objectContaining({
+        name: "Alumni touch game",
+        templateId: "8de00424-52a8-52ad-9c9f-a29823f9c4bf",
+      }),
     });
   });
 

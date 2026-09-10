@@ -11,11 +11,10 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import {
   deriveTermCoordinate,
-  DRAFTABLE_EVENT_TYPES,
   type RawEventDraft,
   type TermWindow,
 } from "@/lib/services/event-input";
-import { endTimeFromStart } from "@/lib/services/event-template-input";
+import { DEFAULT_TEMPLATE_CLASS, endTimeFromStart } from "@/lib/services/event-template-input";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { EventTypeFormDefaults } from "@/lib/services/event-template-input";
 import { createEventDraftAction, updateEventDraftAction } from "./actions";
@@ -29,8 +28,6 @@ import {
   duplicatedFrom,
   formatLongDate,
   JOINING_URL_IS_PUBLIC_WARNING,
-  labelFor,
-  TYPE_LABELS,
 } from "./presentation";
 
 /**
@@ -61,18 +58,19 @@ import {
  * being asked to classify its provenance from four unexplained words. It is
  * derived on create and left alone on edit.
  *
- * ## The type's template fills the form in, field by field
+ * ## The template fills the form in, field by field
  *
  * D40 through D47. Choosing **Practice** puts the Practice template's venue,
  * description, equipment, attendance and questions into the form, where the
- * operator can see them and change them. Changing the type to **Social**
- * replaces **only the fields nobody has touched** — the same rule D41 applies to
- * a saved draft, applied here while the event is still being written, so that
- * picking the wrong type first does not cost somebody the description they just
- * wrote.
+ * operator can see them and change them. Changing it to **Social** — or to
+ * whatever the club created and called **Kicking Clinic** (LAN-265) — replaces
+ * **only the fields nobody has touched**: the same rule D41 applies to a saved
+ * draft, applied here while the event is still being written, so that picking
+ * the wrong one first does not cost somebody the description they just wrote.
  *
- * `templates` therefore carries all seven, not one: the rule needs the value the
- * previous type gave a field to decide whether the operator changed it.
+ * `templates` therefore carries every template the club has, not one: the rule
+ * needs the value the previous template gave a field to decide whether the
+ * operator changed it.
  *
  * ## Attendance now has a default, and that is a deliberate change
  *
@@ -147,9 +145,9 @@ export default function EventForm({
   /** The Oxford calendar, for deriving the coordinate as the operator types. */
   terms: readonly TermWindow[];
   initial?: RawEventDraft;
-  /** The questions already on this event, or the ones its type's template gives. */
+  /** The questions already on this event, or the ones its template gives. */
   initialQuestions?: readonly RawEventQuestion[];
-  /** All seven templates, because the Type control decides which one applies. */
+  /** Every template the club has, because the Type control decides which applies. */
   templates: Readonly<Record<string, EventTypeFormDefaults>>;
   /** D39 — the event this form was prefilled from, when it was. */
   duplicatedFromName?: string;
@@ -170,7 +168,35 @@ export default function EventForm({
     return typeof raw === "string" ? raw : "";
   };
 
-  const startingType = value("eventType") || "practice";
+  /**
+   * The templates the operator may pick from, in the order the list shows them.
+   *
+   * `readEventFormDefaults` keys them by id and orders that record by name, and
+   * `Object.values` preserves insertion order for string keys that are not
+   * array indices — which a uuid never is. LAN-265.
+   */
+  const templateList = Object.values(templates);
+
+  /**
+   * What the Type control opens on.
+   *
+   * An edit and a refused submission both bring their own. A blank create opens
+   * on a **practice**, which is what D15 settled and what the club schedules
+   * most of — and it used to be the literal string `practice`, which was safe
+   * while the seven types were the seven templates and one of them was always
+   * called Practice.
+   *
+   * After LAN-265 a club can rename or delete any of them, so the rule is
+   * expressed against the behavioural class instead: the first practice-class
+   * template on the list, which is the Practice template on a club that has not
+   * created its own and remains a practice on one that renamed it. A club whose
+   * templates are all something else opens on the first of them, and one with no
+   * templates at all gets an empty control and a refusal on save rather than a
+   * form that silently posts an id nobody has.
+   */
+  const openingTemplate =
+    templateList.find((option) => option.eventType === DEFAULT_TEMPLATE_CLASS) ?? templateList[0];
+  const startingTemplateId = value("templateId") || (openingTemplate?.id ?? "");
 
   /**
    * What this form opens with, before anybody has typed anything.
@@ -188,11 +214,11 @@ export default function EventForm({
   ): string => {
     const typed = value(field);
     if (typed !== "") return typed;
-    const defaults = templates[startingType];
+    const defaults = templates[startingTemplateId];
     return defaults === undefined ? "" : fromTemplate(defaults);
   };
 
-  const [eventType, setEventType] = useState(startingType);
+  const [templateId, setTemplateId] = useState(startingTemplateId);
   /**
    * C1. `scheduledOn` (the `YYYY-MM-DD` the server action and the rest of
    * this component read) is *derived* from this Date, never the other way
@@ -235,8 +261,8 @@ export default function EventForm({
     [scheduledOn, terms],
   );
 
-  const template = templates[eventType];
-  const typeLabel = labelFor(TYPE_LABELS, eventType);
+  const template = templates[templateId];
+  const typeLabel = template?.name ?? "";
 
   /**
    * D41's rule, applied while the event is still being written.
@@ -247,10 +273,10 @@ export default function EventForm({
    * and the reason it is here rather than only there is that changing the type
    * is the one moment on this form when the template underneath it changes.
    */
-  function changeType(next: string) {
-    const was = templates[eventType];
+  function changeTemplate(next: string) {
+    const was = templates[templateId];
     const now = templates[next];
-    setEventType(next);
+    setTemplateId(next);
     if (!was || !now) return;
 
     if (where === was.deliveryMode) setWhere(now.deliveryMode);
@@ -324,13 +350,25 @@ export default function EventForm({
               error={Boolean(issueFor(state, "name"))}
               helperText={
                 issueFor(state, "name") ??
-                (eventType === "game" ? "The opponent goes in the name." : undefined)
+                // Still keyed off the behavioural class and not the template's
+                // name, which is the distinction LAN-265 draws: the hint is
+                // about fixtures, and a club that renames Game to "Match" or
+                // creates a second game-class template should keep getting it.
+                (template?.eventType === "game" ? "The opponent goes in the name." : undefined)
               }
             />
 
             {/*
-              `shrink` is explicit because this select always has a value —
-              `practice` when nothing was chosen — and MUI was leaving the
+              Still labelled **Type**, and that is deliberate rather than
+              overlooked. LAN-265 changed what the control selects — a template
+              the club created, not one of seven fixed types — but "what type of
+              event is this?" is the question an operator is answering, and
+              "Template" is the word for the row on the administration screen
+              they are choosing from rather than for the choice they are making
+              here.
+
+              `shrink` is explicit because this select always has a value — the
+              first template when nothing was chosen — and MUI was leaving the
               outline's notch closed, so the label sat on top of the value.
               Found in the LAN-151 browser preflight, on both the create and the
               edit screen; every other field on this form notches correctly
@@ -338,15 +376,15 @@ export default function EventForm({
             */}
             <SelectField
               label="Type"
-              name="eventType"
-              field="eventType"
-              value={eventType}
-              onChange={(event) => changeType(event.target.value)}
-              error={Boolean(issueFor(state, "eventType"))}
-              helperText={issueFor(state, "eventType")}
-              options={DRAFTABLE_EVENT_TYPES.map((type) => ({
-                value: type,
-                label: labelFor(TYPE_LABELS, type),
+              name="templateId"
+              field="templateId"
+              value={templateId}
+              onChange={(event) => changeTemplate(event.target.value)}
+              error={Boolean(issueFor(state, "templateId"))}
+              helperText={issueFor(state, "templateId")}
+              options={templateList.map((option) => ({
+                value: option.id,
+                label: option.name,
               }))}
             />
 

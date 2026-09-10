@@ -98,9 +98,10 @@ async function anEvent(): Promise<string> {
        (season_id, name, event_type, origin, status, scheduled_on, starts_at,
         is_mandatory, owner_person_id,
         approved_at, approved_by_person_id,
-        audience_confirmed_at, audience_confirmed_by_person_id)
+        audience_confirmed_at, audience_confirmed_by_person_id, template_id)
      values ($1, $2, 'practice', 'club_controlled', 'approved',
-             current_date, '19:00', true, $3, now(), $3, now(), $3)
+             current_date, '19:00', true, $3, now(), $3, now(), $3,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
      returning id`,
     [season.rows[0].id, `${NAME_MARKER} approved`, actorPersonId],
   );

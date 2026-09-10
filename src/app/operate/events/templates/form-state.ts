@@ -9,18 +9,22 @@ import type { TemplateChangePlan } from "@/lib/services/event-templates";
  * `form-state.ts` gives: a `"use server"` module may only export async
  * functions, so a shared type or constant declared there would be a build error.
  *
- * ## Three outcomes, and the middle one is the interesting one
+ * ## Two outcomes now — LAN-276 correction round 1
  *
  * `phase` says which. `"editing"` is a fresh form or a refused submission;
- * `"confirming"` carries the blast radius W8-03 shows and has written nothing;
- * `"saved"` is after the write, with the plan that was actually applied.
+ * `"confirming"` carries the blast radius W8-03 shows and has written nothing.
+ * There used to be a third, `"saved"`, reached after a successful write; the
+ * save actions redirect to the template list now (Brian, 2026-09-10: "it
+ * should take me back to the other test templates"), so a state the browser
+ * would render after the write is never reached — `redirect` throws before
+ * either action returns one.
  *
  * The plan travels back to the browser only to be **read**. It is never posted
  * forward and never trusted: `saveEventTemplate` recomputes it under its own
  * locks, so what the operator saw is a courtesy and what happens is derived from
  * the rows again at the moment of the write.
  */
-export type TemplateFormPhase = "editing" | "confirming" | "saved";
+export type TemplateFormPhase = "editing" | "confirming";
 
 export interface TemplateFormState {
   phase: TemplateFormPhase;

@@ -80,12 +80,13 @@ async function anEvent(status: "draft" | "approved" | "cancelled" = "approved"):
         is_mandatory, owner_person_id,
         approved_at, approved_by_person_id,
         audience_confirmed_at, audience_confirmed_by_person_id,
-        decision_reason)
+        decision_reason, template_id)
      values ($1, $2, 'practice', 'club_controlled', $3::public.event_status,
              current_date, '19:00', true, $4,
              case when $5 then now() end, case when $5 then $4::uuid end,
              case when $5 then now() end, case when $5 then $4::uuid end,
-             case when $3 = 'cancelled' then 'Pitch flooded' end)
+             case when $3 = 'cancelled' then 'Pitch flooded' end,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
      returning id`,
     [season.rows[0].id, `${NAME_MARKER} ${status}`, status, actorPersonId, approved],
   );

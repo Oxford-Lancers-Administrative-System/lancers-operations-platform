@@ -186,7 +186,7 @@ afterAll(async () => {
 function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Wednesday practice`,
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: IN_WINDOW,
     startsAt: "20:00",
     endsAt: "22:00",
@@ -1119,7 +1119,7 @@ describe("the grid covers the whole window", () => {
     // like a practice's.
     const briefing = await approvedEvent(3, {
       name: `${NAME_MARKER} Committee briefing`,
-      eventType: "meeting",
+      templateId: "660cdcb7-51e3-5a19-aaa2-08c5256af288",
       isMandatory: false,
     });
     const practice = await approvedEvent(3, { name: `${NAME_MARKER} Wednesday practice` });

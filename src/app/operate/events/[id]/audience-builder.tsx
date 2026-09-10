@@ -28,7 +28,6 @@ import {
   CAPACITY_LABELS,
   describeBuilderDefault,
   labelFor,
-  TYPE_LABELS,
 } from "../presentation";
 
 /**
@@ -77,6 +76,8 @@ export interface AudienceBuilderProps {
   eventId: string;
   /** Decides which groups are offered: recruits appear on Recruitment (D46). */
   eventType: string;
+  /** LAN-265. What the club calls this kind of event — the word the note uses. */
+  templateName: string;
   candidates: AudienceCandidate[];
   counts: Record<AudienceCapacity, number>;
   /** The audience already saved against this draft. Empty when there is none. */
@@ -90,6 +91,7 @@ const UNITS = ["Both", "Offence", "Defence", "Special teams"] as const;
 export function AudienceBuilder({
   eventId,
   eventType,
+  templateName,
   candidates,
   counts,
   initialKeys,
@@ -160,7 +162,7 @@ export function AudienceBuilder({
       <Stack spacing={3}>
         <Box>
           <Typography variant="body2" color="text.secondary" data-testid="builder-default-note">
-            {describeBuilderDefault(labelFor(TYPE_LABELS, eventType), templateGroupLabels)}
+            {describeBuilderDefault(templateName, templateGroupLabels)}
           </Typography>
         </Box>
 

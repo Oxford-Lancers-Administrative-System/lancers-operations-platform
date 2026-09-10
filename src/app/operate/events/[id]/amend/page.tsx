@@ -64,7 +64,7 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
 
   const initial: RawEventDraft = {
     name: event.name,
-    eventType: event.eventType,
+    templateId: event.templateId,
     scheduledOn: event.scheduledOn ?? "",
     startsAt: event.startsAt ?? "",
     endsAt: event.endsAt ?? "",
@@ -92,7 +92,7 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
         initial={initial}
         before={{
           name: event.name,
-          eventType: event.eventType,
+          templateId: event.templateId,
           scheduledOn: event.scheduledOn,
           startsAt: event.startsAt,
           endsAt: event.endsAt,

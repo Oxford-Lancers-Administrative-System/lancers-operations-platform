@@ -7,7 +7,6 @@ import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import {
   derivedEventState,
-  DRAFTABLE_EVENT_TYPES,
   EVENT_SORT_COLUMNS,
   EVENT_STATUS_FILTERS,
   listCurrentSeasonEvents,
@@ -16,6 +15,7 @@ import {
   type EventListEntry,
 } from "@/lib/services/events";
 import { bucketedCount, bucketEventsByPeriod, PERIOD_LABELS } from "@/lib/services/event-periods";
+import { listEventTemplateOptions, type EventTemplateOption } from "@/lib/services/event-templates";
 import { todayInClubZone } from "@/lib/club-time";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import PeriodSwitch from "@/app/calendar/period-switch";
@@ -173,15 +173,21 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
   const today = todayInClubZone();
 
   let list: EventList;
+  let templates: EventTemplateOption[];
   try {
-    list = await listEventsForOperator({
-      search: query.search,
-      status: query.status,
-      eventType: query.eventType,
-      sort: query.sort,
-      direction: query.direction,
-      today,
-    });
+    // LAN-265. The Type filter offers the club's own templates by name rather
+    // than the seven-value enum, which is no longer what anything is called.
+    [list, templates] = await Promise.all([
+      listEventsForOperator({
+        search: query.search,
+        status: query.status,
+        templateId: query.templateId,
+        sort: query.sort,
+        direction: query.direction,
+        today,
+      }),
+      listEventTemplateOptions(),
+    ]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <UnavailableScreen title="Events" message={error.message} testId="events-unavailable" />;
@@ -249,11 +255,11 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
 
       <EventFilters
         statuses={EVENT_STATUS_FILTERS}
-        types={DRAFTABLE_EVENT_TYPES}
+        templates={templates}
         sortColumns={SORT_OPTIONS}
         search={query.search}
         status={query.status}
-        eventType={query.eventType}
+        templateId={query.templateId}
         sort={query.sort}
         direction={query.direction}
         period={query.period}
