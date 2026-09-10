@@ -15,8 +15,8 @@ import { CLUB_NAME, CREST_PATH } from "@/lib/brand";
  * paper it is Oxford Blue. Nothing here is ever Gold text (2.73 on white).
  *
  * The mark here is **not** the mark in the browser tab: the favicon and app
- * icons are cut from the gold-outline Ops logo (LAN-269), a different file with
- * three crowns, and `public/brand/README.md` says which is which.
+ * icons are cut from the gold-outline Ops logo (LAN-269), a different file,
+ * and `public/brand/README.md` says which is which.
  */
 export { CLUB_NAME, CREST_PATH } from "@/lib/brand";
 

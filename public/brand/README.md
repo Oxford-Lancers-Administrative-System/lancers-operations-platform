@@ -17,16 +17,22 @@ under the names `app-logo-group-2454.svg`, `gold-outline-ops-logo.svg` and
 
 ## The application mark
 
-`Group 2454.svg` is 1094×864: one crown, crossed lances, a brown football
-(`#492820`), on a transparent ground. It replaced the mark taken from `Group
-315.svg` on 8 September 2026, which had held these same two file names since
-LAN-225.
+`Group 2454.svg` is 1094×864: three crowns — one above the cross, one to each
+side — crossed lances, and a brown football (`#492820`), on a transparent ground.
+It replaced the mark taken from `Group 315.svg` on 8 September 2026, which had
+held these same two file names since LAN-225.
 
-- `crest.svg` — the white mark. Geometry untouched; only the viewBox is cropped,
-  to `153.5 3.25 786.5 860.5`, which is the tight bounding box of what the file
-  actually draws. Figma exported the artboard, and the 153 units of transparent
-  margin down the left would otherwise sit inside the header box and push the
-  mark off centre.
+Figma's SVG export of that group writes only the top crown; its PNG export of
+the same group draws all three, and the PNG is kept beside the SVG as
+`app-logo-group-2454.png`, the reference. The generator puts the two side crowns
+back from the file's own geometry: the top crown is the one `evenodd` path, and
+each side crown is that path translated by (∓321, +298), the offsets measured
+from the PNG at the artboard's own size (Brian, 2026-09-10). Nothing is redrawn.
+
+- `crest.svg` — the white mark. Geometry untouched beyond the restored crowns;
+  the viewBox is cropped to the tight bounding box of what the file actually
+  draws. Figma exported the artboard, and transparent margin left in the viewBox
+  would sit inside the header box and push the mark off centre.
 - `crest-blue.svg` — the same geometry with the white recoloured to Oxford Blue
   (`#002147`), for `BrandMark` on light grounds. The football keeps its brown; it
   is a brown football on either ground. The Figma outside-stroke mask is left
@@ -37,7 +43,7 @@ The file names are unchanged from LAN-225, so `BrandMark` and every import keep
 working. It is used by the shared `BrandMark` in the operator shell (48px box),
 the compact phone header (32px), the public masthead, the sign-in screen, the
 policy pages, the player-facing pages and the design-preview kit. The boxes are
-square and the mark is 0.914 wide to tall, so it renders 44×48 and 29×32
+square and the mark is 1.183 wide to tall, so it renders 48×41 and 32×27
 respectively, centred by `preserveAspectRatio`. The club's name beside it stays
 set in Geist.
 

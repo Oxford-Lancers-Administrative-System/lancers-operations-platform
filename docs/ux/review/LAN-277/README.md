@@ -12,8 +12,10 @@ only in what this pull request changes.
 
 1. **`marks/header-mark-on-navy-before-after.png`** — the header mark, before
    and after, in the 48px desktop box and the 32px phone box, magnified 6×. The
-   boxes are unchanged; only the crop and the mark changed. The new mark is 0.914
-   wide to tall, so it draws 44×48 and 29×32 inside them.
+   boxes are unchanged; only the crop and the mark changed. The new mark is 1.183
+   wide to tall, so it draws 48×41 and 32×27 inside them. Regenerated on
+   10 September with the three-crown mark (see `public/brand/README.md` for why
+   the 9 September export had one crown).
 2. **`marks/header-mark-on-paper-before-after.png`** — the same pair for
    `crest-blue.svg`, the light-ground variant. The football keeps its brown.
 3. **`marks/tab-icon-light-chrome-before-after.png`** and

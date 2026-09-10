@@ -107,6 +107,42 @@ function crop(svg, box, header) {
 }
 
 /**
+ * Put back the two side crowns Figma's SVG export drops.
+ *
+ * Group 2454 is a three-crown mark — one above the cross, one to each side —
+ * and Figma's PNG export of the very same group draws all three
+ * (`app-logo-group-2454.png`, kept beside the SVG as the reference). Its SVG
+ * export, three times over on 9 and 10 September 2026, writes only the top
+ * crown: eighteen paths, no hidden group, no transform, no clip that could
+ * account for the other two. Brian's decision (2026-09-10): the mark is the
+ * PNG, so the SVG gets the crowns back from its own geometry.
+ *
+ * The top crown is the one `fill-rule="evenodd"` path. In the PNG, rendered at
+ * the artboard's own 1094×864, that crown's white spans x 359–733, y 26–172 —
+ * exactly the SVG path's bounding box — and the side crowns are the same
+ * 375×147 glyph at x 38–413, y 324–469 and x 680–1054, y 325–470. So each side
+ * crown is the top crown translated by (∓321, +298), nothing redrawn. Rendered
+ * back at 1094×864 the composed SVG's white ink agrees with the PNG's on 98.3%
+ * of pixels; the remainder is anti-aliasing and the lances' outline hairline,
+ * which the PNG flattens.
+ */
+function restoreSideCrowns(svg) {
+  if (svg.includes('transform="translate(')) return svg; // already composed
+  // The football's paths are evenodd too, but they all come after the mask;
+  // the crown is the only evenodd path drawn before it.
+  const beforeMask = svg.slice(0, svg.indexOf("<mask"));
+  const crowns = beforeMask.match(/<path\b[^>]*fill-rule="evenodd"[^>]*>/g) ?? [];
+  if (crowns.length !== 1) {
+    throw new Error(
+      `expected exactly one evenodd crown path in Group 2454, found ${crowns.length}`,
+    );
+  }
+  const [crown] = crowns;
+  const placed = (dx) => crown.replace("<path ", `<path transform="translate(${dx} 298)" `);
+  return svg.replace(crown, `${crown}\n${placed(-321)}\n${placed(321)}`);
+}
+
+/**
  * Recolour the mark's white for a light ground, without touching the mask.
  *
  * The supplied file carries a Figma outside-stroke mask, and a mask's own
@@ -237,13 +273,17 @@ async function main() {
   };
 
   // -- LAN-278: the application mark ---------------------------------------
-  const logo = await readFile(path.join(source, "app-logo-group-2454.svg"), "utf8");
+  const logo = restoreSideCrowns(
+    await readFile(path.join(source, "app-logo-group-2454.svg"), "utf8"),
+  );
   const logoView = attribute(openTag(logo), "viewBox").split(/\s+/).map(Number);
   const logoBox = await inkBox(Buffer.from(logo), logoView[2]);
 
   const provenance =
-    "Brian's Group 2454.svg, supplied 9 September 2026. Geometry untouched; " +
-    "viewBox cropped to the mark. Regenerate with scripts/generate-brand-assets.mjs.";
+    "Brian's Group 2454.svg, exported 10 September 2026. Geometry untouched except the " +
+    "two side crowns Figma's SVG export omits, restored as translated copies of the file's " +
+    "own crown path (Brian, 2026-09-10); viewBox cropped to the mark. Regenerate with " +
+    "scripts/generate-brand-assets.mjs.";
 
   await put(path.join(brand, "crest.svg"), crop(logo, logoBox, `White. ${provenance}`));
   await put(
