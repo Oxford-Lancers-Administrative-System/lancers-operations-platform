@@ -173,6 +173,62 @@ describe("the duplicate check", () => {
     );
   });
 
+  // LAN-257. "This is them" writes nothing onto the chosen person — that was
+  // already true and is now true of `/operate/roster/new` too — but the
+  // operator was told nothing, and landed on a record showing a different
+  // number from the one they had just typed.
+  it("this is them: says which typed value it did not record", async () => {
+    signedInAs(fourRoleOperator());
+    vi.mocked(createPerson).mockResolvedValue({
+      personId: "33333333-1111-4111-8111-111111111111",
+      created: false,
+      record: {
+        contacts: [{ kind: "phone", scope: null, rawValue: "07700 900001", isPreferred: true }],
+      } as never,
+    });
+
+    const thrown = await submitCreatePerson(
+      INITIAL_CREATE_STATE,
+      form({
+        givenName: "Alaric",
+        familyName: "Dunstable",
+        mobile: "07700 900999",
+        linkPersonId: "33333333-1111-4111-8111-111111111111",
+      }),
+    ).catch((error: unknown) => error);
+
+    const url = (thrown as RedirectSignal).url;
+    expect(url).toBe("/operate/people/33333333-1111-4111-8111-111111111111?linked=1&unsaved=phone");
+    // By kind, never by value: a query string is bookmarked, kept in history
+    // and logged, and this one is about somebody's phone number.
+    expect(url).not.toContain("900999");
+  });
+
+  it("this is them: says nothing when the person already holds what was typed", async () => {
+    signedInAs(fourRoleOperator());
+    vi.mocked(createPerson).mockResolvedValue({
+      personId: "33333333-1111-4111-8111-111111111111",
+      created: false,
+      record: {
+        contacts: [{ kind: "phone", scope: null, rawValue: "07700 900001", isPreferred: true }],
+      } as never,
+    });
+
+    const thrown = await submitCreatePerson(
+      INITIAL_CREATE_STATE,
+      form({
+        givenName: "Alaric",
+        familyName: "Dunstable",
+        mobile: " 07700 900001 ",
+        linkPersonId: "33333333-1111-4111-8111-111111111111",
+      }),
+    ).catch((error: unknown) => error);
+
+    expect((thrown as RedirectSignal).url).toBe(
+      "/operate/people/33333333-1111-4111-8111-111111111111",
+    );
+  });
+
   it("creating over an exact contact-point match asks for a reason", async () => {
     signedInAs(fourRoleOperator());
     vi.mocked(createPerson).mockRejectedValue(

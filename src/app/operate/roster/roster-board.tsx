@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useId, useMemo, useState, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -770,6 +770,16 @@ function Heading({
   );
 }
 
+/**
+ * One pinned filter. LAN-259: the `<InputLabel>` carries an `id` and the
+ * `<Select>` points at it with `labelId`, which is what gives the rendered
+ * combobox an accessible name — MUI derives `aria-labelledby` from `labelId`
+ * and from nothing else. Without the pair the three filters reported
+ * `aria-labelledby: null` and read to a screen reader as three unnamed
+ * comboboxes, even though `label` was set: `label` only reserves the notch in
+ * the outline. The id comes from `useId()` so that two boards on one page —
+ * or a label whose text repeats — still name their own control.
+ */
 function PinnedSelect({
   label,
   value,
@@ -785,10 +795,16 @@ function PinnedSelect({
   onChange: (value: string) => void;
   minWidth?: number;
 }) {
+  const labelId = useId();
   return (
     <FormControl size="small" sx={{ minWidth: minWidth ?? 190 }}>
-      <InputLabel>{label}</InputLabel>
-      <Select label={label} value={value} onChange={(event) => onChange(event.target.value)}>
+      <InputLabel id={labelId}>{label}</InputLabel>
+      <Select
+        labelId={labelId}
+        label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
         <MenuItem value="">
           <em>All</em>
         </MenuItem>

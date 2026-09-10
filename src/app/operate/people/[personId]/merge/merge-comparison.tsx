@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
@@ -14,9 +14,22 @@ import { ValueChoice } from "@/components/value-choice";
 import { NotRecorded } from "@/components/fact";
 import Typography from "@mui/material/Typography";
 
-import type { PersonMergePreview } from "@/lib/services/person-merge";
+import type { MergeChoice, PersonMergePreview } from "@/lib/services/person-merge";
 import { submitMerge } from "./actions";
 import { INITIAL_MERGE_STATE } from "./merge-state";
+
+/** One comparison row, whatever it compares — a person field, a contact point, or a season's consent. */
+interface ComparisonRow {
+  /** The radio group's form name, and the key the answer is held under. */
+  name: string;
+  label: string;
+  /** B-004's warning chip: both sides hold a value and they disagree. */
+  differs: boolean;
+  /** LAN-256: the two sides do not hold the same value, so this row is a question. */
+  needsChoice: boolean;
+  survivorValue: string | null;
+  loserValue: string | null;
+}
 
 /** `public.messaging_consent_state`, for the operator-choosable comparison row B-003 adds. */
 const CONSENT_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
@@ -32,6 +45,24 @@ const CONSENT_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
  * moves nothing until the operator has answered every one of them. `Q-5`
  * (Brian, 2026-08-29) in full: two refusals, a required reason, what will
  * move shown before it moves, no undo.
+ *
+ * ## LAN-256 — nothing is pre-selected, and Merge waits
+ *
+ * Every row used to render the survivor's side with `defaultSelected`, blank
+ * or not, so pressing Merge without touching a radio was a complete answer
+ * that happened to say "keep everything the survivor has, including the seven
+ * facts it does not have". Merging `Yor` (near-duplicate, almost nothing on
+ * it) with `Yorick` (complete record) discarded the whole of Yorick's last
+ * name, college, matriculation year, expected graduation, degree field, date
+ * of birth and emergency contact, and the survivor then read "8 required facts
+ * are missing".
+ *
+ * So: a row whose two sides hold the same value is not a question and renders
+ * as one value. A row whose sides disagree — in either direction, a blank
+ * against a value included — renders two unselected sides, and Merge stays
+ * disabled until every one of them has an answer. The count of what is left is
+ * on screen beside the button, because a disabled button that will not say why
+ * is its own defect. `mergePersons` refuses the same submission server-side.
  */
 export default function MergeComparison({
   survivorRouteId,
@@ -42,7 +73,49 @@ export default function MergeComparison({
   preview: PersonMergePreview;
 }) {
   const [state, formAction, pending] = useActionState(submitMerge, INITIAL_MERGE_STATE);
+  const [answers, setAnswers] = useState<Record<string, MergeChoice>>({});
   const { survivor, loser, refusal } = preview;
+
+  const valueRows: ComparisonRow[] = [
+    ...preview.fields.map((field) => ({
+      name: `field_${field.field}`,
+      label: field.label,
+      differs: field.differs,
+      needsChoice: field.needsChoice,
+      survivorValue: field.survivorValue,
+      loserValue: field.loserValue,
+    })),
+    ...preview.contacts.map((contact) => ({
+      name: `contact_${contact.kind}`,
+      label: contact.label,
+      differs: contact.differs,
+      needsChoice: contact.needsChoice,
+      survivorValue: contact.survivor?.rawValue ?? null,
+      loserValue: contact.loser?.rawValue ?? null,
+    })),
+  ];
+
+  // B-003 (correction round 2, Q-10, Brian: "If it is a merge, they obviously
+  // get to choose") — `WP-operator-record` (LAN-217). Operator-choosable like
+  // any other row above, and under LAN-256 that now means unanswered as well
+  // as unimposed. Supersedes `T07-merge-precedence`, which was locked at a
+  // recommendation rather than an owner decision.
+  const consentRows: ComparisonRow[] = preview.consentCombinations.map((combo) => ({
+    name: `consent_${combo.seasonId}`,
+    label: `Messaging consent · ${combo.seasonLabel}`,
+    differs: combo.survivorState !== combo.loserState,
+    needsChoice: combo.survivorState !== combo.loserState,
+    survivorValue: CONSENT_STATE_LABELS[combo.survivorState] ?? combo.survivorState,
+    loserValue: CONSENT_STATE_LABELS[combo.loserState] ?? combo.loserState,
+  }));
+
+  const unanswered = [...valueRows, ...consentRows].filter(
+    (row) => row.needsChoice && answers[row.name] === undefined,
+  );
+
+  function answer(name: string, choice: string): void {
+    setAnswers((previous) => ({ ...previous, [name]: choice as MergeChoice }));
+  }
 
   return (
     <Box component="form" action={formAction} sx={{ maxWidth: 960 }}>
@@ -100,52 +173,37 @@ export default function MergeComparison({
 
             <Section title="What each record says">
               <Stack spacing={2}>
-                {preview.fields.map((field) => (
+                {valueRows.map((row) => (
                   <CompareRow
-                    key={field.field}
-                    name={`field_${field.field}`}
-                    label={field.label}
-                    differs={field.differs}
-                    survivorValue={field.survivorValue}
-                    loserValue={field.loserValue}
-                  />
-                ))}
-                {preview.contacts.map((contact) => (
-                  <CompareRow
-                    key={contact.kind}
-                    name={`contact_${contact.kind}`}
-                    label={contact.label}
-                    differs={contact.differs}
-                    survivorValue={contact.survivor?.rawValue ?? null}
-                    loserValue={contact.loser?.rawValue ?? null}
+                    key={row.name}
+                    row={row}
+                    answer={answers[row.name]}
+                    onAnswer={answer}
                   />
                 ))}
                 <CompareRow
-                  name="field_aliases"
-                  label="Aliases"
-                  // D-001 (correction round 3, Q-14): two identical alias
-                  // sets are not a difference — the real, set-wise
-                  // computation from `previewPersonMerge`, not a hardcoded
-                  // `true` that fired even when both sides were empty.
-                  differs={preview.aliases.differs}
-                  survivorValue={preview.aliases.survivorAliases.join(" · ") || null}
-                  loserValue={preview.aliases.loserAliases.join(" · ") || null}
-                  readOnly
+                  row={{
+                    name: "field_aliases",
+                    label: "Aliases",
+                    // D-001 (correction round 3, Q-14): two identical alias
+                    // sets are not a difference — the real, set-wise
+                    // computation from `previewPersonMerge`, not a hardcoded
+                    // `true` that fired even when both sides were empty.
+                    differs: preview.aliases.differs,
+                    // Never a choice: both sides' aliases are kept on the
+                    // survivor, so there is nothing to decide between.
+                    needsChoice: false,
+                    survivorValue: preview.aliases.survivorAliases.join(" · ") || null,
+                    loserValue: preview.aliases.loserAliases.join(" · ") || null,
+                  }}
+                  bothSidesAlways
                 />
-                {/* B-003 (correction round 2, Q-10, Brian: "If it is a merge,
-                    they obviously get to choose") — `WP-operator-record`
-                    (LAN-217). Operator-choosable like any other field or
-                    contact row above: no state is imposed automatically.
-                    Supersedes `T07-merge-precedence`, which was locked at a
-                    recommendation, not an owner decision. */}
-                {preview.consentCombinations.map((combo) => (
+                {consentRows.map((row) => (
                   <CompareRow
-                    key={`consent_${combo.seasonId}`}
-                    name={`consent_${combo.seasonId}`}
-                    label={`Messaging consent · ${combo.seasonLabel}`}
-                    differs={combo.survivorState !== combo.loserState}
-                    survivorValue={CONSENT_STATE_LABELS[combo.survivorState] ?? combo.survivorState}
-                    loserValue={CONSENT_STATE_LABELS[combo.loserState] ?? combo.loserState}
+                    key={row.name}
+                    row={row}
+                    answer={answers[row.name]}
+                    onAnswer={answer}
                   />
                 ))}
               </Stack>
@@ -217,9 +275,22 @@ export default function MergeComparison({
         )}
         <ActionBar
           primary={
-            <Button type="submit" variant="contained" disabled={pending || Boolean(refusal)}>
-              Merge
-            </Button>
+            <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={pending || Boolean(refusal) || unanswered.length > 0}
+              >
+                Merge
+              </Button>
+              {/* Why the button is disabled, as a count rather than a
+                  sentence — LAN-256. Absent once every question is answered. */}
+              {!refusal && unanswered.length > 0 ? (
+                <Typography variant="body2" color="text.secondary" data-testid="merge-unanswered">
+                  {unanswered.length} unanswered
+                </Typography>
+              ) : null}
+            </Stack>
           }
           cancel={<Button href={`/operate/people/${survivorRouteId}`}>Cancel</Button>}
         />
@@ -249,26 +320,37 @@ function SurvivorCard({
   );
 }
 
+/**
+ * One row of the comparison.
+ *
+ * Three shapes, and which one renders is decided by the data rather than by a
+ * flag the caller passes: a row that is a question renders two unselected
+ * sides; a row whose two sides agree renders the one value they agree on,
+ * because "which of these two identical values do you want" is not a question
+ * and asking it hides the rows that are; and the aliases row always shows both
+ * sides, un-choosable, since both sets are kept on the survivor either way.
+ */
 function CompareRow({
-  name,
-  label,
-  differs,
-  survivorValue,
-  loserValue,
-  readOnly,
+  row,
+  answer,
+  onAnswer,
+  bothSidesAlways,
 }: {
-  name: string;
-  label: string;
-  differs: boolean;
-  survivorValue: string | null;
-  loserValue: string | null;
-  readOnly?: boolean;
+  row: ComparisonRow;
+  answer?: MergeChoice;
+  onAnswer?: (name: string, choice: string) => void;
+  bothSidesAlways?: boolean;
 }) {
+  const { name, label, differs, needsChoice, survivorValue, loserValue } = row;
+  const agreed = !needsChoice && !bothSidesAlways;
+
   return (
     <Stack
       direction={{ xs: "column", sm: "row" }}
       spacing={2}
       sx={{ alignItems: { sm: "flex-start" } }}
+      data-testid={`compare-row-${name}`}
+      data-needs-choice={needsChoice ? "true" : "false"}
     >
       <Stack
         direction="row"
@@ -284,19 +366,30 @@ function CompareRow({
           </Typography>
         ) : null}
       </Stack>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ width: "100%" }}>
-        <ValueChoice
-          name={readOnly ? undefined : name}
-          value="survivor"
-          text={survivorValue ?? <NotRecorded />}
-          defaultSelected
-        />
-        <ValueChoice
-          name={readOnly ? undefined : name}
-          value="loser"
-          text={loserValue ?? <NotRecorded />}
-        />
-      </Stack>
+      {agreed ? (
+        <Stack sx={{ width: "100%" }}>
+          <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+            {survivorValue ?? <NotRecorded />}
+          </Typography>
+        </Stack>
+      ) : (
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ width: "100%" }}>
+          <ValueChoice
+            name={bothSidesAlways ? undefined : name}
+            value="survivor"
+            text={survivorValue ?? <NotRecorded />}
+            checked={answer === "survivor"}
+            onSelect={(value) => onAnswer?.(name, value)}
+          />
+          <ValueChoice
+            name={bothSidesAlways ? undefined : name}
+            value="loser"
+            text={loserValue ?? <NotRecorded />}
+            checked={answer === "loser"}
+            onSelect={(value) => onAnswer?.(name, value)}
+          />
+        </Stack>
+      )}
     </Stack>
   );
 }
