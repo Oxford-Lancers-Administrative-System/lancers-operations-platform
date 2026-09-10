@@ -11,7 +11,7 @@
  * and the one authorised explanatory paragraph is on the page.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({ submitAddRecruit: vi.fn() }));
@@ -61,11 +61,16 @@ describe("V-1, correction round 2 — inline phone and email validation", () => 
    *
    * `Create` only exists once the duplicate check has answered, so the check is
    * driven first (the action is mocked, and answers with an empty candidate
-   * list) to bring that button onto the page before the malformed value is
-   * typed.
+   * list) to bring that button onto the page before the bad value goes in.
+   *
+   * The fields are filled with `fireEvent.change` rather than `user.type`: this
+   * test has to put a value into four fields before it can even start, and
+   * typing them a character at a time re-renders the whole form on every
+   * keystroke — enough to run past the 5s test timeout on a loaded CI runner,
+   * which is exactly how it first failed. What is under test is what the form
+   * does with a value, not how the value arrives.
    */
   it("disables both Check for duplicates and Create for a non-Oxford college email", async () => {
-    const user = userEvent.setup();
     vi.mocked(submitAddRecruit).mockResolvedValue({
       ...INITIAL_ADD_RECRUIT_STATE,
       candidates: [],
@@ -73,25 +78,24 @@ describe("V-1, correction round 2 — inline phone and email validation", () => 
     render(<AddRecruitForm seasonLabel="2026-27" />);
 
     // The browser's own constraint validation refuses to submit a form with an
-    // empty required field, so the four required fields are filled with valid
-    // values first — the malformed one is typed afterwards.
+    // empty required field, so all four required fields get a valid value
+    // first; the malformed one goes in afterwards.
     const named = (name: string) =>
       document.querySelector(`input[name="${name}"]`) as HTMLInputElement;
-    await user.type(named("givenName"), "Ada");
-    await user.type(named("familyName"), "Nkemelu");
-    const mobile = screen.getByTestId("mobile-field").querySelector("input") as HTMLInputElement;
-    await user.type(mobile, "07700 900461");
-    const collegeEmail = screen
-      .getByTestId("college-email-field")
-      .querySelector("input") as HTMLInputElement;
-    await user.type(collegeEmail, "ada.nkemelu@balliol.ox.ac.uk");
+    const inside = (testId: string) =>
+      screen.getByTestId(testId).querySelector("input") as HTMLInputElement;
+    const collegeEmail = inside("college-email-field");
 
-    await user.click(screen.getByTestId("add-recruit-check"));
+    fireEvent.change(named("givenName"), { target: { value: "Ada" } });
+    fireEvent.change(named("familyName"), { target: { value: "Nkemelu" } });
+    fireEvent.change(inside("mobile-field"), { target: { value: "07700 900461" } });
+    fireEvent.change(collegeEmail, { target: { value: "ada.nkemelu@balliol.ox.ac.uk" } });
+
+    fireEvent.click(screen.getByTestId("add-recruit-check"));
     const create = await screen.findByTestId("add-recruit-create");
     expect(create).not.toBeDisabled();
 
-    await user.clear(collegeEmail);
-    await user.type(collegeEmail, "someone@gmail.com");
+    fireEvent.change(collegeEmail, { target: { value: "someone@gmail.com" } });
 
     expect(screen.getByTestId("add-recruit-format-invalid").textContent).toContain(
       "Correct the field marked in red",
