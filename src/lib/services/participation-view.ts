@@ -321,8 +321,11 @@ export interface EventFactsBase {
 /**
  * What a club-link reader is told about the event.
  *
- * REQ-no-joining-url: there is no `joiningUrl` key here, so no code path can
- * put one in this object and no serialisation of it can carry one.
+ * There is no `joiningUrl` key here, so no code path can put one in this object
+ * and no serialisation of it can carry one. That absence outlived
+ * `REQ-no-joining-url` (LAN-284 publishes the link on the public calendar) and
+ * is now simply what this tier reads: a club-link reader follows the event's
+ * own public page for the link, and this type is about the participation table.
  */
 export type ClubLinkEvent = EventFactsBase;
 

@@ -32,7 +32,7 @@ import { EMPTY_FORM_STATE } from "../../form-state";
 import {
   CLUB_TIME_ZONE_NOTE,
   describeTermCoordinate,
-  JOINING_URL_IS_NEVER_PUBLIC,
+  JOINING_URL_IS_PUBLIC_WARNING,
   labelFor,
   TYPE_LABELS,
 } from "../../presentation";
@@ -292,6 +292,20 @@ export default function AmendForm({
   return (
     <Box component="form" action={formAction} ref={formRef} data-testid="amend-form">
       <input type="hidden" name="eventId" value={eventId} />
+      {/*
+        LAN-244. The version this form was opened on, posted alongside the
+        fields, so the save can tell what this operator changed from what they
+        merely carried. Without it a second tab's save reverted whatever the
+        first tab had written and the change history recorded the reversion as
+        an amendment somebody made. `before` is the same snapshot the review
+        panel diffs against, so the review and the write agree by construction.
+      */}
+      <input
+        type="hidden"
+        name="baseline"
+        value={JSON.stringify(before)}
+        data-testid="amend-baseline"
+      />
       <input
         type="hidden"
         name="silenceConfirmed"
@@ -407,7 +421,7 @@ export default function AmendForm({
                     label="Joining link"
                     defaultValue={value("joiningUrl")}
                     error={Boolean(issueFor(issues, "joiningUrl"))}
-                    helperText={issueFor(issues, "joiningUrl") ?? JOINING_URL_IS_NEVER_PUBLIC}
+                    helperText={issueFor(issues, "joiningUrl") ?? JOINING_URL_IS_PUBLIC_WARNING}
                   />
                 ) : (
                   <input type="hidden" name="joiningUrl" value="" />
@@ -421,10 +435,14 @@ export default function AmendForm({
                   minRows={2}
                 />
 
+                {/* LAN-264. Free text that behaves exactly like Description. */}
                 <Field
                   name="requiredEquipment"
                   label="Required equipment"
                   defaultValue={value("requiredEquipment")}
+                  helperText="What to bring. Leave empty if nothing."
+                  multiline
+                  minRows={3}
                 />
 
                 <ChoiceField
@@ -495,7 +513,10 @@ export default function AmendForm({
                       sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}
                       data-testid={`change-${change.field}`}
                     >
-                      <Typography variant="body2">{describeChange(change)}</Typography>
+                      {/* LAN-264: a multi-line value reads as it was typed. */}
+                      <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
+                        {describeChange(change)}
+                      </Typography>
                     </Box>
                   ))}
                 </Stack>

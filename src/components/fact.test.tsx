@@ -36,4 +36,20 @@ describe("Fact", () => {
     expect(list.querySelector("dt")).toHaveTextContent("Status");
     expect(list.querySelector("dd")).toHaveTextContent("Active");
   });
+  // LAN-264 — a value the operator typed into a multi-line field.
+  it("keeps the line breaks of a multiline value, and collapses them otherwise", () => {
+    const { rerender } = render(
+      <Fact label="Required equipment" value={"Gumshield\nCleats\nWater"} testId="kit" />,
+    );
+    expect(screen.getByTestId("kit").querySelector("dd p")).not.toHaveStyle({
+      whiteSpace: "pre-line",
+    });
+
+    rerender(
+      <Fact label="Required equipment" value={"Gumshield\nCleats\nWater"} multiline testId="kit" />,
+    );
+    expect(screen.getByTestId("kit").querySelector("dd p")).toHaveStyle({
+      whiteSpace: "pre-line",
+    });
+  });
 });

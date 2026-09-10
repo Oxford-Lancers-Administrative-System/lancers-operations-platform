@@ -110,7 +110,7 @@ export const EVENT_READ_TIERS: readonly EventReadTier[] = Object.freeze([
 export type EventElement = "event_record" | "joining_url" | "participation" | "delivery";
 
 const TIER_SEES: Readonly<Record<EventReadTier, readonly EventElement[]>> = Object.freeze({
-  public: Object.freeze(["event_record"] as const),
+  public: Object.freeze(["event_record", "joining_url"] as const),
   club_link: Object.freeze(["event_record", "joining_url", "participation"] as const),
   operator: Object.freeze(["event_record", "joining_url", "participation", "delivery"] as const),
 });
@@ -118,10 +118,15 @@ const TIER_SEES: Readonly<Record<EventReadTier, readonly EventElement[]>> = Obje
 /**
  * May this tier see this element?
  *
- * `joining_url` is deliberately **not** in the public row. `REQ-no-joining-url`:
- * an online event's joining URL is never public, in a page, in a feed or in any
- * payload behind one. Chalk is on Teams (D20) and a publicly readable joining
- * link is an open door into a club meeting for anyone who finds the page.
+ * `joining_url` **is** in the public row, and that reverses `REQ-no-joining-url`
+ * — LAN-284, Brian 2026-09-09. It used to be the one element the public tier was
+ * narrowed by beyond participation and delivery, on the reasoning that a
+ * publicly readable joining link is an open door into a club meeting. The
+ * reasoning was answered rather than overruled: a Teams meeting requires its own
+ * passcode, shared privately, on top of Oxford-domain approval, so the link
+ * alone admits nobody, and the protection now lives there instead of on the
+ * schedule. `participation` and `delivery` are unchanged, and are what still
+ * separates the three tiers.
  */
 export function tierSees(tier: EventReadTier, element: EventElement): boolean {
   return TIER_SEES[tier].includes(element);

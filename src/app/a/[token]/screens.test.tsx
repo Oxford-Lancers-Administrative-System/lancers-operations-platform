@@ -95,6 +95,7 @@ const BASE: SignedRsvpPage = {
   startsAt: "20:00",
   endsAt: "22:30",
   venue: "Iffley Road Astro",
+  requiredEquipment: null,
   eventStartsAt: new Date("2026-10-14T19:00:00Z"),
   playerName: "Avery Fielding",
   responseDeadline: new Date("2026-10-13T17:00:00Z"),

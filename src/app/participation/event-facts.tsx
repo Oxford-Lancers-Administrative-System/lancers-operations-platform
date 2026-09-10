@@ -68,7 +68,9 @@ export function formatEventWhen(event: {
 
 export function EventFacts({ event }: { event: ClubLinkEvent }) {
   const online = event.deliveryMode === "online";
-  const facts: { label: string; value: string }[] = [
+  // LAN-264: `multiline` marks the two facts that are free text the operator
+  // typed, so a kit list written as three lines is read as three lines here too.
+  const facts: { label: string; value: string; multiline?: boolean }[] = [
     { label: "Type", value: labelFor(TYPE_LABELS, event.eventType) },
     {
       label: online ? "Destination" : "Where",
@@ -85,15 +87,26 @@ export function EventFacts({ event }: { event: ClubLinkEvent }) {
   }
   facts.push({ label: "Attendance", value: event.isMandatory ? "Mandatory" : "Optional" });
   if (event.requiredEquipment) {
-    facts.push({ label: "Required equipment", value: event.requiredEquipment });
+    facts.push({
+      label: "Required equipment",
+      value: event.requiredEquipment,
+      multiline: true,
+    });
   }
-  if (event.description) facts.push({ label: "Description", value: event.description });
+  if (event.description) {
+    facts.push({ label: "Description", value: event.description, multiline: true });
+  }
 
   return (
     <Section title="Details" testId="event-facts">
       <FactGrid>
         {facts.map((fact) => (
-          <Fact key={fact.label} label={fact.label} value={fact.value} />
+          <Fact
+            key={fact.label}
+            label={fact.label}
+            value={fact.value}
+            multiline={fact.multiline ?? false}
+          />
         ))}
       </FactGrid>
     </Section>
