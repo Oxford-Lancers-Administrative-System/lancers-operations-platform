@@ -1,0 +1,271 @@
+======================================================================
+GET /    — the app root
+======================================================================
+  <title>Sign in</title>
+  <meta name="description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <meta property="og:title" content="Oxford Lancers"/>
+  <meta property="og:description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png?opengraph-image.431xkl4qq0qd4.png"/>
+  <meta property="og:image:type" content="image/png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Oxford Lancers"/>
+  <meta name="twitter:description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <meta name="twitter:image" content="http://localhost:3010/twitter-image.png?twitter-image.431xkl4qq0qd4.png"/>
+  <meta name="twitter:image:type" content="image/png"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /calendar    — public calendar (list)
+======================================================================
+  <title>Club calendar — Oxford Lancers</title>
+  <meta name="description" content="Every Oxford Lancers training session, fixture and social this season, with the details you need to turn up."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta property="og:title" content="Club calendar"/>
+  <meta property="og:description" content="Every Oxford Lancers training session, fixture and social this season, with the details you need to turn up."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Club calendar"/>
+  <meta name="twitter:description" content="Every Oxford Lancers training session, fixture and social this season, with the details you need to turn up."/>
+  <meta name="twitter:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta name="twitter:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /calendar/view    — public calendar (month)
+======================================================================
+  <title>Club calendar — Oxford Lancers</title>
+  <meta name="description" content="Every Oxford Lancers training session, fixture and social this season, with the details you need to turn up."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta property="og:title" content="Club calendar"/>
+  <meta property="og:description" content="Every Oxford Lancers training session, fixture and social this season, with the details you need to turn up."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Club calendar"/>
+  <meta name="twitter:description" content="Every Oxford Lancers training session, fixture and social this season, with the details you need to turn up."/>
+  <meta name="twitter:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta name="twitter:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /privacy    — privacy notice
+======================================================================
+  <title>Privacy notice — Oxford Lancers</title>
+  <meta name="description" content="How Oxford Lancers uses personal information in its operations platform and how to contact the club about your data."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta property="og:title" content="Privacy notice"/>
+  <meta property="og:description" content="How Oxford Lancers uses personal information in its operations platform and how to contact the club about your data."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Privacy notice"/>
+  <meta name="twitter:description" content="How Oxford Lancers uses personal information in its operations platform and how to contact the club about your data."/>
+  <meta name="twitter:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta name="twitter:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /terms    — terms of use
+======================================================================
+  <title>Terms of use — Oxford Lancers</title>
+  <meta name="description" content="Using the Oxford Lancers operations platform, accounts and private links."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta property="og:title" content="Terms of use"/>
+  <meta property="og:description" content="Using the Oxford Lancers operations platform, accounts and private links."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Terms of use"/>
+  <meta name="twitter:description" content="Using the Oxford Lancers operations platform, accounts and private links."/>
+  <meta name="twitter:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta name="twitter:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /data-deletion    — data deletion
+======================================================================
+  <title>Request data deletion — Oxford Lancers</title>
+  <meta name="description" content="How to ask Oxford Lancers to delete personal information held in its operations platform."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta property="og:title" content="Request data deletion"/>
+  <meta property="og:description" content="How to ask Oxford Lancers to delete personal information held in its operations platform."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Request data deletion"/>
+  <meta name="twitter:description" content="How to ask Oxford Lancers to delete personal information held in its operations platform."/>
+  <meta name="twitter:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta name="twitter:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /login    — sign in
+======================================================================
+  <title>Sign in — Oxford Lancers</title>
+  <meta name="description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <meta property="og:title" content="Oxford Lancers"/>
+  <meta property="og:description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png?opengraph-image.431xkl4qq0qd4.png"/>
+  <meta property="og:image:type" content="image/png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Oxford Lancers"/>
+  <meta name="twitter:description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <meta name="twitter:image" content="http://localhost:3010/twitter-image.png?twitter-image.431xkl4qq0qd4.png"/>
+  <meta name="twitter:image:type" content="image/png"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /join/UA5gZtyEqBg2    — recruit sign-up door (LAN-279)
+======================================================================
+  <title>Join the Oxford Lancers</title>
+  <meta name="description" content="Sign up in under a minute: your name, phone and college email, and we&#x27;ll send you the details."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <meta property="og:title" content="Join the Oxford Lancers"/>
+  <meta property="og:description" content="Sign up in under a minute: your name, phone and college email, and we&#x27;ll send you the details."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/join/UA5gZtyEqBg2/opengraph-image?028d1f11a8436488"/>
+  <meta property="og:image:type" content="image/png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="Join the Lancers — Oxford Lancers"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Join the Oxford Lancers"/>
+  <meta name="twitter:description" content="Sign up in under a minute: your name, phone and college email, and we&#x27;ll send you the details."/>
+  <meta name="twitter:image" content="http://localhost:3010/join/UA5gZtyEqBg2/twitter-image?2060412ae4c75084"/>
+  <meta name="twitter:image:alt" content="Join the Lancers — Oxford Lancers"/>
+  <meta name="twitter:image:type" content="image/png"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /me/<a-real-local-person-token-redacted>    — a player's own durable link (real token)
+======================================================================
+  <title>Oxford Lancers</title>
+  <meta name="description" content="A link from the Oxford Lancers. Open it to see what it is for."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <meta property="og:title" content="Oxford Lancers"/>
+  <meta property="og:description" content="A link from the Oxford Lancers. Open it to see what it is for."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Oxford Lancers"/>
+  <meta name="twitter:description" content="A link from the Oxford Lancers. Open it to see what it is for."/>
+  <meta name="twitter:image" content="http://localhost:3010/opengraph-image.png"/>
+  <meta name="twitter:image:alt" content="The Oxford University Lancers American Football Club crest, over the club&#x27;s ground"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /rsvp/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA    — an RSVP token link (invented token, renders 404)
+======================================================================
+  <meta name="robots" content="noindex"/>
+  <title>Oxford Lancers</title>
+  <meta name="description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta property="og:title" content="Oxford Lancers"/>
+  <meta property="og:description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <meta property="og:site_name" content="Oxford Lancers"/>
+  <meta property="og:locale" content="en_GB"/>
+  <meta property="og:image" content="http://localhost:3010/opengraph-image.png?opengraph-image.431xkl4qq0qd4.png"/>
+  <meta property="og:image:type" content="image/png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Oxford Lancers"/>
+  <meta name="twitter:description" content="The Oxford Lancers club app: events, RSVPs and your details."/>
+  <meta name="twitter:image" content="http://localhost:3010/twitter-image.png?twitter-image.431xkl4qq0qd4.png"/>
+  <meta name="twitter:image:type" content="image/png"/>
+  <meta name="twitter:image:width" content="1200"/>
+  <meta name="twitter:image:height" content="630"/>
+  <link rel="icon" href="/favicon.ico?favicon.43uq-rrb7tz89.ico" sizes="48x48" type="image/x-icon"/>
+  <link rel="icon" href="/icon.svg?icon.3e2qvk-wbiswh.svg" sizes="any" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="/apple-icon.png?apple-icon.0wbfyrbh6kht-.png" sizes="180x180" type="image/png"/>
+
+======================================================================
+GET /manifest.webmanifest
+======================================================================
+{"name":"Oxford Lancers","short_name":"Lancers","description":"The Oxford Lancers club app: events, RSVPs and your details.","lang":"en-GB","start_url":"/","display":"browser","background_color":"#002147","theme_color":"#002147","icons":[{"src":"/brand/icon-192.png","sizes":"192x192","type":"image/png"},{"src":"/brand/icon-512.png","sizes":"512x512","type":"image/png"}]}

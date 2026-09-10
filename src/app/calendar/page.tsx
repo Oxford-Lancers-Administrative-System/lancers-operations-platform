@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 import { Notice } from "@/components/notice";
 import { EmptyState } from "@/components/empty-state";
 import Stack from "@mui/material/Stack";
+import { CALENDAR_DESCRIPTION, publicPageMetadata } from "@/lib/brand";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import { bucketEventsByPeriod, bucketedCount, PERIOD_LABELS } from "@/lib/services/event-periods";
@@ -50,6 +52,16 @@ import { readEventYear } from "./year";
  * The public read has no column for a joining URL, a count or a status, so there
  * is nothing on this page to withhold. See `PUBLIC_EVENT_COLUMNS`.
  */
+/**
+ * The club's own noticeboard, as a shared link — LAN-269 item 4.
+ *
+ * This is the one page the club posts publicly, so it is the one that most
+ * needs to unfurl as something a stranger would tap. Static: the card describes
+ * the calendar, not what happens to be on it this week, so nothing here reads
+ * the database and the `<head>` costs a crawler one cached response.
+ */
+export const metadata: Metadata = publicPageMetadata("Club calendar", CALENDAR_DESCRIPTION);
+
 export default async function PublicCalendarPage({ searchParams }: PageProps<"/calendar">) {
   const params = await searchParams;
   const query = readListQuery(params, PUBLIC_EVENT_SORT_COLUMNS);

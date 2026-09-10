@@ -55,6 +55,7 @@ vi.mock("@/lib/services/rsvp-tokens", async (importOriginal) => {
   return { ...actual, resolveRsvpTokenIn: vi.fn() };
 });
 vi.mock("./actions", () => ({
+  noteRsvpLinkOpened: vi.fn(),
   submitAttending: vi.fn(),
   submitNotAttending: vi.fn(),
 }));

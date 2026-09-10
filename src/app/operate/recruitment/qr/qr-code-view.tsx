@@ -22,11 +22,14 @@ import { mintRecruitmentSignupCodeAction } from "./actions";
 export default function QrCodeView({
   seasonLabel,
   joinUrl,
+  cardImageSrc,
   signInCount,
   mintedAt,
 }: {
   seasonLabel: string;
   joinUrl: string | null;
+  /** The generated sign-up card for this code — LAN-279. Null when no code is live. */
+  cardImageSrc: string | null;
   signInCount: number;
   mintedAt: string | null;
 }) {
@@ -83,6 +86,29 @@ export default function QrCodeView({
             <Typography variant="body2" sx={{ mt: 2, wordBreak: "break-all" }}>
               {joinUrl}
             </Typography>
+            {/*
+              What a recruit sees in a chat, beside what they scan off the
+              poster — LAN-279 item 3. It is the same generated image the link
+              itself unfurls with (`/join/[code]/opengraph-image`), not a copy
+              of it, so an operator printing this page cannot be looking at a
+              design that has drifted from the one being shared.
+            */}
+            {cardImageSrc ? (
+              <Box
+                component="img"
+                src={cardImageSrc}
+                alt="The link preview a recruit sees when the sign-up link is shared"
+                sx={{
+                  width: "100%",
+                  mt: 2,
+                  display: "block",
+                  borderRadius: 1,
+                  border: "1px solid",
+                  borderColor: "divider",
+                }}
+                data-testid="recruitment-qr-card"
+              />
+            ) : null}
             <Stack direction="row" spacing={1.5} sx={{ justifyContent: "center", mt: 2 }}>
               <Button
                 variant="outlined"

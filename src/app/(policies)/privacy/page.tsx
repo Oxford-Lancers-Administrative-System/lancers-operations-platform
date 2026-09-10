@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
+import { publicPageMetadata } from "@/lib/brand";
 import { PolicyHeading, PolicySection, PrivacyContact } from "../policy-content";
 
-export const metadata: Metadata = {
-  title: "Privacy notice — Oxford Lancers",
-  description:
-    "How Oxford Lancers uses personal information in its operations platform and how to contact the club about your data.",
-};
+export const metadata: Metadata = publicPageMetadata(
+  "Privacy notice",
+  "How Oxford Lancers uses personal information in its operations platform and how to contact the club about your data.",
+);
 
 export default function PrivacyPage() {
   return (

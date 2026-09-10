@@ -10,7 +10,6 @@ import { chasePositionLabel, type ChaseJobFact } from "./chase-position";
 import {
   deriveClubLinkToken,
   issueClubLinkIn,
-  recordClubLinkUse,
   resolveClubLinkIn,
   type ClubLinkResolution,
   type EnvSource,
@@ -624,46 +623,38 @@ export async function readClubLinkParticipation(
   token: string,
   options: { env?: EnvSource } = {},
 ): Promise<ClubLinkPage> {
-  // W157-R1. Two phases, and the split is the whole fix.
+  // W157-R1 split resolution from the stamp so that concurrent readers of one
+  // link never queued on that link's row: stamping inside this transaction made
+  // every reader take the row lock and hold it, with its pooled connection,
+  // until the participation read committed. Forty simultaneous readers of one
+  // token filled the pool with waiters and were served Next's own error page.
   //
-  // The read below takes no lock on `club_link_tokens`, so any number of people
-  // may open the *same* link at once without queueing behind each other. That
-  // used not to be true: resolution stamped `use_count` in this transaction, so
-  // every reader of one link took that link's row lock and held it, and its
-  // pooled connection with it, until the participation read committed. Forty
-  // simultaneous readers of one token filled the pool with waiters and were
-  // served Next's own error page — see `./club-link.ts`.
+  // LAN-269 then took the second phase out of this function altogether. This is
+  // a `GET`, and a `GET` of a club link is what WhatsApp's and Apple's preview
+  // crawlers issue the moment the link is pasted into a chat, before any coach
+  // taps it. Counting those made `use_count` a measure of how often the link
+  // had been *shared*, which is not the question Q2 asks.
   //
-  // The stamp then happens on its own, after the commit, and cannot fail this
-  // call: `recordClubLinkUse` swallows its own errors, and its `skip locked`
-  // means it never waits for anybody either.
-  const read = await withTransaction(async (tx) => {
+  // The stamp is now `recordClubLinkUseByToken`, which `/e/[token]` calls from
+  // a server action once a real browser has run the page. What that costs is
+  // stated there; what it buys is a read with no side effect at all, which is
+  // the only version of this function a crawler may safely reach.
+  return withTransaction(async (tx) => {
     const resolution: ClubLinkResolution = await resolveClubLinkIn(tx, token, options);
-    if (resolution.state !== "live") return { page: { state: "unavailable" } as ClubLinkPage };
+    if (resolution.state !== "live") return { state: "unavailable" };
 
     let participation: ClubLinkParticipation;
     try {
       participation = await buildClubLinkParticipationIn(tx, resolution.eventId);
     } catch (error) {
-      if (error instanceof NotFound) {
-        return { page: { state: "unavailable" } as ClubLinkPage, linkId: resolution.linkId };
-      }
+      if (error instanceof NotFound) return { state: "unavailable" };
       throw error;
     }
-    const page: ClubLinkPage =
-      participation.event.status === "draft"
-        ? { state: "unavailable" }
-        : { state: "live", participation };
 
-    return { page, linkId: resolution.linkId };
+    return participation.event.status === "draft"
+      ? { state: "unavailable" }
+      : { state: "live", participation };
   });
-
-  // Counted whenever the *token* opened, which is what it counted before: a
-  // live link whose event has since gone back to draft was still presented, and
-  // Q2 is asking whether links are still being reached at all.
-  if (read.linkId !== undefined) await recordClubLinkUse(read.linkId);
-
-  return read.page;
 }
 
 // ---------------------------------------------------------------------------
