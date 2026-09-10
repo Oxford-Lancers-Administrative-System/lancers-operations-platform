@@ -266,7 +266,9 @@ select
   '00800080-0080-4080-8080-000000000001',
   now(),
   '00800080-0080-4080-8080-000000000001',
-  event.deadline_at::timestamptz
+  event.deadline_at::timestamptz,
+  (select tpl.id from public.event_templates tpl
+    where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
 from (values
   ('00800080-0080-4080-8080-000000000021',
    'PILOT-LAN-80 Occurrence scenario',
@@ -276,9 +278,8 @@ from (values
    'PILOT-LAN-80 Second register scenario',
    (current_date - 4)::text,
    (((current_date - 6) + '18:00'::time) at time zone 'Europe/London')::text)
-) as event(id, name, scheduled_on, deadline_at),
-              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
-       on conflict (id) do nothing;
+) as event(id, name, scheduled_on, deadline_at)
+on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- The audience

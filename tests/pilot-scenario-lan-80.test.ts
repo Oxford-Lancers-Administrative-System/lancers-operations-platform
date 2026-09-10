@@ -427,10 +427,11 @@ describe("setup.sql", () => {
   it("refuses when an unrelated event already carries the sentinel", async () => {
     await client.query(
       `insert into public.events (season_id, name, event_type, status, template_id)
-       select id, $1, 'practice', 'draft' from public.seasons
-        where status in ('open', 'active'),
-              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
-       `,
+       select id, $1, 'practice', 'draft',
+              (select tpl.id from public.event_templates tpl
+                 where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+         from public.seasons
+        where status in ('open', 'active')`,
       [`${SENTINEL} Interloper`],
     );
 

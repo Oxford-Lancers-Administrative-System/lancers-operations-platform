@@ -353,7 +353,9 @@ select
   '01100110-0110-4110-8110-000000000003',
   now(),
   '01100110-0110-4110-8110-000000000003',
-  scenario.deadline_at::timestamptz
+  scenario.deadline_at::timestamptz,
+  (select tpl.id from public.event_templates tpl
+    where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
 from (values
   -- The one with the invitees and the contrasting RSVP answers. Two days ago,
   -- so it sits in **Earlier** with its register already open.
@@ -371,9 +373,8 @@ from (values
    'PILOT-LAN-110 Today session',
    current_date::text,
    (((current_date - 2) + '18:00'::time) at time zone 'Europe/London')::text)
-) as scenario(id, name, scheduled_on, deadline_at),
-              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
-       on conflict (id) do nothing;
+) as scenario(id, name, scheduled_on, deadline_at)
+on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- The audience

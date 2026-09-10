@@ -282,7 +282,9 @@ select
   now(),
   '00790079-0079-4079-8079-000000000001',
   event.deadline_at::timestamptz,
-  event.decision_reason
+  event.decision_reason,
+  (select tpl.id from public.event_templates tpl
+    where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
 from (values
   -- The ordinary case: fourteen days ahead, deadline twelve days ahead.
   ('00790079-0079-4079-8079-000000000021',
@@ -323,9 +325,8 @@ from (values
    (current_date + 21)::text, '19:00', '21:00',
    (((current_date + 19) + '18:00'::time) at time zone 'Europe/London')::text,
    'PILOT-LAN-79 synthetic cancellation — the astro was double-booked.')
-) as event(id, name, status, scheduled_on, starts_at, ends_at, deadline_at, decision_reason),
-              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
-       on conflict (id) do nothing;
+) as event(id, name, status, scheduled_on, starts_at, ends_at, deadline_at, decision_reason)
+on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- The audience

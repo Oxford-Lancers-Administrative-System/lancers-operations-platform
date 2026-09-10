@@ -256,9 +256,10 @@ describe("verify-clean.sql, against a real database", () => {
     [
       "an event",
       `insert into public.events (season_id, name, event_type, status, template_id)
-         select id, $1, 'practice', 'draft' from public.seasons order by starts_on desc limit 1,
-              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
-       `,
+         select id, $1, 'practice', 'draft',
+                (select tpl.id from public.event_templates tpl
+                 where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+           from public.seasons order by starts_on desc limit 1`,
     ],
   ])("refuses when %s still carries a sentinel", async (_label, sql) => {
     await client.query("begin");

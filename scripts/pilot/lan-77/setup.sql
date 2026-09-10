@@ -282,16 +282,17 @@ select
   '19:00',
   '21:00',
   'PILOT-LAN-77 synthetic venue',
-  true
+  true,
+  (select tpl.id from public.event_templates tpl
+    where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
 from (values
   ('00770077-0077-4077-8077-000000000050'::uuid, 'PILOT-LAN-77 Approval scenario'),
   ('00770077-0077-4077-8077-000000000051'::uuid, 'PILOT-LAN-77 Rollback scenario')
 ) as scenario(id, name)
 cross join (
   select id from public.seasons where status in ('open', 'active') limit 1
-) as season,
-              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
-       on conflict (id) do nothing;
+) as season
+on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- 6. The blocker that makes rollback observable
