@@ -236,6 +236,13 @@ this event is for" where the template names no groups (D47, reversing LAN-77's
 active players, All active coaches and All active committee, with their counts;
 a Recruits group appears on a Recruitment event alone (D46).
 
+The list is **people, one row each** (LAN-294): somebody who plays and also
+coaches or sits on the committee appears once, with every role on the row's
+second line, and the tick takes them in or out as a whole. On anything that is
+not a Recruitment event, a recruit is not merely hidden — they are not offered
+at all (LAN-295), so there is no recruit row and no Recruits entry in the
+Capacity filter.
+
 2. Search for `Runbook`, tick **Runbook Walker**, press **Review 1 selected**.
 
 **Expected.** The approval review, showing:
