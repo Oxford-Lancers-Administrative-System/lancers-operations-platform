@@ -30,6 +30,7 @@ import {
   type QuestionnaireView,
 } from "@/lib/services/player-questionnaire";
 import type { OnboardingAgreementType } from "@/lib/services/onboarding-agreements";
+import { RESOLVED_ITEM_STATUSES, type OnboardingItemStatus } from "@/lib/services/membership";
 
 import { agreeDocument, submitTrustStep } from "./actions";
 import { CheckField } from "@/components/field";
@@ -93,6 +94,9 @@ import {
 } from "./presentation";
 
 export const dynamic = "force-dynamic";
+
+/** The onboarding item codes this questionnaire's five steps map onto. */
+type QuestionnaireItemCode = keyof QuestionnaireView["itemStatus"];
 
 interface PageProps {
   params: Promise<{ token: string }>;
@@ -216,32 +220,62 @@ function ChecklistStrip({
   const steps = [];
   for (const step of STEP_ORDER) {
     const isCurrent = step === currentStep;
-    let value: string;
     if (step === "details") {
-      value = view.detailsComplete ? "Saved" : isCurrent ? "In progress" : "Still needed";
-    } else if (step === "code_of_conduct") {
-      value = view.itemStatus.code_of_conduct === "complete" ? "Agreed" : "Outstanding";
-    } else if (step === "photo_release") {
-      value = view.itemStatus.photo_release === "complete" ? "Agreed" : "Outstanding";
-    } else if (step === "bucs_play") {
-      value = view.itemStatus.bucs_play === "claimed" ? "Claimed" : "Outstanding";
-    } else {
-      value = view.itemStatus.hudl_access === "claimed" ? "Claimed" : "Outstanding";
+      steps.push({
+        label: stepLabel(step),
+        status: view.detailsComplete ? "complete" : "pending",
+        statusLabel: view.detailsComplete ? "Saved" : isCurrent ? "In progress" : "Still needed",
+      });
+      continue;
     }
-    const status =
-      step === "details"
-        ? view.detailsComplete
-          ? "complete"
-          : "pending"
-        : (view.itemStatus[
-            step === "code_of_conduct" || step === "photo_release" || step === "bucs_play"
-              ? step
-              : "hudl_access"
-          ] ?? "pending");
-    steps.push({ label: stepLabel(step), status, statusLabel: value });
+    // `STEP_ORDER` stops before "done"; the guard is here because the step
+    // union carries it and the item codes below do not.
+    if (step === "done") continue;
+    const code: QuestionnaireItemCode = step === "hudl" ? "hudl_access" : step;
+    const status = view.itemStatus[code] ?? "pending";
+    steps.push({ label: stepLabel(step), status, statusLabel: itemStepWord(code, status) });
   }
 
   return <StepTrail steps={steps} currentIndex={STEP_ORDER.indexOf(currentStep)} />;
+}
+
+/**
+ * The one word this page says about an onboarding item's state — LAN-289.
+ *
+ * The navigator drew its chip from the item's stored status and its label
+ * from a separate `=== "claimed"` test, so a BUCS Play item the club had
+ * *confirmed* — a resolved state, and the one beyond claimed — sat under a
+ * chip coloured complete with the word "Outstanding" beside it. Two signals
+ * about one row, contradicting each other, which is the defect LAN-216 asks
+ * this navigator not to have: "the navigator's label and its chip state
+ * agree; a resolved item reads as resolved."
+ *
+ * So both now come from the status, here, once. `claimed` keeps its own word
+ * — the player has said they are done and the club has not confirmed it, and
+ * that is genuinely not the same as confirmed — and every state that needs
+ * nothing further from anybody (`RESOLVED_ITEM_STATUSES`) reads as resolved.
+ * `invited` stays "Outstanding" on purpose: an invitation the player has not
+ * taken up is exactly the thing this sequence is asking them to do.
+ *
+ * The words are the player's, not the operator record's. `itemStateLabel`
+ * answers the same question for an administrator ("Not invited", "Confirmed")
+ * and cannot be borrowed: it throws on a state its item's own list does not
+ * carry, and `waived` is not on either trust item's list even though the
+ * schema lets a membership sit in it.
+ */
+function itemStepWord(code: QuestionnaireItemCode, status: OnboardingItemStatus): string {
+  const isDocument = code === "code_of_conduct" || code === "photo_release";
+  if (status === "complete") return isDocument ? "Agreed" : "Confirmed";
+  if (status === "claimed") return "Claimed";
+  if (status === "waived") return "Waived";
+  if (status === "not_applicable") return "Not needed";
+  return "Outstanding";
+}
+
+/** Whether this page treats an item as needing nothing further — the same test the service's own `bucsDone`/`hudlDone` use. */
+function itemIsSettled(status: OnboardingItemStatus | null): boolean {
+  if (status === null) return false;
+  return status === "claimed" || RESOLVED_ITEM_STATUSES.includes(status);
 }
 
 /**
@@ -500,7 +534,9 @@ function DocumentStepPage({
 
 function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string }) {
   const photoReleaseAgreed = view.itemStatus.photo_release === "complete";
-  const bucsClaimed = view.itemStatus.bucs_play === "claimed";
+  // LAN-289's same one source, so this box and the navigator directly above it
+  // cannot say different things about the same item.
+  const bucs = view.itemStatus.bucs_play;
   return (
     <BucsHudlShell
       view={view}
@@ -514,7 +550,7 @@ function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string 
           photoReleaseAgreed ? "Agreed" : "Outstanding",
           photoReleaseAgreed,
         ],
-        [stepLabel("bucs_play"), bucsClaimed ? "Claimed" : "Outstanding", bucsClaimed],
+        [stepLabel("bucs_play"), itemStepWord("bucs_play", bucs ?? "pending"), itemIsSettled(bucs)],
         [BUCS_STATUS_CONFIRMED_BY_LABEL, BUCS_STATUS_CONFIRMED_BY],
         [BUCS_STATUS_INSTRUCTIONS_LABEL, BUCS_STATUS_INSTRUCTIONS, false],
       ]}
@@ -643,8 +679,10 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
   const consentGiven = !view.needsConsentStep;
   const codeOfConductAgreed = view.itemStatus.code_of_conduct === "complete";
   const photoReleaseAgreed = view.itemStatus.photo_release === "complete";
-  const bucsClaimed = view.itemStatus.bucs_play === "claimed";
-  const hudlClaimed = view.itemStatus.hudl_access === "claimed";
+  // LAN-289's one source again, for the two items that have more states than
+  // "done or not": this list is read directly under the navigator's own.
+  const bucs = view.itemStatus.bucs_play;
+  const hudl = view.itemStatus.hudl_access;
 
   return (
     <>
@@ -679,8 +717,12 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
             photoReleaseAgreed ? "Agreed" : "Outstanding",
             photoReleaseAgreed,
           ],
-          [stepLabel("bucs_play"), bucsClaimed ? "Claimed" : "Outstanding", bucsClaimed],
-          [stepLabel("hudl"), hudlClaimed ? "Claimed" : "Outstanding", hudlClaimed],
+          [
+            stepLabel("bucs_play"),
+            itemStepWord("bucs_play", bucs ?? "pending"),
+            itemIsSettled(bucs),
+          ],
+          [stepLabel("hudl"), itemStepWord("hudl_access", hudl ?? "pending"), itemIsSettled(hudl)],
         ]}
       />
       {view.outstandingSections.length > 0 ? (

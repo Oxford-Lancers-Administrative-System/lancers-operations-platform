@@ -5,7 +5,7 @@
  * it, what it groups and sorts, and what each status reads.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -43,6 +43,7 @@ import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operato
 import { readFollowUpsQueue, type FollowUpEvent } from "@/lib/services/follow-ups";
 import { readCurrentSeason } from "@/lib/services/seasons";
 import FollowUpsPage from "./page";
+import { RANGE_FROM_LABEL, RANGE_TO_LABEL, TABLE_PERSON } from "./presentation";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -114,6 +115,7 @@ const PRACTICE: FollowUpEvent = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cleanup();
   vi.mocked(readFollowUpsQueue).mockResolvedValue([HAWKS, PRACTICE]);
   signedInAs(["secretary"]);
   // "This term" only: today (2026-09-13, mocked above) inside a term running
@@ -372,5 +374,113 @@ describe("filtering the queue by date", () => {
   it("never resurrects the mockup's dropped Entry dropdown alongside the new date filter", async () => {
     const { container } = await renderPage();
     expect(container.textContent).not.toContain("Entry");
+  });
+});
+
+/**
+ * LAN-281 — Clint's ask of 2026-09-09, and nothing beyond it.
+ *
+ * > "maybe a different structure that I quite like having it by player. I
+ * > don't hate it. The only thing I think that would be good to filter is to
+ * > just have it be like filter by a date range."
+ *
+ * and what he would use it for:
+ *
+ * > "I like the idea of having a date range and being like, okay, so like
+ * > who's not responding to the stuff that we need them to respond to next
+ * > week?"
+ *
+ * So: one range, over the event's own date, reaching forward as readily as
+ * back, with the by-player organisation, sort and columns untouched. The
+ * event-pivot view argued for in the same conversation is deliberately not
+ * here, and the last test in this block is what keeps it out.
+ */
+describe("filtering the queue by a date range — LAN-281", () => {
+  it("narrows to the events inside the range, and leaves the rest of the board alone", async () => {
+    const { container } = await renderPage({ from: "2026-09-15", to: "2026-09-20" });
+
+    const rows = screen.getAllByTestId("follow-ups-row");
+    expect(rows).toHaveLength(1);
+    expect(container.textContent).toContain("Rufus");
+    expect(container.textContent).not.toContain("Gideon Thornbury");
+  });
+
+  it("answers 'who has not answered what is coming' — a range wholly in the future", async () => {
+    // Today is 2026-09-13; this range is the week after it, which is the
+    // question Clint said he would ask.
+    const { container } = await renderPage({ from: "2026-09-14", to: "2026-09-21" });
+
+    expect(screen.getAllByTestId("follow-ups-row")).toHaveLength(1);
+    expect(container.textContent).toContain("Rufus");
+  });
+
+  it("takes one side on its own as an open-ended range", async () => {
+    const onlyFrom = await renderPage({ from: "2026-09-14" });
+    expect(within(onlyFrom.container).getAllByTestId("follow-ups-row")).toHaveLength(1);
+    expect(onlyFrom.container.textContent).toContain("Rufus");
+    cleanup();
+
+    const onlyTo = await renderPage({ to: "2026-09-14" });
+    expect(within(onlyTo.container).getAllByTestId("follow-ups-row")).toHaveLength(3);
+    expect(onlyTo.container.textContent).not.toContain("Rufus");
+  });
+
+  it("includes both boundary days — a range is inclusive, as a person reading it expects", async () => {
+    const { container } = await renderPage({ from: "2026-09-13", to: "2026-09-16" });
+    expect(screen.getAllByTestId("follow-ups-row")).toHaveLength(4);
+    expect(container.textContent).toContain("Gideon Thornbury");
+    expect(container.textContent).toContain("Rufus");
+  });
+
+  it("narrows nothing when the URL carries something that is not a calendar day", async () => {
+    // A hand-edited or stale link fails open. Emptying the queue over an
+    // unreadable parameter would give an operator no way to see why.
+    const { container } = await renderPage({ from: "next week", to: "2026-13-45" });
+    expect(screen.getAllByTestId("follow-ups-row")).toHaveLength(4);
+    expect(container.textContent).toContain("Rufus");
+  });
+
+  it("combines with search, Status and When rather than replacing any of them", async () => {
+    const { container } = await renderPage({
+      from: "2026-09-01",
+      to: "2026-09-30",
+      period: "week",
+      status: "escalated",
+    });
+
+    expect(screen.getAllByTestId("follow-ups-row")).toHaveLength(1);
+    expect(container.textContent).toContain("Gideon Thornbury");
+  });
+
+  it("carries the range through a sort link, so sorting never drops it", async () => {
+    const { container } = await renderPage({ from: "2026-09-01", to: "2026-09-30" });
+
+    const links = Array.from(container.querySelectorAll("a[href*='sort=']"));
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      const href = link.getAttribute("href") ?? "";
+      expect(href).toContain("from=2026-09-01");
+      expect(href).toContain("to=2026-09-30");
+    }
+  });
+
+  it("gives both ends of the range an accessible name, which LAN-259 found the pinned filters lacking", async () => {
+    await renderPage();
+
+    // `getAllBy`, not `getBy`: the picker gives its accessible name to both
+    // the editable field and the hidden input that carries `YYYY-MM-DD` to a
+    // plain form post. What is proved is that the name is there at all, which
+    // is what LAN-259 found missing next door.
+    expect(screen.getAllByLabelText(RANGE_FROM_LABEL).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText(RANGE_TO_LABEL).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the by-player list Clint asked to keep — one row per person, no event-pivot view", async () => {
+    const { container } = await renderPage({ from: "2026-09-01", to: "2026-09-30" });
+
+    // Four people across two events, as before the filter existed: the rows
+    // are still people, not events with people summarised beneath them.
+    expect(screen.getAllByTestId("follow-ups-row")).toHaveLength(4);
+    expect(container.textContent).toContain(TABLE_PERSON);
   });
 });
