@@ -509,7 +509,9 @@ describe("a date the file wrote day-first", () => {
   }
 
   it("reads DD/MM/YYYY as the day first", () => {
-    const planned = only(plan(file(row({ name: "Alumni game", type: "Social", date: "03/12/2026" }))));
+    const planned = only(
+      plan(file(row({ name: "Alumni game", type: "Social", date: "03/12/2026" }))),
+    );
     expect(planned.outcome).toBe("new");
     expect(planned.write).toMatchObject({ input: { scheduledOn: "2026-12-03" } });
   });
@@ -549,7 +551,9 @@ describe("a date the file wrote day-first", () => {
   });
 
   it("echoes each date it read in words, beside the row", () => {
-    const planned = only(plan(file(row({ name: "Alumni game", type: "Social", date: "24/12/2026" }))));
+    const planned = only(
+      plan(file(row({ name: "Alumni game", type: "Social", date: "24/12/2026" }))),
+    );
     expect(planned.cells.date.value).toBe("2026-12-24");
     expect(planned.cells.date.echo).toBe("24 December 2026");
   });

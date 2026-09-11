@@ -18,7 +18,6 @@ export {
   workedExampleCsv,
   importTemplateCsv,
 } from "./prompt";
-export { DATE_CELL_EXPECTATION, formatCalendarDate, parseCalendarDate } from "./dates";
 export { planImport, plannedWrites } from "./plan";
 export { planMovements } from "./movement";
 export type { PlanMovement } from "./movement";
