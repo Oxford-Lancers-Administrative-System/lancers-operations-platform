@@ -13,7 +13,7 @@
  * test gets to reading the screen.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("server-only", () => ({}));
@@ -290,23 +290,48 @@ function flatten(text: string | null): string {
 }
 
 /**
- * C1/C2 — types digits into one section of a MUI X `DatePicker`/`TimePicker`
- * field, the way an operator does: click the section, then type.
+ * C1/C2 — the sections of a MUI X `DatePicker`/`TimePicker` field, in the order
+ * the operator meets them.
  *
  * The field renders as an accessible `role="group"` (named by its label —
- * "Date", "Start", "End") holding one `role="spinbutton"` span per section
- * ("Day", "Hours", …), so `groupLabel` disambiguates the Start and End
- * TimePickers, which would otherwise both answer to "Hours". Digits fill the
- * focused section and the field auto-advances, exactly as typing
- * "24082026" fills Day, Month then Year in that order — which is itself
- * part of what these tests are proving: a day-first sequence lands as a
- * day-first date, not a month-first one.
+ * "Date", "Start", "End") holding one `role="spinbutton"` span per section, so
+ * the group disambiguates the Start and End TimePickers, which would otherwise
+ * both answer to "Hours". The order of those sections *is* C1: day, then
+ * month, then year, whatever locale the machine runs.
  */
-async function typeIntoField(groupLabel: string, firstSection: string, digits: string) {
-  const user = userEvent.setup();
-  const group = screen.getByRole("group", { name: groupLabel });
-  within(group).getByRole("spinbutton", { name: firstSection }).focus();
-  await user.keyboard(digits);
+function sectionsOf(groupLabel: string): HTMLElement[] {
+  return within(screen.getByRole("group", { name: groupLabel })).getAllByRole("spinbutton");
+}
+
+/** Each section's own name, in DOM order — "Day", "Month", "Year". */
+function sectionNames(groupLabel: string): string[] {
+  return sectionsOf(groupLabel).map((section) => section.getAttribute("aria-label") ?? "");
+}
+
+/**
+ * Fills a picker field's sections in order, one paste each.
+ *
+ * An operator types the digits one keystroke at a time, and that is what these
+ * tests used to do — but it is not a thing a test can safely depend on. MUI
+ * holds the digits entered so far in a per-section character query and drops it
+ * five seconds after the last keystroke (`QUERY_LIFE_DURATION_MS` in
+ * `useFieldState`), so on a loaded runner a keystroke gap that long makes every
+ * digit after it read on its own: "24082026" arrived on CI as 04/08/0026, each
+ * pair's second digit overwriting the first. A paste carries a whole section in
+ * one event and clears that query outright (`useFieldSectionContentProps`), so
+ * what these tests measure stays the field's own behaviour rather than the
+ * machine's speed. Which section receives which digits is never assumed: the
+ * order comes from the DOM, and `sectionNames` pins it.
+ */
+function fillSections(groupLabel: string, values: string[]) {
+  sectionsOf(groupLabel).forEach((section, index) => {
+    const digits = values[index];
+    if (digits === undefined) return;
+    // Focus tells the field which section a paste lands in, and its handler
+    // reads that from React state — so it has to be flushed before the paste.
+    act(() => section.focus());
+    fireEvent.paste(section, { clipboardData: { getData: () => digits } });
+  });
 }
 
 /** The raw string a named form control would post — including a hidden one. */
@@ -2941,7 +2966,7 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
 
     // 20:00 — LAN-326's 24-hour control. The derivation reads the stored
     // value regardless of which clock face typed it.
-    await typeTime("Start", "20", "00");
+    typeTime("Start", "20", "00");
 
     expect(valueOf("endsAt")).toBe("22:00");
   });
@@ -2962,24 +2987,22 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     );
     render(await NewEventPage(newProps()));
 
-    await typeTime("End", "21", "00");
-    await typeTime("Start", "20", "00");
+    typeTime("End", "21", "00");
+    typeTime("Start", "20", "00");
 
     expect(valueOf("endsAt")).toBe("21:00");
   });
 });
 
 /**
- * Types a 24-hour time into a `TimePicker` field: two digits for the hour
- * (00-23), two for the minute, which auto-advance exactly as `typeIntoField`
- * describes. There is no Meridiem section to set since LAN-326 — that absence
- * is itself asserted below.
+ * Puts a 24-hour time into a `TimePicker` field: two digits for the hour
+ * (00-23), two for the minute, section by section as `fillSections` describes.
+ * There is no Meridiem section to set since LAN-326 — that absence is itself
+ * asserted below.
  */
-async function typeTime(groupLabel: string, hour24: string, minute: string) {
-  const user = userEvent.setup();
-  const group = screen.getByRole("group", { name: groupLabel });
-  within(group).getByRole("spinbutton", { name: "Hours" }).focus();
-  await user.keyboard(hour24 + minute);
+function typeTime(groupLabel: string, hour24: string, minute: string) {
+  expect(sectionNames(groupLabel)).toEqual(["Hours", "Minutes"]);
+  fillSections(groupLabel, [hour24, minute]);
 }
 
 describe("LAN-313 — Enter while writing a question does not save the event", () => {
@@ -3001,7 +3024,12 @@ describe("LAN-313 — Enter while writing a question does not save the event", (
     const written = screen.getAllByRole("textbox", { name: /^Question$/ });
     const prompt = written[written.length - 1];
     await user.click(prompt);
-    await user.keyboard("Bringing a gumshield?{Enter}");
+    // Pasted rather than typed a character at a time: every keystroke
+    // re-renders the whole editor, and 22 of them overran the runner's
+    // five-second budget. Only the Enter has to be a real keystroke, because
+    // Enter is the whole defect.
+    await user.paste("Bringing a gumshield?");
+    await user.keyboard("{Enter}");
 
     // The submit event is the whole defect: React's action, the save and the
     // redirect all hang off it.
@@ -3023,7 +3051,8 @@ describe("LAN-313 — Enter while writing a question does not save the event", (
     screen.getByTestId("event-form").addEventListener("submit", submitted);
 
     await user.click(screen.getByRole("textbox", { name: "Options" }));
-    await user.keyboard("S, M, L{Enter}");
+    await user.paste("S, M, L");
+    await user.keyboard("{Enter}");
 
     expect(submitted).not.toHaveBeenCalled();
     expect(screen.getByRole("textbox", { name: "Options" })).toHaveValue("S, M, L");
@@ -3052,7 +3081,9 @@ describe("LAN-313 — Enter while writing a question does not save the event", (
 
     const description = screen.getByRole("textbox", { name: "Description" });
     await user.click(description);
-    await user.keyboard("Bring boots{Enter}and a gumshield");
+    await user.paste("Bring boots");
+    await user.keyboard("{Enter}");
+    await user.paste("and a gumshield");
 
     expect(submitted).not.toHaveBeenCalled();
     expect(description).toHaveValue("Bring boots\nand a gumshield");
@@ -3112,10 +3143,14 @@ describe("C1 + C2 — day-month-year, and (LAN-326) a deliberate 24-hour clock, 
   it("accepts a day-month-year typed date intact — 24/08/2026 becomes 2026-08-24", async () => {
     render(await NewEventPage(newProps()));
 
-    // Typed exactly as an operator reading a British date would say it: day,
-    // then month, then year. A month-first control would reject "24" as
-    // month 24 or silently misread the sequence; this one does neither.
-    await typeIntoField("Date", "Day", "24082026");
+    // The sections an operator meets, in the order they meet them: a British
+    // date said the way a British operator says it. A month-first control
+    // would put Month first here and read "24" as month 24.
+    expect(sectionNames("Date")).toEqual(["Day", "Month", "Year"]);
+
+    // Filled in that same DOM order, so the sequence is day-first because the
+    // field is, not because the test said so.
+    fillSections("Date", ["24", "08", "2026"]);
 
     expect(valueOf("scheduledOn")).toBe("2026-08-24");
     // The group's accessible name (its own label, "Date") is a descendant
@@ -3129,7 +3164,7 @@ describe("C1 + C2 — day-month-year, and (LAN-326) a deliberate 24-hour clock, 
   it("accepts a 24-hour time in a five-minute step intact — 20:05 stays 20:05", async () => {
     render(await NewEventPage(newProps()));
 
-    await typeTime("Start", "20", "05");
+    typeTime("Start", "20", "05");
 
     // The stored value behind the form is untouched by either reversal —
     // still plain `HH:mm`, exactly as `date-time-controls.ts` always spoke it.
@@ -3171,7 +3206,7 @@ describe("C1 + C2 — day-month-year, and (LAN-326) a deliberate 24-hour clock, 
       // Meridiem section at all, which is exactly what LAN-326 changed.
       expect(within(start).queryByRole("spinbutton", { name: "Meridiem" })).toBeNull();
 
-      await typeTime("Start", "20", "00");
+      typeTime("Start", "20", "00");
 
       expect(valueOf("startsAt")).toBe("20:00");
       expect(flatten(start.textContent)).toContain("20:00");
