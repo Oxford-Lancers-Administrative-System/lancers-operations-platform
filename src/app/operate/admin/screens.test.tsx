@@ -100,9 +100,15 @@ import {
   type RoleCatalogue,
 } from "@/lib/services/administration-directory";
 import { addClubDays, formatClubDay, todayInClubZone } from "@/lib/club-time";
+import { NO_AUTOFILL } from "@/components/field";
 import { permittedAccountActions, permittedRoleActions } from "./permissions";
-import { assignRoleAction, correctInvitationAction, searchCandidatesAction } from "./actions";
-import { EMPTY_ADMIN_ACTION_STATE } from "./action-state";
+import {
+  assignRoleAction,
+  correctInvitationAction,
+  searchCandidatesAction,
+  startEmailRehomeAction,
+} from "./actions";
+import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "./action-state";
 import OperatorsPage from "./operators/page";
 import OperatorRecordPage from "./operators/[operatorId]/page";
 import InviteOperatorPage from "./operators/new/page";
@@ -762,6 +768,107 @@ describe("one operator's record", () => {
     await expect(OperatorRecordPage(pageProps({ operatorId: "nope" }))).rejects.toThrow(
       "NOT_FOUND",
     );
+  });
+
+  /**
+   * Moving an operator to a new address — LAN-321, checklist item 5.
+   *
+   * Clint pressed **Send verification**, watched a greyed-out button for long
+   * enough to conclude the screen had hung, and reloaded. The verification
+   * email had already gone. Both halves of that are tested here, because
+   * either one alone leaves the same uncertainty on a screen that disables
+   * somebody's login:
+   *
+   *   1. while the action is in flight the button *says* so, rather than only
+   *      going grey — a disabled control with an unchanged label is what "the
+   *      site lagged" looks like from the other side of the screen; and
+   *   2. when it finishes, the result appears on this same page, from the
+   *      action's own returned state, with no reload involved.
+   *
+   * The action is deliberately left in flight and resolved by hand, because a
+   * mock that resolves immediately never renders the pending state at all —
+   * which is exactly why nothing caught this.
+   */
+  describe("the recover-email panel resolves on screen — LAN-321", () => {
+    /**
+     * Opens the panel with `startEmailRehomeAction` suspended, and returns its
+     * resolver.
+     *
+     * **Every caller must settle it before its test ends.** React 19 entangles
+     * async transitions with one another process-wide, so an action left
+     * pending does not merely leak into the next test in this file — it stops
+     * every later transition in the run from committing. Leaving one open
+     * turned eleven unrelated assertions in this file red, which is a better
+     * warning than a comment: settle it.
+     */
+    async function openRecoverPanelMidFlight() {
+      let finish!: (state: AdminActionState) => void;
+      vi.mocked(startEmailRehomeAction).mockImplementation(
+        () =>
+          new Promise<AdminActionState>((resolve) => {
+            finish = resolve;
+          }),
+      );
+
+      render(await OperatorRecordPage(pageProps({ operatorId: "aaaa" })));
+      fireEvent.click(screen.getByRole("button", { name: "Recover email access" }));
+
+      const panel = screen.getByTestId("recover-panel");
+      fireEvent.submit(panel.querySelector("form")!);
+      return { panel, finish };
+    }
+
+    it("says it is working, instead of only greying the button out", async () => {
+      const { finish } = await openRecoverPanelMidFlight();
+
+      const working = await screen.findByRole("button", { name: "Sending verification…" });
+      expect(working).toBeDisabled();
+      expect(working).toHaveAttribute("aria-busy", "true");
+      expect(screen.queryByRole("button", { name: "Send verification" })).toBeNull();
+
+      finish({ ...EMPTY_ADMIN_ACTION_STATE, notice: "Sent." });
+      await screen.findByRole("button", { name: "Send verification" });
+    });
+
+    it("renders the outcome on the same page when the action returns", async () => {
+      const { finish } = await openRecoverPanelMidFlight();
+
+      finish({
+        ...EMPTY_ADMIN_ACTION_STATE,
+        notice:
+          "The old sign-in address no longer works. A verification link has gone to " +
+          "new@example.org, and this account stays in Email change pending until it is followed.",
+      });
+
+      expect(await screen.findByTestId("outcome-notice")).toHaveTextContent(
+        "A verification link has gone to new@example.org",
+      );
+      // And the button is back to offering the action, not stuck mid-flight.
+      expect(screen.getByRole("button", { name: "Send verification" })).toBeEnabled();
+    });
+
+    it("renders a refusal on the same page too", async () => {
+      const { finish } = await openRecoverPanelMidFlight();
+
+      finish({
+        ...EMPTY_ADMIN_ACTION_STATE,
+        refusal: "A replacement address has to say why it is being moved.",
+      });
+
+      expect(await screen.findByTestId("outcome-refusal")).toHaveTextContent(
+        "has to say why it is being moved",
+      );
+    });
+
+    /** Item 1 of the ticket, which `main` already enforced: the field is required in the form. */
+    it("still requires the reason the audit history records", async () => {
+      render(await OperatorRecordPage(pageProps({ operatorId: "aaaa" })));
+      fireEvent.click(screen.getByRole("button", { name: "Recover email access" }));
+
+      const panel = screen.getByTestId("recover-panel");
+      expect(within(panel).getByLabelText(/^Reason/)).toBeRequired();
+      expect(within(panel).getByLabelText(/^Replacement email/)).toBeRequired();
+    });
   });
 });
 
@@ -1633,5 +1740,83 @@ describe("the invitation flow", () => {
     expect(container.textContent).not.toContain("Operating year");
     expect(container.querySelector('[name="operatingYearId"]')).toBeNull();
     expect(container.querySelector('[name="operatingYear"]')).toBeNull();
+  });
+
+  /**
+   * The phone number — LAN-332.
+   *
+   * This screen rendered a plain `Field` and posted whatever was typed into it,
+   * so an operator invited here could be given a number in a shape nothing else
+   * in the club's records uses. The gap survived LAN-275, which adopted the
+   * shared control everywhere else, precisely because nothing failed when this
+   * one was missed. These assert the posted value, not the control: swapping
+   * `PhoneField` back for a free-text box fails them.
+   */
+  describe("the phone number goes through the one phone control — LAN-332", () => {
+    /** Types a national number into the shared control and returns the page. */
+    async function typePhone(nationalNumber: string) {
+      const rendered = render(await InviteOperatorPage());
+      const box = screen.getByTestId("invite-phone-field").querySelector("input")!;
+      fireEvent.change(box, { target: { value: nationalNumber } });
+      return rendered;
+    }
+
+    /** Every hidden `phone` input on the page — one per form the value is carried into. */
+    function postedPhones(container: HTMLElement): string[] {
+      return [...container.querySelectorAll<HTMLInputElement>('input[name="phone"]')].map(
+        (input) => input.value,
+      );
+    }
+
+    it("posts the canonical value, not what was typed", async () => {
+      const { container } = await typePhone("07700 900123");
+
+      const posted = postedPhones(container);
+      expect(posted.length).toBeGreaterThan(0);
+      // The UK trunk 0 is gone, the spaces are gone, the country code is
+      // explicit — the same value `/operate/people/new` stores for this number.
+      for (const value of posted) expect(value).toBe("+447700900123");
+    });
+
+    it("refuses a malformed number rather than storing it", async () => {
+      const { container } = await typePhone("12345");
+
+      expect(screen.getByText(/is not the right number of digits/i)).toBeVisible();
+      expect(screen.getByRole("button", { name: "Send invitation" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Check for an existing person" })).toBeDisabled();
+      expect(container.textContent).toContain("Correct the phone number to send.");
+    });
+
+    it("offers the country alongside the number, as every other form does", async () => {
+      render(await InviteOperatorPage());
+
+      expect(screen.getByLabelText(/Country code for phone/i)).toBeVisible();
+    });
+
+    it("leaves the invitation sendable when no number is given", async () => {
+      render(await InviteOperatorPage());
+
+      expect(screen.queryByText(/is not the right number of digits/i)).toBeNull();
+      // Still gated on the role and the address, which is the pre-existing rule.
+      expect(screen.getByText("Choose a role and enter an email address to send.")).toBeVisible();
+    });
+
+    /**
+     * LAN-324's token, on the form Brian was looking at when he found this one.
+     * Chrome ignores `autocomplete="off"` on a field it reads as a person's
+     * name, address or telephone — which is every field in this section — and
+     * honours an unrecognised token instead.
+     */
+    it("does not invite Chrome to fill the operator's own details in", async () => {
+      const { container } = render(await InviteOperatorPage());
+
+      const autofillable = [...container.querySelectorAll<HTMLInputElement>("input")].filter(
+        (input) => input.type !== "hidden" && input.hasAttribute("autocomplete"),
+      );
+      expect(autofillable.length).toBeGreaterThan(0);
+      for (const input of autofillable) {
+        expect(input.getAttribute("autocomplete")).toBe(NO_AUTOFILL);
+      }
+    });
   });
 });

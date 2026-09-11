@@ -14,12 +14,14 @@ import {
   type Tx,
 } from "@/lib/db";
 import { operatorAccountState } from "../operator-account-state";
+import { validatePhoneNumber } from "../person-validation";
 import { readOperatorAccountIn, type OperatorAccountRecord } from "./account-read";
 import { currentDateIn } from "./cycles";
 import type { ResolvedRole } from "./invite";
 import {
   BACKDATING_REASON_RULE,
   EMAIL_ALREADY_HAS_LOGIN_RULE,
+  INVALID_PHONE_RULE,
   NAME_REQUIRED_RULE,
   NOT_RESENDABLE_RULE,
   PERSON_ALREADY_HAS_LOGIN_RULE,
@@ -63,10 +65,28 @@ const PERSON_ALREADY_HAS_LOGIN_MESSAGE =
   "they hold — open their operator record to give them another role, resend their invitation, " +
   "or restore their access.";
 
-const EMAIL_ALREADY_HAS_LOGIN_MESSAGE =
-  "That email address already has an operator login. One person has one login, so if this is " +
-  "the same person, open their operator record instead of inviting them again — and if it is " +
-  "somebody else, invite them with their own address.";
+/**
+ * LAN-311. Names the account the address already belongs to, and what state it
+ * is in, because the administrator's next move depends on which: an account
+ * that is Active wants a role added to it, one that is still Invited wants its
+ * invitation resent, one that is Deactivated wants restoring. The old sentence
+ * said only that the address was taken, and Clint, reading it, went on trying
+ * to invite the address rather than opening the record.
+ *
+ * Falls back to the old wording when the holder cannot be named — the record
+ * may have gone between the two reads — so the refusal never renders a gap.
+ */
+function emailAlreadyHasLoginMessage(holder: string | null, stateLabel: string | null): string {
+  const remedy =
+    "One person has one login, however many roles they hold — open their operator record to " +
+    "give them another role, resend their invitation, or restore their access. If this is " +
+    "somebody else, invite them with their own address.";
+
+  if (holder === null) return `That email address already has an operator login. ${remedy}`;
+  return stateLabel === null
+    ? `${holder} already signs in with that email address. ${remedy}`
+    : `${holder} already signs in with that email address, and their access is "${stateLabel}". ${remedy}`;
+}
 
 export const ROLE_REQUIRED_MESSAGE =
   "An invitation has to give the person at least one role. Choose the role they are being " +
@@ -198,23 +218,54 @@ export async function lockAccount(
   return requireAccount(tx, operatorAccountId);
 }
 
-/** Refuses an address another operator login already holds. */
+/**
+ * Refuses an address another operator login already holds.
+ *
+ * LAN-311: it names the holder and the state their access is in. The refusal
+ * used to say only "that email address already has an operator login", which
+ * left the administrator to go and find out who — and, because inviting a
+ * second seat to somebody who already has an account is the ordinary case for
+ * a club this size, this is the refusal they meet most. Naming a person here
+ * discloses nothing: every caller has already passed `role_management`, and the
+ * record being named is one they can open from this screen.
+ */
 export async function refuseTakenEmail(
   tx: Tx,
   email: string,
   exceptAccountId: string | null,
 ): Promise<void> {
-  const result = await tx.query<{ id: string }>(
+  const found = await tx.query<{ id: string }>(
     `select id from public.operator_accounts
       where lower(login_email) = lower($1)
         and ($2::uuid is null or id <> $2::uuid)
       limit 1`,
     [email, exceptAccountId],
   );
+  if (found.rows.length === 0) return;
 
-  if (result.rows.length > 0) {
-    throw new Conflict(EMAIL_ALREADY_HAS_LOGIN_MESSAGE, { rule: EMAIL_ALREADY_HAS_LOGIN_RULE });
-  }
+  // Two more reads, on a path that is about to refuse anyway: whose account it
+  // is, and what state it is in. Reusing the one projection rather than
+  // hand-joining `people` keeps the state derivation in a single place.
+  const account = await readOperatorAccountIn(tx, found.rows[0].id);
+  const holder = account === null ? null : await readPersonName(tx, account.personId);
+
+  throw new Conflict(
+    emailAlreadyHasLoginMessage(holder, account && operatorAccountState(account.state).label),
+    { rule: EMAIL_ALREADY_HAS_LOGIN_RULE },
+  );
+}
+
+/** The holder's name for a refusal sentence, or `null` if the record has gone between the two reads. */
+async function readPersonName(tx: Tx, personId: string): Promise<string | null> {
+  const result = await tx.query<{ given_name: string | null; family_name: string | null }>(
+    "select given_name, family_name from public.people where id = $1",
+    [personId],
+  );
+  if (result.rows.length === 0) return null;
+  const name = [result.rows[0].given_name, result.rows[0].family_name]
+    .filter((part) => Boolean(part && part.trim() !== ""))
+    .join(" ");
+  return name === "" ? null : name;
 }
 
 /** The Person named must exist, must not be merged away, and must have no login. */
@@ -282,10 +333,29 @@ export async function createOrLinkPerson(
 
   // An existing Person's contact points are deliberately untouched — out of scope (`REQ-invite-existing-person`).
   await insertContactPoint(tx, personId, "email", email);
-  const phone = blankToNull(subject.phone);
+  const phone = requireInvitationPhone(subject.phone);
   if (phone !== null) await insertContactPoint(tx, personId, "phone", phone);
 
   return { personId, personCreated: true };
+}
+
+/**
+ * LAN-332. The invitation form posted free text and this module stored it, so
+ * a number recorded at invitation could be in a shape nothing else in the
+ * club's records uses. One validator — `validatePhoneNumber`, the one every
+ * other door already runs — and the `+`-prefixed form the shared phone control
+ * posts is what lands in `contact_points.raw_value`, exactly as it does from
+ * `person-create.ts`. Blank stays blank: the field is optional.
+ */
+function requireInvitationPhone(raw: string | null | undefined): string | null {
+  const phone = blankToNull(raw);
+  if (phone === null) return null;
+
+  const validation = validatePhoneNumber(phone);
+  if (!validation.valid) {
+    throw new ConstraintViolated(validation.message, { rule: INVALID_PHONE_RULE });
+  }
+  return phone;
 }
 
 async function insertContactPoint(

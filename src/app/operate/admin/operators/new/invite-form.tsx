@@ -14,7 +14,9 @@ import Stack from "@mui/material/Stack";
 import Step from "@mui/material/Step";
 import StepLabel from "@mui/material/StepLabel";
 import Stepper from "@mui/material/Stepper";
-import { Field, DateField } from "@/components/field";
+import { Field, DateField, NO_AUTOFILL } from "@/components/field";
+import { PhoneField } from "@/components/phone-field";
+import { validatePhoneNumber } from "@/lib/services/person-validation";
 import Typography from "@mui/material/Typography";
 import { inviteOperatorAction, searchCandidatesAction } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "../../action-state";
@@ -71,6 +73,12 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
   const searchSlot = useOutcomeSlot("person-search");
   const inviteSlot = useOutcomeSlot("invite");
 
+  // The same validator the service repeats — one rule, checked twice, never a
+  // looser browser copy (`add-recruit-form.tsx` sets the pattern).
+  const phoneValidation = phone.trim() === "" ? null : validatePhoneNumber(phone);
+  const phoneFormatError =
+    phoneValidation && !phoneValidation.valid ? phoneValidation.message : null;
+
   const chosen = search.candidates?.find((candidate) => candidate.personId === personId) ?? null;
   const step = roleCode === "" ? (search.candidates ? 1 : 0) : 2;
 
@@ -91,12 +99,14 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
               label="First name"
               value={givenName}
               onChange={(event) => setGivenName(event.target.value)}
+              autoComplete={NO_AUTOFILL}
               required
             />
             <Field
               label="Last name"
               value={familyName}
               onChange={(event) => setFamilyName(event.target.value)}
+              autoComplete={NO_AUTOFILL}
               required
             />
           </Stack>
@@ -105,14 +115,23 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            autoComplete={NO_AUTOFILL}
             required
             helperText="The invitation goes here, and this becomes their sign-in address."
           />
-          <Field
+          {/*
+            LAN-332. The one phone control (LAN-211), not a free-text box: it
+            posts canonical E.164 through its own hidden input, and the two
+            forms below carry that same value on. It sits outside both, so its
+            hidden input posts nothing and cannot collide with theirs.
+          */}
+          <PhoneField
+            name="phoneControl"
             label="Phone (optional)"
-            type="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
+            onValueChange={setPhone}
+            error={Boolean(phoneFormatError)}
+            helperText={phoneFormatError ?? undefined}
+            testId="invite-phone-field"
           />
 
           <Box component="form" action={searchAction} onSubmit={searchSlot.claim}>
@@ -120,8 +139,12 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
             <input type="hidden" name="familyName" value={familyName} />
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="phone" value={phone} />
-            <Button type="submit" disabled={searching} sx={{ minHeight: 44 }}>
-              Check for an existing person
+            <Button
+              type="submit"
+              disabled={searching || Boolean(phoneFormatError)}
+              sx={{ minHeight: 44 }}
+            >
+              {searching ? "Checking…" : "Check for an existing person"}
             </Button>
           </Box>
         </Stack>
@@ -229,17 +252,21 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
                 <Button
                   type="submit"
                   variant="contained"
-                  disabled={sending || roleCode === "" || email.trim() === ""}
+                  disabled={
+                    sending || roleCode === "" || email.trim() === "" || Boolean(phoneFormatError)
+                  }
                   sx={{ minHeight: 44 }}
                 >
-                  Send invitation
+                  {sending ? "Sending invitation…" : "Send invitation"}
                 </Button>
               }
               cancel={<Button href="/operate/admin/operators">Cancel</Button>}
               note={
-                roleCode === "" || email.trim() === ""
-                  ? "Choose a role and enter an email address to send."
-                  : undefined
+                phoneFormatError
+                  ? "Correct the phone number to send."
+                  : roleCode === "" || email.trim() === ""
+                    ? "Choose a role and enter an email address to send."
+                    : undefined
               }
             />
           </Stack>

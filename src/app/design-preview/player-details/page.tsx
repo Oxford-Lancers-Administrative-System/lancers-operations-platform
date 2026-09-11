@@ -6,6 +6,7 @@ import type { QuestionnaireView } from "@/lib/services/player-questionnaire";
 import { ActionBar } from "@/components/action-bar";
 import { DateField, Field } from "@/components/field";
 import { Notice } from "@/components/notice";
+import { PhoneField } from "@/components/phone-field";
 import { PublicShell } from "@/components/public-shell";
 import { Refusal } from "@/components/refusal";
 import { Section } from "@/components/section";
@@ -106,7 +107,12 @@ export default async function PlayerDetailsPreviewPage() {
             defaultValue={p.familyName ?? ""}
             helperText={helper(p.familyNameSource !== null, "you", "family_name")}
           />
-          <Field label={FIELD_MOBILE} name="mobile" defaultValue={currentContact(view, "phone")} />
+          {/* LAN-332: the preview demonstrates the one phone control, as the real form does. */}
+          <PhoneField
+            label={FIELD_MOBILE}
+            name="mobile"
+            defaultValue={currentContact(view, "phone")}
+          />
           <Field
             label={FIELD_PERSONAL_EMAIL}
             name="personal_email"
@@ -173,7 +179,7 @@ export default async function PlayerDetailsPreviewPage() {
             name="ec_relationship"
             defaultValue={ec?.relationship ?? ""}
           />
-          <Field label={FIELD_EC_PHONE} name="ec_phone" defaultValue={ec?.phone ?? ""} />
+          <PhoneField label={FIELD_EC_PHONE} name="ec_phone" defaultValue={ec?.phone ?? ""} />
           <Field
             label={FIELD_EC_EMAIL}
             name="ec_email"
