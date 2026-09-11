@@ -251,6 +251,9 @@ export interface PlayerHomeInvitation {
   readonly startsAt: string | null;
   readonly endsAt: string | null;
   readonly venue: string | null;
+  /** LAN-323. The two event facts the player's page never carried — kept separate, as the public page keeps them. */
+  readonly description: string | null;
+  readonly requiredEquipment: string | null;
   readonly responseDeadline: Date | null;
   /** The live Yes count for this event — the same aggregate the answer link shows. */
   readonly attendingCount: number;
@@ -317,6 +320,8 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
     starts_at: string | null;
     ends_at: string | null;
     venue: string | null;
+    description: string | null;
+    required_equipment: string | null;
     response_deadline: Date | null;
     response: "yes" | "no" | null;
     reason: string | null;
@@ -332,6 +337,8 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
             to_char(e.starts_at, 'HH24:MI') as starts_at,
             to_char(e.ends_at, 'HH24:MI') as ends_at,
             e.venue,
+            e.description,
+            e.required_equipment,
             i.expires_at as response_deadline,
             r.response::text as response,
             r.reason,
@@ -390,6 +397,8 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
       startsAt: row.starts_at,
       endsAt: row.ends_at,
       venue: row.venue,
+      description: row.description,
+      requiredEquipment: row.required_equipment,
       responseDeadline: row.response_deadline,
       attendingCount: Number(row.attending_count ?? 0),
       reminderSent: row.reminder_sent,

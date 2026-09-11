@@ -15,6 +15,7 @@ import {
   CLUB_TIME_ZONE,
   DELIVERY_MODE_LABELS,
   describeAttendance,
+  DESCRIPTION_LABEL,
   EQUIPMENT_LABEL,
   formatDetailWhen,
   JOINING_LINK_LABEL,
@@ -134,7 +135,7 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
               <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
                 <Fact
                   testId="public-event-fact"
-                  label="Description"
+                  label={DESCRIPTION_LABEL}
                   value={event.description}
                   multiline
                 />

@@ -21,6 +21,7 @@ import {
   withUniformTerminalTiming,
 } from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
+import { resolvePlayerGroupLink } from "@/lib/services/player-config";
 import {
   readPlayerAnswerLandingIn,
   readPlayerHomeIn,
@@ -36,11 +37,13 @@ import {
   FURTHER_OUT_HEADING,
   FURTHER_OUT_HELP,
   FURTHER_OUT_SUMMARY,
+  JOIN_WHATSAPP_GROUP,
   NEW_INVITATIONS_HEADING,
   PRIVACY_NOTE,
   PUBLIC_CALENDAR_LINK,
   pageHeading,
   STILL_NEED_ANSWER_HEADING,
+  WHATSAPP_GROUP_HEADING,
 } from "./presentation";
 import { FocusedPanel } from "./focused-panel";
 import { SummaryRow } from "./summary-row";
@@ -112,6 +115,9 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
   }
 
   const home = resolved.home;
+  // LAN-327. Configuration, never a literal: `null` until Brian sets
+  // PLAYER_WHATSAPP_GROUP_LINK, and then the section is simply not rendered.
+  const groupLink = resolvePlayerGroupLink();
   const focusedInvitation =
     openInvitationId !== null
       ? (allEntries(home).find((entry) => entry.invitationId === openInvitationId) ?? null)
@@ -219,6 +225,19 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
                 <SummaryRow key={entry.invitationId} token={token} entry={entry} dominant={false} />
               ))}
             </RowCardList>
+          </Section>
+        ) : null}
+
+        {groupLink !== null ? (
+          <Section title={WHATSAPP_GROUP_HEADING} testId="player-whatsapp-group">
+            <Button
+              href={groupLink}
+              variant="contained"
+              sx={{ minHeight: 48 }}
+              data-testid="player-whatsapp-group-link"
+            >
+              {JOIN_WHATSAPP_GROUP}
+            </Button>
           </Section>
         ) : null}
 

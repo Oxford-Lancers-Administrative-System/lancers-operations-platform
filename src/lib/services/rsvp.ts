@@ -28,6 +28,8 @@ export interface SignedRsvpPage {
   readonly startsAt: string | null;
   readonly endsAt: string | null;
   readonly venue: string | null;
+  /** LAN-323. What the operator wrote about the event — its own field, never folded into the equipment. */
+  readonly description: string | null;
   readonly requiredEquipment: string | null;
   readonly eventStartsAt: Date;
   readonly playerName: string;
@@ -53,6 +55,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     starts_at: string | null;
     ends_at: string | null;
     venue: string | null;
+    description: string | null;
     required_equipment: string | null;
     event_starts_at: Date;
     player_name: string;
@@ -71,6 +74,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
             to_char(e.starts_at, 'HH24:MI') as starts_at,
             to_char(e.ends_at, 'HH24:MI') as ends_at,
             e.venue,
+            e.description,
             e.required_equipment,
             (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
               at time zone 'Europe/London' as event_starts_at,
@@ -114,6 +118,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     venue: row.venue,
+    description: row.description,
     requiredEquipment: row.required_equipment,
     eventStartsAt: row.event_starts_at,
     playerName: row.player_name,

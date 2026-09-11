@@ -20,7 +20,7 @@ export const PLAYER_LABEL = "Player";
 export const INVITATION_LABEL = "Your invitation";
 export const VENUE_LABEL = "Venue";
 /** D17, LAN-264. Imported, not re-typed, so every surface calls it the same thing (rule 7). */
-export { EQUIPMENT_LABEL } from "@/lib/services/event-vocabulary";
+export { DESCRIPTION_LABEL, EQUIPMENT_LABEL } from "@/lib/services/event-vocabulary";
 export const DEADLINE_LABEL = "Response deadline";
 export const DEADLINE_NOTE = "Late responses accepted until start";
 export const CURRENT_ANSWER_LABEL = "Current answer";

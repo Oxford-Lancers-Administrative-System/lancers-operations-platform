@@ -130,4 +130,7 @@ export function describeAttendance(isMandatory: boolean): string {
 
 export const EQUIPMENT_LABEL = "What to bring"; // shared with calendar-feed.ts's DESCRIPTION fold-in (Q-29)
 
+/** LAN-323: shared so the public page, the player's own page and the RSVP answer page label the two fields identically. */
+export const DESCRIPTION_LABEL = "Description";
+
 export const JOINING_LINK_LABEL = "Joining link"; // LAN-284: shared so operator and public pages agree (docs/ux/standards.md rule 7)

@@ -96,6 +96,7 @@ const PAGE: SignedRsvpPage = {
   startsAt: "20:00",
   endsAt: "22:30",
   venue: "Iffley Road Astro",
+  description: null,
   requiredEquipment: null,
   eventStartsAt: new Date("2026-10-14T19:00:00Z"),
   playerName: "Avery Fielding",
@@ -181,6 +182,39 @@ describe("UX-60 — the invitation", () => {
     const { container } = await renderPage();
 
     expect(container.querySelector('[data-testid="rsvp-equipment"]')).toBeNull();
+  });
+
+  // LAN-323 — the answer page carried the equipment but never what the
+  // operator wrote about the event, so a player deciding here could not read
+  // it. Two separately labelled facts; the fold into one string belongs to the
+  // calendar feed alone.
+  it("shows the description, separately labelled from the equipment", async () => {
+    givenToken("valid", {
+      ...PAGE,
+      description: "Full pads.\nMeet at the clubhouse.",
+      requiredEquipment: "Gumshield",
+    });
+    const { container } = await renderPage();
+
+    const description = container.querySelector('[data-testid="rsvp-description"]');
+    expect(description?.textContent).toContain("Description");
+    expect(description?.textContent).toContain("Full pads.");
+    expect(description?.querySelector("dd p")).toHaveStyle({ whiteSpace: "pre-line" });
+
+    const equipment = container.querySelector('[data-testid="rsvp-equipment"]');
+    expect(equipment?.textContent).toContain("What to bring");
+    expect(equipment?.textContent).toContain("Gumshield");
+    // Separate facts, never one folded value.
+    expect(equipment?.textContent).not.toContain("Full pads.");
+    expect(description?.textContent).not.toContain("Gumshield");
+  });
+
+  it("renders no description label at all for an event that has none", async () => {
+    givenToken("valid", { ...PAGE, description: null });
+    const { container } = await renderPage();
+
+    expect(container.querySelector('[data-testid="rsvp-description"]')).toBeNull();
+    expect(container.textContent).not.toContain("Description");
   });
 
   it("says what kind of event it is, in the same words the operator screens use", async () => {

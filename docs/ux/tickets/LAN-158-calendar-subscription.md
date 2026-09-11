@@ -41,9 +41,9 @@ maintain.
 One `Dialog` component (`src/app/calendar/subscribe-dialog.tsx`), switched on
 local state, with exactly two states:
 
-| Screen  | Shows                                                                                        |
-| ------- | -------------------------------------------------------------------------------------------- |
-| `W2-01` | The season line, three destination buttons (Google, Apple, Outlook), and the address to copy |
+| Screen  | Shows                                                                                                       |
+| ------- | ----------------------------------------------------------------------------------------------------------- |
+| `W2-01` | The season line, three destination buttons (Google, Apple, Outlook), and the address to copy                |
 | `W2-02` | "Opened in `<Provider>`" over four facts — Destination, Status, Confirm there, Calendar address — and Close |
 
 Picking a destination opens it (`window.open`) and moves straight to `W2-02` —

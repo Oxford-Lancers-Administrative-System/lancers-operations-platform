@@ -379,6 +379,33 @@ describe("buildCalendarFeed", () => {
     expect(unfolded).toContain("Trainers and a water bottle");
   });
 
+  it("keeps the fold while the player surfaces separate the two — LAN-323", () => {
+    // LAN-323 split description and equipment onto the player's own page and
+    // the RSVP answer page as two separately labelled facts. This fold is the
+    // deliberate exception and must NOT follow them: a calendar entry has one
+    // DESCRIPTION and nowhere else to put what to bring, so the feed stays as
+    // Q-29 decided it, labelled with the same shared EQUIPMENT_LABEL the three
+    // pages use.
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [
+        anEvent({
+          description: "Walkthrough, then padded work.",
+          requiredEquipment: "Helmet\nShoulder pads",
+        }),
+      ],
+      now: GENERATED_AT,
+    });
+    const unfolded = unfoldDocument(document);
+    const descriptionLines = unfolded
+      .split(/\r\n/)
+      .filter((line) => line.startsWith("DESCRIPTION:"));
+    // One property carrying both, not two properties and not a dropped field.
+    expect(descriptionLines).toEqual([
+      "DESCRIPTION:Walkthrough\\, then padded work.\\n\\nWhat to bring: Helmet\\nShoulder pads",
+    ]);
+  });
+
   it("still carries no person once DESCRIPTION is populated with free text", () => {
     // The egress boundary is unchanged by Q-29: only description and required
     // equipment moved. A description that happens to mention something

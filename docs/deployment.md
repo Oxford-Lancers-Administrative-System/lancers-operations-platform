@@ -309,13 +309,16 @@ action's `env_vars:` input, leaves whichever ran last as the only environment th
 revision has — and the variables in the other list are simply absent, which looks
 exactly like the defect below.
 
-| Variable                | Set by the deploy            | What happens if it is absent                                                                    |
-| ----------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------- |
-| `DATABASE_POOL_MAX`     | **Yes** — `5`                | The code default of 10 applies: 30 connections over three instances, past the pooler's 15       |
-| `VENUE_SEARCH_PROVIDER` | **Yes** — `photon`           | Event venue entry degrades to plain text and says "address search is not set up here"           |
-| `VENUE_SEARCH_BASE_URL` | No, on purpose               | Blank means the free public Photon instance; set it only to point at a self-hosted one          |
-| `APP_BASE_URL`          | **Yes** — the Cloud Run host | Recovery and invitation have no trusted origin: no email is sent, and the return hop falls back |
-| `WHATSAPP_*` (two)      | **No — not yet**             | Approval creates invitations and **delivers nothing**, recorded as a configuration failure      |
+| Variable                          | Set by the deploy            | What happens if it is absent                                                                    |
+| --------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `DATABASE_POOL_MAX`               | **Yes** — `5`                | The code default of 10 applies: 30 connections over three instances, past the pooler's 15       |
+| `VENUE_SEARCH_PROVIDER`           | **Yes** — `photon`           | Event venue entry degrades to plain text and says "address search is not set up here"           |
+| `VENUE_SEARCH_BASE_URL`           | No, on purpose               | Blank means the free public Photon instance; set it only to point at a self-hosted one          |
+| `APP_BASE_URL`                    | **Yes** — the Cloud Run host | Recovery and invitation have no trusted origin: no email is sent, and the return hop falls back |
+| `WHATSAPP_*` (two)                | **No — not yet**             | Approval creates invitations and **delivers nothing**, recorded as a configuration failure      |
+| `RECRUITMENT_WHATSAPP_GROUP_LINK` | **No — not yet**             | The sign-up form's saved page offers recruits no group; it says so rather than inventing a link |
+| `PLAYER_WHATSAPP_GROUP_LINK`      | **No — not yet**             | The player's own page offers no group at all — the section is simply absent (LAN-327)           |
+| `HUDL_JOIN_LINK`                  | **No — not yet**             | The questionnaire's Hudl step shows its steps and states that the link is not published yet     |
 
 `tests/deployment-configuration.test.ts` compares this table's reality against
 the workflow: a feature that refuses to run unconfigured must either be
@@ -351,6 +354,22 @@ rolls a revision.
 
 This gap was found by LAN-82's walk: LAN-115's address search had merged and
 worked locally, and no deployed revision had ever been told to enable it.
+
+**The three club links are knowingly absent, and they are Brian's** — LAN-327
+and LAN-333. `RECRUITMENT_WHATSAPP_GROUP_LINK` (the rookies group),
+`PLAYER_WHATSAPP_GROUP_LINK` (the club's main group) and `HUDL_JOIN_LINK` are
+configuration rather than credentials, but no agent can produce one: minting a
+WhatsApp community invite and a Hudl join link happens in those products, as
+the club's owner. They are also why none of the three may ever be a literal in
+this repository — it is public, and a WhatsApp invite link is joinable by
+anyone holding it.
+
+Setting them is an edit to this workflow's single `--set-env-vars` flag,
+alongside the others, not a value typed into the Cloud Run console: that flag
+replaces the revision's environment, so a hand-set value is erased by the next
+deploy and the offer silently disappears again. Until then every surface
+refuses rather than guessing — no group button on either side, and a Hudl step
+that names the missing link rather than linking somewhere wrong.
 
 **`APP_BASE_URL` is the fourth WhatsApp variable and is now set** — LAN-125 needs
 it for password recovery, and the sender still refuses without the other three,

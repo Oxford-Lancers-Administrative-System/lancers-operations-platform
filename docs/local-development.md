@@ -151,6 +151,33 @@ rate-limited us), or unavailable (down, timed out, or answering with something
 unusable). None of them blocks filling in or saving the draft, and the club's
 own pitches, which no geocoder indexes, are typed rather than searched.
 
+## Optional: the three club links
+
+Three surfaces offer a destination that lives outside this application. Each is
+absent until a link is configured, and absent is the correct state locally, in
+CI, and on any deployed revision nobody has configured — nothing is invented
+and nothing half-works.
+
+| Variable                          | Read by                                  | What it turns on                                                                |
+| --------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
+| `RECRUITMENT_WHATSAPP_GROUP_LINK` | `src/lib/services/recruitment-config.ts` | The rookies-group button on the recruit sign-up form's saved page (LAN-202)     |
+| `PLAYER_WHATSAPP_GROUP_LINK`      | `src/lib/services/player-config.ts`      | The club's main group, offered on the player's own page `/me/[token]` (LAN-327) |
+| `HUDL_JOIN_LINK`                  | `src/lib/services/player-config.ts`      | The join link in step 5 of the player questionnaire (LAN-333)                   |
+
+Unset, each resolves to `null`: the two group offers are not rendered at all,
+and the Hudl step keeps its instructions while stating that the link is not
+published yet.
+
+**The real values never enter this repository.** It is public, and a WhatsApp
+invite link is joinable by anyone holding it. To exercise a surface locally,
+put any URL in `.env.local` — these resolvers only trim and hand the value on —
+and restart `npm run dev`; they are read server-side, per request.
+
+```bash
+PLAYER_WHATSAPP_GROUP_LINK=https://chat.example.invalid/group
+HUDL_JOIN_LINK=https://www.example.invalid/hudl-join
+```
+
 ## Everyday commands
 
 | Command                                                                      | What it does                                      |

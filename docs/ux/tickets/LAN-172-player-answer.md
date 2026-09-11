@@ -100,7 +100,15 @@ packet mockup is the named source per the brief.
   needed, Your answers — still to come), the single soonest unanswered
   invitation visually dominant, a 21-day horizon with everything beyond in one
   openable further-out section, a focused panel for one invitation's
-  follow-up work (event questions, a No's reason), and the empty state.
+  follow-up work (event questions, a No's reason), and the empty state. The
+  focused panel carries the event's own facts — venue, response deadline, and
+  since LAN-323 the description and the required equipment, two separately
+  labelled facts using the same labels the public event page uses, each absent
+  entirely when the operator left the field empty. Since LAN-327 the page also
+  ends with the club's main WhatsApp group, when `PLAYER_WHATSAPP_GROUP_LINK`
+  is configured and not otherwise: recruits have been offered the rookies
+  group since LAN-202, and a recruit flipped to joined moved to a surface that
+  never mentioned a group at all.
 - The credential module (`src/lib/services/player-answer-tokens.ts`): mint,
   resolve and consume for the one-time answer token; mint (reissue), resolve
   and revoke for the durable person token. Both live in `person_access_tokens`,
