@@ -338,6 +338,52 @@ describe("listPeople — season scoping", () => {
     expect(outside.entries.map((e) => e.personId)).not.toContain(losingId);
   });
 
+  /**
+   * LAN-314. The fixture above merges a pair this suite minted; the tester's
+   * journey used the pair the seed already carries, and the complaint was that
+   * the loser "did not go away" from the People screen. Assert the seeded pair
+   * directly — unfiltered list and free-text search, both scopes — so the
+   * directory, not only the merge write, is what the regression guards.
+   */
+  it("keeps the seeded merged-away person out of the list and out of search", async () => {
+    const seeded = await observer.query<{
+      losing_id: string;
+      surviving_id: string;
+      family_name: string | null;
+      given_name: string;
+    }>(
+      `select id as losing_id, merged_into_person_id as surviving_id, family_name, given_name
+         from public.people
+        where merged_into_person_id is not null
+        order by merged_at nulls last
+        limit 1`,
+    );
+    if (seeded.rows.length === 0) {
+      throw new Error(
+        "No merged-away person in the local database. Run `npm run db:reset` and `npm run db:seed`.",
+      );
+    }
+    const { losing_id: losingId, surviving_id: survivingId } = seeded.rows[0];
+    const searchTerm = seeded.rows[0].family_name ?? seeded.rows[0].given_name;
+
+    for (const scope of ["in_season", "outside_season"] as const) {
+      const unfiltered = await listPeople({ scope });
+      expect(unfiltered.entries.map((entry) => entry.personId)).not.toContain(losingId);
+
+      const searched = await listPeople({ scope, search: searchTerm });
+      expect(searched.entries.map((entry) => entry.personId)).not.toContain(losingId);
+    }
+
+    // The survivor is still an ordinary person, and the loser still resolves
+    // to them: excluding the row from the directory never hides the record.
+    expect(await resolveMergeSurvivor(losingId)).toBe(survivingId);
+    const survivorRows = [
+      ...(await listPeople({ scope: "in_season" })).entries,
+      ...(await listPeople({ scope: "outside_season" })).entries,
+    ];
+    expect(survivorRows.map((entry) => entry.personId)).toContain(survivingId);
+  });
+
   it("filters by status, and by missing-data", async () => {
     const complete = await insertPerson({ givenName: unique("Complete"), familyName: "Lanthorne" });
     await insertMembership(complete, seasonId, "active");
