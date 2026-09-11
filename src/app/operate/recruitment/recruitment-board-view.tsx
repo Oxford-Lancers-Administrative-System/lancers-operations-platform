@@ -555,16 +555,20 @@ export default function RecruitmentBoardView({
             </Table>
           </TableContainer>
 
-          {/* Mobile: cards — the roster board's own idiom (LAN-186): a static
-              status pill, never in-cell editing, and voice call as its own,
-              separately tappable control. Editing is desktop work. */}
+          {/* Mobile: cards — the roster board's own idiom (LAN-186), with
+              voice call as its own separately tappable control. LAN-319: the
+              card carries the same status control the table's cell does, with
+              the same interrupt and the same confirm. Editing is not desktop
+              work; recruitment is run from a phone. */}
           <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
             {visibleRows.length === 0 ? (
               <Typography color="text.secondary" data-testid="recruitment-filter-empty-phone">
                 No recruits match the current search and filters.
               </Typography>
             ) : (
-              visibleRows.map((row) => <RecruitCard key={row.prospectId} row={row} />)
+              visibleRows.map((row) => (
+                <RecruitCard key={row.prospectId} row={row} seasonLabel={season.label} />
+              ))
             )}
           </Stack>
         </>

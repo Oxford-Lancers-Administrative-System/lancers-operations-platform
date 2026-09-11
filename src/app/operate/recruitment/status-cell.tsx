@@ -50,14 +50,23 @@ export default function StatusCell({
   displayName,
   seasonLabel,
   size = "small",
+  testIdPrefix = "recruitment-status",
 }: {
   prospectId: string;
   status: ProspectStatus;
   displayName: string;
   seasonLabel: string;
   size?: "small" | "medium";
+  /**
+   * LAN-319. The board draws this control twice — once in the desktop table's
+   * cell and once on the phone card — and only one of them is on screen at a
+   * time. They are separate elements all the same, so each names itself and
+   * claims the outcome slot separately rather than two live controls sharing
+   * one test id and one error.
+   */
+  testIdPrefix?: string;
 }) {
-  const slot = useOutcomeSlot(`status-${prospectId}`);
+  const slot = useOutcomeSlot(`${testIdPrefix}-${prospectId}`);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [voidOpen, setVoidOpen] = useState(false);
@@ -99,7 +108,7 @@ export default function StatusCell({
   }
 
   return (
-    <Box data-testid={`recruitment-status-cell-${prospectId}`}>
+    <Box data-testid={`${testIdPrefix}-cell-${prospectId}`}>
       {editing ? (
         <Select
           value={status}
@@ -111,7 +120,7 @@ export default function StatusCell({
           disabled={pending}
           fullWidth
           sx={{ minHeight: 36 }}
-          data-testid={`recruitment-status-select-${prospectId}`}
+          data-testid={`${testIdPrefix}-select-${prospectId}`}
         >
           {STATUS_ORDER.map((value) => (
             <MenuItem key={value} value={value}>
@@ -122,7 +131,7 @@ export default function StatusCell({
       ) : (
         <Box
           onClick={() => (pending ? undefined : setEditing(true))}
-          data-testid={`recruitment-status-select-${prospectId}`}
+          data-testid={`${testIdPrefix}-select-${prospectId}`}
           sx={{
             display: "inline-block",
             cursor: pending ? "default" : "pointer",

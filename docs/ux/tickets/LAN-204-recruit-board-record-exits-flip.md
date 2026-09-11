@@ -85,6 +85,20 @@ heard · Anything else · one RSVP/Attendance pair per event.
   offered and no transition through this control is ever refused
   (`Q-every-status-reachable`); reaching `joined` is intercepted into `W14`'s
   confirmation rather than written directly.
+- **The phone card carries that same status control** — LAN-319, reversing
+  this package's own correction round 1 (`F-LAN204-004`), which had made the
+  card's status a static chip on the approved mockup's drawing. Clint found
+  the consequence in week one of testing: _"THIS ONLY WORKS ON DESKTOP, NOT ON
+  PHONE"_ — at 375px the board rendered thirteen status selects, all of them
+  inside the hidden desktop table, so the board was read-only on the one
+  device recruitment is actually run from (at a taster, on the touchline, in a
+  bar) with nothing saying the control lived on each individual record
+  instead. The card now opens the identical `Select`, with `joined`'s
+  interruption and `void`'s reason dialog unchanged. It sits below the card's
+  own link rather than inside it, because a `Select` nested in an anchor is
+  neither valid nor operable, and it names itself separately
+  (`recruitment-card-status-*`) so the two renderings are not one control with
+  two places to be.
 - **"Personal sent" / "Recruitment sent" read `delivery_attempts.accepted_at`**
   for that track's jobs, never `notification_jobs.status` alone and never an
   optimistic field this package writes — see "The send machinery" below.

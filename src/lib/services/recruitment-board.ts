@@ -98,6 +98,13 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
        from public.recruitment_prospects rp
        join public.people p on p.id = rp.person_id
       where rp.season_id = $1::uuid
+        -- A merged-away person is not a second recruit. A merge leaves the
+        -- losing row in place, pointed at the survivor, and every other
+        -- directory read (person-record.ts, person-duplicate.ts,
+        -- roster-form.ts) already excludes it; this board did not, so a
+        -- merged pair showed as two lines, one of them a record nobody can
+        -- reach. totalInSeason is counted from these rows, so it follows.
+        and p.merged_into_person_id is null
       order by p.given_name, p.family_name`,
     [season.id],
   );

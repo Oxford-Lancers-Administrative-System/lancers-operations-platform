@@ -62,6 +62,15 @@ afterEach(async () => {
     [MARKER],
   );
   await observer.query(`delete from public.contact_points where person_id in ${people}`, [MARKER]);
+  // `merged_into_person_id` is `on delete restrict`, so a merged pair cannot
+  // be deleted while the pointer stands — released before the people go.
+  await observer.query(
+    `update public.people
+        set merged_into_person_id = null, merged_at = null,
+            merged_by_person_id = null, merge_reason = null
+      where given_name = $1`,
+    [MARKER],
+  );
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
 });
 
@@ -100,6 +109,33 @@ describe("listRecruitmentBoard", () => {
     const rows = data.rows.filter((row) => row.displayName.startsWith(MARKER));
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row.status).sort()).toEqual(["declined", "identified"]);
+  });
+
+  it("drops a recruit who has been merged away, and counts the survivor once", async () => {
+    // LAN-314's own shape, one board over: `mergePeople` keeps the losing
+    // person row and points it at the survivor. Every other directory read
+    // excludes it; this one did not, so a merged pair read as two recruits,
+    // one of them a record nobody can reach.
+    const survivor = await newProspect("Survivor", "engaged");
+    const mergedAway = await newProspect("MergedAway", "engaged");
+    await withTransaction((tx) =>
+      // Every column `people_merge_is_fully_audited` demands: a merge that is
+      // not dated, attributed and explained cannot exist at all.
+      tx.query(
+        `update public.people
+            set merged_into_person_id = $2, merged_at = now(),
+                merged_by_person_id = $2, merge_reason = 'Duplicate sign-up'
+          where id = $1`,
+        [mergedAway.personId, survivor.personId],
+      ),
+    );
+
+    const data = await listRecruitmentBoard();
+    const rows = data.rows.filter((row) => row.displayName.startsWith(MARKER));
+
+    expect(rows.map((row) => row.personId)).toEqual([survivor.personId]);
+    // The count below the heading is read off the same rows, so it follows.
+    expect(data.totalInSeason).toBe(data.rows.length);
   });
 
   it("reads consent, and defaults to never_asked with no row at all", async () => {
