@@ -147,8 +147,7 @@ export function senderFor(recipientDigits: string, config: OutboundConfig): Send
  * drift into two different things the club is saying.
  */
 export function renderSmsBody(message: OutboundMessage): string {
-  const template = templateFor(message);
-  return template.sms ? template.sms(message) : template.body(message).join("\n");
+  return templateFor(message).sms(message);
 }
 
 /**

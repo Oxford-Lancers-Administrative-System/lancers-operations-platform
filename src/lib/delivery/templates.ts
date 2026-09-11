@@ -86,10 +86,9 @@ export interface MessageTemplate {
   body(message: OutboundMessage): readonly string[];
   /**
    * The text message for this kind — LAN-330. One string, GSM-7 only, sender
-   * name first, links on their own lines. Until a kind declares its own, the
-   * email body joined by line breaks is sent, which is honest but long.
+   * name first, links on their own lines. See `SMS_BODIES`.
    */
-  sms?(message: OutboundMessage): string;
+  sms(message: OutboundMessage): string;
   /** Actual indexed URL-button count in the approved template. */
   readonly buttonCount?: 1 | 2;
   buttonUrls?(message: OutboundMessage): readonly string[] | null;
@@ -487,21 +486,121 @@ const ONBOARDING_CHASE_ESCALATION: MessageTemplate = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// LAN-330 — the texts
+// ---------------------------------------------------------------------------
+
+/**
+ * The SMS rewrite of every kind. LAN-330, Brian's decision of 11 September.
+ *
+ * ## The shape
+ *
+ * Sender name first (`Oxford Lancers:`), then the copy, then each link on its
+ * own line with a one-word label. Yes and No are links where the WhatsApp
+ * template had buttons; the Stop link is kept on recruit kinds only
+ * (LAN-263: onboarding carries no Stop). GSM-7 only — no em dash, no curly
+ * quote — because one character outside the alphabet drops the whole message
+ * from 160 to 70 characters per segment. `sms-budget.test.ts` measures every
+ * kind and fails on a non-GSM-7 character or a third segment.
+ *
+ * ## Why the copy is short and the links are not
+ *
+ * A full answer link is about 114 characters (`/a/` plus a `y.<uuid>.<43>`
+ * token on the production host), so a two-answer kind carries 228 characters
+ * of link before any copy. That leaves under 70 characters for the sender
+ * name and the copy inside two segments. The copy here is written to that
+ * budget and nothing else; the measured counts are in the PR.
+ */
+
+const SENDER = "Oxford Lancers:";
+
+function joinWhen(message: OutboundMessage): string {
+  const venue = (message.venue ?? "").trim();
+  return venue === "" ? message.whenLabel : `${message.whenLabel}, ${venue}`;
+}
+
+const SMS_BODIES: Readonly<Record<MessageKind, (message: OutboundMessage) => string>> =
+  Object.freeze({
+    // The two answer links alone are 240 characters, so the copy is the
+    // person, the event and the time. The deadline is on the page each link
+    // opens.
+    invitation: (m) =>
+      `${SENDER} ${m.inviteeName}, ${required(m.eventName, "event name")}, ` +
+      `${required(m.whenLabel, "date and time")}.\n` +
+      `Yes: ${required(m.yesUrl, "Yes link")}\nNo: ${required(m.noUrl, "No link")}`,
+    reminder: (m) =>
+      `${SENDER} ${m.inviteeName}, still need your answer for ` +
+      `${required(m.eventName, "event name")}.\n` +
+      `Yes: ${required(m.yesUrl, "Yes link")}\nNo: ${required(m.noUrl, "No link")}`,
+    nudge: (m) =>
+      `${SENDER} ${m.inviteeName}, thanks for answering ${required(m.eventName, "event name")}. ` +
+      `A couple of questions are left.\nFinish: ${required(m.rsvpUrl, "link")}`,
+    change_notice: (m) =>
+      `${SENDER} ${m.inviteeName}, ${required(m.eventName, "event name")} has changed. ` +
+      `${required(m.changeSummary, "summary of what changed")} Now ${joinWhen(m)}. ` +
+      `Your answer stands.\nChange it: ${required(m.rsvpUrl, "link")}`,
+    // No reason and no link: the reason is private to the club, and there is
+    // nothing left to answer.
+    cancellation: (m) =>
+      `${SENDER} ${m.inviteeName}, ${required(m.eventName, "event name")} on ` +
+      `${required(m.whenLabel, "date and time")} is cancelled. Nothing you need to do.`,
+    // `T03-no-personal-data`: a count, an event, a date, a deadline and the
+    // queue link. Never a name.
+    escalation: (m) =>
+      `${SENDER} ${m.outstandingCount ?? 0} ${(m.outstandingCount ?? 0) === 1 ? "person has" : "people have"} ` +
+      `not answered for ${required(m.eventName, "event name")}, ${required(m.whenLabel, "date and time")}. ` +
+      `Deadline passed ${required(m.deadlineLabel, "deadline")}.\nSee who: ${required(m.queueUrl, "link to the follow-up queue")}`,
+    recruit_event_followup: (m) =>
+      `${SENDER} ${required(m.eventName, "event name")} is still on, ` +
+      `${required(m.whenLabel, "date and time")}.\n` +
+      `Yes: ${required(m.yesUrl, "Yes link")}\nNo: ${required(m.noUrl, "No link")}`,
+    recruit_welcome: (m) =>
+      `${SENDER} thanks for your interest, ${required(m.inviteeName, "name")}. ` +
+      `Fill in a few details, it takes a minute and most of it is optional.\n` +
+      `Details: ${required(m.formUrl, "form link")}\nStop: ${required(m.stopUrl, "opt-out link")}`,
+    recruit_details_reminder: (m) =>
+      `${SENDER} still interested? Your details are not filled in yet. ` +
+      `It takes a minute and you can leave anything blank.\n` +
+      `Details: ${required(m.formUrl, "form link")}\nStop: ${required(m.stopUrl, "opt-out link")}`,
+    recruit_interest_ask: (m) =>
+      `${SENDER} one more thing, ${required(m.inviteeName, "name")}. ` +
+      `Tell us how you came to American football. No wrong answers, skip anything.\n` +
+      `Answer: ${required(m.formUrl, "form link")}\nStop: ${required(m.stopUrl, "opt-out link")}`,
+    recruit_interest_reminder: (m) =>
+      `${SENDER} no rush, ${required(m.inviteeName, "name")}. ` +
+      `A few questions about your football background, whenever you have a moment.\n` +
+      `Answer: ${required(m.formUrl, "form link")}\nStop: ${required(m.stopUrl, "opt-out link")}`,
+    onboarding_welcome: (m) =>
+      `${SENDER} ${required(m.inviteeName, "name")}, welcome to the team. ` +
+      `A few quick things to complete before the season starts.\n` +
+      `Get started: ${required(m.formUrl, "link")}`,
+    onboarding_chase: (m) =>
+      `${SENDER} ${required(m.inviteeName, "name")}, a few things are still to complete ` +
+      `before the season starts.\nFinish here: ${required(m.formUrl, "link")}`,
+    onboarding_chase_escalation: (m) =>
+      `${SENDER} the automated chase has finished for ${m.outstandingCount ?? 0} players ` +
+      `with onboarding details outstanding.\n${required(m.queueUrl, "link to the missing-data queue")}`,
+  });
+
+function withSms(template: MessageTemplate): MessageTemplate {
+  return { ...template, sms: SMS_BODIES[template.kind] };
+}
+
 export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> = Object.freeze({
-  invitation: INVITATION,
-  reminder: REMINDER,
-  nudge: NUDGE,
-  change_notice: CHANGE_NOTICE,
-  cancellation: CANCELLATION,
-  escalation: ESCALATION,
-  recruit_event_followup: RECRUIT_EVENT_FOLLOWUP,
-  recruit_welcome: RECRUIT_WELCOME,
-  recruit_details_reminder: RECRUIT_DETAILS_REMINDER,
-  recruit_interest_ask: RECRUIT_INTEREST_ASK,
-  recruit_interest_reminder: RECRUIT_INTEREST_REMINDER,
-  onboarding_welcome: ONBOARDING_WELCOME,
-  onboarding_chase: ONBOARDING_CHASE,
-  onboarding_chase_escalation: ONBOARDING_CHASE_ESCALATION,
+  invitation: withSms(INVITATION),
+  reminder: withSms(REMINDER),
+  nudge: withSms(NUDGE),
+  change_notice: withSms(CHANGE_NOTICE),
+  cancellation: withSms(CANCELLATION),
+  escalation: withSms(ESCALATION),
+  recruit_event_followup: withSms(RECRUIT_EVENT_FOLLOWUP),
+  recruit_welcome: withSms(RECRUIT_WELCOME),
+  recruit_details_reminder: withSms(RECRUIT_DETAILS_REMINDER),
+  recruit_interest_ask: withSms(RECRUIT_INTEREST_ASK),
+  recruit_interest_reminder: withSms(RECRUIT_INTEREST_REMINDER),
+  onboarding_welcome: withSms(ONBOARDING_WELCOME),
+  onboarding_chase: withSms(ONBOARDING_CHASE),
+  onboarding_chase_escalation: withSms(ONBOARDING_CHASE_ESCALATION),
 });
 
 /** Every kind, in ladder order. */
