@@ -69,6 +69,44 @@ host, so invitation, reminder and the recruit follow-up carry 240 characters of
 links and about 66 of copy; the deadline and the attending count are on the
 page each link opens rather than in the text.
 
+### Results so far — 11 September 2026
+
+Branch head `932acfd`, overflow slot, app port 3010, tunnel forwarding to it.
+
+**Session A, intercepted.** Small squad plus the four real testers, all
+intercepted. Every automated workflow captured as `sms` and simulated delivery
+was applied through the signed local Twilio-shaped callback: 24 invitations,
+10 reminders (28 correctly cancelled after an RSVP), 18 email rungs, 2
+escalations to the President, 12 change notices, 12 cancellations, 1 recruit
+welcome, 1 recruit details reminder, 1 onboarding welcome. The two no-phone
+players were refused on SMS and carried by email. Not exercised, because forms
+are completed by hand: nudge, recruit event follow-up, recruit interest ask and
+reminder, onboarding chase and chase escalation.
+
+**Session B, real, first sends.** Database reset to the current date, the four
+testers on the recruitment board with no consent and nothing queued, all four
+selected for actual SMS in the panel.
+
+- UK reached. The recruit welcome to the +44 tester went from `OxfLancers`;
+  Twilio queued it, the `sent` and `delivered` callbacks arrived through the
+  tunnel signature-verified, and Delivered is recorded on the delivery page and
+  in the panel. The tester confirmed the text.
+- US blocked as expected. The recruit welcome to a +1 tester from the toll-free
+  number was queued by Twilio and then reported `undelivered` 30032, toll-free
+  verification pending; the panel shows Failed with that reason. Verification
+  was submitted the same day.
+- Twilio 21660 on the first US attempt meant the toll-free number in the
+  private file was not the account's number; corrected from the account's own
+  number list. Check `IncomingPhoneNumbers` before suspecting the account.
+
+**Remaining.** The rest of the UK ladder on the +44 phone (invitation,
+reminders, change notice, cancellation, escalation, interest ask, onboarding
+welcome and chase), the US leg after verification, and the manual audit index
+re-run. To resume: `node scripts/test-box/app.mjs`, request `/join/<live code>`
+once so the seam registers, `node scripts/test-box/panel-server.mjs`, read the
+panel URL from `.lancers-runtime/panel-runtime.json`, and start the tunnel as
+above. The app must be in `--sms` mode for real sends.
+
 ## Owner walkthrough
 
 The agent starts both processes and provides their addresses. The app currently
