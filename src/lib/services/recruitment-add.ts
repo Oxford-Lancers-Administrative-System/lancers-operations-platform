@@ -178,10 +178,24 @@ async function fillKnownAsIfDifferentIn(
 export interface FinishRecruitmentAddResult {
   readonly prospectId: string;
   readonly prospectCreated: boolean;
+  /** The cycle declaration ran and was not refused — LAN-305. Never a promise that this call minted a job; a rerun mints none. */
   readonly cycleDeclared: boolean;
 }
 
-/** Everything after `createPerson`: Academic fields, the prospect row, opt-in evidence, and — only once evidence exists — the consent grant and cycle declaration. */
+/**
+ * Everything after `createPerson`: Academic fields, the prospect row, opt-in
+ * evidence, the consent grant that evidence justifies, and — LAN-305 —
+ * the cycle declaration, which runs whether or not evidence was supplied.
+ *
+ * Evidence and scheduling are separate questions. Evidence is what lets the
+ * club record a `granted` consent it did not hear from the recruit's own
+ * mouth; scheduling is `declareRecruitmentCycleJobsIn`'s to decide, and it
+ * already refuses a recruit who refused or withdrew. Gating the declaration
+ * on evidence stranded every blank-field recruit with no way to reach the
+ * personal questionnaire at all (Brian, 2026-09-11): unknown or never-asked
+ * consent must not block the first ask. No consent row is fabricated to make
+ * that ask send.
+ */
 export async function finishRecruitmentAddIn(
   tx: Tx,
   params: {
@@ -277,7 +291,8 @@ export async function finishRecruitmentAddIn(
     },
   });
 
-  let cycleDeclared = false;
+  // The consent write stays the evidence branch's own: a recorded grant is a
+  // claim about what the recruit agreed to, and only evidence supports it.
   if (evidenceValue) {
     await tx.query(
       `insert into public.season_messaging_consents
@@ -290,9 +305,14 @@ export async function finishRecruitmentAddIn(
          and public.season_messaging_consents.state <> 'refused'`,
       [personId, seasonId, actorPersonId],
     );
-    await declareRecruitmentCycleJobsIn(tx, personId, seasonId);
-    cycleDeclared = true;
   }
 
-  return { prospectId, prospectCreated, cycleDeclared };
+  // Unconditional (LAN-305), and idempotent: a second add declares nothing new.
+  const declared = await declareRecruitmentCycleJobsIn(tx, personId, seasonId);
+
+  return {
+    prospectId,
+    prospectCreated,
+    cycleDeclared: declared.created.length > 0 || declared.reason === "already_complete",
+  };
 }

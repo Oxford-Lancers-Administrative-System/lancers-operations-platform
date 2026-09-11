@@ -246,7 +246,9 @@ describe("finishRecruitmentAddIn", () => {
     expect(contact.rows).toHaveLength(0);
   });
 
-  it("with no opt-in evidence: creates the prospect and declares no cycle jobs at all", async () => {
+  // LAN-305, replacing the assertion that blank evidence declared nothing at
+  // all. Brian, 2026-09-11: unknown consent must not block the first ask.
+  it("LAN-305 — with no opt-in evidence: declares the welcome track and still writes no consent row", async () => {
     const created = await createPerson({
       actorPersonId: operatorPersonId,
       input: { givenName: MARKER, familyName: "NoEvidence", mobile: uniquePhone() },
@@ -264,18 +266,92 @@ describe("finishRecruitmentAddIn", () => {
     );
 
     expect(result.prospectCreated).toBe(true);
-    expect(result.cycleDeclared).toBe(false);
+    expect(result.cycleDeclared).toBe(true);
 
+    // The point of the separation: nothing was fabricated to make it send.
     const consent = await observer.query(
       "select 1 from public.season_messaging_consents where person_id = $1::uuid",
       [created.personId],
     );
     expect(consent.rows).toHaveLength(0);
-    const jobs = await observer.query(
-      "select 1 from public.notification_jobs where person_id = $1::uuid",
+
+    const jobs = await observer.query<{ idempotency_key: string }>(
+      "select idempotency_key from public.notification_jobs where person_id = $1::uuid order by idempotency_key",
       [created.personId],
     );
-    expect(jobs.rows).toHaveLength(0);
+    expect(jobs.rows.map((r) => r.idempotency_key)).toEqual([
+      `recruit-cycle:details_reminder:${created.personId}:${seasonId}`,
+      `recruit-cycle:welcome:${created.personId}:${seasonId}`,
+    ]);
+  });
+
+  it("LAN-305 — a recorded refusal still stops everything, evidence or not", async () => {
+    for (const state of ["refused", "withdrawn"] as const) {
+      const created = await createPerson({
+        actorPersonId: operatorPersonId,
+        input: { givenName: MARKER, familyName: `Stopped${state}`, mobile: uniquePhone() },
+        decision: { kind: "create_new" },
+      });
+      await observer.query(
+        `insert into public.season_messaging_consents
+           (person_id, season_id, state, source, changed_at, recorded_by_person_id)
+         values ($1::uuid, $2::uuid, $3::public.messaging_consent_state, 'operator_recorded', now(), $4::uuid)`,
+        [created.personId, seasonId, state, operatorPersonId],
+      );
+
+      const result = await withTransaction((tx) =>
+        finishRecruitmentAddIn(tx, {
+          actorPersonId: operatorPersonId,
+          personId: created.personId,
+          givenName: MARKER,
+          seasonId,
+          academic: {},
+        }),
+      );
+      expect(result.cycleDeclared).toBe(false);
+
+      const jobs = await observer.query(
+        "select 1 from public.notification_jobs where person_id = $1::uuid",
+        [created.personId],
+      );
+      expect(jobs.rows, `${state} queued a job`).toHaveLength(0);
+
+      // And the refusal itself is untouched — the add never overwrites it.
+      const consent = await observer.query<{ state: string }>(
+        "select state::text as state from public.season_messaging_consents where person_id = $1::uuid",
+        [created.personId],
+      );
+      expect(consent.rows[0].state).toBe(state);
+    }
+  });
+
+  it("LAN-305 — a second add for the same recruit duplicates no job", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "AddedTwice", mobile: uniquePhone() },
+      decision: { kind: "create_new" },
+    });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await withTransaction((tx) =>
+        finishRecruitmentAddIn(tx, {
+          actorPersonId: operatorPersonId,
+          personId: created.personId,
+          givenName: MARKER,
+          seasonId,
+          academic: {},
+        }),
+      );
+    }
+
+    const jobs = await observer.query<{ idempotency_key: string }>(
+      "select idempotency_key from public.notification_jobs where person_id = $1::uuid order by idempotency_key",
+      [created.personId],
+    );
+    expect(jobs.rows.map((r) => r.idempotency_key)).toEqual([
+      `recruit-cycle:details_reminder:${created.personId}:${seasonId}`,
+      `recruit-cycle:welcome:${created.personId}:${seasonId}`,
+    ]);
   });
 
   it("with opt-in evidence: grants operator_recorded consent and declares the welcome track", async () => {

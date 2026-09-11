@@ -11,7 +11,10 @@ import {
 /**
  * The recruitment cycle's own four rows — LAN-203. Owns
  * `recruitment_cycle_steps`, seeded once by the migration, never created or
- * deleted here. {@link declareRecruitmentCycleJobsIn} has no caller yet.
+ * deleted here. {@link declareRecruitmentCycleJobsIn} is the one seam every
+ * capture door reaches (LAN-305): operator add, walk-up read-back, both
+ * sign-up doors, and the record's own SEND/RESEND button. None of them
+ * decides for itself whether a recruit may be messaged.
  */
 
 export type RecruitmentCycleStepName =

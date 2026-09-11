@@ -92,6 +92,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   const people = "(select id from public.people where given_name = $1)";
+  await observer.query(`delete from public.notification_jobs where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query(`delete from public.recruitment_prospects where person_id in ${people}`, [
     MARKER,
   ]);
@@ -285,6 +288,49 @@ describe("signUpAnonymouslyIn — the QR door", () => {
       [result.prospectId],
     );
     expect(prospect.rows[0].first_contact_on).toBe(todayInClubZone());
+  });
+
+  // LAN-305: every capture door reaches the same declarer. This one's grant
+  // completes the welcome track, so what it must produce is the interest ask
+  // and its reminder — nothing at all before this fix, because no door called
+  // the declarer after a self sign-up.
+  it("LAN-305 — declares the interest track, and nothing of the welcome track", async () => {
+    const code = await mintCode();
+    const result = await withTransaction((tx) =>
+      signUpAnonymouslyIn(tx, { seasonId, code, submission: baseSubmission() }),
+    );
+
+    const jobs = await observer.query<{ idempotency_key: string }>(
+      `select idempotency_key from public.notification_jobs
+        where person_id = $1::uuid order by idempotency_key`,
+      [result.personId],
+    );
+    expect(jobs.rows.map((r) => r.idempotency_key)).toEqual([
+      `recruit-cycle:interest_ask:${result.personId}:${seasonId}`,
+      `recruit-cycle:interest_reminder:${result.personId}:${seasonId}`,
+    ]);
+  });
+
+  it("LAN-305 — a resubmitted form declares no second ask", async () => {
+    const firstCode = await mintCode();
+    const first = await withTransaction((tx) =>
+      signUpAnonymouslyIn(tx, { seasonId, code: firstCode, submission: baseSubmission() }),
+    );
+    const secondCode = await mintCode();
+    await withTransaction((tx) =>
+      signUpAnonymouslyIn(tx, {
+        seasonId,
+        code: secondCode,
+        submission: baseSubmission(),
+        linkExistingPersonId: first.personId,
+      }),
+    );
+
+    const jobs = await observer.query<{ idempotency_key: string }>(
+      `select idempotency_key from public.notification_jobs where person_id = $1::uuid`,
+      [first.personId],
+    );
+    expect(jobs.rows).toHaveLength(2);
   });
 
   it("bumps the signup code's own sign-in counter", async () => {
@@ -610,6 +656,28 @@ describe("signUpWithTokenIn — the tokenised, prefilled door", () => {
       [MARKER],
     );
     expect(people.rows[0].count).toBe(1);
+  });
+
+  it("LAN-305 — declares the interest track for the person the token names", async () => {
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'TokenCycle') returning id`,
+      [MARKER],
+    );
+    const personId = existing.rows[0].id;
+
+    await withTransaction((tx) =>
+      signUpWithTokenIn(tx, { personId, seasonId, submission: baseSubmission() }),
+    );
+
+    const jobs = await observer.query<{ idempotency_key: string }>(
+      `select idempotency_key from public.notification_jobs
+        where person_id = $1::uuid order by idempotency_key`,
+      [personId],
+    );
+    expect(jobs.rows.map((r) => r.idempotency_key)).toEqual([
+      `recruit-cycle:interest_ask:${personId}:${seasonId}`,
+      `recruit-cycle:interest_reminder:${personId}:${seasonId}`,
+    ]);
   });
 
   it("does not overwrite a contact value the person already holds", async () => {
