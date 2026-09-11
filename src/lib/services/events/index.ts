@@ -50,8 +50,6 @@ export {
   createEventDraft,
   deleteEventDraft,
   EDIT_REFUSAL_MESSAGE,
-  QUESTION_REMOVAL_REFUSAL_MESSAGE,
-  QUESTIONS_EDIT_REFUSAL_MESSAGE,
   updateEventDraft,
   updateEventQuestions,
 } from "./write";

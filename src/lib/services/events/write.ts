@@ -238,9 +238,11 @@ export async function updateEventDraft(
   });
 }
 
-export const QUESTIONS_EDIT_REFUSAL_MESSAGE = "Only an approved event's questions can be changed.";
+// Not exported: nothing above the service names either of these. The screen shows what the
+// refusal said, and the tests assert on `rule`, which is what actually identifies the refusal.
+const QUESTIONS_EDIT_REFUSAL_MESSAGE = "Only an approved event's questions can be changed.";
 
-export const QUESTION_REMOVAL_REFUSAL_MESSAGE =
+const QUESTION_REMOVAL_REFUSAL_MESSAGE =
   "A question can be reworded or reordered, but not removed, once the event has been approved.";
 
 /**
