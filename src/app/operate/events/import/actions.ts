@@ -10,6 +10,7 @@ import {
   planSeasonImport,
 } from "@/lib/services/event-import";
 import { EMPTY_IMPORT_STATE, NO_FILE_CHOSEN_MESSAGE, type ImportScreenState } from "./import-state";
+import { describePlanMoved } from "./presentation";
 
 /** The bulk import's two writes — one of which writes nothing. LAN-155. */
 
@@ -81,15 +82,30 @@ async function applyImport(
   }
 
   try {
-    const applied = await applySeasonImport({
+    const result = await applySeasonImport({
       csvText,
       fileName: fileName === "" ? null : fileName,
       digest,
+      confirmedRows: previous.plan?.rows ?? null,
     });
+
+    // LAN-310: the season moved between the proposal and the confirmation.
+    // Nothing was written, and the fresh proposal replaces the stale one on
+    // screen, carrying its own digest — so the next Apply confirms this plan.
+    if (!result.ok) {
+      return {
+        error: describePlanMoved(result.movements),
+        plan: result.plan,
+        csvText,
+        fileName: fileName === "" ? null : fileName,
+        applied: null,
+      };
+    }
+
     revalidatePath("/operate/events");
     revalidatePath("/operate/events/calendar");
     revalidatePath("/operate/events/import");
-    return { ...EMPTY_IMPORT_STATE, applied };
+    return { ...EMPTY_IMPORT_STATE, applied: result.applied };
   } catch (error) {
     // The proposal stays on screen — nothing was written, whatever went wrong.
     return { ...previous, error: messageFor(error), applied: null };

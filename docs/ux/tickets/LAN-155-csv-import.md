@@ -105,6 +105,11 @@ CSV handling anywhere on `main`.
   reason where there is one.
 - A changed cell is shown by **highlighting the cell itself**, with the old
   value beneath it — never a separate diff column.
+- **Refused rows sit in their own section**, under the rows an apply would
+  write, each carrying its own reason (LAN-316). A row on screen is never
+  mistaken for a row that will be created.
+- **A date is echoed in words** — "24 December 2026" — beneath the cell, so a
+  file written day-first cannot be misread and applied unseen (LAN-317).
 - The bulk import screen shows a **count** by status (drafts, approved,
   cancelled), never a list — the Events page one click away already is one.
 - The copy rule, from Brian, repeatedly on this mission: the application says
@@ -145,7 +150,17 @@ CSV handling anywhere on `main`.
 - Applying writes as one transaction — a failure part-way leaves the season as
   it was, and a plan whose digest no longer matches the season it would apply
   to is refused rather than applied against different rows than the operator
-  read.
+  read. That refusal writes nothing and returns the **current** proposal, with
+  the rows whose outcome moved named by line, and requires a fresh
+  confirmation on the new digest — the operator never re-uploads the file to
+  find out what changed (LAN-310).
+- A `date` cell is read as `DD/MM/YYYY` or `YYYY-MM-DD`, day-first in every
+  case, and the month-first order is never inferred: `03/12/2026` is the third
+  of December and `10/14/2026` is refused. A refused date names what was read
+  and both accepted shapes (LAN-317).
+- A file that produces nothing to apply says so in counts — how many rows were
+  refused, and that each carries its reason — rather than only disabling the
+  button (LAN-316).
 - The copyable prompt's own worked example imports cleanly, asserted by test.
 - No import creates an invitation, an RSVP, an attendance record or a
   notification, and no import ever deletes.

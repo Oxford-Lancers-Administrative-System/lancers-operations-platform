@@ -842,7 +842,11 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
       fileName: IMPORT_FILE_NAME,
       digest: planned.plan.digest,
     });
-    expect(applied).toEqual({ created: 1, updated: 1, unchanged: 0, refused: 0 });
+    // LAN-310: an apply either ran or came back with the season's fresh plan.
+    expect(applied).toEqual({
+      ok: true,
+      applied: { created: 1, updated: 1, unchanged: 0, refused: 0 },
+    });
 
     // The second event reaches the same list `listCurrentSeasonEvents` feeds
     // Calendar View and Oxford View below — indistinguishable, to that
