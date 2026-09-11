@@ -136,7 +136,7 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
   }
 }
 
-/** Applies one submitted value for one of the seven fields (B-002: last write wins). Four outcomes: unchanged, filled, self-corrected, overwritten. Decision history: LAN-230, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** Applies one submitted value for one of the seven fields (B-002: last write wins). Four outcomes: unchanged, filled, self-corrected, overwritten. */
 export async function applyDisputableFieldIn(
   tx: Tx,
   params: {

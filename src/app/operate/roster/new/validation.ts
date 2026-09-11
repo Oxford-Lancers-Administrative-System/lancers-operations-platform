@@ -1,4 +1,4 @@
-/** Shape checks for the returner intake form (UX-10). Decision history: missions/intake/M-PEOPLE-AND-ROSTER */
+/** Shape checks for the returner intake form (UX-10). */
 
 import {
   EMAIL_SHAPE_MESSAGE,

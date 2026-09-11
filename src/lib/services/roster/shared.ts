@@ -3,7 +3,7 @@ import "server-only";
 import { Conflict, ConstraintViolated, NotFound, type Tx } from "@/lib/db";
 
 // Types and helpers shared by the roster module's duplicate-check and write
-// siblings. Decision history: docs/ux/tickets/LAN-74-returner-intake.md.
+// siblings.
 
 /** What the operator typed into UX-10. Never mutated, never normalised in place. */
 export interface ReturnerIntakeInput {

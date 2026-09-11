@@ -52,7 +52,7 @@ export default function ReturnerIntakeForm() {
 }
 
 // ---------------------------------------------------------------------------
-// UX-10 — Add player. Decision history: missions/intake/M-PEOPLE-AND-ROSTER
+// UX-10 — Add player.
 // ---------------------------------------------------------------------------
 
 function DetailsStep({
@@ -103,7 +103,7 @@ function DetailsStep({
 
       {state.formError ? <Notice severity="error">{state.formError}</Notice> : null}
 
-      {/* Four fields, in this order, no others — Brian's departures from the wireframe, 12 August 2026. Decision history: missions/intake/M-PEOPLE-AND-ROSTER */}
+      {/* Four fields, in this order, no others — Brian's departures from the wireframe, 12 August 2026. */}
       <Stack spacing={2.5}>
         {field("givenName", "First name", { autoComplete: "off" })}
         {field("familyName", "Last name", { autoComplete: "off" })}

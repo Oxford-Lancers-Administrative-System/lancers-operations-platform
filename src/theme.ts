@@ -7,8 +7,6 @@ import { createTheme } from "@mui/material/styles";
  * `docs/ux/review/design-audit-2026-09/brief.md` §1. Contrast (WCAG 2.x, AA
  * 4.5 text / 3.0 large-text-and-components) is measured and recorded here
  * only; `src/theme.test.ts` recomputes each pair and fails if one drifts.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 
 import { CLUB, LAYOUT, RADIUS, SEMANTIC } from "@/theme-tokens";

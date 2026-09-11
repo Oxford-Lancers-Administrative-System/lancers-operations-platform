@@ -18,8 +18,6 @@ import type { SegmentChoice } from "./calendar-controls";
  * built column, so they cannot drift. The coordinate is derived at read time,
  * not looked up: `events.week_number` cannot even hold a vacation week
  * (constrained to −1..8).
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 export interface EventYear {

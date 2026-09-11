@@ -3,7 +3,7 @@ import type { TermWindow } from "./event-input";
 import { labelFor, TERM_LABELS } from "./event-vocabulary";
 
 // The Oxford View — one continuous academic year, LAN-153. Every date is inside exactly one
-// segment; a vacation belongs to neither adjacent term. Pure. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
+// segment; a vacation belongs to neither adjacent term. Pure.
 
 /** What the club calls the gap after each term (Stewart Humble, 17 August 2026), keyed on the term it follows. */
 const VACATION_AFTER: Readonly<Record<string, string>> = Object.freeze({
@@ -196,7 +196,7 @@ const MINIMUM_TRAILING_VACATION_WEEKS = 1;
  * How much of the year's two Long Vacations is drawn — BG-153-1, Brian at the
  * visual gate. Trimmed to the last/first N weeks of records, extended (never
  * shortened) to reach a distant event. Does not renumber, does not touch
- * terms, does not special-case Christmas/Easter. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
+ * terms, does not special-case Christmas/Easter.
  */
 export const LEADING_VACATION_WEEKS = 5;
 

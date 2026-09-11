@@ -25,8 +25,6 @@ import { PRIVACY_NOTE } from "./presentation";
  * mockup. `positions`/`gear` are genuine multi-selects (Brian: "A recruit is
  * allowed to be interested in more than one thing"). Every field optional —
  * no `isRequired`, ever (`REQ-missing-never-blocks`).
- *
- * Decision history: missions/intake/M-RECRUITMENT
  */
 
 const HEARD_CHOICES = [

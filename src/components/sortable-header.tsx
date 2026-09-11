@@ -9,8 +9,6 @@ import TableSortLabel from "@mui/material/TableSortLabel";
  * brief §2. An href, so sorting works with scripting disabled; `scroll={false}`
  * so re-ordering doesn't bounce the reader to the top; `component="span"`
  * since a button inside an anchor is invalid HTML.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function SortableHeader({
   column,

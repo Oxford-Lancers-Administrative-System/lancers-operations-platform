@@ -13,8 +13,6 @@ import TextField from "@mui/material/TextField";
  * event instead. Everything changed is a query parameter (link, back button
  * and refresh all work). The month field is uncontrolled (`defaultValue`): the
  * page it navigates to re-renders it anyway.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export function GregorianControls({
   month,

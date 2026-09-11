@@ -10,8 +10,6 @@ import { BrandMark } from "./brand-mark";
  * `width` is the measure (`narrow`/`medium`/`wide`); `layout` is one card or
  * a stack the page fills itself — `card` for one panel, `stack` for several
  * genuine sections.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function PublicShell({
   caption,

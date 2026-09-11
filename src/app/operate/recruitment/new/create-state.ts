@@ -7,7 +7,7 @@ export interface AddRecruitFormValues {
   givenName: string;
   familyName: string;
   mobile: string;
-  /** LAN-268, Brian 2026-09-09: required, ox.ac.uk only. Decision history: missions/intake/M-RECRUITMENT */
+  /** LAN-268, Brian 2026-09-09: required, ox.ac.uk only. */
   collegeEmail: string;
   personalEmail: string;
   /** V-2, correction round 2: the shipped intake forms' own field set; every field below is optional (REQ-missing-never-blocks). */
@@ -55,7 +55,7 @@ export interface AddRecruitCandidate extends PersonDuplicateCandidate {
   readonly identity: CandidateIdentity;
 }
 
-/** V-3/V-4, correction round 2: an existing-member match gets its own confirmation screen, not the formError banner. Decision history: missions/intake/M-RECRUITMENT */
+/** V-3/V-4, correction round 2: an existing-member match gets its own confirmation screen, not the formError banner. */
 interface AddRecruitAlreadyMember {
   readonly displayName: string;
   readonly membershipStatus: string;

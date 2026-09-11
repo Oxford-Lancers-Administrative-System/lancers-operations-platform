@@ -42,7 +42,6 @@ function currentContact(
  * `/operate/people/[personId]/edit` — W2-01 … W2-10. One page, sectioned
  * exactly as the record reads, one Save. See `actions.ts`'s module note for
  * why every field lives on one submission.
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export default function EditPersonForm({
   personId,

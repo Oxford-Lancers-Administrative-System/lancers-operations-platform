@@ -25,7 +25,7 @@ export interface EditFieldErrors {
 
 /**
  * F1, LAN-185 correction: every field `requireReasonForChange` covers needs
- * a reachable *Reason for the change* input (twelve fields). Decision history: missions/intake/M-PEOPLE-AND-ROSTER
+ * a reachable *Reason for the change* input (twelve fields).
  */
 interface CorrectionReasonFormValues {
   givenNameReason: string;

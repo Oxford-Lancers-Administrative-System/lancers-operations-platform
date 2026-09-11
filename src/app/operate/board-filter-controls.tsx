@@ -7,7 +7,7 @@ import MuiMenu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Tooltip from "@mui/material/Tooltip";
 
-/** The board's own filter affordances — extracted from `../roster/roster-board.tsx` (LAN-186). Decision history: missions/intake/M-RECRUITMENT */
+/** The board's own filter affordances — extracted from `../roster/roster-board.tsx` (LAN-186). */
 
 export function FilterButton({
   label,
@@ -118,7 +118,7 @@ export function ColumnFilterMenu<TColumn extends FilterMenuColumn>({
   );
 }
 
-/** The board's status-pill formula — `../roster/roster-board.tsx`'s `CellValue` (LAN-204 item 1). Decision history: missions/intake/M-RECRUITMENT */
+/** The board's status-pill formula — `../roster/roster-board.tsx`'s `CellValue` (LAN-204 item 1). */
 export function StatusPill({
   domain,
   status,

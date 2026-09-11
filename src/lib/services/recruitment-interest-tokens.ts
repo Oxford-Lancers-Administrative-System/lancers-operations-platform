@@ -8,7 +8,6 @@ import { hashToken, mintToken, TOKEN_PATTERN } from "./rsvp-tokens";
  * `single_use = true` despite resolving repeatedly, to avoid colliding with
  * `person_access_tokens_one_live_per_person_season`; this resolver never
  * writes `single_use_at`, so "consumed, now dead" never applies here.
- * Decision history: LAN-206, missions/intake/M-RECRUITMENT
  */
 
 const PURPOSE = "recruit_interest_request";

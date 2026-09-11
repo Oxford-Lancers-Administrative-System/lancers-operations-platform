@@ -10,8 +10,6 @@ import { useEffect, useRef } from "react";
  * form control is the player using it, and must not be consumed). The GET
  * this page renders still writes nothing; the POST this triggers still goes
  * through the ordinary `<form>` mechanism and the unchanged cookie/token gate.
- *
- * Decision history: docs/ux/tickets/LAN-172-player-answer.md
  */
 const INTERACTION_EVENTS = [
   "pointerdown",

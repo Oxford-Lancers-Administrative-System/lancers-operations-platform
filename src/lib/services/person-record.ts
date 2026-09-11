@@ -24,7 +24,6 @@ import {
  * No contested-value/verification-mark/confidence field anywhere (LAN-182).
  * A merged person's row (invariant I6) is refused with `NotFound`, never
  * assembled or returned by search.
- * Decision history: LAN-182, LAN-183, LAN-184, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 interface PersonAlias {

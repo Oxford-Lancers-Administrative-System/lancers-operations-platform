@@ -1,7 +1,6 @@
 import type { OnboardingItemStatus } from "./membership";
 
 // Onboarding item state lists (`WP-operator-record`, LAN-217), keyed by `onboarding_item_types.code`. No `server-only`: client components need it too.
-// Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
 
 export const SUBS_INVOICED_ITEM_CODE = "subs_invoiced";
 export const SUBS_PAID_ITEM_CODE = "subs_paid";

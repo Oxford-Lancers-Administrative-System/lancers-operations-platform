@@ -5,7 +5,7 @@ import { isRegisterAvailable, isRegisterOpen } from "../attendance-window";
 import type { EventDetail } from "../events";
 import type { EventStatus } from "../event-input";
 
-/** Register-closed reasoning and the participant key, needed by reads and writes — LAN-152. Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** Register-closed reasoning and the participant key, needed by reads and writes — LAN-152. */
 
 const ATTENDANCE_OPEN_STATUS: EventStatus = "approved";
 

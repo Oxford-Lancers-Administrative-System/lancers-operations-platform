@@ -3,7 +3,6 @@
  * tiers do not nest (LAN-268) — college email is in `recruit`/`player` but
  * not `everyoneElse`. `AssembledStatus`'s onboarding/active/inactive map to
  * `player`; `recruit` to `recruit`; everything else to `everyoneElse`.
- * Decision history: LAN-183, LAN-268, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 export type AssembledStatus =

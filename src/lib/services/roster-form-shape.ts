@@ -1,4 +1,4 @@
-/** The BAFRA roster form's vocabulary and shaping — LAN-267. No `server-only`: the client component that renders the form imports it directly. Decision history: docs/ux/tickets/LAN-267-roster-form.md. */
+/** The BAFRA roster form's vocabulary and shaping — LAN-267. No `server-only`: the client component that renders the form imports it directly. */
 
 export const ROSTER_FORM_TEAM = "Oxford Lancers";
 

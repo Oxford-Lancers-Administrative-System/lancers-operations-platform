@@ -25,8 +25,6 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * here logs the address or whether Supabase accepted it. Timing is held to a
  * floor then quantised, computed from elapsed time so a slow provider cannot
  * reopen the channel. `recoveryCallbackUrl` never derives from form input.
- *
- * Decision history: docs/operating-the-slice.md
  */
 export async function requestPasswordReset(
   _previous: ForgotPasswordState,

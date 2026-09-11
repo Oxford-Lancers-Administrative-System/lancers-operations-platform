@@ -3,7 +3,7 @@ import type { AmendableField, AmendmentChange } from "@/lib/services/event-amend
 import type { EventChangeKind } from "@/lib/services/event-amendment";
 
 // The words the amendment/cancellation surfaces use — W5, W6, LAN-156. Almost
-// all verbatim from the approved mockup (Brian, 2026-08-21). Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
+// all verbatim from the approved mockup (Brian, 2026-08-21).
 
 export const AMEND_HEADLINE_PREFIX = "Editing";
 
@@ -32,7 +32,7 @@ export function saveAndNotifyLabel(notify: boolean, recipients: number): string 
   return notify ? `Save and notify ${recipients}` : "Save without notifying";
 }
 
-/** W5-03's sentence about who hears, counted in people. Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md. */
+/** W5-03's sentence about who hears, counted in people. */
 export function whoHearsAboutIt(recipients: number): string {
   return `One message to all ${recipients} invited ${people(recipients)}.`;
 }
@@ -46,7 +46,7 @@ export function cancelNotifyDefaultDetail(isFuture: boolean): string | null {
   return isFuture ? "Turning this off will ask you to confirm." : null;
 }
 
-/** What saving does to messages not yet sent — LAN-156's hold, R156-B3. Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md. */
+/** What saving does to messages not yet sent — LAN-156's hold, R156-B3. */
 export function queuedMessagesDetail(unsent: number): string | null {
   if (unsent === 0) return null;
   const plural = unsent === 1 ? "message" : "messages";
@@ -54,7 +54,7 @@ export function queuedMessagesDetail(unsent: number): string | null {
   return `Saving holds ${unsent} queued ${plural}, then resumes ${pronoun}.`;
 }
 
-/** W8, `REQ-reschedule-recomputes`, acceptance #7. Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md. */
+/** W8, `REQ-reschedule-recomputes`, acceptance #7. */
 export const RESCHEDULE_RECOMPUTES_NOTE =
   "You changed the date or start, so the RSVP deadline and every reminder are recalculated from " +
   "the new one. The app will say a reschedule is happening.";
@@ -73,7 +73,7 @@ export function silenceHeadline(changes: readonly AmendmentChange[]): string {
   return "Change the date, time or venue without telling anyone?";
 }
 
-/** R156-B4: each of the 5 material fields gets its own preposition. Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md. */
+/** R156-B4: each of the 5 material fields gets its own preposition. */
 function telling(field: AmendableField, value: string): string {
   switch (field) {
     case "venue":
@@ -183,7 +183,7 @@ export function cancelConfirmLabel(typeLabel: string): string {
   return `Cancel the ${typeLabel.toLowerCase()}`;
 }
 
-/** W6-01 leads with the invited-and-expected count, not the name — LAN-242. Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md. */
+/** W6-01 leads with the invited-and-expected count, not the name — LAN-242. */
 export function expectingToBeThere(saidYes: number, invited: number): string {
   return `${saidYes} of ${invited} invited ${saidYes === 1 ? "is" : "are"} expecting to be there.`;
 }

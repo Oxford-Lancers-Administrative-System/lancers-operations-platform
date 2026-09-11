@@ -16,7 +16,7 @@ import { readIntakeValues, validateIntake, type IntakeFormValues } from "./valid
 // intent (check / use_existing / confirm_new), not three, so the guard can't
 // be forgotten on one path. Guarded on `requireGeneralOperator()` — deliberately
 // not a new capability (excludes coaching seats via LAN-110, not a mapping).
-// Nothing writes until use_existing/confirm_new. Decision history: docs/ux/tickets/LAN-74-returner-intake.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+// Nothing writes until use_existing/confirm_new.
 
 export async function submitReturnerIntake(
   _previous: IntakeState,
@@ -85,7 +85,7 @@ export async function submitReturnerIntake(
   redirect(confirmationHref(result));
 }
 
-/** Where UX-13 lives — LAN-257: linked/unsaved travel by kind, never by value (personal data in a query string). Decision history: docs/ux/tickets/LAN-74-returner-intake.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** Where UX-13 lives — LAN-257: linked/unsaved travel by kind, never by value (personal data in a query string). */
 function confirmationHref(result: ReturnerIntakeResult): string {
   const query = new URLSearchParams({ created: "1" });
   if (!result.personCreated) query.set("linked", "1");

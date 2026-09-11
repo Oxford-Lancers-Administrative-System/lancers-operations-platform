@@ -1,5 +1,5 @@
 // Audience selection vocabulary, derived groups and resolution rules (LAN-77). Pure — split out of
-// event-audience.ts for the client builder component. See relocations.md. Decision history: missions/intake/M-RECRUITMENT
+// event-audience.ts for the client builder component. See relocations.md.
 
 // The capacities an audience can be built from; `recruit` (D46) anchors to the Person, not a membership.
 export type AudienceCapacity = "player" | "coach" | "committee" | "recruit";

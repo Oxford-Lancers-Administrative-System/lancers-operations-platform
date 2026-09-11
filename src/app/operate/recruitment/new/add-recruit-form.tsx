@@ -43,7 +43,6 @@ const MIN_TOUCH_TARGET = 44;
  * check (`findPersonDuplicates`) plus the Academic section `W6-01` adds.
  * Corrections round 1 (F-206-02) and round 2 (V-1..V-10) changed structure
  * and validation — see each finding's own comment below.
- * Decision history: missions/intake/M-RECRUITMENT
  */
 export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string }) {
   const [state, formAction, pending] = useActionState(submitAddRecruit, INITIAL_ADD_RECRUIT_STATE);
@@ -51,7 +50,6 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
   // V-1, correction round 2: inline client-side validation for phone/email,
   // composing with the server's required-field check.
-  // Decision history: missions/intake/M-RECRUITMENT
   const [dateOfBirth, setDateOfBirth] = useState(values.dateOfBirth);
   const [mobile, setMobile] = useState(values.mobile);
   const [collegeEmail, setCollegeEmail] = useState(values.collegeEmail);
@@ -109,7 +107,6 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
     mobileFormatError ||
     // LAN-275 correction round 1, F1: college email gates the submit
     // controls too, same as every other inline-validated field.
-    // Decision history: missions/intake/M-RECRUITMENT
     collegeEmailFormatError ||
     emailFormatError ||
     matricFormatError ||
@@ -125,7 +122,6 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
   // V-3/V-4, correction round 2: "This is them" on a current player resolves
   // to a clean confirmation screen instead of stacking a refusal.
-  // Decision history: missions/intake/M-RECRUITMENT
   if (alreadyMember) {
     return <AlreadyMemberScreen alreadyMember={alreadyMember} />;
   }
@@ -300,7 +296,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
           </Stack>
         </Section>
 
-        {/* V-2, correction round 2: Academic fields follow the shipped intake forms' own set; every field here stays optional (REQ-missing-never-blocks). Decision history: missions/intake/M-RECRUITMENT */}
+        {/* V-2, correction round 2: Academic fields follow the shipped intake forms' own set; every field here stays optional (REQ-missing-never-blocks). */}
         <Section title="Academic">
           <Stack spacing={2}>
             <Field name="college" label="College" defaultValue={values.college} />
@@ -372,7 +368,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
         </Section>
 
         <Section title="How we may contact them">
-          {/* V-10, correction round 2: Brian's authorised, scoped exception to the no-narrative-text rule. Decision history: missions/intake/M-RECRUITMENT */}
+          {/* V-10, correction round 2: Brian's authorised, scoped exception to the no-narrative-text rule. */}
           <Typography
             variant="body2"
             color="text.secondary"

@@ -17,7 +17,7 @@ import {
 /** What became of the most recent ask the club actually queued for this player. */
 type OnboardingAskDelivery = "queued" | "delivered" | "failed";
 
-/** Everything `/operate/roster/[membershipId]`'s Send onboarding questionnaire control needs — LAN-266. Deliberately assembled from the queue's own readers and nothing else, so {@link lastContact} and {@link next} can never disagree with the queue. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** Everything `/operate/roster/[membershipId]`'s Send onboarding questionnaire control needs — LAN-266. Deliberately assembled from the queue's own readers and nothing else, so {@link lastContact} and {@link next} can never disagree with the queue. */
 export interface OnboardingSendStatus {
   /** `false` when this membership is not onboarding — the send has nothing to chase. */
   readonly onboarding: boolean;
@@ -43,7 +43,7 @@ const NO_PHONE_NUMBER_ON_FILE = "No phone number on file";
 const UNDER_18 = "Unmessageable · under 18";
 const NOT_ONBOARDING = "This membership is not onboarding, so there is nothing to chase.";
 
-/** The most recent ask queued for this membership and what became of it (LAN-266). Reads the job table, not `onboarding_activity_log`; reads both the latest `delivery_results` row and `notification_jobs.status`/`last_error`, since a pre-attempt dispatcher refusal writes no result row (requirement 3). Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** The most recent ask queued for this membership and what became of it (LAN-266). Reads the job table, not `onboarding_activity_log`; reads both the latest `delivery_results` row and `notification_jobs.status`/`last_error`, since a pre-attempt dispatcher refusal writes no result row (requirement 3). */
 async function readLatestOnboardingAskIn(
   tx: Tx,
   membershipId: string,

@@ -23,8 +23,6 @@ function first(value: string | string[] | undefined): string {
 /**
  * `W1-01` … `W1-04` — the People list, its search, its two empty states and
  * the widened (outside-season) view. LAN-184, `REQ-person-record`.
- *
- * Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md.
  */
 export default async function PeoplePage({ searchParams }: PageProps<"/operate/people">) {
   const gate = await gateShellPage("/operate/people", "person_record_authority");

@@ -6,7 +6,7 @@ import { gateShellPage } from "../../../gate";
 import AdminPageHeading from "../../page-heading";
 import InviteOperatorForm, { type AssignableRole } from "./invite-form";
 
-// Invite operator — LAN-133. Seat list read from the catalogue (`REQ-static-role-catalogue`); nothing here creates a membership. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+// Invite operator — LAN-133. Seat list read from the catalogue (`REQ-static-role-catalogue`); nothing here creates a membership.
 export default async function InviteOperatorPage() {
   const gate = await gateShellPage("/operate/admin/operators/new", "role_management");
   if ("screen" in gate) return gate.screen;

@@ -1,6 +1,6 @@
 /**
  * The event aggregate — drafting, editing and reading one event. LAN-76, narrowed by LAN-151;
- * `shared`/`read`/`public-tier`/`write` are LAN-300's split. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+ * `shared`/`read`/`public-tier`/`write` are LAN-300's split.
  */
 
 export {

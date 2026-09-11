@@ -26,7 +26,6 @@ import {
  * People down, last week's events across — two values under each event
  * (RSVP and attendance), side by side, per Brian's 15 August 2026 spec.
  * Only people something went wrong for appear; a decline reason sits in the cell's `title`.
- * Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY
  */
 export function ChaseGrid({
   content,

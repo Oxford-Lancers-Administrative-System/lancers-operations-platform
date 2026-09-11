@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import { signOut } from "../login/actions";
 
 // UX-96 — an active operator who cannot record attendance, LAN-110. `returnHref`
-// shown only when real — `slice-ux.md` § 7. Decision history: docs/ux/tickets/LAN-110-coach-attendance.md.
+// shown only when real — `slice-ux.md` § 7.
 
 const COACH_NOT_PERMITTED_HEADING = "You cannot record attendance for this event";
 

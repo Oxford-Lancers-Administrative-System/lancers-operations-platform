@@ -1,6 +1,5 @@
 // The event vocabulary and the rules one submitted form has to satisfy. Split out of events.ts,
 // imported by the client form component; pure (no database, no server-only, no framework).
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
 import { isSafeUri } from "./safe-uri";
 

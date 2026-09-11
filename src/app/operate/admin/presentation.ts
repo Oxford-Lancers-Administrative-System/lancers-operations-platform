@@ -14,14 +14,14 @@ import { MEMBERSHIP_STATUS_LABELS } from "../roster/presentation";
 
 // How Administration says things — LAN-133, `WP-surfaces`, `DEC-administration-language-and-states`; presentation only.
 
-/** `DEC-administration-navigation`: three sections, by group code. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** `DEC-administration-navigation`: three sections, by group code. */
 const OPERATOR_SECTION_LABELS: Readonly<Record<string, string>> = Object.freeze({
   operational_administration: "Standing Officers",
   club_committee: "Club Officers",
   coaching_staff: "Coaches",
 });
 
-/** `REQ-admin-surfaces` / `REQ-deactivate-and-reinstate`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** `REQ-admin-surfaces` / `REQ-deactivate-and-reinstate`. */
 export const UNASSIGNED_SECTION_LABEL = "Without a current role";
 
 export interface OperatorSection {
@@ -79,13 +79,13 @@ function distinctGroups(roles: readonly DirectoryRole[]): readonly DirectoryRole
   return [...seen.values()].sort((left, right) => left.groupSortOrder - right.groupSortOrder);
 }
 
-/** One line: "President · Wide Receivers Coach", or "No current role". Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** One line: "President · Wide Receivers Coach", or "No current role". */
 export function describeSeats(roles: readonly DirectoryRole[]): string {
   if (roles.length === 0) return "No current role";
   return roles.map(describeSeat).join(" \u00b7 ");
 }
 
-/** One seat, with whichever known date (LAN-141 #11). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** One seat, with whichever known date (LAN-141 #11). */
 function describeSeat(role: DirectoryRole): string {
   const notes: string[] = [];
   if (role.scheduled) notes.push(`from ${formatDay(role.effectiveFrom)}`);
@@ -93,7 +93,7 @@ function describeSeat(role: DirectoryRole): string {
   return notes.length === 0 ? role.label : `${role.label} (${notes.join(", ")})`;
 }
 
-/** Colour per account state (`REQ-invitation-states`). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Colour per account state (`REQ-invitation-states`). */
 export function accountStateColour(
   state: OperatorAccountState,
 ): "success" | "warning" | "error" | "default" {
@@ -115,7 +115,7 @@ export function accountStateLabel(state: OperatorAccountState): string {
   return operatorAccountState(state).label;
 }
 
-/** The Operators list's invitation column (LAN131-A5). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** The Operators list's invitation column (LAN131-A5). */
 export function describeInvitationProgress(operator: {
   readonly state: OperatorAccountState;
   readonly invitedAt: Date | null;
@@ -144,7 +144,7 @@ export const NO_CYCLE: Readonly<Record<"committee_year" | "season", string>> = O
   season: "No season under way",
 });
 
-/** Who holds one seat (`REQ-admin-surfaces`; Brian, 20 Aug 2026). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Who holds one seat (`REQ-admin-surfaces`; Brian, 20 Aug 2026). */
 export function describeHolders(role: {
   readonly scope: "committee_year" | "season";
   readonly vacant: boolean;
@@ -187,7 +187,7 @@ export function describeHolders(role: {
   return arriving === "" ? current : `${current} \u00b7 ${arriving}`;
 }
 
-/** Plain-language Permissions summary for one seat, and whether it's empty (`REQ-capability-copy-consistency`). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Plain-language Permissions summary for one seat, and whether it's empty (`REQ-capability-copy-consistency`). */
 export function permissionsSummary(code: string): {
   readonly empty: boolean;
   readonly items: readonly string[];
@@ -202,13 +202,13 @@ export function permissionsLine(code: string): string {
   return empty ? items[0] : `Can ${items.join("; ")}.`;
 }
 
-/** What one seat may not do (LAN-141 #10). `null` for seats that don't administer. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** What one seat may not do (LAN-141 #10). `null` for seats that don't administer. */
 export function limitsLine(code: string): string | null {
   const limits = describeLeadershipLimits(code);
   return limits.length === 0 ? null : `Cannot ${limits.join("; ")}.`;
 }
 
-/** Phrases the Roles index shows before "and N more" (reviewed prototype's column width). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Phrases the Roles index shows before "and N more" (reviewed prototype's column width). */
 const INDEX_PERMISSION_PHRASES = 3;
 
 export function permissionsPreview(code: string): string {
@@ -268,7 +268,7 @@ export function formatInstant(value: Date | string): string {
   })}`;
 }
 
-/** One assignment's period (`REQ-effective-dated-role-history`: open-ended is ordinary). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** One assignment's period (`REQ-effective-dated-role-history`: open-ended is ordinary). */
 export function describePeriod(assignment: {
   readonly effectiveFrom: string;
   readonly effectiveTo: string | null;
@@ -283,7 +283,7 @@ export function describePeriod(assignment: {
   return assignment.effectiveTo ? `${from} – ${formatDay(assignment.effectiveTo)}` : `From ${from}`;
 }
 
-/** The stored membership status, in the club's words (LAN-90 § 4). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** The stored membership status, in the club's words (LAN-90 § 4). */
 export function membershipStatusLabel(status: string): string {
   return labelFor(MEMBERSHIP_STATUS_LABELS, status);
 }

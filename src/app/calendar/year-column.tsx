@@ -16,8 +16,6 @@ import type { TileStatus } from "./tile-status";
  * event by the page, so the public and operator columns are the same grid
  * with different tiles. Below `md`, stacked week cards; every week present,
  * empty ones included (`slice-ux.md` § 7).
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 export interface YearColumnProps {

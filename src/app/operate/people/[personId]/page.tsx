@@ -38,8 +38,6 @@ const TYPED_CONTACT_LABELS: Readonly<Record<"email" | "phone", string>> = Object
  * `W1-05` … `W1-12` — the person record, its restricted section, its
  * merged-away redirect and its history section. LAN-184, `REQ-person-record`,
  * `REQ-history-on-record`, `REQ-restricted-fields`.
- *
- * Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md.
  */
 export default async function PersonRecordPage({
   params,

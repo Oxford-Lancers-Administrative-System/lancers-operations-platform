@@ -24,7 +24,7 @@ import { limitsLine, NO_CYCLE, permissionsSummary } from "../../presentation";
 import CurrentHolderPanel from "./current-holder-panel";
 import RoleActions from "./role-actions";
 
-// One seat — LAN-133. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+// One seat — LAN-133.
 export default async function RoleRecordPage({
   params,
 }: PageProps<"/operate/admin/roles/[roleId]">) {
@@ -78,7 +78,6 @@ export default async function RoleRecordPage({
       />
 
       <Section title="Current holder" testId="current-holder">
-        {/* Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */}
         <CurrentHolderPanel role={role} cycleLabel={cycleLabel} />
       </Section>
 
@@ -98,7 +97,6 @@ export default async function RoleRecordPage({
             </List>
           </Box>
         )}
-        {/* Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */}
         {limits ? (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} data-testid="limits">
             {limits}

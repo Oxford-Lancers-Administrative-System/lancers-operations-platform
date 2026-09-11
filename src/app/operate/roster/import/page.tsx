@@ -8,7 +8,7 @@ import ImportScreen from "./import-screen";
 
 // `/operate/roster/import` — CSV bulk import, LAN-215, `WP-arrival-doors`,
 // `W1`. Gated on `roster_bulk_import` (four-role), unlike `/operate/roster/new`
-// (`W2`, general-operator). Decision history: docs/ux/tickets/LAN-215-arrival-doors.md.
+// (`W2`, general-operator).
 export default async function RosterImportPage() {
   const gate = await gateShellPage("/operate/roster/import", "roster_bulk_import");
   if ("screen" in gate) return gate.screen;

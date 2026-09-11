@@ -31,7 +31,6 @@ import {
  * substrate for one membership's season, rather than duplicating any write
  * path. The single-membership equivalent of `listRosterBoard()`, scoped to
  * this membership's own season (which may not be the current one).
- * Decision history: LAN-187, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 export interface PlayerSeasonFacts {
@@ -362,7 +361,6 @@ interface AttendanceEventRow {
  * (locked Requirement 7). Returns raw rows only — scoring is the caller's
  * job. `eventStatus` is `derivedEventState()`'s answer (D30), read against
  * `todayInClubZone()` at read time.
- * Decision history: LAN-187, missions/intake/M-PEOPLE-AND-ROSTER
  */
 async function readAttendanceHistoryIn(
   tx: Tx,

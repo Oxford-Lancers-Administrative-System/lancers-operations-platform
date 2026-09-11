@@ -22,7 +22,7 @@ import { EMPTY_QUEUE, PAGE_HEADING, subheading } from "./presentation";
 
 const FOLLOW_UPS_PATH = "/operate/admin/follow-ups";
 
-// The Follow-ups queue — W5. Decision history: docs/ux/tickets/LAN-173-operator-chase.md.
+// The Follow-ups queue — W5.
 export default async function FollowUpsPage({
   searchParams,
 }: PageProps<"/operate/admin/follow-ups">) {

@@ -101,7 +101,7 @@ export function ContactSection({
       <Fact label="College email" note={collegeEmail?.source ?? undefined}>
         {collegeEmail ? <>{collegeEmail.rawValue}</> : <NotRecorded />}
       </Fact>
-      {/* LAN-257: `contact_points.scope` null means unclassified — the roster's "Email" field leaves it so. Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md. */}
+      {/* LAN-257: `contact_points.scope` null means unclassified — the roster's "Email" field leaves it so. */}
       {unclassifiedEmail ? (
         <Fact label="Email · not classified" note={unclassifiedEmail.source ?? undefined}>
           {unclassifiedEmail.rawValue}

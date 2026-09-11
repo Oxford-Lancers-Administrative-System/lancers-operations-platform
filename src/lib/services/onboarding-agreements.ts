@@ -6,7 +6,6 @@ import { ConstraintViolated, type Tx, withTransaction } from "@/lib/db";
 // version N and agreed" (REQ-policy-at-collection), never a signature image, no object storage.
 // nonblocking_unknowns: the wording is a placeholder until LAN-213 lands the real text — swapping it
 // is a new onboarding_agreement_versions row, nothing about the mechanism changes.
-// Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
 
 export type OnboardingAgreementType = "code_of_conduct" | "photo_release";
 

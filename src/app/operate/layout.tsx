@@ -5,7 +5,7 @@ import OperatorAccountState from "./account-state";
 import OperatorShell from "./operator-shell";
 export { OPERATOR_SECTION, OPERATOR_CAPTION, COACH_SECTION } from "./operator-shell";
 
-// The `/operate` shell — UX-02. Not the authorization boundary; every page guards itself too. Decision history: docs/ux/tickets/LAN-73-shell-and-access.md.
+// The `/operate` shell — UX-02. Not the authorization boundary; every page guards itself too.
 export default async function OperateLayout({ children }: LayoutProps<"/operate">) {
   const access = await resolveOperatorAccess();
 

@@ -1,6 +1,6 @@
 /**
  * The closed set of administration events, and the rules each carries —
- * LAN-130, `REQ-append-only-audit-evidence`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * LAN-130, `REQ-append-only-audit-evidence`.
  */
 
 export const ADMINISTRATION_EVENT_FAMILIES = Object.freeze([
@@ -52,7 +52,7 @@ function definition(entry: AdministrationEventDefinition): AdministrationEventDe
   return Object.freeze(entry);
 }
 
-// The closed set, with the rules each member carries. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+// The closed set, with the rules each member carries.
 export const ADMINISTRATION_EVENTS: Readonly<
   Record<AdministrationAction, AdministrationEventDefinition>
 > = Object.freeze({

@@ -3,7 +3,7 @@
 import ListFilters from "../list-filters";
 import { FILTERABLE_STATUSES, labelFor, STATUS_LABELS } from "./presentation";
 
-// W1-01's search and two thin filters — Brian, 2026-08-26. Decision history: missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+// W1-01's search and two thin filters — Brian, 2026-08-26.
 export default function PeopleFilters({
   basePath,
   scope,

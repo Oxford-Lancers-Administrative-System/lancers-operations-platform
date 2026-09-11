@@ -11,7 +11,7 @@ import {
 import type { ProspectStatus } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentActionState } from "./action-state";
 
-// The board's own server actions — LAN-204. Decision history: docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md.
+// The board's own server actions — LAN-204.
 
 function refresh(prospectId?: string): void {
   revalidatePath("/operate/recruitment");
@@ -26,7 +26,7 @@ function stateFor(error: unknown): RecruitmentActionState {
 
 const OK: RecruitmentActionState = { error: null };
 
-/** Every status except `joined` — `W13`'s three exits plus re-engagement. Decision history: docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md. */
+/** Every status except `joined` — `W13`'s three exits plus re-engagement. */
 export async function setRecruitmentStatusAction(params: {
   prospectId: string;
   toStatus: Exclude<ProspectStatus, "joined">;

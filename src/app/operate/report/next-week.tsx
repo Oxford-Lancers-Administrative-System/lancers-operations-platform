@@ -13,7 +13,7 @@ import {
 } from "./presentation";
 
 // The week ahead, read-only — Brian's bounded amendment of 15 August (one
-// week forward; the three-week horizon remains LAN-109's). Decision history: docs/ux/tickets/LAN-81-monday-report.md.
+// week forward; the three-week horizon remains LAN-109's).
 export function NextWeek({ content }: { content: WeeklyReportContent }) {
   return (
     <ReportSection

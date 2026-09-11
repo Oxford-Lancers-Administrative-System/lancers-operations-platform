@@ -2,7 +2,6 @@ import { REQUIRED_FIELD_LABELS, type RequiredField } from "@/lib/services/person
 import type { PeopleScope } from "@/lib/services/people-directory";
 
 // Query-param parsing and href helpers for the missing-data queue — W7/W8.
-// Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md.
 export function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   return value ?? "";

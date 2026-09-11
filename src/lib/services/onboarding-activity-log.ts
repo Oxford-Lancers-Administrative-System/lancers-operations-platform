@@ -8,7 +8,6 @@ import { ConstraintViolated, type Tx } from "@/lib/db";
 // module exposes no way to change a row. onboarding-welcome.ts writes the mission's first entry
 // (one ask per membership); recordOnboardingActivityIn is the one write every later package uses,
 // so all count against the same table and section vocabulary. See relocations.md.
-// Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
 
 export type OnboardingActivityKind = "ask" | "answer";
 

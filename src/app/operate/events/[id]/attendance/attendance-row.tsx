@@ -30,7 +30,6 @@ import {
 // One participant on the attendance board — UX-72, UX-74, LAN-80. The
 // correction is the same control as the first save (§ 7's phone reachability);
 // each row is its own form for per-row Saving/Saved/failed state (§ 9).
-// Decision history: docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 export function AttendanceRow({
   eventId,
   participant,
@@ -39,7 +38,7 @@ export function AttendanceRow({
 }: {
   eventId: string;
   participant: AttendanceParticipant;
-  /** Off for a coaching assignment — `slice-ux.md` § 3. Decision history: docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+  /** Off for a coaching assignment — `slice-ux.md` § 3. */
   showMismatch?: boolean;
   /** LAN-110: this decides the control, never the permission (the action guards itself). */
   mayRemove?: boolean;
@@ -51,7 +50,7 @@ export function AttendanceRow({
 
   // What is recorded comes from server props only, never `state` — a stale
   // save state disagreeing with a removal was a found defect. `state` reports
-  // only a failed save. Decision history: docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+  // only a failed save.
   const committed: AttendancePresence | null = participant.presence;
   const savedLine = describeCommitted(participant.recordedAt, participant.recordedByName);
   const mismatch = showMismatch ? describeMismatch(participant.mismatch) : null;
@@ -161,7 +160,7 @@ export function AttendanceRow({
 
 // Takes one attendance record away entirely — unblocks cancelling an event
 // (invariant P5's cascading FK). A disclosure, not one of the four buttons —
-// destructive, audited (attendance.removed). Decision history: docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// destructive, audited (attendance.removed).
 function RemoveAttendance({
   eventId,
   participant,

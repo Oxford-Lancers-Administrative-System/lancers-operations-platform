@@ -4,7 +4,7 @@ import type {
   RosterImportPlan,
 } from "@/lib/services/roster-csv";
 
-// Mirrors ../../events/import/import-state.ts, plus duplicateAnswers — LAN-215, `W1`. Decision history: docs/ux/tickets/LAN-215-arrival-doors.md.
+// Mirrors ../../events/import/import-state.ts, plus duplicateAnswers — LAN-215, `W1`.
 export interface ImportScreenState {
   error: string | null;
   plan: RosterImportPlan | null;

@@ -44,8 +44,6 @@ import { readEventYear } from "../year";
  * happen to agree. Calendar View is unchanged (Brian, 20 August 2026: "fine
  * as it is"). Oxford View is one continuous academic year, no season
  * selector (`REQ-oxford-continuous`).
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 type CalendarMode = "gregorian" | "oxford";

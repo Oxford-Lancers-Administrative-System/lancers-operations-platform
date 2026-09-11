@@ -9,8 +9,6 @@ import { StatusChip } from "./status-chip";
  * See `docs/architecture/components.md` and `docs/ux/design-system.md` § 5.
  * A grid, not a wrapping row (Brian, 5 September 2026: a lone last box "makes
  * it seem like it's super important"). A map, not a control: no step links.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export interface TrailStep {
   readonly label: string;

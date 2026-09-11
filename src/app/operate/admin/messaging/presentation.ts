@@ -7,7 +7,7 @@ import type {
 
 // The messaging schedule page's own words — W7, LAN-171. Presentation only,
 // pure — the worked-example arithmetic lives in messaging-schedule.ts and is
-// read, never transcribed (W7's acceptance evidence). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+// read, never transcribed (W7's acceptance evidence).
 
 export const MESSAGING_SCHEDULE_TITLE = "Messaging schedule";
 
@@ -59,7 +59,7 @@ export function cycleStepSaveFailedNotice(label: string): string {
 export const REGULAR_PLAYERS_GROUP_HEADING = "Regular players";
 export const RECRUITS_GROUP_HEADING = "Recruits";
 
-/** One save button per event type — OWNER-LAN171-04, Brian. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
+/** One save button per event type — OWNER-LAN171-04, Brian. */
 export function saveRowButtonLabel(label: string): string {
   return `Save ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
 }
@@ -77,7 +77,7 @@ function summarizeScheduleValues(change: MessagingScheduleChange): string {
 }
 
 // OWNER-LAN171-02: names the row and the values, unlike the generic
-// UnexpectedDatabaseError sentence elsewhere. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+// UnexpectedDatabaseError sentence elsewhere.
 export function scheduleSaveFailedNotice(label: string, change: MessagingScheduleChange): string {
   return (
     `${label}'s schedule could not be saved as submitted (${summarizeScheduleValues(change)}). ` +
@@ -87,7 +87,6 @@ export function scheduleSaveFailedNotice(label: string, change: MessagingSchedul
 
 // A plan instant — comma, not the event page's middle dot (approved W7-02
 // mockup); month from shortMonthOf's fixed table, not a second Intl call.
-// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 export function formatScheduleWhen(at: Date): string {
   const part = (options: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "Europe/London" }).format(at);

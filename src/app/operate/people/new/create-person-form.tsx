@@ -51,7 +51,7 @@ export default function CreatePersonForm() {
 
         {state.formError ? <Notice severity="warning">{state.formError}</Notice> : null}
 
-        {/* B4, LAN-185 round 2 (Brian's walk): duplicate check answers even with no match. Decision history: missions/intake/M-PEOPLE-AND-ROSTER */}
+        {/* B4, LAN-185 round 2 (Brian's walk): duplicate check answers even with no match. */}
         {candidates !== null ? (
           <Section title={candidates.length > 0 ? "Already in the club" : "Duplicate check"}>
             <Typography

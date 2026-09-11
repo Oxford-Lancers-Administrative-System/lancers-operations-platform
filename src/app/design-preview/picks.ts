@@ -25,8 +25,6 @@ import {
  * URLs, so `visual:preflight` can target fixed paths on any reseed. Each pick
  * is deterministic over the seed and reads through the same services the
  * real page does. A pick that finds nothing renders `Refusal`, never a throw.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 
 /** The busiest active player: on the roster, reachable, with a college recorded. */

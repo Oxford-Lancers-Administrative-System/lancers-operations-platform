@@ -53,8 +53,6 @@ import { currentContact, formatEmergencyContact, joinAliases } from "./record-vi
  * edits in place, exactly as the board's own cells do; a departed or
  * archived membership renders complete and read-only, with each field's
  * editor absent rather than disabled.
- *
- * Decision history: docs/ux/tickets/LAN-187-player-record.md.
  */
 /** A departed or archived membership takes no writes (`closed`, below); the send is a write like any other — LAN-266. */
 const CLOSED_MEMBERSHIP_REASON =
@@ -383,7 +381,7 @@ export default function PlayerRecordView({
           </Notice>
         ) : null}
 
-        {/* LAN-266: same control as the recruit record, same position/style. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */}
+        {/* LAN-266: same control as the recruit record, same position/style. */}
         <Box sx={{ py: 1.5 }} data-testid="onboarding-send">
           <SendOnboardingQuestionnaireButton
             membershipId={record.membershipId}

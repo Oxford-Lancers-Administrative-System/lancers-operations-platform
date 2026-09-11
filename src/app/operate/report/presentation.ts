@@ -1,4 +1,4 @@
-// The Monday report's copy and formatting — Brian, 15 August 2026. Decision history: docs/ux/tickets/LAN-81-monday-report.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// The Monday report's copy and formatting — Brian, 15 August 2026.
 
 export const REPORT_HEADLINE = "Monday report";
 
@@ -19,7 +19,7 @@ export const WALK_UPS_EMPTY = "No walk-ups last week.";
 export const RECRUITMENT_EMPTY = "No open prospects.";
 export const ONBOARDING_EMPTY = "Every active member is up to date.";
 
-/** § 9's nothing-to-report empty state, distinct from filter-empty and system-empty. Decision history: docs/ux/tickets/LAN-81-monday-report.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** § 9's nothing-to-report empty state, distinct from filter-empty and system-empty. */
 export const NOTHING_AT_ALL =
   "No events last week and nothing outstanding. If that is a surprise, check that last " +
   "week's events were approved — an empty report can mean a quiet week or a week nobody " +
@@ -53,7 +53,7 @@ export const ATTENDANCE_LABELS: Readonly<Record<string, string>> = Object.freeze
 
 export const NOT_RECORDED = "—";
 
-/** Denominator is the person's own week, not the club's — Brian, 15 August 2026. Decision history: docs/ux/tickets/LAN-81-monday-report.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Denominator is the person's own week, not the club's — Brian, 15 August 2026. */
 export const ISSUES_COLUMN = "Issues";
 export const OUTSTANDING_COLUMN = "Outstanding";
 
@@ -84,7 +84,7 @@ export const AVAILABILITY_LABELS: Readonly<Record<string, string>> = Object.free
   red: "Unavailable",
 });
 
-// Re-exported, not copied — the two files had already drifted once. Decision history: docs/ux/tickets/LAN-81-monday-report.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// Re-exported, not copied — the two files had already drifted once.
 export { STATUS_LABELS as EVENT_STATUS_LABELS } from "../events/presentation";
 
 export { labelFor } from "../labels";

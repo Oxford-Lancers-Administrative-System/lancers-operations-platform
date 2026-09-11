@@ -14,7 +14,7 @@ import { gateShellPage } from "../../../gate";
 import { RosterFormScreen } from "./roster-form-screen";
 import { BACK_LABEL, GENERIC_UNAVAILABLE, HEADING } from "./presentation";
 
-/** `/operate/events/[id]/roster-form` — LAN-267. Gated on `event_calendar_management`, recorded in the capability map. Decision history: missions/intake/M-PEOPLE-AND-ROSTER */
+/** `/operate/events/[id]/roster-form` — LAN-267. Gated on `event_calendar_management`, recorded in the capability map. */
 export const dynamic = "force-dynamic";
 
 function kitFrom(value: string | string[] | undefined): Kit {

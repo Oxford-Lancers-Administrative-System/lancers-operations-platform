@@ -7,8 +7,6 @@ import Typography from "@mui/material/Typography";
 /**
  * A duplicate-person match — LAN-225, brief §2. Name, facts in the club's
  * words ("Matched first name", never `given_name`), status chips, one action.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function CandidateRow({
   name,

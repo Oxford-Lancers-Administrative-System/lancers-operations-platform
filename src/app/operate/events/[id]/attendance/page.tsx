@@ -37,7 +37,6 @@ import {
  * The attendance surface — UX-71, UX-72, UX-73 and UX-74. LAN-80. One route,
  * four states, gated on `attendance_recording`; every write re-resolves the
  * operator, so this gate is a courtesy, not the boundary.
- * Decision history: docs/ux/tickets/LAN-80-attendance.md · LAN-110-coach-attendance.md
  */
 export default async function AttendancePage({
   params,

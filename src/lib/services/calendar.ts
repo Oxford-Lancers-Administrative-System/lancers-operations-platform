@@ -3,7 +3,6 @@ import type { TermWindow } from "./event-input";
 // The Gregorian month projection, and the week arithmetic ./oxford-year stands on — LAN-114,
 // narrowed by LAN-153. Pure, a rearrangement of one event list (REQ-three-arrangements); nothing
 // here stores or edits a term/week. Week grid is Sunday-first, from the term cards (SDA §5.4).
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
 export interface CalendarEvent {
   id: string;

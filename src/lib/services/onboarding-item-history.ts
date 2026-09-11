@@ -6,7 +6,6 @@ import type { OnboardingItemStatus } from "./membership";
 /**
  * Append-only history for onboarding items (REQ-item-history, LAN-214).
  * Migration grants only `select, insert`; no update/delete here.
- * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 export type OnboardingActorKind = "operator" | "player" | "system";

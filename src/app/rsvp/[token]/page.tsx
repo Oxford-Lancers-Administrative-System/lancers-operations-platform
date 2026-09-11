@@ -28,8 +28,6 @@ import { CancelledEvent, ResponseSaved } from "./saved-and-cancelled";
  * move on query parameters, split into siblings (LAN-300):
  * `invitation-step.tsx`, `decline-step.tsx`, `saved-and-cancelled.tsx`,
  * `rsvp-shell.tsx`. UX-63/64/65 render nowhere — see `not-found.tsx`.
- *
- * Decision history: docs/ux/tickets/LAN-79-player-rsvp.md.
  */
 export const dynamic = "force-dynamic";
 

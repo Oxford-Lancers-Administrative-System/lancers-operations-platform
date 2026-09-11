@@ -26,7 +26,7 @@ import {
 } from "./shared";
 
 /**
- * Proposing an audience, and approving the event — LAN-77. Decision history: docs/adr/0022-audience-proposed-then-frozen.md · docs/ux/tickets/LAN-77-event-approval.md.
+ * Proposing an audience, and approving the event — LAN-77.
  *
  * `saveEventAudience` writes the proposal; `approveEvent` confirms what is
  * already stored and releases it (Brian, 13 August 2026). Approval honours

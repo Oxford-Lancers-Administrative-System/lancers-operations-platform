@@ -6,7 +6,7 @@ import { readCurrentSeason } from "@/lib/services/seasons";
 import { gateShellPage } from "../../../gate";
 import EditPersonForm from "./edit-person-form";
 
-// `/operate/people/[personId]/edit` — W2-01..W2-10, LAN-185. Decision history: docs/ux/tickets/LAN-185-person-write.md.
+// `/operate/people/[personId]/edit` — W2-01..W2-10, LAN-185.
 export default async function EditPersonPage({
   params,
 }: PageProps<"/operate/people/[personId]/edit">) {

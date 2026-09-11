@@ -74,7 +74,6 @@ import {
 /**
  * The three headline numbers — Invited, said yes, showed — REQ-headline-numbers,
  * D62, D73, D74. LAN-152. Raw pairs, no percentages, no dash explanation, no judgment.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
   return (
@@ -102,7 +101,6 @@ function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
  * The register, and whether it is open yet — D71 (opens on a buffer before
  * start), D72 (never closes). Uses `isRegisterAvailable`, the same function
  * the register itself calls, with `registerSaved` off the headline numbers.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 function RegisterPanel({ event, registerSaved }: { event: EventDetail; registerSaved: boolean }) {
   const available = isRegisterAvailable(event, registerSaved);
@@ -184,7 +182,6 @@ export function EventDetailView({
   const cancellation = history.find((entry) => entry.kind === "cancelled") ?? null;
   const proposed = event.status === "draft" && audience.length > 0;
   // LAN-243: counted from the participation rows below, not recomputed.
-  // Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
   const deliveryCounts = countDeliveryStates(participation);
   // D30: derived, never stored; shown beside the stored status — different questions.
   const derived = derivedEventState(event, todayInClubZone());
@@ -299,7 +296,7 @@ export function EventDetailView({
                 testId="description-fact"
               />
             ) : null}
-            {/* LAN-284: joining URL note. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+            {/* LAN-284: joining URL note. */}
             {event.joiningUrl ? (
               <Fact
                 label={JOINING_LINK_LABEL}
@@ -308,7 +305,7 @@ export function EventDetailView({
                 testId="joining-url-fact"
               />
             ) : null}
-            {/* Cancelled reason shown by CancelledPanel instead. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+            {/* Cancelled reason shown by CancelledPanel instead. */}
             {event.decisionReason && event.status !== "cancelled" ? (
               <Fact label="Reason" value={event.decisionReason} testId="decision-reason" />
             ) : null}
@@ -379,10 +376,10 @@ export function EventDetailView({
         {/* §4.13: below the facts, above the actions — past, not future. */}
         {event.status !== "draft" ? <ChangeHistoryPanel entries={history} /> : null}
 
-        {/* Amendment W4-A1: this panel is what the event adds beyond the RSVP's own first question. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+        {/* Amendment W4-A1: this panel is what the event adds beyond the RSVP's own first question. */}
         <Section title={QUESTIONS_HEADLINE} testId="event-questions">
           <Stack spacing={2}>
-            {/* C4: shows nothing when there are no extra questions. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+            {/* C4: shows nothing when there are no extra questions. */}
             {questions.length === 0 ? null : (
               <QuestionList
                 questions={questions}
@@ -454,7 +451,7 @@ export function EventDetailView({
             </Button>
           ) : null}
 
-          {/* D39: duplicate prefills the create form; nothing is written until saved. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+          {/* D39: duplicate prefills the create form; nothing is written until saved. */}
           {mayManage ? (
             <Button
               variant="outlined"

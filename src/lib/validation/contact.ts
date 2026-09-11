@@ -2,7 +2,6 @@
  * The phone and email shape checks every roster-entry surface shares. LAN-215,
  * B-007. Imports `toE164` from `./phone-shape.ts`, never the `server-only`
  * `delivery/phone.ts`.
- * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 import { toE164 } from "@/lib/delivery/phone-shape";

@@ -1,7 +1,5 @@
 /**
  * Step 1 — the details. Split from `page.tsx` (LAN-300).
- *
- * Decision history: docs/ux/tickets/LAN-216-player-questionnaire.md.
  */
 import Typography from "@mui/material/Typography";
 import type { QuestionnaireView } from "@/lib/services/player-questionnaire";

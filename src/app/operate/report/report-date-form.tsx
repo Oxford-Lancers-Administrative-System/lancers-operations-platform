@@ -8,7 +8,6 @@ import { DateField } from "@/components/field";
 import { CHANGE_DATE_LABEL, CHANGE_DATE_SUBMIT } from "./presentation";
 
 // Choosing the reporting date — a plain GET form (shareable, refreshable).
-// Decision history: docs/ux/tickets/LAN-81-monday-report.md.
 export function ReportDateForm({ date }: { date: string }) {
   const [value, setValue] = useState(date);
   const [picked, setPicked] = useState<Date | null>(() => new Date(`${date}T00:00:00`));

@@ -39,8 +39,6 @@ import {
  * this prefix `no-store`/`no-referrer`/`noindex`. One body for every refusal.
  * Rate limited (R157-B4, W157-R1) as `/rsvp`'s counter, extended with its own
  * per-link allowance so one squad's ordinary traffic is not throttled.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export const dynamic = "force-dynamic";
 

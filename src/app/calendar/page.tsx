@@ -31,8 +31,6 @@ import { readEventYear } from "./year";
  * imports no server action or write path; `tests/public-calendar-side-effects
  * .test.ts` counts rows either side of a render. No joining URL, count or
  * status column, so nothing to withhold.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 /** The club's noticeboard as a shared link (LAN-269 item 4). Static: describes the calendar, not this week's events, so nothing reads the database. */
 export const metadata: Metadata = publicPageMetadata("Club calendar", CALENDAR_DESCRIPTION);

@@ -21,7 +21,6 @@ import EventForm from "../event-form";
 /**
  * UX-31 — a new event draft, shared with the edit view. D39: `?from=<event
  * id>` prefills and writes nothing (Brian, 2026-08-22); the date is never copied.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default async function NewEventPage({ searchParams }: PageProps<"/operate/events/new">) {
   const gate = await gateShellPage("/operate/events", "event_calendar_management");

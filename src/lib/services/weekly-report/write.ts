@@ -6,7 +6,7 @@ import { readCurrentSeasonIn, type Season } from "../seasons";
 import { computeReportContent } from "./compute";
 import { METRIC_DEFINITION_VERSION, SERIES_LOCK, normaliseReportDate } from "./shared";
 
-/** Files the immutable snapshot — invariant M5. Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
+/** Files the immutable snapshot — invariant M5. */
 
 export interface GeneratedReport {
   id: string;

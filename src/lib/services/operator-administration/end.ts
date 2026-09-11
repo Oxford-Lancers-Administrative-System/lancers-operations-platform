@@ -22,7 +22,6 @@ import {
  * End a role assignment — {@link endRoleAssignment} is the one action that
  * creates a vacancy (`REQ-deactivate-and-reinstate`). The row is updated,
  * never removed; an assignment already ended is refused, not re-ended.
- * Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 
 export interface EndRoleAssignmentParams {

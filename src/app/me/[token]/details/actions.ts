@@ -35,8 +35,6 @@ import {
  * the durable token inside its own transaction, acting only on the resolved
  * `personId`/`seasonId`, never anything the form claims. The throttle bucket
  * is `/me/[token]`'s own (`allowPlayerHomeRequest`), not a new allowance.
- *
- * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 function str(form: FormData, field: string): string {

@@ -9,8 +9,6 @@ import { CLUB_NAME, CREST_PATH } from "@/lib/brand";
  * which ground it sits on: white on Oxford Blue, Oxford Blue on paper, never
  * Gold text. Not the browser-tab mark — that's a different file, cut from the
  * gold-outline Ops logo (LAN-269); `public/brand/README.md` says which is which.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export { CLUB_NAME, CREST_PATH } from "@/lib/brand";
 

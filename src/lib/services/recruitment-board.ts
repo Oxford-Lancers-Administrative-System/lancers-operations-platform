@@ -17,7 +17,6 @@ import {
  * `"server-only"` tag, since client components need the same words); the
  * types re-exported here are erased at compile time, so they carry none of
  * that restriction across.
- * Decision history: LAN-204, missions/intake/M-RECRUITMENT
  */
 export interface RecruitmentEventColumn {
   readonly eventId: string;

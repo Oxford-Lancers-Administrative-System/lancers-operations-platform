@@ -19,8 +19,6 @@ export const dynamic = "force-dynamic";
  * mint the credential and redirect on click, not on render. No wireframe:
  * Q-32 (Brian, 2026-08-27) put the finding in scope without prescribing a
  * shape, so this is the smallest page that satisfies the acceptance.
- *
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export default async function MyPageEntry() {
   const operator = await resolveOperator();

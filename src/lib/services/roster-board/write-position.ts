@@ -4,7 +4,7 @@ import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "../audit";
 import { actorRequirement, closeCurrentRow, currentDateOf } from "./shared";
 
-/** The roster board's position columns — LAN-186. Decision history: docs/ux/tickets/LAN-186-roster-board.md */
+/** The roster board's position columns — LAN-186. */
 
 export type PositionColumn = "offence" | "defence" | "specialTeams";
 

@@ -12,7 +12,7 @@ import {
 import type { MembershipActionState } from "./action-state";
 
 // The membership workflow's server actions — LAN-75, LAN-186 (Q-12). Both
-// guard on `person_record_authority` (`REQ-authority`). Decision history: docs/ux/tickets/LAN-75-roster-and-player-detail.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+// guard on `person_record_authority` (`REQ-authority`).
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);

@@ -26,7 +26,7 @@ import { duplicatedFrom } from "./presentation";
 // UX-31 — the event editor, both modes, LAN-154. One component for
 // create/edit. Term/week derived from the date (LAN-76); the template fills
 // the form field by field, replacing only untouched fields on a type change
-// (D40-D47). Decision history: docs/ux/tickets/LAN-154-event-authoring-and-templates.md
+// (D40-D47).
 
 export type EventFormMode = "create" | "edit";
 
@@ -68,7 +68,7 @@ export default function EventForm({
 
   // What the Type control opens on: the first practice-class template (D15),
   // expressed against the class rather than a name since LAN-265 allows
-  // renaming. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+  // renaming.
   const openingTemplate =
     templateList.find((option) => option.eventType === DEFAULT_TEMPLATE_CLASS) ?? templateList[0];
   const startingTemplateId = value("templateId") || (openingTemplate?.id ?? "");
@@ -88,7 +88,7 @@ export default function EventForm({
   const [templateId, setTemplateId] = useState(startingTemplateId);
   // C1. scheduledOn is derived from this Date, never the reverse — DatePicker
   // fires onChange with a provisional Date per keystroke; round-tripping
-  // through the string mismatches mid-year-entry. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+  // through the string mismatches mid-year-entry.
   const [scheduledOnDate, setScheduledOnDate] = useState<Date | null>(() =>
     dateFromScheduledOn(value("scheduledOn")),
   );

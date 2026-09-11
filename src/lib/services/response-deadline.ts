@@ -1,6 +1,6 @@
 import "server-only";
 
-/** The club's RSVP response deadline — LAN-77, amended by LAN-169; a named view onto `public.messaging_schedules` (ADR 0036 superseded ADR 0021). Decision history: docs/adr/0036-messaging-schedule-configuration.md. */
+/** The club's RSVP response deadline — LAN-77, amended by LAN-169; a named view onto `public.messaging_schedules` (ADR 0036 superseded ADR 0021). */
 
 interface ResponseDeadlineRule {
   readonly daysBefore: number;

@@ -12,7 +12,7 @@ import { NEW_TEMPLATE_HEADLINE } from "../presentation";
 
 // W8-01's New template — LAN-265, Brian/Stu/Clint 2026-09-09. Empty,
 // deliberately (no copying from another template); no class control (`event_type`
-// stays `practice`, a migration+Brian decision). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// stays `practice`, a migration+Brian decision).
 export default async function NewEventTemplatePage() {
   const gate = await gateShellPage("/operate/events/templates", "event_calendar_management");
   if ("screen" in gate) return gate.screen;

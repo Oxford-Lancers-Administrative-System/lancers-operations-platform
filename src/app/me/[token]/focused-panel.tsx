@@ -42,8 +42,6 @@ import { when } from "./summary-row";
  * The one answer surface Q-21 requires, entered with the answer already
  * taken: the event's own facts, live social proof, the other-invitations
  * notice, then the follow-up a Yes or a No still owes.
- *
- * Decision history: docs/ux/tickets/LAN-172-player-answer.md.
  */
 export function FocusedPanel({
   token,

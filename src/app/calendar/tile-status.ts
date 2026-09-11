@@ -6,8 +6,6 @@ import { isQuietStatus, isStruckStatus } from "./calendar-entry";
  * LAN-153. `REQ-three-tiers` puts the status column on the operator's side;
  * the public tier says only **Cancelled** or nothing. Both live here, not in
  * the component, so a screen cannot quietly grow a third answer.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export interface TileStatus {
   /** The word the tile prints, or `null` for the quiet ones. */

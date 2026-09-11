@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { isServiceError } from "@/lib/db";
 import { exportSeasonEvents } from "@/lib/services/event-import";
 
-// The season's events, as a file — LAN-155. A route, not a Server Action (it's a download). Decision history: docs/ux/tickets/LAN-155-csv-import.md.
+// The season's events, as a file — LAN-155. A route, not a Server Action (it's a download).
 export const dynamic = "force-dynamic";
 
 const BYTE_ORDER_MARK = "\uFEFF";

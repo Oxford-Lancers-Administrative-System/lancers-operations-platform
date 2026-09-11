@@ -19,8 +19,6 @@ import SignupForm, { EMPTY_ALIAS } from "./signup-form";
  * Static, not `generateMetadata` (LAN-279): the card contains no season and
  * no code, deliberately, so nothing dynamic exists to read. `robots` keeps
  * the door out of search indexes without affecting unfurling.
- *
- * Decision history: missions/intake/M-RECRUITMENT
  */
 export const metadata: Metadata = {
   title: { absolute: JOIN_TITLE },

@@ -7,8 +7,6 @@ import Typography from "@mui/material/Typography";
  * A form's foot — LAN-225, brief §2. Primary, secondary, cancel, in order;
  * sticky at the bottom of a phone. `note` is the one sentence a disabled
  * control owes the reader (`docs/ux/standards.md` rule 4).
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function ActionBar({
   primary,

@@ -29,8 +29,6 @@ import {
  * string so the page works with scripting switched off. The token is
  * re-resolved inside the writing transaction by `recordSignedLinkResponse`;
  * neither action trusts an invitation, person or event id from the form.
- *
- * Decision history: docs/ux/tickets/LAN-79-player-rsvp.md
  */
 
 function tokenFrom(form: FormData): string {
@@ -120,8 +118,6 @@ function failureFor(error: unknown): string {
  * stamps nothing (a crawler triggers the render). Throttled on the page's
  * budget; a throttled call is silent, and `recordRsvpTokenUse` swallows its
  * own failures, so this never distinguishes a guess.
- *
- * Decision history: docs/ux/design-system.md (LAN-269 has no ticket contract)
  */
 export async function noteRsvpLinkOpened(token: string): Promise<void> {
   const decision = allowRsvpRequest(clientKeyFrom(await headers()), token);

@@ -2,7 +2,7 @@ import type { QuestionIssue, RawEventQuestion } from "@/lib/services/event-quest
 import type { RawEventTemplate, TemplateFieldIssue } from "@/lib/services/event-template-input";
 import type { TemplateChangePlan } from "@/lib/services/event-templates";
 
-// What the template editor hands back to its screen — W8-02/W8-03. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// What the template editor hands back to its screen — W8-02/W8-03.
 type TemplateFormPhase = "editing" | "confirming";
 
 export interface TemplateFormState {

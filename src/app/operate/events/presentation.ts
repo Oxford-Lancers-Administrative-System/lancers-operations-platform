@@ -19,7 +19,7 @@ export {
   venueLabel,
 } from "@/lib/services/event-vocabulary";
 
-/** What a draft with nobody in its audience says — D47. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** What a draft with nobody in its audience says — D47. */
 export const NO_AUDIENCE_YET = "Not chosen yet";
 
 export const NO_DISTRIBUTION_HEADLINE = "Nothing distributed";
@@ -30,17 +30,17 @@ export function isPreApproval(status: string): boolean {
   return status === "draft";
 }
 
-/** D86. The zone every event time is in, said on the form (fixes a locale-rendering defect). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** D86. The zone every event time is in, said on the form (fixes a locale-rendering defect). */
 export const CLUB_TIME_ZONE_NOTE =
   "Dates and times are Europe/London — the club's own clock — and times are entered in " +
   "five-minute steps.";
 
-/** What an operator pasting a joining link is told — LAN-284, Brian 2026-09-09. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** What an operator pasting a joining link is told — LAN-284, Brian 2026-09-09. */
 export const JOINING_URL_IS_PUBLIC_WARNING =
   "Published on the public calendar and in the subscription feed. Make sure the meeting " +
   "itself requires a passcode.";
 
-/** "Michaelmas 2026-27, Week 1" / "Outside term". Fed by `deriveTermCoordinate`'s ids. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** "Michaelmas 2026-27, Week 1" / "Outside term". Fed by `deriveTermCoordinate`'s ids. */
 export function describeTermCoordinate(
   coordinate: TermCoordinate,
   terms: readonly TermWindow[],
@@ -86,7 +86,7 @@ export const CAPACITY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   recruit: "Recruit",
 });
 
-/** The picker row's second line: every capacity a person holds, in order — LAN-294. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** The picker row's second line: every capacity a person holds, in order — LAN-294. */
 export function describeAudienceRow(person: AudiencePerson): string {
   const parts: string[] = [];
 
@@ -103,7 +103,7 @@ export function describeAudienceRow(person: AudiencePerson): string {
 
 export const AUDIENCE_BUILDER_HEADLINE = "Build event audience";
 
-/** The builder's sub-heading — D47's reversal: names the template default rather than "nothing selected". Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** The builder's sub-heading — D47's reversal: names the template default rather than "nothing selected". */
 export function describeBuilderDefault(
   eventTypeLabel: string,
   groupLabels: readonly string[],
@@ -141,13 +141,13 @@ export const APPROVED_NOTHING_SENT_YET =
   "Nothing has been delivered yet. Each invitation has a queued job waiting for automated " +
   "delivery, and delivery status will follow from the results of those jobs.";
 
-/** LAN-156 dropped the "not editable afterwards" sentence — D49/D50 reversed it. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** LAN-156 dropped the "not editable afterwards" sentence — D49/D50 reversed it. */
 export const AUDIENCE_FROZEN_AT_APPROVAL = "Confirmed at approval.";
 
-/** One state among several — see {@link describeDistribution}. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** One state among several — see {@link describeDistribution}. */
 export const NOTHING_DELIVERED_YET = "nothing delivered yet";
 
-/** What the Distribution fact says, from the real job states — LAN-243. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** What the Distribution fact says, from the real job states — LAN-243. */
 export interface DistributionCounts {
   queued: number;
   attempted: number;
@@ -226,7 +226,7 @@ export const DELETE_DRAFT_ACTION = "Delete draft";
 
 export const DELETE_DRAFT_DIALOG_TITLE = "Delete this draft?";
 
-/** Brian, 2026-08-21: the "approved events can't be deleted" warning lives on the refusal, not here. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** Brian, 2026-08-21: the "approved events can't be deleted" warning lives on the refusal, not here. */
 export const DELETE_DRAFT_DIALOG_DETAIL =
   "It disappears from the calendar and cannot be brought back. Nobody has been told about " +
   "it, so nobody will be told it is gone.";
@@ -235,7 +235,7 @@ export const DELETE_DRAFT_KEEP = "Keep it";
 
 export const DUPLICATE_ACTION = "Duplicate";
 
-/** D39, Brian 2026-08-22: names the source event, since an unnamed "prefilled" form can't be checked. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** D39, Brian 2026-08-22: names the source event, since an unnamed "prefilled" form can't be checked. */
 export function duplicatedFrom(name: string): string {
   return `Copied from ${name}. Nothing is saved until you save it.`;
 }
@@ -244,7 +244,7 @@ export const INCOMPLETE_EVENT_HEADLINE = "This event cannot be approved";
 
 export const INCOMPLETE_EVENT_ACTION = "Edit draft";
 
-/** "Sat 10 Oct · 18:00" — compact, Europe/London, via `shortMonthOf`'s fixed 3-letter table. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** "Sat 10 Oct · 18:00" — compact, Europe/London, via `shortMonthOf`'s fixed 3-letter table. */
 export function formatPlanWhen(at: Date): string {
   const part = (options: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "Europe/London" }).format(at);
@@ -273,17 +273,17 @@ export const PLAN_NO_QUIET_HOURS = "No quiet-hours adjustment.";
 export const PLAN_RECOVERY_NOTE =
   "Failed sends retry automatically. Remaining errors appear in Delivery.";
 
-/** F-A2: shown for an approved event with no messaging-plan row at all. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** F-A2: shown for an approved event with no messaging-plan row at all. */
 export const PLAN_MISSING_HEADLINE = "No messaging plan";
 export const PLAN_MISSING_NOTE =
   "This event was approved before it had one. Amending the event creates it.";
 
-/** W1's guarantee, stated not derived — Brian, 2026-08-22. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** W1's guarantee, stated not derived — Brian, 2026-08-22. */
 export const PLAN_DISPATCHES_IMMEDIATELY =
   "This event is closer than its own invitation lead, so its invitation goes out now rather " +
   "than on a stated date.";
 
-/** `REQ-late-approval`, named on the panel — W1. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** `REQ-late-approval`, named on the panel — W1. */
 export const PLAN_LATE_APPROVAL =
   "There is not enough runway for the full ladder. This event still chases: it sends " +
   "immediately, fills the time it has with WhatsApp only, and does not escalate to the " +

@@ -47,8 +47,6 @@ import { FilterButton, ValueOrNotRecorded } from "./attendance-table-bits";
  * (Brian's walkthrough, `Q-19`): this season's RSVP and attendance history,
  * read-only, with a mandatory-attendance score that follows the same four
  * filters (Mandatory, RSVP, Attendance, Event status) the table applies.
- *
- * Decision history: docs/ux/tickets/LAN-187-player-record.md.
  */
 export default function AttendanceSection({ events }: { events: readonly AttendanceEvent[] }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({

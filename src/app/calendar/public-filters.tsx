@@ -7,8 +7,6 @@ import ListFilters from "@/app/operate/list-filters";
  * controls, not three: no Status, since the public tier has none to filter
  * by (`W1`'s tier table). No Apply button (§4.4) — the shared bar already
  * debounces and navigates from the change event.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function PublicFilters({
   templates,

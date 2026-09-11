@@ -7,8 +7,6 @@ import Stack from "@mui/material/Stack";
  * the URL, so it's shareable, survives a refresh, and needs no client
  * component — the highlight is computed from the same URL that produced the
  * page. A labelled `nav` with `aria-current="page"` on the active choice.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export interface ViewChoice {
   readonly href: string;

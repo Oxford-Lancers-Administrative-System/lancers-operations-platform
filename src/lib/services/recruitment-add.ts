@@ -15,7 +15,6 @@ import { RECRUITMENT_ADD_OPT_IN_OPTIONS } from "./recruitment-vocabulary";
  * player, and the capture-time cycle declaration. `createPerson` opens its
  * own transaction; this module's write is a second, separate one
  * immediately after — nothing here is undone if it fails.
- * Decision history: LAN-206, missions/intake/M-RECRUITMENT
  */
 
 const MOBILE_REQUIRED_RULE = "recruitment_add_mobile_required";

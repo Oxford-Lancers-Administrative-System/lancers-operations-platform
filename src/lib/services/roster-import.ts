@@ -37,7 +37,6 @@ import {
  * at apply. `buildRosterImportPlan` is rebuilt inside the apply transaction
  * and refused unless its digest still matches (`event-import.ts`'s
  * `applySeasonImport` precedent).
- * Decision history: LAN-215, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 export { IMPORT_TOO_LARGE_MESSAGE };

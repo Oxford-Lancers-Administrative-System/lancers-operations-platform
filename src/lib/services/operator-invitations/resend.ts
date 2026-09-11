@@ -28,7 +28,7 @@ import { readAdministrationSubject } from "./subject";
  * transaction that refuses before the Auth call, then a write transaction
  * that re-locks the row, re-reads the target's seats and re-asserts the
  * guard, the state rule and the address rule against the row as it is then
- * (LAN132-B3, LAN-141 finding 3). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * (LAN132-B3, LAN-141 finding 3).
  */
 
 export interface ResendInvitationParams {

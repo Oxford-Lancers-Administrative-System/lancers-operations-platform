@@ -1,7 +1,7 @@
 import type { CapabilityKey } from "@/lib/auth/capabilities";
 import { isNarrowAttendanceRecorder, roleCodesPermit } from "@/lib/auth/capabilities";
 
-// docs/ux/slice-ux.md § 3 owns the shape. Decision history: docs/ux/tickets/LAN-186-roster-board.md · docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md · docs/ux/tickets/LAN-110-coach-attendance.md · docs/ux/tickets/LAN-184-people-and-missing-queue.md · docs/ux/tickets/LAN-73-shell-and-access.md.
+// docs/ux/slice-ux.md § 3 owns the shape.
 export interface Destination {
   readonly href: string;
   readonly label: string;
@@ -15,7 +15,6 @@ const DESTINATIONS: readonly Destination[] = Object.freeze([
     label: "Roster",
     capability: "person_record_authority" as CapabilityKey,
   }),
-  // Decision history: docs/ux/tickets/LAN-186-roster-board.md · docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md · docs/ux/tickets/LAN-110-coach-attendance.md · docs/ux/tickets/LAN-184-people-and-missing-queue.md · docs/ux/tickets/LAN-73-shell-and-access.md.
   Object.freeze({
     href: "/operate/recruitment",
     label: "Recruitment",
@@ -29,7 +28,7 @@ const DESTINATIONS: readonly Destination[] = Object.freeze([
   }),
 ]);
 
-// LAN-110's whole navigation, one destination. Decision history: docs/ux/tickets/LAN-110-coach-attendance.md
+// LAN-110's whole navigation, one destination.
 const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
   Object.freeze({
     href: "/operate/events",
@@ -39,17 +38,14 @@ const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
   }),
 ]);
 
-// Administration is a second list, not more DESTINATIONS entries (LAN-133). Decision history: docs/ux/tickets/LAN-186-roster-board.md · docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md · docs/ux/tickets/LAN-110-coach-attendance.md · docs/ux/tickets/LAN-184-people-and-missing-queue.md · docs/ux/tickets/LAN-73-shell-and-access.md.
+// Administration is a second list, not more DESTINATIONS entries (LAN-133).
 const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
-  // Decision history: docs/ux/tickets/LAN-186-roster-board.md · docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md · docs/ux/tickets/LAN-110-coach-attendance.md · docs/ux/tickets/LAN-184-people-and-missing-queue.md · docs/ux/tickets/LAN-73-shell-and-access.md.
   Object.freeze({ href: "/operate/admin/follow-ups", label: "Follow-ups", capability: null }),
-  // Decision history: docs/ux/tickets/LAN-186-roster-board.md · docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md · docs/ux/tickets/LAN-110-coach-attendance.md · docs/ux/tickets/LAN-184-people-and-missing-queue.md · docs/ux/tickets/LAN-73-shell-and-access.md.
   Object.freeze({
     href: "/operate/people",
     label: "People",
     capability: "person_record_authority" as CapabilityKey,
   }),
-  // Decision history: docs/ux/tickets/LAN-186-roster-board.md · docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md · docs/ux/tickets/LAN-110-coach-attendance.md · docs/ux/tickets/LAN-184-people-and-missing-queue.md · docs/ux/tickets/LAN-73-shell-and-access.md.
   Object.freeze({
     href: "/operate/people/missing",
     label: "Missing data",

@@ -48,8 +48,6 @@ import { QuestionnaireShell } from "./questionnaire-shell";
  * the operator tier, never by token. Copy is `presentation.ts`, unchanged;
  * only chrome and components change. Drawn, not wired — the real form is a
  * client component holding `saveDetails`'s state.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 function currentContact(view: QuestionnaireView, kind: "phone" | "email"): string {
   const contact = view.person.contacts.find(

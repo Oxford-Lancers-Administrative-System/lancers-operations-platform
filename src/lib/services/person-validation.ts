@@ -1,6 +1,5 @@
 // Contact validation for the person record — LAN-183, `REQ-contact-validation`. Pure; every result
 // carries a `rule` and a `message`. Phone conversion is deliberately not shared with the `server-only` `toE164()`.
-// Decision history: missions/intake/M-PEOPLE-AND-ROSTER
 
 export const DEFAULT_CALLING_CODE = "44";
 
@@ -117,7 +116,7 @@ export function validatePhoneNumber(
   };
 }
 
-// LAN-203: validates the year instead of silently discarding a typo. Decision history: missions/intake/M-RECRUITMENT
+// LAN-203: validates the year instead of silently discarding a typo.
 const YEAR_MIN = 1900;
 const YEAR_MAX = 2200;
 
@@ -154,7 +153,6 @@ export function validateAcademicYear(raw: string, label: string): ContactValidat
  * refusal. Duplicates that check deliberately (the constraint stays the last
  * line; this explains why in the club's words) with the same 1900–2200 window
  * as `validateAcademicYear`. `today` is injectable only so a test can pin it.
- * Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY
  */
 export function validateDateOfBirth(raw: string, today: Date = new Date()): ContactValidation {
   const trimmed = raw.trim();
@@ -214,7 +212,6 @@ export function validateDateOfBirth(raw: string, today: Date = new Date()): Cont
 
 // The Oxford college address — LAN-268. A domain of `ox.ac.uk` or a subdomain, one rule shared
 // by four surfaces. Required-ness is `person-required.ts`'s concern, not this module's.
-// Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY
 
 export const COLLEGE_EMAIL_RULE_MESSAGE = "Enter your Oxford address; it ends in ox.ac.uk";
 

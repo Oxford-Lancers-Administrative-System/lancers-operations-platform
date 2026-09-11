@@ -16,8 +16,6 @@ import { applyProviderCallback } from "@/lib/services/delivery";
  * stale/foreign callback will never succeed); a genuine server failure
  * answers 500. LAN-93 owns the public HTTPS endpoint this needs to ever
  * receive a real callback.
- *
- * Decision history: docs/adr/0023-rsvp-token-and-whatsapp-delivery.md
  */
 
 /** The largest callback this route will read — Meta's payloads are a few KB; 64 KiB avoids an unauthenticated caller choosing the HMAC's cost. */

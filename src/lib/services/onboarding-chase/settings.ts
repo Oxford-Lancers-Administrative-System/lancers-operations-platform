@@ -4,13 +4,13 @@ import { ConstraintViolated, type Tx, withTransaction } from "@/lib/db";
 import { actorRequirement } from "../actor";
 import { deriveEntityIdFromNaturalKey, recordAudit } from "../audit";
 
-/** Onboarding's chase configuration singleton — LAN-214, `W11`. The escalation office is read from the club's roles, never configured. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** Onboarding's chase configuration singleton — LAN-214, `W11`. The escalation office is read from the club's roles, never configured. */
 
 export { currentPresidentIn as currentOnboardingEscalationOfficeIn } from "../messaging-scheduler";
 
 export interface OnboardingChaseSettings {
   firstChaseAfterHours: number;
-  /** How many automated chases run at most; zero is legal. Spent only on delivery, never a failure. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+  /** How many automated chases run at most; zero is legal. Spent only on delivery, never a failure. */
   chaseCount: number;
   /** Whole days between one chase and the next. */
   chaseIntervalDays: number;
@@ -58,7 +58,7 @@ const requireActor = actorRequirement(
   "A change to onboarding's chase configuration has to name the operator who made it.",
 );
 
-/** Updates the three values in place — `W11`'s "Save; the chase runs to that from the next message onwards", nobody retrospectively reset. Trusts the caller's form validation; a genuinely out-of-range value surfaces as the schema's own refusal. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** Updates the three values in place — `W11`'s "Save; the chase runs to that from the next message onwards", nobody retrospectively reset. Trusts the caller's form validation; a genuinely out-of-range value surfaces as the schema's own refusal. */
 export async function setOnboardingChaseSettingsIn(
   tx: Tx,
   params: {

@@ -10,7 +10,6 @@ import type { AudienceGroupSummary } from "../event-audience";
 
 /**
  * Types and reads both the preview and the approval share — LAN-77, D16.
- * Decision history: docs/adr/0022-audience-proposed-then-frozen.md · docs/ux/tickets/LAN-77-event-approval.md.
  */
 
 export interface AudienceMember {

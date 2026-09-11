@@ -4,7 +4,6 @@ import { EQUIPMENT_LABEL } from "./event-vocabulary";
 import { safeUri } from "./safe-uri";
 
 // RFC 5545 subscription feed (W2, LAN-158). Pure, route /calendar/feed.ics permanent, always the open season.
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
 export interface FeedEvent {
   id: string;

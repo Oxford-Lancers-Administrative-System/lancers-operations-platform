@@ -9,7 +9,7 @@ import {
 
 /**
  * The envelope stored under `context.administration`, and the checks that
- * build one from a caller's record — LAN-130. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * build one from a caller's record — LAN-130.
  */
 
 export const ADMINISTRATION_CONTEXT_KEY = "administration";

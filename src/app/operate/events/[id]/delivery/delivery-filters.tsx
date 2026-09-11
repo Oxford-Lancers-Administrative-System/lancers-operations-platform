@@ -12,7 +12,6 @@ import { SEARCH_LABEL, STATUS_FILTERS } from "./presentation";
 // UX-51's search and status filter, in the query string. The status select
 // navigates from the change event's value, not a form submit — MUI's
 // TextField select writes its hidden input on the NEXT render.
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 export default function DeliveryFilters({
   basePath,
   search,

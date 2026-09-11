@@ -6,7 +6,7 @@ import { isServiceError } from "@/lib/db";
 import { retryDelivery, revokeAndReissue } from "@/lib/services/delivery";
 import type { EventTransitionState } from "../../form-state";
 
-// The two repair actions UX-52 offers. Decision history: docs/ux/tickets/LAN-78-delivery.md.
+// The two repair actions UX-52 offers.
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);

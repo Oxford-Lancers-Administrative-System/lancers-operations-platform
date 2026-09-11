@@ -5,7 +5,6 @@ import { describeQuestionAnswer, type EventQuestion } from "@/lib/services/event
 import { RSVP_FIRST_QUESTION, RSVP_FIRST_QUESTION_ANSWER } from "../presentation";
 
 // The questions, exactly as a player will meet them — amendment W4-A1.
-// Decision history: docs/ux/tickets/LAN-77-event-approval.md.
 export function QuestionList({
   questions,
   leadWithRsvp,

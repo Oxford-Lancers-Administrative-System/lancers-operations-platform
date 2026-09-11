@@ -8,8 +8,6 @@ import Typography from "@mui/material/Typography";
  * What a list says when it has nothing to list — LAN-225, brief §2,
  * `docs/ux/standards.md` rule 5: names what was searched for, links to the
  * action that resolves it, never just states a constraint and stops.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function EmptyState({
   title,

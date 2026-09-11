@@ -2,8 +2,6 @@
  * Every word the answer-link page says. LAN-172, W2-01 through W2-04. The No
  * button's label is quoted verbatim from `src/lib/delivery/templates.ts`
  * (Brian's Q-10) so the WhatsApp message and the page can't drift apart.
- *
- * Decision history: docs/ux/tickets/LAN-172-player-answer.md
  */
 
 import { TYPE_LABELS } from "@/app/operate/events/presentation";
@@ -55,7 +53,6 @@ export const PLANS_CHANGED = "Plans changed? You can change your answer.";
 // LAN-203 — a recruit's own reduced confirm screen. REQ-recruit-sees-public-only,
 // REQ-no-reason-asked, REQ-never-harsh: distinct copy since a recruit is never
 // asked a reason and has no app account to "go see other events" in.
-// Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md
 
 export const RECRUIT_YES_HEADING = "You're attending";
 export const RECRUIT_NO_HEADING = "Not attending";

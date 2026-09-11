@@ -134,7 +134,7 @@ export function ApprovalReview({
   return (
     <Section title={`${APPROVAL_HEADLINE_PREFIX} ${event.name}`} testId="approval-review">
       <Stack spacing={3}>
-        {/* Audience by groups before people — Brian, 2026-08-21. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+        {/* Audience by groups before people — Brian, 2026-08-21. */}
         <Box data-testid="audience-shape">
           <Typography variant="overline" color="text.secondary" component="p">
             Who will be asked

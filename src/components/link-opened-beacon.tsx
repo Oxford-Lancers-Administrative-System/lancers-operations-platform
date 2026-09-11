@@ -9,8 +9,6 @@ import { useEffect, useRef } from "react";
  * free. Not analytics: reports one bit against the link, never the person, no
  * cookie or storage. `record` is a bound server action; swallows every error
  * (an undercount beats a player seeing a failure) and fires once per mount.
- *
- * Decision history: docs/ux/design-system.md (LAN-269 has no ticket contract)
  */
 export function LinkOpenedBeacon({ record }: { record: () => Promise<unknown> }) {
   const fired = useRef(false);

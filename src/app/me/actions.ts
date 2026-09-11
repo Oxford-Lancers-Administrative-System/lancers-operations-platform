@@ -14,8 +14,6 @@ import { issuePersonTokenIn } from "@/lib/services/player-answer-tokens";
  * same rule `rsvp_access_tokens` lives by — superseding any still-live link
  * this person already holds, same precedent as `submitAnswer`. Operator
  * identity is resolved again here, never trusted from a hidden field.
- *
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export async function openMyPage(): Promise<void> {
   const operator = await resolveOperator();

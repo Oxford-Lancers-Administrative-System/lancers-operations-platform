@@ -38,8 +38,6 @@ import { readEventYear } from "../year";
  * once ran script in this origin with the operator's session live) as the
  * third of three checks. `REQ-one-open-season`: an id outside the open season
  * reads as gone, identically to one that never existed.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 /** One event's card (LAN-269 item 4) — static and names no event, so a shared link unfurls as the calendar it belongs to. */
 export const metadata: Metadata = publicPageMetadata("Club calendar", CALENDAR_DESCRIPTION);

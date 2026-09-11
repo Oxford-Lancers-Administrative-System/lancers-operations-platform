@@ -1,6 +1,6 @@
 import type { AttendanceEvent } from "@/lib/services/player-record";
 
-/** Sort/filter vocabulary and pure helpers for the Attendance band's table and cards. Decision history: docs/ux/tickets/LAN-187-player-record.md. */
+/** Sort/filter vocabulary and pure helpers for the Attendance band's table and cards. */
 
 export type SortKey = "eventName" | "date" | "isMandatory" | "rsvp" | "attendance" | "eventStatus";
 export type FilterKey = "isMandatory" | "rsvp" | "attendance" | "eventStatus";

@@ -14,7 +14,6 @@ import {
 
 // The register's buffer, before it lifts — D71, D72, LAN-152. One screen for
 // both readers (nobody can hurry a clock); only the way back out differs.
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 export function RegisterNotOpenYet({
   eventId,
   status,

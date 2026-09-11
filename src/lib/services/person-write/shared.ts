@@ -7,7 +7,7 @@ import { personDisplayNameSql } from "../sql-text";
 
 /**
  * Helpers every write sibling shares — the reason rule, the row lock, and
- * the optimistic-concurrency guard (LAN-185, W2-09). Decision history: docs/ux/tickets/LAN-185-person-write.md.
+ * the optimistic-concurrency guard (LAN-185, W2-09).
  */
 
 export const requireActor = actorRequirement(

@@ -17,8 +17,6 @@ import { recordClubLinkUseByToken } from "@/lib/services/club-link";
  * the same per-link/per-address throttle as the page. Answers nothing either
  * way: `recordClubLinkUseByToken` is silent for a malformed, unknown or
  * locked token and for an outright failure alike.
- *
- * Decision history: docs/ux/design-system.md (LAN-269 has no ticket contract)
  */
 export async function noteClubLinkOpened(token: string): Promise<void> {
   const decision = allowPublicLinkRequest("club_link", clientKeyFrom(await headers()), token);

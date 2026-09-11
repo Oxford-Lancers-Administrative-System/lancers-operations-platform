@@ -6,8 +6,6 @@
  * `VENUE_SEARCH_BASE_URL`. Parsing below is defensive: a third-party response
  * this code cannot read must produce "no suggestions", never an exception in
  * an event form an operator was part-way through.
- *
- * Decision history: docs/operating-the-slice.md
  */
 
 import { joinAddressParts, MAX_VENUE_LENGTH, type VenueSuggestion } from "./suggestion";

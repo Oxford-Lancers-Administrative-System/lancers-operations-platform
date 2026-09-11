@@ -11,7 +11,6 @@ import { personDisplayAliasSql } from "./sql-text";
  * contact value a candidate supplies. Read-only: the write that follows
  * (minting a person) is a later package's, where the reason and audit row
  * belong.
- * Decision history: LAN-183, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 export type PersonDuplicateMatch = "given_name" | "family_name" | "alias" | "email" | "phone";
@@ -227,7 +226,6 @@ export interface PersonNameAndPhoneMatch {
  * LAN-208. Not `findPersonDuplicates` with a filter — the opposite question,
  * for the anonymous QR sign-up probe. Requires both conditions on the same
  * row, so there is no OR'd flag to misread. Given name only. At most one row.
- * Decision history: LAN-208, missions/intake/M-RECRUITMENT
  */
 export async function findPersonMatchingGivenNameAndPhoneIn(
   tx: Tx,

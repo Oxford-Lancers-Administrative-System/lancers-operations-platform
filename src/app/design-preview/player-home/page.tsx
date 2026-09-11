@@ -65,8 +65,6 @@ import { pickFocusedInvitation, pickPlayerHomeSubject } from "../picks";
  * chrome and components change. Buttons are drawn, not wired. F2 not fixed
  * here: `Your answers` stays unbounded, a product change nobody has taken
  * (finding P1, `player-surfaces.md`).
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 const TOUCH = 44;
 

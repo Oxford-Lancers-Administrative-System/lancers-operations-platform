@@ -9,8 +9,6 @@ import Typography from "@mui/material/Typography";
  * `display` (`h1`, one per page), one subtitle line, the parent as a back
  * link above the title, actions top right, primary first. The back link is
  * always "Back to <place>", sentence case, a text button.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function BackLink({
   href,

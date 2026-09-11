@@ -2,7 +2,7 @@ import type { AssembledStatus, RequiredField } from "@/lib/services/person-requi
 import { REQUIRED_FIELD_LABELS } from "@/lib/services/person-required";
 
 // Words `/operate/people` and `/operate/people/missing` use — LAN-184,
-// `REQ-status-naming`. Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+// `REQ-status-naming`.
 
 export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   recruit: "Recruit",
@@ -25,7 +25,7 @@ export const FILTERABLE_STATUSES: readonly AssembledStatus[] = Object.freeze([
 
 export { labelFor } from "@/lib/services/event-vocabulary";
 
-/** Finding 8, Brian 2026-09-01: a sortable Player/Recruit column. Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** Finding 8, Brian 2026-09-01: a sortable Player/Recruit column. */
 export type PersonType = "player" | "recruit";
 
 export function personType(status: AssembledStatus): PersonType {

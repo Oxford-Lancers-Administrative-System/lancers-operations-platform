@@ -4,7 +4,7 @@ import { sortColumnHref, sortColumnState, stableSortRows } from "@/lib/services/
 import { readCurrentSeason } from "@/lib/services/seasons";
 import type { FollowUpEvent, FollowUpRow } from "@/lib/services/follow-ups";
 
-/** Query params, sorting and date-range filtering for the Follow-ups queue — W5, LAN-281. Decision history: docs/ux/tickets/LAN-173-operator-chase.md. */
+/** Query params, sorting and date-range filtering for the Follow-ups queue — W5, LAN-281. */
 
 const FOLLOW_UPS_PATH = "/operate/admin/follow-ups";
 

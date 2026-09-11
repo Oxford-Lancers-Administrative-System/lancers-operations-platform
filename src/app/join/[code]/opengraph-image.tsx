@@ -12,8 +12,6 @@ import { CLUB_NAVY, JOIN_CARD_WORDS } from "@/lib/brand";
  * stays in step when Brian replaces the logo (LAN-278). Reads nothing from
  * `params`: no season, no code, nothing about the recruit — a card printing
  * the code would put it in the chat transcript, outliving the code itself.
- *
- * Decision history: docs/ux/design-system.md (LAN-279 has no ticket contract)
  */
 export const alt = `${JOIN_CARD_WORDS} — Oxford Lancers`;
 export const size = { width: 1200, height: 630 };

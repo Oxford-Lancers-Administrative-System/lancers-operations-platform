@@ -3,8 +3,6 @@
  * wall-clock rule (response deadline, RSVP "has it started", calendar "today").
  * Not a general date library: `scheduled_on`/`starts_at`/`ends_at` are zoneless
  * columns and are not converted here.
- *
- * Decision history: docs/operating-the-slice.md
  */
 
 /** The zone every wall-clock rule in the application is expressed in. */

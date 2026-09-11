@@ -35,8 +35,6 @@ export function AlreadyRecorded() {
  * line, reached because `submitAnswer` sends a recruit back to this exact
  * route rather than to `/me/[token]`. No "your own page" note, because there
  * is no such page for them.
- *
- * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */
 export function RecruitAlreadyRecorded({
   answer,

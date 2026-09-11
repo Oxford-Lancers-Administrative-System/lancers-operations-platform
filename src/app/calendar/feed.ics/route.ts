@@ -14,8 +14,6 @@ import { NO_CURRENT_SEASON_RULE } from "@/lib/services/seasons";
  * events" for every subscriber. {@link isNoCurrentSeason} is an exact
  * `NotFound` identity check, never a supertype test — everything else is a
  * logged `503`.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export const dynamic = "force-dynamic";
 

@@ -34,8 +34,6 @@ import { emptyMessage, emptyTestId, SORT_OPTIONS, statusLabel } from "./events-l
  * Opens on **This month**, grouped into period tables (D84); season-scoped
  * with no season selector; term/week reads the built academic year, never
  * `events.week_number`, so it agrees with the public Oxford View.
- *
- * Decision history: docs/ux/tickets/LAN-153-public-calendar-and-tiers.md.
  */
 
 export default async function EventsPage({ searchParams }: PageProps<"/operate/events">) {

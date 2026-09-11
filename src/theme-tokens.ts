@@ -3,8 +3,6 @@
  * Server Component can read a hex value as a value; `src/theme.ts` (a client
  * module) imports these rather than being imported. Contrast is recorded in
  * `src/theme.ts` and recomputed by `src/theme.test.ts`.
- *
- * Decision history: docs/ux/design-system.md
  */
 
 /** The nine Figma brand-board styles, read 3 September 2026, plus the two neutrals the board does not supply. */

@@ -10,7 +10,7 @@ const JERSEY_NUMBERS: readonly string[] = Object.freeze(
   Array.from({ length: 99 }, (_, index) => String(index + 1)),
 );
 
-/** The jersey number picker Brian asked to keep exactly — all 99, never free text, another player's number ticked/named/unclickable. Decision history: missions/intake/M-PEOPLE-AND-ROSTER */
+/** The jersey number picker Brian asked to keep exactly — all 99, never free text, another player's number ticked/named/unclickable. */
 export default function JerseyPicker({
   held,
   holders,

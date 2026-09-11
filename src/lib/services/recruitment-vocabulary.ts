@@ -3,7 +3,6 @@ import type { SeasonMessagingConsentState } from "./messaging-consent";
 /**
  * The recruitment mission's own fixed vocabulary — types, labels, ladder
  * order. No `"server-only"` tag, so a client bundle can reach it directly.
- * Decision history: missions/intake/M-RECRUITMENT
  */
 
 export type ProspectStatus =

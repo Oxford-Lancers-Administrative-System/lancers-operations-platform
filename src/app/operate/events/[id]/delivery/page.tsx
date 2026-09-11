@@ -14,7 +14,7 @@ import { Diagnostics } from "./delivery-diagnostics";
 import { RepairPanel } from "./delivery-repair-panel";
 
 // Delivery — UX-50, UX-51, UX-52, LAN-78: one route at three depths. Gated
-// on `delivery_administration`. Decision history: docs/ux/tickets/LAN-78-delivery.md
+// on `delivery_administration`.
 export default async function DeliveryPage({
   params,
   searchParams,

@@ -13,7 +13,6 @@ import { personDisplayAliasSql } from "./sql-text";
  * already resolved from a live, verified credential, never a request
  * parameter taken on trust; `readPlayerHomeIn`'s safety rests entirely on
  * `personId` coming from `resolvePersonTokenIn`.
- * Decision history: LAN-172, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 /** The event's start instant, aliased to whichever table alias a query uses. */
@@ -268,7 +267,6 @@ export interface PlayerHomeInvitation {
  * Four sections (W2-05 mockup): `New` vs `Still need your answer` is whether
  * the club has already chased this invitation, not whether the player opened
  * the link (Q-11 keeps the GET side-effect-free).
- * Decision history: LAN-172, missions/intake/M-PEOPLE-AND-ROSTER
  */
 export interface PlayerHome {
   readonly playerName: string;

@@ -12,8 +12,6 @@ import { CAPACITY_LABELS } from "../operate/events/presentation";
  * `/operate/events/[id]` and `/e/[token]` per `docs/ux/standards.md` rule 7.
  * No `page.tsx`, so no route. Copy rule: says what a control does and its
  * consequence, never why or a justification.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 // The three headline numbers — D62, D73, D74
@@ -182,8 +180,6 @@ export function recordAnswerDialogTitle(displayName: string): string {
  * restores the second line `W3-02`/`W3-04` both draw, dropped without
  * authorisation. Date/time half uses `formatDetailWhen`, the same formatter
  * the operator event page's header uses, per Q-23.
- *
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export function recordAnswerEventSubtitle(
   event: Pick<EventFactsBase, "name" | "scheduledOn" | "startsAt" | "endsAt">,

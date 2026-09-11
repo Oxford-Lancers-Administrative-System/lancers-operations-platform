@@ -23,7 +23,6 @@ import { describeHolders, permissionsPreview } from "../presentation";
 /**
  * **Roles** — Administration's second destination, the club's constitution as
  * a page. LAN-133. Current holders only; read-only (no edit affordance).
- * Decision history: docs/operating-the-slice.md
  */
 export default async function RolesPage() {
   const gate = await gateShellPage("/operate/admin/roles", "role_management");

@@ -21,8 +21,6 @@ import { enGB } from "date-fns/locale/en-GB";
  * pickers in place of native `<input type="date">` so a UK club never sees
  * `mm/dd/yyyy`. `DateField`/`TimeField` carry a hidden input so a plain form
  * post still reads `YYYY-MM-DD`/`HH:mm`.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export type FieldProps = Omit<TextFieldProps, "variant" | "size" | "fullWidth"> & {
   /** Which `data-field` the form's focus-first-issue logic looks for. */

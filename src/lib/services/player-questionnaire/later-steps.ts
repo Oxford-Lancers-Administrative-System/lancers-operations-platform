@@ -9,7 +9,7 @@ import {
 import { completePlayerOrDerivedItemIn, findOnboardingItemIn, TRUST_SECTION_LABEL } from "./read";
 import { TRUST_ITEM_CODES } from "./types";
 
-/** Steps 2-5 — the two documents, then BUCS Play and Hudl. F2 (LAN-230): no configured item is never a reason to drop the answer. Decision history: LAN-216, LAN-230, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** Steps 2-5 — the two documents, then BUCS Play and Hudl. F2 (LAN-230): no configured item is never a reason to drop the answer. */
 
 const AGREEMENT_SECTION_LABEL: Record<OnboardingAgreementType, string> = {
   code_of_conduct: "Code of Conduct",

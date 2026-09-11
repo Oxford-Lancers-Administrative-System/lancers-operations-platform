@@ -17,8 +17,6 @@ const initialState: ForgotPasswordState = { status: "idle" };
  * probe. "Reset password" and "Cancel" while the form is on screen (Brian,
  * approved 15 August 2026); "Back to sign in" once answered — nothing left
  * in progress to cancel.
- *
- * Decision history: docs/operating-the-slice.md
  */
 export default function ForgotPasswordForm({ signInHref }: { signInHref: string }) {
   const [state, formAction, pending] = useActionState(requestPasswordReset, initialState);

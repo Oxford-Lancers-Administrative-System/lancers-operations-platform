@@ -9,7 +9,6 @@ import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitme
  * bands: Person, Recruitment, and one `events:<eventId>` band per
  * recruitment event — {@link bandKind} recovers the band kind, {@link
  * eventIdOfBand} recovers the event.
- * Decision history: missions/intake/M-RECRUITMENT
  */
 export type Band = "person" | "recruitment" | `events:${string}`;
 type BandKind = "person" | "recruitment" | "events";
@@ -151,7 +150,6 @@ export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze([
   },
   {
     // LAN-204 item 7: label says "WhatsApp consent"; key/field unchanged.
-    // Decision history: missions/intake/M-RECRUITMENT
     key: "consent",
     label: "WhatsApp consent",
     band: "recruitment",
@@ -227,7 +225,6 @@ function eventColumnKey(eventId: string, cell: "rsvp" | "attendance"): string {
  * Two columns per event — RSVP and Attendance, `W1`. Each event's own
  * synthetic band (`events:<eventId>`) gives it its own header run (see the
  * module note). Both sortable, through the same generic column machinery.
- * Decision history: missions/intake/M-RECRUITMENT
  */
 export function eventColumns(events: readonly RecruitmentEventColumn[]): readonly ColumnDef[] {
   return events.flatMap((event) => {

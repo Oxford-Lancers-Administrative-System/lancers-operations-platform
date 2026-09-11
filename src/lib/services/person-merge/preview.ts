@@ -15,7 +15,6 @@ import {
  * per-tuple-unique combinations `mergePersons` later writes from the same
  * read (`season_messaging_consents`, `onboarding_agreements`,
  * `person_fact_disputes`). LAN-185, LAN-217, Q-3/Q-4/Q-5.
- * Decision history: LAN-185, LAN-217, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 export const CONTACT_KIND_SCOPE: Readonly<

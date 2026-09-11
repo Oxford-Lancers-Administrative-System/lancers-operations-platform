@@ -39,7 +39,6 @@ import {
  * The participation table and its three tiers — W7, REQ-three-tiers, LAN-157.
  * One row per person: invitation, answer, attendance, question answers, plus
  * (operator tier only) delivery state. Each entry point resolves its own actor.
- * Decision history: LAN-157, missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 interface PersonRow {
@@ -63,7 +62,6 @@ interface PersonRow {
  * The delivery column, operator tier only — a lateral over the most recent
  * job (`notification_jobs` has no unique constraint on `invitation_id`).
  * `j.id is null` guard keeps a never-queued invitee from reading as Failed.
- * Decision history: LAN-173, missions/intake/M-PEOPLE-AND-ROSTER
  */
 const DELIVERY_LATERAL = `
   left join lateral (
@@ -453,7 +451,6 @@ export type ClubLinkPage =
 /**
  * The club-link tier — W7, D2, D81. Signed token is the authorisation, no
  * session. Draft events also resolve `unavailable` (invariant P1).
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export async function readClubLinkParticipation(
   token: string,

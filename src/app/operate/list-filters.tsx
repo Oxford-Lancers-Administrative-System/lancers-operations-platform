@@ -13,7 +13,7 @@ import { useFilterSearch } from "./filter-search";
 // Every word (labels, placeholders, vocabulary) stays with the screen —
 // passed in, not owned here. Selects navigate rather than submit (MUI's
 // TextField select writes its hidden input on the next render — a found
-// defect); filters combine, each patching one key. Decision history: docs/ux/tickets/LAN-74-returner-intake.md · docs/ux/tickets/LAN-153-public-calendar-and-tiers.md.
+// defect); filters combine, each patching one key.
 
 /** One select: the query key it owns, and the vocabulary it offers. */
 export interface ListFilterField {

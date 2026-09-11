@@ -22,7 +22,7 @@ import { closedReasonFor, participantKey } from "./shared";
 
 /**
  * Recording, correcting, walking-on and removing attendance — LAN-80, LAN-152,
- * LAN-205. Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md.
+ * LAN-205.
  */
 
 export const ATTENDANCE_CLOSED_MESSAGE =

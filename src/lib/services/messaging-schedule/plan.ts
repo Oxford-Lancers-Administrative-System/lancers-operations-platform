@@ -36,9 +36,8 @@ export interface MessagingPlan {
   readonly deadlineClamped: boolean;
   readonly invitationAt: Date;
   readonly configuredInvitationAt: Date;
-  /** W1's guarantee. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY */
+  /** W1's guarantee. */
   readonly dispatchesImmediately: boolean;
-  /** Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY */
   readonly lateApproval: boolean;
   readonly rungs: readonly LadderRung[];
   readonly escalationAt: Date | null;
@@ -56,7 +55,7 @@ export interface PlannableEvent {
 
 const HOUR_MS = 60 * 60 * 1000;
 
-/** The ladder, fixed order, counting forward from the invitation (`REQ-count-forward`). `available` caps how many cadence steps fit before the deadline. Exported so the LAN-171 preview and the approved-event replay share one arithmetic. `whatsappReminders`/`emailReminders` are rungs after rung 0 (see Q-19 below). Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY */
+/** The ladder, fixed order, counting forward from the invitation (`REQ-count-forward`). `available` caps how many cadence steps fit before the deadline. Exported so the LAN-171 preview and the approved-event replay share one arithmetic. `whatsappReminders`/`emailReminders` are rungs after rung 0 (see Q-19 below). */
 export function buildLadder(
   invitationAt: Date,
   cadenceHours: number,
@@ -83,7 +82,7 @@ export function buildLadder(
   return rungs;
 }
 
-/** The whole plan for one event, resolved against a moment (`asOf`: approval instant, or `now()` for preview). Every instant is computed by PostgreSQL (IANA zone database) rather than JavaScript. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY */
+/** The whole plan for one event, resolved against a moment (`asOf`: approval instant, or `now()` for preview). Every instant is computed by PostgreSQL (IANA zone database) rather than JavaScript. */
 export async function resolveMessagingPlanIn(
   tx: Tx,
   event: PlannableEvent,
@@ -178,7 +177,7 @@ export async function resolveMessagingPlanIn(
     const candidateFollowUpAt = new Date(
       recruitInvitationAt.getTime() + schedule.recruitFollowUpCadenceHours * HOUR_MS,
     );
-    // `<=`, not `<`: a rung exactly on the deadline still fits. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY
+    // `<=`, not `<`: a rung exactly on the deadline still fits.
     recruitLadder = {
       invitationAt: recruitInvitationAt,
       configuredInvitationAt: configuredRecruitInvitationAt,

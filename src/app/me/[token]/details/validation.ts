@@ -6,8 +6,6 @@
  * never a shape failure there. `DETAILS_FIELD_ORDER` is the screen's own
  * top-to-bottom order, matching `roster/new/validation.ts`'s
  * `firstInvalidField` contract.
- *
- * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 import {

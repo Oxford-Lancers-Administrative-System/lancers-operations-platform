@@ -38,7 +38,6 @@ import type { BoardActionState } from "../board-action-state";
 // Every season-fact wrapper opens with `requireCapability("person_record_authority")`
 // (`REQ-authority`), including recordResolveOnboardingItemAction as of
 // LAN-214 round 2 (F-NEW-001, OD7-four-role-only, Brian 2026-09-02).
-// Decision history: docs/ux/tickets/LAN-187-player-record.md · docs/ux/tickets/LAN-237-recruitment-send-and-spacing.md.
 
 function refresh(membershipId: string): void {
   revalidatePath("/operate/roster");
@@ -197,7 +196,7 @@ export async function recordCommitAvailabilityAction(params: {
 // /operate/people/missing's Nudge calls, so both routes stay in one
 // activity/audit trail. person_record_authority, same as every other write.
 // The refusal reason is read back from the job's own stored, provider-
-// neutral sentence rather than invented (requirement 3). Decision history: docs/ux/tickets/LAN-187-player-record.md · docs/ux/tickets/LAN-237-recruitment-send-and-spacing.md.
+// neutral sentence rather than invented (requirement 3).
 export async function recordSendOnboardingQuestionnaireAction(params: {
   membershipId: string;
 }): Promise<
@@ -228,7 +227,7 @@ export async function recordSendOnboardingQuestionnaireAction(params: {
   return { error: null, outcome, reason };
 }
 
-/** One onboarding item, resolved in place — `REQ-player-detail`. Four-role only (`F-NEW-001`); a waiver's reason is optional (`REQ-reason-free-waive`). Decision history: docs/ux/tickets/LAN-187-player-record.md · docs/ux/tickets/LAN-237-recruitment-send-and-spacing.md. */
+/** One onboarding item, resolved in place — `REQ-player-detail`. Four-role only (`F-NEW-001`); a waiver's reason is optional (`REQ-reason-free-waive`). */
 export async function recordResolveOnboardingItemAction(params: {
   membershipId: string;
   itemId: string;

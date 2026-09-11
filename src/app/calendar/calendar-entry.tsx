@@ -12,8 +12,6 @@ import { formatCellDate, templateColour } from "./presentation";
  * always carries everything, including what the tile stays quiet about. The
  * destination arrives as `href` — each tier passes the same one its list rows
  * use, making `REQ-three-arrangements` true by construction.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 /** The statuses a tile stays quiet about. One, since LAN-151 — `occurred` is derived from the date rather than stored (D30). */

@@ -18,7 +18,7 @@ import type {
   WeeklyReportContent,
 } from "./shared";
 
-/** Composes the report from the season's views. Read-only: LAN-151 moved the one derived exception (walk-ups) here directly. Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
+/** Composes the report from the season's views. Read-only: LAN-151 moved the one derived exception (walk-ups) here directly. */
 
 interface EventRow {
   id: string;

@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button";
 import { OPERATOR_EVENT_TEMPLATES_PATH } from "@/app/calendar/routes";
 
-// A stopgap — LAN-165. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// A stopgap — LAN-165.
 export function EditTemplatesButton() {
   return (
     <Button

@@ -8,7 +8,7 @@ import type { ResolvedOperator } from "@/lib/auth/operator";
 import { withTransaction } from "@/lib/db";
 import { readAdministrationSubject } from "@/lib/services/operator-invitations";
 
-/** What Administration is allowed to offer — LAN-133. Renders only; `canAdministerTarget` re-checks every action. Decision history: docs/operating-the-slice.md */
+/** What Administration is allowed to offer — LAN-133. Renders only; `canAdministerTarget` re-checks every action. */
 
 /** The five account-level decisions operator detail can offer. */
 export interface PermittedAccountActions {
@@ -41,7 +41,7 @@ export async function permittedAccountActions(
   };
 }
 
-/** Whether this actor may change who holds one seat — each decision names its `roleCode` (LAN129-B1). Decision history: docs/operating-the-slice.md */
+/** Whether this actor may change who holds one seat — each decision names its `roleCode` (LAN129-B1). */
 export async function permittedRoleActions(
   operator: ResolvedOperator,
   roleCode: string,

@@ -31,8 +31,6 @@ import { BUSY_ERROR } from "./presentation";
  * already-authenticated click means, never who is clicking —
  * `consumeAnswerTokenIn` still resolves person and invitation from the
  * token's own hash.
- *
- * Decision history: docs/ux/tickets/LAN-172-player-answer.md
  */
 async function refuse(target: string, startedAt: number): Promise<never> {
   await holdUniformRefusal(startedAt);

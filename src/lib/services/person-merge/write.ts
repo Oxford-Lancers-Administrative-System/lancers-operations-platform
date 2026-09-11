@@ -36,7 +36,6 @@ import {
  * `PERSON_REFERENCE_COLUMNS`. LAN-185.
  * `tests/person-merge-reference-catalogue.test.ts` asks `pg_constraint` for
  * the real set and fails if this has drifted.
- * Decision history: LAN-185, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 /**

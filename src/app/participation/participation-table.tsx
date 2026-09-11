@@ -52,8 +52,6 @@ import { RecordAnswerControl } from "./record-answer";
  * holding club-link data. Desktop table and phone cards render from the same
  * filtered, sorted list. Every heading is a link carrying every filter, so
  * sorting works with scripting disabled.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 function formatWhen(value: string | null): string {
   if (value === null) return NOTHING;
@@ -86,8 +84,6 @@ function AnswerChip({ person }: { person: ParticipationPerson }) {
  * replaces the chip entirely, never stacks beside it (Brian: a chip above a
  * control "tries to fit the button there in some way"). Only for an
  * operator, only a real invitation, only where `answer` is `null`.
- *
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 function AnswerCell({
   operator,

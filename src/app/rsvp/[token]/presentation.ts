@@ -3,8 +3,6 @@
  * quoted from Brian's 12 August 2026 owner decision; constants, not JSX
  * literals, so the uniform-response rule (UX-63/64/65 render the same string)
  * is provable by a test.
- *
- * Decision history: docs/ux/tickets/LAN-79-player-rsvp.md
  */
 
 import { TYPE_LABELS } from "@/app/operate/events/presentation";

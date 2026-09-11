@@ -19,7 +19,7 @@ import type { EventFormState, EventTransitionState } from "./form-state";
 
 // The event workflow's server actions — LAN-76, LAN-77. Every action opens
 // with requireCapability() against the verified session; NotPermitted is
-// rethrown, not a form message. No ownership term. Decision history: docs/ux/tickets/LAN-76-event-creation.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-77-event-approval.md · docs/ux/tickets/LAN-78-delivery.md · docs/ux/tickets/LAN-154-event-authoring-and-templates.md.
+// rethrown, not a form message. No ownership term.
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -164,7 +164,7 @@ export async function updateEventDraftAction(
   redirect(destinationAfterSave(formData, eventId));
 }
 
-/** Deletes a draft, permanently — `REQ-delete-draft`, D29. Decision history: docs/ux/tickets/LAN-76-event-creation.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-77-event-approval.md · docs/ux/tickets/LAN-78-delivery.md · docs/ux/tickets/LAN-154-event-authoring-and-templates.md. */
+/** Deletes a draft, permanently — `REQ-delete-draft`, D29. */
 export async function deleteEventDraftAction(
   _previous: EventTransitionState,
   formData: FormData,
@@ -183,7 +183,7 @@ export async function deleteEventDraftAction(
   redirect("/operate/events?deleted=1");
 }
 
-/** `draft → approved` — the one action that sends anything to a real person. LAN-77. Decision history: docs/ux/tickets/LAN-76-event-creation.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-77-event-approval.md · docs/ux/tickets/LAN-78-delivery.md · docs/ux/tickets/LAN-154-event-authoring-and-templates.md. */
+/** `draft → approved` — the one action that sends anything to a real person. LAN-77. */
 export async function approveEventAction(
   _previous: EventTransitionState,
   formData: FormData,
@@ -211,7 +211,7 @@ export async function approveEventAction(
   redirect(`/operate/events/${eventId}?approved=1`);
 }
 
-/** Saves the proposed audience against a draft, and moves to the confirmation. Decision history: docs/ux/tickets/LAN-76-event-creation.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-77-event-approval.md · docs/ux/tickets/LAN-78-delivery.md · docs/ux/tickets/LAN-154-event-authoring-and-templates.md. */
+/** Saves the proposed audience against a draft, and moves to the confirmation. */
 export async function saveEventAudienceAction(
   _previous: EventTransitionState,
   formData: FormData,
@@ -232,4 +232,4 @@ export async function saveEventAudienceAction(
   redirect(`/operate/events/${eventId}?step=review`);
 }
 
-// Retired, not moved: occurrence assertion (D30) and abandonEventDraftAction (superseded by deleteEventDraftAction, D29). Decision history: docs/ux/tickets/LAN-76-event-creation.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-77-event-approval.md · docs/ux/tickets/LAN-78-delivery.md · docs/ux/tickets/LAN-154-event-authoring-and-templates.md.
+// Retired, not moved: occurrence assertion (D30) and abandonEventDraftAction (superseded by deleteEventDraftAction, D29).

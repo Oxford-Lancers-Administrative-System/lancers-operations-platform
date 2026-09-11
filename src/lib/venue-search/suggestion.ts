@@ -4,8 +4,6 @@
  * deliberately no vendor vocabulary (`osm_id`, `properties`, coordinates, a
  * provider identifier). `formatted` is the one line written into the existing
  * `events.venue` column; there is no venue entity and no second write.
- *
- * Decision history: docs/operating-the-slice.md
  */
 
 export interface VenueSuggestion {

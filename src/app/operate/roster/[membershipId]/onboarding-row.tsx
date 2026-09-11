@@ -22,7 +22,7 @@ function shortDay(occurredAt: Date): string {
   return formatDay(occurredAt.toISOString().slice(0, 10));
 }
 
-/** The row's provenance slot — who and when, per state, never narrative text (W6's acceptance correction). Decision history: docs/ux/tickets/LAN-187-player-record.md. */
+/** The row's provenance slot — who and when, per state, never narrative text (W6's acceptance correction). */
 function provenanceNote(item: OnboardingItemDisplay): string | undefined {
   const history = item.history;
   if (history.length === 0) return undefined;
@@ -83,7 +83,7 @@ function provenanceNote(item: OnboardingItemDisplay): string | undefined {
   return `${head} · ${previousWord} ${shortDay(previous.occurredAt)}${earlierSuffix}`;
 }
 
-/** One onboarding item — provenance shown, edited in-place like every other season value, no Resolve/SAVE pair. Decision history: docs/ux/tickets/LAN-187-player-record.md. */
+/** One onboarding item — provenance shown, edited in-place like every other season value, no Resolve/SAVE pair. */
 export default function OnboardingRow({
   item,
   editing,

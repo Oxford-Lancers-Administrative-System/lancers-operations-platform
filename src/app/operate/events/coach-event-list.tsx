@@ -10,7 +10,7 @@ import {
 } from "./coach-event-buckets";
 import { formatListWhen } from "./presentation";
 
-// The coaching assignment's event list — LAN-110. Decision history: docs/ux/tickets/LAN-110-coach-attendance.md.
+// The coaching assignment's event list — LAN-110.
 export async function coachEventList(search: string) {
   let list: EventList;
   try {

@@ -7,7 +7,7 @@ import { readPersonRecordIn } from "./person-record";
 import type { OnboardingItemStatus } from "./membership";
 
 // The compiled-outstanding-ask reader — LAN-214, REQ-one-link: compiled fresh every time, never
-// frozen at mint. This module reads; it mints nothing. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
+// frozen at mint. This module reads; it mints nothing.
 
 interface OutstandingOnboardingItem {
   itemId: string;

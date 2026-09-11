@@ -26,8 +26,6 @@ import SortableHeader, { type SortLink } from "./sortable-header";
  * cancelled event stays on the list, marked cancelled (C1 to `W1`, D57), as a
  * chip beside the name, not a Status column. One condensed card per event on
  * a phone (Brian, 21 August 2026: events should start within a screen).
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function PublicList({
   buckets,

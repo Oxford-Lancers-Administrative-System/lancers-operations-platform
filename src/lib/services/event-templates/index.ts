@@ -1,4 +1,4 @@
-/** Event-type templates — what each kind of event starts as. LAN-154, W8, LAN-265. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Event-type templates — what each kind of event starts as. LAN-154, W8, LAN-265. */
 
 export {
   DEFAULT_TEMPLATE_CLASS,

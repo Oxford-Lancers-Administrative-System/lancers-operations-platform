@@ -16,7 +16,6 @@ import TemplateEditor from "../template-editor";
 
 // W8-02 — one template. Route carries the template's own id since LAN-265
 // (used to carry event_type, before templates were rename-able).
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 export default async function EventTemplatePage({
   params,
 }: PageProps<"/operate/events/templates/[templateId]">) {

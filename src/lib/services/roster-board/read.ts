@@ -16,7 +16,6 @@ import { BOARD_ELIGIBILITY_COMPETITION } from "./shared";
  * The roster board's read path — LAN-186, `WP-roster-board`.
  * Every column's vocabulary and shape decisions are in `relocations.md`
  * (source: `roster-board.ts` module header).
- * Decision history: docs/ux/tickets/LAN-186-roster-board.md.
  */
 
 export type BluesValue = "Full" | "Half" | "None";

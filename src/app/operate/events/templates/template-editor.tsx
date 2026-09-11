@@ -51,7 +51,7 @@ import {
 
 // W8-02 and W8-03 — one template, and what changing it will touch. Save…
 // previews (no write); the dialog re-posts to saveEventTemplateAction, which
-// recomputes under its own locks. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// recomputes under its own locks.
 
 export interface TemplateEditorProps {
   /** One component for create and edit — same screen, same rules (LAN-265). */
@@ -125,7 +125,7 @@ export default function TemplateEditor({
   const busy = previewing || saving || deletingNow || creating;
 
   // C6's off-grid case: a duration saved before the eight-option grid existed
-  // becomes a truthful ninth MenuItem, only while selected. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+  // becomes a truthful ninth MenuItem, only while selected.
   const offGridDuration =
     duration !== "" && !TEMPLATE_DURATION_OPTIONS.includes(Number(duration))
       ? Number(duration)

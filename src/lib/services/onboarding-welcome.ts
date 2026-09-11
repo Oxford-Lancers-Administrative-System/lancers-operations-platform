@@ -5,7 +5,6 @@ import { mayReceiveWelcomeContactIn } from "./messaging-consent";
 import { recordOnboardingActivityIn } from "./onboarding-activity-log";
 
 // The `onboarding-opened` welcome emitter (LAN-214, `REQ-one-welcome`, `REQ-transport`) — one door-independent welcome per membership, idempotent on `onboarding-welcome:<membershipId>`. Sending rides `messaging-scheduler.ts`.
-// Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
 
 export type OnboardingWelcomeResult =
   { queued: true; jobId: string } | { queued: false; reason: "already_queued" };

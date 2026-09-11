@@ -20,7 +20,6 @@ import { DELIVERY_MODE_LABELS, formatShortDate, labelFor } from "@/lib/services/
  * Name links to the event (Brian). Columns: type, date, term/week, status,
  * Invited/Said yes/Showed-Invited — raw pairs, never percentages (D62).
  * `Showed / Invited` reads "—" until a register is saved (D73, D74, LAN-152).
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function OperatorList({
   buckets,

@@ -1,6 +1,6 @@
 import type { AttendancePresence } from "@/lib/services/attendance-vocabulary";
 
-// `presence` is what the server committed, never the attempted value (§ 9). Decision history: docs/ux/tickets/LAN-80-attendance.md.
+// `presence` is what the server committed, never the attempted value (§ 9).
 export interface AttendanceSaveState {
   key: string | null;
   presence: AttendancePresence | null;

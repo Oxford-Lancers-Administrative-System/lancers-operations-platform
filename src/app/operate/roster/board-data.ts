@@ -9,7 +9,7 @@ import {
 } from "./board-columns";
 import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
-// Pure search, filter and sort over the board's rows — no database. Operates in memory (`DEC-w1-12`), not SQL predicates. Decision history: docs/ux/tickets/LAN-186-roster-board.md.
+// Pure search, filter and sort over the board's rows — no database. Operates in memory (`DEC-w1-12`), not SQL predicates.
 
 export const NOT_RECORDED = "Not recorded";
 
@@ -111,7 +111,6 @@ const CODE_ONLY_COLUMNS = new Set(["offencePosition", "defencePosition", "specia
 // Display text for a column's option code — label alone, never the code
 // beside it (LAN-186 item 9). Positions are the exception: the club's
 // vocabulary IS the code, so item 7's cell half returns it unchanged.
-// Decision history: docs/ux/tickets/LAN-186-roster-board.md.
 function optionLabel(column: ColumnDef, code: string): string {
   if (CODE_ONLY_COLUMNS.has(column.key)) return code;
   if (column.key === "status") return labelFor(MEMBERSHIP_STATUS_LABELS, code);
@@ -157,7 +156,6 @@ export function filterOptionLabel(column: ColumnDef, value: string): string {
 // Display text for one entry in an open list of choices (in-cell edit
 // dropdown, filter popover) — distinct from a chosen value. Positions show
 // code + full name in the open dropdown only, per item 7's cell half.
-// Decision history: docs/ux/tickets/LAN-186-roster-board.md.
 export function optionListLabel(column: ColumnDef, value: string): string {
   if (value === NOT_RECORDED) return value;
   if (CODE_ONLY_COLUMNS.has(column.key)) {

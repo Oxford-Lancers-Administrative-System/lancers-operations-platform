@@ -7,7 +7,6 @@ import {
 } from "../event-input";
 
 // The column set, the template vocabulary, and the plan's shared shapes — LAN-155, LAN-265.
-// Decision history: docs/ux/tickets/LAN-155-csv-import.md.
 
 /** The columns an import reads, in the order the template writes them. */
 export const IMPORT_COLUMNS = [

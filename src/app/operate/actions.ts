@@ -4,7 +4,6 @@ import { requireCapability } from "@/lib/auth/guards";
 import { notImplemented } from "./not-implemented";
 
 // The slice's privileged server actions — LAN-73's guard-parity harness.
-// Decision history: docs/ux/tickets/LAN-73-shell-and-access.md · docs/ux/tickets/LAN-77-event-approval.md · docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · docs/ux/tickets/LAN-81-monday-report.md.
 
 export async function activateMembership(): Promise<never> {
   await requireCapability("membership_activation");

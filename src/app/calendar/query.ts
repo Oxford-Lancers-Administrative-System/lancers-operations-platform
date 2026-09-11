@@ -7,8 +7,6 @@ import type { SortLink } from "./sortable-header";
  * the public list and the operator's, so a second reader of the same URL is
  * not a second set of defaults waiting to disagree. Decides only what a
  * reader asked for, never what they may see (`@/lib/auth/event-tier`).
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 export type QueryParams = Record<string, string | string[] | undefined>;

@@ -58,8 +58,6 @@ import {
  * need it stays server-rendered in `page.tsx`. `noValidate` disables the DOM
  * `required` bubble entirely, so every submission reaches `saveDetails` and
  * this app decides what "you missed one" looks like.
- *
- * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 interface FieldMeta {

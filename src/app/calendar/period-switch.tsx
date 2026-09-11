@@ -15,8 +15,6 @@ import { EVENT_PERIODS, PERIOD_LABELS, type EventPeriod } from "@/lib/services/e
  * a filter (`slice-ux.md` § 7). The period is in the query string; the
  * select navigates from the change event, not a submit, since MUI writes its
  * hidden input after the handler returns.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function PeriodSwitch({
   basePath,

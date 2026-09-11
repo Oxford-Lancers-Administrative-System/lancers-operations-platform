@@ -14,7 +14,6 @@ import { readEventIn, type EventDetail } from "./events";
  * and BAFA registration number (`tests/schema-restricted-fields.test.ts`).
  * No `events.opponent` column exists (D14 removed it) — the generation
  * screen offers an editable Opponent box seeded from the event's name.
- * Decision history: LAN-267, missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY
  */
 
 import {

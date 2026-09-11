@@ -37,7 +37,6 @@ import OperatorActions from "./operator-actions";
  * and player membership) — `DEC-one-person-multiple-capacities`.
  * LAN131-A5: the delivery-failure reason is rendered here, beside the state
  * that produced it, and in the list's invitation column.
- * Decision history: docs/operating-the-slice.md
  */
 export default async function OperatorRecordPage({
   params,

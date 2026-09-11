@@ -17,7 +17,7 @@ import {
   renotifySends,
 } from "./change-presentation";
 
-// W5-04 — the recovery path. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// W5-04 — the recovery path.
 export default function RenotifyPanel({
   eventId,
   recipients,

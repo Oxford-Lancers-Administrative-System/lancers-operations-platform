@@ -1,6 +1,5 @@
 // What a question on an event *is*, and the rules one submitted question has to satisfy — LAN-154,
 // W4-A1. Pure, like event-input.ts; re-exported by event-questions.ts. D66/D67: three answer types.
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
 import { trimmed } from "./event-input";
 

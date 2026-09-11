@@ -31,7 +31,6 @@ import type { BoardActionState } from "./board-action-state";
  * change is deliberately not here — `./actions.ts`'s `setMembershipStatusAction`
  * (same capability) owns that column instead, not `membership_activation`
  * (RVW-186-001).
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 function refresh(): void {

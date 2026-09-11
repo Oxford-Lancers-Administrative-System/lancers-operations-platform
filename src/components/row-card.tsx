@@ -8,8 +8,6 @@ import Typography from "@mui/material/Typography";
 /**
  * The phone half of every table — LAN-225, brief §2. A title, one or two
  * sublines, status chips, one tap target (the whole card when it has `href`).
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 /** The width the row's own controls get at `sm` and up — `/me/[token]`'s own measure. */
 const ACTION_COLUMN = 236;

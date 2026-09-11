@@ -43,7 +43,6 @@ const EVENT_STATUS_LABEL: Readonly<Record<"upcoming" | "occurred" | "cancelled",
  * `/operate/recruitment/[prospectId]` — W2, rebuilt (2026-09-02 correction).
  * Card content follows W2's mapping onto the shipped roster record shell
  * (`../../record-shell.tsx`, LAN-187).
- * Decision history: missions/intake/M-RECRUITMENT
  */
 export default function RecruitmentRecordView({
   record,
@@ -54,7 +53,6 @@ export default function RecruitmentRecordView({
 }) {
   // LAN-204 item 9: the consent deadlock, fixed — personal and recruitment
   // sends no longer share one gate. See `sendRecruitmentQuestionnaireIn`.
-  // Decision history: missions/intake/M-RECRUITMENT
   const blockedByStatus = record.status === "declined";
   const blockedByRefusal = record.consent === "refused" || record.consent === "withdrawn";
   const grantedViaSignupForm =
@@ -67,7 +65,6 @@ export default function RecruitmentRecordView({
   )?.occurredAt;
 
   // W2-04: the same fact stated three times — banner, send action, dialog.
-  // Decision history: missions/intake/M-RECRUITMENT
   const personalDisabledReason = blockedByStatus
     ? "Messaging is refused. This recruit declined."
     : record.consent === "refused"
@@ -128,7 +125,7 @@ export default function RecruitmentRecordView({
             ) : undefined
           }
         />
-        {/* V-8: headline strip mirrors the roster record's own strip (own shape, not shared import). Decision history: missions/intake/M-RECRUITMENT */}
+        {/* V-8: headline strip mirrors the roster record's own strip (own shape, not shared import). */}
         <MetricRow columns={4} testId="recruitment-headline-strip">
           <Metric
             value={
@@ -163,7 +160,7 @@ export default function RecruitmentRecordView({
           />
         </MetricRow>
 
-        {/* Person and Recruitment stacked full width — mirrors the shipped roster bands. Decision history: missions/intake/M-RECRUITMENT */}
+        {/* Person and Recruitment stacked full width — mirrors the shipped roster bands. */}
         <Stack spacing={3} data-testid="recruitment-record-top-bands">
           <Section variant="banded" band="person" title="Person" testId="person">
             <RecordField label="College" value={person.college ?? null} readOnly />
@@ -272,7 +269,7 @@ export default function RecruitmentRecordView({
           </Section>
         </Stack>
 
-        {/* LAN-253: recruitment events, notes and status history stacked single column, not two-up. Decision history: missions/intake/M-RECRUITMENT */}
+        {/* LAN-253: recruitment events, notes and status history stacked single column, not two-up. */}
         <Stack spacing={3} data-testid="recruitment-record-lower-bands">
           <Section variant="banded" band="attendance" title="Recruitment events" testId="events">
             {record.events.length === 0 ? (
@@ -341,7 +338,7 @@ export default function RecruitmentRecordView({
                             : NOT_RECORDED}
                         </TableCell>
                         <TableCell>{PROSPECT_STATUS_LABELS[event.toStatus]}</TableCell>
-                        {/* LAN-248: shared formatter, not toLocaleString() — docs/ux/standards.md rule 3. Decision history: missions/intake/M-RECRUITMENT */}
+                        {/* LAN-248: shared formatter, not toLocaleString() — docs/ux/standards.md rule 3. */}
                         <TableCell>{formatWhen(new Date(event.occurredAt))}</TableCell>
                         <TableCell>{event.actorLabel}</TableCell>
                         <TableCell>{event.reason ?? NOT_RECORDED}</TableCell>

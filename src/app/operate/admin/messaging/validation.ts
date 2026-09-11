@@ -1,6 +1,6 @@
 import type { MessagingSchedule, MessagingScheduleChange } from "@/lib/services/messaging-schedule";
 
-// Reading and checking one row's form before it reaches the database — W7, LAN-171. Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
+// Reading and checking one row's form before it reaches the database — W7, LAN-171.
 
 // LAN-203 added two fields to MessagingScheduleChange for the Recruitment
 // row's Recruits group alone (see RECRUIT_SCHEDULE_FIELDS); excluded here
@@ -10,7 +10,7 @@ type CoreScheduleField = Exclude<
   "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours"
 >;
 
-// helperText: OWNER-LAN171-08 round 3, Brian on the President field. Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
+// helperText: OWNER-LAN171-08 round 3, Brian on the President field.
 export interface FieldBoundsShape {
   readonly key: string;
   readonly label: string;
@@ -92,7 +92,7 @@ export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
 ]);
 
 // The Recruits group's own two fields (LAN-203, `DEC-split-on-the-schedule`)
-// — one row, one form, one SAVE (W10, OWNER-LAN171-04). Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
+// — one row, one form, one SAVE (W10, OWNER-LAN171-04).
 export const RECRUIT_SCHEDULE_FIELDS: readonly RecruitScheduleFieldBounds[] = Object.freeze([
   {
     field: "recruitInvitationLeadDays",

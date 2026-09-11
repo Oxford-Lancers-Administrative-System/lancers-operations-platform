@@ -17,8 +17,6 @@ import ShellNav from "@/app/operate/shell-nav";
  * change: palette-drawn sidebar (B1), no redundant wordmark block above each
  * page (B2), sign out in the sidebar's account block (B3). Same gating rule
  * as the real layout; every page still gates itself with `gateShellPage`.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export default async function DesignPreviewOperatorLayout({
   children,

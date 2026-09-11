@@ -11,8 +11,6 @@ import { CALLING_COUNTRIES, joinPhoneParts, splitPhoneNumber } from "@/lib/servi
  * The one phone control (LAN-211): country code and number as two visible
  * controls, one hidden input posting the canonical E.164 value. See
  * `docs/architecture/components.md` and `docs/ux/design-system.md` § 5.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 
 export interface PhoneFieldProps {

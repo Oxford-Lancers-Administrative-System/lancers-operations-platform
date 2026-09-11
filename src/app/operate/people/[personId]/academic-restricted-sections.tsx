@@ -26,7 +26,7 @@ export function AcademicSection({ record }: { record: PersonRecord }) {
         {record.degreeField !== null ? <>{record.degreeField}</> : <NotRecorded />}
       </Fact>
       {/* LAN-267: two personal facts under the same handling as the rest of
-          this section. Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md. */}
+          this section. */}
       <Fact label="Student number" note={record.studentNumberSource ?? undefined}>
         {record.studentNumber !== null ? <>{record.studentNumber}</> : <NotRecorded />}
       </Fact>

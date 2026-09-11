@@ -10,8 +10,6 @@ import { templateColour } from "./presentation";
  * One entry per template, coloured by the template's own colour (LAN-276 r1),
  * not the behavioural class two templates could share. Makes the colour
  * scannable, not just decodable — the per-tile label is still the guarantee.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function TypeLegend({ events }: { events: readonly CalendarEvent[] }) {
   // Ordered by name, not first appearance, so the legend doesn't reshuffle between months.

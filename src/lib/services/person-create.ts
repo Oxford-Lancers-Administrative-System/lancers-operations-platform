@@ -16,7 +16,6 @@ import {
  * `REQ-duplicate-check`, `REQ-create-without-roles`. `person-duplicate.ts`
  * answers "who might this already be"; this module is the write that
  * follows. Never assigns a role, opens a login, or creates a membership.
- * Decision history: LAN-185, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 export interface CreatePersonInput {

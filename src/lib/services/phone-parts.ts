@@ -3,7 +3,6 @@
  * (`src/components/phone-field.tsx`); this module splits, joins and
  * validates the two boxes, calling `toE164`/`validatePhoneNumber` rather
  * than re-deriving anything. Pure — no database, no `server-only`.
- * Decision history: LAN-211, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 import { validatePhoneNumber, type PhoneValidation } from "./person-validation";

@@ -8,7 +8,7 @@ import { assertAdministrationCapability, blankToNull } from "./shared";
  * The duplicate check — {@link findOperatorCandidates} is LAN-141's candidate
  * search: every existing Person who might already be the human being about
  * to be invited. The reviewer diffs this SQL against base; nothing in its
- * body has been touched by the split. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * body has been touched by the split.
  */
 
 /** Why a candidate surfaced. Same vocabulary the returner intake uses. */
@@ -63,7 +63,6 @@ interface CandidateRow {
  * Deliberately not `roster.findPersonCandidates` — this one has no season
  * dependency. Shares its matching rule (given name, aliases, phone last nine
  * digits) with `roster.ts`; excludes people merged away under invariant I6.
- * Decision history (why not the roster function): missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 export async function findOperatorCandidates(
   operator: ResolvedOperator | null,

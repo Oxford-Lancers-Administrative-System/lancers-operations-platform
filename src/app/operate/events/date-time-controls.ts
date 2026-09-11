@@ -1,4 +1,4 @@
-// W154C-C1/C2 — form-state strings <-> MUI X picker Dates (D86, Q-27). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// W154C-C1/C2 — form-state strings <-> MUI X picker Dates (D86, Q-27).
 
 const SCHEDULED_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^\d{2}:\d{2}$/;
@@ -14,7 +14,7 @@ export function dateFromScheduledOn(scheduledOn: string): Date | null {
   return date;
 }
 
-/** A `Date` (or `null`) → `"2026-08-24"`, `""` if unusable. Year zero-padded so a provisional 1-digit year round-trips without the field reading itself as cleared. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** A `Date` (or `null`) → `"2026-08-24"`, `""` if unusable. Year zero-padded so a provisional 1-digit year round-trips without the field reading itself as cleared. */
 export function scheduledOnFromDate(date: Date | null): string {
   if (!date || Number.isNaN(date.getTime())) return "";
   const year = String(date.getFullYear()).padStart(4, "0");

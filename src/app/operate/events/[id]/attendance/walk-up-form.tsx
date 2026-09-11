@@ -31,7 +31,6 @@ import {
  * (stricter than intake — nobody here is already known). Creates a person,
  * contact points, a recruitment prospect, `walk_up_read_back` consent, and
  * the recruitment cycle's jobs (LAN-205) — never a season membership.
- * Decision history: missions/intake/M-RECRUITMENT
  */
 export function WalkUpForm({ eventId }: { eventId: string }) {
   const [state, formAction, pending] = useActionState(recordWalkUpAction, EMPTY_WALK_UP_STATE);

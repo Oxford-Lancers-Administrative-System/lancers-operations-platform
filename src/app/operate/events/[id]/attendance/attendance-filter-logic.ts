@@ -1,7 +1,7 @@
 import type { AttendanceParticipant } from "@/lib/services/attendance";
 
 // The board's filters, applied in memory (the list is one event's audience,
-// already read in full). Decision history: docs/ux/tickets/LAN-80-attendance.md.
+// already read in full).
 export function filterParticipants(
   participants: AttendanceParticipant[],
   filters: { search: string; rsvp: string; attendance: string },

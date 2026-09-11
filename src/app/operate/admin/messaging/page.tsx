@@ -15,7 +15,7 @@ import {
 } from "./presentation";
 import { RECRUIT_SCHEDULE_FIELDS, SCHEDULE_FIELDS } from "./validation";
 
-/** **Messaging schedule** — Administration's third destination, W7's settings page. LAN-171. Editable per template, never per event. Decision history: docs/adr/0036-messaging-schedule-configuration.md */
+/** **Messaging schedule** — Administration's third destination, W7's settings page. LAN-171. Editable per template, never per event. */
 export default async function MessagingSchedulePage() {
   const gate = await gateShellPage("/operate/admin/messaging", "delivery_administration");
   if ("screen" in gate) return gate.screen;

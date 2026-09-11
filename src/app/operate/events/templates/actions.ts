@@ -20,7 +20,7 @@ import type { TemplateFormState } from "./form-state";
 // recomputes the blast radius itself rather than trusting the browser's
 // copy, both from the same checked() fields. Guarded on
 // `event_calendar_management`, not `event_approval` — editing a template
-// sends nothing. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
+// sends nothing.
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -140,7 +140,7 @@ export async function previewEventTemplateAction(
 
 // Saves the template and updates the drafts the rule reaches, in one
 // transaction. Redirects to the template list on success — LAN-276 round 1,
-// Brian 2026-09-10. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
+// Brian 2026-09-10.
 export async function saveEventTemplateAction(
   _previous: TemplateFormState,
   formData: FormData,
@@ -177,7 +177,7 @@ export async function saveEventTemplateAction(
 
 // Creating a template — LAN-265, W8-01. No preview step: nothing exists yet
 // to have a blast radius. Redirects to the template list — LAN-276 round 1,
-// Brian 2026-09-10. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
+// Brian 2026-09-10.
 export async function createEventTemplateAction(
   _previous: TemplateFormState,
   formData: FormData,
@@ -211,7 +211,7 @@ export async function createEventTemplateAction(
 // Deleting a template nothing was created from — LAN-265. The service
 // decides (deleteEventTemplate counts inside the transaction,
 // events_template_fkey ON DELETE RESTRICT underneath); the editor hiding the
-// control is a courtesy. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
+// control is a courtesy.
 export async function deleteEventTemplateAction(
   _previous: TemplateFormState,
   formData: FormData,

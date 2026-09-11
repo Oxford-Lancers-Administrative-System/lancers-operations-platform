@@ -16,7 +16,7 @@ import type { AttendanceSaveState, WalkUpFormState } from "./action-state";
 // The attendance server actions — LAN-80. `attendance_recording` (general
 // operators + coaching seats, `slice-ux.md` § 8) guards record/save/walk-up;
 // `event_calendar_management` guards removal (LAN-110 excludes coaches from
-// that). Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// that).
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -77,7 +77,7 @@ export async function recordAttendanceAction(
   }
 }
 
-/** Removes one attendance record — the only way to unwind a mistaken row. Guarded on `event_calendar_management`, not LAN-110's coach capability. Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Removes one attendance record — the only way to unwind a mistaken row. Guarded on `event_calendar_management`, not LAN-110's coach capability. */
 export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
@@ -105,7 +105,7 @@ export async function removeAttendanceAction(
 
 const WALK_UP_PRESENCE: AttendancePresence = "present";
 
-/** UX-73 — records somebody never invited, and nothing else (a person, contacts, a recruitment prospect; no membership, no onboarding). Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** UX-73 — records somebody never invited, and nothing else (a person, contacts, a recruitment prospect; no membership, no onboarding). */
 export async function recordWalkUpAction(
   _previous: WalkUpFormState,
   formData: FormData,

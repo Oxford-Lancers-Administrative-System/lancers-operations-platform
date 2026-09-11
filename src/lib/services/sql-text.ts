@@ -11,7 +11,7 @@ export function personDisplayAliasSql(alias: string): string {
             limit 1)`;
 }
 
-/** LAN-183, `REQ-status-ladder`. Decision history: LAN-183, missions/intake/M-PEOPLE-AND-ROSTER */
+/** LAN-183, `REQ-status-ladder`. */
 export function personAssembledStatusSql(alias: string): string {
   return `coalesce(
             (select m.status::text

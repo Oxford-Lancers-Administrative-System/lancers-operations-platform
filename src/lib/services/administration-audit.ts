@@ -23,7 +23,6 @@ import {
 // Administration audit: one canonical event stream, two projections over it — LAN-130,
 // REQ-append-only-audit-evidence. One audit_events row per change (./audit.ts's writer); the two
 // reads share it through different envelope keys. Both assert role_management. See relocations.md.
-// Decision history: missions/intake/M-PEOPLE-AND-ROSTER
 
 export const ADMINISTRATION_HISTORY_CAPABILITY = "role_management" as const;
 

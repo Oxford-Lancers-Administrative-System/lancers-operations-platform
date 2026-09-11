@@ -8,7 +8,7 @@ import MenuItem from "@mui/material/MenuItem";
 
 // Add players, as a menu of exactly two — LAN-215, `W1-01`, following
 // `../events/create-menu.tsx`'s pattern. Labels are Brian's own words
-// (`acceptance/W1.md`). Decision history: docs/ux/tickets/LAN-215-arrival-doors.md.
+// (`acceptance/W1.md`).
 
 const ADD_PLAYERS_MENU_CHOICES: readonly {
   href: string;

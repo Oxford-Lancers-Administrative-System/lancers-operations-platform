@@ -4,7 +4,6 @@ import type { Tx } from "@/lib/db";
 import { actorRequirement } from "../actor";
 
 // Types and helpers shared by the membership module's read and write siblings.
-// Decision history: docs/ux/tickets/LAN-186-roster-board.md.
 
 export type MembershipStatus = "onboarding" | "active" | "inactive" | "departed" | "archived";
 

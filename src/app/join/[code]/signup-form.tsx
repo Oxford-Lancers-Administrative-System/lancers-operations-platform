@@ -28,8 +28,6 @@ import {
  * standards rule 4) and authoritatively by `recruitment-signup.ts`'s
  * `validateSignupSubmission`. Format checks reuse `person-validation.ts`'s
  * server functions (findings 2, 3).
- *
- * Decision history: missions/intake/M-RECRUITMENT
  */
 
 export interface SignupFieldValues {

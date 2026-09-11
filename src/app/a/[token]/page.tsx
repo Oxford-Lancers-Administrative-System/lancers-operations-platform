@@ -35,8 +35,6 @@ import { AlreadyRecorded, Cancelled, RecruitAlreadyRecorded } from "./terminal-p
  * POST is set by `src/proxy.ts`, not here — a Server Component's render may
  * not set cookies. Step screens split into `confirm-panel.tsx` and
  * `terminal-panels.tsx` (LAN-300).
- *
- * Decision history: docs/ux/tickets/LAN-172-player-answer.md.
  */
 /** The generic club card (LAN-269) — names nothing: not the player, the event, or that a questionnaire exists. */
 export const metadata: Metadata = TOKEN_LINK_METADATA;

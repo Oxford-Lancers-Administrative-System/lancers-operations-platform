@@ -4,7 +4,7 @@ import Link from "@mui/material/Link";
 import { PageHeader } from "@/components/page-header";
 
 // The heading every Administration page opens with — LAN-133: title + guide
-// link, one context line, actions top-right. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+// link, one context line, actions top-right.
 export default function AdminPageHeading({
   title,
   subtitle,

@@ -24,7 +24,6 @@ import { readEmergencyContactFactsIn, syncDerivedItemsIn } from "./read";
 /**
  * The step 1 save — every field applied in one pass, independently gated
  * (F1, LAN-230): nothing here is one all-or-nothing transaction.
- * Decision history: LAN-230, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 export interface DetailsStepInput {

@@ -32,7 +32,7 @@ import {
  * Operator administration — private helpers and rule constants shared by the
  * siblings in this directory. LAN-132, mission M-OPERATOR-ADMIN-WITHOUT-SQL,
  * work package `WP-assignment`. Nothing here is exported from the barrel
- * except the rule constants. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * except the rule constants.
  */
 
 export const ADMINISTRATION_CAPABILITY = "role_management" as const;
@@ -152,7 +152,6 @@ const ROLE_COLUMNS = `id, code, scope::text as scope, is_constitutional_office,
 /**
  * One catalogue row, by code, looked up **exactly** — not trimmed or
  * lowercased; see `./operator-invitations.ts` and `WP-authorization`.
- * Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 export async function requireRole(tx: Tx, code: string): Promise<RoleRow> {
   const found = await tx.query<RoleRow>(
@@ -211,7 +210,6 @@ interface AssignmentRow {
 /**
  * One assignment, locked `for update` for the length of the transaction, so
  * two administrators ending or replacing the same holder serialize.
- * Decision history (the residual race): missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 export async function lockAssignment(tx: Tx, roleAssignmentId: string): Promise<AssignmentRow> {
   const result = await tx.query<{
@@ -265,7 +263,7 @@ export function refuseAlreadyEnded(assignment: AssignmentRow): void {
 /**
  * The earliest date one assignment may be given as its end, as `YYYY-MM-DD`
  * — the day after it started (`role_assignments_period_ordered`). Exported
- * so the surfaces use the same answer as the guard. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * so the surfaces use the same answer as the guard.
  */
 export function earliestEndFor(assignment: { readonly effectiveFrom: string }): string {
   return addClubDays(assignment.effectiveFrom, 1) ?? assignment.effectiveFrom;
@@ -426,7 +424,6 @@ export async function refuseTakenEmail(
 /**
  * Which accounts this flow is for: active, or already pending (a retry).
  * Every other state is refused and told which flow to use instead.
- * Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 export function refuseUnlessRehomable(account: OperatorAccountRecord): void {
   if (account.state === "active" || account.state === "email_change_pending") return;
@@ -447,7 +444,7 @@ export function refuseUnlessRehomable(account: OperatorAccountRecord): void {
 
 /**
  * One administration seat, with the period it is held over — seats rather
- * than people, dates rather than a snapshot. Decision history (LAN132-B2): missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * than people, dates rather than a snapshot.
  */
 interface AdministrationSeat {
   readonly personId: string;
@@ -460,7 +457,7 @@ interface AdministrationSeat {
 /**
  * Every administration seat the club has that has not already lapsed
  * (seats not yet started are included; lapsed seats are not), with its
- * holder's account state carried forward unchanged. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * holder's account state carried forward unchanged.
  */
 async function readAdministrationSeats(tx: Tx): Promise<AdministrationSeat[]> {
   const result = await tx.query<{
@@ -567,7 +564,7 @@ export async function administrationPathFor(
  * `REQ-final-admin-protection`: applied to ending a role, replacing a holder
  * and deactivating an account — deliberately not to email recovery. Checked
  * on every date the answer can change (not only today), and the effect is
- * applied only from `effectiveOn`. Decision history (LAN132-B2, LAN129-A1): missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * applied only from `effectiveOn`.
  */
 export async function assertClubKeepsAnAdministrator(
   tx: Tx,

@@ -6,8 +6,6 @@ import "server-only";
  * unconfigured is not an application fault, and the four outcomes ask
  * different things of the operator (wait, retry, type it yourself, nothing).
  * Never carries the provider's status, body, headers or hostname.
- *
- * Decision history: docs/operating-the-slice.md
  */
 
 import { resolveVenueSearchConfig, type EnvironmentSource } from "./config";

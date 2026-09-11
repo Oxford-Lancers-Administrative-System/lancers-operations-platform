@@ -43,8 +43,6 @@ import {
  * is the element the operator drives — this mission has already shipped an
  * inert control that looked right. `showDelivery` is the tier; those rows
  * carry no delivery state to filter on.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 const ANSWER_LABELS: Readonly<Record<string, string>> = Object.freeze({
   yes: ANSWER_YES,

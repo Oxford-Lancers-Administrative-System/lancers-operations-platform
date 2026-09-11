@@ -31,7 +31,6 @@ import {
  * (LAN-265 opened it up from a fixed seven). Delete is not symmetrical with
  * Create — the sentence under the table names why (`docs/ux/standards.md`
  * rule 4). Table on wide screens, cards at 375px, same four facts.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default async function EventTemplatesPage() {
   const gate = await gateShellPage(OPERATOR_EVENT_TEMPLATES_PATH, "event_calendar_management");

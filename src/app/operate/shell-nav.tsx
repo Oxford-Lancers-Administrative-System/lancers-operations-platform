@@ -45,13 +45,13 @@ export default function ShellNav({
 }: {
   operatorName: string;
   destinations: readonly Destination[];
-  /** The Administration entries, or empty. Decision history: docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-73-shell-and-access.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+  /** The Administration entries, or empty. */
   administration?: readonly Destination[];
   /** The word under "Lancers" in the sidebar: "Operations", or "Attendance". */
   sectionLabel: string;
   /** The line under the signed-in name: "Authorized operator", or "Head Coach". */
   roleCaption: string;
-  /** The sign-out form. A slot, not an import — this is a client component. Decision history: docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-73-shell-and-access.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+  /** The sign-out form. A slot, not an import — this is a client component. */
   accountAction?: ReactNode;
 }) {
   const pathname = usePathname();
@@ -160,7 +160,7 @@ export default function ShellNav({
             top: 0,
             left: 0,
             // height + alignSelf + overflowY are load-bearing together, at both
-            // widths. Decision history: docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-73-shell-and-access.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+            // widths.
             alignSelf: { md: "flex-start" },
             height: "100dvh",
             overflowY: "auto",

@@ -5,7 +5,7 @@ import type { AudienceMember } from "@/lib/services/event-approval";
 import type { AudienceGroupSummary } from "@/lib/services/audience-selection";
 import { CAPACITY_LABELS, joinWithAnd, labelFor } from "../presentation";
 
-/** "All active players, all coaches — 35 people" — groups first, headcount after (Brian). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** "All active players, all coaches — 35 people" — groups first, headcount after (Brian). */
 export function describeAudienceShape(summary: AudienceGroupSummary): string {
   const people = `${summary.total} ${summary.total === 1 ? "person" : "people"}`;
   const parts = [...summary.groups];
@@ -19,7 +19,7 @@ export function describeAudienceShape(summary: AudienceGroupSummary): string {
   return parts.length === 0 ? people : `${joinWithAnd(parts)} — ${people}`;
 }
 
-/** The named list, used by the confirmation and the event detail alike — D3 round 2. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** The named list, used by the confirmation and the event detail alike — D3 round 2. */
 export function AudienceList({
   audience,
   groupSummary,

@@ -1,6 +1,6 @@
 // The club's words for an event, and how its dates read — LAN-153 (see relocations.md). Pure, safe
 // in a client component. Dates format en-GB at UTC: none of scheduled_on/starts_at/ends_at carries
-// a zone, so the viewer's own must never shift them. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
+// a zone, so the viewer's own must never shift them.
 
 export function labelFor(labels: Readonly<Record<string, string>>, value: string): string {
   return labels[value] ?? value;

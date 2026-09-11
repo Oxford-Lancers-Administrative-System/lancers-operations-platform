@@ -122,8 +122,7 @@ export function RecruitCell({
 
 /**
  * The phone card — `W1-01`'s own approved mockup, and `../roster/roster-board.tsx`'s
- * `PlayerCard` (LAN-186, item 15) it is modelled on. Decision history:
- * docs/ux/tickets/LAN-186-roster-board.md (the roster card's paragraph; this card mirrors it).
+ * `PlayerCard` (LAN-186, item 15) it is modelled on.
  */
 export function RecruitCard({ row }: { row: RecruitmentBoardRow }) {
   return (

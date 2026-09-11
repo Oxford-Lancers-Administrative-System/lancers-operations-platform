@@ -4,7 +4,7 @@ import type { DeliveryState } from "@/lib/services/delivery";
 // 6 fixes the vocabulary; "Delivered never means responded." Decision
 // history: relocations.md.
 
-/** § 6's five, plus Held (LAN-156, not a provider outcome) and Cancelled (LAN-156, R156-B2). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md. */
+/** § 6's five, plus Held (LAN-156, not a provider outcome) and Cancelled (LAN-156, R156-B2). */
 const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.freeze({
   queued: "Queued",
   attempted: "Attempted",
@@ -15,7 +15,7 @@ const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.fr
   cancelled: "Cancelled",
 });
 
-/** W6's two named exceptions to the plain five-state vocabulary — `REQ-no-channel-backstop`, `REQ-whatsapp-outage-visible`. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md. */
+/** W6's two named exceptions to the plain five-state vocabulary — `REQ-no-channel-backstop`, `REQ-whatsapp-outage-visible`. */
 const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
 const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
 
@@ -97,7 +97,7 @@ export function matchesStatusFilter(state: DeliveryState, filter: string): boole
   return state === filter;
 }
 
-/** `OWNER-LAN173-02`: filters an attempt's own recorded outcome, not a `DeliveryState` — an attempt has no queued/retryable of its own. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md. */
+/** `OWNER-LAN173-02`: filters an attempt's own recorded outcome, not a `DeliveryState` — an attempt has no queued/retryable of its own. */
 export function matchesAttemptStatusFilter(outcome: string, filter: string): boolean {
   if (filter === "") return true;
   if (filter === "attention" || filter === "failed")
@@ -121,7 +121,7 @@ export const FALLBACK_NOTE = "No manual send action";
 
 const NO_ATTEMPT_YET = "Not attempted yet";
 
-/** Result and Retry are separate axes — describes retryability without contradicting the result beside it. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-156-amend-and-cancel.md. */
+/** Result and Retry are separate axes — describes retryability without contradicting the result beside it. */
 export function describeRetryability(
   state: DeliveryState,
   attempts: number,

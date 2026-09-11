@@ -5,7 +5,6 @@ import { InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 // The season-scoped messaging consent gate — LAN-202, packet amendment 1. One row per
 // (person, season); a message may go out only while state is 'granted'. Only ever writes source
 // 'qr_self_entry' (see relocations.md).
-// Decision history: missions/intake/M-RECRUITMENT
 
 export type SeasonMessagingConsentState =
   "never_asked" | "asked" | "granted" | "refused" | "withdrawn";

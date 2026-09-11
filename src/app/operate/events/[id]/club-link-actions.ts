@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { isServiceError } from "@/lib/db";
 import { issueEventClubLink } from "@/lib/services/participation";
 
-// Issuing the club link — §4.15, LAN-157. Never revokes, rotates or expires (Q2). Decision history: docs/ux/tickets/LAN-157-participation-and-club-link.md.
+// Issuing the club link — §4.15, LAN-157. Never revokes, rotates or expires (Q2).
 export async function issueClubLinkAction(formData: FormData): Promise<void> {
   const eventId = String(formData.get("eventId") ?? "");
 

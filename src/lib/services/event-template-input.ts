@@ -1,7 +1,6 @@
 // What an event type's template holds — LAN-154, W8. Pure, like event-input.ts (Client Component).
 // D12/D40/LAN-265: a row with its own id/name; the enum survives as the behavioural class. Every
 // field optional except name; null means "does not say" (see relocations.md).
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
 import { EVENT_DELIVERY_MODES, optional, trimmed, type EventDeliveryMode } from "./event-input";
 import type { AudienceGroupKey } from "./audience-selection";

@@ -6,7 +6,7 @@ import type { BoardFilters } from "./board-data";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 import RosterBoard from "./roster-board";
 
-// `/operate/roster` — W5, LAN-186. Gated on `person_record_authority` (`REQ-authority`). Decision history: docs/ux/tickets/LAN-186-roster-board.md.
+// `/operate/roster` — W5, LAN-186. Gated on `person_record_authority` (`REQ-authority`).
 export default async function RosterPage({ searchParams }: PageProps<"/operate/roster">) {
   const gate = await gateShellPage("/operate/roster", "person_record_authority");
   if ("screen" in gate) return gate.screen;

@@ -14,8 +14,6 @@ import { Field } from "./field";
  * component so `interest-questionnaire.tsx` stays a Server Component. MUI's
  * `Select` posts a bare-comma-joined hidden input; `splitMultiAnswer` already
  * reads that.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function MultiSelectField({
   name,

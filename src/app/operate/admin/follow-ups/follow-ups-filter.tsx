@@ -20,7 +20,6 @@ import {
  * filter (OWNER-LAN173-05) and LAN-281's date range. Fields navigate on
  * their own change event, not submit — MUI writes the hidden input on the
  * *next* render. `sort`/`direction` travel through `filters` unread.
- * Decision history: docs/ux/tickets/LAN-173-operator-chase.md
  */
 export default function FollowUpsFilter({
   basePath,

@@ -16,7 +16,7 @@ import { recordSendOnboardingQuestionnaireAction } from "./record-actions";
 const LABEL = "SEND ONBOARDING QUESTIONNAIRE";
 const RESEND_LABEL = "RESEND ONBOARDING QUESTIONNAIRE";
 
-/** `sendOnboardingNudges`'s four outcomes (requirement 3); refused/skipped uses the dispatcher's own stored reason. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** `sendOnboardingNudges`'s four outcomes (requirement 3); refused/skipped uses the dispatcher's own stored reason. */
 const OUTCOME_MESSAGE: Readonly<Record<string, string>> = Object.freeze({
   accepted: "Sent.",
   refused: "Not sent — the delivery attempt was refused.",
@@ -25,7 +25,7 @@ const OUTCOME_MESSAGE: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /**
- * LAN-266 manual ask, modelled on the recruit SEND buttons — never natively `disabled` (W2-04). Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
+ * LAN-266 manual ask, modelled on the recruit SEND buttons — never natively `disabled` (W2-04).
  */
 export default function SendOnboardingQuestionnaireButton({
   membershipId,

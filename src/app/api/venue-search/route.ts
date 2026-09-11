@@ -12,8 +12,6 @@ import { searchVenues } from "@/lib/venue-search/provider";
  * — so the geocoding proxy is not open to anyone with the URL; refusal is a
  * `403`, never a redirect, since this is called by `fetch` mid-form. Reads
  * nothing, writes nothing, stores no suggestion.
- *
- * Decision history: docs/operating-the-slice.md
  */
 export const dynamic = "force-dynamic";
 

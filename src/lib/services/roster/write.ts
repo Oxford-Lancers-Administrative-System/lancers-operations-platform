@@ -24,7 +24,6 @@ import {
  * queued welcome, availability row (LAN-215 B-008), and audit rows, all or
  * nothing. A membership begins at `onboarding` only (frozen model §2.1,
  * LAN-182). `actorPersonId` is required, never defaulted.
- * Decision history: LAN-74, docs/operating-the-slice.md; LAN-182, missions/intake/M-PEOPLE-AND-ROSTER
  */
 export async function enterReturningPlayer(params: {
   actorPersonId: string;

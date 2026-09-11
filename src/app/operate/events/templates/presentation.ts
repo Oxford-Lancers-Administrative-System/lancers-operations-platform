@@ -18,7 +18,7 @@ export const NEW_TEMPLATE_HEADLINE = "New template";
 
 export const TEMPLATE_NAME_HEADLINE = "What it is called";
 
-/** Brian, 2026-09-09: renames are retroactive, stated before typing, not discovered after. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Brian, 2026-09-09: renames are retroactive, stated before typing, not discovered after. */
 export const TEMPLATE_NAME_HELP =
   "Every event of this kind reads this name, including ones already in the past.";
 
@@ -49,7 +49,7 @@ export function describeTemplateWhere(deliveryMode: string | null, venue: string
   return [mode, venue].filter(Boolean).join(" · ");
 }
 
-/** LAN-276 round 1, Brian 2026-09-10: colour is a fact the template carries, not a calendar setting. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** LAN-276 round 1, Brian 2026-09-10: colour is a fact the template carries, not a calendar setting. */
 export const TEMPLATE_COLOUR_HEADLINE = "Colour";
 
 export const TEMPLATE_COLOUR_HELP =
@@ -83,7 +83,7 @@ export function draftsHolding(count: number): string {
   return `${count} ${count === 1 ? "draft" : "drafts"} ${TEMPLATE_HOLDING_HEADLINE}`;
 }
 
-// Two sentences: told vs. history. `null` where none. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// Two sentences: told vs. history. `null` where none.
 export function untouchedApproved(count: number, eventTypeLabel: string): string | null {
   if (count === 0) return null;
   const noun = `${eventTypeLabel.toLowerCase()}${count === 1 ? "" : "s"}`;
@@ -97,12 +97,12 @@ export function untouchedPast(count: number, eventTypeLabel: string): string | n
 }
 
 // W8-04's edge: about the change's reach, never about whether drafts exist
-// (a hand-edited draft holds its own, D41). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// (a hand-edited draft holds its own, D41).
 export function changeTouchesNothing(eventTypeLabel: string): string {
   return `No draft takes this change. It applies to ${eventTypeLabel.toLowerCase()} events created from now on.`;
 }
 
-// Per field: a partly-edited draft is named in BOTH panels. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// Per field: a partly-edited draft is named in BOTH panels.
 export function draftTakes(draft: {
   fields: readonly string[];
   audience: boolean;

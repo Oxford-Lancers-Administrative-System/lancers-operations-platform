@@ -1,5 +1,4 @@
 // The five operator states, derived (not stored) from account facts — LAN-131, `REQ-invitation-states`, `DEC-administration-language-and-states`. Pure: no database.
-// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md
 
 export const OPERATOR_ACCOUNT_STATES = Object.freeze([
   "invitation_pending",

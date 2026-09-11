@@ -1,4 +1,4 @@
-// Discrepancy vocabulary (D64, W7, LAN-157 R157-B3). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
+// Discrepancy vocabulary (D64, W7, LAN-157 R157-B3).
 export const STORED_MISMATCH_CLASSES = Object.freeze([
   "said_yes_no_attendance_recorded",
   "said_yes_marked_absent",

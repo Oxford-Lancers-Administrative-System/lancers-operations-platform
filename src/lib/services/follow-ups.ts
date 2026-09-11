@@ -54,7 +54,7 @@ interface QueueRow {
   flag_open: boolean;
 }
 
-/** OWNER-LAN173-06: orders by `NOTIFICATION_JOB_RECENCY_ORDER` (see `./delivery.ts`). Decision history: missions/intake/M-PEOPLE-AND-ROSTER */
+/** OWNER-LAN173-06: orders by `NOTIFICATION_JOB_RECENCY_ORDER` (see `./delivery.ts`). */
 async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
   const result = await tx.query<QueueRow>(
     `select q.invitation_id, q.event_id, q.event_name, q.scheduled_on::text as scheduled_on,

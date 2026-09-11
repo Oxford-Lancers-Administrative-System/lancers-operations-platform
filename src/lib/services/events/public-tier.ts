@@ -16,7 +16,7 @@ import {
 } from "./shared";
 
 // The public event tier — LAN-153, REQ-public-calendar (LAN-300 split of events.ts; see ./index).
-// No session, no count, no status. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
+// No session, no count, no status.
 
 // One row of the **public** event list. What is absent is the point: no joiningUrl, no status, no
 // count, no registerSaved. isCancelled is not a status — see relocations.md.

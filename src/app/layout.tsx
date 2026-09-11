@@ -24,8 +24,6 @@ const geistMono = Geist_Mono({
  * must read exactly as specified set `title.absolute`. Individual routes
  * override this: token links say less (`TOKEN_LINK_METADATA`), `/join/[code]`
  * says more (LAN-279).
- *
- * Decision history: docs/ux/design-system.md (LAN-269 has no ticket contract)
  */
 export const metadata: Metadata = {
   metadataBase: metadataBase(),

@@ -11,7 +11,7 @@ import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
 /**
  * The phone card — LAN-186's owner walkthrough, item 15: name, status and the
- * missing-data flag only, no in-cell editing. Decision history: docs/ux/tickets/LAN-186-roster-board.md.
+ * missing-data flag only, no in-cell editing.
  */
 export default function PlayerCard({ row }: { row: RosterBoardRow }) {
   return (

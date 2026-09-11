@@ -39,8 +39,6 @@ import {
  * `W7-01` … `W7-05`, `W7-07` — the missing-data queue. LAN-184,
  * `REQ-missing-queue`. Extended by `W8`/`W9`/`W11` (LAN-218) with contact
  * history, next-chase and a nudge action.
- *
- * Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md.
  */
 export default async function MissingDataPage({
   searchParams,
@@ -114,7 +112,7 @@ export default async function MissingDataPage({
 
   // Correction round 1, `C-2` (Brian, 2026-09-03 walkthrough): no reachable
   // mobile number ranks first, above every other ordering above, applied as a
-  // stable partition. Decision history: docs/ux/tickets/LAN-184-people-and-missing-queue.md.
+  // stable partition.
   const reachabilityRank = (entry: (typeof entries)[number]) => (entry.hasMobile ? 1 : 0);
   entries = [...entries].sort((a, b) => reachabilityRank(a) - reachabilityRank(b));
 

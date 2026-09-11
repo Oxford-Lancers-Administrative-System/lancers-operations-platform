@@ -12,7 +12,7 @@ import { MIN_QUERY_LENGTH, type VenueSuggestion } from "@/lib/venue-search/sugge
 // exactly what a geocoder has never heard of). Stale results are dropped by
 // sequence ticket, checked twice (headers, then body). Controlled since
 // LAN-154, for the Type-change venue swap (D41). Failure never blocks the
-// form — only a helper-text sentence. Decision history: docs/ux/tickets/LAN-76-event-creation.md.
+// form — only a helper-text sentence.
 
 /** Long enough for a few requests, not twenty-five — the club's half of fair use on a free geocoder. */
 export const DEBOUNCE_MS = 300;

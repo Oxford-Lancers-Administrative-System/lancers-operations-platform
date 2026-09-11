@@ -15,8 +15,6 @@ import type { TileStatus } from "./tile-status";
  * months are dimmed, not blanked, and carry their events. A `table`, not a
  * `div` grid, since a month is tabular and assistive technology reads a cell
  * in its column for free.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function GregorianMonth({
   grid,

@@ -16,7 +16,7 @@ import { EMPTY_IMPORT_STATE, NO_FILE_CHOSEN_MESSAGE, type ImportScreenState } fr
  * The roster bulk import's two writes — one of which writes nothing.
  * LAN-215, `WP-arrival-doors`, `W1`. Mirrors `../../events/import/actions.ts`.
  * `requireCapability("roster_bulk_import")` (four-role), guarded again in
- * the service layer. Decision history: missions/intake/M-PEOPLE-AND-ROSTER
+ * the service layer.
  */
 
 function text(formData: FormData, field: string): string {

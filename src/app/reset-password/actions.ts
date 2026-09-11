@@ -22,8 +22,6 @@ export type ResetPasswordState = { error: string | null; expired?: boolean };
  * Supabase's recovery link produces an ordinary session. Update, then sign
  * out, then redirect — signing in again with the new password is the proof
  * to the operator that it worked.
- *
- * Decision history: docs/operating-the-slice.md
  */
 export async function completePasswordReset(
   _previous: ResetPasswordState,

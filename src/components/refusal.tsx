@@ -10,8 +10,6 @@ import Typography from "@mui/material/Typography";
  * guard firing correctly is not an error page: a `display` title, one
  * sentence, one action. `requirement` is the guard's own sentence naming what
  * the action needs, never what the reader holds.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function Refusal({
   title,

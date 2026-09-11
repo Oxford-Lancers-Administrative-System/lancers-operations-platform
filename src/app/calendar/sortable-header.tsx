@@ -4,8 +4,6 @@ import { SortableHeader as KitSortableHeader } from "@/components/sortable-heade
  * One sortable column header, shared by both lists. LAN-153. A link, not a
  * button: sorting belongs in the URL. `REQ-list-shape`'s "Term and week sorts
  * identically to Date" is arranged upstream in `EVENT_SORT_COLUMNS`, not here.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export interface SortLink {
   /** The sort key this header owns — `date`, `term`, `name`, … */

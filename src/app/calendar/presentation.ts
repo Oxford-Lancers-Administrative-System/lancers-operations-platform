@@ -15,8 +15,6 @@ import { templateColourFor, type TemplateColourSwatch } from "@/lib/services/eve
  * `/operate/events/calendar` imports it. Nothing here is tiered — every
  * component takes what it should say as props. Dates are formatted at UTC:
  * `scheduled_on` is a bare `date` with no zone to convert.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 export function formatMonthLabel(month: string): string {
@@ -69,8 +67,6 @@ export function formatCellDate(day: string): string {
  * also printed in words, and a legend names each colour in view. The palette
  * itself lives in `@/lib/services/event-template-input`, so the editor and
  * calendar share it.
- *
- * Decision history: docs/ux/design-system.md (LAN-276 has no ticket contract)
  */
 export type TypeColour = TemplateColourSwatch;
 

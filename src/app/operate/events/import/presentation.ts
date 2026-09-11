@@ -48,7 +48,7 @@ export function previousText(cell: PlanCell): string | null {
   return cell.previous === "" ? "(empty)" : cell.previous;
 }
 
-/** What this row does, derived from the comparison, same list the highlighted cells use. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
+/** What this row does, derived from the comparison, same list the highlighted cells use. */
 export function changeSummary(row: PlannedRow): string {
   if (row.outcome === "refused") return row.reasons.join(" ");
   if (row.outcome === "new") return "Will be created as a draft";

@@ -40,7 +40,7 @@ import {
  * that writes, because the login move is an unbounded network call the
  * first transaction cannot hold open across (LAN132-B3).
  * {@link verifyOperatorEmailRehome} records that the holder proved they hold
- * the replacement address. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * the replacement address.
  */
 
 /** The Auth-server half of the re-home; deliberately not an addition to `OperatorIdentityPort` — see decision history. */

@@ -14,8 +14,6 @@ import type { EventQuestionForAnswer } from "@/lib/services/player-home";
  * — the opposite of W2's "a Yes stands while required questions remain
  * outstanding." `answerEventQuestionsIn` already skips a blank submission
  * rather than recording a false answer.
- *
- * Decision history: docs/ux/tickets/LAN-172-player-answer.md
  */
 export function QuestionField({
   question,

@@ -9,7 +9,7 @@ import type { AttendanceParticipant } from "@/lib/services/attendance-vocabulary
 import { AttendanceRow } from "./attendance-row";
 import { groupParticipants, type ParticipantGroupKey } from "./presentation";
 
-// The board's three groups, and the disclosure over them — Brian, 14 August 2026. Decision history: docs/ux/tickets/LAN-80-attendance.md.
+// The board's three groups, and the disclosure over them — Brian, 14 August 2026.
 
 type GroupOpenState = Record<ParticipantGroupKey, boolean>;
 
@@ -18,7 +18,7 @@ interface OpenState extends GroupOpenState {
   searching: boolean;
 }
 
-// Recruits/Attending/Walk-ups open, Everyone else closed — Brian, fidelity mockup. Decision history: docs/ux/tickets/LAN-80-attendance.md.
+// Recruits/Attending/Walk-ups open, Everyone else closed — Brian, fidelity mockup.
 const DEFAULT_OPEN: OpenState = {
   recruits: true,
   attending: true,
@@ -47,7 +47,7 @@ export function AttendanceGroups({
   const searching = search.trim() !== "";
 
   // Adjusted during render, not an effect — groups must already be open in
-  // the render that first shows the search results. Decision history: docs/ux/tickets/LAN-80-attendance.md.
+  // the render that first shows the search results.
   if (open.searching !== searching) {
     setOpen((prev) => {
       if (searching) {

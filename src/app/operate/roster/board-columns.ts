@@ -8,7 +8,6 @@ import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 // banding, pinning, sorting, filtering, edit-in-place and routing — never a
 // `<TableCell>` copied around the file. Each carries a `requires` capability
 // (REQ-authority) so `visibleColumns()` can narrow later without a rewrite.
-// Decision history: docs/ux/tickets/LAN-186-roster-board.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md · docs/ux/tickets/LAN-217-operator-record.md.
 
 export type Band = "person" | "onboarding" | "season";
 
@@ -22,7 +21,7 @@ export interface BandDef {
 
 export const BAND_ROW_HEIGHT = 28;
 
-/** The left inset every band header's label sits at — one rule, explicit rather than per-band. Decision history: docs/ux/tickets/LAN-186-roster-board.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md · docs/ux/tickets/LAN-217-operator-record.md. */
+/** The left inset every band header's label sits at — one rule, explicit rather than per-band. */
 export const BAND_LABEL_INSET_PX = 16;
 
 const BANDS: readonly BandDef[] = Object.freeze([
@@ -52,7 +51,6 @@ export function bandOf(key: Band): BandDef {
 // `record` routes to the person record; `select`/`multiselect`/`jersey` edit
 // in the cell; `none` is derived elsewhere; `onboarding` is one of the seven
 // operator-ticked items (LAN-217), via `allowedItemStates(itemCode)`.
-// Decision history: docs/ux/tickets/LAN-186-roster-board.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md · docs/ux/tickets/LAN-217-operator-record.md.
 type EditKind = "none" | "record" | "select" | "multiselect" | "jersey" | "onboarding";
 
 export interface ColumnDef {
@@ -180,7 +178,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       filterable: true,
       requires: "person_record_authority",
     },
-    // Correction round 2, item 5: the seven operator-ticked items (LAN-217). Decision history: docs/ux/tickets/LAN-186-roster-board.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md · docs/ux/tickets/LAN-217-operator-record.md.
+    // Correction round 2, item 5: the seven operator-ticked items (LAN-217).
     {
       key: "subsInvoiced",
       label: "Sub invoiced",
@@ -471,7 +469,6 @@ export function redactRow(
     displayName: row.displayName,
     // Carried unconditionally, never as a column: aliases are identity data
     // (LAN186-F1); phoneForCall is the one functional exception (voice call).
-    // Decision history: docs/ux/tickets/LAN-186-roster-board.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md · docs/ux/tickets/LAN-217-operator-record.md.
     aliases: row.aliases,
     phoneForCall: row.phoneForCall,
   };

@@ -34,7 +34,6 @@ import {
  * Account state and role state are two columns, deliberately
  * (`REQ-admin-surfaces`, `REQ-deactivate-and-reinstate`). Table from `md`
  * up, cards below — same fields, none dropped.
- * Decision history: docs/operating-the-slice.md
  */
 export default async function OperatorsPage() {
   const gate = await gateShellPage("/operate/admin/operators", "role_management");

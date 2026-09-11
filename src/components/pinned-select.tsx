@@ -11,7 +11,7 @@ import Select from "@mui/material/Select";
  * and recruitment boards' shared shape (LAN-300, WP2-A). `labelId` (LAN-259)
  * is load-bearing for `aria-labelledby`; `testId` and each call site's own
  * `minWidth` are the two props recruitment's copy carried that roster's
- * didn't. Decision history: docs/ux/tickets/LAN-186-roster-board.md.
+ * didn't.
  */
 export function PinnedSelect({
   label,

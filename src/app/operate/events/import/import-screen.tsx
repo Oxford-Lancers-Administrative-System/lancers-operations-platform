@@ -40,7 +40,6 @@ import {
  * applied) — a survived proposal across navigation would target a season the
  * operator has since left. Rules live in `@/lib/services/event-csv`; this
  * component only chooses colours and column order.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 export interface ImportScreenProps {

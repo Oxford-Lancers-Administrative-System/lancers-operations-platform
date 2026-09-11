@@ -164,8 +164,6 @@ function QuestionField({
  * so a wrapping `<form>` would not enclose the real submit button
  * (`membership-actions.tsx` found this defect). The dialog names which event
  * it recording against (OWNER-LAN170-09, round 4).
- *
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export function RecordAnswerControl({
   event,

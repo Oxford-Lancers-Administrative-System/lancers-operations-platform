@@ -30,7 +30,6 @@ import {
 
 /**
  * The whole file, read row by row, into a plan — LAN-155's core algorithm.
- * Decision history: docs/ux/tickets/LAN-155-csv-import.md.
  */
 
 // Nothing here writes. A file that is not a CSV or has no recognised header is refused whole,

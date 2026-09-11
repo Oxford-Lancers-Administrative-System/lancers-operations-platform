@@ -30,7 +30,6 @@ import type { AdminActionState, CandidateChoice } from "./action-state";
 // session; the target-aware question is asked inside the service, never
 // here. A refusal comes back in `refusal` on the action state, never thrown
 // (a server action rethrow reaches the framework, not a refusal screen).
-// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 
 const ADMINISTRATION_CAPABILITY = "role_management" as const;
 
@@ -44,7 +43,7 @@ function optional(formData: FormData, field: string): string | undefined {
   return value === "" ? undefined : value;
 }
 
-/** A service failure or refusal, both returned as state — never thrown (except an unexpected fault). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
+/** A service failure or refusal, both returned as state — never thrown (except an unexpected fault). */
 function failure(error: unknown): AdminActionState {
   if (!isServiceError(error)) throw error;
   if (error.kind === "not_permitted") {
@@ -96,7 +95,7 @@ function deliveryNotice(
     : "The record is saved, but the email could not be delivered. Check the address and send it again.";
 }
 
-/** Who this might already be — `REQ-invite-existing-person`'s first step. Matches exactly, never by prefix. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
+/** Who this might already be — `REQ-invite-existing-person`'s first step. Matches exactly, never by prefix. */
 export async function searchCandidatesAction(
   _previous: AdminActionState,
   formData: FormData,
@@ -131,7 +130,7 @@ export async function searchCandidatesAction(
   }
 }
 
-/** One guided invitation — `REQ-invite-existing-person`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
+/** One guided invitation — `REQ-invite-existing-person`. */
 export async function inviteOperatorAction(
   _previous: AdminActionState,
   formData: FormData,

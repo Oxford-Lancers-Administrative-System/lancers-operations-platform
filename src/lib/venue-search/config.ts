@@ -5,8 +5,6 @@ import "server-only";
  * else. LAN-115. Same shape as `src/lib/delivery/config.ts`: no hard-coded
  * host, and a missing value is a refusal, never a silent default — an
  * unconfigured deployment performs no address search and says so.
- *
- * Decision history: docs/operating-the-slice.md
  */
 
 import { DEFAULT_PHOTON_BASE_URL, PHOTON_PROVIDER } from "./photon";

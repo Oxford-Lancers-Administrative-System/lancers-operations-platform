@@ -15,8 +15,6 @@ import type { RecordAnswerState } from "./record-answer-state";
  * is rendered only against a row with no answer at all, but that is the
  * surface's courtesy, not the boundary: `recordOperatorRsvpResponse`
  * re-resolves the invitation inside its own transaction.
- *
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 function text(formData: FormData, field: string): string {

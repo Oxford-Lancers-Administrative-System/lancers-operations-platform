@@ -8,7 +8,7 @@ import { gateShellPage } from "../../gate";
 import PlayerRecordView from "./record-view";
 
 // `/operate/roster/[membershipId]` — W6, rebuilt, LAN-187. Gated on
-// `person_record_authority` (`REQ-authority`). Decision history: docs/ux/tickets/LAN-187-player-record.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+// `person_record_authority` (`REQ-authority`).
 export default async function PlayerRecordPage({
   params,
   searchParams,

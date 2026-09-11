@@ -16,8 +16,6 @@ import { splitMultiAnswer } from "@/lib/services/recruitment-vocabulary";
  * second "answered" route; a recruit may return and change any answer any
  * time (W4's "the recruit answers twice" exception), reaching the form again
  * via `?edit=1`.
- *
- * Decision history: missions/intake/M-RECRUITMENT
  */
 function yesNoOrNull(value: FormDataEntryValue | null): "yes" | "no" | null {
   if (value === "true") return "yes";

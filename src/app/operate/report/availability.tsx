@@ -10,7 +10,7 @@ import {
 } from "./presentation";
 
 // Who is not fully available, and since when — a level and two dates, and
-// nothing else. Decision history: docs/ux/tickets/LAN-81-monday-report.md.
+// nothing else.
 export function Availability({ content }: { content: WeeklyReportContent }) {
   return (
     <ReportSection

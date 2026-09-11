@@ -4,7 +4,6 @@ import { NotPermitted, UnexpectedDatabaseError } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // The Supabase Auth half of operator invitation — LAN-131, `REQ-email-invitation-path`, `DEC-email-authentication`. A port with one implementation; no SQL against `auth`, ever (ADR 0026).
-// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md
 
 export interface OperatorIdentityPort {
   createLogin(email: string): Promise<{ authUserId: string }>;

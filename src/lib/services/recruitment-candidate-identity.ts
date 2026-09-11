@@ -6,7 +6,6 @@ import { type Tx } from "@/lib/db";
  * "Each candidate has to say who it is" — `W8`. Answers `W8`'s second
  * question about whatever `findPersonDuplicates` returns — never a second
  * duplicate check. Read-only, returns raw status codes, never a label.
- * Decision history: missions/intake/M-RECRUITMENT
  */
 
 export type CandidateIdentity =

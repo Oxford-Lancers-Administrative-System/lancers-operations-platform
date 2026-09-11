@@ -13,7 +13,6 @@ import {
 /**
  * The roster board's remaining columns — coach group, formalwear, Blues, BPS,
  * eligibility, availability, entry. LAN-186 / LAN-217, invariants S4/A1.
- * Decision history: docs/ux/tickets/LAN-186-roster-board.md
  */
 
 /** One row per membership. Storage only — Mission 9 owns what the value means. */

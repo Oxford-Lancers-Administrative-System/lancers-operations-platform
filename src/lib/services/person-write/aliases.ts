@@ -10,7 +10,6 @@ import { assertNoConcurrentPersonChange, lockPersonRow, optional, requireActor }
  * collapsed `people.known_as` into `person_aliases` (at most one
  * `is_display_name` row). Every write here needs no reason: aliases are name
  * forms, not the durable facts `REQ-audit`'s reason rule guards.
- * Decision history: LAN-182, LAN-185, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 export async function addPersonAlias(params: {

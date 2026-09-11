@@ -58,8 +58,6 @@ import {
  * review and silence panels, so a submit always posts what was typed and
  * discarding is closing the tab. `readDraft()` diffs `FormData(formRef)` at
  * submit time, so the review always shows exactly what will be sent.
- *
- * Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md
  */
 
 type Step = "edit" | "review" | "silence";
@@ -374,7 +372,7 @@ export default function AmendForm({
                     label={notify ? "Notify" : "Silent"}
                   />
                 </Box>
-                {/* Two lines at most: how many people get a message, and whether moving the tick will stop and ask. Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md */}
+                {/* Two lines at most: how many people get a message, and whether moving the tick will stop and ask. */}
                 <Typography variant="body2" data-testid="who-hears">
                   {whoHearsAboutIt(audience.invited)}
                 </Typography>

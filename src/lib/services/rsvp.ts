@@ -15,7 +15,7 @@ import { personDisplayAliasSql } from "./sql-text";
 
 // The player's own RSVP, answered through a signed link — LAN-79, the one unauthenticated write
 // in the application: re-resolved inside the writing transaction, append-only, event start is
-// the hard cutoff. Decision history: docs/adr/0023-rsvp-token-and-whatsapp-delivery.md.
+// the hard cutoff.
 
 export interface SignedRsvpPage {
   readonly invitationId: string;
@@ -145,7 +145,7 @@ export const INVITATION_WITHDRAWN_RULE = "rsvp_invitation_withdrawn";
 const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
 const FLAG_RESOLVED_BY_ANSWER = "The invitee answered.";
 
-/** Stops chasing one person about one event (LAN-169, `REQ-chase-stopped`); one function every answer path calls. Decision history: docs/adr/0023-rsvp-token-and-whatsapp-delivery.md. */
+/** Stops chasing one person about one event (LAN-169, `REQ-chase-stopped`); one function every answer path calls. */
 export async function stopChasingIn(
   tx: Tx,
   invitationId: string,
@@ -294,7 +294,7 @@ export const OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE = "rsvp_operator_cannot_super
 const CLUB_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CLUB_TIME_PATTERN = /^\d{2}:\d{2}$/;
 
-/** Records what an operator was told in person — W3, LAN-170. Never refuses for a prior operator answer or event start. Decision history: docs/adr/0023-rsvp-token-and-whatsapp-delivery.md. */
+/** Records what an operator was told in person — W3, LAN-170. Never refuses for a prior operator answer or event start. */
 export async function recordOperatorRsvpResponse(
   operatorPersonId: string,
   eventId: string,

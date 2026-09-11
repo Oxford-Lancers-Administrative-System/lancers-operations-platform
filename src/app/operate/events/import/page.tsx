@@ -7,7 +7,7 @@ import { readSeasonImportContext } from "@/lib/services/event-import";
 import { gateShellPage } from "../../gate";
 import ImportScreen from "./import-screen";
 
-// `/operate/events/import` — bulk import, LAN-155, `W3`. Decision history: docs/ux/tickets/LAN-155-csv-import.md.
+// `/operate/events/import` — bulk import, LAN-155, `W3`.
 export default async function BulkImportPage() {
   const gate = await gateShellPage("/operate/events", "event_calendar_management");
   if ("screen" in gate) return gate.screen;

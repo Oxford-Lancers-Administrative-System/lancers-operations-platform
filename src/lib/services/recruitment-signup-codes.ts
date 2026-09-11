@@ -8,7 +8,6 @@ import { withTransaction, type Tx } from "@/lib/db";
  * The season sign-up QR code — `recruitment_signup_codes`, reached through
  * by `W7`'s public sign-up page. Not a secret — plain text, unlike every
  * hashed token elsewhere. Minting is `W1-04`'s surface (a later package).
- * Decision history: LAN-201, LAN-202, missions/intake/M-RECRUITMENT
  */
 
 function generateCode(): string {

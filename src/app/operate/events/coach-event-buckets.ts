@@ -1,4 +1,4 @@
-// The coach's list order — Brian, 14 Aug 2026. Decision history: docs/ux/tickets/LAN-110-coach-attendance.md.
+// The coach's list order — Brian, 14 Aug 2026.
 import { todayInClubZone } from "@/lib/club-time";
 import { isRegisterAvailable } from "@/lib/services/attendance-window";
 import type { EventListEntry } from "@/lib/services/events";
@@ -33,7 +33,7 @@ export function isToday(event: EventListEntry, today: string): boolean {
   return event.scheduledOn === today;
 }
 
-// Can a register be opened for it yet — the same question the register itself asks (W-F1). Decision history: docs/ux/tickets/LAN-110-coach-attendance.md.
+// Can a register be opened for it yet — the same question the register itself asks (W-F1).
 export function isOpenForAttendance(event: EventListEntry, now: Date): boolean {
   if (!COACH_VISIBLE_STATUSES.includes(event.status)) return false;
   return isRegisterAvailable(event, event.registerSaved, now);

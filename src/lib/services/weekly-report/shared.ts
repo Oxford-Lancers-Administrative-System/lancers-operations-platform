@@ -1,14 +1,14 @@
 import { ConstraintViolated } from "@/lib/db";
 import { personDisplayNameSql } from "../sql-text";
 
-/** Types, constants and date helpers shared by every sibling of the Monday report (LAN-81, invariant M5). Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
+/** Types, constants and date helpers shared by every sibling of the Monday report (LAN-81, invariant M5). */
 
-/** Recorded on every row so an old snapshot stays readable when definitions change; `readReportForDate` conditions reuse on this string. Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
+/** Recorded on every row so an old snapshot stays readable when definitions change; `readReportForDate` conditions reuse on this string. */
 export const METRIC_DEFINITION_VERSION = "LAN-81.5";
 
 export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v5";
 
-/** A week back (ending the day before the reporting date) and a week forward. Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
+/** A week back (ending the day before the reporting date) and a week forward. */
 const REPORT_WINDOW_DAYS = 7;
 const REPORT_LOOKAHEAD_DAYS = 7;
 
@@ -16,7 +16,7 @@ const REPORT_DATE_INVALID_MESSAGE = "Choose a reporting date in the form YYYY-MM
 
 export const REPORT_NOT_FOUND_MESSAGE = "That report does not exist.";
 
-/** What one of last week's events did. Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
+/** What one of last week's events did. */
 export interface EventOutcome {
   id: string;
   name: string;
@@ -44,7 +44,7 @@ export interface EventOutcome {
   neverInvited: number;
 }
 
-/** What one person did about one event: what they said, and what they did. Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
+/** What one person did about one event: what they said, and what they did. */
 export interface GridCell {
   eventId: string;
   rsvp: string | null;
@@ -132,7 +132,7 @@ interface AvailabilitySummary {
   red: number;
 }
 
-/** The stored snapshot, in the order the report reads. Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
+/** The stored snapshot, in the order the report reads. */
 export interface WeeklyReportContent {
   schema: string;
   metricDefinitionVersion: string;

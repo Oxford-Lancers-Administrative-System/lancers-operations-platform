@@ -1,6 +1,6 @@
 import type { MembershipStatus } from "@/lib/services/membership";
 
-// The words the roster screens use, fixed in one place — LAN-90 § 4. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
+// The words the roster screens use, fixed in one place — LAN-90 § 4.
 
 export const MEMBERSHIP_STATUS_LABELS: Readonly<Record<MembershipStatus, string>> = Object.freeze({
   onboarding: "Onboarding",

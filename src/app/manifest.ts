@@ -9,8 +9,6 @@ import { CLUB_NAME, CLUB_NAVY, SITE_DESCRIPTION } from "@/lib/brand";
  * document for everybody. `display: "browser"` is deliberate — these are
  * ordinary pages a player follows links out of, and `standalone` would strand
  * them by stripping the address bar.
- *
- * Decision history: docs/ux/design-system.md (LAN-269 has no ticket contract)
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

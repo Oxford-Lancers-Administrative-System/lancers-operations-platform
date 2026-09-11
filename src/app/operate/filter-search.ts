@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// A search box that filters as you type — shared after two screens shipped the identical broken version. Decision history: docs/ux/tickets/LAN-73-shell-and-access.md.
+// A search box that filters as you type — shared after two screens shipped the identical broken version.
 export const SEARCH_DEBOUNCE_MS = 250;
 
 export interface FilterSearch {

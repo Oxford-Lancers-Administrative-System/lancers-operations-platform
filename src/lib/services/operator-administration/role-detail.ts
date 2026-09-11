@@ -17,7 +17,7 @@ import { ADMINISTRATION_CAPABILITY, requireCycle, requireOperator, requireRole }
  * operating year. Guarded at the capability floor, not the target-aware
  * guard — a holder list has no target. Holders from different years are
  * never mixed: a currency test against one day (`AS_AT`), not a period
- * overlap against the cycle (LAN-141 finding 4). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * overlap against the cycle (LAN-141 finding 4).
  */
 
 interface RoleHolder {

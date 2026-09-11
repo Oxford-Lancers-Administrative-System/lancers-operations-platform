@@ -25,7 +25,7 @@ import {
  * `effectiveTo` here — ending is `endRoleAssignment`. Every write in this
  * directory calls `assertAdministrationTarget` (never the bare capability)
  * with `roles.code` read fresh and `includeScheduled: true`, inside the
- * transaction that writes. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * transaction that writes.
  */
 
 export interface AssignRoleParams {

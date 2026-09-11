@@ -24,8 +24,6 @@ import { NO_REASON_GIVEN_DEFAULT, resolvePersonTokenIn } from "@/lib/services/pl
  * the form's values, so an invitation id that does not belong to the token
  * holder is refused identically to one that does not exist (LAN-172-c1 fixed
  * `answerEventQuestionsIn` skipping this proof).
- *
- * Decision history: docs/ux/tickets/LAN-172-player-answer.md
  */
 
 function str(form: FormData, field: string): string {

@@ -7,7 +7,6 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 
 // Create event, as a menu of exactly two — LAN-155, `W3-04`, Brian 2026-08-21.
-// Decision history: docs/ux/tickets/LAN-155-csv-import.md.
 
 const CREATE_MENU_CHOICES: readonly {
   href: string;

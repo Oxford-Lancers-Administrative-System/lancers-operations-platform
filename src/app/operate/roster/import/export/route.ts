@@ -4,7 +4,7 @@ import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { importTemplateCsv } from "@/lib/services/roster-csv";
 
-// The roster import's template — LAN-215, `W1`. Decision history: docs/ux/tickets/LAN-215-arrival-doors.md.
+// The roster import's template — LAN-215, `W1`.
 export const dynamic = "force-dynamic";
 
 const BYTE_ORDER_MARK = "﻿";

@@ -92,7 +92,7 @@ export function TemplateEventFields({
           />
         </Stack>
 
-        {/* D78/C6: duration, not a start time — fixed 30-minute-increment grid, not free text. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+        {/* D78/C6: duration, not a start time — fixed 30-minute-increment grid, not free text. */}
         <SelectField
           label={TEMPLATE_DURATION_LABEL}
           name="defaultDurationMinutes"

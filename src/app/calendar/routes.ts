@@ -3,8 +3,6 @@
  * destination is built once, per `REQ-three-arrangements`. These are
  * addresses, not permissions — the service layer and `/operate`'s gate do
  * the refusing (`slice-ux.md` § 4: "Routes do not authorize").
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 /** The public calendar's list — the club's noticeboard. */

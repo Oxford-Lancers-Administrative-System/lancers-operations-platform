@@ -3,7 +3,7 @@ import "server-only";
 import { NotFound, withTransaction, type Tx } from "@/lib/db";
 import type { TermWindow } from "./event-input";
 
-/** The season and term aggregate. One module, model §1.1: no foreign key between the two tables. Nothing here writes. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
+/** The season and term aggregate. One module, model §1.1: no foreign key between the two tables. Nothing here writes. */
 
 export interface Season {
   id: string;

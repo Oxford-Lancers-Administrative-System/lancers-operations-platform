@@ -12,8 +12,6 @@ import { CLUB, SEMANTIC } from "@/theme-tokens";
  * closed unless `defaultOpen` (player-surfaces finding P8). Band colours are
  * brief §1.5's mapping — never a traffic-light hue; a band is a place, not a
  * verdict.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export type Band = "person" | "season" | "recruitment" | "onboarding" | "attendance" | "history";
 

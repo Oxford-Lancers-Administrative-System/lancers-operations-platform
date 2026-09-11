@@ -60,8 +60,6 @@ export function ResponseSaved({ page, token }: { page: SignedRsvpPage; token: st
  * holder is a genuine invitee, so telling them it is off leaks nothing they
  * were not already told when invited. Shows the event and its date only —
  * no other player, no roster, no response history.
- *
- * Decision history: docs/ux/tickets/LAN-79-player-rsvp.md.
  */
 export function CancelledEvent({ page }: { page: SignedRsvpPage }) {
   return (

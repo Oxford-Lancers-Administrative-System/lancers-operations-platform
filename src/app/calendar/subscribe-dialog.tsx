@@ -20,8 +20,6 @@ import { PUBLIC_CALENDAR_FEED_PATH } from "./routes";
  * this control's job ends there, and nothing here reads back whether the
  * subscription completed. Not a notification channel. Both this dialog's URL
  * and `feed.ics/route.ts` start from `PUBLIC_CALENDAR_FEED_PATH`.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 const PROVIDERS = [

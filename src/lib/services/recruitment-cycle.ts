@@ -12,7 +12,6 @@ import {
  * The recruitment cycle's own four rows — LAN-203. Owns
  * `recruitment_cycle_steps`, seeded once by the migration, never created or
  * deleted here. {@link declareRecruitmentCycleJobsIn} has no caller yet.
- * Decision history: LAN-203, missions/intake/M-RECRUITMENT
  */
 
 export type RecruitmentCycleStepName =
@@ -146,7 +145,7 @@ export interface DeclaredCycleJobs {
   readonly reason: "not_consented" | "not_eligible" | "already_complete" | null;
 }
 
-/** Turns one recruit's capture into the cycle's `notification_jobs` rows, idempotently. Decision history: LAN-204, LAN-205, missions/intake/M-RECRUITMENT */
+/** Turns one recruit's capture into the cycle's `notification_jobs` rows, idempotently. */
 export async function declareRecruitmentCycleJobsIn(
   tx: Tx,
   personId: string,

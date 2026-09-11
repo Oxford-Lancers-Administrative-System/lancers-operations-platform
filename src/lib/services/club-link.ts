@@ -9,7 +9,7 @@ import { UUID_PATTERN } from "./event-input";
 // The club link — D2, D81, W7 § "The tiers, and the shareable link" (LAN-157). Bound to one event,
 // unlike an RSVP token's one invitation; token = HMAC-SHA256(secret, "club-link:v1:<event>:<row>"),
 // only the digest stored. Issuing is authorised by the caller (participation.ts); refused here only
-// for a draft event (invariant P1). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
+// for a draft event (invariant P1).
 
 // Deliberately narrower than NodeJS.ProcessEnv — this module reads exactly one variable.
 export type EnvSource = Readonly<Record<string, string | undefined>>;

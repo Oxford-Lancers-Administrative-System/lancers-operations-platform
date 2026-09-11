@@ -35,7 +35,7 @@ import {
  * assignment and creates the successor's in one transaction
  * (`REQ-effective-dated-role-history`). Two guards: the outgoing holder
  * (ending removes authority) and the successor (`assign_role`), both before
- * anything is written. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * anything is written.
  */
 
 export interface ReplaceRoleHolderParams {

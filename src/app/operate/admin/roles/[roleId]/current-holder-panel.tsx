@@ -11,7 +11,6 @@ import { describePeriod, NOT_ASSIGNED } from "../../presentation";
 /**
  * Current holder panel for one role seat — LAN-133.
  *
- * Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  * (DEC-account-state-separation, REQ-admin-surfaces).
  */
 export default function CurrentHolderPanel({
@@ -78,7 +77,7 @@ export default function CurrentHolderPanel({
         </Stack>
       )}
 
-      {/* Near-future successors sit inside this panel, filled or vacant. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md */}
+      {/* Near-future successors sit inside this panel, filled or vacant. */}
       {role.scheduled.length > 0 ? (
         <Box sx={{ mt: role.holders.length === 0 ? 1.5 : 2 }} data-testid="scheduled-holders">
           <Divider sx={{ mb: 1.5 }} />

@@ -8,7 +8,6 @@ import { QUESTIONNAIRE_B_CODE, joinMultiAnswer } from "./recruitment-vocabulary"
  * writer of `recruitment_questionnaire_responses`. Every write closes the
  * current row and inserts a fresh one, never an `update` in place. A blank
  * field is left untouched, never superseding a real answer.
- * Decision history: LAN-206, missions/intake/M-RECRUITMENT
  */
 
 export interface QuestionnaireBSubmission {

@@ -33,7 +33,7 @@ import { readOneScheduleChange, scheduleChanged } from "./validation";
 // Saving one template's messaging schedule — W7, LAN-171, rekeyed by
 // LAN-265. One action per row, not the whole page (OWNER-LAN171-04, Brian).
 // Written only if it actually changed — an audit row otherwise misreports
-// history. Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md.
+// history.
 export async function updateOneMessagingScheduleAction(
   _previous: AdminActionState,
   formData: FormData,
@@ -49,7 +49,7 @@ export async function updateOneMessagingScheduleAction(
   }
 
   // LAN-265: read before checked, so a refusal names the template in the
-  // club's words, not a browser-chosen hidden label. Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md.
+  // club's words, not a browser-chosen hidden label.
   let current;
   try {
     current = await withTransaction((tx) => readMessagingScheduleIn(tx, templateId));
@@ -94,7 +94,7 @@ export async function updateOneMessagingScheduleAction(
 
 // Saving one row of the recruitment cycle — LAN-203, `REQ-recruitment-cycle`.
 // Both page rows cover two recruitment_cycle_steps rows each, written in
-// one transaction — saves both or neither. Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md.
+// one transaction — saves both or neither.
 export async function updateRecruitmentCycleStepsAction(
   _previous: AdminActionState,
   formData: FormData,

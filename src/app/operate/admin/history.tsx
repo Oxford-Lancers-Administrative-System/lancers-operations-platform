@@ -7,7 +7,6 @@ import type { AdministrationHistoryEntry } from "@/lib/services/administration-a
 import { formatInstant } from "./presentation";
 
 // The two audit projections, rendered — LAN-133. A reading surface only.
-// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 export default function AdministrationHistory({
   entries,
   emptyMessage,
@@ -60,7 +59,7 @@ function describeSubject(
   return entry.role ? roleLabel(entry.role.code) : null;
 }
 
-/** The actor's authority at the time is deliberately not shown — `REQ-append-only-audit-evidence` records it, never displays it. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
+/** The actor's authority at the time is deliberately not shown — `REQ-append-only-audit-evidence` records it, never displays it. */
 function describeActor(entry: AdministrationHistoryEntry): string {
   const parts = [`By ${entry.actor.name}`, entry.operatingYear.label];
   if (entry.backdated) parts.push("backdated");

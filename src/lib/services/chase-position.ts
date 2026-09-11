@@ -1,5 +1,4 @@
 // Chase position — W4, W5. Pure, shared by the participation table and the Follow-ups queue.
-// Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY
 
 export interface ChaseJobFact {
   readonly jobType: "invitation" | "reminder" | "escalation";

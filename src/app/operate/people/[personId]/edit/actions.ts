@@ -31,7 +31,7 @@ import {
 // concurrency check runs once, on the first write — later writes in the
 // same submission omit it, since that write already moved the version.
 // Mobile validates/normalises server-side too (B3 round 2), even though the
-// preview is inline and client-safe. Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+// preview is inline and client-safe.
 export async function submitPersonEdit(
   previous: EditState,
   formData: FormData,
@@ -66,7 +66,7 @@ export async function submitPersonEdit(
 
   // College email: LAN-268, Brian 2026-09-09 — refuses before any write,
   // naming the rule, no override. Clearing stays legitimate (only a
-  // supplied value is checked). Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+  // supplied value is checked).
   const collegeEmailChanged =
     values.collegeEmail.trim() !== (currentEmail(current, "college")?.rawValue ?? "");
   if (collegeEmailChanged && values.collegeEmail.trim() !== "") {
@@ -76,7 +76,6 @@ export async function submitPersonEdit(
 
   // Date of birth: LAN-258 (walker M5-03) — the raw database refusal named
   // neither field nor rule; validated per field, before any write.
-  // Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
   const dateOfBirthChanged = values.dateOfBirth.trim() !== (current.dateOfBirth ?? "");
   if (dateOfBirthChanged && values.dateOfBirth.trim() !== "") {
     const validation = validateDateOfBirth(values.dateOfBirth);
@@ -302,7 +301,7 @@ export async function submitPersonEdit(
   redirect(`/operate/people/${personId}`);
 }
 
-/** Resolves the other person's id via W3's duplicate check, for the "Compare with…" handoff. Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
+/** Resolves the other person's id via W3's duplicate check, for the "Compare with…" handoff. */
 async function resolveEmailConflict(
   error: unknown,
   email: string,
@@ -356,7 +355,7 @@ function safeMessage(error: unknown): string {
 
 // Aliases — three small actions, each on its own submit button's formAction
 // (HTML forbids a nested form), bound with personId/aliasId via .bind since
-// React overrides a formAction button's own name/value. Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+// React overrides a formAction button's own name/value.
 
 export async function submitRemoveAlias(personId: string, aliasId: string): Promise<void> {
   const operator = await requireCapability("person_record_authority");

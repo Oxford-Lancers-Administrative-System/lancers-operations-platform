@@ -24,7 +24,6 @@ export const RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON =
  * `entry` is `'new'` (a returner is `roster/write.ts`'s own path, not this
  * one). LAN-215 `W3`'s four side effects also run here: availability, link
  * supersession, welcome, consent untouched.
- * Decision history: LAN-215, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 export async function flipRecruitmentProspectToJoinedIn(
   tx: Tx,

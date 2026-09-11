@@ -10,7 +10,6 @@
  * Required: `first_name`, `last_name`, `mobile`. Optional: `personal_email`,
  * `college`, `matriculation_year`. No date of birth, no emergency contact —
  * both belong to onboarding, not a file on a laptop.
- * Decision history: LAN-215, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";

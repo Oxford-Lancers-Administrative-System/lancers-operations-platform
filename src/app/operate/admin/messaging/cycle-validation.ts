@@ -4,7 +4,7 @@ import type {
 } from "@/lib/services/recruitment-cycle";
 
 // Reading and checking the recruitment cycle's own rows — LAN-203,
-// `REQ-recruitment-cycle`. Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md · missions/intake/M-RECRUITMENT/decision-history.md.
+// `REQ-recruitment-cycle`.
 
 export interface CycleStepFieldBounds {
   readonly step: RecruitmentCycleStepName;
@@ -13,7 +13,7 @@ export interface CycleStepFieldBounds {
   readonly max: number;
 }
 
-/** Hours throughout (the column's own unit; Welcome can fire at 0). Reminders read "hours after capture", not after the prior message. Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md · missions/intake/M-RECRUITMENT/decision-history.md. */
+/** Hours throughout (the column's own unit; Welcome can fire at 0). Reminders read "hours after capture", not after the prior message. */
 export const CYCLE_STEP_FIELDS: readonly CycleStepFieldBounds[] = Object.freeze([
   { step: "welcome", label: "First message after capture", min: 0, max: 2160 },
   { step: "details_reminder", label: "Second message after capture", min: 0, max: 2160 },

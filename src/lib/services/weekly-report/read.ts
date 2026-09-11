@@ -67,7 +67,6 @@ function toStoredReport(row: StoredRow): StoredReport {
  * Report files one, every time; arriving, sorting or refreshing does not.
  * This read can write — guarded by `leadership_report`, serialized by an
  * advisory lock. Writes nothing else, ever.
- * Decision history: docs/ux/tickets/LAN-81-monday-report.md
  */
 export async function readReportForDate(
   actorPersonId: string,

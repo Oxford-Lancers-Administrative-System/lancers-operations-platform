@@ -8,8 +8,6 @@ import Typography from "@mui/material/Typography";
  * LAN-256: controlled, deliberately no `defaultSelected` — that used to make
  * "answered nothing" indistinguishable from "chose the survivor" on the
  * merge screen deciding whether Merge may be pressed.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function ValueChoice({
   name,

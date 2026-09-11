@@ -5,7 +5,7 @@ import { isServiceError } from "@/lib/db";
 import { recordRosterFormGenerated, type Kit } from "@/lib/services/roster-form";
 import { ROSTER_FORM_GENERATE_FAILED, type GenerateRosterFormState } from "./action-state";
 
-// The one write this surface makes — LAN-267, a one-line audit event. Decision history: docs/ux/tickets/LAN-267-roster-form.md.
+// The one write this surface makes — LAN-267, a one-line audit event.
 export async function generateRosterFormAction(
   eventId: string,
   kit: Kit,

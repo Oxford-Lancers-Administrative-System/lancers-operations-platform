@@ -17,8 +17,6 @@ import { signOut } from "../login/actions";
  * verifies for itself. LAN-71's operator block is the smallest proof a
  * session resolves to a club Person end to end; not a real screen, and
  * enforces nothing (role codes are displayed, not checked — LAN-73).
- *
- * Decision history: docs/operating-the-slice.md
  */
 export default async function DashboardPage() {
   const supabase = await createClient();

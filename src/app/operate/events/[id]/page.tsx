@@ -40,7 +40,7 @@ function shareBlockedReason(status: string): string | null {
   return null;
 }
 
-/** One event, in every presentation this route owns — UX-32/33, LAN-77's UX-40..43. Decision history: docs/ux/tickets/LAN-77-event-approval.md · docs/adr/0022-audience-proposed-then-frozen.md. */
+/** One event, in every presentation this route owns — UX-32/33, LAN-77's UX-40..43. */
 export default async function EventDetailPage({
   params,
   searchParams,

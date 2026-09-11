@@ -17,7 +17,6 @@ import { personDisplayNameSql } from "./sql-text";
 // still asks that question inside the service that performs it). Grouping comes from
 // public.role_groups, not TypeScript, because capability-map-single-source.test.ts forbids naming
 // a roles.code outside the capability map. See relocations.md.
-// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL
 
 /** One holder of a seat, as the Roles index and role detail show them. */
 export interface CatalogueHolder {

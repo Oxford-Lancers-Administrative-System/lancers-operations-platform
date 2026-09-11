@@ -3,7 +3,6 @@ import { addDays, weekdayOf } from "./calendar";
 // How the event list breaks the season up — LAN-153, REQ-list-shape. Opens on what is upcoming
 // (D84), grouped into discrete tables by period, longest being the term (Brian: "Use term"). Pure,
 // shared by both tiers — half of REQ-three-arrangements. See relocations.md.
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
 export type EventPeriod = "week" | "month" | "term" | "upcoming" | "all";
 

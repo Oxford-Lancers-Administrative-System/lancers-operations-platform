@@ -16,7 +16,6 @@ import type { PersonRecord } from "./person-record";
  * inserting a second row. `resolvePersonFactDisputeIn` calls
  * `updatePersonField` to actually move the field, reusing the one write path
  * rather than a second column whitelist.
- * Decision history: LAN-214, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 export type DisputedPersonField = PersonFieldUpdate["field"];

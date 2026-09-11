@@ -29,7 +29,6 @@ import type { PermittedAccountActions } from "../../permissions";
  * check is authorization; every button re-checks server-side on submit.
  * `DEC-single-actor`: a panel, not a confirmation dialog, for the three that
  * need typed input; Resend submits directly.
- * Decision history: docs/operating-the-slice.md
  */
 export default function OperatorActions({
   operatorAccountId,

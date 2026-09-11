@@ -35,8 +35,6 @@ import { pickApprovedEvent, pickInvitationId } from "../picks";
  * deliberate Yes emphasis (LAN-172, REQ-emphasis-points-at-yes). Drawn, not
  * wired — the real page's single form both records and saves; a preview must
  * not.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export default async function AnswerPreviewPage() {
   const gate = await gateShellPage("/design-preview/answer");

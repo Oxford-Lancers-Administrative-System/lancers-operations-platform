@@ -1,6 +1,6 @@
 import type { ImportApplied, ImportPlan } from "@/lib/services/event-csv";
 
-// What the bulk import screen hands back and forth — LAN-155. Decision history: docs/ux/tickets/LAN-155-csv-import.md.
+// What the bulk import screen hands back and forth — LAN-155.
 export interface ImportScreenState {
   error: string | null;
   plan: ImportPlan | null;

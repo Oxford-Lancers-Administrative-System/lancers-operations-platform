@@ -18,8 +18,6 @@ import ResetPasswordForm from "./reset-password-form";
  * URL. Asks only whether the current session came from a recovery link —
  * missing/malformed/expired/spent/wrong-type/ordinary-signed-in all arrive
  * with no recovery session and get the same screen.
- *
- * Decision history: docs/operating-the-slice.md
  */
 export const metadata: Metadata = {
   title: "Choose a new password — Lancers Operations",

@@ -23,7 +23,7 @@ import { TRUST_ITEM_CODES, type QuestionnaireStep } from "./types";
 /**
  * The read model — the one whole read `/me/[token]/details` needs, and the
  * item-completion writer both it and steps 2-5 share.
- * `WP-player-questionnaire`, LAN-216, W4 and W5. Decision history: docs/ux/tickets/LAN-216-player-questionnaire.md.
+ * `WP-player-questionnaire`, LAN-216, W4 and W5.
  */
 
 /** The four checklist items this package is the sole writer of, plus the two derived ones. */

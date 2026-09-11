@@ -5,8 +5,6 @@ import type { Metadata } from "next";
  * One module: `manifest.ts`, the `opengraph-image` routes and the root layout
  * all import it, and two of those run in the edge-ish image runtime where a
  * component import would be dead weight.
- *
- * Decision history: docs/ux/design-system.md (LAN-277 has no ticket contract)
  */
 
 /** As it is written everywhere the club names itself. Never "OULAFC" in chrome. */

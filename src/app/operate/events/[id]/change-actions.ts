@@ -20,7 +20,6 @@ import type { CancelFormState } from "./change-state";
 // authorization of its own — this guard is the only gate that exists,
 // LAN-181 F-D1). silenceConfirmed is required, never defaulted, but is a
 // client-asserted boolean the service cannot verify was actually shown.
-// Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -47,7 +46,7 @@ function readDraft(formData: FormData): RawEventDraft {
   };
 }
 
-/** The event as the submitting form loaded it — LAN-244. Read defensively; a missing/unparseable field is "apply the whole submission". Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** The event as the submitting form loaded it — LAN-244. Read defensively; a missing/unparseable field is "apply the whole submission". */
 function readBaseline(formData: FormData): AmendableEvent | undefined {
   const raw = formData.get("baseline");
   if (typeof raw !== "string" || raw === "") return undefined;

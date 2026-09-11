@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import { signOut } from "../login/actions";
 
-// UX-05 — an active operator whose current roles do not permit the action. Decision history: docs/ux/tickets/LAN-73-shell-and-access.md.
+// UX-05 — an active operator whose current roles do not permit the action.
 
 const NOT_PERMITTED_HEADING = "You do not have access to this action";
 

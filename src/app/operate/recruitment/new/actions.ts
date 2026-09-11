@@ -107,7 +107,6 @@ export async function submitAddRecruit(
     } catch (error) {
       // V-3/V-4, correction round 2: an existing-member match resolves to
       // AlreadyMemberScreen, not the ordinary formError banner.
-      // Decision history: missions/intake/M-RECRUITMENT
       if (
         isServiceError(error) &&
         error.rule === "recruitment_add_existing_member_is_not_a_recruit"
@@ -250,9 +249,9 @@ function requiredErrors(values: {
   const errors: AddRecruitFieldErrors = {};
   if (values.givenName.trim() === "") errors.givenName = "Required";
   if (values.familyName.trim() === "") errors.familyName = "Required";
-  // Task 09 §9.1, Brian 2026-09-01: mobile required at this door. Decision history: missions/intake/M-RECRUITMENT
+  // Task 09 §9.1, Brian 2026-09-01: mobile required at this door.
   if (values.mobile.trim() === "") errors.mobile = "A mobile number is required at this door.";
-  // LAN-268, Brian 2026-09-09: same four required things as the recruit's own sign-up door. Decision history: missions/intake/M-RECRUITMENT
+  // LAN-268, Brian 2026-09-09: same four required things as the recruit's own sign-up door.
   if (values.collegeEmail.trim() === "")
     errors.collegeEmail = "A college email is required at this door.";
   return errors;

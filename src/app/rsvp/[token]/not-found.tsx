@@ -18,8 +18,6 @@ import {
  * Brian's owner decision of 12 August 2026 requires unknown/expired/revoked/
  * started to be publicly indistinguishable; the safest way is one file, with
  * no prop, search parameter or variant that could let them diverge.
- *
- * Decision history: docs/ux/tickets/LAN-79-player-rsvp.md
  */
 export default function RsvpLinkUnusable() {
   return (

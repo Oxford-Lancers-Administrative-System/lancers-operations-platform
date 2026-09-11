@@ -2,8 +2,6 @@
  * The chrome every questionnaire step shares: the "Where you are" navigator,
  * the two-column status box, and the two page shells that wrap a step's own
  * content in them. Split from `page.tsx` (LAN-300).
- *
- * Decision history: docs/ux/tickets/LAN-216-player-questionnaire.md.
  */
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -61,8 +59,6 @@ function ChecklistStrip({
  * `status` alone, never a second test. `claimed` keeps its own word (player
  * says done, club hasn't confirmed). Player-facing only — `itemStateLabel`
  * is the administrator's version and not interchangeable.
- *
- * Decision history: docs/ux/tickets/LAN-216-player-questionnaire.md.
  */
 export function itemStepWord(code: QuestionnaireItemCode, status: OnboardingItemStatus): string {
   const isDocument = code === "code_of_conduct" || code === "photo_release";
@@ -83,8 +79,6 @@ export function itemIsSettled(status: OnboardingItemStatus | null): boolean {
  * The two-column status box Done and BUCS Play both show above their own
  * steps, one grid shared rather than two copies. `positive` colours a row
  * with this route's Alert convention (`success.main`/`warning.main`).
- *
- * Decision history: docs/ux/tickets/LAN-216-player-questionnaire.md.
  */
 export function QuestionnaireStatus({ rows }: { rows: Array<[string, string, boolean?]> }) {
   return (

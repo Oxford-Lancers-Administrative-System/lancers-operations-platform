@@ -32,7 +32,6 @@ import { useResultClearedByEditing } from "./use-result-cleared-by-editing";
 /**
  * The two field groups Brian's round-2 mockup draws for one row — a slice
  * of `SCHEDULE_FIELDS`, not a second list that could drift from it.
- * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md
  */
 const TIMING_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(0, 3);
 const LADDER_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(3, 6);
@@ -93,7 +92,7 @@ export function ScheduleRow({ row }: { row: ScheduleRowData }) {
       <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
         <input type="hidden" name="templateId" value={row.templateId} />
 
-        {/* Q-23: row heading matches the shipped subtitle2/700 pattern, not the mockup's overline/subtitle1. Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md */}
+        {/* Q-23: row heading matches the shipped subtitle2/700 pattern, not the mockup's overline/subtitle1. */}
 
         <Stack spacing={2} sx={{ mt: 0.5 }}>
           <Box
@@ -170,7 +169,7 @@ export function ScheduleRow({ row }: { row: ScheduleRowData }) {
                   </Box>
                 ))}
               </Stack>
-              {/* OWNER-LAN171-07 round 3: gap-before-deadline callout removed. Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md */}
+              {/* OWNER-LAN171-07 round 3: gap-before-deadline callout removed. */}
             </Box>
           </Collapse>
         </Stack>
@@ -182,8 +181,6 @@ export function ScheduleRow({ row }: { row: ScheduleRowData }) {
 /**
  * The Recruitment event row, split into its two audiences — one row per
  * `event_type`, one SAVE. No President field for Recruits (never escalated).
- *
- * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */
 export function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
   const [open, setOpen] = useState(false);

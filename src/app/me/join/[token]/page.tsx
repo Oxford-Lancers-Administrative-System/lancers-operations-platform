@@ -16,8 +16,6 @@ import { submitTokenSignup } from "./actions";
  * sets `no-store`/`no-referrer`/`noindex` — no edit to `src/proxy.ts`. Same
  * `person_access_tokens` row `/me/[token]` reads, reused under its own
  * sub-route. No duplicate question: the credential already names one person.
- *
- * Decision history: missions/intake/M-RECRUITMENT
  */
 export const metadata: Metadata = {
   title: "Join the Oxford Lancers",

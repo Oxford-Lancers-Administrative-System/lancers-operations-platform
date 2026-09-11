@@ -33,7 +33,7 @@ const ADMINISTRATION_CAPABILITY: CapabilityKey = "role_management";
  * Operator invitation — private helpers shared by the siblings in this
  * directory. LAN-131, mission M-OPERATOR-ADMIN-WITHOUT-SQL. Nothing here is
  * exported from the barrel except the rule constants and read helpers the
- * original module exported. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * original module exported.
  */
 
 /** Who this invitation is for — create-or-link, chosen explicitly by the administrator (`DEC-minimal-person-creation`). */

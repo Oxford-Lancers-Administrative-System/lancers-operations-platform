@@ -11,7 +11,7 @@ import {
 } from "@/lib/services/event-import";
 import { EMPTY_IMPORT_STATE, NO_FILE_CHOSEN_MESSAGE, type ImportScreenState } from "./import-state";
 
-/** The bulk import's two writes — one of which writes nothing. LAN-155. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
+/** The bulk import's two writes — one of which writes nothing. LAN-155. */
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);

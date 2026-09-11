@@ -5,7 +5,7 @@ import { OPERATOR_ACCOUNT_STATE_DEFINITIONS } from "@/lib/services/operator-acco
 // `DEC-in-app-administration-guide`. Copy is data, not markup, so
 // `content.test.ts` can assert the no-SQL/no-callout prohibition over the
 // flattened whole (guideText()). State labels are imported from
-// operator-account-state.ts, never retyped. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+// operator-account-state.ts, never retyped.
 
 /** A run of answer text. `strong` is used only for a label the reader clicks or sees. */
 export type GuideRun = string | { readonly strong: string };

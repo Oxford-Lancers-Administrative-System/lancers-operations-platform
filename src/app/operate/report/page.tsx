@@ -23,7 +23,7 @@ import {
   todayInClubZone,
 } from "./presentation";
 
-/** `/operate/report` — the Monday report. LAN-81. Reads a stored snapshot (invariant M5), never a live recompute. Decision history: docs/ux/tickets/LAN-81-monday-report.md */
+/** `/operate/report` — the Monday report. LAN-81. Reads a stored snapshot (invariant M5), never a live recompute. */
 export default async function ReportPage({ searchParams }: PageProps<"/operate/report">) {
   const gate = await gateShellPage("/operate/report", "leadership_report");
   if ("screen" in gate) return gate.screen;

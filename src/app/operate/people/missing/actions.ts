@@ -7,7 +7,7 @@ import { sendOnboardingNudges } from "@/lib/services/messaging-scheduler";
 
 // The queue's own nudge — LAN-218, `W8`, `M3`, `T11-batch-nudge`. Unlimited,
 // outside the automated cap; gated on `person_record_authority`, the real
-// boundary (the page's own gate is a courtesy). Decision history: docs/ux/tickets/LAN-218-chase-and-queue.md.
+// boundary (the page's own gate is a courtesy).
 export interface NudgeActionResult {
   readonly error: string | null;
   readonly notice: string | null;

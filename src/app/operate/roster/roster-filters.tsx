@@ -7,7 +7,7 @@ import { SEARCH_DEBOUNCE_MS } from "../filter-search";
 export { SEARCH_DEBOUNCE_MS };
 
 // UX-20's search and filters over the shared `../list-filters` bar
-// (LAN-127). Decision history: missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
+// (LAN-127).
 export default function RosterFilters({
   statuses,
   entries,

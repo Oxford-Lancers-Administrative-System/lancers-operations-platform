@@ -3,8 +3,6 @@
  * Conduct, photo release, BUCS Play steps and Hudl's steps are all labelled
  * placeholder text in a real versioned slot — LAN-213 owes the real wording.
  * Nothing below is invented club policy.
- *
- * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 export const PRIVACY_NOTE =

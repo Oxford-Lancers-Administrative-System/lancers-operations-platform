@@ -14,8 +14,6 @@ import { runMessagingSweep } from "@/lib/services/messaging-scheduler";
  * than running unauthenticated. Deliberately no `GET` — a sweep sends
  * messages, and a URL that does that on a prefetch is a defect waiting to
  * happen.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 export const dynamic = "force-dynamic";

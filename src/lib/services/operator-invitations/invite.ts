@@ -31,7 +31,7 @@ import { readAdministrationSubject } from "./subject";
  * Invite — {@link inviteOperator} creates the login, writes every row, then
  * sends the email, in that order (so a delivery failure leaves a complete,
  * resendable record). The target's seats are read inside the transaction
- * that writes, with `includeScheduled: true`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+ * that writes, with `includeScheduled: true`.
  */
 
 /** A role the caller asked for, resolved against the catalogue with its dates checked. Also used by `operator-administration/`. */

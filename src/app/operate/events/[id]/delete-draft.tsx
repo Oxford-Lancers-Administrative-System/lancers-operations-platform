@@ -30,7 +30,6 @@ import {
  * nobody will be told. Says nothing about approved events (Brian: not
  * called out where it doesn't apply). The dialog is a courtesy — the
  * service refuses anything that isn't a draft either way.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function DeleteDraft({ eventId, name }: { eventId: string; name: string }) {
   const [open, setOpen] = useState(false);

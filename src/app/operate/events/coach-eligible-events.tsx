@@ -47,7 +47,7 @@ const COACH_EVENTS_EMPTY =
 const COACH_EVENTS_FILTER_EMPTY =
   "No session matches that search. Clear it to see everything in the season.";
 
-/** The coaching assignment's whole destination — LAN-110. Shares `/operate/events` (route contract closed, §4); capability-scoped presentation, withholding event administration (§3). Decision history: docs/ux/tickets/LAN-110-coach-attendance.md */
+/** The coaching assignment's whole destination — LAN-110. Shares `/operate/events` (route contract closed, §4); capability-scoped presentation, withholding event administration (§3). */
 export function CoachEligibleEvents({
   sections,
   search,

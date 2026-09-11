@@ -19,8 +19,6 @@ import {
  * Type names come from `@/lib/services/event-vocabulary` (R157C-A1), not a
  * private second copy, so a renamed type can't leak raw to an unauthenticated
  * audience.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 /** UX standard 3: a stored calendar date has no zone, read as one; an unparseable value says so in words. */

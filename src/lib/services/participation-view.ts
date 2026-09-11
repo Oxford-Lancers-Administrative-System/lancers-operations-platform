@@ -1,7 +1,6 @@
 // The participation table's vocabulary, shapes, and the two pure functions that filter and sort
 // it — W7, REQ-participation-table, LAN-157. Separate from `./participation.ts` (`server-only`)
 // because the filter bar is a client component.
-// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
 import type { AttendancePresence } from "./attendance-vocabulary";
 import type { DerivedDiscrepancy } from "./discrepancy-vocabulary";

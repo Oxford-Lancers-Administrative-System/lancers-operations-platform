@@ -146,7 +146,6 @@ async function resolveActiveSeason(tx: Tx): Promise<AdministrationOperatingYear>
 /**
  * The committee year a *reading* surface means by "this year", or `null` —
  * unlike the write-side resolver, does not throw when there is none.
- * Decision history (LAN-141 finding 8): missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 export async function resolveCommitteeYearForReading(
   tx: Tx,

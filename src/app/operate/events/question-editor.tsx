@@ -27,7 +27,6 @@ import {
  * read/edit toggle); reordering moves the array (no drag-and-drop); the type
  * owns template questions (D42) so the list is controlled by the parent; the
  * hidden inputs are the payload, read back via `FormData.getAll`.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 export interface QuestionEditorProps {
@@ -88,7 +87,7 @@ export default function QuestionEditor({
       {/* Always posted, even with no questions — distinguishes "asks nothing" from "not about questions" (service would otherwise leave a deleted question in place). */}
       <input type="hidden" name="questionsPresent" value="1" />
       <Stack spacing={2}>
-        {/* C4: no filler when the list is empty — Add a question already says what to do. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+        {/* C4: no filler when the list is empty — Add a question already says what to do. */}
 
         <Stack component="ol" spacing={2} sx={{ listStyle: "none", p: 0, m: 0 }}>
           {questions.map((question, index) => {

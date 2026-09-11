@@ -9,7 +9,6 @@ import MergeComparison from "./merge-comparison";
 
 // `/operate/people/[personId]/merge` — W4-01..W4-08, LAN-185, `REQ-merge`.
 // Reached only from a record the operator already holds, never a list.
-// Decision history: docs/ux/tickets/LAN-185-person-write.md.
 export default async function MergePage({
   params,
   searchParams,

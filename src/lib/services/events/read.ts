@@ -33,7 +33,7 @@ export interface EventListFilters {
   search?: string | null;
   /** One of `EVENT_STATUS_FILTERS`, or `null` for all. `occurred` is derived, never stored (D30). */
   status?: string | null;
-  /** A template id, or `null` for all (LAN-265); an unmatched id matches no rows. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
+  /** A template id, or `null` for all (LAN-265); an unmatched id matches no rows. */
   templateId?: string | null;
   /** One of `EVENT_SORT_COLUMNS`. Anything else falls back to the date. */
   sort?: string | null;
@@ -62,7 +62,7 @@ const COUNT_COLUMNS = `
   coalesce(attended.showed_count, 0) as showed_count,
   coalesce(attended.register_saved, false) as register_saved`;
 
-/** The three grouped reads those counts come from, joined to `e` once (LAN-228). `scope` is the caller's own required `where` — season list passes the season, single-event read passes the event; alias is `p`. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
+/** The three grouped reads those counts come from, joined to `e` once (LAN-228). `scope` is the caller's own required `where` — season list passes the season, single-event read passes the event; alias is `p`. */
 function participationJoins(scope: string): string {
   return `
        left join (
@@ -172,7 +172,7 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
     const today = filters.today ?? todayInClubZone();
 
     // Q-6: selects the derived column's word (mirrors statusLabel), not raw e.status; today is a
-    // parameter, not current_date. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
+    // parameter, not current_date.
     const result = await tx.query<EventRow>(
       `select e.id, e.name, ${TEMPLATE_COLUMNS}, e.event_type::text as event_type,
               e.status::text as status,
@@ -227,7 +227,7 @@ export async function readEvent(eventId: string): Promise<EventDetail> {
   return withTransaction(async (tx) => readEventIn(tx, eventId));
 }
 
-/** Event read under a row lock (`select … for update`) held to transaction end, closing a read-then-write race plain READ COMMITTED does not. Every writer takes this lock first; returns the event read after the lock. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
+/** Event read under a row lock (`select … for update`) held to transaction end, closing a read-then-write race plain READ COMMITTED does not. Every writer takes this lock first; returns the event read after the lock. */
 export async function lockEventIn(tx: Tx, eventId: string): Promise<EventDetail> {
   if (!UUID_PATTERN.test(eventId)) {
     throw new NotFound(EVENT_NOT_FOUND_MESSAGE, { rule: "event_not_found" });

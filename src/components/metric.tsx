@@ -7,8 +7,6 @@ import Typography from "@mui/material/Typography";
  * A headline number — LAN-225, brief §2. Value at `h2`, label at `body2`, an
  * optional caption. `value` may be a node for a status-as-headline case.
  * Nothing is coloured or compared against a target.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function Metric({
   value,

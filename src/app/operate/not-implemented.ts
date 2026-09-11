@@ -1,4 +1,4 @@
-// Deliberately not a ServiceError. Decision history: docs/ux/tickets/LAN-73-shell-and-access.md.
+// Deliberately not a ServiceError.
 export class ActionNotImplemented extends Error {
   readonly issue: string;
 

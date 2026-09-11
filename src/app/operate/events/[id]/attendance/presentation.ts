@@ -22,7 +22,7 @@ export const PRESENCE_COLORS: Readonly<
   absent: "error",
 });
 
-/** RSVP shown for context, never as an attendance value — § 6. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** RSVP shown for context, never as an attendance value — § 6. */
 export function describeRsvp(rsvp: "yes" | "no" | null, isWalkUp: boolean): string {
   if (isWalkUp) return "Walk-up · never invited";
   if (rsvp === "yes") return "RSVP: Attending";
@@ -42,12 +42,12 @@ export function describeMismatch(mismatch: string | null): string | null {
   return MISMATCH_LABELS[mismatch] ?? mismatch;
 }
 
-/** Whether the register is open, which nobody decides — VG-003. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** Whether the register is open, which nobody decides — VG-003. */
 export const ATTENDANCE_OPEN_DETAIL = "Record who was there, and correct it whenever you need to.";
 
 export const ATTENDANCE_LOCKED_HEADLINE = "Attendance is not available yet";
 
-/** The operator's version of the locked state — W9-F1. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** The operator's version of the locked state — W9-F1. */
 export function describeOperatorLock(status: string): string {
   return status === "cancelled"
     ? "This event was cancelled. It has no register, and there is nothing you can do to open one."
@@ -56,7 +56,7 @@ export function describeOperatorLock(status: string): string {
 
 export const REGISTER_NOT_YET_HEADLINE = "The register is not open yet";
 
-/** What lifts it — `docs/ux/standards.md` rule 4, finding W-F3. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** What lifts it — `docs/ux/standards.md` rule 4, finding W-F3. */
 export function describeRegisterOpensAt(opensAt: string | null): string {
   if (opensAt === null) {
     return "This event has no date yet, so there is nothing to take a register for.";
@@ -91,7 +91,7 @@ export const HEADLINE_SHOWED_LABEL = "Showed";
 
 const NOT_RECORDED_VALUE = "—";
 
-/** "— / 37" unsaved, "0 / 37" saved-empty, never a percentage (D62, D74). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** "— / 37" unsaved, "0 / 37" saved-empty, never a percentage (D62, D74). */
 export function formatShowedAgainstInvited(summary: {
   showed: number;
   invited: number;
@@ -101,7 +101,7 @@ export function formatShowedAgainstInvited(summary: {
   return `${showed} / ${summary.invited}`;
 }
 
-/** The coach's version of the locked state — W-F6. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** The coach's version of the locked state — W-F6. */
 export const COACH_LOCKED_HEADLINE = "Attendance is not open";
 
 export function describeCoachLock(status: string): string {
@@ -118,7 +118,7 @@ export const ATTENDANCE_HEADLINE_PREFIX = "Attendance ·";
 
 export const NOT_MARKED = "Not marked";
 
-// The board's reading groups — Brian, 14 Aug 2026 (W12, D11, LAN-205, `OWNER-WALKUP-GROUP-ORDER`). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md.
+// The board's reading groups — Brian, 14 Aug 2026 (W12, D11, LAN-205, `OWNER-WALKUP-GROUP-ORDER`).
 export type ParticipantGroupKey = "recruits" | "attending" | "everyone_else" | "walk_ups";
 
 export interface ParticipantGroup {
@@ -147,7 +147,7 @@ function byName(left: AttendanceParticipant, right: AttendanceParticipant): numb
   return name !== 0 ? name : left.key.localeCompare(right.key);
 }
 
-// Groups in reading order, each sorted by name (W12, D11, LAN-205). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md.
+// Groups in reading order, each sorted by name (W12, D11, LAN-205).
 export function groupParticipants(
   participants: AttendanceParticipant[],
   eventType: string,
@@ -236,7 +236,7 @@ export function describeCommitted(
 /** Brian locked *walk-up* as the word, 2026-08-31 — never "walk-on". */
 export const WALK_UP_HEADLINE = "Add a walk-up";
 
-/** Into recruitment, not onto the roster — Brian, 14 August 2026. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** Into recruitment, not onto the roster — Brian, 14 August 2026. */
 export const WALK_UP_RECONCILIATION_NOTE =
   "They are added to recruitment as somebody to follow up, and recorded at this event. " +
   "This does not put them on the roster or create a membership.";
@@ -249,7 +249,7 @@ export const WALK_UP_PHONE_LABEL = "Phone";
 
 export const WALK_UP_EMAIL_LABEL = "Email";
 
-/** A walk-up is recorded Present, and the form does not ask — Brian, 14 August 2026. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** A walk-up is recorded Present, and the form does not ask — Brian, 14 August 2026. */
 export const WALK_UP_ALWAYS_PRESENT =
   "Recorded as Present. Correct it on their row afterwards if you need to.";
 
@@ -257,10 +257,10 @@ export const WALK_UP_SUBMIT = "Add walk-up";
 
 export const WALK_UP_CHIP = "Walk-up · in recruitment";
 
-/** The WhatsApp send/read-back consent note — LAN-205, packet amendment 1. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** The WhatsApp send/read-back consent note — LAN-205, packet amendment 1. */
 export const WALK_UP_SEND_NOTE =
   "Saving sends them one WhatsApp message: the sign-up form, prefilled, on a link that is theirs. " +
   "Read the number back before you save.";
 
-/** The recorded confirmation — Brian, 2026-08-31: a short label, not a paragraph. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md. */
+/** The recorded confirmation — Brian, 2026-08-31: a short label, not a paragraph. */
 export const WALK_UP_ADDED = "Walk-up added";

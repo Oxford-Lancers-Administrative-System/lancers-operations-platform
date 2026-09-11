@@ -74,7 +74,6 @@ export function ApprovedEventActions({
 
 /**
  * W5-05 — actor, change and notify (§4.13); CSS grid so 375px doesn't scroll/truncate a table.
- * Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md
  */
 export function ChangeHistoryPanel({ entries }: { entries: readonly EventChangeEntry[] }) {
   return (
@@ -135,7 +134,6 @@ export function ChangeHistoryPanel({ entries }: { entries: readonly EventChangeE
 /**
  * W6-02 — what a cancelled event keeps. The reason is shown here and marked
  * internal; it reaches no other surface (see `event-amendment.test.ts`).
- * Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md
  */
 export function CancelledPanel({
   reason,

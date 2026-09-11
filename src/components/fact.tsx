@@ -8,8 +8,6 @@ import Typography from "@mui/material/Typography";
  * value) or `inline` (label beside it). An absent value renders **not
  * recorded** in the one style the application uses (`REQ-not-recorded`),
  * never blank or a dash.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export const NOT_RECORDED = "not recorded";
 

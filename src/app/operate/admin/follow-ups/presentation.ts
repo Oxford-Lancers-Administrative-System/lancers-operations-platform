@@ -20,7 +20,7 @@ export const TABLE_STATUS = "Status";
 
 export const SEARCH_LABEL = "Search name or contact";
 
-// RANGE_*: LAN-281 (Clint, 2026-09-09), range over the event's date, named — LAN-259. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+// RANGE_*: LAN-281 (Clint, 2026-09-09), range over the event's date, named — LAN-259.
 export const RANGE_FROM_LABEL = "Events from";
 export const RANGE_TO_LABEL = "Events to";
 
@@ -34,7 +34,7 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
 export const DEADLINE_UNSET = "No deadline recorded";
 export const CHASE_NONE = "not recorded";
 
-/** W5-01/OWNER-LAN173-01's vocabulary; the mockup's "Entry" dropdown is dropped, undefined. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
+/** W5-01/OWNER-LAN173-01's vocabulary; the mockup's "Entry" dropdown is dropped, undefined. */
 export const STATUS_FILTER_OPTIONS: readonly { value: string; label: string }[] = Object.freeze([
   Object.freeze({ value: "", label: "All" }),
   Object.freeze({ value: "delivery_problem", label: STATUS_LABELS.delivery_problem }),

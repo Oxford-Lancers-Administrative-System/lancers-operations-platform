@@ -13,7 +13,6 @@ import {
 /**
  * Who an event can be sent to, read from the club's authoritative data (LAN-77). Vocabulary and derived groups are pure, in `./audience-selection` (re-exported below); this module is the database read.
  * Groups are live reads: active `season_memberships`; effective-dated coach/committee `role_assignments` (register D8, D11, invariant S4); open `recruitment_prospects` (Recruitment events only, D46). The effective-date test runs against the event's own date, not today (falls back to today for a dateless draft, which invariant E1a refuses to approve anyway).
- * Decision history: docs/adr/0012-explicit-event-audience.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
  */
 
 export {
@@ -74,7 +73,7 @@ const CONTACT_EXPRESSION = `
       where c.person_id = p.id and c.kind = 'email' and c.valid_until is null
       order by c.is_preferred desc, c.created_at desc limit 1))`;
 
-/** Open recruits (D46, LAN-295); excludes joined/disengaged/declined/void (D45, LAN-201). Decision history: docs/adr/0012-explicit-event-audience.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
+/** Open recruits (D46, LAN-295); excludes joined/disengaged/declined/void (D45, LAN-201). */
 const RECRUIT_ARM = `
      select 'recruit' as capacity,
             p.id as anchor_id,
@@ -93,7 +92,6 @@ const RECRUIT_ARM = `
 /**
  * Every person selectable for an event in `seasonId`, in every capacity they qualify under, as at `scheduledOn` (falls back to today for a dateless draft). One statement, for a single consistent read; a person qualifying twice appears twice here, by design (collapsed later by `audiencePeople` / `resolveSelection`).
  * `eventType` is required: on anything but a Recruitment event, recruits are not in the catalogue at all (D46, LAN-295), keyed off `events.event_type`, never a template's name (LAN-265 lets templates be renamed freely).
- * Decision history: docs/adr/0012-explicit-event-audience.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
  */
 export async function listAudienceCatalogueIn(
   tx: Tx,

@@ -1,4 +1,4 @@
-/** Query keys the RSVP page and its actions agree on (LAN-79) — steps are params, not routes, so the journey stays one entry and works without JS. Decision history: docs/ux/tickets/LAN-79-player-rsvp.md */
+/** Query keys the RSVP page and its actions agree on (LAN-79) — steps are params, not routes, so the journey stays one entry and works without JS. */
 
 export const STEP_PARAM = "step";
 export const DECLINE_STEP = "decline";

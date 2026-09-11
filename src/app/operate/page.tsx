@@ -3,7 +3,7 @@ import { gateShellPage } from "./gate";
 import NotPermittedScreen from "./not-permitted";
 import { firstPermittedDestination } from "./destinations";
 
-// `/operate` — account-state resolution, not a Home page. Decision history: docs/ux/tickets/LAN-73-shell-and-access.md.
+// `/operate` — account-state resolution, not a Home page.
 export default async function OperatePage() {
   const gate = await gateShellPage("/operate", undefined, { narrowRecorder: "allow" });
   if ("screen" in gate) return gate.screen;

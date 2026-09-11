@@ -25,7 +25,6 @@ const SCHEDULED_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Whether `scheduledOn` is a `YYYY-MM-DD` that `formatLongDate` can safely
  * turn into a sentence — guards a malformed value from a rejected submission.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 function isFormattableScheduledOn(candidate: string): boolean {
   if (!SCHEDULED_ON_PATTERN.test(candidate)) return false;
@@ -94,7 +93,7 @@ export function EventCoreFields({
           }
         />
 
-        {/* Still labelled "Type" — selects a club template, not one of seven fixed types. `shrink` fixes the notch bug LAN-151 found. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+        {/* Still labelled "Type" — selects a club template, not one of seven fixed types. `shrink` fixes the notch bug LAN-151 found. */}
         <SelectField
           label="Type"
           name="templateId"
@@ -109,7 +108,7 @@ export function EventCoreFields({
           }))}
         />
 
-        {/* C1/C2: MUI X DatePicker/TimePicker replace native locale-dependent controls (W154C-F1 crash). D2 (Q-27): 12-hour clock with AM/PM, `format="hh:mm a"`. Stored value still plain HH:mm through the hidden input. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+        {/* C1/C2: MUI X DatePicker/TimePicker replace native locale-dependent controls (W154C-F1 crash). D2 (Q-27): 12-hour clock with AM/PM, `format="hh:mm a"`. Stored value still plain HH:mm through the hidden input. */}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <DateField
@@ -214,7 +213,7 @@ export function EventCoreFields({
           />
         )}
 
-        {/* LAN-284: joining link publish warning. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
+        {/* LAN-284: joining link publish warning. */}
         {where === "online" ? (
           <Field
             label="Joining link"

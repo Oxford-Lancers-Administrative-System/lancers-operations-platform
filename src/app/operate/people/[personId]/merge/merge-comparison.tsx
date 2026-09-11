@@ -44,7 +44,6 @@ const CONSENT_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
  * W4-02 … W4-08 — the comparison, field by field, and the confirmation that
  * moves nothing until every row is answered (Q-5). LAN-256: agreeing rows
  * render one value; disagreeing rows render unselected and block Merge.
- * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export default function MergeComparison({
   survivorRouteId,
@@ -77,7 +76,7 @@ export default function MergeComparison({
     })),
   ];
 
-  // B-003 (Q-10): operator-choosable like any other row. Decision history: missions/intake/M-PEOPLE-AND-ROSTER
+  // B-003 (Q-10): operator-choosable like any other row.
   const consentRows: ComparisonRow[] = preview.consentCombinations.map((combo) => ({
     name: `consent_${combo.seasonId}`,
     label: `Messaging consent · ${combo.seasonLabel}`,
@@ -212,7 +211,7 @@ export default function MergeComparison({
               </Section>
             ) : null}
 
-            {/* Q-16, LAN-185 round 2: archived overlap membership stays on the loser. Decision history: missions/intake/M-PEOPLE-AND-ROSTER */}
+            {/* Q-16, LAN-185 round 2: archived overlap membership stays on the loser. */}
             {preview.staysWithLoser.length > 0 ? (
               <Section title={`What stays on ${loser.displayName}`}>
                 <Stack spacing={1}>

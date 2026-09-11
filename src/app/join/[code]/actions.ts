@@ -11,8 +11,6 @@ import { resolveRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signu
 import type { DuplicateCheckResult, SignupFieldValues, SignupOutcome } from "./signup-form";
 
 /** The QR door's two server actions — LAN-202. Plain async functions a Client Component calls directly, not through `<form action>`, since branching needs a result back before deciding what to render.
- *
- * Decision history: missions/intake/M-RECRUITMENT
  */
 
 /** `W7`'s duplicate probe. Read-only, returns a bare boolean, never details or a database id (LAN-208). Gated by `code` resolving to a live season — codes are printed on posters. */

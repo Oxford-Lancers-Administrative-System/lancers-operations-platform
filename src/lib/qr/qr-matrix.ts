@@ -4,8 +4,6 @@
  * versions 1-5 only (each a single Reed-Solomon block), mask 0 fixed.
  * `qr-matrix.test.ts` round-trips every byte length through an independent
  * decoder; no production scan has run against this module's real output.
- *
- * Decision history: missions/intake/M-RECRUITMENT
  */
 
 const GF_EXP = new Array<number>(512);

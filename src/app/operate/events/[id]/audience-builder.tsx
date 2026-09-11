@@ -37,7 +37,7 @@ import {
 // D47 the initial selection may be the template's default (ADR 0012: the
 // system never implies one). One row per person, not per capacity — LAN-294,
 // Brian 2026-09-10; a tick carries all of a person's keys together, the
-// same collapse resolveSelection applies to the write. Decision history: docs/adr/0012-explicit-event-audience.md.
+// same collapse resolveSelection applies to the write.
 
 export interface AudienceBuilderProps {
   eventId: string;
@@ -88,7 +88,7 @@ export function AudienceBuilder({
 
   // Chosen people first, then everybody else, each alphabetically — Brian
   // asked for it (unreviewable otherwise). Sorted from the selection, so
-  // ticking moves a name to the top. Decision history: docs/adr/0012-explicit-event-audience.md.
+  // ticking moves a name to the top.
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return roster

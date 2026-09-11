@@ -5,8 +5,6 @@ import Chip from "@mui/material/Chip";
  * §1.3. Filled for stored statuses, outlined for derived/secondary facts,
  * always with the word — `label` comes from the owning vocabulary module,
  * never from here. `neutral` is "not yet, none, archived".
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 type StatusColour = "success" | "info" | "warning" | "error" | "neutral" | "primary";
 type StatusVariant = "filled" | "outlined";

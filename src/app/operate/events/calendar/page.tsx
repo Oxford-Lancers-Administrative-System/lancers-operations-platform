@@ -26,7 +26,7 @@ function modeOf(value: string): CalendarMode {
   return value === "oxford" ? "oxford" : "gregorian";
 }
 
-// The Events calendar — LAN-114, remade by LAN-153. Decision history: docs/ux/tickets/LAN-114-event-calendar.md.
+// The Events calendar — LAN-114, remade by LAN-153.
 export default async function EventCalendarPage({
   searchParams,
 }: PageProps<"/operate/events/calendar">) {

@@ -5,7 +5,7 @@ import { signOut } from "../login/actions";
 
 // UX-03 and UX-04, at `/operate`. Reword nothing without a recorded owner
 // decision (LAN-107). Nothing else renders — no name, email, role, counts,
-// or shell links. Decision history: docs/ux/tickets/LAN-73-shell-and-access.md.
+// or shell links.
 
 const UNLINKED_HEADING = "Operator profile not connected";
 

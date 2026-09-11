@@ -24,8 +24,6 @@ import { QuestionnaireShell } from "../player-details/questionnaire-shell";
  * S10b — step 2 of the player's questionnaire (`/me/[token]/details?step=
  * code_of_conduct`). LAN-225's player-surfaces addendum. Words unchanged from
  * the real page, including the LAN-213 placeholder banner. Drawn, not wired.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 const PLACEHOLDER_BODY =
   "PLACEHOLDER. The real Code of Conduct is Clint's, through LAN-213, and has not been written " +

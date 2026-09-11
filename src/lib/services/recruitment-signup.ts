@@ -18,7 +18,6 @@ import { recordRecruitmentSignupCodeUseIn } from "./recruitment-signup-codes";
  * {@link signUpAnonymouslyIn} (QR) and {@link signUpWithTokenIn} (tokenised).
  * Unauthenticated by design. A blank field is filled; a set field is left
  * alone (tokenised door's own name is the exception, Task 08 §3).
- * Decision history: LAN-202, missions/intake/M-RECRUITMENT
  */
 
 export interface SignupSubmission {

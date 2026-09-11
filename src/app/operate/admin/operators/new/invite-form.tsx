@@ -42,7 +42,6 @@ const CREATE_NEW = "";
  * (`DEC-active-operating-year`). Ends on the created operator's own record
  * (delivery result, resend, audit history) rather than a separate "Sent"
  * panel.
- * Decision history: docs/operating-the-slice.md
  */
 export default function InviteOperatorForm({ roles }: { roles: readonly AssignableRole[] }) {
   return (

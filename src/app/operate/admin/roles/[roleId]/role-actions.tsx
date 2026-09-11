@@ -32,7 +32,6 @@ import type { PermittedRoleActions } from "../../permissions";
 // Changing who holds one seat — LAN-133. Three actions (Replace role, End
 // role, assign into a vacancy) because DEC-account-state-separation makes
 // them three different facts, not one form with an optional successor.
-// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 /** One current holder, with the two dates the forms below have to respect. */
 export interface RoleActionHolder {
   readonly roleAssignmentId: string;
@@ -57,9 +56,9 @@ export default function RoleActions({
   roleCode: string;
   roleLabel: string;
   vacant: boolean;
-  /** Whether the cycle this seat hangs off can take a new assignment today. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
+  /** Whether the cycle this seat hangs off can take a new assignment today. */
   assignable: boolean;
-  /** `DEC-assignment-dates-and-cardinality`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
+  /** `DEC-assignment-dates-and-cardinality`. */
   admitsMultipleHolders: boolean;
   /** The club's own day, `YYYY-MM-DD`, as the page read it. */
   today: string;
@@ -73,7 +72,7 @@ export default function RoleActions({
   const offered = {
     assign: permitted.assign && assignable && (vacant || admitsMultipleHolders),
     // Replacement hands one assignment over, offered only when exactly one
-    // exists to hand over. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+    // exists to hand over.
     replace: assignable && holders.length === 1 && permitted.replace,
     end: holders.length > 0 && permitted.end,
   };
@@ -137,7 +136,7 @@ export default function RoleActions({
             personField="successorPersonId"
             successorOf={holders}
             today={today}
-            // Same floor as End — LAN-141 #2. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+            // Same floor as End — LAN-141 #2.
             earliestFrom={holders[0]?.earliestEnd}
           >
             <input type="hidden" name="roleId" value={roleId} />
@@ -187,12 +186,12 @@ function PersonPanel({
   );
   const [result, submitAction, submitting] = useActionState(action, EMPTY_ADMIN_ACTION_STATE);
   const [chosen, setChosen] = useState("");
-  // Two slots on one panel, not one — LAN-141 #15. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+  // Two slots on one panel, not one — LAN-141 #15.
   const searchSlot = useOutcomeSlot(`${testId}-search`);
   const slot = useOutcomeSlot(testId);
 
   // Search terms held here, not in the DOM — LAN133-BRIAN-7 (a submit form's
-  // reset would otherwise empty them). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
+  // reset would otherwise empty them).
   const [terms, setTerms] = useState({ givenName: "", familyName: "", email: "" });
   const term = (field: keyof typeof terms) => ({
     value: terms[field],
@@ -201,7 +200,6 @@ function PersonPanel({
   });
 
   // LAN133-BRIAN-8: the empty-result alert carries the invite route.
-  // Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
   const todayIsAllowed = earliestFrom === undefined || earliestFrom <= today;
 
   /** What the administrator asked for, so an empty answer can name it. */
@@ -364,7 +362,6 @@ function EndPanel({
   const slot = useOutcomeSlot("end-panel");
 
   // The earliest end the chosen assignment can be given — LAN-141 #2.
-  // Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
   const chosen = holders.find((holder) => holder.roleAssignmentId === assignment) ?? holders[0];
   const earliestEnd = chosen?.earliestEnd;
   const todayIsAllowed = earliestEnd === undefined || earliestEnd <= today;

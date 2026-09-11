@@ -42,13 +42,13 @@ export async function isPersonUnder18In(tx: Tx, personId: string): Promise<boole
 }
 
 export interface OnboardingChaseProgress {
-  /** Asks actually delivered, automated and manual alike — spent only on delivery (`T11-cap-delivered`), never a failed/rejected outcome. Manual asks joined the count for LAN-266. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+  /** Asks actually delivered, automated and manual alike — spent only on delivery (`T11-cap-delivered`), never a failed/rejected outcome. Manual asks joined the count for LAN-266. */
   readonly deliveredCount: number;
   /** The most recent delivered ask of either kind — the base the next automated chase is spaced from. */
   readonly lastDeliveredAt: Date | null;
   /** The next undelivered ordinal reached `MAX_ATTEMPTS` and is `failed`, nothing further scheduled (`T11-terminal-failure`, `W8-03`) — distinct from `exhausted`: the cap has not run out, delivery has. */
   readonly currentAttemptTerminallyFailed: boolean;
-  /** Same provider-neutral sentence `delivery.ts` shows an operator, read from the failed attempt's own `delivery_results.detail`. `null` unless {@link currentAttemptTerminallyFailed}. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+  /** Same provider-neutral sentence `delivery.ts` shows an operator, read from the failed attempt's own `delivery_results.detail`. `null` unless {@link currentAttemptTerminallyFailed}. */
   readonly terminalFailureReason: string | null;
   /** Highest automated-attempt ordinal for this membership, or `0` — read from the keys that exist, not inferred from {@link deliveredCount} (LAN-266). */
   readonly automatedOrdinal: number;
@@ -65,7 +65,7 @@ const NO_PROGRESS: OnboardingChaseProgress = Object.freeze({
   automatedAttemptOutstanding: false,
 });
 
-/** Every membership's chase progress, read from `notification_jobs` and `delivery_results` rather than a counter. Two queries deliberately, not one (delivered aggregate over both ask prefixes; latest automated ordinal's own outcome, `onboarding-chase:` only). Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** Every membership's chase progress, read from `notification_jobs` and `delivery_results` rather than a counter. Two queries deliberately, not one (delivered aggregate over both ask prefixes; latest automated ordinal's own outcome, `onboarding-chase:` only). */
 export async function readOnboardingChaseProgressIn(
   tx: Tx,
   membershipIds: readonly string[],
@@ -188,7 +188,7 @@ export interface OnboardingChaseCandidate {
   /** From the compiled ask — a missing required field or an unresolved checklist item, either counts. */
   readonly hasOutstanding: boolean;
   readonly hasConsent: boolean;
-  /** Whether anything could actually be sent — `selectMobileNumber`'s own question (the send path's own function), not "a mobile field is present", so the queue, the send button and the actual send can never disagree (LAN-249). Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+  /** Whether anything could actually be sent — `selectMobileNumber`'s own question (the send path's own function), not "a mobile field is present", so the queue, the send button and the actual send can never disagree (LAN-249). */
   readonly hasReachableNumber: boolean;
   readonly isUnder18: boolean;
 }
@@ -320,7 +320,7 @@ export async function readOnboardingChaseCandidatesForMembershipsIn(
   return new Map(candidates.map((candidate) => [candidate.membershipId, candidate]));
 }
 
-/** What the queue's "Next" column says (`T11-visibility` / `REQ-queue-visibility`). Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** What the queue's "Next" column says (`T11-visibility` / `REQ-queue-visibility`). */
 export type OnboardingChaseNext =
   | { readonly kind: "scheduled"; readonly at: Date }
   | { readonly kind: "exhausted" }
@@ -328,7 +328,7 @@ export type OnboardingChaseNext =
   | { readonly kind: "terminal_failure"; readonly reason: string | null }
   | { readonly kind: "no_automated_chase" };
 
-/** The pure derivation behind the queue's "Next" column and the sweep's own due check, reading the identical candidate fields so the two can never disagree. Order is deliberate and load-bearing: `exhausted` (permanent) before messageability; `under_18` before `no_channel`; `no_channel` before `terminal_failure`, since a missing number must never be masked by a generic "ran out of retries" verdict. No `no_consent` state: a team member without consent still receives the welcome/consent form. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+/** The pure derivation behind the queue's "Next" column and the sweep's own due check, reading the identical candidate fields so the two can never disagree. Order is deliberate and load-bearing: `exhausted` (permanent) before messageability; `under_18` before `no_channel`; `no_channel` before `terminal_failure`, since a missing number must never be masked by a generic "ran out of retries" verdict. No `no_consent` state: a team member without consent still receives the welcome/consent form. */
 export function describeOnboardingChaseNext(
   candidate: Pick<
     OnboardingChaseCandidate,
@@ -438,7 +438,7 @@ export async function readOnboardingLastContactIn(
 export interface OnboardingChaseQueueInfo {
   readonly lastContact: OnboardingLastContact | null;
   readonly next: OnboardingChaseNext;
-  /** Carried alongside `next` rather than re-derived: `next.kind` alone can't tell the queue "no reachable number" once exhaustion has claimed the row (F-1). `true` when there is no candidate at all. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
+  /** Carried alongside `next` rather than re-derived: `next.kind` alone can't tell the queue "no reachable number" once exhaustion has claimed the row (F-1). `true` when there is no candidate at all. */
   readonly hasReachableNumber: boolean;
 }
 

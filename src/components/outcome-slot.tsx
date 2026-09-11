@@ -8,8 +8,6 @@ import { Notice } from "./notice";
  * Panels register through {@link useOutcomeSlot}, claim the slot on submit;
  * {@link Outcome} draws nothing for a panel that no longer holds it. A
  * display rule only — an action whose result is cleared still happened.
- *
- * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export interface OutcomeState {
   readonly refusal: string | null;

@@ -20,7 +20,7 @@ import {
 } from "../../../participation/presentation";
 import { issueClubLinkAction } from "./club-link-actions";
 
-/** **Share this event** — W7-04. Link, one sentence, **Copy link** — no more (Brian rejected extra copy repeatedly). Issuing writes nothing until pressed. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
+/** **Share this event** — W7-04. Link, one sentence, **Copy link** — no more (Brian rejected extra copy repeatedly). Issuing writes nothing until pressed. */
 const REFUSAL_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   [CLUB_LINK_UNCONFIGURED_RULE]: CLUB_LINK_UNCONFIGURED_MESSAGE,
   [CLUB_LINK_NEEDS_AN_AUDIENCE_RULE]: CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE,

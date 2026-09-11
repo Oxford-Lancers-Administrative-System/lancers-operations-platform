@@ -4,8 +4,6 @@
  * structure — `New invitations`, `Still need your answer`, `Follow-up
  * needed`, `Your answers — still to come` — with the shared date/time
  * formatters already in `src/app/rsvp/[token]/presentation.ts`.
- *
- * Decision history: docs/ux/tickets/LAN-172-player-answer.md
  */
 
 import { TYPE_LABELS } from "@/app/operate/events/presentation";

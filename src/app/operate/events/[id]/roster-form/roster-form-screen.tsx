@@ -322,7 +322,7 @@ const HEAD_CELL = { ...CELL, fontWeight: 700 } as const;
 
 /**
  * LAN-267's own plain black-on-white table — nothing copied from the Word
- * template. Decision history: missions/intake/M-PEOPLE-AND-ROSTER
+ * template.
  */
 function PrintedForm({
   opponent,

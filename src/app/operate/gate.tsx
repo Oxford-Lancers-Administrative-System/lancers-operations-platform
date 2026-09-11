@@ -15,7 +15,7 @@ import { firstPermittedDestination } from "./destinations";
 
 // The gate every page under /operate opens with — the second of two
 // independent checks. LAN-110's fifth outcome: a narrow attendance recorder
-// defaults closed. Decision history: docs/ux/tickets/LAN-110-coach-attendance.md · docs/ux/tickets/LAN-73-shell-and-access.md.
+// defaults closed.
 export type ShellGate = { operator: ResolvedOperator } | { screen: ReactElement };
 
 /** What a coach is told when they reach a surface their one destination is not. */

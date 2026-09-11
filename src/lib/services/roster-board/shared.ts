@@ -2,7 +2,7 @@ import "server-only";
 
 import { ConstraintViolated, type Tx } from "@/lib/db";
 
-// Private helpers shared by the roster board's read and write siblings. Decision history: docs/ux/tickets/LAN-186-roster-board.md
+// Private helpers shared by the roster board's read and write siblings.
 
 export async function currentDateOf(tx: Tx): Promise<string> {
   const result = await tx.query<{ today: string }>(

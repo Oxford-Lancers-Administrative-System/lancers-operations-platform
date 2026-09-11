@@ -51,7 +51,6 @@ export interface ScheduleRowData {
 /**
  * The whole editable schedule: Recruitment, Onboarding, then Event
  * messaging (Recruitment row split into two audiences). No QR code here.
- * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */
 export default function MessagingScheduleForm({
   rows,
@@ -91,7 +90,7 @@ export default function MessagingScheduleForm({
           ) : null}
         </Stack>
 
-        {/* LAN-218, W11: onboarding chases sit directly below Recruitment. Decision history: docs/ux/tickets/LAN-218-chase-and-queue.md */}
+        {/* LAN-218, W11: onboarding chases sit directly below Recruitment. */}
         <Stack spacing={1.5} data-testid="onboarding-section">
           <Typography variant="h2" component="h2">
             {ONBOARDING_SECTION_HEADING}
@@ -126,7 +125,6 @@ export default function MessagingScheduleForm({
 /**
  * One recruitment cycle row — two steps, one form, one SAVE. No per-step
  * on/off control (`enabled` still exists on the row, unused here).
- * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */
 function CycleStepRow({
   steps,
@@ -209,7 +207,6 @@ function CycleStepRow({
 /**
  * Onboarding's one row: how many times, how often, first delay — nothing
  * else (`OD7-cadence-is-the-config`'s boundary).
- * Decision history: docs/ux/tickets/LAN-218-chase-and-queue.md.
  */
 function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings }) {
   const [state, formAction, pending] = useActionState(

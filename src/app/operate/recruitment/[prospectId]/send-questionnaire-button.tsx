@@ -32,7 +32,6 @@ const REASON_LABEL: Readonly<Record<string, string>> = Object.freeze({
  * 2026-08-31): never natively `disabled` for unconsented/ineligible — the
  * dialog refuses in words instead. Exception: `declined` (`blockedByDecline`)
  * already has its own top-of-record banner, so is disabled here (walk W-1).
- * Decision history: missions/intake/M-RECRUITMENT
  */
 export default function SendQuestionnaireButton({
   prospectId,
