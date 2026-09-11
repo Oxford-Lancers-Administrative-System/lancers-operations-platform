@@ -24,14 +24,7 @@ import { SENT_STEP_KEYS } from "./shared";
 
 interface RecruitmentQuestionnaireSendState {
   readonly lastSentAt: string | null;
-  /**
-   * V-6, correction round 2 (Brian: "it should say that something was, at
-   * the very least, queued… it should be clear coded for this date, and
-   * then, when it actually goes out, it should send"). The soonest
-   * `scheduled_for` among this track's own job rows that has not yet been
-   * accepted by a delivery attempt — `null` once `lastSentAt` is set (there
-   * is nothing left to queue) or when no job for this track exists yet.
-   */
+  /** V-6: the soonest not-yet-accepted `scheduled_for` for this track. `null` once `lastSentAt` is set, or when no job exists. */
   readonly queuedFor: string | null;
 }
 
@@ -81,13 +74,7 @@ export interface RecruitmentProspectRecord {
   readonly committedOn: string | null;
   readonly convertedMembershipId: string | null;
   readonly consent: SeasonMessagingConsentState;
-  /**
-   * `null` unless `consent` is `granted` — the door the current grant came
-   * through. `Q-read-back-authorises-how-much`: the record's own
-   * recruitment-questionnaire SEND button reads this (not just `consent`)
-   * because a touchline `walk_up_read_back` grant does not authorise that
-   * track, only a `qr_self_entry` one does.
-   */
+  /** `null` unless `consent` is `granted` — the door the grant came through. A touchline grant does not authorise the recruitment SEND button; only `qr_self_entry` does. */
   readonly consentSource: SeasonMessagingConsentSource | null;
   readonly personal: RecruitmentQuestionnaireSendState;
   readonly recruitment: RecruitmentQuestionnaireSendState;
@@ -134,12 +121,7 @@ async function readSendStateIn(
     return new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString();
   };
 
-  // V-6, correction round 2: the soonest still-outstanding job's own
-  // `scheduled_for`, per track — a job counts only while it genuinely might
-  // still go out (`pending`/`ready`/`processing`) and has not already been
-  // accepted (an accepted job's step already shows in `acceptedByStep`
-  // above, which is what `lastSentAt` reads, so there is nothing left to
-  // queue for that step).
+  // V-6: the soonest still-outstanding job's scheduled_for, per track.
   const queued = await tx.query<{ idempotency_key: string; scheduled_for: Date }>(
     `select nj.idempotency_key, nj.scheduled_for
        from public.notification_jobs nj
@@ -174,15 +156,7 @@ async function readSendStateIn(
   };
 }
 
-/**
- * `null` when no such prospect exists.
- *
- * The seven reads below run under one `Promise.all` on this transaction's
- * one pooled client — the same `pg`-serialised, deprecation-warning shape
- * LAN-227 named in `roster-board.ts`. Not fixed here: this package's brief
- * names the roster board's read as the one permitted behaviour edit. Recorded
- * as a finding in this package's receipt.
- */
+/** `null` when no such prospect exists. The seven reads run under one `Promise.all` on one pooled client (LAN-227's `pg`-serialised shape, not fixed here). */
 export async function readRecruitmentProspectIn(
   tx: Tx,
   prospectId: string,

@@ -5,14 +5,7 @@ import { Field } from "@/components/field";
 import { PublicShell } from "@/components/public-shell";
 import { gateShellPage } from "@/app/operate/gate";
 
-/**
- * S7 — sign in, on the public shell. LAN-225.
- *
- * The words are `/login`'s, unchanged, with one listed delta: the info alert
- * explaining that authentication does not grant access is cut (audit H1, taken
- * per brief §4.6). The form is drawn, not wired: a preview reached through the
- * real login has nothing to sign in to.
- */
+/** S7 — sign in, on the public shell (LAN-225). Words unchanged from `/login`, minus the info alert (audit H1). Drawn, not wired. */
 export default async function LoginPreviewPage() {
   const gate = await gateShellPage("/design-preview/login");
   if ("screen" in gate) return gate.screen;

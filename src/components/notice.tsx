@@ -3,18 +3,12 @@ import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 
 /**
- * The one shape for a message the application has to say — LAN-225, brief §2.
+ * The one shape for a message the application has to say — LAN-225, brief
+ * §2. See `docs/architecture/components.md` and `docs/ux/design-system.md`
+ * § 5. `variant="refusal"` carries the fixed title, so a refusal cannot be
+ * styled as a validation error on one screen and a crash on another.
  *
- * Replaces the 133 inline `Alert`s the audit counted, and does so with a rule
- * rather than a wrapper: a `Notice` is for an **outcome** (something just
- * happened), a **refusal** (the rules say no — `docs/ux/standards.md` rule 6)
- * or a **condition** the reader has to know about now. Standing guidance,
- * explanations of the design, and "this page does X" are not notices; they are
- * subtitle or helper text or nothing (audit E2, H1–H3, H7).
- *
- * `variant="refusal"` is a warning that keeps the guard's own sentence and
- * carries the fixed title, so a refusal cannot be styled as a validation error
- * on one screen and as a crash on another.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export const REFUSAL_TITLE = "Not permitted";
 

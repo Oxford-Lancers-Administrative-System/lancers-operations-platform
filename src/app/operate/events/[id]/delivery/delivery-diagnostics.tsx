@@ -14,22 +14,11 @@ import DeliveryFilters from "./delivery-filters";
 import { DIAGNOSTICS_HEADING, formatAttemptTime, matchesAttemptStatusFilter } from "./presentation";
 
 /**
- * UX-51 — W6-02's own table, one row per attempt per channel, replacing the
- * per-invitee table this screen drew before OWNER-LAN173-02: Person, Channel,
- * Attempt, When, Outcome, Provider reference, exactly as the mockup draws it,
- * and nothing this screen shows an RSVP column for any more — RSVP stays on
- * the per-invitee overview's own vocabulary instead of being repeated here
- * against data this table was never the RSVP's source of truth for.
- *
- * Includes the automatic email fallback's own attempts, which a per-invitee
- * table could not show at all: that shape is one row per invitee, and a
- * fallback is a second job for the same person, not a second invitee.
- *
- * No message content, ever. Status narrows by the attempt's own recorded
- * outcome ({@link matchesAttemptStatusFilter}) and Search narrows by name, the
- * same two controls W6-02 draws and no others — the mockup's second dropdown,
- * "Entry", is dropped rather than guessed at (OWNER-LAN173-01's reasoning
- * applies here too: no spec text defines what it would filter).
+ * UX-51 — W6-02's table: one row per attempt per channel (OWNER-LAN173-02),
+ * replacing the per-invitee table. Includes the automatic email fallback's
+ * own attempts, which the per-invitee shape couldn't show. No message
+ * content, ever. Status and Search only — no "Entry" dropdown (no spec
+ * defines what it would filter, per OWNER-LAN173-01).
  */
 export function Diagnostics({
   delivery,

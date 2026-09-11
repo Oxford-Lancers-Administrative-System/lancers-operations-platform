@@ -35,7 +35,6 @@ import {
  * except the rule constants. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 
-/** The capability floor. Every action here also asks the target-aware question. */
 export const ADMINISTRATION_CAPABILITY = "role_management" as const;
 
 export const UNKNOWN_ROLE_RULE = "administration_role_unknown";
@@ -171,15 +170,11 @@ export async function requireRoleById(tx: Tx, roleId: string): Promise<RoleRow> 
     roleId,
   ]);
   if (found.rows.length === 0) {
-    // Unreachable while `role_assignments.role_id` is a foreign key, and
-    // refused rather than asserted away: the alternative is a guard judging
-    // `undefined.code`.
     throw new NotFound(UNKNOWN_ROLE_MESSAGE, { rule: UNKNOWN_ROLE_RULE });
   }
   return found.rows[0];
 }
 
-/** The Person must exist and must not have been merged away. */
 export async function requireAssignablePerson(tx: Tx, personId: string): Promise<void> {
   const result = await tx.query<{ merged_into_person_id: string | null }>(
     "select merged_into_person_id from public.people where id = $1",
@@ -285,14 +280,7 @@ export function refuseEndBeforeStart(assignment: AssignmentRow, effectiveTo: str
   );
 }
 
-/**
- * The dates and the reason for a new assignment, checked before anything is
- * written.
- *
- * The same three rules `./operator-invitations.ts` applies to an invitation's
- * initial roles: today by default, a future date is scheduled, a past date is
- * backdating and backdating is *audited*, so it needs a reason.
- */
+/** The dates and reason for a new assignment, checked before anything is written; same three rules as an invitation's initial roles. */
 export async function resolveDates(
   tx: Tx,
   role: RoleRow,
@@ -311,14 +299,7 @@ export async function resolveDates(
   return { role, effectiveFrom, backdated, scheduled: effectiveFrom > today, reason };
 }
 
-/**
- * One person may not hold one seat twice over the same period.
- *
- * No schema constraint forbids it for a seat that admits several holders — and
- * nothing about the club means it. Refused rather than de-duplicated, because
- * "I picked it twice" and "I meant two different periods" look identical
- * afterwards.
- */
+/** One person may not hold one seat twice over the same period; refused rather than de-duplicated. */
 export async function refuseOverlappingHolding(
   tx: Tx,
   personId: string,
@@ -349,7 +330,6 @@ export async function operatingYearForAssignment(
   if (assignment.seasonId !== null) {
     return readCycle(tx, "seasons", assignment.seasonId, "season");
   }
-  // `role_assignments_exactly_one_scope` makes this unreachable.
   throw new UnexpectedDatabaseError("That role assignment has no operating year.", {
     rule: "administration_assignment_has_no_cycle",
   });
@@ -404,13 +384,7 @@ export async function lockAccount(
   return account;
 }
 
-/**
- * Applies a fragment to one account row and re-reads it through the one
- * function that decides an account's state.
- *
- * The fragment is written by this module and never by a caller — `$1` is always
- * the account id, and any further placeholders are the caller's parameters.
- */
+/** Applies a fragment to one account row and re-reads it. `$1` is always the account id; the fragment is written by this module, never a caller. */
 export async function updateAccount(
   tx: Tx,
   operatorAccountId: string,
@@ -433,7 +407,6 @@ export async function updateAccount(
   return after;
 }
 
-/** Refuses an address another operator login already holds. */
 export async function refuseTakenEmail(
   tx: Tx,
   email: string,
@@ -479,11 +452,8 @@ export function refuseUnlessRehomable(account: OperatorAccountRecord): void {
 interface AdministrationSeat {
   readonly personId: string;
   readonly roleCode: string;
-  /** ISO date. May be later than today — a seat that has not started yet. */
   readonly effectiveFrom: string;
-  /** ISO date, exclusive, or `null` for open-ended. */
   readonly effectiveTo: string | null;
-  /** Can this person sign in today? Treated as constant — see the note below. */
   readonly usable: boolean;
 }
 
@@ -537,14 +507,7 @@ async function readAdministrationSeats(tx: Tx): Promise<AdministrationSeat[]> {
   }));
 }
 
-/**
- * The club's administration paths **on one date**, as the authority module's
- * rule wants them.
- *
- * `[effectiveFrom, effectiveTo)` — the same half-open period the GiST exclusion
- * constraints use, so a seat handed over on a date is held by exactly one of
- * the two people on it.
- */
+/** The club's administration paths on one date; `[effectiveFrom, effectiveTo)`, half-open like the GiST exclusion constraints. */
 function administrationPathsOn(
   seats: readonly AdministrationSeat[],
   date: string,
@@ -567,7 +530,6 @@ function administrationPathsOn(
   }));
 }
 
-/** One Person as a candidate path, for a replacement's successor. */
 export async function administrationPathFor(
   tx: Tx,
   personId: string,
@@ -615,10 +577,6 @@ export async function assertClubKeepsAnAdministrator(
   const seats = await readAdministrationSeats(tx);
   const today = await currentDateIn(tx);
 
-  // Every date the picture can change: today, the date this action takes hold,
-  // and every start or end already scheduled. Between two consecutive dates in
-  // this set no seat begins or ends, so no date between them can be worse than
-  // the one that opened the interval.
   const horizon = new Set<string>([today, effectiveOn]);
   for (const seat of seats) {
     if (seat.effectiveFrom > today) horizon.add(seat.effectiveFrom);

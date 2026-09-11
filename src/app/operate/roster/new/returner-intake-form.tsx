@@ -27,27 +27,10 @@ import { firstInvalidField, type IntakeFormValues } from "./validation";
 
 /**
  * UX-10, UX-11 and UX-12 — one form, three steps, one server action.
- *
- * ## Why the steps share a form rather than a route each
- *
- * All three are `/operate/roster/new` in the approved screen registry, and the
- * reason is the promise UX-10 makes in its own body text: *no person or
- * membership is created until a candidate is selected or the operator
- * explicitly confirms this is a new person*. Keeping the operator's five typed
- * values in the form — as fields on step one, as hidden inputs afterwards —
- * is what lets the duplicate check happen between typing and writing without
- * anything being persisted in between, and without a draft record existing
- * anywhere to be cleaned up later.
- *
- * It also means the browser's Back button, a refresh, and a failed submission
- * all behave: there is no half-finished row on the server to reconcile with.
- *
- * ## Touch targets and focus
- *
- * Actions carry a 44px minimum height because this is explicitly a
- * phone-first surface, and the validation path moves focus to the first invalid
- * control, which the shared state contract requires. Neither is decoration:
- * an operator entering a returner is standing on a touchline.
+ * All three share the form (not a route each) so the operator's typed
+ * values persist between the duplicate check and the write — UX-10's
+ * promise that nothing is created until a candidate is picked or the
+ * operator confirms a new person. 44px touch targets: phone-first surface.
  */
 
 const MIN_TOUCH_TARGET = 44;
@@ -69,12 +52,7 @@ export default function ReturnerIntakeForm() {
 }
 
 // ---------------------------------------------------------------------------
-// UX-10 — Add player
-//
-// Brian, on the running screen: the intake heading reads "Add player" too.
-// That supersedes the earlier instruction to leave UX-10 alone. The workflow
-// underneath is unchanged — this still enters a returning player, still fixes
-// Returning, and still dedupes before writing; only the words changed.
+// UX-10 — Add player. Decision history: missions/intake/M-PEOPLE-AND-ROSTER
 // ---------------------------------------------------------------------------
 
 function DetailsStep({
@@ -125,20 +103,7 @@ function DetailsStep({
 
       {state.formError ? <Notice severity="error">{state.formError}</Notice> : null}
 
-      {/* Four fields, in this order, and no others. All four departures from
-          the approved wireframe are Brian's, taken while reviewing this screen
-          on 12 August 2026:
-            * "First name" / "Last name" rather than "Given name" / "Family
-              name" — the club's words. The columns keep the model's names;
-              this is presentation only and the two must not be conflated.
-            * first name before last name, because that is the order a person
-              says them in.
-            * no "Known as" — "not a good way to talk about it". The service
-              still accepts one for imports; this form never sends it.
-            * no "Entry marker: Returning (fixed)" chip — it named an internal
-              value the operator cannot change and could not interpret. The
-              entry is still recorded as `returning`, and the confirmation
-              screen states it in words. */}
+      {/* Four fields, in this order, no others — Brian's departures from the wireframe, 12 August 2026. Decision history: missions/intake/M-PEOPLE-AND-ROSTER */}
       <Stack spacing={2.5}>
         {field("givenName", "First name", { autoComplete: "off" })}
         {field("familyName", "Last name", { autoComplete: "off" })}
@@ -289,16 +254,10 @@ function CandidatesStep({
 }
 
 /**
- * One candidate.
- *
- * The desktop wireframe is a table with Person, Known as, Email, Phone and
- * Current season columns; the phone wireframe shows a card. This is one
- * component that lays out as columns from `md` and stacks below it, rather than
- * two renderings of the same data, because the shared contract forbids
- * responsive reflow that *removes* information — and the current-season
- * membership is the single most important thing here. It is what decides
- * whether selecting this person will be refused, so it is never the field that
- * gets dropped to make a phone layout fit.
+ * One candidate. Desktop table / phone card in one component (`md` reflow,
+ * not two renderings) — the shared contract forbids reflow that removes
+ * information, and current-season membership decides whether selecting
+ * this person is refused, so it is never the field dropped for phone.
  */
 function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
   const name = candidate.familyName

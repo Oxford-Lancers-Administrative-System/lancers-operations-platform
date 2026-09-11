@@ -28,10 +28,7 @@ export default function CurrentHolderPanel({
           {role.scheduled.length > 0
             ? `${NOT_ASSIGNED}. Nobody holds this role today; it has been assigned from a date still to come.`
             : role.cycleMissing
-              ? // Scope-aware — LAN-141 finding 8. The ten committee seats
-                // hang off the committee year and have nothing to do with the
-                // season, and telling the Treasurer's reader that no season is
-                // under way answers a question nobody asked.
+              ? // Scope-aware (LAN-141 finding 8): committee seats hang off the committee year, not the season.
                 role.scope === "season"
                 ? "There is no season under way, so this role has no holder to show yet."
                 : "No committee year is recorded as running, so this role has no holder to show yet."
@@ -81,7 +78,7 @@ export default function CurrentHolderPanel({
         </Stack>
       )}
 
-      {/* Near-future successors sit inside this panel, filled or vacant — Brian: "That doesn't make sense" on finding them split. */}
+      {/* Near-future successors sit inside this panel, filled or vacant. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md */}
       {role.scheduled.length > 0 ? (
         <Box sx={{ mt: role.holders.length === 0 ? 1.5 : 2 }} data-testid="scheduled-holders">
           <Divider sx={{ mb: 1.5 }} />

@@ -40,12 +40,9 @@ import {
 
 export interface ReplaceRoleHolderParams {
   readonly operator: ResolvedOperator | null;
-  /** The outgoing holder's assignment. */
   readonly roleAssignmentId: string;
   readonly successorPersonId: string;
-  /** The handover date. Defaults to today; the two assignments meet on it. */
   readonly effectiveFrom?: string;
-  /** Required — the outgoing assignment is ended, and ending requires a reason. */
   readonly reason: string;
 }
 
@@ -57,45 +54,16 @@ export interface ReplaceRoleHolderResult {
   readonly successorPersonId: string;
   readonly effectiveFrom: string;
   readonly scheduled: boolean;
-  /** The two events share it. `REQ-effective-dated-role-history`. */
   readonly correlationId: string;
 }
 
 /**
  * Hands one seat from its current holder to a successor, in one transaction.
- *
- * `REQ-effective-dated-role-history`: "replacement ends the outgoing assignment
- * and creates the successor without rewriting history." Both rows exist
- * afterwards, and the outgoing one keeps its own start date.
- *
- * ## Why the two dates meet rather than overlap
- *
- * `role_assignments_one_holder_per_office` and
- * `role_assignments_one_holder_per_single_holder_seat` are GiST exclusions over
- * `daterange(effective_from, effective_to, '[)')` — a half-open range. So
- * `effective_to = D` on the outgoing assignment and `effective_from = D` on the
- * successor's are disjoint and legal, and a single day of overlap is not. The
- * seat is never held by two people and never vacant for a day.
- *
- * ## Two events, and deliberately not three
- *
- * One `administration.role.ended` and one `administration.role.assigned`,
- * sharing a `correlationId`. There is no `role.replaced` action and there will
- * not be one: two assignment rows change, and a single event would have to name
- * two target Persons, which the Operator-audit-history projection keys on and
- * cannot represent. `instantOrder` already puts an assignment beginning after an
- * assignment ending, so the pair renders in causal order despite sharing a
- * transaction timestamp.
- *
- * ## Two guards, not one
- *
- * `replace_role_holder` is asked against the **outgoing** holder, because ending
- * their assignment is the half that removes authority — that is what
- * `WP-authorization` records, and it carries `end_role`'s self rule. But the
- * successor is also being given a seat, and a successor who is themselves
- * protected must be as hard to install as they are to administer, so
- * `assign_role` is asked against them too. Two questions, both answered before
- * anything is written.
+ * Both rows exist afterwards, meeting on the handover date (no overlap, no
+ * vacancy). Two events (`role.ended`, `role.assigned`) share a `correlationId`
+ * rather than one `role.replaced` — see decision history. Two guards, both
+ * before any write: the outgoing holder (`replace_role_holder`) and the
+ * successor (`assign_role`).
  */
 export async function replaceRoleHolder(
   params: ReplaceRoleHolderParams,
@@ -110,7 +78,6 @@ export async function replaceRoleHolder(
     const outgoing = await lockAssignment(tx, params.roleAssignmentId);
     const role = await requireRoleById(tx, outgoing.roleId);
 
-    // Both guards first. See the note in `assignRole`.
     const outgoingSubject = await readAdministrationSubject(tx, outgoing.personId, {
       includeScheduled: true,
     });
@@ -156,8 +123,6 @@ export async function replaceRoleHolder(
       effectiveFrom,
     );
 
-    // A replacement always carries a reason — it ends an assignment — so a
-    // backdated handover is audited by construction and needs no second check.
     const backdated = effectiveFrom < today;
 
     const correlationId = randomUUID();

@@ -33,10 +33,7 @@ export function when(entry: PlayerHomeInvitation): string | null {
 /** The row's own one-line state sentence — Q-23's "what the copy says". */
 function rowSentence(entry: PlayerHomeInvitation): string | null {
   if (entry.standingAnswer === null) {
-    // The club has already followed up once — that fact is what separates
-    // `Still need your answer` from `New invitations`, so it leads the row
-    // rather than being crowded out by the count/deadline line every
-    // unanswered row also carries.
+    // Already followed up once separates "Still need your answer" from "New invitations", so it leads.
     if (entry.reminderSent) return STILL_NEED_ANSWER_SENTENCE;
     const deadline = formatDeadline(entry.responseDeadline);
     const proof = attendingSentence(entry.attendingCount);

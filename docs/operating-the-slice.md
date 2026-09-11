@@ -701,3 +701,255 @@ them. A reader of this repository must never infer one from its contents.
 
 **Commands Brian must run for the local walk: none beyond § 2.** Everything in
 §§ 3–12 happens in a browser.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/club-time.ts — `CLUB_TIME_ZONE` (LAN-114). Destination: `docs/operating-the-slice.md`.
+
+> A constant rather than configuration because it is a fact about the club, not
+> a deployment setting: the Oxford Lancers play in Oxford. Making it an
+> environment variable would invite an environment where the deadline rules and
+> the calendar disagree about what day it is.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/club-time.ts — `UNREADABLE_DATE` (LAN-141). Destination: `docs/operating-the-slice.md`.
+
+> `formatDay("2026-13-45")` used to render the raw stored string, and
+> an invalid `Date` rendered the JavaScript artefact `"Invalid Date"`, on
+> screens where every other date reads `27 Aug 2026`. Neither is a sentence a
+> club officer can act on, and the second is worse than useless — it looks like
+> a value rather than like a fault.
+>
+> Throwing is still not the answer: an audit surface that dies on one bad row
+> takes the other twenty with it. So the row renders, and the cell says plainly
+> that this one value could not be read.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/club-time.ts — `formatClubDay()`. Destination: `docs/operating-the-slice.md`.
+
+> It lives here rather than in a screen's presentation module because refusals
+> quote dates too — `refuseEndBeforeStart()` told an administrator the earliest
+> usable date as `2026-08-21` while the page behind it said `21 Aug 2026`, and
+> two spellings of one date read as two dates.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/brand.ts — module header (LAN-277). Destination: `docs/ux/design-system.md`
+
+> One module because these strings appear in three unrelated places: the
+> masthead, the `<head>` of every page, and the images generated for link
+> previews. A wording change Brian asks for should be one edit, not a search.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/brand.ts — `JOIN_CARD_WORDS`/`JOIN_TITLE` (LAN-279). Destination: `docs/ux/design-system.md`
+
+> Brian floated "Sign up" as the alternative for the card; it is his to
+> change, and changing it here changes the image, the tab and the shared card
+> together.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/brand.ts — `SITE_DESCRIPTION` (LAN-269). Destination: `docs/ux/design-system.md`
+
+> It replaced "Oxford Lancers operations platform — infrastructure scaffold",
+> which is what WhatsApp had been showing to players since the first commit.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/brand.ts — `CLUB_CARD` (LAN-269). Destination: `docs/ux/design-system.md` intake record.
+
+> `src/app/opengraph-image.png` is a Next.js metadata _file_, and the framework
+> attaches it automatically — but only to routes that do not declare
+> `openGraph` of their own. Next replaces that object whole, and the image it
+> had put there goes with it: measured on a running server, `/calendar` and the
+> policy pages emitted `og:title` and `og:description` and no `og:image` at
+> all, which unfurls in WhatsApp as a bare line of text.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/venue-search/config.ts — module header (LAN-115). Destination: `docs/operating-the-slice.md`.
+
+> This file is deliberately the same shape as `src/lib/delivery/config.ts`,
+> because it answers the same question under the same working agreement: which
+> external service may this deployment talk to, and what happens when nobody
+> has said.
+>
+> Venue entry is free text and remains free text. Address search is an
+> assistance on top of it, so a deployment with no provider is a legitimate,
+> fully-working deployment with a slightly more manual venue field — which is
+> what every CI run is, and what the deployed container is until Brian chooses
+> to configure one. Returning `{ configured: false, missing }` lets the search
+> endpoint say "not configured" in the operator's own words instead of throwing
+> a 500 into a form that was working fine.
+>
+> The one implemented provider needs no account, no API key and no billing
+> relationship — see `photon.ts` for why that provider was chosen. Nothing in
+> this file reads a secret, so nothing in this file can leak one. If a keyed
+> provider is ever added, its credential is server-only, comes from Secret
+> Manager in Cloud Run, and is named here but never rendered, returned from a
+> route, logged or put in an audit row.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/venue-search/photon.ts — module header (LAN-115). Destination: `docs/operating-the-slice.md`.
+
+> The issue asks for a provider chosen and documented, and says to stop only
+> for an "owner-level provider/cost decision". Photon is the option that
+> removes that decision rather than deferring it:
+>
+> - **No account, no API key, no billing relationship.** Nothing to commit,
+>   nothing to leak, and no cost for Brian to approve. Google Places, Mapbox
+>   and the keyed free tiers all require an account and a card on file before
+>   a single suggestion appears, which is an owner decision this issue
+>   explicitly may not take on its own.
+>
+> - **Built for search-as-you-type.** Photon is Komoot's open-source
+>   geocoder, designed for incremental typing against OpenStreetMap data.
+>   Nominatim — the other keyless OpenStreetMap endpoint, and the obvious
+>   first guess — forbids this use outright: its usage policy names
+>   autocomplete as unacceptable use. Pointing this feature at Nominatim
+>   would be abusing a free service, so it is not offered as an option.
+>
+> - **Self-hostable and swappable.** Photon is Apache-2.0 and packaged to run
+>   anywhere, so `VENUE_SEARCH_BASE_URL` moves the club off the public
+>   instance without touching this file. If Brian later prefers a commercial
+>   provider, only this module and one branch of `config.ts` change.
+>
+> Nothing in money. The public instance at `photon.komoot.io` is offered for
+> free use with a fair-use expectation and no contractual availability. That
+> shapes two decisions elsewhere: the search is debounced in the browser so one
+> operator typing a venue is a handful of requests rather than one per
+> keystroke, and every failure mode falls back to typing the venue by hand. A
+> club drafting a few events a week is far inside fair use; the moment the
+> platform is doing anything heavier, the answer is a self-hosted instance
+> through the base-URL variable, not a louder public one.
+>
+> OpenStreetMap data is ODbL-licensed. Storing one formatted address a
+> volunteer chose, as this does, is ordinary use.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/venue-search/provider.ts — module header (LAN-115). Destination: `docs/operating-the-slice.md`.
+
+> Everything vendor-shaped is on the other side of this function: `photon.ts`
+> knows what a feature collection is, this module knows what a failure is, and
+> the route handler and the form know only `VenueSearchOutcome`.
+>
+> Every outcome here is something the operator is shown and can act on. A
+> geocoder that is down, rate-limiting, or simply unconfigured is not an
+> application fault: the venue field is free text with or without it, and the
+> only correct response is a sentence telling the operator to type the venue
+> themselves. Modelling those as thrown errors would put a working form one
+> unhandled rejection away from an error boundary, for a service that was never
+> required in the first place.
+>
+> The four outcomes are distinguished because they ask different things of the
+> operator — wait, retry later, type it yourself, or nothing at all — which is
+> LAN-115's "no-results, provider-error, rate-limit, and unavailable-provider
+> states are understandable".
+>
+> The provider's status code, body, headers or hostname. A geocoder's error
+> page is not something to render inside the club's event editor, and the
+> endpoint's URL is configuration rather than something a browser needs told.
+> `unavailable` names absent _variables_, never their values, matching the
+> delivery adapter's rule.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/venue-search/suggestion.ts — module header (LAN-115). Destination: `docs/operating-the-slice.md`.
+
+> Two rules produced it, both from LAN-115:
+>
+> - "Keep provider access behind a bounded adapter/configuration boundary so
+>   form and domain behavior do not depend directly on vendor-specific
+>   response objects." Swapping the provider must change `photon.ts` and one
+>   branch of `config.ts` — never the form, the action, the service or the
+>   schema.
+>
+> - "Do not add ... coordinates, maps, routing, or provider-specific
+>   identifiers unless the current approved model already requires them." It
+>   does not, so they are absent here rather than carried along unused. A
+>   latitude that exists is a latitude something will eventually store, and
+>   storing one is a change to the approved domain model.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/qr/qr-matrix.ts — `BitWriter.toCodewords()`. Destination: `missions/intake/M-RECRUITMENT/`.
+
+> Order matters and this module got it wrong once already: rounding up to a
+> byte boundary _before_ adding the terminator (as an earlier revision did)
+> silently manufactures an extra padding byte whenever the pre-terminator
+> length is not already byte-aligned — the common case — because the
+> boundary-rounding and the terminator each believe they own the same few
+> bits. That shifted every codeword after it, so the payload, the
+> Reed–Solomon codewords computed over it, and therefore the whole symbol,
+> decoded to nothing. Found by round-tripping this module's own byte-mode
+> output for a plain two-character string against a real decoder and a
+> reference encoder's own codeword dump, which is what `qr-matrix.test.ts`'s
+> `encodeByteMode` codeword-count assertion now pins down structurally.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/qr/qr-matrix.ts — `drawFormatInformation()`. Destination: `missions/intake/M-RECRUITMENT/`.
+
+> Every format-info module still got _a_ bit, so the finder/timing/alignment
+> structure and the two copies' own mutual agreement all read fine, but the
+> level and mask a real decoder recovered from them were wrong, and Apple
+> Vision refused the whole symbol rather than reading it with the wrong mask
+> undone. Found by round-tripping this module's own output through a real
+> decoder (`decode_qr.py`) after `qr-matrix.test.ts`'s structural assertions
+> — which check the two copies agree with each other, not that either
+> carries the _correct_ value — passed on the broken code.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/actor.ts — actorRequirement header
+
+> Every state change names the operator who made it.
+>
+> Invariant M2 is that a change and its audit row are written together, and an
+> audit row without an actor is not an audit row — so each aggregate checked
+> this before writing. Four modules did, and they had drifted into three
+> different guards: `membership.ts` also rejected a non-string,
+> `attendance.ts` and `event-approval.ts` trimmed, `events.ts` trimmed through
+> a helper. Three answers to one question, on the path that makes the audit
+> trail trustworthy.
+>
+> The strictest is now the only one. Through the application it can never fire:
+> the actor comes from `resolveOperator()`, typed `personId: string`, so
+> TypeScript has already excluded a non-string. What it defends is the
+> unchecked caller — a script, a migration helper, a test passing whatever it
+> likes — which `src/lib/services/README.md` explicitly requires to work
+> ("callable from a test with an arbitrary actor"). For those it turns a
+> `TypeError` thrown from somewhere deeper into the club's own sentence, thrown
+> before anything is written.
+>
+> The message stays with the aggregate. "A membership change has to name the
+> operator who made it" is not the sentence an attendance failure should
+> produce, and a single shared wording would have been a worse answer than the
+> duplication it replaced.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/audit.ts — file header (invariant M2, one function)
+
+> ## Invariant M2, and why this is one function
+>
+> Every transition named in the frozen model §2 writes an immutable record with
+> an actor, a timestamp and — for corrections — a reason. Where the model gives
+> a transition a typed first-class home (membership lifecycle, RSVP,
+> availability, schedule change, delivery result) _that table_ is the record
+> and this one is not also written; duplicating them would create the
+> reconciliation problem register D9 refuses. Everything else lands here.
+>
+> It is one function, in one place, for one reason: an audit row must be
+> written **inside the same transaction as the state change it describes**. An
+> audit row that survives a rolled-back change is a false history, which is
+> worse than no audit row — it is a record asserting something happened that
+> did not. Requiring a `Tx` argument is what makes that structural rather than
+> a rule people remember.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

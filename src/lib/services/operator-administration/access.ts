@@ -39,17 +39,6 @@ export interface OperatorAccessResult {
   readonly state: OperatorAccountState;
 }
 
-/**
- * Stops this operator signing in, immediately, and touches no role.
- *
- * `REQ-deactivate-and-reinstate` is emphatic about the second half:
- * deactivation "prevents sign-in without ending organizational roles, making a
- * role pending or creating a vacancy; role detail instead shows that the current
- * holder's operator access is deactivated". So this writes three columns on one
- * row and nothing else — {@link readRoleHolders} is what makes role detail say
- * so, and `operator-administration.test.ts` counts `role_assignments` rows
- * before and after to prove it.
- */
 export async function deactivateOperatorAccess(
   params: OperatorAccessParams,
 ): Promise<OperatorAccessResult> {
@@ -78,9 +67,7 @@ export async function deactivateOperatorAccess(
     await assertClubKeepsAnAdministrator(
       tx,
       { kind: "deactivate_account", personId: account.personId },
-      // Immediately. A deactivation has no date to choose, and modelling it as
-      // permanent from today is the conservative reading — nothing here knows
-      // whether or when it will be undone.
+      // immediately; a deactivation has no date to choose
       await currentDateIn(tx),
     );
 
@@ -106,20 +93,7 @@ export async function deactivateOperatorAccess(
   });
 }
 
-/**
- * Lets this operator sign in again.
- *
- * "Reinstatement restores only capabilities from assignments that remain
- * effective." Nothing here restores a capability, and that is the point:
- * capabilities are read from `role_assignments` on every request, so a seat that
- * ended while the account was deactivated stays ended and does not come back.
- * There is no capability snapshot to get wrong because there is no snapshot.
- *
- * The reason is optional. `REQ-deactivate-and-reinstate` requires one for
- * deactivation and does not for restoration, and the audit vocabulary agrees —
- * `administration.operator.restored` carries `reasonRequired: false`. Coming
- * back needs no excuse, exactly as returning a membership to active does not.
- */
+/** Lets this operator sign in again. Restores no capability snapshot — capabilities are always read from `role_assignments`. Reason is optional. */
 export async function restoreOperatorAccess(
   params: OperatorAccessParams,
 ): Promise<OperatorAccessResult> {
@@ -141,10 +115,7 @@ export async function restoreOperatorAccess(
       );
     }
 
-    // `disabled_at` and `disabled_reason` are deliberately kept. The table's
-    // own `operator_accounts_disabled_is_dated` note says so: "is_active = true
-    // with a disabled_at set is a reinstatement, and keeping the previous date
-    // is more informative than erasing it."
+    // disabled_at/disabled_reason are deliberately kept; see operator_accounts_disabled_is_dated.
     const after = await updateAccount(tx, account.id, "is_active = true", []);
 
     await recordAdministrationEvent(tx, {

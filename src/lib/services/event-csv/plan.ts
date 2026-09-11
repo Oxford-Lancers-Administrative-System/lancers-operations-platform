@@ -33,15 +33,8 @@ import {
  * Decision history: docs/ux/tickets/LAN-155-csv-import.md.
  */
 
-/**
- * The whole file, read against the season, as a proposal.
- *
- * Nothing here writes. The two shapes of failure are kept apart exactly as the
- * workflow's exception table asks: a file that is not a CSV or has no header
- * this importer recognises is refused **whole, before any row is read**, and
- * everything else is a per-row refusal that leaves every other row proceeding —
- * "never a silent partial success".
- */
+// Nothing here writes. A file that is not a CSV or has no recognised header is refused whole,
+// before any row is read; everything else is a per-row refusal — never a silent partial success.
 export function planImport(options: PlanImportOptions): ImportPlanResult {
   const parsed = parseCsv(options.csvText);
   if (!parsed.ok) return { ok: false, reason: parsed.reason };
@@ -66,10 +59,7 @@ export function planImport(options: PlanImportOptions): ImportPlanResult {
   const byId = new Map(options.events.map((event) => [event.id, event]));
   const duplicated = duplicateIds(parsed.rows, header.index);
 
-  // Line numbers count the header as line 1 and every row after it in file
-  // order, blank lines included — the operator is reading the same file in a
-  // spreadsheet, and a number that skipped blanks would not match their screen.
-  let line = 1;
+  let line = 1; // counts the header as line 1, blank lines included, to match the operator's spreadsheet
   const rows: PlannedRow[] = [];
   for (const raw of parsed.rows.slice(1)) {
     line += 1;
@@ -102,10 +92,6 @@ export function planImport(options: PlanImportOptions): ImportPlanResult {
 export function plannedWrites(plan: ImportPlan): readonly PlannedWrite[] {
   return plan.rows.flatMap((row) => (row.write === null ? [] : [row.write]));
 }
-
-// -----------------------------------------------------------------------
-// The header
-// -----------------------------------------------------------------------
 
 type HeaderIndex = Partial<Record<ImportColumn, number>>;
 
@@ -166,12 +152,7 @@ function cellsOf(row: readonly string[], index: HeaderIndex): Record<ImportColum
   return cells;
 }
 
-/**
- * Every `id` the file uses more than once.
- *
- * The workflow is explicit that both rows are refused rather than one applied:
- * "the operator's file is ambiguous and the system will not pick".
- */
+// Both rows are refused rather than one applied — "the operator's file is ambiguous and the system will not pick".
 function duplicateIds(rows: CsvTable, index: HeaderIndex): ReadonlySet<string> {
   const at = index.id;
   if (at === undefined) return new Set();
@@ -187,18 +168,7 @@ function duplicateIds(rows: CsvTable, index: HeaderIndex): ReadonlySet<string> {
   return twice;
 }
 
-// -----------------------------------------------------------------------
-// One row
-// -----------------------------------------------------------------------
-
-/**
- * Whether a cell says anything at all.
- *
- * Brian, 2026-08-21: "A blank field on a CSV means no change. This includes
- * other types of white space or anything like that." So "blank" is exactly
- * "trims to nothing", and there is no second definition anywhere in this
- * module.
- */
+// Brian, 2026-08-21: "A blank field on a CSV means no change." "Blank" is exactly "trims to nothing".
 function said(cell: string): boolean {
   return cell.trim() !== "";
 }
@@ -214,7 +184,6 @@ function planRow(
   const rawId = trimmed(cells.id);
   const match = rawId === "" ? null : (byId.get(rawId) ?? byId.get(rawId.toLowerCase()) ?? null);
 
-  // --- what each cell says, before anything is decided about the row --------
   const parsedName = said(cells.name) ? trimmed(cells.name) : null;
 
   let parsedTemplate: ImportableTemplate | null = null;
@@ -244,7 +213,6 @@ function planRow(
   const parsedDescription = said(cells.description) ? trimmed(cells.description) : null;
   const parsedEquipment = said(cells.required_equipment) ? trimmed(cells.required_equipment) : null;
 
-  // --- identity ------------------------------------------------------------
   if (rawId !== "" && duplicated.has(rawId.toLowerCase())) {
     reasons.push(
       "Another row in this file carries the same id. The file asks for two different changes to one event, and the system will not choose between them.",
@@ -261,7 +229,6 @@ function planRow(
     return refused(line, displayName, match, cells, reasons);
   }
 
-  // --- a new event ---------------------------------------------------------
   if (match === null) {
     if (parsedName === null) {
       reasons.push(
@@ -283,17 +250,12 @@ function planRow(
       scheduledOn: parsedDate,
       startsAt: parsedStart,
       endsAt: parsedEnd,
-      // Absent is in person (D20) — what the club runs, and the only default
-      // here that is a fact rather than an assumption about what somebody meant.
-      deliveryMode: parsedOnline === true ? "online" : "in_person",
+      deliveryMode: parsedOnline === true ? "online" : "in_person", // absent is in person (D20)
       venue: parsedVenue,
       description: parsedDescription,
       requiredEquipment: parsedEquipment,
-      // An import never carries an online event's link (REQ-no-joining-url).
-      joiningUrl: null,
-      // Blank means unset, and an unset expectation is not an expectation. An
-      // event never quietly claims attendance is required because nobody said.
-      isMandatory: parsedMandatory === true,
+      joiningUrl: null, // an import never carries an online event's link (REQ-no-joining-url)
+      isMandatory: parsedMandatory === true, // blank means unset, never a quiet claim of required attendance
     };
 
     return {
@@ -309,7 +271,6 @@ function planRow(
     };
   }
 
-  // --- an existing event: blank leaves every field alone --------------------
   const merged: PlannedInput = {
     name: parsedName ?? match.name,
     templateId: parsedTemplate?.id ?? match.templateId,
@@ -322,17 +283,14 @@ function planRow(
     venue: parsedVenue ?? match.venue,
     description: parsedDescription ?? match.description,
     requiredEquipment: parsedEquipment ?? match.requiredEquipment,
-    // Carried through untouched. No column writes it and no row clears it.
-    joiningUrl: match.joiningUrl,
+    joiningUrl: match.joiningUrl, // carried through untouched — no column writes or clears it
     isMandatory: parsedMandatory ?? match.isMandatory,
   };
 
   const changes = changesBetween(match, merged);
 
   if (changes.length === 0) {
-    // The narrow refusal: an unchanged row is a no-op **whatever the status**,
-    // so a straight export-and-reimport does nothing rather than producing a
-    // screen of refusals for an edit nobody made.
+    // unchanged whatever the status, so export-then-reimport is a no-op, not a screen of refusals
     return {
       line,
       outcome: "unchanged",
@@ -358,9 +316,8 @@ function planRow(
     ]);
   }
 
-  // `events_joining_url_is_for_online_events`, said here so the operator reads a
-  // sentence rather than watching the whole import fail on a constraint.
   if (merged.deliveryMode === "in_person" && merged.joiningUrl !== null) {
+    // events_joining_url_is_for_online_events, said here so the import fails with a sentence, not a constraint
     return refused(line, merged.name, match, cells, [
       "This event has a joining link, which belongs to an online event. Clear the link on the event itself before making it in person.",
     ]);
@@ -392,26 +349,19 @@ function refused(
     name: name === "" ? "(no name)" : name,
     eventId: match?.id ?? null,
     status: match === null ? "—" : labelFor(STATUS_LABELS, match.status),
-    // A refused row shows what the operator typed, not what the event holds:
-    // the point of the screen is that they can see the cell to correct.
-    cells: rawCells(cells),
+    cells: rawCells(cells), // shows what the operator typed, not what the event holds — for correcting
     changes: [],
     reasons,
     write: null,
   };
 }
 
-// -----------------------------------------------------------------------
-// Cell parsing
-// -----------------------------------------------------------------------
-
 const TIME_CELL = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function parseTimeCell(column: "start" | "end", cell: string, reasons: string[]): string | null {
   if (!said(cell)) return null;
   const value = trimmed(cell);
-  // A spreadsheet writes 20:00:00 as readily as 20:00. Both mean eight o'clock.
-  const candidate = /^\d{2}:\d{2}:\d{2}$/.test(value) ? value.slice(0, 5) : value;
+  const candidate = /^\d{2}:\d{2}:\d{2}$/.test(value) ? value.slice(0, 5) : value; // 20:00:00 and 20:00 mean the same thing
   if (!TIME_CELL.test(candidate)) {
     reasons.push(`“${column}” reads “${value}”. Times are HH:MM on the 24-hour clock.`);
     return null;

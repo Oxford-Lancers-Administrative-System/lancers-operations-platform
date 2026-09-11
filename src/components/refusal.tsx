@@ -6,15 +6,12 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 /**
- * One refusal screen — LAN-225, brief §2, `docs/ux/standards.md` rule 6.
- * Replaces the four local `Refusal`s, `NotPermittedScreen`,
- * `CoachNotPermittedScreen` and `UnavailableScreen` (audit A2, C1, H3).
+ * One refusal screen — LAN-225, brief §2, `docs/ux/standards.md` rule 6. A
+ * guard firing correctly is not an error page: a `display` title, one
+ * sentence, one action. `requirement` is the guard's own sentence naming what
+ * the action needs, never what the reader holds.
  *
- * A guard firing correctly is not an error page: a `display` title, one
- * sentence, one action. No second alert addressed to a reviewer, no stack
- * trace, and never a 404 for a page that exists. `requirement`, where the
- * refusal has one, is the guard's own sentence naming what the action needs
- * — never what the reader holds.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function Refusal({
   title,

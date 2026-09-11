@@ -304,3 +304,10 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 >   */
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/player-questionnaire/step1.ts — mobile/email shape check
+
+> per Brian's correction (B-001, LAN-216 round 1): "Should be the same as
+> all other form validations we have."
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

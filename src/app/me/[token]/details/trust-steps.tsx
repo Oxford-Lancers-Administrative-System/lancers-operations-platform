@@ -37,9 +37,7 @@ import {
 } from "./presentation";
 import { BucsHudlShell, itemIsSettled, itemStepWord } from "./step-shell";
 
-// ---------------------------------------------------------------------------
 // Step 4 — BUCS Play
-// ---------------------------------------------------------------------------
 
 export function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string }) {
   const photoReleaseAgreed = view.itemStatus.photo_release === "complete";
@@ -93,9 +91,7 @@ export function BucsStepPage({ view, token }: { view: QuestionnaireView; token: 
   );
 }
 
-// ---------------------------------------------------------------------------
 // Step 5 — Hudl
-// ---------------------------------------------------------------------------
 
 export function HudlStepPage({ view, token }: { view: QuestionnaireView; token: string }) {
   return (

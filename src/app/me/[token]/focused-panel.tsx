@@ -59,26 +59,11 @@ export function FocusedPanel({
   const deadline = formatDeadline(invitation.responseDeadline);
   const attending = attendingSentence(landing.attendingCount);
   const otherOutstanding = otherOutstandingSentence(landing.otherOutstandingCount);
-  /**
-   * Owner correction round 4 (LAN-172-r4-F1). Two different questions were
-   * conflated into one boolean: "does the form render at all" and "do we
-   * show the acknowledgement instead." `landing.outstandingRequiredQuestions`
-   * alone answers the second only for an event that HAS a required question
-   * -- Brian's own approved rule for that case is "collapse once the
-   * required ones are answered, even if an optional one was left blank"
-   * (OWNER-LAN172-08). But it is structurally always zero for an event whose
-   * questions are ALL optional, which silently deleted the form for that
-   * case on every visit, forever -- W2's own acceptance text is explicit:
-   * "Optional questions remain visibly optional."
-   *
-   * The fix keeps Brian's mixed-event rule exactly as approved (a required
-   * question, once satisfied, is what closes the panel, regardless of an
-   * unanswered optional one) while restoring a real signal for the
-   * all-optional case: when an event carries no required question at all,
-   * "still outstanding" falls back to any question of any kind left
-   * unanswered, so the form keeps showing until the player has actually
-   * seen and answered them once.
-   */
+  // LAN-172-r4-F1: `outstandingRequiredQuestions` alone is structurally always
+  // zero for an all-optional event, silently deleting the form forever
+  // (violates W2's "optional questions remain visibly optional"). Keeps
+  // Brian's mixed-event rule (OWNER-LAN172-08: required satisfied closes the
+  // panel) while falling back to "any question unanswered" when none is required.
   const hasRequiredQuestion = landing.questions.some((question) => question.isRequired);
   const questionsStillOutstanding = hasRequiredQuestion
     ? landing.outstandingRequiredQuestions > 0
@@ -104,11 +89,7 @@ export function FocusedPanel({
                 : STANDING_YES}
           </Notice>
         ) : invitation.standingAnswer === "no" ? (
-          // Owner correction round 3 (OWNER-LAN172-09): a standing No carrying
-          // the honest default is a recorded answer, not a fault — Brian:
-          // "the reason in default is very, very odd" (referring to the alarm,
-          // not the reason itself). `info` reads as a neutral fact, matching
-          // the tone `otherOutstanding` already uses below.
+          // OWNER-LAN172-09: a standing No with the honest default is a recorded answer, not a fault. `info` is a neutral tone.
           <Notice severity="info">
             {invitation.reasonIsDefault
               ? `${STANDING_NO} — ${NO_REASON_GIVEN}`
@@ -144,23 +125,12 @@ export function FocusedPanel({
           </Box>
         ) : null}
 
-        {/*
-        Owner correction round 3 (OWNER-LAN172-09): the reason field now
-        leads, "Change to Yes" follows as the standing exit — Brian's panel
-        opened for him to explain a No, not to be routed toward reconsidering
-        it first. The reason stays optional (REQ-no-reason-given: the No
-        already stands without it), so the field carries no `required` marker
-        — only the dedicated Save action still refuses a submitted-but-blank
-        real reason, exactly as it always has (LAN-79's own recoverable error).
-      */}
+        {/* OWNER-LAN172-09: reason field leads, "Change to Yes" follows. Reason stays optional (REQ-no-reason-given). */}
         {invitation.standingAnswer === "no" ? (
           <Box component="form" action={submitNo} sx={{ mb: 2 }}>
             <input type="hidden" name="token" value={token} />
             <input type="hidden" name="invitationId" value={invitation.invitationId} />
-            {/* Owner correction round 5 (OWNER-LAN172-16): "once I click Save,
-              the box should go away" — a successful save closes the panel; a
-              failed one (reasonError) still reopens it, unaffected by this
-              flag (the catch branch in submitNo never reads `close`). */}
+            {/* OWNER-LAN172-16: a successful save closes the panel; a failed one (reasonError) reopens it unaffected. */}
             <input type="hidden" name="close" value="1" />
             <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>
               {REASON_PROMPT}
@@ -185,12 +155,7 @@ export function FocusedPanel({
           <Box component="form" action={changeToYes} sx={{ mb: 2 }}>
             <input type="hidden" name="token" value={token} />
             <input type="hidden" name="invitationId" value={invitation.invitationId} />
-            {/*
-            Owner correction round 6 (OWNER-LAN172-19), reversing round 5's
-            OWNER-LAN172-16 finding: changing to Yes is not a Save — it must
-            open the event's own questions exactly like any other Yes, not
-            close on the player before they see whatever this Yes now owes.
-          */}
+            {/* OWNER-LAN172-19, reversing round 5: changing to Yes is not a Save — must open the event's own questions like any other Yes. */}
             <Button
               type="submit"
               variant="contained"
@@ -203,20 +168,7 @@ export function FocusedPanel({
           </Box>
         ) : null}
 
-        {/*
-        Owner correction round 3 (OWNER-LAN172-08), corrected round 4
-        (LAN-172-r4-F1): once nothing is left to offer — a required question,
-        or for an all-optional event, any question at all — stop
-        re-rendering the identical form; the top Alert above already reads
-        "Attending — Answer recorded" in that state. Brian: "it should close
-        it up and say 'Answer recorded'... right now, it just goes blank."
-        `questionsStillOutstanding` (above) is what keeps this from
-        collapsing before an all-optional event's own questions have ever
-        been shown — the round-3 fix used outstandingRequiredQuestions alone,
-        which is structurally always zero for such an event and hid the form
-        forever, contradicting W2's "optional questions remain visibly
-        optional."
-      */}
+        {/* OWNER-LAN172-08/LAN-172-r4-F1: stops re-rendering once nothing is left to offer; the top Alert already reads "Answer recorded". */}
         {invitation.standingAnswer === "yes" && questionsStillOutstanding ? (
           <Box component="form" action={submitQuestions} sx={{ mt: 3 }}>
             <input type="hidden" name="token" value={token} />

@@ -56,10 +56,7 @@ import { currentContact, formatEmergencyContact, joinAliases } from "./record-vi
  *
  * Decision history: docs/ux/tickets/LAN-187-player-record.md.
  */
-/**
- * A departed or archived membership takes no writes on this record at all
- * (`closed`, below), and the send is a write like any other — LAN-266.
- */
+/** A departed or archived membership takes no writes (`closed`, below); the send is a write like any other — LAN-266. */
 const CLOSED_MEMBERSHIP_REASON =
   "This membership is closed, so nothing further is sent to this player.";
 
@@ -241,9 +238,7 @@ export default function PlayerRecordView({
           justCreated ? (
             <span data-testid="created-summary">
               {linkedExisting
-                ? // LAN-257: nobody was created. Saying so was not a nicety —
-                  // the operator had just been asked "is this them?", and the
-                  // confirmation answered a different question.
+                ? // LAN-257: nobody was created — the confirmation answers "is this them?", a different question.
                   `${record.seasonLabel} membership was added to a person already on record.`
                 : `Person and ${record.seasonLabel} membership were created together.`}
             </span>
@@ -252,11 +247,7 @@ export default function PlayerRecordView({
           )
         }
       />
-      {/* LAN-257. The intake wrote nothing onto a person it only linked to,
-          and this is where it says so — by field, beside the values the club
-          actually holds, with the one surface that can change them. Silence
-          here is what left an operator believing they had updated a number
-          they had not. */}
+      {/* LAN-257: the intake wrote nothing onto a linked person — said here, by field, with the one surface that can change them. */}
       {justCreated && unsavedContacts.length > 0 ? (
         <Notice severity="info" testId="intake-contact-not-recorded">
           Not recorded on {person.displayName ?? "this person"}&rsquo;s record:{" "}
@@ -309,7 +300,6 @@ export default function PlayerRecordView({
         ) : null}
       </MetricRow>
 
-      {/* ------------------------------------------------------------ Person -- */}
       <Section
         variant="banded"
         band="person"
@@ -362,7 +352,6 @@ export default function PlayerRecordView({
         />
       </Section>
 
-      {/* -------------------------------------------------------- Onboarding -- */}
       <Section variant="banded" band="onboarding" title="Onboarding" testId="onboarding">
         {record.onboardingItems.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 2 }} data-testid="onboarding-empty">
@@ -389,21 +378,12 @@ export default function PlayerRecordView({
         )}
         {record.outstandingRequired.length > 0 ? (
           <Notice severity="info" testId="outstanding-note">
-            {/* W3, Q-19: Brian had to check every Required badge against every
-                status to find the one still outstanding. Naming it here keeps
-                the alert's own approved shape and register — the count
-                sentence, unchanged, plus the name(s) as a value, never a
-                second explanatory sentence. */}
+            {/* W3, Q-19: names the outstanding item(s) as a value — same count sentence, no second explanatory sentence. */}
             {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding: ${record.outstandingRequired.map((item) => item.label).join(", ")}.`}
           </Notice>
         ) : null}
 
-        {/* LAN-266. Brian, 2026-09-09, with the recruit record as the model:
-            the same control, in the same position and style — under the card
-            that holds the items and the outstanding banner — with the same
-            status line beneath it. Until now the only way to chase one player
-            was to leave this record for the missing-data queue, and the record
-            never said whether the link had ever been sent. */}
+        {/* LAN-266: same control as the recruit record, same position/style. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */}
         <Box sx={{ py: 1.5 }} data-testid="onboarding-send">
           <SendOnboardingQuestionnaireButton
             membershipId={record.membershipId}
@@ -439,12 +419,10 @@ export default function PlayerRecordView({
         </Box>
       </Section>
 
-      {/* --------------------------------------------------------- Activity -- */}
       <Section variant="banded" band="onboarding" title="Activity" testId="activity">
         <ActivityLog sections={record.activityLog} />
       </Section>
 
-      {/* ------------------------------------------------------------ Season -- */}
       <SeasonFactsSection
         record={record}
         editing={editing}
@@ -456,17 +434,14 @@ export default function PlayerRecordView({
         toggleFormalwear={toggleFormalwear}
       />
 
-      {/* ----------------------------------------------------- Attendance -- */}
       <Section variant="banded" band="attendance" title="Attendance" testId="attendance">
         <AttendanceSection events={record.attendance} />
       </Section>
 
-      {/* ---------------------------------------------------- Other seasons -- */}
       <Section variant="banded" band="history" title="Their other seasons" testId="other-seasons">
         <OtherSeasons seasons={record.otherSeasons} />
       </Section>
 
-      {/* --------------------------------------------------------- History -- */}
       <Section
         collapsible
         title="Status history"

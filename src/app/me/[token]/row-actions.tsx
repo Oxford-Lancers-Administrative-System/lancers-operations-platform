@@ -20,12 +20,7 @@ import {
   EDIT_REASON,
 } from "./presentation";
 
-/**
- * Inline, one-tap Yes/No — the approved row control (`W2.html:956`
- * `mini-actions`), not a navigation button. A player's own No stands from
- * this click with the honest default: `defaultOk` tells `submitNo` there is
- * no text field on this row to demand a reason from — Q-22, REQ-no-reason-given.
- */
+/** Inline, one-tap Yes/No (`W2.html:956` `mini-actions`), not a navigation button. `defaultOk` tells `submitNo` there's no text field here to demand a reason from (Q-22). */
 export function MiniYesNo({ token, invitationId }: { token: string; invitationId: string }) {
   return (
     <Stack direction="row" spacing={1}>
@@ -66,17 +61,7 @@ function ChangeToYesButton({ token, invitationId }: { token: string; invitationI
     <Box component="form" action={changeToYes} sx={{ flex: 1, minWidth: 0 }}>
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="invitationId" value={invitationId} />
-      {/*
-        Owner correction round 6 (OWNER-LAN172-19), reversing round 5's own
-        OWNER-LAN172-16 finding for this button: Brian's "one interaction"
-        model treats a change of answer exactly like a first answer — it
-        records immediately and opens *that* answer's own follow-up, never
-        closing the panel by itself. Sending `close=1` here is what let this
-        button record a Yes and then hide the very questions it had just made
-        outstanding again, with no visible way back to them but the row's own
-        separate "Answer questions" button. Only Save (the reason form, the
-        questions form) ever closes the panel now.
-      */}
+      {/* OWNER-LAN172-19, reversing round 5: a changed Yes opens its own follow-up, never closes the panel by itself. */}
       <Button type="submit" variant="contained" color="primary" fullWidth sx={{ minHeight: 40 }}>
         {CHANGE_TO_YES}
       </Button>

@@ -92,17 +92,7 @@ export function TemplateEventFields({
           />
         </Stack>
 
-        {/*
-          D78. A duration, not a start time — "the name is always going to
-          be unique ... Usual time doesn't make any sense to me" (Brian,
-          2026-08-21). A type recurs; a particular Wednesday does not.
-
-          C6. Brian: "In the template, the default times should be done
-          in 30-minute increments between 30 minutes and 4 hours ... It
-          shouldn't be freeform text." Eight options, each labelled by
-          the same `describeDuration` the template list and the
-          confirmation dialog already use.
-        */}
+        {/* D78/C6: duration, not a start time — fixed 30-minute-increment grid, not free text. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
         <SelectField
           label={TEMPLATE_DURATION_LABEL}
           name="defaultDurationMinutes"

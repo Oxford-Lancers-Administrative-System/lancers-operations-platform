@@ -14,35 +14,16 @@ import {
 
 /**
  * The event's own details, and the three headline numbers — for the club-link
- * page.
+ * page. Same payload and formatter as the operator's event page. The joining
+ * URL cannot be here: `ClubLinkEvent` has no such key (REQ-no-joining-url).
+ * Type names come from `@/lib/services/event-vocabulary` (R157C-A1), not a
+ * private second copy, so a renamed type can't leak raw to an unauthenticated
+ * audience.
  *
- * The operator's event page already carries both, and this package does not
- * rebuild it. This is the same information for a reader who has no operator
- * shell around them, rendered from the same payload and the same formatter.
- *
- * **The joining URL is not here, and cannot be.** `ClubLinkEvent` has no such
- * key (REQ-no-joining-url): there is nothing to leave out, which is a stronger
- * guarantee than remembering to.
- *
- * **The type names come from `@/lib/services/event-vocabulary` — R157C-A1.**
- * This file used to hold a private second copy of the seven. `W157-F2` deleted
- * the `TERM_LABELS` half of that duplication and left this half, which is the
- * same defect: byte-identical today, and one renamed or added type away from
- * printing a raw `strength_and_conditioning` to an unauthenticated audience,
- * through the `?? event.eventType` fallback. LAN-153 created that module to
- * stop exactly this, its header says so, and it is pure with no `server-only`,
- * so a client component may hold it — `src/app/e/[token]/page.tsx` already
- * imports from it.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
-/**
- * `Wednesday, 17 February 2027 · 20:00–22:30`.
- *
- * UX standard 3: a stored calendar date has no time and no zone, so it is read
- * as one — `new Date("2027-02-17T00:00:00Z")` — rather than as an instant, and
- * a value that will not parse says so in words instead of reaching the screen
- * raw or as `Invalid Date`.
- */
+/** UX standard 3: a stored calendar date has no zone, read as one; an unparseable value says so in words. */
 export function formatEventWhen(event: {
   scheduledOn: string | null;
   startsAt: string | null;
@@ -67,8 +48,7 @@ export function formatEventWhen(event: {
 
 export function EventFacts({ event }: { event: ClubLinkEvent }) {
   const online = event.deliveryMode === "online";
-  // LAN-264: `multiline` marks the two facts that are free text the operator
-  // typed, so a kit list written as three lines is read as three lines here too.
+  // LAN-264: `multiline` marks free text the operator typed, so a three-line entry reads as three lines here too.
   const facts: { label: string; value: string; multiline?: boolean }[] = [
     { label: "Type", value: event.templateName },
     {
@@ -77,8 +57,7 @@ export function EventFacts({ event }: { event: ClubLinkEvent }) {
     },
   ];
   if (event.termLabel !== null) {
-    // W157-F2. The event page's own formatter, so that the two surfaces say the
-    // same words about the same event — `docs/ux/standards.md` rule 7.
+    // W157-F2. The event page's own formatter, so both surfaces say the same words (rule 7).
     facts.push({
       label: "Term / week",
       value: formatTermAndWeek(event.termLabel, event.weekNumber),

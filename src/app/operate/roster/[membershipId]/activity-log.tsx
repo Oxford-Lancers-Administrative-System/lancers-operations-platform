@@ -4,10 +4,7 @@ import Typography from "@mui/material/Typography";
 import type { OnboardingActivitySection } from "@/lib/services/player-record";
 import { formatWhen } from "../presentation";
 
-/**
- * The sectioned activity log — `REQ-activity-log`, `OD7-log-by-section`: one
- * entry per ask and per answer, not a per-section count. Decision history: docs/ux/tickets/LAN-187-player-record.md.
- */
+// The sectioned activity log — `REQ-activity-log`, `OD7-log-by-section`. Decision history: docs/ux/tickets/LAN-187-player-record.md.
 export default function ActivityLog({
   sections,
 }: {

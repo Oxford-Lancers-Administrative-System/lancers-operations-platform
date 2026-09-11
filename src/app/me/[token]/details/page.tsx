@@ -94,16 +94,7 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
 
   const view = resolved.view;
 
-  /**
-   * Three landings, decided in this order: an explicit `?step=` always wins
-   * (it is how the finishing page's own "each one a link back to its step"
-   * works); absent that, nothing left at all is the uniform "already
-   * complete" page (`W4-08`) regardless of how the sequence got there;
-   * absent that, `view.nextStep` resumes the sequence at the first step
-   * genuinely still outstanding (`view.nothingOutstanding` and
-   * `nextStep === "done"` are the same condition by construction, so this
-   * branch never actually reaches `"done"`).
-   */
+  // Three landings in order: explicit `?step=` wins, else nothing-left is "already complete" (W4-08), else `view.nextStep` resumes.
   type PageKind = "already-complete" | "done" | QuestionnaireStep;
   let page: PageKind;
   if (requestedStep && STEP_PARAM_VALUES.includes(requestedStep)) {

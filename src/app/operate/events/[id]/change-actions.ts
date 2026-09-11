@@ -15,67 +15,12 @@ import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "../form-state";
 import type { CancelFormState } from "./change-state";
 
-/**
- * The three actions W5 and W6 add to an approved event — LAN-156.
- *
- * ## Authorization
- *
- * All three guard on `event_approval`, and that is the deliberate choice rather
- * than the convenient one. `event_calendar_management` names the same four
- * roles today, so the check is currently equivalent either way — and
- * `event_approval` is the capability whose action is "approve an event and
- * release its invitations", which is exactly what these three do. An amendment
- * that notifies, a re-notify and a cancellation all make a message owing to
- * every invited person. When Brian narrows one of the two lists, these actions
- * follow the one that gates messages to real people.
- *
- * W5 says "Approval capability is required, enforced in the service layer",
- * and W6 says a non-operator attempt "is refused in the service layer" — but
- * as of this correction (LAN-181, F-D1) neither is what `event-amendment.ts`
- * does. It carries no authorization call at all; `requireActor()` there
- * checks only that an actor id was named for the audit row, not that the
- * caller holds `event_approval`. **This guard is not a courtesy in front of a
- * service-layer backstop — it is the only gate that exists.** Deleting it from
- * any of the three actions below removes every authorization check on the
- * path that sends a message to every invited person, and
- * `change-actions.test.ts` is written to prove exactly that: deleting the
- * guard turns the suite red.
- *
- * A service-layer backstop was deliberately not added here. `event-amendment.ts`
- * is LAN-180's file, adding one changes the three functions' signatures (they
- * take `actorPersonId: string`, not role codes), and doing that as a
- * side effect of a fixture-and-proof ticket would be exactly the kind of
- * silent scope creep this working agreement rules out. If W5/W6's own words
- * are meant literally, building that backstop is a decision for whoever owns
- * `event-amendment.ts` next — not a gap this comment should keep asserting is
- * already closed.
- *
- * ## Why the silence confirmation is checked twice — R156-A3
- *
- * The screen shows the confirmation and posts `silenceConfirmed` only after the
- * operator has passed it. That is what the operator experiences, and it is not
- * the whole guarantee: a server action is a POST endpoint the browser can
- * call directly, so a client that skips the screen entirely and posts
- * `notify=off` with no `silenceConfirmed` field at all is refused —
- * `amendApprovedEvent` and `cancelEvent` require the flag, rather than
- * defaulting a missing one to `false` and silencing by accident.
- *
- * What this does **not** guarantee: `silenceConfirmed` is itself a
- * client-asserted boolean, indistinguishable on the wire from a screen an
- * operator actually clicked through and a raw POST that simply sets it to
- * `true`. The service can refuse an omitted confirmation; it cannot tell a
- * confirmed dialog from a forged one, because nothing about the request ties
- * it to having been shown. The acceptance evidence — "cannot be done without
- * passing a confirmation" — is asserted against the service, and is true in
- * exactly that narrower sense.
- *
- * ## Why a refusal is never a form message
- *
- * `NotPermitted` is rethrown rather than rendered, exactly as `../actions.ts`
- * does it and for the same reason: a refusal shown as red text beside a field
- * reads as "fix your input", which hides an authorization event inside a
- * validation failure.
- */
+// The three actions W5 and W6 add to an approved event — LAN-156. All three
+// guard on `event_approval`, deliberately (event-amendment.ts carries no
+// authorization of its own — this guard is the only gate that exists,
+// LAN-181 F-D1). silenceConfirmed is required, never defaulted, but is a
+// client-asserted boolean the service cannot verify was actually shown.
+// Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -102,18 +47,7 @@ function readDraft(formData: FormData): RawEventDraft {
   };
 }
 
-/**
- * The event as the submitting form loaded it — LAN-244.
- *
- * Posted as one JSON hidden field rather than eleven shadow inputs, because it
- * is one value with one meaning: "this is the version I was editing". Read
- * defensively — a missing or unparseable field yields `undefined`, which
- * `amendApprovedEvent` treats as "apply the whole submission", the behaviour
- * every caller had before this existed. There is no authorization in it either
- * way: the guard above is what decides whether this operator may amend at all,
- * and a forged baseline can only produce an amendment this operator was already
- * entitled to make.
- */
+/** The event as the submitting form loaded it — LAN-244. Read defensively; a missing/unparseable field is "apply the whole submission". Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
 function readBaseline(formData: FormData): AmendableEvent | undefined {
   const raw = formData.get("baseline");
   if (typeof raw !== "string" || raw === "") return undefined;
@@ -132,14 +66,7 @@ function messageFor(error: unknown): string {
   return error.message;
 }
 
-/**
- * Saves an amendment to an approved event — W5, REQ-amend-in-place.
- *
- * One call, with everything: the fields, the single notify decision, and
- * whether the silence confirmation was passed. There is no half-saved
- * amendment anywhere, which is what makes "abandoning an amendment writes
- * nothing" true by construction rather than by a cleanup path.
- */
+/** Saves an amendment to an approved event — W5, `REQ-amend-in-place`. One call, so abandoning an amendment writes nothing, by construction. */
 export async function amendEventAction(
   _previous: EventFormState,
   formData: FormData,
@@ -150,12 +77,8 @@ export async function amendEventAction(
 
   const validation = validateEventDraft(raw);
   if (!validation.ok) {
-    // `EventFormState` grew `questionIssues`/`questions` under LAN-154's own
-    // amendment W4-A1, for the create/edit form's question editor. Amending an
-    // approved event never touches questions — W5 does not offer one, and the
-    // contract is explicit that questions are authored only on the create and
-    // edit form — so these are the same empty values `EMPTY_FORM_STATE` already
-    // carries, not a place this action has anything to report.
+    // Amending never touches questions (W5 offers none), so these are the
+    // same empty values EMPTY_FORM_STATE already carries.
     return {
       issues: validation.issues,
       questionIssues: [],
@@ -187,12 +110,7 @@ export async function amendEventAction(
   redirect(`/operate/events/${eventId}?amended=1`);
 }
 
-/**
- * D54's recovery path — sends the change to the same audience, and nothing else.
- *
- * A `revalidatePath` on the event and on delivery, and none on the event list:
- * nothing about the event changed, so the list has nothing to re-read.
- */
+/** D54's recovery path — sends the change to the same audience, and nothing else. */
 export async function renotifyEventAction(
   _previous: EventTransitionState,
   formData: FormData,
@@ -211,12 +129,7 @@ export async function renotifyEventAction(
   redirect(`/operate/events/${eventId}?renotified=1`);
 }
 
-/**
- * `approved → cancelled` — W6. One operator, one action, no second approver.
- *
- * The reason comes back on the state when the save is refused, so an operator
- * who typed two sentences about a waterlogged pitch does not retype them.
- */
+/** `approved → cancelled` — W6. One operator, one action, no second approver. */
 export async function cancelEventAction(
   _previous: CancelFormState,
   formData: FormData,

@@ -1,56 +1,21 @@
 import type { MessagingSchedule, MessagingScheduleChange } from "@/lib/services/messaging-schedule";
 
-/**
- * Reading and checking one row's form before it reaches the database — W7,
- * LAN-171.
- *
- * The database's own `messaging_schedules_*` check constraints are the
- * backstop (`src/lib/db/errors.ts` names each one in the club's words), and
- * this is the ergonomic layer in front of them: the same six bounds, checked
- * here so a mistyped field comes back naming the template and the field
- * rather than a round trip to the database. Pure and side-effect-free, so it
- * is testable without a transaction.
- *
- * The caller passes the template'''s **name**, not its id — LAN-265. A refusal is
- * read by a person, and "Kicking Clinic: first invitation sent cannot be left
- * blank" is the sentence; the id is what the write is keyed by and says nothing
- * to anybody. There is no list of valid names to check against here, and there
- * deliberately is not one: the templates a club has are data now, and the row
- * being saved is one the page just rendered from them.
- */
+// Reading and checking one row's form before it reaches the database — W7, LAN-171. Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
 
-/**
- * The six fields every event type's row carries. LAN-203 added two more to
- * `MessagingScheduleChange` for the Recruitment row's Recruits group alone —
- * see {@link RECRUIT_SCHEDULE_FIELDS} and {@link RecruitScheduleFieldBounds} —
- * so this excludes them rather than widening `SCHEDULE_FIELDS` to a shape
- * only one of the seven rows has.
- */
+// LAN-203 added two fields to MessagingScheduleChange for the Recruitment
+// row's Recruits group alone (see RECRUIT_SCHEDULE_FIELDS); excluded here
+// rather than widening SCHEDULE_FIELDS to a shape only one row has.
 type CoreScheduleField = Exclude<
   keyof MessagingScheduleChange,
   "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours"
 >;
 
-/** Exported for `ScheduleField` — the one rendering component both `ScheduleFieldBounds` and `RecruitScheduleFieldBounds` share. */
+// helperText: OWNER-LAN171-08 round 3, Brian on the President field. Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
 export interface FieldBoundsShape {
-  /** The `<input>` name within one row's own form. */
   readonly key: string;
-  /** The settings grid's own short label (Brian's chosen shape): "RSVP by", not "Player RSVP by". */
   readonly label: string;
-  /** Shown beside the input — "days", "h", or "" for a plain count. */
   readonly unit: string;
-  /**
-   * What the number does, read at the field itself — MUI `helperText`, the
-   * same idiom `invite-form.tsx` and `operator-actions.tsx` already use to
-   * explain a field without a reader having to go elsewhere for it.
-   * OWNER-LAN171-08, round 3: the grid label alone left what a number
-   * actually governs unstated — Brian, on the President field: "it just
-   * says 12 hours, but that doesn't explain what 12 hours after the deadline
-   * before the meeting is." Present only on the fields Brian named; the two
-   * day-count fields' short labels already say what they count.
-   */
   readonly helperText?: string;
-  /** The fuller phrase a validation message names, where the grid label alone would read clipped. */
   readonly fullLabel: string;
   readonly min: number;
   readonly max: number;
@@ -60,12 +25,10 @@ export interface ScheduleFieldBounds extends FieldBoundsShape {
   readonly field: CoreScheduleField;
 }
 
-/** The Recruits group's own two fields — see {@link RECRUIT_SCHEDULE_FIELDS}. */
 export interface RecruitScheduleFieldBounds extends FieldBoundsShape {
   readonly field: "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours";
 }
 
-/** One row per editable column — the same six `messaging_schedules` carries. */
 export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
   {
     field: "rsvpByDays",
@@ -96,9 +59,7 @@ export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
     max: 720,
   },
   {
-    // Q-19 / OWNER-LAN171-05: this counts the invitation as WhatsApp #1, so
-    // the grid label is "WhatsApp" alone — never "WhatsApp reminders", which
-    // would call the invitation a reminder.
+    // Q-19/OWNER-LAN171-05: counts the invitation as WhatsApp #1 — never "WhatsApp reminders".
     field: "whatsappReminderCount",
     key: "whatsappReminderCount",
     label: "WhatsApp",
@@ -130,13 +91,8 @@ export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
   },
 ]);
 
-/**
- * The Recruits group's own two fields (LAN-203, `DEC-split-on-the-schedule`)
- * — present in the Recruitment row's body alone, beside the six above, which
- * stay the Regular players group's unchanged. One row, one form, one SAVE
- * (W10, OWNER-LAN171-04's law): these are read by the same
- * `readOneScheduleChange` call the six core fields are, not a second action.
- */
+// The Recruits group's own two fields (LAN-203, `DEC-split-on-the-schedule`)
+// — one row, one form, one SAVE (W10, OWNER-LAN171-04). Decision history: docs/ux/tickets/LAN-171-plan-and-schedule.md · missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md.
 export const RECRUIT_SCHEDULE_FIELDS: readonly RecruitScheduleFieldBounds[] = Object.freeze([
   {
     field: "recruitInvitationLeadDays",
@@ -164,19 +120,6 @@ export type ScheduleValidation =
   | { readonly ok: true; readonly change: MessagingScheduleChange }
   | { readonly ok: false; readonly message: string };
 
-/**
- * Reads and checks one event type's six fields, from its own row's form.
- *
- * Every bound `messaging_schedules` itself carries is checked here, in the
- * club's own words, before anything reaches the database:
- * `rsvp_by_days`/`invitation_lead_days`/`reminder_cadence_hours`/
- * `whatsapp_reminder_count`/`email_reminder_count`/`escalation_hours` each
- * have a matching `min`/`max` above, and
- * `messaging_schedules_invitation_precedes_the_deadline` has the cross-field
- * check below — so a genuine database rejection of a well-formed row should
- * never happen; when one does anyway, `scheduleSaveFailedNotice` is what the
- * operator sees, not a raw constraint failure.
- */
 export function readOneScheduleChange(
   label: string,
   eventType: string,
@@ -210,8 +153,7 @@ export function readOneScheduleChange(
 
   const change = values as Required<typeof values>;
 
-  // `messaging_schedules_invitation_precedes_the_deadline`, checked here in
-  // the same words so the operator reads this rather than a database refusal.
+  // messaging_schedules_invitation_precedes_the_deadline, checked here in the club's words.
   if (change.invitationLeadDays < change.rsvpByDays) {
     return {
       ok: false,
@@ -221,10 +163,6 @@ export function readOneScheduleChange(
     };
   }
 
-  // LAN-203, DEC-split-on-the-schedule. One row, one form, one SAVE: the
-  // Recruits group's two fields are read from the same form the six core
-  // ones just were, not a second submission — present in the markup, and
-  // therefore in `formData`, only on the Recruitment row.
   const recruitValues: Partial<
     Record<"recruitInvitationLeadDays" | "recruitFollowUpCadenceHours", number>
   > = {};
@@ -269,16 +207,7 @@ export function readOneScheduleChange(
   };
 }
 
-/**
- * Whether a proposed change differs from what is currently stored.
- *
- * `current` is a full `MessagingSchedule` — what `readMessagingScheduleIn`
- * actually returns — rather than `MessagingScheduleChange`: the two recruit
- * fields are `number | null` there (every row has a real, stored value,
- * `null` on six of the seven) and `number | undefined` on `proposed` (unset
- * on every row but Recruitment's own submit). The two never need to agree in
- * type, only in value.
- */
+/** `current` is a full `MessagingSchedule` (recruit fields `number | null`); `proposed` has them `number | undefined`. They need to agree in value only. */
 export function scheduleChanged(
   current: MessagingSchedule,
   proposed: MessagingScheduleChange,

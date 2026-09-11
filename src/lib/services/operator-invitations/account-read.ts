@@ -1,14 +1,8 @@
 import type { Tx } from "@/lib/db";
 import { deriveOperatorAccountState, type OperatorAccountState } from "../operator-account-state";
 
-/**
- * Reading an operator account — {@link readOperatorAccountIn} and
- * {@link toAccount} are the one place `operator_accounts` rows become
- * `OperatorAccountRecord`; `activate.ts` re-reads the same columns
- * (`ACCOUNT_COLUMNS`) under `for update` and shares this projection.
- */
+// The one place `operator_accounts` rows become `OperatorAccountRecord`; `activate.ts` shares this projection.
 
-/** One operator account, as Administration reads it. */
 export interface OperatorAccountRecord {
   readonly id: string;
   readonly personId: string;
@@ -19,11 +13,6 @@ export interface OperatorAccountRecord {
   readonly activatedAt: Date | null;
   readonly deliveryFailedAt: Date | null;
   readonly deliveryFailureReason: string | null;
-  /**
-   * When an administrator started the email re-home flow, or `null` — LAN-132.
-   * Non-null is the fifth state, and it is read here rather than assumed
-   * `false` so that every consumer of this record sees the same account.
-   */
   readonly emailRehomePendingAt: Date | null;
   readonly state: OperatorAccountState;
 }
@@ -57,11 +46,6 @@ export function toAccount(row: AccountRow): OperatorAccountRecord {
       isActive: row.is_active,
       activatedAt: row.activated_at,
       invitationDeliveryFailedAt: row.invitation_delivery_failed_at,
-      // LAN-132 supplied the column this argument was left open for. Reading
-      // it here is what makes `refuseUnlessResendable` refuse a resend for an
-      // account waiting on an email verification, rather than offering one
-      // that would send a second link to the replacement address and read as
-      // though the invitation flow were still running.
       emailChangePending: row.email_rehome_pending_at !== null,
     }),
   };

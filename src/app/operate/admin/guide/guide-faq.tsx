@@ -4,12 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { ADMINISTRATION_GUIDE, type GuideBlock, type GuideEntry, type GuideRun } from "./content";
 
-/**
- * LAN-134’s expandable guide. The kit’s native disclosures keep all answers
- * in server-rendered markup, with the first question open and the rest closed.
- * Questions remain real headings. Approved help content is unchanged: this
- * guide is its designated home, and carries no notices or callouts.
- */
+/** LAN-134's expandable guide: native disclosures, server-rendered, first question open. No notices or callouts. */
 export default function GuideFaq({
   entries = ADMINISTRATION_GUIDE,
 }: {
@@ -52,10 +47,7 @@ function AnswerBlock({ block }: { block: GuideBlock }) {
       sx={{
         pl: 3,
         mb: 1.5,
-        // Asked for explicitly, because Tailwind's preflight resets every list
-        // to `list-style: none`. Found in browser preflight: without this the
-        // invite answer's five ordered steps render as five unnumbered
-        // sentences, which loses the one thing an ordered list is for.
+        // Explicit: Tailwind's preflight resets list-style to none (found in browser preflight).
         listStyleType: block.kind === "steps" ? "decimal" : "disc",
         "&:last-child": { mb: 0 },
         "& li": { mb: 0.75, listStyleType: "inherit" },

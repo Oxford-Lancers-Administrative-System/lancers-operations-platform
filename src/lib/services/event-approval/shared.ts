@@ -13,106 +13,46 @@ import type { AudienceGroupSummary } from "../event-audience";
  * Decision history: docs/adr/0022-audience-proposed-then-frozen.md · docs/ux/tickets/LAN-77-event-approval.md.
  */
 
-/** One member of an event's audience, as stored. */
 export interface AudienceMember {
   id: string;
   capacity: AudienceCapacity;
-  /** `season_memberships.id` for a player, `people.id` otherwise. Invariant P8. */
-  anchorId: string;
+  anchorId: string; // season_memberships.id for a player, people.id otherwise — invariant P8
   personId: string;
   displayName: string;
-  /** The membership status or the seats held, as at the time of reading. */
-  standing: string;
-  /** Whether this member is still selectable — false once they go inactive. */
-  stillSelectable: boolean;
+  standing: string; // the membership status or seats held, as at the time of reading
+  stillSelectable: boolean; // false once they go inactive
 }
 
-/**
- * One audience member W1's panel names before approval — D8, LAN-171.
- *
- * "Every user is expected to have WhatsApp" (Brian, 2026-08-24), so a missing
- * or unconvertible number is an error the approver reads by name, not a
- * configuration choice and not something this screen offers to work around.
- */
+// W1's panel (D8) — "every user is expected to have WhatsApp" (Brian); an error, never a workaround.
 export interface UnreachableAudienceMember {
   readonly member: AudienceMember;
-  /** The club's own sentence — the same one W6 reports after a failed send. */
-  readonly reason: string;
+  readonly reason: string; // the club's own sentence — same one W6 reports after a failed send
 }
 
-/** Everything the builder and UX-41 need before anything is approved. */
 export interface ApprovalPreview {
   event: EventDetail;
   catalogue: AudienceCatalogue;
-  /** The audience already saved on this event. Empty until one is proposed. */
-  audience: AudienceMember[];
-  /**
-   * Where the deadline would land if the event were approved now. `null` only
-   * while the event has no date — approval is refused without one (E1a).
-   */
-  deadline: ResolvedResponseDeadline | null;
-  /**
-   * LAN-171. The whole plan a live approval would commit — the dispatch
-   * anchor, the ladder and the escalation threshold — read through the same
-   * arithmetic `approveEvent` uses, at the moment this preview is read rather
-   * than at some earlier snapshot. `null` exactly where `deadline` is: an
-   * event with no date yet has no plan to project.
-   */
-  plan: MessagingPlan | null;
-  /**
-   * Audience members with no usable WhatsApp route right now. W1's exception
-   * table: the panel treats this as an error and names the person, and offers
-   * no manual-send workaround — W6 owns correction and recovery.
-   */
-  unreachable: readonly UnreachableAudienceMember[];
-  /**
-   * The questions this event asks, in the order a player will meet them —
-   * amendment W4-A1. "Approve this event" means approving what these people are
-   * about to be asked, and a question is not a detail to discover afterwards.
-   */
-  questions: EventQuestion[];
-  /**
-   * The audience named by its groups before its people, so the approver checks a
-   * shape rather than reading thirty-five names to work one out.
-   */
-  groupSummary: AudienceGroupSummary;
-  /** The fields D16 requires and this event has not got. Empty when it is ready. */
-  missing: string[];
+  audience: AudienceMember[]; // already saved on this event; empty until one is proposed
+  deadline: ResolvedResponseDeadline | null; // where it would land if approved now; null only while dateless (E1a)
+  plan: MessagingPlan | null; // LAN-171: the whole plan a live approval would commit, read live — see relocations.md
+  unreachable: readonly UnreachableAudienceMember[]; // W1's exception table; W6 owns correction and recovery
+  questions: EventQuestion[]; // amendment W4-A1: approving the event means approving what these people are asked
+  groupSummary: AudienceGroupSummary; // named by groups before people, so the approver checks a shape
+  missing: string[]; // the fields D16 requires and this event has not got; empty when ready
 }
 
-/** The result of a successful approval — UX-43's facts, as observed. */
 export interface ApprovalOutcome {
   event: EventDetail;
   members: AudienceMember[];
   invitationCount: number;
   notificationJobCount: number;
   deadline: ResolvedResponseDeadline | null;
-  /**
-   * LAN-169. The whole plan this approval committed — the dispatch anchor, the
-   * ladder and the escalation threshold — so the confirmation can restate what
-   * was actually set in motion rather than only when an answer is due.
-   *
-   * Null on the preview path, which has no approval to describe.
-   */
-  plan?: MessagingPlan | null;
+  plan?: MessagingPlan | null; // LAN-169: what this approval committed; null on the preview path
 }
 
 export const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event";
 
-/**
- * The fields an event must have before it can be approved — D16, the
- * completeness gate.
- *
- * The date and the start time, and that is all that can be missing. `name`
- * and `event_type` are `not null` and are the minimum to save a draft at all
- * (D15). Start time is the one exception to "TBD stays legitimate" — F-C1,
- * owner decision Q-31 (Brian, 2026-08-27). Decision history: docs/adr/0022-audience-proposed-then-frozen.md · docs/ux/tickets/LAN-77-event-approval.md.
- *
- * The list is a function rather than a constant so the refusal can name which
- * fields are missing rather than which fields exist (`docs/ux/standards.md`
- * rule 5). Enforced here, above the database, so it holds when the screen is
- * bypassed and `approveEvent` is called directly.
- */
+// D16's completeness gate: date and start time are the only things that can be missing (D15, F-C1, Q-31).
 export function missingForApproval(event: EventDetail): string[] {
   const missing: string[] = [];
   if (event.scheduledOn === null) missing.push("date");
@@ -121,7 +61,6 @@ export function missingForApproval(event: EventDetail): string[] {
   return missing;
 }
 
-/** "This event cannot be approved without its date." — the refusal, named. */
 export function describeMissingForApproval(missing: readonly string[]): string {
   const list = joinWithAnd(missing);
   return missing.length === 1
@@ -129,14 +68,7 @@ export function describeMissingForApproval(missing: readonly string[]): string {
     : `This event has no ${list} yet. Add them and approve when you are ready.`;
 }
 
-/**
- * The audience stored against an event, with the names a screen has to show.
- *
- * `stillSelectable` is computed rather than stored: it compares each member
- * against the catalogue the builder would offer today. Approval does not act on
- * it — the confirmed list is honoured as-is — but the approver is entitled to
- * see that somebody has gone inactive since they were picked.
- */
+// stillSelectable is computed, not stored — approval does not act on it, but the approver sees it.
 export async function readAudienceIn(
   tx: Tx,
   eventId: string,
@@ -188,7 +120,6 @@ export async function readAudienceIn(
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-/** The deadline, as its own small shape, read from the one arithmetic that decides it. */
 export function deadlineFromPlan(plan: MessagingPlan): ResolvedResponseDeadline {
   return {
     at: plan.responseDeadlineAt,

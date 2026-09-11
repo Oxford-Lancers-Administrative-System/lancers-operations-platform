@@ -2,12 +2,7 @@ import Button from "@mui/material/Button";
 import { EmptyState } from "@/components/empty-state";
 import type { PeopleScope } from "@/lib/services/people-directory";
 
-/**
- * Two distinguishable outcomes — `W7-04` and `W7-05` — and neither is a
- * failure. Nobody missing anything is a good outcome and says so; a filter
- * matching nothing offers to clear it, matching the roster's own distinction
- * between a filtered empty and a system empty.
- */
+// Two distinguishable outcomes — `W7-04`/`W7-05` — neither is a failure.
 export default function EmptyQueue({
   totalMissing,
   scope,

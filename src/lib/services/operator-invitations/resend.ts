@@ -39,7 +39,6 @@ export interface ResendInvitationParams {
 }
 
 export interface CorrectInvitationParams extends ResendInvitationParams {
-  /** The address the invitation should have gone to. */
   readonly email: string;
 }
 
@@ -51,17 +50,6 @@ export interface InvitationSendResult {
   readonly deliveryFailureReason: string | null;
 }
 
-/**
- * Sends the invitation again, to the same address.
- *
- * `REQ-invitation-states` offers resend "while pending or failed", and
- * `resendAvailable` on the state vocabulary is where that rule lives — this
- * asks the state rather than listing the two states again.
- *
- * An expired link is a normal reason to be here, not an error: the requirement
- * "treats expiration as normal", and there is nothing to clean up because the
- * expiry is GoTrue's and the account never changed.
- */
 export async function resendOperatorInvitation(
   params: ResendInvitationParams,
 ): Promise<InvitationSendResult> {
@@ -69,19 +57,9 @@ export async function resendOperatorInvitation(
 }
 
 /**
- * Corrects the address and sends the invitation again.
- *
- * `REQ-invitation-states`: "permits correction and resend". The address moves
- * on the login and on the account together, and the old address is recorded in
- * the audit event rather than being quietly overwritten — an invitation that
- * went to the wrong person's mailbox is exactly the thing somebody will need to
- * reconstruct later.
- *
- * It is refused once the holder has established credentials. Changing the
- * address of a working account is `REQ-rehome-email`'s administrator recovery
- * flow, which disables the old login path, records a reason and holds the
- * account in Email change pending until the new address is verified. Silently
- * doing it here would be that flow without any of its protections.
+ * Corrects the address and sends the invitation again; the old address is
+ * recorded in the audit event. Refused once the holder has established
+ * credentials — that is `REQ-rehome-email`'s flow, not this one.
  */
 export async function correctOperatorInvitation(
   params: CorrectInvitationParams,
@@ -93,15 +71,6 @@ export async function correctOperatorInvitation(
   return sendAgain(params, email);
 }
 
-/**
- * The shared body of resend and correction.
- *
- * They differ in one place — whether the address moves — and are one function
- * because everything else about them is identical, including the two things
- * easiest to get subtly different between two copies: which states permit them,
- * and the fact that the failure columns are cleared *before* the send so that a
- * fresh failure is a real transition rather than a no-change the ledger refuses.
- */
 async function sendAgain(
   params: ResendInvitationParams,
   correctedEmail: string | null,
@@ -118,9 +87,6 @@ async function sendAgain(
     const account = await requireAccount(tx, params.operatorAccountId);
     const operatingYear = await resolveActiveCommitteeYear(tx);
 
-    // The snapshot includes seats that have not started yet. See the module
-    // note: a pending invitation carrying a future-dated protected seat must
-    // protect its target now, not from the handover date.
     const subject = await readAdministrationSubject(tx, account.personId, {
       includeScheduled: true,
     });
@@ -137,11 +103,7 @@ async function sendAgain(
   const previousEmail = prepared.account.loginEmail;
   const email = correctedEmail ?? previousEmail;
   if (email === null) {
-    // Only reachable for a row created before this package existed by a script
-    // that set a password directly — and such a row is Active, so
-    // `refuseUnlessResendable` has already refused it. Kept as a refusal rather
-    // than a non-null assertion, because "send an invitation to nowhere" is not
-    // a state this module may guess its way out of.
+    // Unreachable for a normal row; kept as a refusal, not a non-null assertion.
     throw new ConstraintViolated(
       "This operator record has no email address on it, so an invitation cannot be sent. " +
         "Correct the address first.",
@@ -149,37 +111,13 @@ async function sendAgain(
     );
   }
 
-  // The address moves on the login before it moves in the database, so that a
-  // failure to move it leaves both saying the same thing. If the database
-  // write then fails, the login is moved back.
   if (correctedEmail !== null && correctedEmail !== previousEmail) {
     await identity.changeLoginEmail(prepared.account.authUserId, correctedEmail);
   }
 
   try {
     await withTransaction(async (tx) => {
-      // **Everything the first transaction decided is decided again here.**
-      //
-      // The first transaction committed before the Auth call above, so every
-      // fact it checked is a snapshot taken before an unbounded network window.
-      // `startOperatorEmailRehome` closes the identical window (LAN132-B3) and
-      // this path was missed; LAN-141 finding 3 is that omission.
-      //
-      // The sharp case is `correct_invitation` on an account that activates
-      // inside the window: without this, correcting an invitation silently
-      // becomes an email re-home of a working account with none of
-      // `REQ-rehome-email`'s protections — no `recover_email` guard with its
-      // different authority list, no reason, no Email change pending. The
-      // guard's own window is the second: an administrator assigning a
-      // protected seat inside it would have made this a redirection of the
-      // link that confers it, authorized against a target who held nothing
-      // when the question was asked.
-      //
-      // So the row is locked, the target's seats are re-read with the same
-      // `includeScheduled` widening, and the guard, the state rule and the
-      // address rule are all re-asserted against the row as it is now. On a
-      // refusal the `catch` below moves the login back, exactly as the
-      // sibling flow does.
+      // Everything the first transaction decided is decided again here (LAN132-B3, LAN-141 finding 3) — see decision history.
       const current = await lockAccount(tx, prepared.account.id);
 
       const subject = await readAdministrationSubject(tx, current.personId, {

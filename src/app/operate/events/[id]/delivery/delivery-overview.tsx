@@ -34,19 +34,7 @@ export function Overview({ delivery, basePath }: { delivery: EventDelivery; base
         <Metric value={counts.failed + counts.retryable} label="Failed" testId="count-failed" />
       </MetricRow>
 
-      {/*
-        LAN-156, at the visual gate. A held message is the one state this screen
-        exists to make visible, and it had none: the amend screen said messages
-        were held and this screen showed them as Queued. The tile appears only
-        when there are held messages, so an event nobody has amended is
-        unchanged.
-
-        R156-B3. This used to add "Re-notify to send the change", which told
-        the operator that Re-notify sends the held message itself. Re-notify
-        writes a separate notice job and nothing in the repository ever
-        clears `held_at`, so that was a release condition this build does not
-        implement. Says only what happened, and stops.
-      */}
+      {/* LAN-156, R156-B3: held-message tile shown only when there are held messages; says only what happened (Re-notify sends a separate job, not the held one). */}
       {counts.held > 0 ? (
         <Notice severity="warning" testId="delivery-held">
           {counts.held === 1
@@ -56,13 +44,7 @@ export function Overview({ delivery, basePath }: { delivery: EventDelivery; base
       ) : null}
 
       {delivery.rows.length === 0 ? (
-        // § 9's Empty: distinguish "nothing yet" from "nothing matched". This is
-        // system-empty — no invitation job exists for this event.
-        //
-        // The sentence used to assert the cause ("Invitations and their delivery
-        // are created when the event is approved"), which is false on an event
-        // that IS approved and whose invitations were never dispatched — the
-        // state Brian found. It now says what is true and stops.
+        // §9 Empty: system-empty (no invitation job exists), not "nothing matched". States only what is true.
         <EmptyState
           title="No invitations have been sent for this event."
           testId="delivery-empty"
@@ -93,15 +75,9 @@ export function Overview({ delivery, basePath }: { delivery: EventDelivery; base
 }
 
 /**
- * W6's own screen: everybody `matchesStatusFilter(row.state, "attention")`
- * selects, and what — if anything — an operator does about each. Brian,
- * 2026-08-25: retries and the email fallback are automatic and offer no
- * action; only a missing route is a person's job, and what it needs is a
- * roster fix rather than a message.
- *
- * Renders nothing when nobody needs attention — an event with every message
- * delivered has nothing here to say, and a heading over an empty list would
- * be a fact about nothing.
+ * W6: everybody `matchesStatusFilter(row.state, "attention")` selects — a
+ * missing route is the only one needing a person's action (Brian, 2026-08-25).
+ * Renders nothing when nobody needs attention.
  */
 function NeedsAttention({ delivery }: { delivery: EventDelivery }) {
   const rows = delivery.rows.filter((row) => matchesStatusFilter(row.state, "attention"));
@@ -114,12 +90,7 @@ function NeedsAttention({ delivery }: { delivery: EventDelivery }) {
       testId="needs-attention"
     >
       <Stack spacing={2}>
-        {/*
-          No `divider` prop — MUI v9's `Stack` divider throws during server
-          rendering ("Element type is invalid… got: undefined"), a defect
-          `participation-table.tsx` already hit and documented. Borders do
-          the same job.
-        */}
+        {/* No `divider` prop — MUI v9's Stack divider throws during SSR (participation-table.tsx hit this); borders do the same job. */}
         <Stack spacing={0}>
           {rows.map((row) => (
             <Stack

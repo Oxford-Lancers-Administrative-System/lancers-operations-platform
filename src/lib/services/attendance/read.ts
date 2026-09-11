@@ -18,27 +18,11 @@ import { closedReasonFor, participantKey, type AttendanceClosedReason } from "./
 /** The board, and the event it belongs to. */
 export interface AttendanceBoard {
   event: EventDetail;
-  /**
-   * Whether the register may be opened. Everything else renders UX-71 or UX-75.
-   *
-   * The approval is `closedReasonFor`'s own rule and not the database's
-   * backstop: `attendance_records_require_an_approved_event` admits
-   * `cancelled` as well as `approved`, because a cancellation cascades its
-   * status onto the register's rows and W6 says those rows survive it.
-   */
-  isOpen: boolean;
-  /** `null` when the register is open. */
-  closedReason: AttendanceClosedReason | null;
-  /**
-   * When the buffer lifts, ISO-8601, or `null` for an event with no date.
-   *
-   * Returned whether the register is open or not, because a screen saying "not
-   * yet" has to say *when*, and one saying "open" has said nothing wrong.
-   */
-  registerOpensAt: string | null;
+  isOpen: boolean; // closedReasonFor's own rule, not the database's approved-or-cancelled backstop
+  closedReason: AttendanceClosedReason | null; // null when the register is open
+  registerOpensAt: string | null; // ISO-8601, returned whether open or not; null for an event with no date
   participants: AttendanceParticipant[];
-  /** The same numbers the event page's headline reads. See `AttendanceSummary`. */
-  summary: AttendanceSummary;
+  summary: AttendanceSummary; // the same numbers the event page's headline reads
   invitedCount: number;
   recordedCount: number;
   walkUpCount: number;
@@ -58,27 +42,10 @@ interface ParticipantRow {
   recorded_by_name: string | null;
 }
 
-/**
- * Every invitee and every walk-up for the event, in one list.
- *
- * A `full outer join` rather than two queries stitched together in TypeScript:
- * the two sides are "was asked" and "was observed", and the whole point of this
- * screen is the people who appear on one side and not the other. Joining them
- * in SQL means a walk-up is a row with a null left side, which is exactly what
- * invariant P6 describes, rather than a special case the caller has to remember
- * to append.
- *
- * ## Why both sides carry an `anchor_id`
- *
- * The natural way to write the join is "the same membership, **or** the same
- * person", because invariant P8 puts the anchor in one of two columns depending
- * on capacity. PostgreSQL refuses it: a `full outer join` has to have a
- * merge-joinable or hash-joinable condition, and a disjunction of two equalities
- * is neither. So each side computes the one anchor it actually has —
- * `coalesce(season_membership_id, person_id)`, which P8 guarantees is exactly
- * one non-null value — and the join is a plain equality on that. Same rows,
- * and a plan the planner will accept.
- */
+// Every invitee and every walk-up, in one list — a full outer join so a walk-up is a row with a
+// null left side (invariant P6), not a caller-assembled special case. Both sides compute
+// coalesce(season_membership_id, person_id) as one anchor_id (P8 guarantees exactly one non-null),
+// since PostgreSQL's full outer join needs a mergeable equality, not a disjunction of two.
 const PARTICIPANT_QUERY = `
   with invited as (
     select i.id as invitation_id,
@@ -123,23 +90,9 @@ const PARTICIPANT_QUERY = `
     left join public.people rp on rp.id = rec.recorded_by_person_id
    order by inv.invitation_id is null, display_name, coalesce(inv.capacity, rec.capacity)`;
 
-/**
- * Every recruit on the board this season, for a recruitment event's sheet
- * only — Brian, 2026-09-01, on the running fidelity mockup (LAN-200). W12's
- * own "recruits first" is therefore not an invitation filter the way a
- * player's row is; a recruit belongs on the sheet by virtue of being an open
- * or recently-exited prospect for this season, invited to this particular
- * event or not. Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md.
- *
- * `joined` is excluded — a converted prospect is a player now, tracked by
- * their season membership like anybody else. `void` is excluded on the
- * schema's own steer: a void row says the record itself is wrong, never a
- * fact about the person.
- *
- * Left-joined against this event's own invitations and attendance so
- * {@link readAttendanceBoard} can tell which recruits `PARTICIPANT_QUERY`
- * above has already produced a row for (`already_on_sheet`) and skip them.
- */
+// Every recruit on the board this season, for a recruitment event's sheet only (LAN-200; see
+// relocations.md) — not an invitation filter, a recruit belongs by being an open/recently-exited
+// prospect this season. `joined` excluded (now a player); `void` excluded (a wrong record, not a fact).
 const RECRUIT_ROSTER_QUERY = `
   select rp.person_id,
          ${displayName("p")} as display_name,
@@ -172,14 +125,8 @@ function asIsoString(value: Date | string | null): string | null {
   return typeof value === "string" ? value : value.toISOString();
 }
 
-/**
- * The board for one event, in whatever state it is in.
- *
- * It does **not** refuse a non-occurred event: the route has to render UX-71
- * for one, which needs the event. `isOpen` is the answer, and the write paths
- * ask the question again for themselves rather than trusting that a caller
- * looked at it.
- */
+// The board for one event, in whatever state it is in — does not refuse a non-occurred event (the
+// route renders UX-71 for one); isOpen is the answer, and write paths ask again for themselves.
 export async function readAttendanceBoard(
   eventId: string,
   now: Date = new Date(),
@@ -208,12 +155,8 @@ export async function readAttendanceBoard(
 
     const rows = await tx.query<ParticipantRow>(PARTICIPANT_QUERY, [eventId]);
 
-    // Read rather than recomputed. The view is the club's definition of a
-    // mismatch, and a second definition written here would drift from it. It
-    // was also what the Monday report read, until LAN-151: the view derives
-    // occurrence against `now()`, so a report about last March would have
-    // depended on today's date. `weekly-report` counts walk-ups off
-    // `attendance_records` instead, which leaves this the only reader.
+    // Read, not recomputed — the view is the club's definition of a mismatch. weekly-report counts
+    // walk-ups off attendance_records instead (LAN-151), leaving this the only reader of the view.
     const mismatches = await tx.query<MismatchRow>(
       `select season_membership_id, person_id, capacity::text as capacity, mismatch
          from public.rsvp_attendance_mismatches
@@ -221,26 +164,10 @@ export async function readAttendanceBoard(
       [eventId],
     );
 
-    /*
-      D74, and the defect it exists to prevent — LAN-152, corrected by LAN-165.
-      Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-205-walk-up-and-recruits-first.md.
-
-      A mismatch is a **disagreement between two records**. Where the second
-      record does not exist there is no disagreement — there is an absence,
-      and the club already has a word for it: *not recorded*. `said_yes_no_
-      attendance_recorded` is the only classification this view can emit for a
-      person with nothing recorded — dropping it, per person, is both
-      necessary and sufficient.
-
-      Filtered **here** rather than in `public.rsvp_attendance_mismatches`
-      deliberately: the view is schema, and this mission's schema belongs to
-      the status-and-occurrence migration package. This function is the
-      view's only reader today, so the rule is applied wherever the view is
-      read — but a future direct reader of the view, written after this
-      package and not looking here, would over-count every unrecorded yes on
-      a sheet somebody has started. Recorded in the residual-risk section of
-      the pull request that merged LAN-165.
-    */
+    // D74: a mismatch is a disagreement between two records. Where the second record does not
+    // exist there is no disagreement, only *not recorded* — the one classification
+    // (said_yes_no_attendance_recorded) this view can emit for that case is dropped here, not in
+    // the view itself (schema is a different package's; see relocations.md for the residual risk).
     const flagged = new Map<string, string>();
     for (const row of mismatches.rows) {
       if (!row.mismatch || row.mismatch === "said_yes_no_attendance_recorded") continue;
@@ -265,11 +192,8 @@ export async function readAttendanceBoard(
       } satisfies AttendanceParticipant;
     });
 
-    // W12, D11 — every recruit on the board joins a recruitment event's sheet,
-    // invited to this event or not. Only the ones `PARTICIPANT_QUERY` has not
-    // already produced a row for; a recruit that query already found (an
-    // invitation, an attendance record, or both) keeps that real row rather
-    // than gaining a second, always-blank one.
+    // W12, D11: every recruit joins a recruitment event's sheet, invited or not — skipping any
+    // PARTICIPANT_QUERY already produced a real row for.
     if (event.eventType === "recruitment") {
       const onBoard = await tx.query<RecruitRosterRow>(RECRUIT_ROSTER_QUERY, [
         eventId,
@@ -316,31 +240,12 @@ interface SummaryRow {
   walk_ups: string;
 }
 
-/**
- * The three headline numbers, for the event page — REQ-headline-numbers, D62,
- * D73, D74. LAN-152.
- *
- * ## Why this is not `readAttendanceBoard`
- *
- * The board answers "may the register be opened, and who is on it?", and for
- * an event whose buffer has not lifted the honest answer to the first half is
- * no — so it returns no participants. The headline is a different question:
- * **forty-seven people were asked and twenty-one said yes** is true of an
- * approved event a fortnight away, and the event page has to print it.
- *
- * So it is five counts in one round trip rather than a `full outer join` and a
- * view read the page has no use for.
- *
- * ## What it does not do
- *
- * Judge. It reports `registerSaved` and leaves the difference between "nobody
- * came" and "nobody looked" to the two values — D74's own two-state axis.
- */
+// The three headline numbers — REQ-headline-numbers, D62/D73/D74, LAN-152. Not readAttendanceBoard:
+// the headline answers a different question than "may the register open, and who's on it?" (see
+// relocations.md). Reports registerSaved and leaves "nobody came" vs "nobody looked" to the caller.
 export async function readEventAttendanceSummary(eventId: string): Promise<AttendanceSummary> {
   return withTransaction(async (tx) => {
-    // Proves the event exists, and refuses with a sentence rather than
-    // returning five zeroes for an identifier that names nothing.
-    await readEventIn(tx, eventId);
+    await readEventIn(tx, eventId); // proves the event exists, refuses with a sentence rather than five zeroes
 
     const result = await tx.query<SummaryRow>(
       `with invited as (

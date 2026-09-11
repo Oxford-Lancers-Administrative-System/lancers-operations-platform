@@ -28,9 +28,7 @@ import {
 export interface EndRoleAssignmentParams {
   readonly operator: ResolvedOperator | null;
   readonly roleAssignmentId: string;
-  /** Defaults to today. A date still to come schedules the ending. */
   readonly effectiveTo?: string;
-  /** Required. `REQ-effective-dated-role-history`: ending "requires a reason". */
   readonly reason: string;
 }
 
@@ -43,17 +41,7 @@ export interface EndRoleAssignmentResult {
   readonly scheduled: boolean;
 }
 
-/**
- * Ends one assignment, today or on a date still to come.
- *
- * This is the one action that creates a vacancy — `REQ-deactivate-and-reinstate`:
- * "Only explicit End role creates a Not assigned vacancy." Deactivating access
- * does not, and never has.
- *
- * The row is updated, never removed. An assignment that has already ended is
- * refused rather than re-ended: "without rewriting history" is the requirement,
- * and moving a date that has already passed is rewriting it.
- */
+/** Ends one assignment, today or on a future date. The row is updated, never removed; an already-ended assignment is refused, not re-ended. */
 export async function endRoleAssignment(
   params: EndRoleAssignmentParams,
 ): Promise<EndRoleAssignmentResult> {
@@ -66,7 +54,6 @@ export async function endRoleAssignment(
   return withTransaction(async (tx) => {
     const assignment = await lockAssignment(tx, params.roleAssignmentId);
 
-    // Authorization first. See the note in `assignRole`.
     const subject = await readAdministrationSubject(tx, assignment.personId, {
       includeScheduled: true,
     });

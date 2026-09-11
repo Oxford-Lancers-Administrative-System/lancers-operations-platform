@@ -90,36 +90,12 @@ export interface QuestionnaireView {
   detailsComplete: boolean;
   /** Open disputes on the seven `people` fields — `REQ-no-silent-overwrite`'s own visible trace. */
   openDisputedFields: ReadonlySet<DisputedPersonField>;
-  /**
-   * Who actually supplied each of the seven disputable fields' current value
-   * — F4 (LAN-230). `"you"` when the most recent `person_<field>_updated` row
-   * names this same person, `"club"` when it names anybody else, `null` when
-   * there is no such row at all (seeded, imported, or never edited — nothing
-   * to attribute). The display used to hard-code "you" or "the club" by
-   * field *name* regardless of this; this is the one comparison
-   * `PersonRecord`'s own `<field>Source` (a display name, not an id) cannot
-   * make on its own — see `readFieldSuppliedByIn`.
-   */
+  /** F4: "you"/"club"/`null` (no row at all) for who last touched each field — see `readFieldSuppliedByIn`. */
   fieldSuppliedBy: Record<DisputedPersonField, "you" | "club" | null>;
   agreements: Record<OnboardingAgreementType, OnboardingAgreement | null>;
-  /**
-   * Whether each document is *settled* — LAN-240. Deliberately not "is there
-   * an agreement row", which is what the step panel used to ask on its own
-   * and is exactly how it came to print "Already agreed" beneath a navigator
-   * reading "Outstanding". This is the same answer `outstandingSections` and
-   * `nextStep` are computed from, published so every part of the player's
-   * link reads one fact rather than each deriving its own.
-   */
+  /** Whether each document is settled (LAN-240) — the same fact `outstandingSections`/`nextStep` compute from. */
   documentAgreed: Record<OnboardingAgreementType, boolean>;
-  /**
-   * `null` means no `onboarding_items` row of this code exists for this
-   * membership at all — F2 (LAN-230): "a season with no configured item
-   * types yields no items… a real configuration state, not a failure"
-   * (`generateOnboardingItems`'s own module note), and it must read that way
-   * here too rather than defaulting to `"complete"`. Never treated as done by
-   * anything in this module — matching the operator record's own "This
-   * season has no onboarding items configured" honesty.
-   */
+  /** `null` means no `onboarding_items` row of this code exists (F2, LAN-230) — never treated as done. */
   itemStatus: Record<
     (typeof TRUST_ITEM_CODES)[number] | (typeof DIRECT_PLAYER_ITEM_CODES)[number],
     OnboardingItemStatus | null
@@ -129,25 +105,11 @@ export interface QuestionnaireView {
   outstandingSections: OutstandingSection[];
   /** The first step the sequence should resume at, or `"done"` when nothing needs it. */
   nextStep: QuestionnaireStep;
-  /**
-   * When this membership's most recent player answer was actually recorded —
-   * B2 (LAN-230 correction round 1). The Done screen is revisitable for the
-   * whole season (`W4`/`W5`), so `new Date()` there misstated the date on
-   * every reopen after the day it was first shown. `null` only for a
-   * membership `readQuestionnaireView` can somehow reach with no recorded
-   * answer at all — not expected on a page reached by having answered
-   * something, but never assumed.
-   */
+  /** Most recent player answer (B2, LAN-230) — `null` only if unreachable in practice, never assumed. */
   lastAnsweredAt: Date | null;
 }
 
-/**
- * The most recent time this membership actually saved something — B2
- * (LAN-230 correction round 1). `onboarding_activity_log` already carries one
- * `kind = 'answer'` row per save (`recordOnboardingActivityIn`, written by
- * every action in this module), so this is a read of substrate already kept
- * for exactly this reason, not a new one.
- */
+/** Most recent save time (B2, LAN-230) — read of `onboarding_activity_log`'s existing `kind = 'answer'` rows. */
 async function readLastAnsweredAtIn(tx: Tx, membershipId: string): Promise<Date | null> {
   const result = await tx.query<{ occurred_at: Date | null }>(
     `select max(occurred_at) as occurred_at
@@ -206,30 +168,8 @@ export async function readQuestionnaireViewIn(
     readLastAnsweredAtIn(tx, ask.membershipId),
   ]);
 
-  // LAN-240 (walker M7, finding M7-01). The item is the authority whenever
-  // there *is* one, and the agreement row is the fallback only when there is
-  // not.
-  //
-  // This used to be a plain `||`, and that is what let the operator's reopen
-  // never reach the player: setting Photo release back to "No" moved
-  // `onboarding_items.status` to `pending`, but the agreement row's mere
-  // existence went on answering "done" here, so the sequence skipped the step
-  // and the step itself rendered "Already agreed" under a navigator reading
-  // "Outstanding". `resolveOnboardingItem` now removes that row in the same
-  // transaction as the reopen, so the two facts can no longer disagree — but
-  // the precedence still has to be stated, because it is the precedence, not
-  // the delete alone, that makes the item what the player's link obeys.
-  //
-  // The fallback itself is unchanged and still load-bearing — F2's own
-  // necessary companion, found walking that fix live: `agreeDocument` advances
-  // by *resuming* to the next outstanding step (`nextStepUrl`), never by a
-  // literal one (unlike BUCS/Hudl, which always advance regardless —
-  // `literalNextStepUrl`, "nothing gates"). With no configured
-  // `code_of_conduct`/`photo_release` item, `completePlayerOrDerivedItemIn`
-  // has nothing to mark complete, so a player who *did* agree would be stuck
-  // resuming to the same step forever. `agreements` (`onboarding_agreements`,
-  // read above) is the item-independent record of that same fact, already on
-  // hand, and answers only for the membership that genuinely has no item.
+  // LAN-240: the item is the authority whenever there is one; the agreement row is the fallback
+  // only when there is not (needed for a membership with no configured item — F2).
   const codeOfConductDone =
     itemStatus.code_of_conduct !== null
       ? itemStatus.code_of_conduct === "complete"
@@ -238,9 +178,7 @@ export async function readQuestionnaireViewIn(
     itemStatus.photo_release !== null
       ? itemStatus.photo_release === "complete"
       : agreements.photo_release !== null;
-  // B1 (LAN-230 correction round 1): `trustClaimed`'s `|| ` half is the exact
-  // same necessary companion as `agreements` above, for the two trust items —
-  // see `readTrustClaimedIn`'s own module note.
+  // B1 (LAN-230): trustClaimed is the same necessary companion as agreements above, for the trust items.
   const bucsDone =
     itemStatus.bucs_play === "claimed" ||
     (itemStatus.bucs_play !== null && RESOLVED_ITEM_STATUSES.includes(itemStatus.bucs_play)) ||
@@ -364,18 +302,7 @@ const DISPLAYED_ITEM_CODES: readonly string[] = Object.freeze([
   ...TRUST_ITEM_CODES,
 ]);
 
-/**
- * The four items' real current status, read directly rather than inferred
- * from what `readCompiledOutstandingAskIn` leaves out — F2 (LAN-230).
- * `outstandingItems` only lists `pending`/`invited`/`claimed` rows, so
- * "absent from that list" used to be read as "resolved" and defaulted to
- * `"complete"`. That conflates two different facts: a resolved item, and a
- * membership with **no row of this code at all** (never generated, or a
- * season with no configured item types — a real, unexceptional state
- * `generateOnboardingItems`'s own module note names). This reads every one of
- * the four codes' actual rows, so the second case reads `null` rather than
- * a guess, and is never treated as done.
- */
+/** The four items' real current status, read directly rather than inferred from `readCompiledOutstandingAskIn` (F2, LAN-230) — no row reads `null`, never a guessed `"complete"`. */
 async function readDisplayedItemStatusesIn(
   tx: Tx,
   membershipId: string,
@@ -397,20 +324,11 @@ async function readDisplayedItemStatusesIn(
 }
 
 /**
- * The item-independent counterpart to `agreements` for the two trust items —
- * B1 (LAN-230 correction round 1), the identical deadlock `agreements` above
- * already fixes for Code of Conduct/photo release, reproduced live on a
- * zero-`onboarding_items` membership: `bucsDone`/`hudlDone` had no signal
- * except `itemStatus`, so a player who genuinely claimed both was left
- * `nothingOutstanding: false`, `nextStep: "bucs_play"`, forever, on every
- * reopen of the link. `claimTrustItem` already logs the player's own claim to
- * `onboarding_activity_log` whether or not there is an item to move
- * (`channel: "signed link"`, F2's own fix) — that recorded answer is this
- * signal, read back the same way `agreements` reads back an `onboarding_agreements`
- * row. Scoped to `kind = 'answer'` and `channel = 'signed link'` specifically
- * so Hudl's distinct "no invitation has reached me" answer
- * (`recordHudlNoInvitation`'s own `channel`) never counts as a claim — exactly
- * as it already does not complete the `hudl_access` item when one exists.
+ * The item-independent counterpart to `agreements`, for the two trust items
+ * (B1, LAN-230) — reads `claimTrustItem`'s own log row back, the same way
+ * `agreements` reads an `onboarding_agreements` row. Scoped to
+ * `channel = 'signed link'` so Hudl's "no invitation reached me" answer
+ * never counts as a claim.
  */
 async function readTrustClaimedIn(
   tx: Tx,
@@ -431,15 +349,7 @@ async function readTrustClaimedIn(
   };
 }
 
-/**
- * Completes one of the four player/derived items, once, forward-only.
- *
- * A season with no configured item of this code (should not happen once
- * `generateOnboardingItems` has run — LAN-214 — but this module never assumes
- * another package's invariant) or one already resolved is a no-op: there is
- * nothing this call needs to do, and nothing here ever reopens an item — that
- * stays an operator's `resolveOnboardingItem` action, four-role, `W7`'s.
- */
+/** Completes one of the four player/derived items, once, forward-only. No configured item or one already resolved is a no-op; never reopens (that stays `resolveOnboardingItem`, W7). */
 export async function completePlayerOrDerivedItemIn(
   tx: Tx,
   params: {
@@ -472,14 +382,7 @@ export async function completePlayerOrDerivedItemIn(
   });
 }
 
-/**
- * Recomputes the two derived items against what is on record right now —
- * item 9 ("contact & academic details… completes when every required field
- * is present") and item 12 ("season welcome & consent… approval is what
- * completes it"), item-and-ask-inventory.md's own words. Called after every
- * details save and safe to call at any other time: forward-only, and a no-op
- * once complete.
- */
+/** Recomputes the two derived items against the current record (item-and-ask-inventory.md). Forward-only, a no-op once complete. */
 export async function syncDerivedItemsIn(
   tx: Tx,
   params: { personId: string; seasonId: string; membershipId: string },

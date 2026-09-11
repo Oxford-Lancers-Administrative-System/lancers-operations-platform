@@ -2,152 +2,50 @@ import { addDays, oxfordWeekRange, termWeeks, type CalendarEvent } from "./calen
 import type { TermWindow } from "./event-input";
 import { labelFor, TERM_LABELS } from "./event-vocabulary";
 
-/**
- * The Oxford View — one continuous academic year. LAN-153, `REQ-oxford-continuous`.
- *
- * ## What replaced the term card, and why
- *
- * LAN-114 built three separate term cards behind an academic-year selector and
- * an Oxford-term selector. Stewart Humble asked for the opposite on 17 August
- * 2026: _"you can do a continuous scroll and it's going to merge from Michaelmas
- * to Christmas vacation to Hilary to Easter vacation to Trinity to long vacation
- * to the next … you might say academic year 26/27, which is all the vacations
- * and all the terms."_ D85 recorded it, and this module is that column.
- *
- * The difference is not cosmetic. A term card can only show a term, so the weeks
- * between terms had to be borrowed by whichever card was nearest — which is why
- * LAN-114 needed `nearestTerm`, a six-week reach, an ownership question asked at
- * every cell to stop one event appearing on two cards, and a leftover panel for
- * the events no card could reach. A continuous year has none of those problems
- * to solve, because **every date in the year is already inside exactly one
- * segment**. All of that machinery went with the term card.
- *
- * ## A vacation belongs to neither adjacent term
- *
- * Asked directly whether the Christmas vacation was part of Michaelmas or part
- * of Hilary, Stewart answered _"It's neither."_ So a vacation is its own
- * segment, with its own name and its own week numbering, and `YearSegment.termId`
- * is `null` for one — not the term before it and not the term after it. That is
- * what retires D9's "an out-of-term event belongs to the term that follows it as
- * a negative week" and D10's "Outside term" strip: there is nothing left for a
- * catch-all to catch.
- *
- * ## Vacation weeks are numbered forward, and are not Oxford weeks
- *
- * _"Christmas Vacation 1, 2, 3 …"_, running _"until it'll match perfectly up
- * until minus one week of Hilary"_ — Stewart again, and the Long Vacation's
- * numbering reaches the twenties. `events.week_number` is constrained to −1..8
- * and could not hold "Long Vacation 22" even if somebody wanted it to, which is
- * the other half of why these coordinates are **derived here and never stored**.
- * Nothing in this module writes anything, and nothing reads `events.term_id` or
- * `events.week_number`: the event's real date is the source of truth and the
- * coordinate follows from it.
- *
- * ## Pure, like `./calendar`
- *
- * No database, no clock, no environment. The terms, the events, today's date and
- * the season's window are all arguments, so the club's reference boundaries can
- * be checked against this module directly and the same functions render in a
- * client component.
- */
+// The Oxford View — one continuous academic year, LAN-153. Every date is inside exactly one
+// segment; a vacation belongs to neither adjacent term. Pure. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
-// ---------------------------------------------------------------------------
-// The club's own vacation vocabulary
-// ---------------------------------------------------------------------------
-
-/**
- * What the club calls the gap after each term. Taken verbatim from Stewart
- * Humble's 17 August 2026 transcript rather than invented, which is why this is
- * a map of three entries and not a rule about months.
- *
- * Keyed on the term the vacation **follows**, because that is how the club names
- * them: the vacation after Michaelmas is the Christmas one wherever Michaelmas
- * happens to fall.
- */
+/** What the club calls the gap after each term (Stewart Humble, 17 August 2026), keyed on the term it follows. */
 const VACATION_AFTER: Readonly<Record<string, string>> = Object.freeze({
   michaelmas: "Christmas Vacation",
   hilary: "Easter Vacation",
   trinity: "Long Vacation",
 });
 
-/**
- * The vacation that runs **into** a term, for the one segment that has no term
- * before it — the Long Vacation the season opens in.
- *
- * Brian, 20 August 2026: _"Each season will have the 2026 long vacation, and
- * then there will be a 2027 long vacation. Each season has one."_ So the year
- * carries a Long Vacation at each end, and the leading one is named from the
- * term it runs into rather than from a term in a year this column is not showing.
- */
+/** The vacation that runs into a term, for the segment with no term before it (Brian, 20 August 2026). */
 const VACATION_BEFORE: Readonly<Record<string, string>> = Object.freeze({
   michaelmas: "Long Vacation",
 });
 
-/** What an unnamed gap is called. Reachable only if `terms.name` grows a value. */
 const UNNAMED_VACATION = "Vacation";
-
-// ---------------------------------------------------------------------------
-// Shapes
-// ---------------------------------------------------------------------------
 
 type YearSegmentKind = "term" | "vacation";
 
 interface YearDay {
-  /** `YYYY-MM-DD`. */
   day: string;
-  /** 0 for Sunday through 6 for Saturday — the column this cell is in. */
   weekday: number;
   isToday: boolean;
   events: CalendarEvent[];
 }
 
 export interface YearWeek {
-  /** The segment this row belongs to. */
   segmentKey: string;
-  /**
-   * The Oxford week on a term row (−1 … 8), or the forward count on a vacation
-   * row (1, 2, 3 …).
-   *
-   * One field rather than two because a row has exactly one number either way,
-   * and `kind` on the segment says which kind of number it is. What must never
-   * happen is a vacation count being read as an Oxford week: `week: 22` on a
-   * vacation row is "Long Vacation 22", and the schema would refuse to store it
-   * as a week.
-   */
+  /** The Oxford week on a term row (−1 … 8), or the forward count on a vacation row (1, 2, 3 …). */
   week: number;
-  /** The row's own label — "−1st week", "3rd week", "Christmas Vacation 2". */
+  /** "−1st week", "3rd week", "Christmas Vacation 2". */
   label: string;
-  /** The exact Gregorian Sunday this week starts on. */
   startsOn: string;
-  /** The exact Gregorian Saturday it ends on — or earlier on a clipped row. */
   endsOn: string;
   days: YearDay[];
 }
 
 export interface YearSegment {
-  /** Stable within one year — the jump control's value and the row anchor. */
   key: string;
   kind: YearSegmentKind;
-  /** "Michaelmas", "Christmas Vacation", "Long Vacation". */
   name: string;
-  /**
-   * What a reader is shown — the club's word, not the stored one.
-   *
-   * `name` is `terms.name` for a term, which is the lower-case enum value the
-   * schema holds; this is "Michaelmas". The two Long Vacations carry the
-   * calendar year they start in, because a year has two of them and "Long
-   * Vacation" twice in one menu names neither (Brian, 20 August 2026: "Each
-   * season will have the 2026 long vacation, and then there will be a 2027 long
-   * vacation").
-   */
+  /** What a reader is shown — the club's word, not the stored enum value. */
   jumpLabel: string;
-  /**
-   * The term this segment **is**, or `null` for a vacation.
-   *
-   * `null` is the load-bearing value: a vacation belongs to neither adjacent
-   * term, so there is deliberately no field here naming the term before or after
-   * it. Stewart, asked directly: "It's neither."
-   */
+  /** `null` for a vacation — load-bearing: it belongs to neither adjacent term. */
   termId: string | null;
   startsOn: string;
   endsOn: string;
@@ -155,37 +53,16 @@ export interface YearSegment {
 }
 
 export interface AcademicYearColumn {
-  /** `terms.academic_year` — never parsed out of a heading. */
   academicYear: string;
   /** Long Vacation → Michaelmas → … → Trinity → Long Vacation, in order. */
   segments: YearSegment[];
-  /** Events with no date at all. They have no week and no cell. */
   undated: CalendarEvent[];
-  /**
-   * Dated events outside the year this column covers.
-   *
-   * Normally empty, and structurally so: the column spans the whole academic
-   * year, so a season's events are inside it. It exists because a date can be
-   * recorded that predates the year's leading vacation, and dropping an event
-   * silently is worse than listing it.
-   */
+  /** Dated events outside the year this column covers — normally empty. */
   outsideTheYear: CalendarEvent[];
-  /** Events placed in a cell. */
   placedCount: number;
 }
 
-// ---------------------------------------------------------------------------
-// Week labels
-// ---------------------------------------------------------------------------
-
-/**
- * "−1st week" … "8th week" — the Oxford row labels, with a real minus sign.
- *
- * Spelled out rather than computed from the last digit, exactly as
- * `src/app/operate/events/calendar/presentation.ts` did for the term card: the
- * range is eleven values, and a rule that has to be right for eleven values is
- * better written as eleven values.
- */
+/** "−1st week" … "8th week", spelled out rather than computed, as `presentation.ts` did for the term card. */
 const OXFORD_WEEK_ORDINALS: Readonly<Record<string, string>> = Object.freeze({
   "-1": "−1st",
   "0": "0th",
@@ -208,10 +85,6 @@ export function formatOxfordWeek(week: number): string {
 export function formatVacationWeek(name: string, week: number): string {
   return `${name} ${week}`;
 }
-
-// ---------------------------------------------------------------------------
-// Building the year
-// ---------------------------------------------------------------------------
 
 const MS_PER_DAY = 86_400_000;
 
@@ -251,22 +124,7 @@ function termsOfYear(
     .sort((left, right) => (left.span.startsOn < right.span.startsOn ? -1 : 1));
 }
 
-/**
- * Which academic year this column is, derived from the term dates alone.
- *
- * Never from a heading, a season label or any other text: `LAN-153` makes that
- * an acceptance criterion, because a column that took its year from a string
- * would place Michaelmas correctly right up until somebody renamed a season.
- *
- * The rule, in order:
- *
- *   1. the year whose configured terms span **today** — what an operator opening
- *      the calendar in the middle of Hilary means by "this year";
- *   2. otherwise the year whose terms span the open season's start, which is
- *      what the club is operating even when today is outside every term;
- *   3. otherwise the latest year configured, so a calendar opened before the
- *      first term of a new year shows that year rather than nothing.
- */
+/** Which academic year this column is, derived from term dates alone (LAN-153). Today, else the season's start, else the latest configured. */
 export function academicYearFor(
   terms: readonly TermWindow[],
   options: { today?: string | null; seasonStartsOn?: string | null } = {},
@@ -331,52 +189,14 @@ function byDate(left: CalendarEvent, right: CalendarEvent): number {
   return byStartTime(left, right);
 }
 
-/**
- * How the trailing Long Vacation is bounded when the next Michaelmas has not
- * been configured yet.
- *
- * A vacation with no term after it has no natural end, and the club's year has
- * to stop somewhere. It runs to the season's own `ends_on` where there is one,
- * and otherwise as far as the club's records reach — the last dated event in the
- * season. **One week at minimum**, so the segment exists and is named even in a
- * season whose events all fall inside term: a column that ended at Trinity 8th
- * week would not be the continuous year Stewart described.
- */
+/** How the trailing Long Vacation is bounded with no next Michaelmas configured yet; one week minimum. */
 const MINIMUM_TRAILING_VACATION_WEEKS = 1;
 
 /**
- * How much of the year's two Long Vacations is drawn — BG-153-1.
- *
- * Brian, at the visual gate, on a leading vacation rendered to its full length:
- * _"It just shows a really dead calendar, and that's not what I want to see."_
- * A season opening at an AGM can sit three months before Michaelmas, and every
- * one of those weeks was being drawn empty above the first thing that happens.
- *
- * So the two ends are trimmed to where the club's records actually reach: the
- * **last** `LEADING_VACATION_WEEKS` of the vacation before the year's first
- * term, and the **first** `TRAILING_VACATION_WEEKS` of the one after its last —
- * each extended, never shortened, to include an event that sits further out.
- * Brian: _"if there was an event 7 weeks beforehand, it should show 7, 6, 5, 4,
- * 3, 2, 1, all the way down"_, and _"if there's an event 3 weeks after the
- * season, it should show weeks 1, 2, and 3."_
- *
- * ## What this does not do
- *
- * **It does not renumber anything.** Those counts are distances from the term
- * boundary, describing how far to extend; they are not labels. Vacation weeks
- * are numbered forward from 1 from the vacation's real start and meet the next
- * term at its own first week (D85, Stewart Humble) — a leading vacation trimmed
- * to its last five weeks therefore *starts* at whatever number those weeks
- * already carry, which on a fourteen-week vacation is "Long Vacation 10".
- *
- * **It does not touch terms.** Michaelmas, Hilary and Trinity keep every
- * configured week, empty or not: an empty term week is the term card, and is
- * the thing the club reads a term card for.
- *
- * **It does not special-case Christmas or Easter.** Those sit *between* terms
- * and are neither the leading nor the trailing vacation, so the rule simply does
- * not reach them — which is the outcome Brian asked for without a rule of their
- * own.
+ * How much of the year's two Long Vacations is drawn — BG-153-1, Brian at the
+ * visual gate. Trimmed to the last/first N weeks of records, extended (never
+ * shortened) to reach a distant event. Does not renumber, does not touch
+ * terms, does not special-case Christmas/Easter. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export const LEADING_VACATION_WEEKS = 5;
 
@@ -385,20 +205,11 @@ export const TRAILING_VACATION_WEEKS = 1;
 /** Which end of a vacation is kept when it is longer than it needs to be. */
 type VacationTrim = "none" | "keep-last" | "keep-first";
 
-/** True if any day of this week holds an event. */
 function weekHasEvents(week: YearWeek): boolean {
   return week.days.some((day) => day.events.length > 0);
 }
 
-/**
- * The weeks of a vacation that are actually drawn.
- *
- * Extends past the default only far enough to reach the outermost week that
- * holds something, so a vacation with nothing in it renders the default and one
- * with a distant event renders down to it. A vacation shorter than the default
- * renders whole — there is nothing to pad it with, and inventing weeks would be
- * inventing calendar.
- */
+/** The weeks of a vacation that are actually drawn — extends only as far as the outermost event. */
 function trimVacationWeeks(weeks: YearWeek[], trim: VacationTrim): YearWeek[] {
   if (trim === "none" || weeks.length === 0) return weeks;
 
@@ -417,20 +228,11 @@ function trimVacationWeeks(weeks: YearWeek[], trim: VacationTrim): YearWeek[] {
 }
 
 export interface AcademicYearOptions {
-  /** Today in the club's zone, `YYYY-MM-DD`. Highlights one column of cells. */
   today?: string | null;
-  /** `seasons.ends_on`, which bounds the trailing Long Vacation when it is set. */
   seasonEndsOn?: string | null;
 }
 
-/**
- * One continuous academic year: Long Vacation, Michaelmas, Christmas Vacation,
- * Hilary, Easter Vacation, Trinity, Long Vacation.
- *
- * `terms` is **every** term, not just this year's: the leading Long Vacation is
- * numbered from the end of the previous year's last term, which is the only
- * place its week 1 can come from.
- */
+/** One continuous academic year. `terms` is every term, not just this year's — the leading vacation numbers from the previous year's last term. */
 export function buildAcademicYear(
   academicYear: string,
   terms: readonly TermWindow[],
@@ -484,14 +286,7 @@ export function buildAcademicYear(
     };
   };
 
-  /**
-   * A vacation segment, numbered forward from 1, filling `startsOn`..`endsOn`.
-   *
-   * Whole Sunday–Saturday rows, and a short final row if the gap is not a whole
-   * number of weeks. Terms start on a Sunday and end on a Saturday, so a short
-   * row means a term's dates and week bounds disagree — worth rendering
-   * truthfully rather than rounding away.
-   */
+  /** A vacation segment, numbered forward from 1, filling `startsOn`..`endsOn`. */
   const emitVacation = (
     name: string,
     jumpLabel: string,
@@ -513,8 +308,7 @@ export function buildAcademicYear(
     }
     if (weeks.length === 0) return;
 
-    // Trimmed after the weeks are built, never before: the numbers come from the
-    // vacation's real start, so dropping rows cannot shift them.
+    // Trimmed after building, never before.
     const drawn = trimVacationWeeks(weeks, trim);
     if (drawn.length === 0) return;
 
@@ -524,8 +318,6 @@ export function buildAcademicYear(
       name,
       jumpLabel,
       termId: null,
-      // The span the column actually draws, so a coordinate lookup agrees with
-      // what is on screen.
       startsOn: drawn[0].startsOn,
       endsOn: drawn[drawn.length - 1].endsOn,
       weeks: drawn,
@@ -536,12 +328,7 @@ export function buildAcademicYear(
   const vacationJumpLabel = (name: string, startsOn: string) =>
     name === "Long Vacation" ? `${name} ${startsOn.slice(0, 4)}` : name;
 
-  // --- the leading Long Vacation -------------------------------------------
-  //
-  // Numbered from the day after the previous academic year's last term ends, so
-  // "Long Vacation 14" is the fourteenth week of the actual vacation and not the
-  // fourteenth week this column happens to draw. Without a previous year there
-  // is nothing to number from, and the segment is omitted rather than invented.
+  // The leading Long Vacation, numbered from the day after the previous year's last term ends.
   const firstEntry = entries[0];
   const previousYearEnd = [...terms]
     .map((term) => termSpan(term))
@@ -566,7 +353,6 @@ export function buildAcademicYear(
     }
   }
 
-  // --- the terms, and the vacations between them ---------------------------
   entries.forEach((entry, index) => {
     const { term, span } = entry;
 
@@ -603,7 +389,6 @@ export function buildAcademicYear(
       return;
     }
 
-    // --- the trailing Long Vacation ---------------------------------------
     if (gapStart === null) return;
 
     const nextYearStart = [...terms]
@@ -612,9 +397,6 @@ export function buildAcademicYear(
       .filter((candidate) => candidate.startsOn > span.endsOn)
       .sort((left, right) => (left.startsOn < right.startsOn ? -1 : 1))[0];
 
-    // A next Michaelmas, once one is configured, ends this vacation exactly
-    // where the club's year says it ends. Everything below is the fallback for
-    // the year nobody has entered yet.
     const boundedByNextTerm = nextYearStart ? addDays(nextYearStart.startsOn, -1) : null;
 
     let gapEnd: string | null = boundedByNextTerm;
@@ -670,31 +452,14 @@ export function buildAcademicYear(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Reading one date's coordinate off the same column
-// ---------------------------------------------------------------------------
-
-/** Where one date sits in the year — the segment, and the week within it. */
 export interface YearCoordinate {
   segmentKey: string;
   kind: YearSegmentKind;
-  /** "Michaelmas", "Christmas Vacation". */
   segmentName: string;
-  /** The Oxford week, or the vacation's forward count. */
   week: number;
 }
 
-/**
- * The coordinate for one day, looked up in a column that has already been built.
- *
- * The list's **Term and week** column reads this rather than deriving its own
- * answer, and that is the whole point: `REQ-three-arrangements` requires the
- * list and the Oxford View to agree about when an event is, and two derivations
- * of one rule is the way that stops being true. It is also why nothing here
- * consults `events.term_id` or `events.week_number` — the stored coordinate is
- * derived from the date too, and reading it back would quietly make a cached
- * value authoritative for its own projection.
- */
+/** The coordinate for one day, looked up in an already-built column — so the list and the Oxford View agree (`REQ-three-arrangements`). */
 export function yearCoordinateOf(
   column: AcademicYearColumn,
   day: string | null,

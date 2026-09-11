@@ -55,10 +55,8 @@ interface DraftTakingChange {
   id: string;
   name: string;
   scheduledOn: string | null;
-  /** The labels of the fields that will move. Empty when only questions move. */
-  fields: string[];
-  /** True when this draft's audience will be replaced by the new default. */
-  audience: boolean;
+  fields: string[]; // labels of the fields that will move; empty when only questions move
+  audience: boolean; // true when this draft's audience will be replaced by the new default
   questions: boolean;
 }
 
@@ -67,32 +65,23 @@ interface DraftHoldingItsOwn {
   id: string;
   name: string;
   scheduledOn: string | null;
-  /** "Its description was edited by hand." One sentence per held field. */
-  reasons: string[];
+  reasons: string[]; // "Its description was edited by hand." — one sentence per held field
 }
 
-/**
- * What saving this template will and will not do — W8-03.
- *
- * Every count in it is derived from the same pass that performs the change, so
- * the sentence the operator reads and the rows that move cannot disagree.
- */
+// What saving this template will and will not do — W8-03. Every count is derived from the same
+// pass that performs the change, so the confirmation and the write cannot disagree.
 export interface TemplateChangePlan {
   templateId: string;
-  /** The name as it stands after the change — what the confirmation calls it. */
-  name: string;
+  name: string; // the name after the change — what the confirmation calls it
   eventType: string;
-  /** LAN-265. `null` unless the operator renamed it, in which case the old name. */
-  renamedFrom: string | null;
+  renamedFrom: string | null; // LAN-265: null unless renamed, else the old name
   fieldChanges: TemplateFieldChange[];
   questionChanges: TemplateQuestionChange[];
-  /** The default audience, before and after, as group labels. */
-  audienceBefore: string[];
+  audienceBefore: string[]; // the default audience, before and after, as group labels
   audienceAfter: string[];
   taking: DraftTakingChange[];
   holding: DraftHoldingItsOwn[];
-  /** What will not move whatever the change is. */
-  untouched: { approved: number; past: number };
+  untouched: { approved: number; past: number }; // what will not move whatever the change is
 }
 
 interface DraftRow {
@@ -143,15 +132,8 @@ function readValue(field: InheritedField, value: string | boolean | null): strin
   return String(value);
 }
 
-/**
- * The value a draft of this type holds for one inherited field, and the value
- * the given defaults would give it.
- *
- * `endsAt` is the one that is not a straight copy: a template holds a duration
- * rather than an end (D78), so the end a template implies depends on the start
- * the operator entered. A draft with no start inherits no end, which is why the
- * pair is `null`/`null` there and the field is skipped.
- */
+// endsAt is not a straight copy: a template holds a duration, not an end (D78), so the implied end
+// depends on the draft's own start. A draft with no start implies no end and the field is skipped.
 function impliedValue(
   field: InheritedField,
   defaults: TemplateDefaults,
@@ -201,19 +183,9 @@ const COLUMN_OF: Readonly<Record<InheritedField, string>> = Object.freeze({
   endsAt: "ends_at",
 });
 
-/**
- * Every draft of this type that a template change may reach.
- *
- * Two exclusions, both from W8 and both absolute: **no approved event ever
- * changes**, because people have been told what it is, and **no past event ever
- * changes**. A draft with no date is not past — it has not happened, so nothing
- * about it is history yet.
- *
- * Locked, because the change is decided from what is read here and written a
- * moment later. Without the lock a draft edited in between would be judged
- * untouched on a value it no longer holds, and the edit would be overwritten —
- * which is the exact destruction this rule exists to prevent.
- */
+// Every draft of this type a template change may reach — W8's two absolute exclusions: no approved
+// event ever changes, no past event ever changes (a dateless draft is not past). Locked here since
+// the change is decided from this read and written moments later — see relocations.md.
 async function lockAffectedDraftsIn(tx: Tx, templateId: string, today: string) {
   const result = await tx.query<DraftRow>(
     `select id, name, scheduled_on, starts_at::text as starts_at, ends_at::text as ends_at,
@@ -262,14 +234,8 @@ function sameQuestion(
   );
 }
 
-/**
- * Builds the plan, and — when `apply` is a transaction — performs it.
- *
- * One function for both so that W8-03's confirmation and the write it confirms
- * are the same computation. A separate "preview" implementation would be a
- * second opinion about the blast radius, and a blast radius the operator was
- * shown but did not get is worse than not showing one.
- */
+// Builds the plan, and — when apply is true — performs it. One function for both, so W8-03's
+// confirmation and the write it confirms are the same computation, never a second opinion.
 async function planOrApply(
   tx: Tx,
   templateId: string,
@@ -281,9 +247,7 @@ async function planOrApply(
     throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE });
   }
 
-  // The template row is locked first, so two operators saving the same template
-  // at once are serialized rather than each deciding from the other's "before".
-  const locked = await tx.query<{ id: string }>(
+  const locked = await tx.query<{ id: string }>( // locked first, so two operators saving at once serialise
     `select id from public.event_templates where id = $1::uuid for update`,
     [templateId],
   );
@@ -313,7 +277,7 @@ async function planOrApply(
   const today = todayInClubZone();
   const drafts = await lockAffectedDraftsIn(tx, templateId, today);
 
-  // --- which scalar fields moved, and which drafts still hold the old default
+  // which scalar fields moved, and which drafts still hold the old default
   const movedFields: InheritedField[] = [];
   const fieldChanges: TemplateFieldChange[] = [];
   for (const { field } of INHERITED_FIELDS) {
@@ -341,7 +305,7 @@ async function planOrApply(
     });
   }
 
-  // --- which questions moved
+  // which questions moved
   const beforeQuestions = new Map(before.questions.map((q) => [questionKey(q), q] as const));
   const afterQuestions = new Map(questions.map((q) => [questionKey(q), q] as const));
   const questionChanges: TemplateQuestionChange[] = [];
@@ -370,21 +334,17 @@ async function planOrApply(
     for (const field of movedFields) {
       const wasGiven = impliedValue(field, beforeDefaults, draft);
       const nowGiven = impliedValue(field, afterDefaults, draft);
-      // A draft with no start inherits no end, so the default-length change has
-      // nothing to apply to it. Not "held" — there is simply no field to move.
-      if (field === "endsAt" && draft.starts_at === null) continue;
+      if (field === "endsAt" && draft.starts_at === null) continue; // nothing to move — not "held"
       if (wasGiven === nowGiven) continue;
       if (heldValue(field, draft) === wasGiven) movingHere.push(field);
       else reasons.push(`Its ${labelOf(field).toLowerCase()} was edited by hand.`);
     }
 
-    // --- questions on this draft
     const draftQuestions = await readEventQuestionsIn(tx, draft.id);
     const nextQuestions = planDraftQuestions(draftQuestions, before.questions, questions);
     const questionsMove =
       questionChanges.length > 0 && !sameQuestionList(draftQuestions, nextQuestions);
 
-    // --- the audience on this draft
     let audienceMoves = false;
     if (audienceMoved) {
       const catalogue = await listAudienceCatalogueIn(
@@ -512,10 +472,7 @@ async function planOrApply(
     templateId,
     name: input.name,
     eventType,
-    // Compared case-sensitively, so correcting "Chalk" to "chalk" still reads as
-    // a rename on the confirmation. It is one: the club will see the new casing
-    // everywhere, including on last term's sessions.
-    renamedFrom: before.name === input.name ? null : before.name,
+    renamedFrom: before.name === input.name ? null : before.name, // case-sensitive: "Chalk"->"chalk" still reads as a rename
     fieldChanges,
     questionChanges,
     audienceBefore: labelsFor(eventType, before.audienceGroups),
@@ -552,25 +509,11 @@ function labelsFor(eventType: string, keys: readonly AudienceGroupKey[]): string
     .map((group) => group.label);
 }
 
-/**
- * The questions a draft should hold after this template change.
- *
- * The delta is applied, not the whole list, and that is the difference between
- * respecting an operator's edit and undoing it. D42 lets an operator remove a
- * template question from one event; re-adding it on the next template save would
- * be the system putting back something somebody deliberately took out.
- *
- * So:
- *
- *   * a prompt **added** to the template is added to the draft;
- *   * a prompt **removed** from the template is removed from the draft, but only
- *     where the draft still carries it as a template question — one the operator
- *     retyped for themselves is theirs;
- *   * a prompt **changed** in the template is changed on the draft only where the
- *     draft's copy still matches what the template used to say.
- *
- * A question the operator wrote on the event is never touched by any of it.
- */
+// The questions a draft should hold after this change: the delta is applied, not the whole list, so
+// an operator's per-event removal (D42) is never undone by the next template save. Added prompts
+// join the draft; removed ones leave it only where the draft's copy is still the template's own
+// (untouched); changed ones update only where the draft's copy still matches the old template text.
+// A question the operator wrote on the event itself is never touched.
 function planDraftQuestions(
   held: readonly EventQuestion[],
   templateBefore: readonly {
@@ -652,15 +595,9 @@ async function readAudiencePeopleIn(tx: Tx, eventId: string): Promise<ReadonlySe
   return new Set(result.rows.map((row) => row.person_id));
 }
 
-/**
- * Replaces a draft's audience with a resolved list.
- *
- * Shares the `delete` then `insert` shape with `saveEventAudience`, and is safe
- * for the same reason: invariant P1 means no invitation can reference a draft's
- * audience rows, so nothing depends on them. The status guard is the caller's —
- * this is only ever reached for a row `lockAffectedDraftsIn` proved was a draft
- * and is still holding the lock on.
- */
+// Shares the delete-then-insert shape with saveEventAudience, safe for the same reason: invariant
+// P1 means no invitation can reference a draft's audience rows. Status guard is the caller's —
+// only ever reached for a row lockAffectedDraftsIn proved was a draft and still holds the lock on.
 async function replaceDraftAudienceIn(
   tx: Tx,
   draft: DraftRow,
@@ -674,9 +611,7 @@ async function replaceDraftAudienceIn(
   if (members.length === 0) return;
 
   await tx.query(
-    // `invitee_person_id` is the human, denormalised so that one row per person
-    // per event is a unique index (invariant P9, LAN-294). Same shape as the
-    // insert in `saveEventAudience`, for the same reason.
+    // invitee_person_id denormalised so one row per person per event is a unique index (P9, LAN-294).
     `insert into public.event_audience_members
        (event_id, season_id, capacity, season_membership_id, person_id,
         invitee_person_id, added_at)
@@ -697,15 +632,8 @@ async function replaceDraftAudienceIn(
   );
 }
 
-/**
- * What saving this template would do, without doing any of it.
- *
- * Runs the whole computation, including the locks that the write would take, and
- * writes nothing. The locks are the point: a preview that took none could report
- * a blast radius a concurrent edit had already changed. They are released when
- * the transaction ends, which is why the confirmation is only a courtesy and
- * `saveEventTemplate` recomputes everything under fresh ones.
- */
+// Runs the whole computation, including the locks the write would take, and writes nothing —
+// released when the transaction ends, so saveEventTemplate recomputes everything under fresh ones.
 export async function planEventTemplateChange(
   templateId: string,
   input: EventTemplateInput,
@@ -719,15 +647,8 @@ export async function planEventTemplateChange(
 
 const TEMPLATE_SAVED_ACTION = "event_template.updated";
 
-/**
- * Saves the template and updates every draft the rule reaches, in one
- * transaction.
- *
- * The plan is recomputed here rather than accepted from the confirmation screen.
- * A browser that posted a plan could post any plan; what the operator saw is a
- * courtesy, and what happens is derived from the rows again, under the locks,
- * at the moment of the write.
- */
+// Saves the template and updates every draft the rule reaches, in one transaction. The plan is
+// recomputed here, not accepted from the confirmation screen — a browser could post any plan.
 export async function saveEventTemplate(
   actorPersonId: string,
   templateId: string,
@@ -746,11 +667,7 @@ export async function saveEventTemplate(
       entityId: templateId,
       context: {
         name: plan.name,
-        // LAN-265. A rename is retroactive across every event ever created from
-        // this template, so the ledger records what the club used to call it —
-        // otherwise the only record of the old word is in people's memories, and
-        // "why does last term's chalk say Film Review" has no answer.
-        renamedFrom: plan.renamedFrom,
+        renamedFrom: plan.renamedFrom, // LAN-265: retroactive across every event ever created from this template
         colourKey: input.colourKey,
         eventType: plan.eventType,
         fieldsChanged: plan.fieldChanges.map((change) => change.field),

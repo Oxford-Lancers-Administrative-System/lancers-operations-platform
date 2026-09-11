@@ -258,3 +258,117 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > unreachable recipient.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/attendance/presentation.ts — ParticipantGroupKey / groupParticipants
+
+> Attending, then everyone else, then walk-ups — Brian, 14 August 2026.
+>
+> A recorder works the register in one direction: they expect the people who
+> said they were coming, tick them off, and only then deal with the surprises.
+> Brian's words on the real screen: "I want to look at the people who RSVPed
+> yes, and then I want everyone else (no or otherwise)… those are not the
+> people I'm expecting to be there."
+>
+> The first two groups split on the **standing RSVP**. A "no" and a nonresponse
+> are different facts and the row still shows which is which, but they are the
+> same _expectation_ — somebody who was not counted on — so they share a group.
+>
+> ## Why a walk-up is not in either of them
+>
+> Because it would have to be a lie in one direction or the other. A walk-up
+> has no invitation and so no standing answer, which by the rule above puts
+> them in "everyone else" — under a heading that says the club was not
+> expecting them, next to people who are not there. But the group above says
+> **Attending**, and that word means "said yes" throughout this product:
+> Locked Requirement 7 and `slice-ux.md` § 6 are explicit that intent and
+> reality are different records and that "a Yes never becomes Present
+> automatically". Putting somebody who turned up into a group named for what
+> they answered is exactly the conflation the frozen model forbids.
+>
+> So they get their own group, at the bottom, which is what Brian asked for:
+> "it should be its own separate group that attended and should automatically
+> be marked as present". It says what is true of them — they turned up, nobody
+> invited them, and they still have to be reconciled with the roster.
+>
+> ## What this deliberately does not do
+>
+> It does not reorder anything by attendance. The groups are fixed by the
+> standing RSVP and by whether there was an invitation, so pressing **Present**
+> on somebody in "Everyone else" leaves them exactly where they were — a row
+> that jumped to another section under the recorder's thumb, mid-register, at
+> the side of a pitch, is how the wrong person gets marked.
+>
+> ---
+>
+> `eventType` decides whether a **Recruits** group is drawn at all — Brian,
+> 2026-08-31: the whole point is a coach looking at a recruitment event's own
+> sheet, and a recruit-capacity row has no structural reason to appear on any
+> other event type today. Where it is drawn, every `capacity === "recruit"`
+> row that is not flagged `isWalkUp` joins it, whether or not this specific
+> event actually invited or recorded them — `readAttendanceBoard`'s own
+> `RECRUIT_ROSTER_QUERY` is what makes "every recruit on the board this
+> season" true of the rows this function receives, not a filter here. A
+> walk-up stays in **Walk-ups** even when they happen to carry recruit
+> capacity (every walk-up does): "it should be its own separate group", not a
+> second appearance of the same row.
+>
+> Walk-ups moves up, directly under Recruits, on a recruitment event only —
+> `OWNER-WALKUP-GROUP-ORDER`, Brian, 2026-09-02: "Walk Up should not be at the
+> bottom. Walk Up should be right below Recruits. Because they're very likely
+> to recruit, I want to see the same thing there." A walk-up captured at a
+> recruitment event is, structurally and in practice, a recruit — the door's
+> whole point — so it sits with the other recruits rather than filed under
+> everyone else, the same reasoning that put Recruits at the top in the first
+> place. Every other event type's order is unchanged: Walk-ups stays last,
+> where D11 never spoke to it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/attendance/presentation.ts — WALK_UP_SEND_NOTE
+
+> What saving actually does that the reconciliation note above does not say —
+> LAN-205, packet amendment 1. The read-back is the whole of this door's
+> consent model, so the operator has to be told, on the form, that pressing
+> save sends a real WhatsApp message to the number just typed, and to read it
+> back before doing so. Copy taken from the fidelity mockup verbatim.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/attendance/walk-up-form.tsx — file header
+
+> First name, last name, phone, email. That is not a coincidence and it is not
+> a coincidence that they are the same four `/operate/roster/new` asks for:
+> "it should be almost identical to adding a player… to grab as much as they
+> can". Two screens that add a person to the club should not feel like two
+> different products, and the operator holding the phone should not have to
+> work out which one they are on.
+>
+> The first version of this screen asked for one **Name** field, one combined
+> **Email or phone** field, and a **Possible roster match** dropdown. Brian's
+> verdict on the built screen was blunt and correct on every count: the name
+> field does not align with how the club stores a name, one field cannot hold
+> two different contact details, and the roster match was clutter — "they know
+> who's on their roster, there are only 40 people".
+>
+> First name, last name and phone. The returner intake requires only a first
+> name, because the club's own files are full of records that never had more —
+> and that is right for somebody already known. A walk-on is the opposite case:
+> nobody knew them ten minutes ago, and the entire point of writing them down
+> is that somebody follows them up. A walk-on with no surname and no number is
+> a row nobody can act on.
+>
+> A person, their contact points, a **recruitment prospect**, granted
+> `walk_up_read_back` consent for the season, and the recruitment cycle's
+> declared jobs — see `recordWalkUpAttendance`. Not a season membership: they
+> are not on the team, which is what made them a walk-up. ("Walk-on" above is
+> this screen's own history; Brian locked _walk-up_ as the word on
+> 2026-08-31, and every label on the form now uses it.)
+>
+> Saving is also the touchline's whole consent act: the phone number just
+> typed is read back aloud, and pressing save is what turns that read-back
+> into a granted, season-scoped consent and one WhatsApp send — the signed,
+> prefilled link to the sign-up form, never a second template. `WALK_UP_SEND_NOTE`
+> says so on the form, because a save with a real-world consequence this
+> direct should not be silent about having one.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

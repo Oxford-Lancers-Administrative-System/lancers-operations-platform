@@ -39,10 +39,7 @@ import { emptyMessage, emptyTestId, SORT_OPTIONS, statusLabel } from "./events-l
  */
 
 export default async function EventsPage({ searchParams }: PageProps<"/operate/events">) {
-  // LAN-110. The coach shell's one destination is this route, so it opts in —
-  // and then renders something else entirely. See `./coach-eligible-events.tsx`
-  // for why the coach list lives on the operator's route rather than on a new
-  // one, and for what it withholds.
+  // LAN-110: the coach shell's one destination, so it opts in and renders `./coach-eligible-events.tsx` instead.
   const gate = await gateShellPage(OPERATOR_EVENTS_PATH, undefined, { narrowRecorder: "allow" });
   if ("screen" in gate) return gate.screen;
 
@@ -54,15 +51,10 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
 
   const query = readListQuery(params, Object.keys(EVENT_SORT_COLUMNS));
 
-  // Reading the calendar is open to any linked, active operator — Events is an
-  // ordinary operator surface in `slice-ux.md` § 3 and § 8. Changing it is what
-  // decides whether the actions are offered, and the actions guard themselves
-  // regardless: a hidden button is a courtesy, never a boundary.
+  // Reading the calendar is open to any linked, active operator; actions guard themselves regardless.
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
 
-  // One reading of the club's clock for the whole page: the filter, every row's
-  // Status column and every bucket boundary must agree about which day it is,
-  // and two calls either side of midnight would not.
+  // One reading of the club's clock for the whole page — filter, Status column and bucket boundaries must agree.
   const today = todayInClubZone();
 
   let list: EventList;

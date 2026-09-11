@@ -1,9 +1,4 @@
-/**
- * Every word `/operate/events/[id]/roster-form` says — LAN-267.
- *
- * Labels, values and states only. The explanation of what a BAFRA roster form
- * is belongs outside the application frame, not on the screen.
- */
+// Every word `/operate/events/[id]/roster-form` says — LAN-267. Labels, values and states only.
 
 export const HEADING = "Roster form";
 export const BACK_LABEL = "Back to the game";
@@ -56,10 +51,6 @@ export const COACHES_TITLE = "Coaches / sideline personnel";
 
 export const DRESSED_COUNT = (count: number): string =>
   `${count} player${count === 1 ? "" : "s"} dressed`;
-
-// ---------------------------------------------------------------------------
-// The warning line above the form — LAN-267
-// ---------------------------------------------------------------------------
 
 export const MISSING_STUDENT_NUMBERS = (names: readonly string[]): string =>
   `No student number on file: ${names.join("; ")}.`;

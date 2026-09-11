@@ -32,9 +32,7 @@ import {
 } from "./presentation";
 import { itemIsSettled, itemStepWord, QuestionnaireStatus } from "./step-shell";
 
-// ---------------------------------------------------------------------------
 // Done — outstanding by section, each a link back to its step
-// ---------------------------------------------------------------------------
 
 /** F3 (LAN-230): "5 September 2026" — the person/date line's own format. */
 function formatLongDate(date: Date): string {
@@ -145,9 +143,7 @@ export function DonePage({ view, token }: { view: QuestionnaireView; token: stri
   );
 }
 
-// ---------------------------------------------------------------------------
 // Already complete — nothing outstanding, no sequence
-// ---------------------------------------------------------------------------
 
 export function AlreadyCompletePage() {
   return (

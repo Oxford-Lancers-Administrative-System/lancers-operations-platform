@@ -129,3 +129,28 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > the reasoning.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/rsvp/[token]/params.ts — module header (LAN-79). Destination: `docs/ux/tickets/LAN-79-player-rsvp.md`.
+
+> They live outside `actions.ts` because a `"use server"` module may export
+> nothing but async functions, and outside `presentation.ts` because these are
+> routing details rather than approved copy.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/rsvp/[token]/params.ts — `CLOSED_ERROR`. Destination: `docs/ux/tickets/LAN-79-player-rsvp.md`.
+
+> A revoked link, an unknown one, an expired one and an event that has
+> started all arrive here, because distinguishing them in a query parameter
+> would leak exactly what the uniform terminal response exists to hide.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/rsvp/[token]/params.ts — `BUSY_ERROR`. Destination: `docs/ux/tickets/LAN-79-player-rsvp.md`.
+
+> Both refuse the write, but they are not the same fact and must not read as
+> one: `closed` tells a player their event has started, and telling that to
+> somebody who merely arrived in a busy minute is false and leaves them
+> nothing to do.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

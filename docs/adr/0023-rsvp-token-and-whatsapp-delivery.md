@@ -184,3 +184,214 @@ is a frozen-model change, or storing the provider's message identifier on
   Rejected: it converts an unrecoverable secret into a recoverable one, and the
   operational need it serves is exactly the manual-send path this issue removes.
 - **Treat a provider 2xx as delivered.** Rejected on evidence, on the day.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/brand.ts — `TOKEN_LINK_SENTENCE`/`TOKEN_LINK_METADATA` (LAN-269 item 5).
+
+> `/rsvp/[token]`, `/me/[token]`, `/a/[token]` and `/e/[token]` are the links
+> the club actually sends, and a link preview is not shown to the recipient: it
+> is shown to **everyone in the chat**, rendered from a crawler's fetch, and it
+> survives in the transcript. Anything the card carries is disclosed to that
+> whole audience, forever.
+>
+> LAN-269 permits "at most the event's name and date" here. This takes less
+> than it is allowed, for two reasons that are not about caution:
+>
+> - **A card that varies is an oracle.** To name the event, the card has to
+>   resolve the token during `generateMetadata`. A live token would then
+>   unfurl differently from a revoked, expired or invented one, and LAN-90's
+>   uniform terminal response — which the page itself goes to some trouble to
+>   preserve, down to padding its own timing — would be readable from a chat
+>   bubble by anyone who ever saw the message.
+> - **A card that resolves is a database read on an unauthenticated path,**
+>   performed for every crawler that ever sees the link, and the routes have
+>   just been made side-effect-free precisely so a crawler's fetch costs
+>   nothing and changes nothing.
+>
+> `robots` is belt and braces. These pages are not linked from anywhere a
+> search engine can reach, and a token is unguessable, but a player pasting
+> their own link into a public forum should not be able to get it indexed.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/rsvp.ts — module header
+
+> The player's own RSVP, answered through a signed link. LAN-79.
+>
+> ## The one unauthenticated write in the application
+>
+> Everything else in this codebase writes on behalf of a verified operator
+> resolved from a session. This module writes on behalf of whoever holds a
+> 256-bit token, which is a genuinely different trust model: the token _is_ the
+> authorization, there is no second factor, and the holder is never asked who
+> they are. Two consequences run through every function here.
+>
+> First, **the token is re-resolved inside the writing transaction**, never
+> trusted from the render that produced the form. A page rendered at 19:59 and
+> submitted at 20:01 must be refused, and the only way to guarantee that is to
+> ask again while holding the transaction that would do the writing. The read
+> path and the write path therefore both go through `resolveRsvpTokenIn`, and
+> neither takes an invitation id from the browser.
+>
+> Second, **the actor is a mechanism, not a person**. `audit.ts` requires an
+> actor and refuses to guess one; a token holder is not a verified person, so
+> these rows carry `actorLabel` naming the channel. Writing the invitee's
+> person id there would assert an identity the token never proved.
+>
+> ## Two different times, kept apart
+>
+> `invitations.expires_at` is the **response deadline**: it decides when an
+> unanswered invitation becomes something the club chases, and it is displayed
+> to the player. It is not a cutoff — a late answer is still an answer, and the
+> invitation moves `expired` → `responded` when one arrives.
+>
+> **Event start is the cutoff**, and it is hard. After it this module writes
+> nothing at all, whatever the token still says. That decision is not taken
+> here: `resolveRsvpTokenIn` already refuses to call such a token writable, and
+> this module has no path that second-guesses it.
+>
+> ## Append-only, by construction
+>
+> A change of answer inserts another row. Nothing here updates or deletes a
+> response, and the database would refuse it if something tried — `service_role`
+> holds only `select, insert` on `rsvp_responses`. The standing answer is
+> whatever `public.current_rsvp` says it is.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/rsvp.ts — stopChasingIn doc
+
+> Stops chasing one person about one event. LAN-169, `REQ-chase-stopped`.
+>
+> ## Why this is a named function rather than four lines in three places
+>
+> "An answer arrived, so stop chasing" was inlined twice and shared nowhere:
+> `recordSignedLinkResponse` below cancelled pending jobs for the invitation,
+> and `cancelEvent` in `event-amendment.ts` did the event-level equivalent.
+> There was no third place because there was no third answer path — and
+> `WP-record-in-person` is adding one, an operator recording an answer somebody
+> gave them in person.
+>
+> The requirement is not "each path cancels jobs". It is that an answer **from
+> any source** cancels that person's pending player-facing jobs and clears an
+> un-actioned nonresponse flag **in the same transaction**. Three copies of that
+> cannot satisfy it, because the guarantee is that they are identical and three
+> copies are only ever identical until one of them is edited.
+>
+> So there is one function, it takes the transaction, and every answer path
+> calls it.
+>
+> ## What "player-facing" excludes, and why the distinction is load-bearing
+>
+> The invitation and the reminders are chases addressed to the player, and an
+> answer makes every one of them pointless. An **escalation** is not: it is a
+> message about players, to a committee officer, and one person answering does
+> not withdraw it. A cancellation notice and a schedule-change notice are not
+> chases at all — they are things the club owes the invitee whatever they said.
+>
+> Cancelling by `invitation_id` alone would have caught all of them, because an
+> escalation carries no invitation and the notices do. So the predicate names
+> the job types that are chases rather than the ones that are not, which fails
+> safe when a seventh type is added: a new job type is not silently cancelled by
+> somebody answering.
+>
+> ## Why `processing` is left alone
+>
+> It is claimed and in flight. Racing the dispatcher for it would produce a job
+> that is both cancelled and delivered, and the dispatcher's own idempotency
+> owns that case. The player receiving one reminder they no longer needed is a
+> far smaller wrong than the club's records saying a message was cancelled when
+> somebody's phone is holding it.
+>
+> ## Why the flag is cleared here and not by a sweep
+>
+> `REQ-one-flag-per-threshold`: a flag clears by resolution, never by time.
+> Nothing expires it, and the record that the club escalated stays readable —
+> this writes `resolved_at`, and `service_role` holds no `delete` on that table,
+> so "remains readable in history once cleared" is a property of the grant.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/rsvp.ts — recordAnswerIn, information-only-refusal removed comment
+
+> The refusal that used to be here — "this event is for information only, so
+> there is nothing to respond to" — went with `solicits_response`. D23
+> removed the flag: everyone sent an event is expected to answer, and whether
+> the club expects them to be there is mandatory-or-optional, which is a
+> different question. There is no longer an event a signed link can reach
+> that has nothing to answer.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/rsvp.ts — recordOperatorRsvpResponse doc
+
+> Records what an operator was told in person — W3
+> (`missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/workflows/W3-record-an-answer-somebody-gave-you-in-person.md`)
+> and its acceptance, LAN-170.
+>
+> ## What this does not do
+>
+> **It never refuses because a prior _operator_ answer already exists.**
+> Two operators racing the same never-answered invitation, and both
+> recording before either page reloads, is the workflow's own named
+> exception — "both are kept in order; the latest stands, and the
+> disagreement is visible rather than resolved" — not a case this function
+> is asked to prevent.
+>
+> **It never checks whether the event has started.** `T03-gap-operator-correction`
+> names the post-start correction as this workflow's, deliberately unlike the
+> signed-link path above, which `resolveRsvpTokenIn` hard-cuts at event start.
+> A post-start recording still writes here; it schedules no job and sends no
+> message because nothing in this function does either of those things.
+>
+> ## What it does refuse
+>
+> - an invitation that does not belong to `eventId`, or does not exist —
+>   `NotFound`, the same shape as a mistyped id anywhere else in this layer;
+> - a withdrawn invitation (`INVITATION_WITHDRAWN_RULE`) — there is nothing
+>   left to answer;
+> - an invitation that already carries the _player's own_ answer
+>   (`OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE`) — `DEC-no-supersede`, Brian,
+>   25 August 2026: "We're not building this into the workflow. It's too
+>   much. Cut it." `RecordAnswerControl` already offers itself only against
+>   a row with no answer at all, but that render is a courtesy, not the
+>   boundary — this check is what actually enforces it, re-checked inside
+>   the same transaction that holds the invitation locked, so a player's
+>   answer landing between this page's render and its submit is caught
+>   rather than silently overwritten. A prior _operator_ answer is not this
+>   case; see above;
+> - a `no` with no reason, in the operator's own words rather than W2's
+>   default (`NO_REQUIRES_A_REASON_RULE`) — R5 and the database constraint
+>   have always required this; nothing here is a new rule;
+> - a `respondedAt` that cannot be parsed, that is later than now, or that
+>   predates the invitation. **These three are enforced only here** — no
+>   migration ships with this package, so there is no database constraint
+>   backing them the way there is for the reason requirement. That is
+>   recorded as a limitation in the pull request.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/rsvp.ts — DEC-no-supersede re-check inline comment
+
+> DEC-no-supersede. Checked here, inside the transaction that already
+> holds `invitations` locked `for update` above, so a player answering
+> through their own signed link between this page's render and this
+> submit is not a race this check can lose — `recordSignedLinkResponse`
+> takes the same row lock before it inserts, so whichever of the two
+> transactions gets here second sees the other's committed write. A
+> prior _operator_ answer does not trip this: two operators disagreeing
+> over a never-answered invitation is the workflow's own named
+> exception, and stays governed by "both are kept in order; the latest
+> stands" rather than this refusal.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/rsvp.ts — provenance inline comment
+
+> Provenance lives in the audit trail and nowhere else — Brian's
+> amendment of 25 August 2026 to the 19 August decision. The row this
+> produces reads exactly like a player's own answer; who typed it and
+> when the player actually said it live here instead.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

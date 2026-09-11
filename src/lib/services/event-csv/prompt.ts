@@ -1,22 +1,11 @@
 import { formatCsv } from "../csv";
 import { EXPORT_COLUMNS, TYPE_TOKEN_LIST } from "./shared";
 
-/** The copyable prompt an operator runs the term card through — LAN-155. */
+// The copyable prompt an operator runs the term card through — LAN-155.
+export const IMPORT_PROMPT_VERSION = 1; // bumped whenever IMPORT_PROMPT changes, shown beside it
 
-/**
- * Bumped whenever `IMPORT_PROMPT` changes. Shown beside the block so an operator
- * who kept a copy can tell whether theirs is the current one.
- */
-export const IMPORT_PROMPT_VERSION = 1;
-
-/**
- * The static, versioned block an operator copies into a general-purpose AI tool
- * alongside the club's own calendar.
- *
- * The worked example below is asserted by `./event-csv.test.ts` to parse into
- * two clean New rows. That assertion is not decoration: this text is the one
- * part of the workflow that runs where nobody can see it fail.
- */
+// The worked example below is asserted by event-csv.test.ts to parse into two clean New rows —
+// this text is the one part of the workflow that runs where nobody can see it fail.
 export const IMPORT_PROMPT = `Convert our club calendar into the Oxford Lancers import format.
 
 Return ONLY a CSV file with this exact header row and no other text:
@@ -42,10 +31,6 @@ id,name,type,date,start,end,online,venue,description,required_equipment,mandator
 
 Now here is our calendar:`;
 
-/**
- * The worked example on its own, so the test that proves it imports cleanly
- * reads it from the prompt rather than from a copy that can drift.
- */
 export function workedExampleCsv(): string {
   const lines = IMPORT_PROMPT.split("\n");
   const start = lines.indexOf("Example");
@@ -54,7 +39,6 @@ export function workedExampleCsv(): string {
   return [header, ...rows].join("\r\n") + "\r\n";
 }
 
-/** The empty season's download: the header row and nothing else. */
 export function importTemplateCsv(): string {
   return formatCsv([EXPORT_COLUMNS]);
 }

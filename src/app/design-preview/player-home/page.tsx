@@ -60,32 +60,17 @@ import { pickFocusedInvitation, pickPlayerHomeSubject } from "../picks";
 
 /**
  * S9 — the player's own page (`/me/[token]`), on the public shell. LAN-225's
- * player-surfaces addendum.
+ * player-surfaces addendum. Read by person id through the operator tier,
+ * never by token. Copy is `/me/[token]`'s `presentation.ts`, unchanged; only
+ * chrome and components change. Buttons are drawn, not wired. F2 not fixed
+ * here: `Your answers` stays unbounded, a product change nobody has taken
+ * (finding P1, `player-surfaces.md`).
  *
- * Read by person id through the operator tier — never by token, and no token
- * is rendered. The copy is `/me/[token]`'s own `presentation.ts`, unchanged,
- * and every section, ordering rule and row sentence is the one the real page
- * computes. What changes is the chrome and the components: the plain-text
- * "LANCERS OPERATIONS" banner becomes the masthead with the crest; the five
- * hand-rolled `Paper`s become `Section`s; the hand-rolled rows become
- * `RowCard`s carrying their own actions; the four `Chip`s built by hand from
- * `color="success" | "error" | "primary"` become `StatusChip`s on the one
- * vocabulary. The buttons are drawn, not wired.
- *
- * **F2 is deliberately not fixed here.** `Your answers — still to come` is
- * still every answered upcoming invitation, unbounded, because bounding it is
- * a product change nobody has taken. The proposed capture is long for the same
- * reason the current one is; the difference is that the kit's row is shorter
- * than the hand-rolled one, which is presentation and is all this ticket may
- * change. The finding is P1 in `player-surfaces.md`.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 const TOUCH = 44;
 
-/**
- * The place the focused invitation sits in, not its name. `/me/[token]` gives
- * that panel a two-pixel primary border and no words at all; a band needs a
- * label, and "the next one" is what the panel is for.
- */
+/** The place the focused invitation sits in, not its name — a band needs a label; "the next one" is what the panel is for. */
 const FOCUSED_BAND = "Answer this one next";
 
 function when(entry: PlayerHomeInvitation): string | null {
@@ -129,19 +114,7 @@ function AnswerChip({ entry, dominant }: { entry: PlayerHomeInvitation; dominant
   );
 }
 
-/**
- * The row's own two controls — `/me/[token]`'s `RowActions`, in the kit's
- * shapes.
- *
- * The affirmative button is `contained` **primary**, not the green
- * `color="success"` the real page uses. `design-system.md` §1 is explicit
- * that the club palette has no green: the semantic set exists so a *status*
- * can be read, and a filled green control repeated down fourteen rows is not
- * a status. §3's own rule — contained primary for the action a page is
- * opened to take — puts Oxford Blue on it, and LAN-172's
- * REQ-emphasis-points-at-yes is satisfied by the same contained/outlined
- * pair it always was. Listed as a delta on the review page.
- */
+/** `/me/[token]`'s `RowActions`, in the kit's shapes. Contained primary, not green `color="success"` — design-system.md §1: the club palette has no green, and a filled green on fourteen rows is not a status. Listed as a delta on the review page. */
 function RowActions({ entry }: { entry: PlayerHomeInvitation }) {
   const yes = (
     <Button type="button" variant="contained" sx={{ minHeight: TOUCH, flex: 1 }}>
@@ -213,10 +186,7 @@ function InvitationCard({ entry, dominant }: { entry: PlayerHomeInvitation; domi
       title={entry.eventName}
       chips={<AnswerChip entry={entry} dominant={dominant} />}
       sublines={[
-        // The type and the time on one line rather than the date in the
-        // title row: at 1440 the club's own longest date
-        // ("Wednesday, 23 September 2026 · 20:00–22:30") pushed every event
-        // name onto two lines.
+        // Type and time on one line, not the title row: the longest date pushed event names onto two lines at 1440.
         [eventTypeLabel(entry.eventType), when(entry)].filter(Boolean).join(" · "),
         ...(sentence ? [sentence] : []),
       ]}
@@ -284,13 +254,7 @@ export default async function PlayerHomePreviewPage() {
         </Typography>
 
         {focused ? (
-          /*
-            The band is titled with the place, not the record: a band is a
-            place and `Section`'s band head is an `overline`, so putting the
-            event's own name there would set a proper noun in capitals. The
-            name is the `h2` inside it — design-system.md §2's "record name"
-            tier — exactly as it is on every other record surface.
-          */
+          // Band titled with the place, not the record — the name is the `h2` inside (design-system.md §2).
           <Section
             title={FOCUSED_BAND}
             variant="banded"
@@ -299,12 +263,7 @@ export default async function PlayerHomePreviewPage() {
           >
             <Stack spacing={2} sx={{ py: 1.5 }}>
               <Stack spacing={0.5}>
-                {/*
-                  The event type is a category, not a status — design-system.md
-                  §4's own rule that colour is the type and words are the state,
-                  and that a type is never a `StatusChip`. It reads as an
-                  overline here for the same reason it does on S5.
-                */}
+                {/* Type is a category, not a status (design-system.md §4) — never a `StatusChip`. */}
                 <Typography variant="overline" component="p" color="text.secondary">
                   {eventTypeLabel(focused.eventType)}
                 </Typography>
@@ -392,13 +351,7 @@ export default async function PlayerHomePreviewPage() {
           </Section>
         ) : null}
 
-        {/*
-          Closed on arrival, exactly as `/me/[token]` closes it today
-          (`FURTHER_OUT_SUMMARY` is the words on its own `<summary>`). Opening
-          it in the proposal would be a product change dressed as a layout —
-          and it is what turned the first draft of this screen into a 9,676px
-          page against the current 3,269px.
-        */}
+        {/* Closed on arrival, like `/me/[token]` today — opening it turned the first draft into a 9,676px page against 3,269px. */}
         {furtherOut.length > 0 ? (
           <Section
             title={FURTHER_OUT_HEADING}

@@ -1,7 +1,4 @@
-/**
- * The club's messaging schedule, and the plan one approval freezes. LAN-169.
- * Decision history: `docs/adr/0036-messaging-schedule-configuration.md`.
- */
+/** The club's messaging schedule, and the plan one approval freezes. LAN-169. Decision history: `docs/adr/0036-messaging-schedule-configuration.md`. */
 
 export {
   createMessagingScheduleIn,

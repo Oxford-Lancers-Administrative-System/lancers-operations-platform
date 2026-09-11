@@ -23,14 +23,7 @@ import {
   todayInClubZone,
 } from "./presentation";
 
-/**
- * `/operate/report` — the Monday report. LAN-81. Eight sections in Brian's
- * order: last week, who needs chasing, availability, next week, walk-ups,
- * recruitment, onboarding, week in numbers — reading a stored snapshot
- * (invariant M5), never a live recompute. Gated on `leadership_report`.
- *
- * Decision history: docs/ux/tickets/LAN-81-monday-report.md
- */
+/** `/operate/report` — the Monday report. LAN-81. Reads a stored snapshot (invariant M5), never a live recompute. Decision history: docs/ux/tickets/LAN-81-monday-report.md */
 export default async function ReportPage({ searchParams }: PageProps<"/operate/report">) {
   const gate = await gateShellPage("/operate/report", "leadership_report");
   if ("screen" in gate) return gate.screen;
@@ -39,9 +32,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
   const requested = typeof query.date === "string" && query.date !== "" ? query.date : null;
   const date = requested ?? todayInClubZone();
 
-  // How the attendance grid is ordered. In the URL rather than in component
-  // state so that a sorted view survives a refresh, can be shared, and needs no
-  // JavaScript — the same reasoning as the date form beside it.
+  // Sort lives in the URL, not component state — survives a refresh, shareable, needs no JS.
   const sortBy = typeof query.sort === "string" && isGridSort(query.sort) ? query.sort : "issues";
   const ascending = query.dir === "asc";
 
@@ -50,8 +41,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
     typeof query.osort === "string" && isGridSort(query.osort) ? query.osort : "issues";
   const onboardingAscending = query.odir === "asc";
 
-  // Pressing Show Report files a snapshot; arriving, sorting and refreshing do
-  // not. See `readReportForDate` for the rule and why it is that one.
+  // Pressing Show Report files a snapshot; arriving/sorting/refreshing do not (see `readReportForDate`).
   const pressed = query.show === "1";
 
   let report: StoredReport;
@@ -70,9 +60,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
     );
   }
 
-  // Filed, so take the marker out of the address bar. Without this a refresh
-  // would file a second snapshot the reader never asked for, and the version
-  // chain would record the browser rather than the club.
+  // Filed — take the marker out of the address bar, or a refresh would file a second snapshot.
   if (pressed) {
     redirect(`/operate/report?date=${encodeURIComponent(report.reportOn)}`);
   }

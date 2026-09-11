@@ -3,31 +3,9 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import { signOut } from "../login/actions";
 
-/**
- * UX-03 and UX-04 — the two account states, at `/operate`.
- *
- * ## The copy is exact, and the two are different on purpose
- *
- * Brian approved both sentences on 12 August 2026 (LAN-107; `slice-ux.md` § 8).
- * They differ because the next action differs: an unlinked account has to be
- * connected to a club record, a deactivated one has to be re-enabled. A single
- * message covering both would send at least one of those people somewhere
- * useless, which is the defect LAN-95 had already found once in `/dashboard`.
- *
- * Reword nothing here without a recorded owner decision. The strings are
- * asserted literally by test for that reason.
- *
- * ## What this screen may contain
- *
- * Nothing. No navigation, no operator name, no email address, no role, no
- * counts, no links into the shell. The person reading it has a verified session
- * and no operator access, and everything this repository holds about the club
- * is off limits to them — including the fact that a Person record may exist
- * behind their address. The only outward reference is "the club administrator",
- * unnamed, because naming one would be a contact detail.
- *
- * Sign out is the only action, exactly as both wireframes show.
- */
+// UX-03 and UX-04, at `/operate`. Reword nothing without a recorded owner
+// decision (LAN-107). Nothing else renders — no name, email, role, counts,
+// or shell links. Decision history: docs/ux/tickets/LAN-73-shell-and-access.md.
 
 const UNLINKED_HEADING = "Operator profile not connected";
 

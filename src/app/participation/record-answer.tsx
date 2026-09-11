@@ -46,19 +46,7 @@ import {
   WHEN_HELPER,
 } from "./presentation";
 
-/**
- * The club's own "now", read as if it were the browser's local calendar.
- *
- * `date-time-controls.ts`'s helpers round-trip a `Date` through its *local*
- * getters — that is what makes the picker's field show exactly what the
- * operator typed. An operator's machine is not guaranteed to be set to
- * `Europe/London`, so a plain `new Date()` would default the field to the
- * wrong wall clock on a laptop set to another zone. Reading the club's zone
- * through `Intl` first and constructing the `Date` from those parts means the
- * picker's local getters read back the club's own "now" regardless of what the
- * operator's machine thinks the time is — the same trick `club-time.ts` plays
- * for calendar days, one level more specific.
- */
+/** The club's own "now", read as if it were the browser's local calendar — an operator's machine may not be set to Europe/London (same trick as `club-time.ts`). */
 function nowInClubZoneAsLocalDate(): Date {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
@@ -71,42 +59,17 @@ function nowInClubZoneAsLocalDate(): Date {
   }).formatToParts(new Date());
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((one) => one.type === type)?.value ?? "0");
-  // Floored to the TimePicker's own five-minute step (`minutesStep`/
-  // `timeSteps` below). The real current minute is almost never itself a
-  // multiple of five, and MUI treats a value that does not land on an offered
-  // step as invalid — a permanent, unrelated red state on the Time field that
-  // has nothing to do with whether an answer can be recorded
-  // (OWNER-LAN170-04's second cause, found alongside the future/past one).
-  // Flooring, not rounding, also keeps this function's promise that its
-  // result is never later than the real "now" it is reading.
+  // Floored (not rounded) to the TimePicker's five-minute step, or MUI reads an off-step value as invalid (OWNER-LAN170-04).
   const flooredMinutes = Math.floor((part("hour") * 60 + part("minute")) / 5) * 5;
   return new Date(part("year"), part("month") - 1, part("day"), 0, flooredMinutes);
 }
 
-/**
- * OWNER-LAN170-08 (correction round 3): the event's own rule and this form's
- * are two different facts, and this label has to carry both without
- * confusing them. A question the event marks `is_required` is still required
- * *of the player* — that has not changed — but it is never required to record
- * it here, so saying only "Optional" would misstate whose rule this is.
- */
+/** OWNER-LAN170-08: the event's rule and this form's are different facts — required of the player, never required to record here. */
 function questionOptionalLabel(question: ParticipationQuestion): string {
   return question.isRequired ? QUESTION_REQUIRED_OF_PLAYER_OPTIONAL_HERE : QUESTION_OPTIONAL;
 }
 
-/**
- * One question's answer, inline in the recording form — W3's own acceptance
- * evidence: "the event's own questions are answerable in the same form",
- * never required here even when the event marks them required of the player.
- *
- * A boolean question gets the same Yes/No shape the answer itself uses,
- * because that is what the question means. A choice question offers its own
- * stored options as buttons rather than a select — there are never more than a
- * handful (`event_questions_choices_match_type` requires at least two), and a
- * button an operator can see all of at once is faster to use standing at the
- * side of a pitch than a menu that has to be opened first. A text question is
- * a plain field.
- */
+/** One question's answer, inline in the recording form — W3, never required here. Choice questions offer buttons, not a select: never more than a handful, faster to use pitch-side. */
 function QuestionField({
   question,
   value,
@@ -192,52 +155,17 @@ function QuestionField({
 
 /**
  * **Record answer** — the row action with no answer at all, and the dialog it
- * opens. W3, LAN-170.
+ * opens. W3, LAN-170. `ToggleButtonGroup exclusive`, not two buttons
+ * (OWNER-LAN170-06: Brian's "I can't tell which answer I picked"). Yes/No
+ * both get MUI's selected treatment; `REQ-emphasis-points-at-yes` does not
+ * apply here (Brian, 26 August 2026 — that rule is W2's, player-facing).
+ * Only one branch's fields show at a time (OWNER-LAN170-07). The form starts
+ * inside `Dialog`, not around it — MUI's `Dialog` portals to `document.body`,
+ * so a wrapping `<form>` would not enclose the real submit button
+ * (`membership-actions.tsx` found this defect). The dialog names which event
+ * it recording against (OWNER-LAN170-09, round 4).
  *
- * ## The answer choice is one exclusive toggle, not two buttons
- *
- * OWNER-LAN170-06 (Brian's second walkthrough): the earlier hand-styled pair
- * of `Button`s looked invented and did not read as chosen either way — "when
- * I click yes or no, the UI doesn't really change at all, so I can't tell
- * which answer I picked." This is one choice from a fixed set of two, which is
- * what `ToggleButtonGroup exclusive` means, not two independent actions. The
- * selected option carries MUI's own selected treatment whichever option it
- * is, including No — there is no rule making Yes the only one allowed to look
- * chosen. `REQ-emphasis-points-at-yes` never applied here: Brian, 26 August
- * 2026, corrected the packet that carried it onto this surface — it is a
- * player-facing rule from W2, about the landing pages and a player's own
- * page, and it does not govern a coach or operator surface. `REQ-answer-colour`
- * is the rule that still binds, and does not depend on selection: Yes keeps
- * `color="success"`, No keeps `color="error"`, on both the unselected and the
- * selected treatment. `ToggleButton` sets `aria-pressed` itself from
- * `selected`, so a screen reader gets the same fact a sighted operator does —
- * the hand-rolled pair set neither `aria-pressed` nor `aria-checked` at all.
- *
- * ## Only one branch's fields show at a time
- *
- * OWNER-LAN170-07: Brian's decision, and it scopes `REQ-questions-in-the-same-
- * form` to the case where the event's own questions mean anything. Yes shows
- * the questions and not the reason; No shows the required reason and not the
- * questions; nothing selected shows neither. The event's questions never
- * block the answer either way — that has not changed, and `REQ-operator-no-
- * needs-a-reason` has not either.
- *
- * ## The form is inside the dialog, not around it
- *
- * MUI's `Dialog` renders through a portal onto `document.body`. A `<form>`
- * wrapping the `Dialog` in JSX therefore does not wrap its submit button in
- * the real DOM, and the button does nothing — `membership-actions.tsx`
- * documents finding exactly this defect by pressing the real button against a
- * real database. The form here starts inside `Dialog` and encloses
- * `DialogActions` for the same reason that file's does.
- *
- * ## The dialog names which event it is recording against
- *
- * OWNER-LAN170-09 (correction round 4): `event` carries the identity facts
- * `recordAnswerEventSubtitle` needs to draw the second title line `W3-02`
- * and `W3-04` both show — an operator working two events open at once (or
- * simply moving fast) otherwise has no on-screen confirmation which one a
- * given dialog is for.
+ * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export function RecordAnswerControl({
   event,
@@ -264,11 +192,7 @@ export function RecordAnswerControl({
   const scheduledOn = useMemo(() => scheduledOnFromDate(when), [when]);
   const timeString = useMemo(() => timeStringFromDate(when), [when]);
 
-  // Adjusted during render rather than in an effect — the React-recommended
-  // shape for "reset state when a prop/state value changes" — so a successful
-  // save closes the dialog and clears the form in the same commit the new
-  // `state` arrives in, with no extra render in between and nothing to run
-  // twice under Strict Mode.
+  // Adjusted during render, not an effect — React's shape for "reset state when a value changes" — so a save closes the dialog in the same commit.
   const [lastHandledState, setLastHandledState] = useState(state);
   if (state !== lastHandledState) {
     setLastHandledState(state);
@@ -292,16 +216,7 @@ export function RecordAnswerControl({
 
   return (
     <>
-      {/*
-       * OWNER-LAN170-05 (correction round 3): the previous round dropped
-       * `variant`/`color` and left this reading as bare text, which Brian
-       * called out directly — "it's just awkward." Restored to the
-       * repository's ordinary bordered row-action treatment (matching, for
-       * instance, `attendance-row.tsx`'s row actions), not a new style. The
-       * "No answer" chip this used to sit beside is gone from this row
-       * entirely now — see `AnswerCell` in `participation-table.tsx` — so
-       * this is the only thing the Answer cell renders here.
-       */}
+      {/* OWNER-LAN170-05: restored ordinary bordered row-action treatment; Brian: "it's just awkward" as bare text. */}
       <Button
         type="button"
         variant="outlined"
@@ -322,17 +237,7 @@ export function RecordAnswerControl({
         aria-labelledby="record-answer-title"
       >
         <DialogTitle id="record-answer-title">
-          {/*
-            Both lines are wrapped in their own `span` — `DialogTitle` renders
-            straight into an `<h2>`, so a block element nested inside it is
-            invalid HTML, and an un-wrapped text node beside the subtitle
-            would leave nothing whose own text content is the title alone
-            for `recordAnswerDialogTitle`'s callers to match against.
-            `sx={{ display: "block" }}` still puts each line on its own row
-            the way `W3-02`/`W3-04` draw it; the title's own size and weight
-            come from `DialogTitle`'s own `variant="h6"` Typography, which a
-            plain `Box component="span"` inherits without restating it.
-          */}
+          {/* Wrapped in `span`, not a block element: `DialogTitle` renders into an `<h2>`. `sx={{ display: "block" }}` puts each line on its own row (W3-02/W3-04). */}
           <Box component="span" sx={{ display: "block" }}>
             {recordAnswerDialogTitle(displayName)}
           </Box>
@@ -406,19 +311,7 @@ export function RecordAnswerControl({
                         merged.setHours(when.getHours(), when.getMinutes(), 0, 0);
                         setWhen(merged);
                       }}
-                      // Not `disableFuture`: MUI computes "today" from the
-                      // browser's own real clock and zone, but this
-                      // control's value is deliberately the *club's* wall
-                      // clock (see `nowInClubZoneAsLocalDate` above) held in
-                      // a `Date` whose local getters echo London's day, not
-                      // the operator's. Whenever the operator's machine
-                      // sits west of London and it is already past midnight
-                      // there, `disableFuture` reads that as "tomorrow" and
-                      // permanently flags the field as an error with
-                      // nothing the operator did wrong (OWNER-LAN170-04).
-                      // `maxDate` computed the same club-zone way compares
-                      // like with like regardless of the operator's own
-                      // time zone.
+                      // Not `disableFuture`: it reads the browser's real clock/zone, but this value is the club's wall clock — a west-of-London operator past midnight would get a permanent false error (OWNER-LAN170-04). `maxDate` uses the same club-zone computation.
                       maxDate={nowInClubZoneAsLocalDate()}
                       disabled={pending}
                     />
@@ -447,12 +340,7 @@ export function RecordAnswerControl({
                 </Typography>
               </Box>
 
-              {/*
-               * OWNER-LAN170-07: one branch's fields at a time. The reason
-               * only ever means anything once No is chosen, so it is not in
-               * the form at all until then — never shown alongside the
-               * event's own questions, which a No makes meaningless.
-               */}
+              {/* OWNER-LAN170-07: one branch's fields at a time. */}
               {response === "no" ? (
                 <Box>
                   <Field

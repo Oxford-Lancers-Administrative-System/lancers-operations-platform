@@ -38,14 +38,7 @@ import { AlreadyRecorded, Cancelled, RecruitAlreadyRecorded } from "./terminal-p
  *
  * Decision history: docs/ux/tickets/LAN-172-player-answer.md.
  */
-/**
- * The generic club card — LAN-269.
- *
- * This link is the one a player taps straight out of a WhatsApp message, and
- * the questionnaire behind it is the most personal surface in the application.
- * The card names nothing: not the player, not the event, not that a
- * questionnaire exists. `TOKEN_LINK_METADATA` says why.
- */
+/** The generic club card (LAN-269) — names nothing: not the player, the event, or that a questionnaire exists. */
 export const metadata: Metadata = TOKEN_LINK_METADATA;
 
 export const dynamic = "force-dynamic";
@@ -66,15 +59,7 @@ interface Resolved {
   readonly landing: PlayerAnswerLanding | null;
 }
 
-/**
- * Questionnaire B's own credential — LAN-206 — is a bare, opaque token
- * (`TOKEN_PATTERN`: 43 URL-safe characters, no dots), a shape the answer
- * token below can never produce (`ANSWER_TOKEN_PATTERN` always carries two
- * literal dots and a leading `y`/`n`). Trying this resolution first can
- * therefore never intercept an RSVP link; falling through to the unchanged
- * RSVP resolution below is exactly what happens for every token that is not
- * this shape, `TOKEN_PATTERN` match or not.
- */
+/** Questionnaire B's credential (LAN-206) is a bare opaque token (`TOKEN_PATTERN`), a shape the answer token can never produce, so this can't intercept an RSVP link. */
 async function tryQuestionnaireB(token: string, saved: boolean, edit: boolean) {
   if (!TOKEN_PATTERN.test(token)) return null;
 
@@ -155,12 +140,7 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
     notFound();
   }
 
-  // This GET makes no write of any kind, including no cookie — a Server
-  // Component's render may not set one in this framework. The gate cookie
-  // `actions.ts` checks is set by `src/proxy.ts` instead, on every GET to this
-  // exact path, before the request ever reaches this component. See
-  // `@/lib/rsvp/answer-gate.ts` for why presence alone is the whole check.
-
+  // No write, including no cookie: `src/proxy.ts` sets the gate cookie on every GET, before this component (see `@/lib/rsvp/answer-gate.ts`).
   if (resolved.resolution.state === "cancelled") {
     return <Cancelled eventName={resolved.base.eventName} />;
   }
@@ -169,11 +149,7 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
   const error = firstValue(query[ERROR_PARAM]);
 
   if (resolved.resolution.consumed) {
-    // LAN-203. This is a recruit's actual "saved" landing — `submitAnswer`
-    // redirects a recruit straight back to this route rather than to
-    // `/me/[token]`, which they have no page at, so the token this GET
-    // re-resolves is already consumed by the time it renders. The player
-    // copy names "your own page", which does not exist for a recruit.
+    // LAN-203: a recruit's actual "saved" landing — `submitAnswer` redirects them back here, not to `/me/[token]`, which they have no page at.
     return resolved.base.capacity === "recruit" ? (
       <RecruitAlreadyRecorded answer={answer} base={resolved.base} />
     ) : (

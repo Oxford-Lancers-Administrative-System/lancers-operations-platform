@@ -284,3 +284,107 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > value to say it.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/destinations.ts — ADMINISTRATION_DESTINATIONS
+
+> Administration — LAN-133, `DEC-administration-navigation`.
+>
+> Brian's intake decision of 18 August 2026 is a decision about _placement_
+> rather than about capability: "Administration is a low-frequency privileged
+> area at the bottom of the left application sidebar, immediately above
+> user/account controls". It held "Operators and Roles" and nothing else at
+> the time; W5 and W7 have since each added one more entry, and the reviewed
+> prototype's shape survives them — a rule, the word Administration, then
+> the entries, then the signed-in account.
+>
+> So it is a **second list** rather than more entries in `DESTINATIONS`.
+> The separator and the caption are the decision, and a flat list cannot carry
+> them; `ShellNav` renders this one under its own heading.
+>
+> Three different capabilities now govern the four entries, in this order:
+>
+> - **Follow-ups** — W5, `capability: null`. The workflow's primary actor
+>   is "the President, and any operator working follow-ups", not a
+>   privileged subset — the same floor Roster and Events already use.
+>   Placed first, above Operators, per the approved `W5-01` mockup.
+> - **People**, **Missing data** — LAN-184, `person_record_authority`. W1's
+>   approval placed People under Administration ("It's not something that
+>   falls into the top left") ahead of Operators and Roles, in an
+>   Administration group of "People · Operators · Roles" that predates
+>   Follow-ups and Messaging schedule; amendment `W1-A1` then added Missing
+>   data as the second route into `W7`'s queue. Placed together,
+>   immediately after Follow-ups and before Operators, which keeps
+>   Follow-ups' own locked "placed first" position and puts the two new
+>   entries where the approved ordering put People relative to Operators.
+> - **Operators**, **Roles** — `role_management`,
+>   `REQ-role-management-authority`'s capability, held by three seats.
+> - **Messaging schedule** — LAN-171, `delivery_administration`. The four
+>   calendar roles who already approve events and repair their delivery
+>   are the ones who set the policy deciding when those events chase; the
+>   Treasurer and coaching seats are excluded from it for the same
+>   recorded reason `delivery_administration` excludes them elsewhere. Not
+>   `role_management` — changing when the club messages people is not
+>   account or role administration. Ordered Operators, Messaging schedule,
+>   Roles among themselves, matching the approved `W7-02` mockup's own
+>   sidebar.
+>
+> None of the six is shown to every operator, where Roster, Events and
+> Report are — except Follow-ups, which (like them) is `capability: null`
+> and so is shown to every seated operator alongside them; it is only
+> grouped under this heading, not gated by it. That grouping is a courtesy
+> and never a boundary either way — `src/app/operate/admin/**` and
+> `src/app/operate/people/**` gate themselves on the same capabilities, and
+> an operator who types the URL is refused by the page, not by this list.
+> Hiding Operators, Roles, Messaging schedule, People and Missing data
+> matters anyway, because a low-frequency privileged area advertised to
+> everybody who cannot open it is an invitation to try.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/destinations.ts — People entry
+
+> LAN-184, W1. `person_record_authority` — the four offices plus the IT
+> Officer seat, held by every capability in this file (LAN-124). Every
+> human the club holds, findable by the four-role group.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/presentation.ts — module header
+
+> The words `/operate/people` and `/operate/people/missing` use, fixed in one
+> place — LAN-184, `REQ-status-naming`.
+>
+> **The ladder is called Status everywhere.** `Standing` was never an approved
+> term and collided with alumni standing on the same record; renamed
+> 2026-08-27. `AssembledStatus` is `person-required.ts`'s own name for the
+> six-rung ladder `person-record.ts` assembles — this module only supplies the
+> label and the colour, on the same non-decision `roster/presentation.ts`
+> states for `membership_status`: colour never carries the state alone, and a
+> value this map has never heard of renders as itself rather than blank.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/destinations.ts — Missing data entry
+
+> LAN-184, W7, amendment `W1-A1`. The route "for an hour spent usefully",
+> starting from no particular person — the linked count on the People list
+> and the roster is the other route, the one an operator falls into.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/person-record.ts — module header
+
+> ## Derived provenance — `Q-13`
+>
+> `given_name`, `family_name`, `college`, `matriculation_year`,
+> `expected_graduation_year`, `degree_field` and `date_of_birth` have no
+> `source` column of their own on `main`. Brian's walkthrough of LAN-184
+> chose to derive "who supplied it" for these seven from `audit_events`
+> instead of adding one: the most recent `person_<field>_updated` row this
+> module finds naming the person is who supplied the value currently on file;
+> a field never changed through the application — seeded, imported, or set at
+> `person_created`, which names no single field and is deliberately not
+> treated as attributing one — has no such row, and the corresponding
+> `<field>Source` reads `null` rather than a guess.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

@@ -233,3 +233,61 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > could disagree with the first one.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/missing/actions.ts — module header
+
+> The queue's own nudge — LAN-218, `W8`, `M3`, `T11-batch-nudge`.
+>
+> One or several people, each getting their own compiled ask on their own
+> link (`sendOnboardingNudges`'s own isolation, proved directly in
+> `onboarding-chase-dispatch.test.ts`). Unlimited and outside the automated
+> cap — never refused because a chase is exhausted; the queue only ever
+> warns.
+>
+> `person_record_authority` — the same four-role gate the page itself is
+> behind (`gateShellPage`, `page.tsx`). The gate here is the actual
+> boundary; the page's own gate is a courtesy that stops an unauthorized
+> reader from seeing the button at all.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/missing/chase-presentation.ts — module header
+
+> The queue's two new columns, in words — LAN-218, `T11-visibility`.
+>
+> Wording matches the approved `W8-01` mockup verbatim for "Chase exhausted"
+> and "Unmessageable · under 18" — the short form every one of the three
+> approved screens actually uses; `W8-03`'s own richer per-row detail (a
+> delivered count, a withdrawal date) is additional colour the workflow's
+> prose never fixes as required copy, and is not reproduced here.
+>
+> Two of the mockup's own three short forms were superseded in Brian's
+> 2026-09-03 walkthrough (correction round 1), recorded as Q-11 and cited in
+> the correcting PR rather than treated as a silent departure from an
+> approved screen:
+>
+> - "Unmessageable · no consent" is gone (`C-4`) — see
+>   {@link OnboardingChaseNext}'s own comment in `onboarding-chase.ts` for
+>   why a team member lacking granted consent is no longer modelled as
+>   unmessageable at all.
+> - "Delivery failed · needs a person" is gone (`C-5`) — Brian: "it should
+>   show them why the failure is there." Replaced by the real,
+>   provider-neutral reason `onboarding-chase.ts` already carries off
+>   `delivery_results`, on the same footing `delivery.ts`'s own event
+>   delivery screen already shows an operator. No new detection or
+>   categorisation is built here — the stored sentence is shown as-is.
+>
+> "Unmessageable · under 18" is unaffected, and a new short form joins it —
+> `C-1`/`C-2`/`C-3`: a person with no reachable mobile number is not merely
+> "unmessageable" in the abstract, so the row says the concrete fact plainly
+> rather than reusing that word.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/messaging/schedule-form.tsx — onboarding section placement
+
+> LAN-218, W11. Directly below Recruitment and above Event messaging
+> — Brian's own placement, and the reason `W11-01` was reshot: the
+> two person-lifecycle chases sit together, then the events.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

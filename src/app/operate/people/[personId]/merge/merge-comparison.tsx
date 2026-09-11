@@ -42,27 +42,9 @@ const CONSENT_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
 
 /**
  * W4-02 … W4-08 — the comparison, field by field, and the confirmation that
- * moves nothing until the operator has answered every one of them. `Q-5`
- * (Brian, 2026-08-29) in full: two refusals, a required reason, what will
- * move shown before it moves, no undo.
- *
- * ## LAN-256 — nothing is pre-selected, and Merge waits
- *
- * Every row used to render the survivor's side with `defaultSelected`, blank
- * or not, so pressing Merge without touching a radio was a complete answer
- * that happened to say "keep everything the survivor has, including the seven
- * facts it does not have". Merging `Yor` (near-duplicate, almost nothing on
- * it) with `Yorick` (complete record) discarded the whole of Yorick's last
- * name, college, matriculation year, expected graduation, degree field, date
- * of birth and emergency contact, and the survivor then read "8 required facts
- * are missing".
- *
- * So: a row whose two sides hold the same value is not a question and renders
- * as one value. A row whose sides disagree — in either direction, a blank
- * against a value included — renders two unselected sides, and Merge stays
- * disabled until every one of them has an answer. The count of what is left is
- * on screen beside the button, because a disabled button that will not say why
- * is its own defect. `mergePersons` refuses the same submission server-side.
+ * moves nothing until every row is answered (Q-5). LAN-256: agreeing rows
+ * render one value; disagreeing rows render unselected and block Merge.
+ * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export default function MergeComparison({
   survivorRouteId,
@@ -95,11 +77,7 @@ export default function MergeComparison({
     })),
   ];
 
-  // B-003 (correction round 2, Q-10, Brian: "If it is a merge, they obviously
-  // get to choose") — `WP-operator-record` (LAN-217). Operator-choosable like
-  // any other row above, and under LAN-256 that now means unanswered as well
-  // as unimposed. Supersedes `T07-merge-precedence`, which was locked at a
-  // recommendation rather than an owner decision.
+  // B-003 (Q-10): operator-choosable like any other row. Decision history: missions/intake/M-PEOPLE-AND-ROSTER
   const consentRows: ComparisonRow[] = preview.consentCombinations.map((combo) => ({
     name: `consent_${combo.seasonId}`,
     label: `Messaging consent · ${combo.seasonLabel}`,
@@ -144,9 +122,7 @@ export default function MergeComparison({
                   Open operator administration
                 </Button>
               ) : null}
-              {/* Q-16, LAN-185 correction round 2: the refusal links to the
-                  exact membership to archive, not a bare "open the roster" —
-                  the same shape the active-seat refusal's link already had. */}
+              {/* Q-16, LAN-185 round 2: links to the exact membership to archive. */}
               {refusal.blockingMemberships?.map((blocking) => (
                 <Button
                   key={blocking.membershipId}
@@ -185,10 +161,7 @@ export default function MergeComparison({
                   row={{
                     name: "field_aliases",
                     label: "Aliases",
-                    // D-001 (correction round 3, Q-14): two identical alias
-                    // sets are not a difference — the real, set-wise
-                    // computation from `previewPersonMerge`, not a hardcoded
-                    // `true` that fired even when both sides were empty.
+                    // D-001 (Q-14): real set-wise diff from previewPersonMerge, not a hardcoded true.
                     differs: preview.aliases.differs,
                     // Never a choice: both sides' aliases are kept on the
                     // survivor, so there is nothing to decide between.
@@ -239,9 +212,7 @@ export default function MergeComparison({
               </Section>
             ) : null}
 
-            {/* Q-16, LAN-185 correction round 2: an archived overlap
-                membership stays on {loser.displayName} — never re-pointed —
-                said plainly here before the merge, per Brian's own words. */}
+            {/* Q-16, LAN-185 round 2: archived overlap membership stays on the loser. Decision history: missions/intake/M-PEOPLE-AND-ROSTER */}
             {preview.staysWithLoser.length > 0 ? (
               <Section title={`What stays on ${loser.displayName}`}>
                 <Stack spacing={1}>
@@ -321,14 +292,9 @@ function SurvivorCard({
 }
 
 /**
- * One row of the comparison.
- *
- * Three shapes, and which one renders is decided by the data rather than by a
- * flag the caller passes: a row that is a question renders two unselected
- * sides; a row whose two sides agree renders the one value they agree on,
- * because "which of these two identical values do you want" is not a question
- * and asking it hides the rows that are; and the aliases row always shows both
- * sides, un-choosable, since both sets are kept on the survivor either way.
+ * One row of the comparison — three shapes decided by data, not a caller
+ * flag: agreed values render as one; a question renders two unselected
+ * sides; aliases always show both sides, un-choosable (both kept either way).
  */
 function CompareRow({
   row,

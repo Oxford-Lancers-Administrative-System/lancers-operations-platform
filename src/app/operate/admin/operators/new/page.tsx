@@ -6,21 +6,7 @@ import { gateShellPage } from "../../../gate";
 import AdminPageHeading from "../../page-heading";
 import InviteOperatorForm, { type AssignableRole } from "./invite-form";
 
-/**
- * **Invite operator** — the flow behind the Operators page's primary action.
- * LAN-133.
- *
- * The seat list is read from the catalogue rather than written here, for the
- * same two reasons everything else in Administration reads it: it is the
- * approved twenty (`REQ-static-role-catalogue`) in the approved group order,
- * and `tests/capability-map-single-source.test.ts` allows no module in `src/`
- * outside the capability map to name a `roles.code`.
- *
- * Every seat is offered, including the ten coaching ones —
- * `REQ-coach-operator-onboarding`: "All ten fixed coaching roles may be invited
- * as operators", and coaching onboarding "neither requires nor automatically
- * creates player membership". Nothing on this page creates a membership.
- */
+// Invite operator — LAN-133. Seat list read from the catalogue (`REQ-static-role-catalogue`); nothing here creates a membership. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 export default async function InviteOperatorPage() {
   const gate = await gateShellPage("/operate/admin/operators/new", "role_management");
   if ("screen" in gate) return gate.screen;

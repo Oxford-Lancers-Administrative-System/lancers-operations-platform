@@ -1,13 +1,7 @@
 import type { AdministrationSubject } from "@/lib/auth/administration-authority";
 import type { Tx } from "@/lib/db";
 
-/**
- * The target's role codes, read from the database inside the caller's
- * transaction. **This is the input the leadership rules stand on** — every
- * caller that hands the result to a guard passes `includeScheduled: true`
- * (fail-closed; no production caller asks for the narrow answer). Decision
- * history (LAN-141 finding 1): relocations.md.
- */
+/** The target's role codes, read inside the caller's transaction; callers pass `includeScheduled: true` (fail-closed). */
 export async function readAdministrationSubject(
   tx: Tx,
   personId: string,

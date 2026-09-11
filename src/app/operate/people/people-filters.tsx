@@ -3,17 +3,7 @@
 import ListFilters from "../list-filters";
 import { FILTERABLE_STATUSES, labelFor, STATUS_LABELS } from "./presentation";
 
-/**
- * `W1-01`'s search and two thin filters — Brian, 2026-08-26: "keep the filter
- * thin for now… we should be able to sort aggressively." The roster carries
- * the full filter set; this bar is for finding one human.
- *
- * The shared `../list-filters` bar, exactly as the roster and the events list
- * already use it — see `roster/roster-filters.tsx`. What stays here is what
- * belongs to the People list: which two things it narrows by, what it calls
- * them, and the `scope` this screen carries through every link so a search
- * inside the widened view stays widened.
- */
+// W1-01's search and two thin filters — Brian, 2026-08-26. Decision history: missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
 export default function PeopleFilters({
   basePath,
   scope,
@@ -25,7 +15,6 @@ export default function PeopleFilters({
   direction,
 }: {
   basePath: string;
-  /** `"outside"` when the widened view is showing; carried through as `?scope=outside`. */
   scope: "in_season" | "outside_season";
   sortColumns: readonly { value: string; label: string }[];
   search: string;

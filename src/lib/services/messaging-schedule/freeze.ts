@@ -10,14 +10,12 @@ import type { MessagingSchedule } from "./schedule";
  * see `./index`.
  */
 
-/** The recruit ladder as it was frozen, read back from `event_messaging_plans`. */
 export interface FrozenRecruitLadder {
   readonly invitationAt: Date;
   readonly dispatchesImmediately: boolean;
   readonly followUpAt: Date | null;
 }
 
-/** The plan as it was frozen, read back from `event_messaging_plans`. */
 export interface FrozenMessagingPlan {
   readonly eventId: string;
   readonly schedule: MessagingSchedule;
@@ -29,29 +27,17 @@ export interface FrozenMessagingPlan {
   readonly whatsappRemindersScheduled: number;
   readonly emailRemindersScheduled: number;
   readonly frozenAt: Date;
-  /** REQ-approval-shows-both-ladders. `null` where this event's frozen plan carries no recruit ladder. */
-  readonly recruitLadder: FrozenRecruitLadder | null;
+  readonly recruitLadder: FrozenRecruitLadder | null; // REQ-approval-shows-both-ladders; null with no recruit ladder
 }
 
 function countReminders(plan: MessagingPlan, channel: "whatsapp" | "email"): number {
   return plan.rungs.filter((rung) => rung.kind === "reminder" && rung.channel === channel).length;
 }
 
-/**
- * Writes the plan onto the event, once, at approval.
- *
- * `REQ-schedule-not-retroactive`, and the reason it is stored rather than
- * recomputed: the schedule is editable at runtime now. Recomputing a chase from
- * `messaging_schedules` would mean an operator who shortens the cadence on
- * Tuesday retroactively changes when Monday's already-approved event chases
- * forty people — and, worse, that the plan the approver read before committing
- * stops being the plan that runs.
- *
- * `on conflict do update` rather than `do nothing`, because W8 recomputes a
- * rescheduled event's thresholds and that is the one legitimate reason a frozen
- * plan moves. A second approval of the same event cannot reach here: approval
- * is guarded on `status = 'draft'`.
- */
+// Writes the plan onto the event, once, at approval — REQ-schedule-not-retroactive: stored, not
+// recomputed, so an operator editing the schedule later can't retroactively change an already-
+// approved event's chase (see relocations.md). `on conflict do update`: W8's reschedule is the one
+// legitimate reason a frozen plan moves; a second approval can't reach here (guarded on 'draft').
 export async function freezeMessagingPlanIn(
   tx: Tx,
   eventId: string,
@@ -138,11 +124,8 @@ async function readFrozenPlanIn(tx: Tx, eventId: string): Promise<FrozenMessagin
     recruit_dispatches_immediately: boolean | null;
     recruit_follow_up_at: Date | null;
   }>(
-    // The frozen numbers are the plan's own copies (`REQ-schedule-not-
-    // retroactive`) and stay that way. The template's **name** is joined live
-    // and deliberately: a rename is retroactive by decision (LAN-265, Brian
-    // 2026-09-09), so an approved event reads whatever the club calls that kind
-    // of event today, exactly as its list row and its public page do.
+    // Frozen numbers are the plan's own copies; the template's name is joined live and
+    // deliberately — a rename is retroactive by decision (LAN-265).
     `select p.event_id, e.template_id, t.name as template_name, e.event_type::text as event_type,
             p.rsvp_by_days, p.invitation_lead_days, p.reminder_cadence_hours,
             p.whatsapp_reminder_count, p.email_reminder_count, p.escalation_hours,
@@ -196,10 +179,7 @@ async function readFrozenPlanIn(tx: Tx, eventId: string): Promise<FrozenMessagin
   };
 }
 
-/**
- * The frozen plan for one event, or `null` before approval — for a page that
- * only wants to read it and holds no transaction of its own.
- */
+// The frozen plan for one event, or null before approval.
 export async function readFrozenMessagingPlan(
   eventId: string,
 ): Promise<FrozenMessagingPlan | null> {

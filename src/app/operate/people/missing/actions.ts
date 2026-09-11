@@ -5,20 +5,9 @@ import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { sendOnboardingNudges } from "@/lib/services/messaging-scheduler";
 
-/**
- * The queue's own nudge — LAN-218, `W8`, `M3`, `T11-batch-nudge`.
- *
- * One or several people, each getting their own compiled ask on their own
- * link (`sendOnboardingNudges`'s own isolation, proved directly in
- * `onboarding-chase-dispatch.test.ts`). Unlimited and outside the automated
- * cap — never refused because a chase is exhausted; the queue only ever
- * warns.
- *
- * `person_record_authority` — the same four-role gate the page itself is
- * behind (`gateShellPage`, `page.tsx`). The gate here is the actual
- * boundary; the page's own gate is a courtesy that stops an unauthorized
- * reader from seeing the button at all.
- */
+// The queue's own nudge — LAN-218, `W8`, `M3`, `T11-batch-nudge`. Unlimited,
+// outside the automated cap; gated on `person_record_authority`, the real
+// boundary (the page's own gate is a courtesy). Decision history: docs/ux/tickets/LAN-218-chase-and-queue.md.
 export interface NudgeActionResult {
   readonly error: string | null;
   readonly notice: string | null;

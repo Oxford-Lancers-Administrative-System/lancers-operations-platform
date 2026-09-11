@@ -272,3 +272,90 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > an event in either is fine.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/actions.ts — approveEventAction
+
+> `draft → approved` — the one action in this slice that sends anything to a
+> real person. LAN-77.
+>
+> Three things about it are deliberate.
+>
+> **It guards on `event_approval`, not on `event_calendar_management`.** The two
+> capabilities currently name the same four roles, so today the check is
+> equivalent — and it is still the wrong one to reuse. Approval is the gate that
+> releases automated messages, and separation of duties is explicitly something
+> Brian may add later; when he does, it narrows one list in `capabilities.ts`
+> and this action changes not at all.
+>
+> **It carries no audience at all.** The audience is already stored against the
+> draft by `saveEventAudienceAction`, so the only thing this posts is which
+> event. A browser therefore cannot widen the list between the confirmation
+> screen and the write, because it is not sending a list.
+>
+> **It does not check the count.** The confirmation screen shows UX-42 when the
+> stored audience is empty, and that is a courtesy: a client skipping the screen
+> entirely still reaches invariant E1b's refusal in the service layer rather
+> than producing an approval nobody would receive.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/actions.ts — approveEvent
+
+> Approve an event and release its invitations. The four calendar roles.
+>
+> The behaviour shipped in LAN-77 and lives in
+> `src/app/operate/events/actions.ts`, beside the screen that posts to it —
+> same as `activateMembership` above, whose body shipped in LAN-75. These
+> entry points stay because they are the guard-parity harness LAN-73 built:
+> `actions.test.ts` calls each one directly with an under-privileged actor, so
+> a capability quietly widened or a guard quietly deleted fails a test here
+> rather than being discovered on a screen.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/question-list.tsx — module header (QuestionList)
+
+> The questions, exactly as a player will meet them — amendment W4-A1.
+>
+> Shared by the approval review and the event page, because they are the same
+> list and `docs/ux/standards.md` rule 7 is about exactly that. The review adds
+> the RSVP's own first question at the top, because "are you coming?" is asked
+> before any of these and an approver reading the list should see the page as it
+> will arrive rather than the part of it this screen happens to own.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/audience-selection.ts — file header (why rules live here)
+
+> Split out of `event-audience.ts` for the same structural reason
+> `event-input.ts` is split out of `events.ts`, and the header there explains
+> it: this module is imported by the **client** component that renders the
+> audience builder, and `event-audience.ts` reaches the database. A client
+> component importing that would drag `pg` into the browser bundle, which does
+> not build.
+>
+> The rules living here rather than in the component is the point. The screen
+> has to show the approver **exactly** the list that approval will write, names
+> and count and capacity, because the confirmed list is the approval subject
+> rather than the group labels that produced it. A component that re-implemented
+> de-duplication would eventually disagree with the transaction by one person,
+> and the operator would never know which of the two was lying.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/events/read.ts — lockEventIn (LAN-77 approval-path bug)
+
+> Independent review proved exactly that against LAN-77's approval path, with
+> three real connections. `approveEvent` read the audience, then flipped the
+> status; `saveEventAudience` checked the status with a plain `select`, which
+> does not block on another transaction's uncommitted `update`, and deleted the
+> audience rows underneath it. The committed result was an **approved event with
+> no audience and no invitations** — precisely the state invariant E1b exists to
+> prevent, and one `uninvited_audience_members` cannot even report, because
+> there are no audience rows left to report on.
+>
+> The guarded `update … where status = 'draft'` stays where it is. It is still
+> the thing that makes a double submission safe, and it now has a lock in front
+> of it rather than instead of it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

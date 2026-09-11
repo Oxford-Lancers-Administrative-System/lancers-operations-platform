@@ -23,17 +23,10 @@ import QuestionEditor from "./question-editor";
 import { EventCoreFields, issueFor } from "./event-core-fields";
 import { duplicatedFrom } from "./presentation";
 
-/**
- * UX-31 — the event editor, in both of its modes, as LAN-154 extended it. One
- * component for create and edit: same screen, same rules, differing only in
- * the action posted to, the heading, and whether fields start empty. The
- * Oxford term/week are derived from the date, never entered (LAN-76); the
- * template fills the form field by field, replacing only untouched fields on
- * a type change (D40–D47); a validation failure preserves entries, names the
- * field, and moves focus to the first one.
- *
- * Decision history: docs/ux/tickets/LAN-154-event-authoring-and-templates.md
- */
+// UX-31 — the event editor, both modes, LAN-154. One component for
+// create/edit. Term/week derived from the date (LAN-76); the template fills
+// the form field by field, replacing only untouched fields on a type change
+// (D40-D47). Decision history: docs/ux/tickets/LAN-154-event-authoring-and-templates.md
 
 export type EventFormMode = "create" | "edit";
 
@@ -48,14 +41,10 @@ export default function EventForm({
   cancelHref,
 }: {
   mode: EventFormMode;
-  /** The draft being edited. Absent when creating. */
   eventId?: string;
-  /** The Oxford calendar, for deriving the coordinate as the operator types. */
   terms: readonly TermWindow[];
   initial?: RawEventDraft;
-  /** The questions already on this event, or the ones its template gives. */
   initialQuestions?: readonly RawEventQuestion[];
-  /** Every template the club has, because the Type control decides which applies. */
   templates: Readonly<Record<string, EventTypeFormDefaults>>;
   /** D39 — the event this form was prefilled from, when it was. */
   duplicatedFromName?: string;
@@ -68,54 +57,24 @@ export default function EventForm({
 
   const formRef = useRef<HTMLFormElement>(null);
 
-  // What was typed wins over what was loaded, so a rejected submission comes
-  // back with the operator's own words in it.
   const values: RawEventDraft = state.values ?? initial ?? {};
   const value = (field: keyof RawEventDraft): string => {
     const raw = values[field];
     return typeof raw === "string" ? raw : "";
   };
 
-  /**
-   * The templates the operator may pick from, in the order the list shows them.
-   *
-   * `readEventFormDefaults` keys them by id and orders that record by name, and
-   * `Object.values` preserves insertion order for string keys that are not
-   * array indices — which a uuid never is. LAN-265.
-   */
+  // Object.values preserves insertion order for non-index string keys (LAN-265).
   const templateList = Object.values(templates);
 
-  /**
-   * What the Type control opens on.
-   *
-   * An edit and a refused submission both bring their own. A blank create opens
-   * on a **practice**, which is what D15 settled and what the club schedules
-   * most of — and it used to be the literal string `practice`, which was safe
-   * while the seven types were the seven templates and one of them was always
-   * called Practice.
-   *
-   * After LAN-265 a club can rename or delete any of them, so the rule is
-   * expressed against the behavioural class instead: the first practice-class
-   * template on the list, which is the Practice template on a club that has not
-   * created its own and remains a practice on one that renamed it. A club whose
-   * templates are all something else opens on the first of them, and one with no
-   * templates at all gets an empty control and a refusal on save rather than a
-   * form that silently posts an id nobody has.
-   */
+  // What the Type control opens on: the first practice-class template (D15),
+  // expressed against the class rather than a name since LAN-265 allows
+  // renaming. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
   const openingTemplate =
     templateList.find((option) => option.eventType === DEFAULT_TEMPLATE_CLASS) ?? templateList[0];
   const startingTemplateId = value("templateId") || (openingTemplate?.id ?? "");
 
-  /**
-   * What this form opens with, before anybody has typed anything.
-   *
-   * An **edit** carries the event's stored values, and a refused submission
-   * carries what was typed — both arrive as `initial`/`state.values`, and both
-   * win. A blank **create** has neither, and that is the case the template
-   * fills: D40 through D47 say a new event of a type starts as that type says,
-   * visibly and editably, rather than as an empty form the operator retypes the
-   * same five answers into every Wednesday.
-   */
+  // A blank create has no initial/state.values, and that is the case the
+  // template fills — D40-D47.
   const opening = (
     field: keyof RawEventDraft,
     fromTemplate: (defaults: EventTypeFormDefaults) => string,
@@ -127,19 +86,9 @@ export default function EventForm({
   };
 
   const [templateId, setTemplateId] = useState(startingTemplateId);
-  /**
-   * C1. `scheduledOn` (the `YYYY-MM-DD` the server action and the rest of
-   * this component read) is *derived* from this Date, never the other way
-   * round. `DatePicker` is controlled, and its field fires `onChange` with a
-   * genuine, if provisional, `Date` the instant the year section holds even
-   * one digit — a day and month already typed plus a year of "2" is a real
-   * 0002-08-24. Round-tripping that through `scheduledOn` and back on every
-   * keystroke works until the field's own display keeps building a year the
-   * string briefly could not represent consistently; keeping the `Date`
-   * itself as the source of truth and only ever handing the field back
-   * exactly what it just gave us sidesteps the mismatch entirely, at the
-   * cost of one extra piece of state.
-   */
+  // C1. scheduledOn is derived from this Date, never the reverse — DatePicker
+  // fires onChange with a provisional Date per keystroke; round-tripping
+  // through the string mismatches mid-year-entry. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
   const [scheduledOnDate, setScheduledOnDate] = useState<Date | null>(() =>
     dateFromScheduledOn(value("scheduledOn")),
   );
@@ -172,15 +121,8 @@ export default function EventForm({
   const template = templates[templateId];
   const typeLabel = template?.name ?? "";
 
-  /**
-   * D41's rule, applied while the event is still being written.
-   *
-   * A field still holding what the old type's template gave it takes the new
-   * type's value; a field the operator wrote keeps what they wrote. The same
-   * comparison the service makes against a saved draft, for the same reason —
-   * and the reason it is here rather than only there is that changing the type
-   * is the one moment on this form when the template underneath it changes.
-   */
+  // D41's rule while still being written: a field still holding the old
+  // template's value takes the new one; an operator-written field keeps it.
   function changeTemplate(next: string) {
     const was = templates[templateId];
     const now = templates[next];
@@ -198,8 +140,7 @@ export default function EventForm({
       setEndsAt(endTimeFromStart(startsAt, now.durationMinutes) ?? "");
     }
 
-    // D42. The questions the old type supplied leave with it; the operator's own
-    // stay exactly where they are, in the order they were in.
+    // D42: template questions leave with the old type; operator's own stay.
     setQuestions((current) => [
       ...current.filter((question) => question.fromTemplate !== "true"),
       ...now.questions,
@@ -213,14 +154,8 @@ export default function EventForm({
     setEndsAt(endTimeFromStart(next, template.durationMinutes) ?? "");
   }
 
-  // Focus the first control the operator has to fix. The field name comes off
-  // the returned issue rather than being tracked in the component, so the form
-  // and the rule that produced the correction cannot drift apart.
-  //
-  // The lookup is by `data-field` on the control's wrapper, not by `name`,
-  // because a MUI select and a radio group both carry `name` on an element that
-  // cannot take focus — a hidden input. The first genuinely focusable
-  // descendant is what an operator's cursor has to land on.
+  // Focuses the first control to fix, by data-field wrapper (not `name` —
+  // a MUI select/radio group's `name` sits on an unfocusable hidden input).
   useEffect(() => {
     const first = state.issues[0];
     if (!first || !formRef.current) return;
@@ -290,12 +225,7 @@ export default function EventForm({
               minRows={3}
             />
 
-            {/*
-              D17: its own field, so it is not buried in a paragraph — and
-              free text that behaves exactly like Description above (Brian,
-              2026-09-09; LAN-264). It was a one-line input, which meant Enter
-              submitted the form and a kit list could not be written at all.
-            */}
+            {/* D17: its own field (Brian, 2026-09-09, LAN-264) — decision history: relocations.md. */}
             <Field
               label="Required equipment"
               name="requiredEquipment"
@@ -325,11 +255,7 @@ export default function EventForm({
               ]}
             />
 
-            {/*
-              D23 removed "Response requested" from this form. It was not a real
-              concept: mandatory or optional already carries it, and everyone
-              sent an event is expected to answer.
-            */}
+            {/* D23 removed "Response requested" — mandatory/optional already carries it. */}
           </Stack>
         </Section>
 

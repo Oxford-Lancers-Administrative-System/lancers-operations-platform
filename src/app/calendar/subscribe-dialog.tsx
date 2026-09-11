@@ -13,43 +13,15 @@ import Typography from "@mui/material/Typography";
 import { PUBLIC_CALENDAR_FEED_PATH } from "./routes";
 
 /**
- * `Add to your calendar` — `W2`, the whole workflow. LAN-158.
+ * `Add to your calendar` — `W2`, the whole workflow. LAN-158. Two screens
+ * only, Brian cut the other three: `W2-01` (opening) and `W2-02` (once a
+ * destination is chosen), one `Dialog` switched on `chosen`. `window.open`
+ * hands off to the reader's own calendar app and immediately shows Done —
+ * this control's job ends there, and nothing here reads back whether the
+ * subscription completed. Not a notification channel. Both this dialog's URL
+ * and `feed.ics/route.ts` start from `PUBLIC_CALENDAR_FEED_PATH`.
  *
- * ## Two screens, and Brian cut the other three
- *
- * The first mockup carried five; Brian's instruction was explicit — "you're
- * overcomplicating this … These extra screens aren't really necessary" — and
- * the approved packet has exactly two: `W2-01`, this dialog's opening state,
- * and `W2-02`, what it becomes once a destination is chosen. Both are this one
- * `Dialog`, switched on `chosen`. There is no third state to add here: not a
- * loading screen, not a confirmation-of-confirmation, not a settings panel.
- * Copying the address gives inline feedback on the *same* first screen rather
- * than a screen of its own, because the workflow names it as an alternative to
- * picking a destination, not a third step.
- *
- * ## What pressing a destination actually does
- *
- * "Their own calendar app opens and asks them to confirm. That confirmation
- * belongs to that app, not to this one" — the workflow is explicit that this
- * control's job ends at getting the reader's own app to open. `window.open`
- * hands off to it (a `webcal:` URL for Apple, an HTTPS add-by-URL endpoint for
- * Google and Outlook) and the dialog immediately shows Done; nothing here
- * waits for or reads back whether the subscription was actually completed,
- * because there is no way to know that from this page and pretending otherwise
- * would be dishonest about what just happened.
- *
- * ## Not a notification channel
- *
- * This control does not claim one either. "Confirm there and the season's
- * events will appear" is the whole promise; refresh timing is the provider's
- * from that point on (`calendar-feed.ts`'s own header), and nothing on this
- * dialog says "you'll be notified."
- *
- * ## One feed address, everywhere
- *
- * The URL this dialog builds and the route that answers it
- * (`src/app/calendar/feed.ics/route.ts`) both start from
- * `PUBLIC_CALENDAR_FEED_PATH` — the one place either is written down.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 const PROVIDERS = [
@@ -60,15 +32,7 @@ const PROVIDERS = [
 
 type ProviderId = (typeof PROVIDERS)[number]["id"];
 
-/**
- * Where each destination is sent, built from the page's own origin.
- *
- * Apple gets `webcal:`, which its Calendar app (macOS and iOS) registers
- * itself as the handler for and opens directly into the Subscribe sheet.
- * Google and Outlook both offer an HTTPS "add a calendar by URL" endpoint that
- * takes the feed's own HTTPS address as a parameter — neither understands
- * `webcal:`, so they get the address unchanged.
- */
+/** Where each destination is sent. Apple gets `webcal:` (registered handler); Google/Outlook get the HTTPS address unchanged via their add-by-URL endpoint. */
 function destinationUrl(provider: ProviderId, origin: string): string {
   const httpsUrl = `${origin}${PUBLIC_CALENDAR_FEED_PATH}`;
   switch (provider) {
@@ -97,11 +61,7 @@ export default function SubscribeToCalendarButton({
   const [chosen, setChosen] = useState<ProviderId | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Server-rendered as the bare path — `window` does not exist during SSR —
-  // and only ever shown once the dialog is open, by which point this is
-  // running on the client and reads the real origin. `Dialog` does not mount
-  // its content while `open` is false, so the bare-path value never reaches
-  // the page's own markup for a mismatch to be found in.
+  // Bare path during SSR (`window` doesn't exist); shown only once the dialog is open and running client-side, so no hydration mismatch.
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const feedUrl = `${origin}${PUBLIC_CALENDAR_FEED_PATH}`;
 

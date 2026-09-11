@@ -9,50 +9,15 @@ import { deriveOperatorAccountState, type OperatorAccountState } from "./operato
 import { resolveCommitteeYearForReading, resolveSeasonForReading } from "./operator-invitations";
 import { personDisplayNameSql } from "./sql-text";
 
-/**
- * The plural reads Administration opens on — LAN-133, `WP-surfaces`.
- *
- * `WP-invitation` and `WP-assignment` between them answer every question about
- * **one** operator and **one** role. Neither answers the question the two index
- * screens ask, which is the plural one: who are the club's operators, and who
- * holds each of the twenty seats. `readRoleHolders()` does the singular half
- * and calling it twenty times to draw one page would be twenty transactions and
- * twenty cycle resolutions for one list.
- *
- * So this module is three queries, and it adds no rule. Every fact it derives is
- * derived by an existing function — the account state by
- * {@link deriveOperatorAccountState}, the seat's name by {@link roleLabel},
- * and who holds a seat by the same currency test `readRoleHolders()` applies:
- * in force on the day being asked about, half-open at both ends, with
- * assignments recorded to start later kept separately rather than counted as
- * holders. Where the two disagree it is a defect here, and
- * `administration-directory.test.ts` runs both against the same data — on both
- * halves of that answer — for exactly that reason. It has caught the two
- * readers drifting apart twice.
- *
- * ## Both list reads are guarded, at the capability floor
- *
- * `role_management`, the same floor `readRoleHolders()` and
- * `findOperatorCandidates()` use, for the reason given there: a list has no
- * target, so the target-aware guard has nothing to be asked about — but the
- * list itself is the club's officers with their access states attached, which
- * is not ordinary operator reading. Every **write** the screens offer still asks
- * the target-aware question inside the service that performs it, and nothing
- * here decides what may be offered.
- *
- * ## Why the grouping comes out of the database
- *
- * `REQ-static-role-catalogue` puts the three groups and their order in
- * `public.role_groups`, which the catalogue migration writes. Reading them here
- * rather than listing them in TypeScript is not only tidiness:
- * `tests/capability-map-single-source.test.ts` forbids naming a `roles.code`
- * anywhere in `src/` outside the capability map, and a hand-written grouping
- * would have had to name twenty of them.
- */
-
-// ---------------------------------------------------------------------------
-// The role catalogue, grouped, with this operating year's holders
-// ---------------------------------------------------------------------------
+// The plural reads Administration opens on — LAN-133, WP-surfaces: who are the club's operators,
+// and who holds each seat, without twenty transactions to draw one page. Three queries, no new
+// rule — every fact is derived by an existing function (deriveOperatorAccountState, roleLabel, the
+// same currency test readRoleHolders() applies). Both list reads are guarded at role_management,
+// the capability floor (a list has no target for the target-aware guard to ask about; every write
+// still asks that question inside the service that performs it). Grouping comes from
+// public.role_groups, not TypeScript, because capability-map-single-source.test.ts forbids naming
+// a roles.code outside the capability map. See relocations.md.
+// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL
 
 /** One holder of a seat, as the Roles index and role detail show them. */
 export interface CatalogueHolder {
@@ -61,17 +26,10 @@ export interface CatalogueHolder {
   readonly displayName: string;
   readonly effectiveFrom: string;
   readonly effectiveTo: string | null;
-  /** Recorded, but not in force until its start date. */
-  readonly scheduled: boolean;
+  readonly scheduled: boolean; // recorded, but not in force until its start date
   readonly operatorAccountId: string | null;
-  /** `null` when this Person has no operator login at all. */
-  readonly operatorState: OperatorAccountState | null;
-  /**
-   * `REQ-deactivate-and-reinstate`: the holder keeps the seat and role detail
-   * "shows that the current holder's operator access is deactivated" rather
-   * than a vacancy. Decided here so no screen decides it differently.
-   */
-  readonly accessDeactivated: boolean;
+  readonly operatorState: OperatorAccountState | null; // null when this Person has no operator login at all
+  readonly accessDeactivated: boolean; // REQ-deactivate-and-reinstate: the holder keeps the seat — see relocations.md
 }
 
 /** One seat in the catalogue, with the holders this operating year has. */
@@ -82,42 +40,10 @@ export interface CatalogueRole {
   readonly scope: "committee_year" | "season";
   readonly admitsMultipleHolders: boolean;
   readonly holders: readonly CatalogueHolder[];
-  /**
-   * Assignments recorded to begin later — never holders, and never counted
-   * towards `vacant`.
-   *
-   * Brian, 20 August 2026, on the roles index: "I like showing the successors
-   * and also showing people when they go." A seat nobody holds today whose
-   * successor starts on 1 September is still Not assigned today, and saying
-   * only that leaves an administrator to discover the cover — or the gap — on
-   * the day it happens. The current answer stays the headline and this is the
-   * context beside it.
-   */
-  readonly scheduled: readonly CatalogueHolder[];
-  /** Nobody holds this seat **today** — the **Not assigned** state. */
-  readonly vacant: boolean;
-  /**
-   * True when the operating year this seat hangs off does not exist yet, so
-   * "Not assigned" would be a claim rather than a fact. Coaching seats hang off
-   * the season, and a club between seasons has none.
-   *
-   * It says nothing about who holds the seat. Assignments are written
-   * open-ended and outlive the cycle that started them, so a seat with no
-   * current cycle can still have a holder in post this morning —
-   * `describeHolders()` reads the holders first for that reason, and LAN-141
-   * finding 4 is what it cost when it did not.
-   */
-  readonly cycleMissing: boolean;
-  /**
-   * A new assignment for this seat can be recorded **today**.
-   *
-   * False when the cycle it would hang off does not exist, and false for a
-   * season in `closing` — which is current to read and closed to write. The
-   * surfaces use it so that they never offer an Assign that the service is
-   * certain to refuse, which is the same rule LAN-141 finding 2 applies to the
-   * end date: an action that cannot succeed is not offered.
-   */
-  readonly assignable: boolean;
+  readonly scheduled: readonly CatalogueHolder[]; // recorded to begin later — never holders, never counted towards vacant (Brian, 20 Aug 2026; see relocations.md)
+  readonly vacant: boolean; // nobody holds this seat **today** — the "Not assigned" state
+  readonly cycleMissing: boolean; // the operating year this seat hangs off doesn't exist yet (e.g. between seasons) — see relocations.md
+  readonly assignable: boolean; // a new assignment can be recorded today — false if cycle missing, or a season is `closing` (LAN-141 finding 2)
 }
 
 /** One approved group, in the catalogue's own order. */
@@ -129,17 +55,9 @@ export interface CatalogueGroup {
 
 export interface RoleCatalogue {
   readonly groups: readonly CatalogueGroup[];
-  /**
-   * `null` during a gap between committee years. `committee_years.ends_on` is
-   * exclusive, so a club that closes one year the day before the next opens has
-   * one — and before LAN-141 finding 8 that gap took every Administration
-   * screen down rather than showing the club's seats without a year label.
-   */
-  readonly committeeYear: AdministrationOperatingYear | null;
-  /** `null` only when the club has no season under way, closing included. */
-  readonly season: AdministrationOperatingYear | null;
-  /** False when `season` is `null`, and false for a season in `closing`. */
-  readonly seasonWritable: boolean;
+  readonly committeeYear: AdministrationOperatingYear | null; // null during a gap between committee years (LAN-141 finding 8)
+  readonly season: AdministrationOperatingYear | null; // null only when no season is under way, closing included
+  readonly seasonWritable: boolean; // false when season is null, and false for a season in `closing`
 }
 
 interface CatalogueRow {
@@ -164,50 +82,12 @@ interface CatalogueRow {
   operator_rehome_pending_at: Date | null;
 }
 
-/**
- * The whole catalogue, grouped, with the holders of each seat **today**.
- *
- * ## Why this asks about today rather than about the cycle
- *
- * It used to join every assignment whose period *overlapped the active cycle*,
- * and that is a different question from the one `REQ-admin-surfaces` asks. The
- * page says "current holders", and an assignment can overlap this year's
- * committee term without being in force this morning. Brian found all three
- * faces of that in one review:
- *
- *   * A Vice-President ended **today** still appeared as the current holder.
- *     The period `[10 Jun 2026, 20 Aug 2026)` overlaps the committee year, so
- *     the old join kept it — but the range is half-open, and an assignment
- *     whose `effective_to` is today is already over.
- *   * A Head Coach ended with a **future** date showed the seat as
- *     `Not assigned`. His appointment `[20 Aug, 27 Aug)` sits *before* the
- *     active season opens on 27 Sep, so it overlapped no cycle at all and was
- *     dropped — even though he holds the seat today.
- *   * Successors who have not started appeared as holders, tagged
- *     "not started yet", which the top level is not supposed to list at all.
- *
- * One predicate caused all three, and one predicate answers all three: the
- * same half-open currency test the schema's own exclusion constraint uses —
- * `effective_from <= today` and `effective_to` either absent or still in the
- * future. `readRoleHolders()` carried the identical cycle-overlap defect and
- * was corrected with it; the agreement test between the two readers is what
- * caught that, and is why it exists.
- *
- * "Holders from different years are never mixed" (`REQ-explicit-cycle-assignment`)
- * survives this, and is better served by it: everyone listed holds the seat on
- * the same day, so there is only one year in the answer by construction. The
- * cycle is still read, because `cycleMissing` — "no season under way" — is a
- * genuinely different state from a vacancy and still has to be told apart from
- * one.
- *
- * `scheduled` is a live partition, not a leftover. Assignments recorded to
- * start later are read alongside the current ones and separated in
- * `groupCatalogue`: holders are those in force today, `scheduled` are those
- * still to begin, and only holders decide `vacant`. That is what lets one cell
- * say "Not assigned" and name who arrives next week without either statement
- * contradicting the other — Brian's ruling of 20 August 2026, after seeing the
- * version that showed only the current answer.
- */
+// The whole catalogue, grouped, with the holders of each seat **today** — not "overlaps the active
+// cycle", the earlier and wrong question (three defects Brian found in one review; see
+// relocations.md). Same half-open currency test as the schema's exclusion constraint:
+// effective_from <= today and effective_to either absent or still future. `scheduled` is a live
+// partition, not a leftover — holders are in force today, scheduled are still to begin, and only
+// holders decide `vacant` (Brian's ruling, 20 August 2026).
 export async function readRoleCatalogue(operator: ResolvedOperator | null): Promise<RoleCatalogue> {
   assertCapability(requireOperator(operator), ADMINISTRATION_CAPABILITY);
 
@@ -270,19 +150,11 @@ export async function readRoleCatalogue(operator: ResolvedOperator | null): Prom
   });
 }
 
-/**
- * Rows to groups. One row per seat with nobody attached, one row per assignment
- * otherwise — a `left join`, so a seat nobody holds is present and empty rather
- * than absent.
- *
- * Each seat's rows are split in two on the way past. An assignment already in
- * force is a **holder**; one recorded to start later is **scheduled**, and the
- * split is what keeps "who holds this seat today" from being answered by
- * somebody who does not hold it yet. Only holders decide `vacant`.
- */
+// Rows to groups — a left join, so a seat nobody holds is present and empty, not absent. Each
+// seat's rows split in two: in force is a holder, recorded to start later is scheduled. Only
+// holders decide vacant.
 function groupCatalogue(
   rows: readonly CatalogueRow[],
-  /** Whether each scope's cycle can take a new assignment today. */
   writable: Readonly<Record<"committee_year" | "season", boolean>>,
 ): CatalogueGroup[] {
   const groups: { code: string; label: string; roles: CatalogueRole[] }[] = [];
@@ -305,10 +177,7 @@ function groupCatalogue(
         admitsMultipleHolders: !row.is_constitutional_office && !row.is_single_holder_seat,
         holders,
         scheduled,
-        // Recomputed below, once the whole result is in: a seat with no holder
-        // arrives as one row with null assignment columns, which is
-        // indistinguishable from "not read yet" while the rows are streaming.
-        vacant: true,
+        vacant: true, // recomputed below once the whole result is in
         cycleMissing: row.cycle_id === null,
         assignable: writable[row.scope],
       };
@@ -347,25 +216,18 @@ function toCatalogueHolder(row: CatalogueRow): CatalogueHolder {
   };
 }
 
-// ---------------------------------------------------------------------------
-// The operator directory
-// ---------------------------------------------------------------------------
-
 /** One seat an operator holds, or is about to. */
 export interface DirectoryRole {
   readonly roleAssignmentId: string;
   readonly roleId: string;
   readonly code: string;
   readonly label: string;
-  /** The catalogue group this seat sits in — what the sections are built from. */
-  readonly groupCode: string;
+  readonly groupCode: string; // the catalogue group this seat sits in — what the sections are built from
   readonly groupLabel: string;
-  /** The catalogue's own group order, so a screen never re-derives it. */
-  readonly groupSortOrder: number;
+  readonly groupSortOrder: number; // the catalogue's own order, so a screen never re-derives it
   readonly effectiveFrom: string;
   readonly effectiveTo: string | null;
-  /** Recorded, but not in force until its start date. */
-  readonly scheduled: boolean;
+  readonly scheduled: boolean; // recorded, but not in force until its start date
 }
 
 /** One operator account, as the Operators index and its detail page read it. */
@@ -378,22 +240,14 @@ export interface DirectoryOperator {
   readonly invitedAt: Date | null;
   readonly activatedAt: Date | null;
   readonly deliveryFailedAt: Date | null;
-  /**
-   * Why the last invitation could not be delivered, in the transport's own
-   * words — LAN131-A5. The column has been written since `WP-invitation` and
-   * nothing rendered it, which meant the one sentence telling an administrator
-   * how to recover an abandoned invitation was stored and shown to nobody.
-   */
-  readonly deliveryFailureReason: string | null;
+  readonly deliveryFailureReason: string | null; // LAN131-A5: stored since WP-invitation but never rendered until now (see relocations.md)
   readonly emailRehomePendingAt: Date | null;
-  /** Every seat not yet ended, in catalogue order. Empty is legitimate. */
-  readonly roles: readonly DirectoryRole[];
+  readonly roles: readonly DirectoryRole[]; // every seat not yet ended, in catalogue order; empty is legitimate
 }
 
 export interface OperatorDirectory {
   readonly operators: readonly DirectoryOperator[];
-  /** `null` during a gap between committee years. See {@link RoleCatalogue}. */
-  readonly committeeYear: AdministrationOperatingYear | null;
+  readonly committeeYear: AdministrationOperatingYear | null; // null during a gap between committee years
 }
 
 interface DirectoryOperatorRow {
@@ -422,22 +276,9 @@ interface DirectoryRoleRow {
   scheduled: boolean;
 }
 
-/**
- * Every operator account the club holds, with the seats each one carries.
- *
- * **Every** account, including one whose seats have all ended: an account that
- * can still sign in and is absent from the only page listing accounts is
- * exactly the thing an administrator cannot fix because they cannot see it. The
- * screen decides which section such an operator falls in; this decides only
- * that they are in the list.
- *
- * Seats are "not yet ended" rather than "in force today", which is the same
- * widening `readAdministrationSubject({ includeScheduled: true })` makes and for
- * a related reason: an invitation sent for a seat beginning at a handover is an
- * ordinary case for this screen, and an operator listed with no role at all
- * until the handover date would read as an account nobody meant to create. Each
- * seat says whether it has started, so the surface never implies otherwise.
- */
+// **Every** operator account, including one whose seats have all ended — invisible on this page is
+// unfixable. Seats are "not yet ended", not "in force today" (matches includeScheduled: true) — an
+// invitation for a handover seat is ordinary here; see relocations.md.
 export async function readOperatorDirectory(
   operator: ResolvedOperator | null,
   options: { operatorAccountId?: string } = {},
@@ -447,11 +288,7 @@ export async function readOperatorDirectory(
   return withTransaction(async (tx) => {
     const committeeYear = await resolveCommitteeYearForReading(tx);
 
-    // One account or all of them, through the same query. A separate
-    // single-account read would be a second copy of the state derivation and
-    // the seat filter, and the two would eventually disagree about the account
-    // one screen links to from the other.
-    const wanted = options.operatorAccountId ?? null;
+    const wanted = options.operatorAccountId ?? null; // one account or all, through the same query — see relocations.md
 
     const accounts = await tx.query<DirectoryOperatorRow>(
       `select oa.id,
@@ -535,16 +372,8 @@ export async function readOperatorDirectory(
   });
 }
 
-/**
- * One operator account, derived exactly as the list derives it, or `null`.
- *
- * `null` covers both "no such account" and "that is not an identifier at all",
- * and deliberately does not distinguish them: the route parameter comes from a
- * URL, and a surface that answered differently for a well-formed unknown id
- * would confirm which ids exist. The capability is asserted before either
- * answer, so an unauthorized caller learns nothing from the shape of the
- * refusal.
- */
+// null covers both "no such account" and "not an identifier at all", deliberately — a route
+// parameter from a URL must not confirm which ids exist. Capability asserted before either answer.
 export async function readOperatorRecord(
   operator: ResolvedOperator | null,
   operatorAccountId: string,
@@ -556,29 +385,16 @@ export async function readOperatorRecord(
   return directory.operators[0] ?? null;
 }
 
-// ---------------------------------------------------------------------------
-// One person's other capacities
-// ---------------------------------------------------------------------------
-
 /** The current season's player membership of one Person. */
 export interface PlayerMembershipSummary {
   readonly membershipId: string;
   readonly seasonLabel: string;
-  /** The stored `membership_status`. The screen turns it into the club's word. */
-  readonly status: string;
+  readonly status: string; // the stored membership_status; the screen turns it into the club's word
 }
 
-/**
- * Whether this Person is also a player this season, or `null`.
- *
- * `DEC-one-person-multiple-capacities` is why operator detail says this at all:
- * "a player who becomes an officer or coach reuses the same durable Person and
- * at most one operator login", and the page showing somebody's seats is the page
- * where a reader would otherwise assume the club holds two records for them.
- * `REQ-coach-operator-onboarding` needs the negative just as much — "an external
- * coach may have none" — which is why `null` is an answer rather than an
- * omission.
- */
+// DEC-one-person-multiple-capacities: a player who becomes an officer/coach reuses the same
+// durable Person, at most one login. null is a real answer (REQ-coach-operator-onboarding: an
+// external coach may have none), not an omission.
 export async function readPlayerMembership(
   operator: ResolvedOperator | null,
   personId: string,
@@ -606,25 +422,12 @@ export async function readPlayerMembership(
   });
 }
 
-// ---------------------------------------------------------------------------
-// The pieces
-// ---------------------------------------------------------------------------
-
-/** The capability floor. See the module note for why it is the floor here. */
 const ADMINISTRATION_CAPABILITY = "role_management" as const;
 
-/** What a Person row with no name at all is called. Never blank on screen. */
 const UNNAMED_PERSON = "Unnamed person";
 
-/**
- * A shape check, so a route parameter never reaches `::uuid` as a cast that
- * fails. PostgreSQL raises on a malformed uuid literal, and a page whose URL
- * was mistyped would answer with an unhandled database error rather than with
- * "no such record".
- */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; // checked before ::uuid so a mistyped route answers "no such record", not a database error
 
-/** The same refusal `operator-administration.ts` gives an absent operator. */
 function requireOperator(operator: ResolvedOperator | null): ResolvedOperator {
   if (!operator) {
     throw new NotPermitted("You do not have access to this action. Sign in first.", {

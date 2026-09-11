@@ -21,36 +21,9 @@ import AdminPageHeading from "../page-heading";
 import { describeHolders, permissionsPreview } from "../presentation";
 
 /**
- * **Roles** — Administration's second destination, and the club's constitution
- * as a page. LAN-133.
- *
- * ## What it shows, and what it deliberately does not
- *
- * `DEC-administration-navigation`: "Roles appear as Operational Administration,
- * Club Committee, then Coaching Staff; **the top level shows current holders
- * only**." So each row is one seat, this operating year's holder or *Not
- * assigned*, and the seat's Permissions summary. Past holders are on the seat's
- * own page under Holder history, which is where `REQ-append-only-audit-evidence`
- * puts them.
- *
- * The group headings are read from `public.role_groups` rather than written
- * here. `REQ-static-role-catalogue` fixes the three groups and their order in
- * the catalogue migration, and a page that restated them would be a second copy
- * of the club's structure that could disagree with the first.
- *
- * ## No role and no grant is editable — and not as a disabled control
- *
- * `DEC-no-runtime-role-editing` and `REQ-admin-surfaces` are both unambiguous:
- * "the role catalogue and capability map are read-only in the application",
- * "No role or grant is editable". There is therefore no edit affordance on this
- * page at all — not a greyed-out one, which would say the club could edit its
- * constitution here if only the reader had more authority. What the actions on
- * a seat's page change is **who holds it**, which is a different thing and is
- * the whole of this mission.
- *
- * The Permissions text is the projection of the enforced grants
- * (`REQ-capability-copy-consistency`), so it cannot drift from what the server
- * actually allows: there is nowhere else for the sentence to come from.
+ * **Roles** — Administration's second destination, the club's constitution as
+ * a page. LAN-133. Current holders only; read-only (no edit affordance).
+ * Decision history: docs/operating-the-slice.md
  */
 export default async function RolesPage() {
   const gate = await gateShellPage("/operate/admin/roles", "role_management");
@@ -66,12 +39,7 @@ export default async function RolesPage() {
 
   return (
     <Stack spacing={3}>
-      {/*
-        The committee year is a label, not a precondition — LAN-141 finding 8.
-        `committee_years.ends_on` is exclusive, so a club that closes one year
-        the day before the next opens has a gap, and this page used to refuse to
-        draw the club's twenty seats at all during it.
-      */}
+      {/* LAN-141 finding 8: committee year is a label, not a precondition — `committee_years.ends_on` is exclusive so a gap year still draws all seats. */}
       <AdminPageHeading
         title="Roles"
         subtitle={
@@ -102,12 +70,7 @@ export default async function RolesPage() {
                 <TableBody>
                   {group.roles.map((role) => (
                     <TableRow key={role.id} hover data-testid="role-row">
-                      {/*
-                      The seat's name does not wrap. "Vice-President" broken
-                      after its hyphen reads as two words, and the column a
-                      reader scans twenty rows down is the one that must stay
-                      scannable.
-                    */}
+                      {/* Seat name doesn't wrap — "Vice-President" broken after its hyphen reads as two words in a scanned column. */}
                       <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
                         {role.label}
                       </TableCell>
@@ -130,13 +93,7 @@ export default async function RolesPage() {
                           href={`/operate/admin/roles/${role.id}`}
                           sx={{ textTransform: "none" }}
                         >
-                          {/*
-                          `assignable` rather than `!cycleMissing`: a season in
-                          `closing` exists to read and takes no new coaching
-                          appointment, so offering Assign there would send the
-                          administrator to a form the service is certain to
-                          refuse — LAN-141 findings 2 and 4.
-                        */}
+                          {/* `assignable`, not `!cycleMissing` — a closing season takes no new appointment (LAN-141 findings 2, 4). */}
                           {role.vacant && role.assignable ? "Assign" : "View"}
                         </Button>
                       </TableCell>

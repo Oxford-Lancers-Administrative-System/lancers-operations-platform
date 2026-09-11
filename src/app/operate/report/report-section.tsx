@@ -5,16 +5,11 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 
-/** Shared by every grid section: which column and which way. */
 export interface GridSortState {
   by: "issues" | "person";
   ascending: boolean;
 }
 
-/**
- * A section: a heading that carries its own count and the span it covers, and
- * either its body or the one sentence that says there is none.
- */
 export function ReportSection({
   testId,
   headline,
@@ -29,11 +24,6 @@ export function ReportSection({
   count: number;
   span?: string;
   empty: string;
-  /**
-   * Brian, 15 August: "Don't include the number. The numbers don't really
-   * help." True of the two sections that already carry a date — the span says
-   * what the section is about better than a tally of its rows does.
-   */
   showCount?: boolean;
   children: React.ReactNode;
 }) {
@@ -56,7 +46,6 @@ export function ReportSection({
   );
 }
 
-/** A column head that is also the control for ordering by it. */
 export function SortHeader({
   label,
   href,
@@ -83,7 +72,6 @@ export function SortHeader({
   );
 }
 
-/** A name, an optional badge, and a line of detail. */
 export function Row({
   primary,
   secondary,

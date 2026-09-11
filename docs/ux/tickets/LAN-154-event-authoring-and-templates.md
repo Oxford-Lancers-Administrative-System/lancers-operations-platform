@@ -455,3 +455,50 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > other, rather than a hidden default.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/actions.ts — retired actions footer
+
+> ## Three actions this file used to carry, and why none of them is here
+>
+> `assertEventOutcomeAction` (**Mark occurred** / **Mark not held**) and
+> `correctEventOutcomeAction` went with the occurrence assertion itself
+> (REQ-occurrence-retired, D30). Nothing asserts that an event occurred: the
+> date passing without a cancellation is the whole of it, and no surface in
+> this application offers _Mark occurred_, _Mark not held_, _Confirm what
+> happened_ or _Correct this to not held_.
+>
+> `abandonEventDraftAction` went with the `withdrawn` status. "Withdrawn" meant
+> the event never happened, and the target state says an abandoned draft is
+> **deleted** instead (D29) — permanently, from its own event page, after a
+> confirmation naming it. That is `deleteEventDraftAction` above, added by
+> LAN-154.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-questions-input.ts — file header (Brian quote)
+
+> ## Questions have no screen of their own, and that is a decision
+>
+> Brian, 2026-08-21: "This is part of the create event workflow. It's not a
+> separate screen that needs its own thing ... it's ingrained in the process."
+> Writing an event and deciding what to ask the people invited to it are one
+> act. Everything here therefore serves the event form, the approval review and
+> the template — three surfaces, one vocabulary.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-questions.ts — file header (replacement-not-diff rationale)
+
+> ## Replacement rather than a diff, and why that is safe here
+>
+> `writeEventQuestionsIn` deletes and re-inserts. That is only safe because a
+> draft carries no invitations (invariant P1) and therefore no answers — the
+> composite foreign key from `question_answers` has nothing to point at. On an
+> approved event it would destroy answers, which is exactly why no path here
+> reaches one.
+>
+> The alternative, matching by prompt and patching, buys nothing: the operator's
+> screen holds the complete list and posts the complete list, and the order is
+> part of what they are editing.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

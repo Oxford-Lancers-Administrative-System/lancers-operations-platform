@@ -42,13 +42,7 @@ export function ResponseSaved({ page, token }: { page: SignedRsvpPage; token: st
         >
           {CHANGE_RESPONSE}
         </Button>
-        {/*
-          Close is a plain link to the same page rather than a script that tries
-          to close the tab: `window.close()` does nothing for a tab the script
-          did not open, so a button that appeared to close and then did not
-          would be worse than one that simply returns the player to their
-          answer.
-        */}
+        {/* A plain link, not a script trying to close the tab — `window.close()` does nothing for a tab the script didn't open. */}
         <Button
           href={`/rsvp/${encodeURIComponent(token)}`}
           variant="text"

@@ -17,16 +17,12 @@ import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import { enGB } from "date-fns/locale/en-GB";
 
 /**
- * One field — LAN-225, brief §2. Replaces 136 `TextField` uses with mixed
- * size and width (audit A11, E9): one size, `fullWidth`, a helper slot that
- * names the format and nothing else (H7), and MUI's own date and time pickers
- * in place of every native `<input type="date">`, so a UK club never sees
- * `mm/dd/yyyy` again.
+ * One field — LAN-225, brief §2. One size, `fullWidth`, MUI's date/time
+ * pickers in place of native `<input type="date">` so a UK club never sees
+ * `mm/dd/yyyy`. `DateField`/`TimeField` carry a hidden input so a plain form
+ * post still reads `YYYY-MM-DD`/`HH:mm`.
  *
- * `Field` is `TextField` with the kit's defaults; `SelectField` is the same with
- * `options`; `ChoiceField` is a labelled radio group; `DateField` and
- * `TimeField` are the pickers, each carrying a hidden input so a plain form
- * post still reads `YYYY-MM-DD` and `HH:mm`.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export type FieldProps = Omit<TextFieldProps, "variant" | "size" | "fullWidth"> & {
   /** Which `data-field` the form's focus-first-issue logic looks for. */
@@ -133,23 +129,12 @@ function timeFromDate(value: Date | null): string {
 }
 
 /**
- * The one tick box — LAN-225's player-surfaces addendum.
- *
- * The kit named every form control except this one, so the two surfaces that
- * need one built their own: `src/app/me/[token]/details/checkbox-field.tsx`
- * and `src/app/a/[token]/multi-select-checkboxes.tsx` (player-surfaces
- * finding P7). This is that control, once, in the kit.
- *
- * It has to live in this `"use client"` module rather than be composed in a
- * page: a bare MUI `Checkbox`/`FormControlLabel` pair rendered straight from
- * an `async` Server Component throws `TypeError: Cannot read properties of
- * undefined (reading 'disabled')` on this stack (Next 16, Turbopack, React 19,
- * MUI 9), because `FormControlLabel` clones the control element and the clone
- * does not survive the boundary. `checkbox-field.tsx` recorded the same
- * finding first; this is the shared home for it.
- *
- * Uncontrolled, and posts `"1"` through the page's own server action exactly
- * as a bare `<input type="checkbox">` would.
+ * The one tick box — LAN-225's player-surfaces addendum (player-surfaces
+ * finding P7). Lives in this `"use client"` module, not composed in a page:
+ * a bare `Checkbox`/`FormControlLabel` pair rendered from an `async` Server
+ * Component throws on this stack (Next 16, Turbopack, React 19, MUI 9) —
+ * `FormControlLabel`'s clone doesn't survive the boundary. Uncontrolled,
+ * posts `"1"` like a bare `<input type="checkbox">`.
  */
 export function CheckField({
   name,

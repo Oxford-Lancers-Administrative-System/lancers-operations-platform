@@ -5,17 +5,12 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 /**
- * The one heading every page opens with — LAN-225, brief §2. Replaces about
- * thirty ad hoc headings, `AdminPageHeading` and the record-view headers
- * (audit B2, B5, C1–C3, A5, A8).
+ * The one heading every page opens with — LAN-225, brief §2. Title at
+ * `display` (`h1`, one per page), one subtitle line, the parent as a back
+ * link above the title, actions top right, primary first. The back link is
+ * always "Back to <place>", sentence case, a text button.
  *
- * Title at `display` (`h1`, one per page), one subtitle line, the parent as a
- * back link in one fixed position above the title, and the actions top right,
- * primary first. On a phone the actions drop under the subtitle at full width
- * — a form's own `ActionBar` takes over at the foot when it has one.
- *
- * The back link is always "Back to <place>", sentence case, a text button —
- * never an arrow glyph, never underlined, never at the foot of the page.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function BackLink({
   href,

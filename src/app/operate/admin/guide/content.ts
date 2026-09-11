@@ -1,74 +1,11 @@
 import { OPERATOR_ACCOUNT_STATE_DEFINITIONS } from "@/lib/services/operator-account-state";
 
-/**
- * The words of the How administration works guide — LAN-134, mission
- * M-OPERATOR-ADMIN-WITHOUT-SQL, `REQ-club-operating-guide` and
- * `DEC-in-app-administration-guide`.
- *
- * ## Why the copy is data rather than markup
- *
- * The requirement's last sentence is the whole reason this mission exists: the
- * guide "contains no callouts, SQL, Supabase-dashboard, administrator-created-
- * password or WhatsApp-authentication procedure". A guide that told a club
- * officer to open a database console would document precisely the thing this
- * work abolishes, and it would do so in the one place an officer is most likely
- * to believe.
- *
- * That is a property of the *text*, and text buried in JSX can only be checked
- * by reading it. Here every sentence is reachable from one exported structure,
- * `guideText()` flattens it, and `content.test.ts` asserts the prohibition over
- * the flattened whole. A future edit that reintroduces a forbidden procedure
- * fails a test rather than surviving review.
- *
- * The same structure is what lets the vocabulary be checked.
- * `DEC-administration-language-and-states` bans three technical labels from the
- * interface — *Durable Person*, *Effective Access* and a generic *Access
- * History* — and names the two audit projections exactly. Those are assertions
- * over strings, and strings are what this file holds.
- *
- * ## Where the state names come from
- *
- * The five state labels are **imported**, never retyped.
- * `operator-account-state.ts` owns them for the reason its own note gives: two
- * surfaces showing the same state must not be able to describe it differently.
- * A guide that called an account "Pending invitation" while the badge beside it
- * said "Invitation pending" would be worse than a guide with no state names in
- * it at all, because the reader would reasonably conclude they were two things.
- *
- * The action labels below are a local constant, and that is a deliberate
- * second-best. They are the words on the buttons `WP-surfaces` builds
- * (`operator-actions.tsx` and `role-actions.tsx`), which this package cannot
- * import because the two branch from `main` independently. They are pinned by
- * test against `DEC-administration-language-and-states`, and the moment both
- * packages are on `main` these should become one exported constant that the
- * buttons and this guide both read. That is recorded in the pull request as a
- * follow-up rather than left for somebody to notice.
- *
- * ## What is deliberately not here
- *
- * No troubleshooting of the application, no account recovery for the reader
- * themselves beyond naming the sign-in page's own link, and no description of
- * any procedure performed outside the application. Where the club's answer is
- * genuinely "this is not done here" the guide says so plainly and stops —
- * see the escalation entry, which names no tool, no console and no person.
- *
- * ## And nothing here describes a screen that does not exist
- *
- * The operating-year entry used to say "An earlier year can be opened and read,
- * but not changed" — LAN-141 finding 6. `readRoleHolders()` takes a `cycleId`,
- * returns `readOnly`, and is tested end to end; no production code calls it,
- * and the page-facing `readRoleCatalogue()` takes no year. So there was no way
- * to open an earlier year, and the guide sent a reader hunting for a control
- * that had never shipped — which is the same defect as the action labels below
- * being paraphrases, in the one place a club officer is most likely to believe
- * what they read.
- *
- * The entry now describes the application as it is, and points at the surface
- * that genuinely answers the question: each seat's **Holder history**, which
- * covers this year and past years. Building the switcher is a separate piece of
- * work against `REQ-explicit-cycle-assignment`, not a wording change, and it is
- * recorded as such rather than implied by a sentence.
- */
+// The words of the How administration works guide — LAN-134,
+// M-OPERATOR-ADMIN-WITHOUT-SQL, `REQ-club-operating-guide`,
+// `DEC-in-app-administration-guide`. Copy is data, not markup, so
+// `content.test.ts` can assert the no-SQL/no-callout prohibition over the
+// flattened whole (guideText()). State labels are imported from
+// operator-account-state.ts, never retyped. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 
 /** A run of answer text. `strong` is used only for a label the reader clicks or sees. */
 export type GuideRun = string | { readonly strong: string };
@@ -79,7 +16,6 @@ interface GuideParagraph {
 }
 
 interface GuideList {
-  /** `steps` renders in order and is numbered; `points` is unordered. */
   readonly kind: "steps" | "points";
   readonly items: readonly (readonly GuideRun[])[];
 }
@@ -87,7 +23,6 @@ interface GuideList {
 export type GuideBlock = GuideParagraph | GuideList;
 
 export interface GuideEntry {
-  /** Stable, and used for the accordion's element ids. */
   readonly id: string;
   readonly question: string;
   readonly answer: readonly GuideBlock[];
@@ -97,20 +32,11 @@ export interface GuideEntry {
 export const GUIDE_TITLE = "How administration works";
 export const GUIDE_SUBTITLE = "Answers for routine operator and role administration";
 
-/**
- * The names of the two audit projections, exactly as
- * `DEC-administration-language-and-states` fixes them.
- */
+/** Exactly as `DEC-administration-language-and-states` fixes them. */
 export const OPERATOR_AUDIT_HISTORY = "Operator audit history";
 export const HOLDER_HISTORY = "Holder history";
 
-/**
- * Every action label the guide tells a reader to look for.
- *
- * These are the button labels, not paraphrases: a guide that says "choose
- * Remove access" when the button says "Deactivate operator access" sends the
- * reader hunting for a control that is not there.
- */
+/** The button labels, not paraphrases — a mismatch sends the reader hunting for a control that isn't there. */
 export const ADMINISTRATION_ACTION_LABELS = Object.freeze({
   invite: "Invite operator",
   assign: "Assign role",
@@ -134,14 +60,8 @@ const paragraph = (...runs: GuideRun[]): GuideBlock => ({ kind: "paragraph", run
 const steps = (...items: (readonly GuideRun[])[]): GuideBlock => ({ kind: "steps", items });
 const points = (...items: (readonly GuideRun[])[]): GuideBlock => ({ kind: "points", items });
 
-/**
- * The guide, in the order it is read.
- *
- * The order is the requirement's: the five ordinary workflows first, because
- * they are what somebody opens the page to do, then the four explanations that
- * make the workflows make sense, then refusals and escalation last — where
- * somebody arrives having already been told no.
- */
+// The guide, in the order it is read — the requirement's own order: five
+// workflows, four explanations, refusals and escalation last.
 export const ADMINISTRATION_GUIDE: readonly GuideEntry[] = Object.freeze([
   {
     id: "invite",
@@ -500,13 +420,7 @@ function guideBlockText(block: GuideBlock): string {
   return block.items.map((item) => item.map(guideRunText).join("")).join(" ");
 }
 
-/**
- * The whole guide as one string — every question and every answer.
- *
- * This is what `content.test.ts` asserts the prohibitions over. It exists so
- * that "the guide contains no such procedure" is a check over the guide rather
- * than a check over the parts of it somebody remembered to look at.
- */
+/** Every question and answer, as one string — what `content.test.ts` asserts the prohibitions over. */
 export function guideText(entries: readonly GuideEntry[] = ADMINISTRATION_GUIDE): string {
   return entries
     .flatMap((entry) => [entry.question, ...entry.answer.map(guideBlockText)])

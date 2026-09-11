@@ -14,31 +14,17 @@ export interface FlipToJoinedResult {
   readonly membershipId: string;
 }
 
-/**
- * The reason recorded against the recruit's own durable link when the flip
- * supersedes it. Read by `revokePersonTokenIn`, which requires a non-blank
- * one so the decision can be reviewed later.
- */
 export const RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON =
   "Superseded — this recruit was flipped to onboarding, which carries its own link.";
 
 /**
- * One transaction: prospect → `joined`, a season membership created in
- * `onboarding`, that membership's own onboarding items generated, status
- * history and one audit row written. All of it, or none of it.
- *
- * `season_memberships_one_per_person_per_season` is the invariant that
- * refuses a second flip — `src/lib/db/errors.ts` already carries a named,
- * operator-readable mapping for it, so this function does not duplicate that
- * check before writing; it lets the constraint do the refusing and the
- * mapping do the wording.
- *
- * `entry` is `'new'`: every recruit this mission tracks is a person who has
- * never held a membership before now (a past member returning for another
- * season is `roster/write.ts`'s own returner intake, not this path).
- *
- * See `relocations.md` for LAN-215 `W3`'s four side effects this transaction
- * also performs (availability, link supersession, welcome, consent untouched).
+ * One transaction: prospect → `joined`, a season membership in `onboarding`,
+ * items generated, status history and one audit row — all or nothing.
+ * `season_memberships_one_per_person_per_season` refuses a second flip;
+ * `entry` is `'new'` (a returner is `roster/write.ts`'s own path, not this
+ * one). LAN-215 `W3`'s four side effects also run here: availability, link
+ * supersession, welcome, consent untouched.
+ * Decision history: LAN-215, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 export async function flipRecruitmentProspectToJoinedIn(
   tx: Tx,
@@ -85,10 +71,6 @@ export async function flipRecruitmentProspectToJoinedIn(
 
   await generateOnboardingItems(tx, membershipId, row.season_id);
 
-  // LAN-215, B-008: arrival sets availability to Green, in this same
-  // transaction, via `commitAvailability`. See this function's own doc
-  // comment for the confirmer interpretation and why `effectiveFrom` is
-  // `committedOn` rather than today.
   await commitAvailability({
     actorPersonId,
     membershipId,
@@ -96,10 +78,7 @@ export async function flipRecruitmentProspectToJoinedIn(
     effectiveFrom: committedOn,
   });
 
-  // LAN-215, `W3`: supersede whatever durable link this recruit was holding,
-  // and audit it — `revokePersonTokenIn` requires a reason and is a no-op
-  // (rowCount 0) when nothing was live, which is itself a legitimate outcome
-  // and is recorded as one rather than skipped.
+  // LAN-215 W3: supersede whatever durable link was held; a no-op (rowCount 0) is a legitimate outcome, recorded as one.
   const supersededCount = await revokePersonTokenIn(
     tx,
     row.person_id,
@@ -121,9 +100,6 @@ export async function flipRecruitmentProspectToJoinedIn(
     },
   });
 
-  // LAN-215, `REQ-one-welcome`: the same emitter W1 and W2 call, on the same
-  // idempotency key shape. This is the flip's `onboarding-opened` — one
-  // trigger, both the welcome and the start of the chase clock.
   await emitOnboardingOpenedWelcomeIn(tx, {
     membershipId,
     personId: row.person_id,
@@ -144,9 +120,6 @@ export async function flipRecruitmentProspectToJoinedIn(
     [prospectId, row.status, actorPersonId],
   );
 
-  // The transition's own typed home is the two status-event tables above;
-  // this one `audit_events` row is `W14`'s "writes one audit row" — the
-  // whole action, in the club-wide trail, naming the membership it created.
   await recordAudit(tx, {
     actorPersonId,
     action: "recruitment_prospect.joined",

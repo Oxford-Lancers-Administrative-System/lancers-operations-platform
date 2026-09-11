@@ -18,10 +18,7 @@ import type {
   WeeklyReportContent,
 } from "./shared";
 
-/**
- * Composes the report from the season's views. Read-only: LAN-151 moved the
- * one derived exception (walk-ups) here directly. Decision history: docs/ux/tickets/LAN-81-monday-report.md.
- */
+/** Composes the report from the season's views. Read-only: LAN-151 moved the one derived exception (walk-ups) here directly. Decision history: docs/ux/tickets/LAN-81-monday-report.md. */
 
 interface EventRow {
   id: string;
@@ -106,12 +103,7 @@ function columnLabel(name: string): string {
   return head.length > 18 ? `${head.slice(0, 17)}…` : head;
 }
 
-/**
- * Everything the report says, computed from the five views for one season, the
- * week just gone and the week ahead.
- *
- * Read-only by construction: there is no insert, update or delete in it.
- */
+/** Everything the report says, for one season, the week just gone and the week ahead. Read-only by construction. */
 export async function computeReportContent(
   tx: Tx,
   season: Season,
@@ -120,10 +112,6 @@ export async function computeReportContent(
   const lookBack = reportWindow(reportOn);
   const lookAhead = lookaheadWindow(reportOn);
   const back = [season.id, lookBack.from, lookBack.to];
-
-  // -------------------------------------------------------------------------
-  // 1. Last week, event by event
-  // -------------------------------------------------------------------------
 
   const events = await tx.query<EventRow>(
     `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
@@ -158,11 +146,7 @@ export async function computeReportContent(
     back,
   );
 
-  // Requirement 6's escalation queue. The "silent" column on each event's row
-  // comes from here rather than from the P7 partition, because this view *is*
-  // the club's definition of somebody who was asked and has not answered, and a
-  // second definition written here would drift from the one the rest of the
-  // slice reads.
+  // Requirement 6's escalation queue: this view is the club's own definition of "asked and not answered".
   const silent = await tx.query<{ event_id: string; tally: number }>(
     `select q.event_id, count(*)::int as tally
        from public.nonresponse_queue q
@@ -182,17 +166,7 @@ export async function computeReportContent(
     back,
   );
 
-  // The two event-level exceptions. Both are properties of an event, which is
-  // why they are columns on its row rather than a list of their own.
-  // A walk-up is an attendance row with no invitation behind it — invariant P6,
-  // stated directly rather than read out of `rsvp_attendance_mismatches`.
-  //
-  // The view was the source until LAN-151, and it stopped being the right one:
-  // the view derives occurrence against `now()` (it has no reporting date to
-  // work from), so reading it here would make a report about last March depend
-  // on today's date. Attendance can only exist against an approved event and
-  // somebody had to record it, so "who turned up uninvited" needs no occurrence
-  // test of its own.
+  // Walk-up: attendance with no invitation behind it (invariant P6), stated directly (not the view — LAN-151, occurrence must key off reportOn, not now()).
   const walkUpRows = await tx.query<PersonEventRow>(
     `select a.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
        from public.attendance_records a
@@ -262,17 +236,8 @@ export async function computeReportContent(
     };
   });
 
-  // -------------------------------------------------------------------------
-  // 2. The grid: people down, last week's events across
-  // -------------------------------------------------------------------------
-
-  // One row per person per event they were asked about: what they said, and
-  // what they did. Two values rather than one verdict, because the gap between
-  // them is the entire subject of this section.
-  //
-  // The pairing is `coalesce(season_membership_id, person_id)` on both sides —
-  // invariant P8 guarantees exactly one of those is set, and it is the same
-  // anchor the attendance board and the corrected mismatch view both use.
+  // One row per person per event: what they said, and what they did — two values, not one verdict.
+  // Paired via coalesce(season_membership_id, person_id) on both sides (invariant P8).
   const said = await tx.query<SaidAndDidRow>(
     `select i.event_id,
             ${DISPLAY_NAME} as display_name,
@@ -301,8 +266,7 @@ export async function computeReportContent(
     back,
   );
 
-  // Every event asks for an answer since D23 removed "Response requested", so
-  // every event in the window is a column.
+  // Every event in the window is a column (D23 removed "Response requested").
   const columns: GridColumn[] = events.rows.map((row) => ({
     eventId: row.id,
     label: columnLabel(row.name),
@@ -313,20 +277,7 @@ export async function computeReportContent(
   const registerTakenFor = (eventId: string) =>
     lastWeek.find((entry) => entry.id === eventId)?.registerTaken ?? false;
 
-  /**
-   * Does what they said and what they did disagree?
-   *
-   * Three ways, and one deliberate exclusion:
-   *
-   *   * they never answered — Requirement 6's nonresponse, and the one case
-   *     where there is nothing to compare against;
-   *   * they said no — Brian asked to see those "regardless of who it is";
-   *   * they said yes and were not present, which includes late and excused.
-   *
-   * The exclusion: a yes with nothing on the register, where **nobody** was put
-   * on that register. Every invitee matches it, the club's problem is one
-   * untaken register, and last week's own row already says so.
-   */
+  // Disagreement: never answered, said no, or said yes and was not present. Excludes a yes with an untaken register.
   const disagrees = (cell: { eventId: string; rsvp: string | null; attendance: string | null }) => {
     if (cell.rsvp === null) return true;
     if (cell.rsvp === "no") return true;
@@ -351,25 +302,7 @@ export async function computeReportContent(
 
     const cells = cellsByPerson.get(row.display_name) ?? [];
 
-    // One cell per name per event, and the disagreement wins.
-    //
-    // This was written for one human holding **two invitations to one event**:
-    // invariant P8 anchors a player to their membership and a coach or committee
-    // member to their person, the same human is often both, and the seeded week
-    // carried 32 of them. Pushing a cell each produced two cells in one column,
-    // of which the table rendered the first and the problem count counted both —
-    // so a real discrepancy could be hidden behind a benign second invitation.
-    //
-    // LAN-294 ended that at the source: invariant P9 puts one row per human in
-    // an event's audience, and an invitation is resolved from an audience
-    // member, so nobody holds two any more. The merge stays because the key here
-    // is the **display name**, which the data model is explicit is not a join
-    // key — two different people the club calls the same thing still land in one
-    // row, and hiding one of their discrepancies behind the other's benign cell
-    // would be just as wrong.
-    //
-    // Merging keeps the row honest: if either invitation disagrees, the name is
-    // on the list and it is the disagreement it shows.
+    // One cell per name per event, disagreement wins — display name is not a join key (LAN-294), so a merge here still matters.
     const existing = cells.find((entry) => entry.eventId === cell.eventId);
     if (!existing) {
       cells.push(cell);
@@ -392,16 +325,11 @@ export async function computeReportContent(
       ),
       problems: cells.filter((cell) => cell.isDiscrepancy).length,
     }))
-    // Only people something went wrong for. Everybody else answered and turned
-    // up, and a list of them is not a thing anybody opens a report to read.
+    // Only people something went wrong for.
     .filter((row) => row.problems > 0)
     .sort(
       (left, right) => right.problems - left.problems || left.person.localeCompare(right.person),
     );
-
-  // -------------------------------------------------------------------------
-  // 3. Availability that is not green
-  // -------------------------------------------------------------------------
 
   const availabilityRows = await tx.query<AvailabilityRow>(
     `select ${DISPLAY_NAME} as display_name, a.level::text as level,
@@ -414,10 +342,6 @@ export async function computeReportContent(
       order by a.effective_from desc, display_name`,
     [season.id],
   );
-
-  // -------------------------------------------------------------------------
-  // 4. The week ahead
-  // -------------------------------------------------------------------------
 
   const upcoming = await tx.query<UpcomingRow>(
     `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
@@ -432,10 +356,6 @@ export async function computeReportContent(
       order by e.scheduled_on, e.name`,
     [season.id, lookAhead.from, lookAhead.to],
   );
-
-  // -------------------------------------------------------------------------
-  // 5, 6, 7. Things the club already has words for
-  // -------------------------------------------------------------------------
 
   const walkUps = walkUpRows.rows.map((row) => {
     const event = lastWeek.find((entry) => entry.id === row.event_id);
@@ -457,11 +377,7 @@ export async function computeReportContent(
     [season.id],
   );
 
-  // Every onboarding item the club has, not only the required ones. Brian,
-  // 15 August 2026: "It should just be all the things that are considered
-  // onboarding things." Subscription paid is the reason that matters — it is
-  // not `is_required`, because subscription never gates activation, and it is
-  // still the thing a treasurer opens this section to find.
+  // Every onboarding item, not only the required ones — Subscription paid never gates activation but still belongs here.
   const onboardingItems = await tx.query<OnboardingItemRow>(
     `select t.code, t.label, t.sort_order, oi.status::text as status,
             ${DISPLAY_NAME} as display_name, m.status::text as membership_status
@@ -507,13 +423,10 @@ export async function computeReportContent(
     .map((entry) => ({
       ...entry,
       outstanding: entry.cells.filter((cell) => cell.isOutstanding).length,
-      // Not applicable is not a thing anybody has to do, so it is not part of
-      // the denominator either — otherwise a member excused from half the list
-      // reads as better-organised than one who simply is not.
+      // Not applicable is excluded from the denominator too.
       applicable: entry.cells.filter((cell) => cell.status !== "not_applicable").length,
     }))
-    // Only members with something outstanding. Everybody else is done, and a
-    // list of people who are done is not what this section is for.
+    // Only members with something outstanding.
     .filter((entry) => entry.outstanding > 0)
     .sort(
       (left, right) =>
@@ -522,10 +435,6 @@ export async function computeReportContent(
         right.outstanding - left.outstanding ||
         left.person.localeCompare(right.person),
     );
-
-  // -------------------------------------------------------------------------
-  // 8. The week in numbers
-  // -------------------------------------------------------------------------
 
   const availabilityCounts = await tx.query<CountRow>(
     `select level::text as key, count(*)::int as tally

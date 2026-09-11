@@ -20,12 +20,7 @@ export function optional(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/**
- * `REQ-audit`: a reason is required to change an existing value, and never to
- * fill an empty one. `oldValue === null` means the field was genuinely empty —
- * `not recorded`, never defaulted (`REQ-not-recorded`) — so filling it needs
- * no reason; anything else is a correction and must say why.
- */
+/** `REQ-audit`: a reason is required to change an existing value, never to fill an empty one (`REQ-not-recorded`). */
 export function requireReasonForChange(
   oldValue: string | number | null,
   reason: string | null,
@@ -82,16 +77,7 @@ const CONCURRENT_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze(
   person_emergency_contact_field_updated: "The emergency contact",
 });
 
-/**
- * Every audited change to this person's record, its contact points, its
- * aliases or its emergency contact, newest first, limited to one row.
- *
- * A UNION rather than four separate queries so "the most recent change,
- * whichever table it landed in" is one comparison rather than four — the same
- * reason `readPersonHistory()` in `people-directory.ts` will want the same
- * union one day; this one stays local because its shape (one row, one
- * comparison) is different from that panel's (every row, paginated).
- */
+/** Every audited change to this person's record, contacts, aliases or emergency contact, newest first, one row — a UNION so it is one comparison, not four. */
 async function latestPersonChangeIn(tx: Tx, personId: string): Promise<LatestChangeRow | null> {
   const result = await tx.query<LatestChangeRow>(
     `select occurred_at, action, entity_table, from_state, to_state, actor_label,
@@ -109,11 +95,7 @@ async function latestPersonChangeIn(tx: Tx, personId: string): Promise<LatestCha
   return result.rows[0] ?? null;
 }
 
-/**
- * The version an edit form loads with, and carries back on save —
- * `personVersion()`'s ISO string, or `null` when nothing has ever been
- * audited about this person (a legacy or freshly seeded record).
- */
+/** The version an edit form loads with and carries back on save; `null` when nothing has ever been audited. */
 async function personVersionIn(tx: Tx, personId: string): Promise<string | null> {
   const latest = await latestPersonChangeIn(tx, personId);
   return latest ? latest.occurred_at.toISOString() : null;
@@ -123,12 +105,7 @@ export async function personVersion(personId: string): Promise<string | null> {
   return withTransaction(async (tx) => personVersionIn(tx, personId));
 }
 
-/**
- * Refuses with what changed underneath the caller, when `expectedVersion` no
- * longer matches. `undefined` skips the check entirely — a caller that never
- * loaded a version (a script, an older test) is not suddenly refused; `null`
- * is a real, checked claim that nothing had ever been audited yet.
- */
+/** Refuses with what changed underneath the caller when `expectedVersion` no longer matches. `undefined` skips the check; `null` is a checked claim. */
 export async function assertNoConcurrentPersonChange(
   tx: Tx,
   personId: string,

@@ -20,42 +20,16 @@ import {
 } from "@/lib/services/person-validation";
 
 /**
- * The sign-up gate's one form — LAN-202. **The single consent gate**, and the
- * same surface as Questionnaire A, reached by two doors that render this exact
- * component:
+ * The sign-up gate's one form — LAN-202. Two doors render this exact
+ * component: `mode="anonymous"` (`/join/[code]`, the QR door — asks "have you
+ * signed up before?" on a mobile match) and `mode="prefilled"`
+ * (`/me/join/[token]`, no duplicate question). Required: first name, last
+ * name, mobile, college email, consent — enforced here (disabled `Save`,
+ * standards rule 4) and authoritatively by `recruitment-signup.ts`'s
+ * `validateSignupSubmission`. Format checks reuse `person-validation.ts`'s
+ * server functions (findings 2, 3).
  *
- *   - `mode="anonymous"` — `/join/[code]`, the QR door. Nothing is prefilled,
- *     and a mobile-matched submission is asked "have you signed up before?"
- *     ahead of writing anything (`W7`).
- *   - `mode="prefilled"` — `/me/join/[token]`, the tokenised door. Every field
- *     starts filled in, and there is no duplicate question at all, "because
- *     there is nothing to ask" (`W7`).
- *
- * First name, last name, mobile, **college email** and the consent tick are
- * the required fields. Mobile joined the set on Brian, 2026-09-01 ("Mobile is
- * required no matter what… Nothing else works if we don't have a phone
- * number"), and the college email on Brian, 2026-09-09 (LAN-268), which
- * supersedes LAN-246's three-field minimum: "the required set on both the
- * onboarding questionnaire and the recruitment forms is four things: first
- * name, last name, phone number, college email." It is the club's own proof
- * that whoever is at the stand is actually a student — "I had a weird online
- * guy trying to join one year and he wasn't a student."
- *
- * Enforced here for the disabled `Save` button (standards rule 4, "a disabled
- * control says what would enable it") and, independently and authoritatively,
- * by `recruitment-signup.ts`'s `validateSignupSubmission` — this component
- * never talks to the service layer directly; every write goes through the
- * `submit` prop, a server action the page supplies.
- *
- * The mobile is the shared two-part control (LAN-211): the country code is a
- * dropdown, so a fresher at a stand never carries the burden of writing "+44"
- * correctly, and the value this form still hands the server is the same single
- * string `validatePhoneNumber` has always received.
- *
- * Mobile, email, matriculation year and expected graduation are all
- * validated inline with the same `person-validation.ts` functions the
- * server repeats (finding 2, finding 3) — one shared standard, checked
- * twice, never two different rules for the same field.
+ * Decision history: missions/intake/M-RECRUITMENT
  */
 
 export interface SignupFieldValues {
@@ -91,12 +65,7 @@ export interface SignupFormProps {
   readonly groupLink: string | null;
   /** Anonymous door only — never called for `mode="prefilled"`, which has nothing to ask. */
   readonly checkDuplicate?: (givenName: string, mobile: string) => Promise<DuplicateCheckResult>;
-  /**
-   * `confirmedExistingMatch` is a bare boolean — "the recruit pressed 'Yes,
-   * that's me'" — never a person id: `checkDuplicate`'s own result carries
-   * none to echo back (LAN-208). The server re-derives who that is, from the
-   * same name and mobile the recruit has typed at submit time.
-   */
+  /** A bare boolean, never a person id (LAN-208) — the server re-derives who from the typed name and mobile. */
   readonly submit: (
     values: SignupFieldValues & { consent: boolean; confirmedExistingMatch: boolean },
   ) => Promise<SignupOutcome>;
@@ -145,9 +114,7 @@ export default function SignupForm({
   const mobileMissing = values.mobile.trim() === "";
   const collegeEmailMissing = values.collegeEmail.trim() === "";
 
-  // Every one of the four format checks below is the same
-  // person-validation.ts function the server repeats — one shared standard,
-  // never a second, looser copy for the browser (finding 2, finding 3).
+  // Same person-validation.ts functions the server repeats (finding 2, finding 3).
   const mobileValidation = values.mobile.trim() === "" ? null : validatePhoneNumber(values.mobile);
   const mobileError = mobileMissing
     ? null // "required" is covered by disabledReason below, not a red field error on an empty required field nobody has failed to fill in yet.
@@ -158,10 +125,7 @@ export default function SignupForm({
   const emailValidation = values.email.trim() === "" ? null : validateEmailAddress(values.email);
   const emailError = emailValidation && !emailValidation.valid ? emailValidation.message : null;
 
-  // LAN-268. The same `validateCollegeEmail` the server repeats, so the field
-  // goes red on the exact value the write path would refuse — and, like the
-  // mobile above, a field nobody has filled in yet is not marked in red: that
-  // is what `disabledReason` is for.
+  // LAN-268: same `validateCollegeEmail` the server repeats.
   const collegeEmailValidation = collegeEmailMissing
     ? null
     : validateCollegeEmail(values.collegeEmail);

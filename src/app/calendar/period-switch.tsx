@@ -10,30 +10,13 @@ import { EVENT_PERIODS, PERIOD_LABELS, type EventPeriod } from "@/lib/services/e
 
 /**
  * Which stretch of the season the list is showing. LAN-153, `REQ-list-shape`.
+ * Buttons at desktop, one select at 375 (Brian, 21 August 2026: buttons
+ * wrapped into three rows, "just too much at the very top") — a reflow, not
+ * a filter (`slice-ux.md` § 7). The period is in the query string; the
+ * select navigates from the change event, not a submit, since MUI writes its
+ * hidden input after the handler returns.
  *
- * ## Two shapes, because Brian asked for the second one
- *
- * At desktop width the five periods are a row of buttons, which is the approved
- * mockup and the fastest thing to scan. At 375px they collapse to **one**
- * control — Brian, 21 August 2026, on seeing the buttons wrap into three rows on
- * a phone: they were "just too much at the very top. I should see the events
- * pretty quickly after that."
- *
- * That is a reflow and not a filter: the same five choices are in the select,
- * and `slice-ux.md` § 7 forbids reordering that removes a material alternate
- * state rather than one that changes how it is offered.
- *
- * ## The period is in the query string
- *
- * So a period is a link somebody can send, the back button does what it looks
- * like it does, and a refresh lands where it was. The buttons are plain links
- * and need no JavaScript; the select navigates from the change event directly,
- * for the reason the events filters record — MUI writes a select's hidden input
- * after the handler returns, so a handler that submitted a form would post the
- * previous value.
- *
- * Every other filter travels with it, so choosing a period narrows what is
- * already on screen rather than clearing it.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function PeriodSwitch({
   basePath,

@@ -22,10 +22,9 @@ import { applyDisputableFieldIn, DISPUTABLE_FIELDS, type FieldSaveOutcome } from
 import { readEmergencyContactFactsIn, syncDerivedItemsIn } from "./read";
 
 /**
- * The step 1 save — every field this call was given, applied in one pass.
- * F1 (LAN-230, Brian, 2026-09-02): "Whatever a step saved stays saved…
- * never discards" — each independently-checked slot gates only its own
- * write; nothing here is one all-or-nothing transaction.
+ * The step 1 save — every field applied in one pass, independently gated
+ * (F1, LAN-230): nothing here is one all-or-nothing transaction.
+ * Decision history: LAN-230, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 export interface DetailsStepInput {
@@ -35,11 +34,7 @@ export interface DetailsStepInput {
   grantConsent: boolean;
   fields: Partial<Record<DisputedPersonField, string>>;
   mobile: string;
-  /**
-   * LAN-268. Validated to the Oxford rule before it is written, and refused
-   * with the rule's one sentence — a blank one is never a shape failure here,
-   * exactly as a blank mobile is not: required-ness is the form's own check.
-   */
+  /** LAN-268: validated to the Oxford rule before write; blank is never a shape failure here. */
   collegeEmail: string;
   personalEmail: string;
   emergencyContact: {
@@ -58,54 +53,24 @@ export interface DetailsStepResult {
 
 /**
  * Validates first, then writes every field that validated — never all or
- * nothing. F1 (LAN-230, a critical fix on Brian's own confirmed requirement,
- * 2026-09-02: "Whatever a step saved stays saved… never discards"; CE-008,
- * `REQ-required-set`: "the required set… blocks the form and never the
- * player, and whatever a step saved stays saved"): a submission this module
- * used to abort *entirely* the moment any single field failed its own shape
- * check, discarding nine valid answers over one malformed one. Each of the
- * six independently-checked slots below (mobile, personal email, the two
- * emergency-contact fields, and the two academic years) now gates only its
- * own write; every other slot, and the five disputable fields with no shape
- * check at all, commit regardless of what else in the same submission failed.
- * `errors` is still returned in full, so the player sees exactly what still
- * needs fixing — it just never again means nothing was kept.
- *
- * Every write below is its own already-audited, already-transactional call
- * (`updatePersonField`, `supersedeContactPoint`, `updateEmergencyContactField`)
- * — none of them expose a transaction-scoped variant, so this save is a
- * sequence of independently-committed steps rather than one all-or-nothing
- * transaction. That is not a shortcut: it is the exact semantics
- * `REQ-required-set` asks for — a save interrupted partway through, or one
- * that arrived with some fields invalid, still keeps everything that
- * validated and committed, rather than losing it to an all-or-nothing gate.
+ * nothing (F1, LAN-230). Each independently-checked slot (mobile, personal
+ * email, emergency-contact phone/email, two academic years) gates only its
+ * own write; the five disputable fields with no shape check always attempt
+ * to write. `errors` is returned in full regardless of what committed.
+ * Every write is its own already-audited, already-transactional call — this
+ * save is a sequence of independently-committed steps, not one transaction.
  */
 export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsStepResult> {
   const current = await readPersonRecord(input.personId);
   const errors: Record<string, string> = {};
 
-  // Mobile, personal email and the two emergency-contact fields all share one
-  // shape idiom — `src/lib/validation/contact.ts`'s own
-  // `looksLikePhone`/`looksLikeEmail` (LAN-215, B-007's shared module; this
-  // file's import moved onto it when that package extracted the predicates
-  // out of `src/app/operate/roster/new/validation.ts`, which now re-exports
-  // only the two error sentences) — rather than each inventing its own,
-  // per Brian's correction (B-001, LAN-216 round 1): "Should be the same as
-  // all other form validations we have." A blank value is never rejected here
-  // — required-ness is a separate check (`missingRequiredFields`) — this only
-  // catches a value that was actually typed and does not look like its kind.
+  // Shared shape idiom (LAN-215, B-007, B-001/LAN-216). Blank is never rejected here; required-ness is separate.
   const mobileChanged = input.mobile.trim() !== "" && needsMobileWrite(current, input.mobile);
   if (mobileChanged && !looksLikePhone(input.mobile)) errors.mobile = PHONE_SHAPE;
   const emailChanged =
     input.personalEmail.trim() !== "" && needsPersonalEmailWrite(current, input.personalEmail);
   if (emailChanged && !looksLikeEmail(input.personalEmail)) errors.personalEmail = EMAIL_SHAPE;
-  // LAN-268. The college email is the one email on this form with a rule
-  // beyond shape, and it is asked of the one validator rather than restated:
-  // `validateCollegeEmail` already defers to the shared shape check first, so
-  // "that is not an address" and "that is not an Oxford address" are two
-  // different sentences from the same call. A value that fails is left
-  // unwritten and the old one stays on file, which is the same
-  // never-all-or-nothing behaviour every other slot in this function has.
+  // LAN-268: validateCollegeEmail is the one validator, deferring to the shared shape check first. Invalid stays unwritten.
   const collegeEmailChanged =
     input.collegeEmail.trim() !== "" && needsCollegeEmailWrite(current, input.collegeEmail);
   let collegeEmailValid = true;
@@ -133,23 +98,13 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     );
     if (!validation.valid) errors.expected_graduation_year = validation.message;
   }
-  // LAN-245 (walker M7, finding M7-03): a future date of birth used to reach
-  // `updatePersonField` through the disputable-field loop below, where
-  // `people_date_of_birth_in_the_past` refused it — and the refusal escaped
-  // the server action as a 500 and the generic error boundary. It is a third
-  // shape check on exactly the same footing as the two academic years above:
-  // the value is left unwritten (the loop skips a field carrying an error)
-  // and the player is told, against the field, what is wrong with it.
+  // LAN-245 (M7-03): same footing as the two academic years above — unwritten on failure, told against the field.
   if (input.fields.date_of_birth) {
     const validation = validateDateOfBirth(input.fields.date_of_birth);
     if (!validation.valid) errors.date_of_birth = validation.message;
   }
 
   if (input.grantConsent) {
-    // Idempotent by construction: a crafted resubmission of an already-granted
-    // tick must never bump `changed_at` again, so this is checked and granted
-    // inside one transaction rather than granted unconditionally. Consent is
-    // never gated on any other field's validity — it is its own tick.
     await withTransaction(async (tx) => {
       const granted = await hasGrantedSeasonMessagingConsentIn(tx, input.personId, input.seasonId);
       if (!granted) await grantSeasonMessagingConsentIn(tx, input.personId, input.seasonId);
@@ -158,11 +113,7 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
 
   const outcomes: Partial<Record<DisputedPersonField, FieldSaveOutcome>> = {};
   for (const field of DISPUTABLE_FIELDS) {
-    // `matriculation_year`/`expected_graduation_year` are the only two of the
-    // seven with a shape check (`validateAcademicYear`, above); a value that
-    // failed it is left unwritten rather than parsed and stored anyway — the
-    // other five fields have no shape check at all and always attempt to
-    // write (a blank one is already a no-op inside `applyDisputableFieldIn`).
+    // Only the two academic years have a shape check; the other five always attempt to write.
     if (errors[field]) continue;
     const raw = input.fields[field];
     if (raw === undefined) continue;
@@ -210,10 +161,7 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     });
   }
 
-  // A malformed emergency-contact phone or email is blanked before reaching
-  // `writeEmergencyContactIn`, whose own "never clears a field" rule then
-  // treats it exactly as "not submitted" — every other emergency-contact
-  // field submitted alongside it still writes.
+  // A malformed phone/email is blanked before reaching writeEmergencyContactIn, whose "never clears a field" rule treats it as not submitted.
   await writeEmergencyContactIn(input.personId, {
     ...input.emergencyContact,
     phone: ecPhoneInvalid ? "" : input.emergencyContact.phone,
@@ -258,13 +206,7 @@ function needsCollegeEmailWrite(record: PersonRecord, raw: string): boolean {
   return (current?.rawValue ?? "") !== raw.trim();
 }
 
-/**
- * Emergency contact fields are overwritten in place (see the module note) —
- * one `updateEmergencyContactField` call per field that changed, `given_name`
- * always first so a fresh record is never started on any other field
- * (`person_emergency_contacts_given_name_not_blank`, enforced by that
- * function itself).
- */
+/** One `updateEmergencyContactField` call per changed field, `given_name` always first (`person_emergency_contacts_given_name_not_blank`). */
 type EmergencyContactField = "given_name" | "family_name" | "relationship" | "phone" | "email";
 
 const EMERGENCY_CONTACT_FIELD_ORDER: readonly EmergencyContactField[] = Object.freeze([
@@ -275,7 +217,6 @@ const EMERGENCY_CONTACT_FIELD_ORDER: readonly EmergencyContactField[] = Object.f
   "email",
 ]);
 
-/** One call per field, keeping `updateEmergencyContactField`'s own discriminated union real. */
 function emergencyContactUpdateFor(
   field: EmergencyContactField,
   value: string,
@@ -316,7 +257,7 @@ async function writeEmergencyContactIn(
 
   for (const field of EMERGENCY_CONTACT_FIELD_ORDER) {
     const value = submittedByField[field];
-    if (value === "") continue; // never clears a field — no decline, ever
+    if (value === "") continue;
     if ((currentByField[field] ?? "") === value) continue;
 
     const hadValue = currentByField[field] !== null;

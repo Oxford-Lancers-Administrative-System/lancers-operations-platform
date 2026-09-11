@@ -4,17 +4,12 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 /**
- * One labelled fact — LAN-225, brief §2. Replaces the eight local `Fact`s,
- * `Label`/`Field`/`LabeledField` and the record shell's `Row` (audit E5, C6).
+ * One labelled fact — LAN-225, brief §2. `stacked` (overline label above a
+ * value) or `inline` (label beside it). An absent value renders **not
+ * recorded** in the one style the application uses (`REQ-not-recorded`),
+ * never blank or a dash.
  *
- * Two layouts and nothing else to choose: `stacked` (overline label above a
- * value — cards, summaries, public pages) and `inline` (label beside the value
- * in a fixed column — record sections). A `null` or empty value renders the
- * words **not recorded** in the one style the whole application uses for an
- * absent fact (`REQ-not-recorded`); never blank, never a dash.
- *
- * `provenance` is the slot for "who said so and when" — a chip, or one short
- * line — and renders only when there is something to say (audit H6).
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export const NOT_RECORDED = "not recorded";
 
@@ -54,16 +49,7 @@ export function Fact({
   layout?: "stacked" | "inline";
   /** The value at `body1` 600, for the one or two facts a card is opened to find. */
   emphasis?: boolean;
-  /**
-   * For a value the operator typed into a multi-line field — a description, a
-   * list of kit — where the line breaks are part of what was written (LAN-264).
-   *
-   * `pre-line` rather than `pre`: runs of spaces still collapse, so this is not
-   * a licence to lay a value out with whitespace, only to keep the lines
-   * somebody actually pressed Enter for. Off by default, because every other
-   * fact on every screen is a single value and a stray newline in one of those
-   * would be a defect to fix rather than a shape to preserve.
-   */
+  /** For a multi-line typed value where line breaks matter (LAN-264). `pre-line`, not `pre` — spaces still collapse. Off by default. */
   multiline?: boolean;
   testId?: string;
 }) {

@@ -1,7 +1,4 @@
-/**
- * Operator administration barrel — LAN-132, mission
- * M-OPERATOR-ADMIN-WITHOUT-SQL. See `shared.ts` for the module note.
- */
+// Operator administration barrel — LAN-132, M-OPERATOR-ADMIN-WITHOUT-SQL. See `shared.ts`.
 
 export {
   ALREADY_ENDED_RULE,
@@ -20,8 +17,6 @@ export {
   earliestEndFor,
 } from "./shared";
 
-// Each sibling below exports exactly the barrel's names for it and nothing
-// else, so `export *` carries no more than the named form would.
 export * from "./assign";
 export * from "./end";
 export * from "./replace";

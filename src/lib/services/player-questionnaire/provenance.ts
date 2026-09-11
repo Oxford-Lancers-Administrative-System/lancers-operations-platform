@@ -10,7 +10,6 @@ import { updatePersonField, type PersonFieldUpdate } from "../person-write";
  * {@link applyDisputableFieldIn} is this module's one write path for them.
  */
 
-/** Every field `updatePersonField` can silently overwrite — `person_fact_disputes`'s own scope. */
 export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "given_name",
   "family_name",
@@ -18,12 +17,7 @@ export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "matriculation_year",
   "expected_graduation_year",
   "degree_field",
-  // LAN-267's two identifiers join the list for the same reason every other
-  // entry is on it: the player's questionnaire writes them, so the record has
-  // to be able to say who supplied the value that is on it. They travel the
-  // same `applyDisputableFieldIn` path, take the same
-  // `person_<field>_updated` audit action, and show the same "You"/"The club"
-  // source line as college and degree field already do.
+  // LAN-267's two identifiers: same applyDisputableFieldIn path, same audit action, same source line.
   "student_number",
   "bafa_registration_number",
   "date_of_birth",
@@ -41,12 +35,7 @@ const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> 
   date_of_birth: "person_date_of_birth_updated",
 });
 
-/**
- * Who last changed this field, through the application — the one comparison
- * `readPersonRecordIn`'s own `<field>Source` (a display name) cannot make on
- * its own. `null` covers both "never audited" (matching `<field>Source ===
- * null`) and, defensively, a row whose actor was somehow not recorded.
- */
+/** Who last changed this field. `null` covers "never audited" and, defensively, an actor somehow not recorded. */
 async function lastFieldActorPersonIdIn(
   tx: Tx,
   personId: string,
@@ -63,13 +52,7 @@ async function lastFieldActorPersonIdIn(
   return result.rows[0]?.actor_person_id ?? null;
 }
 
-/**
- * The batched, display-only counterpart to {@link lastFieldActorPersonIdIn}
- * — F4 (LAN-230). One query for all seven fields rather than seven, each
- * resolved to `"you"` / `"club"` / `null` for `QuestionnaireView.fieldSuppliedBy`
- * to render straight, with no name string to compare and no risk of two
- * people sharing a display name reading as the same person.
- */
+/** Batched, display-only counterpart to {@link lastFieldActorPersonIdIn} (F4, LAN-230) — one query for all seven fields. */
 export async function readFieldSuppliedByIn(
   tx: Tx,
   personId: string,
@@ -153,36 +136,7 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
   }
 }
 
-/**
- * Applies one submitted value for one of the seven fields that used to carry
- * a dispute. `newValue` is the trimmed, already-validated string the form
- * collected; an empty string is treated as "nothing submitted" (never a
- * clearing edit — this page has no way to blank a required fact, matching
- * `OD7-required-no-decline`).
- *
- * B-002 (correction round 2, Q-9, Brian's decision — "I don't think the
- * disputed fact mechanism survives at all"): the disputed state, the second
- * contested value and the four-role resolve control are gone. A player's
- * answer now simply takes effect — last write wins, whoever gave it — and
- * the audit history the person record already renders is what carries who
- * changed what and when.
- *
- * Four branches, decided fresh against the record read at the top of this
- * same save:
- *
- *   - nothing changed → `"unchanged"`, nothing written;
- *   - the field was empty → direct write, `"filled"`;
- *   - the field was non-empty but its most recent change has no attributable
- *     actor (seeded, imported, or `person_created`) → direct write,
- *     `"filled"` — nobody asserted the old value;
- *   - the field's most recent change was **this same person** → direct
- *     write, `"self-corrected"` — their own earlier answer, their
- *     prerogative (W5's own table, row 1);
- *   - otherwise (an operator, or anybody else, previously recorded it) →
- *     direct write, `"overwritten"` — the player's own submission stands,
- *     with its own provenance, and the prior value's history is exactly
- *     what the person record's audit trail already keeps.
- */
+/** Applies one submitted value for one of the seven fields (B-002: last write wins). Four outcomes: unchanged, filled, self-corrected, overwritten. Decision history: LAN-230, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
 export async function applyDisputableFieldIn(
   tx: Tx,
   params: {

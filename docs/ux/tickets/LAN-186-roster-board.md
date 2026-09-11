@@ -413,3 +413,196 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > a test proves an unpaid subscription does not appear in the outstanding set.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/destinations.ts — module header (DESTINATIONS)
+
+> `docs/ux/slice-ux.md` § 3 is explicit: the shell exposes Roster, Events and
+> Report, **and there is no Home destination**. That absence is a decision, not
+> an omission, so this list is the whole navigation and adding a fourth entry
+> is a UX change rather than a code change.
+>
+> `capability` is what the destination _requires_, read from the capability map
+> rather than restated here:
+>
+> - Events is an ordinary operator surface (§ 8, first row). Any linked
+>   active operator opens it; the privileged actions _inside_ it —
+>   activation, approval — are guarded individually by the issues that build
+>   them.
+>
+> - Roster stopped being ordinary on 2026-08-28 (LAN-186, `Q-4`,
+>   `REQ-authority`): "Four-role only, for the grid and every column on it."
+>   The redesigned board carries season-editing controls and restricted
+>   categories no coaching seat or single-purpose committee role should
+>   reach, so it now requires `person_record_authority` — the same four
+>   offices plus the administrative seat LAN-183 already gates the full
+>   person record behind. `/operate/roster/[membershipId]` is unchanged by
+>   this package (LAN-187's), and stays open to any linked operator.
+>
+> - Report is not ordinary. § 8 restricts it to an "authorized report
+>   operator" and does not say who that is, so `leadership_report` was an
+>   empty grant that refused everybody — deliberately and visibly — until
+>   LAN-81, the issue that owed the answer, resolved it to the four calendar
+>   roles. `capabilities.ts` carries the reasoning and the reason it is
+>   narrower than the ordinary operator floor: the snapshot leads with the
+>   reasons people gave for not attending.
+>
+> Navigation is never authorization. Every destination guards itself, and this
+> list is also used to decide which one the shell opens on — not what a page is
+> allowed to render.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/board-columns.ts — module header
+
+> The board's column model — LAN-186. What `chore/roster-fidelity-mockup`'s
+> `columns.ts` demonstrated, built for real: every column is one entry here,
+> driving banding, pinning, sorting, filtering, which cells edit in place and
+> which route to the person record — never a fifth `<TableCell>` copied around
+> the file.
+>
+> ## `Four-role only, for the grid and every column on it` (REQ-authority)
+>
+> The whole surface is gated on `person_record_authority` before this module
+> is ever reached — `page.tsx` refuses an operator who does not hold it, the
+> same capability LAN-183 built `person-authority.ts` against. What this
+> module adds is the mechanism the issue calls "moot while four-role — build
+> it anyway": every column carries a `requires` capability, and
+> `visibleColumns()` drops one a viewer's role codes do not hold **before** a
+> row is ever built into a payload. Every column reads the same capability as
+> the page today, so nothing is actually narrowed yet — but narrowing later,
+> exactly as `person-authority.ts`'s categories do for the person record, is
+> an edit to one column's `requires`, not a rewrite of this file.
+>
+> This repository has no `availability_read` capability of its own — Q-4's
+> decision and LAN-124's administrative-seat rule both resolve to the same
+> four offices `person_record_authority` already names, and inventing a new,
+> narrower grant with nobody yet excluded from it would be a capability-map
+> change this package does not own (`src/lib/auth/**` is LAN-183's). The
+> mechanism is real and column-scoped; the grant it currently reads is shared
+> with the page's own gate.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/board-columns.ts — EditKind
+
+> `record` — a person fact: renders and routes to the person record, W2's
+> rules apply there. `select` / `multiselect` / `jersey` — a season fact,
+> edits in the cell, commits on its own, audited, no reason asked. `none` is
+> derived or owned elsewhere.
+>
+> Status used to be its own kind, gated by a legal-transition table
+> `membership.ts` owned. LAN-186's owner walkthrough removed that table
+> entirely (`Q-12`: "We can flip to whatever status we want to go in."), so
+> Status is now an ordinary `select` column like every other season fact —
+> the one in-cell dropdown Brian asked for, in place of the three bespoke
+> controls the board used to render for it.
+>
+> ---
+>
+> `onboarding` joined under correction round 2, item 5
+> (`WP-operator-record`, LAN-217): one of the seven operator-ticked
+> onboarding items, cloning the record page's own asymmetric row. D-002
+> (correction round 6) collapsed the closed cell's displayed status and the
+> open cell's offered choices into one list, `allowedItemStates(itemCode)` —
+> there is no separate resolution vocabulary any more, and no `reopen`: the
+> open dropdown offers exactly the states the closed cell can show.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/page.tsx — module header
+
+> `/operate/roster` — W5, the season's squad as a twenty-column board. LAN-186.
+>
+> Redesigned, not extended (portfolio rule 3): this replaces the six-column
+> list LAN-75 shipped, root and branch. Authority: LAN-186's own acceptance,
+> `workflows/W5-work-this-seasons-roster.md`, `acceptance/W5.md`, and the
+> approved photographs at `mockups/W5-work-this-seasons-roster.html`.
+>
+> ## `REQ-authority`: "Four-role only, for the grid and every column on it"
+>
+> The page opens with `person_record_authority` — the same capability LAN-183
+> gates the full person record behind, and the four offices Q-4 names. A coach,
+> or any operator outside those four roles plus the administrative seat, is
+> refused **here**, before `listRosterBoard()` is ever called: not merely
+> unrendered, absent. `visibleColumns()` and `redactRow()` then apply the same
+> capability again per column, which is the mechanism the issue calls "moot
+> while four-role — build it anyway", so a later, narrower grant on one column
+> drops it from the payload automatically.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/page.tsx — filters / redactedRows
+
+> Every column key is a legal filter key. Anything else in the query string —
+> including a filter naming a column this viewer's role does not grant — is
+> ignored rather than trusted, matching the fail-closed posture
+> `rosterOrderBy()` in `membership.ts` uses for `sort`.
+>
+> ---
+>
+> Redacted, full width. Search, filter and sort all happen client-side now
+> (LAN-186 item 11) over this one fetch: `RosterBoard` calls `applyBoard()`
+> itself for every interaction, rather than this page re-running for each
+> one. The URL's own params seed only the client's _initial_ state below, so
+> a bookmarked or refreshed link still opens already filtered — that first
+> load is the one real fetch Brian accepted taking a few seconds; nothing
+> after it does.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/board-data.ts — optionLabel
+
+> Display text for a column's option code — the label alone, never the code
+> beside it (`REQ`, LAN-186 item 9: no `"eligible · Eligible"` anywhere).
+>
+> Positions are the deliberate exception, in the other direction: the club's
+> vocabulary IS the code (`T`, `NT`, `KO` …), so this returns it unchanged —
+> LAN-186 item 7's cell half, which Brian's walkthrough of the built board
+> left standing: "letters in the grid" has not changed. Item 7's _dropdown_
+> half is superseded by `optionListLabel` below, for the one context where a
+> list of choices, not a selected value, is on screen.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/board-data.ts — optionListLabel
+
+> Display text for one entry in an _open list of choices_ — the in-cell edit
+> dropdown and the column filter's own popover — as distinct from a value
+> already chosen, which `filterOptionLabel` and `displayOf` still show as the
+> label alone.
+>
+> Position columns are the one case where the two differ: Brian's walkthrough
+> of the built board asked for the code _and_ the full name in the open
+> dropdown ("If it says QB, it should be QB-quarterback"), while the selected
+> value — the cell, the active-filter chip, the filtered column's own caption
+> — stays the code alone, per item 7's cell half. The full name comes from
+> `column.optionLabels`, itself read from the season's vocabulary (S3) in
+> `readPositionOptions()`, never hardcoded here.
+>
+> Every other column's list already shows the label alone with nothing beside
+> it, so this delegates straight to `optionLabel` for them — no `${value} ·
+${label}` echo reappears (item 9), because eligibility and availability's
+> value and label are the same word and doubling either would repeat it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/membership/write-status.ts — setMembershipStatus header (onboarding seeding, dated fields)
+
+> Two things still happen on the way through, and neither is a gate:
+>
+> - **Flipping to `active` seeds onboarding items when none exist yet** —
+>   belt and braces for a membership confirmed before onboarding items
+>   existed, or reached `active` by any path that never generated them.
+>   `generateOnboardingItems()` is idempotent, so the ordinary case (items
+>   already there) inserts nothing. Outstanding required items are never
+>   asked about — they simply carry on being outstanding, visible on the
+>   record, exactly as any other season fact would be.
+> - **The two dated-field checks the database itself enforces are honoured,
+>   not renegotiated**: `season_memberships_activation_is_dated` (`active`
+>   needs `activated_on`) and `season_memberships_departure_is_dated`
+>   (`departed` needs `departed_on`). Both use the same
+>   `coalesce(existing, current_date)` pattern, so flipping out of and back
+>   into either status preserves the original date rather than resetting it
+>   on every visit.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

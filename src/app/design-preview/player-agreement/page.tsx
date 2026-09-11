@@ -21,21 +21,11 @@ import { pickQuestionnaireSubject } from "../picks";
 import { QuestionnaireShell } from "../player-details/questionnaire-shell";
 
 /**
- * S10b — step 2 of the player's questionnaire, the document to read and
- * agree (`/me/[token]/details?step=code_of_conduct`). LAN-225's
- * player-surfaces addendum.
+ * S10b — step 2 of the player's questionnaire (`/me/[token]/details?step=
+ * code_of_conduct`). LAN-225's player-surfaces addendum. Words unchanged from
+ * the real page, including the LAN-213 placeholder banner. Drawn, not wired.
  *
- * The second half of the questionnaire is a different shape from the first —
- * a long scrolling document, one tick box, one button — and judging the
- * sequence on the form alone would leave that shape unjudged. The words are
- * the real page's, unchanged, including the placeholder banner: the real Code
- * of Conduct is owed under LAN-213 and this ticket does not write it.
- *
- * What changes: the masthead, the `StepTrail` in place of the five-column
- * `<dl>`, the document in a `Section` at the reading measure rather than a
- * 340px scroll box with a hand-drawn `rgba(0,0,0,0.23)` border, the
- * placeholder banner as a `Notice` rather than 12px warning-coloured text,
- * and the foot as an `ActionBar`. Drawn, not wired.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 const PLACEHOLDER_BODY =
   "PLACEHOLDER. The real Code of Conduct is Clint's, through LAN-213, and has not been written " +

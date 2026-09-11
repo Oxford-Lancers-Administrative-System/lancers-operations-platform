@@ -478,3 +478,131 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > a retried request, or a future caller sent it.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/merge/page.tsx — module header
+
+> `/operate/people/[personId]/merge` — W4-01 … W4-08. LAN-185, `REQ-merge`.
+>
+> Reached only from a record the operator already holds — `W1`'s search, or
+> the "Compare with …" handoff `W2-07` offers — never from a list. The
+> comparison is the most disclosing screen this mission draws, and this is
+> why: two people's contact details, academic detail, date of birth and
+> emergency contact, side by side.
+>
+> B5, LAN-185 correction round 2 (Brian's walk): `previewPersonMerge` refuses
+> — same record, the comparison target not on record, or already merged
+> away — by throwing, the same posture every service in this codebase takes.
+> Those are refusals the product owns, not crashes; rendered here as
+> `Refusal`, the same shape `events/[id]/edit/page.tsx` already uses for an
+> uneditable draft.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/edit/page.tsx — module header
+
+> `/operate/people/[personId]/edit` — W2-01 … W2-10. LAN-185.
+>
+> `redirect=missing` returning to the queue is not built — see the receipt's
+> limitations. Every entry point still lands here on the whole record.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/edit/actions.ts — module header
+
+> `/operate/people/[personId]/edit`'s one server action — W2, LAN-185.
+> `requireCapability("person_record_authority")` first, itself, the same
+> posture every action under this package states.
+>
+> ## Why every field is one submission
+>
+> The mockup draws one page and one Save. This action re-reads the current
+> record fresh (never trusting a hidden "previous value" the client could
+> carry stale or tampered) and writes only the fields that actually differ,
+> each through `person-write.ts`'s own function — the ordinary correction
+> path, unchanged. A field left untouched is never written.
+>
+> ## The concurrency check runs once, first
+>
+> `assertNoConcurrentPersonChange` (inside `person-write.ts`) is checked
+> against the version the form loaded with, on the _first_ write this
+> submission makes. Every later write in the same submission omits it — by
+> then this submission's own earlier write has legitimately moved the
+> version, and checking again would refuse a save against itself.
+>
+> ## Mobile is one inline field, not a second screen (B3, correction round 2)
+>
+> The normalised preview and the WhatsApp-seam warning render inline in
+> `edit-person-form.tsx` as the operator types — both `validatePhoneNumber`
+> and `describeWhatsappSeamConsequence` are pure and client-safe by design
+> (their own module notes say so). This action re-validates and re-normalises
+> server-side regardless, the same posture `person-validation.ts` states for
+> why a client check never substitutes for the one here, and commits the
+> change in the same single submission as every other field.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/edit/actions.ts — dateOfBirthChanged
+
+> LAN-258 (walker M5, finding M5-03). The write used to reach
+> `people_date_of_birth_in_the_past` and come back as "The database refused
+> this change because it breaks one of the club's recorded rules. Nothing
+> was saved." — true, and useless: neither the field nor the rule was ever
+> named. `LAN-185`'s own contract asks for validation "per field, naming the
+> rule, before any write", which is what the mobile field above already
+> does, from the same module and in the same shape. Clearing a date of birth
+> stays a legitimate correction and is not validated.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/merge/merge-comparison.tsx — refusal membership link (Q-16)
+
+> Q-16, LAN-185 correction round 2: the refusal links to the
+> exact membership to archive, not a bare "open the roster" —
+> the same shape the active-seat refusal's link already had.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/merge/merge-comparison.tsx — stays-with-loser section (Q-16)
+
+> Q-16, LAN-185 correction round 2: an archived overlap
+> membership stays on {loser.displayName} — never re-pointed —
+> said plainly here before the merge, per Brian's own words.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/person-whatsapp-seam.ts — module header
+
+> ## The substrate this seam has no answer for
+>
+> `docs/architecture/data-model.md`'s "Deliberately not implemented" section
+> names **Channel Presence** and **Group Membership** — "on WhatsApp and in
+> this season's group" — as frozen-model concepts release one omits entirely.
+> `W2-correct-a-persons-record.md`'s own words: "On WhatsApp has no substrate
+> on `main`, so there is no flag to set and no state to write." Nothing this
+> package is permitted to build (no migration; `REQ-whatsapp-seam` is explicit
+> that "Mission 6 verifies") can honestly answer "was this number on WhatsApp
+> for the active season" — because no fact stored anywhere says so.
+>
+> `REQ-whatsapp-seam` still requires the **check point** to exist: "the
+> correction surface says so before the save" when the answer is yes, and
+> "never claims the new number is or is not on WhatsApp" either way. This
+> module is that check point, built and proven for both branches, wired at its
+> one call site (`supersedeContactPoint`'s mobile-kind path) with the only
+> answer that is honest today: `false`, because nothing on `main` can support
+> `true` without inventing a fact this package has no authority to invent. The
+> day Mission 6 builds the real substrate, its answer threads straight through
+> this same seam — the mechanism, the copy, and the audit write are already
+> here and already correct; only the caller's input changes.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/person-create.ts — module header
+
+> `person-duplicate.ts` (LAN-183) answers "who might this already be" and
+> stops there, by design — the write that follows is where a reason and an
+> audit row belong, and this module is that write. It never assigns a role,
+> never opens a login, and never creates a membership: "this is where people
+> get created… roles get assigned where roles get assigned" (Brian,
+> 2026-08-27).
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

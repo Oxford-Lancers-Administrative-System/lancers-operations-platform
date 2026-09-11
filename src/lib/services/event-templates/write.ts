@@ -17,27 +17,9 @@ const TEMPLATE_DELETED_ACTION = "event_template.deleted";
 
 const TEMPLATE_IN_USE_RULE = "event_template_in_use";
 
-/**
- * Creates a template, and the messaging cadence that makes it usable.
- *
- * Brian, 2026-09-09: "Creating a template also creates its messaging cadence,
- * which starts from a default cadence and can then be edited on the Messaging
- * schedule screen like the seven existing ones."
- *
- * All three rows in one transaction, and that is the whole design. A template
- * without a `messaging_schedules` row could be picked on the create form and
- * would then refuse at approval, naming a table no operator has heard of — the
- * failure would land on whoever approved next Wednesday's session rather than on
- * whoever created the template, days later and on a different screen. The
- * primary key and the cascading foreign key added by
- * `20260916090000_event_templates.sql` make the pairing structural; this
- * function is what keeps it true at the moment of creation.
- *
- * The new template arrives empty of defaults. Nothing is copied from another
- * template: "Kicking Clinic" is not a variant of Practice, and pre-filling it
- * with Practice's venue and questions would put words in the operator's mouth on
- * a screen whose whole purpose is that they get to choose.
- */
+// Creates a template plus its messaging cadence and chase settings, all in one transaction (Brian,
+// 2026-09-09) — a template without those rows would refuse at approval, naming a table no operator
+// created it knows. Arrives empty of defaults; nothing is copied from another template. See relocations.md.
 export async function createEventTemplate(
   actorPersonId: string,
   input: EventTemplateInput,
@@ -125,13 +107,7 @@ export async function createEventTemplate(
   });
 }
 
-/**
- * D75, D77's chase threshold for a template the club has just invented.
- *
- * Two days, which is what six of the seven shipped rows say and what the
- * migration calls "the routine events". A game's seven and a social's five are
- * decisions about a game and a social, not about an unnamed new kind of event.
- */
+// D75/D77's chase threshold for a new template — two days, what six of the seven shipped rows say (see relocations.md).
 export const DEFAULT_CHASE_THRESHOLD_DAYS = 2;
 
 async function createEventTypeSettingsIn(
@@ -150,21 +126,9 @@ const TEMPLATE_DELETE_REFUSAL =
   "Events have already been created from this template, so it cannot be deleted. " +
   "Rename it instead — the new name reaches every one of them.";
 
-/**
- * Deletes a template nothing was ever created from.
- *
- * "Delete when unused" is the whole rule, and the reason is what a name is for
- * after LAN-265: an event's label is read from its template, so a deleted
- * template would leave its events with nothing to be called. The refusal names
- * the alternative, because renaming is exactly what somebody trying to delete a
- * template they no longer use probably wants — and unlike deleting, it is free
- * and reaches everything.
- *
- * The count and the delete are one statement's apart inside one transaction, and
- * `events_template_fkey`'s `on delete restrict` is the backstop underneath: an
- * event created between the check and the delete makes the delete fail rather
- * than orphan it.
- */
+// Deletes a template nothing was ever created from — LAN-265's rule: a deleted template would
+// leave its events with no name to be called. Count and delete are one transaction apart;
+// events_template_fkey's on-delete-restrict is the backstop against a race.
 export async function deleteEventTemplate(
   actorPersonId: string,
   templateId: string,
@@ -182,10 +146,8 @@ export async function deleteEventTemplate(
       throw new ConstraintViolated(TEMPLATE_DELETE_REFUSAL, { rule: TEMPLATE_IN_USE_RULE });
     }
 
-    // The questions, the default audience, the messaging schedule and the
-    // settings row all carry `on delete cascade`, so this one statement takes
-    // the whole template with it. Written as one delete rather than five, so
-    // that a table added to the template later cannot be forgotten here.
+    // questions/audience/schedule/settings all carry on-delete-cascade, so one delete removes them
+    // all — written as one statement so a table added later cannot be forgotten here.
     await tx.query("delete from public.event_templates where id = $1::uuid", [templateId]);
 
     await recordAudit(tx, {

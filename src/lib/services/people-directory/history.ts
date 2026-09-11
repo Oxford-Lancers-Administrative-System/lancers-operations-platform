@@ -5,14 +5,12 @@ import { personDisplayNameSql } from "../sql-text";
 
 /** The history section — `REQ-history-on-record`, `W1-11` and `W1-12`. */
 
-/** One recorded change, generic over whatever actually wrote it. */
 export interface PersonHistoryEntry {
   /** Stable across a render — `audit_events.id`, or a status-event id. */
   id: string;
   occurredAt: Date;
   /** What kind of thing changed — "Status", "Person", "Membership" — the field filter's own vocabulary. */
   field: string;
-  /** One line naming what happened, with no further explanation. */
   summary: string;
   fromValue: string | null;
   toValue: string | null;
@@ -20,11 +18,6 @@ export interface PersonHistoryEntry {
   reason: string | null;
 }
 
-/**
- * Turns a snake_case action into the club's words for it — "person_created"
- * becomes "Person created" — so a new action a later package writes renders
- * sensibly without this module knowing its name in advance.
- */
 function humanizeAction(action: string): string {
   const words = action.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -45,29 +38,12 @@ const STATUS_HISTORY_LABELS: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /**
- * Every recorded change to this person's durable record and to the
- * memberships it holds, newest first — the `What changed` panel's whole
- * content. Read-only, and reads no more than `readPersonRecord()`'s own
- * `NotFound` already lets a caller learn: this throws nothing extra when the
- * person genuinely has no history yet, because a fresh record with no changes
- * is a real state, not an error.
- *
- * Two sources, because the frozen model gives status transitions a typed home
- * of their own (register D9) rather than duplicating them into
- * `audit_events`:
- *
- *   * `season_membership_status_events` for every membership this person
- *     holds, in any season — a real, typed history that exists today.
- *   * `audit_events` rows naming this person (`entity_table = 'people'`) or
- *     one of their memberships (`entity_table = 'season_memberships'`) —
- *     which is where `W2`'s corrections and `W4`'s merges will land once
- *     those packages write them, and where `returner_membership_confirmed`
- *     and `person_created` already do.
- *
- * `context` is deliberately never read here. It is unstructured JSON that a
- * future writer could put anything in, including a raw contact value on its
- * way to becoming the audit trail of a correction — `from_state`/`to_state`
- * are the typed, short columns this module trusts to describe a change.
+ * Every recorded change to this person's record and memberships, newest
+ * first — the `What changed` panel's whole content. Two sources: typed
+ * `season_membership_status_events` (register D9), and `audit_events` rows
+ * naming this person or a membership. `context` is deliberately never read
+ * — unstructured JSON a future writer could put anything in;
+ * `from_state`/`to_state` are the typed columns this module trusts.
  */
 export async function readPersonHistory(personId: string): Promise<PersonHistoryEntry[]> {
   return withTransaction(async (tx) => {
@@ -83,9 +59,6 @@ export async function readPersonHistory(personId: string): Promise<PersonHistory
       memberships.rows.map((row) => [row.id, row.season_label]),
     );
 
-    // `= any($1::uuid[])` over an empty array is a legal, empty-matching
-    // predicate in PostgreSQL, so this runs unconditionally rather than
-    // branching on whether the person holds a membership at all.
     const statusEvents = await tx.query<{
       id: string;
       season_membership_id: string;

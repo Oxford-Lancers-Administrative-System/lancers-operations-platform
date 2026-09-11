@@ -18,12 +18,9 @@ import {
 } from "./presentation";
 
 /**
- * The event table Brian opens the report to read: what happened, who was asked,
- * who said yes, who came, and what percentage that is.
- *
- * The two event-level exceptions ride on the row rather than in a list of their
- * own. A register nobody took shows as "not taken" where the percentage would
- * be — never as 0%, which would read as nobody turning up.
+ * The event table Brian opens the report to read — what happened, who was
+ * asked, who said yes, who came, what percentage. Register-not-taken shows
+ * as "not taken" where the percentage would be, never 0%.
  */
 export function LastWeek({ content }: { content: WeeklyReportContent }) {
   return (
@@ -89,11 +86,7 @@ function EventRow({ event }: { event: EventOutcome }) {
         ) : null}
       </TableCell>
       <TableCell align="right">{event.invited}</TableCell>
-      {/*
-        Unconditional since D23 removed "Response requested": every event asks
-        its audience to answer, so there is no event whose answer columns are
-        not a real number.
-      */}
+      {/* Unconditional since D23 removed "Response requested" — every event asks its audience. */}
       <TableCell align="right">{event.respondedYes}</TableCell>
       <TableCell align="right">{event.respondedNo}</TableCell>
       <TableCell align="right">{event.noAnswer}</TableCell>

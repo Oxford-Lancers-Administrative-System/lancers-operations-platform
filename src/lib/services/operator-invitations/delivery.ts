@@ -6,11 +6,7 @@ import { InvitationDeliveryFailure, type OperatorIdentityPort } from "../operato
 import { readOperatorAccountIn } from "./account-read";
 import { administrationAuthority, requireOperator } from "./shared";
 
-/**
- * Delivery failure — shared by `invite.ts` and `resend.ts`. Recording a
- * failure never creates a second Person or a second account
- * (`REQ-invitation-states`' last sentence).
- */
+// Delivery failure, shared by `invite.ts` and `resend.ts`.
 
 export async function deliverInvitation(
   identity: OperatorIdentityPort,
@@ -28,29 +24,14 @@ export async function deliverInvitation(
   }
 }
 
-/**
- * The recorded reason, trimmed and bounded.
- *
- * The transport's own words are kept because they are the only thing that tells
- * an administrator whether the address was wrong or the mail server was down,
- * and they are stored rather than shown — the surfaces render the state's own
- * sentence. Bounded because a provider error can be a whole response body, and
- * an audit reason is a sentence.
- */
+/** The recorded reason, trimmed and bounded to a sentence; stored, not shown — surfaces render the state's own sentence. */
 function describeDeliveryFailure(reason: string): string {
   const trimmed = reason.trim();
   if (trimmed === "") return "The invitation email could not be delivered.";
   return trimmed.length > 300 ? `${trimmed.slice(0, 297)}...` : trimmed;
 }
 
-/**
- * Records a delivery failure against an account that already exists.
- *
- * Both halves matter. The columns make the account show Delivery failed and
- * offer a resend; the event makes the attempt part of the permanent record. And
- * neither creates a second Person or a second account — the whole point of
- * `REQ-invitation-states`' last sentence.
- */
+/** Records a delivery failure against an account that already exists — columns and event both, never a second Person or account. */
 export async function markDeliveryFailed(
   tx: Tx,
   input: {

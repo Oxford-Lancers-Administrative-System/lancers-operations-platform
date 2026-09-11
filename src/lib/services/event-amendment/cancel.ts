@@ -36,28 +36,13 @@ const NOBODY_TO_NOTIFY_RULE = "event_renotify_requires_an_audience";
 const NOTHING_TO_RENOTIFY_MESSAGE = "Nothing has changed about this event since it was approved.";
 export const NOTHING_TO_RENOTIFY_RULE = "event_renotify_requires_a_change";
 
-/**
- * R156-A5. The rule W5-04 states — re-notify exists for a change that "went
- * out to nobody" — used to live only in `page.tsx`, as the condition that
- * decided whether to render the button. A second caller reaching
- * `renotifyEvent` directly skipped it entirely and could send a duplicate
- * notice for a change everyone had already been told about. The service is
- * now where this is enforced; the page's own check becomes the courtesy of
- * not offering a control that would refuse.
- */
+// R156-A5: enforced here, not only in page.tsx's button visibility, so a caller reaching
+// renotifyEvent directly can't double-send a notice everyone already got. See relocations.md.
 const RENOTIFY_ALREADY_SENT_MESSAGE =
   "The last change to this event has already been sent to everyone invited.";
 export const RENOTIFY_ALREADY_SENT_RULE = "event_renotify_requires_a_silent_change";
 
-/**
- * Recorded on a job the cancellation called off.
- *
- * D59 in the one place it is easiest to break: this string is written to the
- * job, and the job is the thing a delivery surface reads. It says the event was
- * cancelled and nothing else — the operator's internal reason is in
- * `events.decision_reason` and in the audit record, and goes nowhere near here.
- */
-const JOB_CANCELLED_BY_CANCELLATION = "The event was cancelled.";
+const JOB_CANCELLED_BY_CANCELLATION = "The event was cancelled."; // D59: the job's own text says only this, never the internal reason
 
 export interface RenotifyOutcome {
   event: EventDetail;
@@ -65,18 +50,9 @@ export interface RenotifyOutcome {
   noticesOwed: number;
 }
 
-/**
- * Sends the change notification to the same audience, and changes nothing else.
- *
- * "Turning the notification off is one tick, and it is easy to get wrong at
- * half past seven on a Monday evening. Without this, a missed notification is
- * permanent and the only fix is WhatsApp."
- *
- * The event row is not written at all — not even `updated_at` — and no response
- * is touched, which is what "alters neither the event nor its responses" has to
- * mean if it is to be assertable. What it produces is one obligation per
- * invitation, exactly as an amendment that notified would have.
- */
+// Sends the change notification to the same audience and changes nothing else — the event row is
+// not written at all, not even updated_at, and no response is touched (Brian: a missed
+// notification is otherwise permanent). See relocations.md.
 export async function renotifyEvent(
   actorPersonId: string,
   eventId: string,
@@ -100,11 +76,6 @@ export async function renotifyEvent(
         rule: NOTHING_TO_RENOTIFY_RULE,
       });
     }
-    // R156-A5. `page.tsx` only ever renders the Re-notify control where the
-    // most recent amendment went out silently — a second, later amendment
-    // that *did* notify makes the button disappear again. Refused here too,
-    // so a caller that reaches this function some other way cannot double-
-    // notify a change everybody was already told about.
     if (lastAmendment.notified !== false) {
       throw new ConstraintViolated(RENOTIFY_ALREADY_SENT_MESSAGE, {
         rule: RENOTIFY_ALREADY_SENT_RULE,
@@ -135,12 +106,9 @@ export async function renotifyEvent(
 }
 
 export interface CancellationOptions {
-  /** D76. Internal, for the club's record. Never shown to a recipient (D59). */
-  reason: string;
-  /** D58. Defaults on for a future event and off for a past one. */
-  notify: boolean;
-  /** Set only by a caller that has shown the confirmation naming the people affected. */
-  silenceConfirmed?: boolean;
+  reason: string; // D76, internal for the club's record — never shown to a recipient (D59)
+  notify: boolean; // D58: defaults on for a future event, off for a past one
+  silenceConfirmed?: boolean; // set only by a caller that has shown the confirmation naming who's affected
 }
 
 export interface CancellationOutcome {
@@ -148,24 +116,13 @@ export interface CancellationOutcome {
   notified: boolean;
   recipients: number;
   noticesOwed: number;
-  /** Unsent messages this cancellation called off. Nothing delivered is recalled. */
-  messagesCancelled: number;
+  messagesCancelled: number; // unsent messages this cancellation called off; nothing delivered is recalled
 }
 
-/**
- * `approved → cancelled`, in one action, by one operator, with no approval gate
- * (D56, D61).
- *
- * Only an approved event can be cancelled, and that is structural rather than a
- * policy this function invented: `events_approval_requires_date_and_audience`
- * requires a `cancelled` row to carry the date, the approver and the confirmed
- * audience, which a draft has none of. D29 is the other half — an abandoned
- * draft is deleted rather than cancelled, and that path is W4's.
- *
- * The event, its invitations, its responses and any attendance records all stay
- * exactly where they are (D57). Nothing is deleted, because deleting it would
- * erase the fact that the club planned the game and called it off.
- */
+// approved -> cancelled, in one action, one operator, no approval gate (D56, D61) — structural, not
+// invented: events_approval_requires_date_and_audience requires a cancelled row to carry what a
+// draft has none of (D29 covers an abandoned draft: deleted, not cancelled, W4's path). Nothing is
+// deleted (D57) — the record that the club planned the game and called it off must survive.
 export async function cancelEvent(
   actorPersonId: string,
   eventId: string,
@@ -183,10 +140,7 @@ export async function cancelEvent(
       );
     }
 
-    // D76, and `events_negative_decisions_are_explained` in the database. Said
-    // here as a sentence so the operator gets one rather than an integrity
-    // error naming a constraint.
-    const reason = options.reason.trim();
+    const reason = options.reason.trim(); // D76 / events_negative_decisions_are_explained, said as a sentence rather than a constraint error
     if (reason === "") {
       throw new ConstraintViolated(CANCELLATION_NEEDS_A_REASON_MESSAGE, {
         rule: CANCELLATION_NEEDS_A_REASON_RULE,
@@ -219,14 +173,8 @@ export async function cancelEvent(
       );
     }
 
-    // W6: queued messages are cancelled with the event. Unlike an amendment's
-    // hold there is nothing for them to resume into — the event is terminal, so
-    // an invitation still waiting to go out is an invitation to something that
-    // is not happening. Nothing already delivered is recalled; that remains
-    // impossible and remains true.
-    //
-    // Cancelled before the notices are written, so this statement cannot reach
-    // the cancellation notices it is about to create.
+    // W6: queued messages are cancelled with the event, nothing delivered is recalled. Run before
+    // the notices are written, so it cannot reach the cancellation notices about to be created.
     const cancelledJobs = await tx.query<{ id: string }>(
       `update public.notification_jobs
           set status = 'cancelled', cancelled_reason = $2,
@@ -236,17 +184,9 @@ export async function cancelEvent(
       [eventId, JOB_CANCELLED_BY_CANCELLATION],
     );
 
-    // LAN-169. W5: "The event is cancelled — outstanding chase work stops; the
-    // queue drops the event." Half of that is free, because `nonresponse_queue`
-    // only reads approved events. The other half is not: a raised flag survives
-    // its event's cancellation, and a flag is cleared **only by resolution and
-    // never by time** (`REQ-one-flag-per-threshold`), so nothing else would ever
-    // close it and the follow-up queue would carry a permanent row about an
-    // event that is not happening.
-    //
-    // Resolved rather than deleted, for the same requirement's other half: a
-    // cleared flag stays readable in history, because the record that the club
-    // escalated is evidence.
+    // LAN-169, W5: cancellation stops outstanding chase work. A raised flag is cleared only by
+    // resolution, never by time (REQ-one-flag-per-threshold), so it is resolved here, not deleted
+    // — a cleared flag stays readable in history as evidence the club escalated. See relocations.md.
     await tx.query(
       `update public.nonresponse_flags f
           set resolved_at = now(),
@@ -274,7 +214,6 @@ export async function cancelEvent(
       entityId: eventId,
       fromState: "approved",
       toState: "cancelled",
-      // The internal reason belongs in the record, which is what this is.
       reason,
       context: {
         notified: options.notify,

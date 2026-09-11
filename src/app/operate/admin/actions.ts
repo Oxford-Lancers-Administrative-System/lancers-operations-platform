@@ -24,58 +24,13 @@ import {
 import { operatorAccountState } from "@/lib/services/operator-account-state";
 import type { AdminActionState, CandidateChoice } from "./action-state";
 
-/**
- * Administration's server actions — LAN-133, `WP-surfaces`.
- *
- * `operator-administration.ts` says in its own module note that "`WP-surfaces`
- * owns the Administration screens and the server actions behind them", and this
- * is that half. Every function here is a thin adapter: read the form, call one
- * service, turn a `ServiceError` into a sentence the operator can act on.
- *
- * ## Not one of these actions decides who may do anything
- *
- * Each opens with `requireCapability("role_management")`, which resolves the
- * actor from the **verified session** — a server action is a POST endpoint the
- * browser can call directly, so an action that accepted "who am I" would accept
- * whatever was sent. That is the floor and not the decision: the target-aware
- * question (`assertAdministrationTarget`, the self rule, the leadership rules,
- * the final-path rule) is asked *inside* the service, against role codes read
- * from the database in the transaction that writes. Nothing here reimplements
- * any of it, and nothing here may.
- *
- * The one exception is `searchCandidatesAction`, whose service guards at the
- * same floor for the reason `findOperatorCandidates` records: a search has no
- * target yet.
- *
- * ## A refusal is never a form message, and never an exception either
- *
- * `NotPermitted` used to be excluded from every `catch` and rethrown, as
- * `roster/actions.ts` and `events/actions.ts` do it. Half of that was right: a
- * refusal rendered as red text beside a button reads as "try again", which is
- * the wrong instruction and hides an authorization event inside a validation
- * failure. The other half was wrong, and Brian found it by inviting somebody to
- * a protected seat — rethrowing out of a server action does not reach a refusal
- * screen, it reaches the framework, and the guard's carefully written sentence
- * arrived as a stack trace.
- *
- * A refusal now comes back in `refusal` on the action state, which is neither
- * `error` nor `notice`, and every screen renders it as a rule rather than as a
- * failed attempt. `./action-state` carries the full reasoning.
- *
- * ## The one thing worth reading twice
- *
- * `startEmailRehomeAction` moves somebody's sign-in address. It is the most
- * dangerous action on these screens and it is deliberately the plainest: it
- * takes a replacement address and a required reason, hands both to the service,
- * and adds nothing. Every protection — the target guard, the leadership
- * recovery rule, the "unused address" check, `Email change pending`, the
- * disabled old path — belongs to `startOperatorEmailRehome` and is not repeated,
- * weakened or anticipated here.
- */
-
-// ---------------------------------------------------------------------------
-// The shared pieces
-// ---------------------------------------------------------------------------
+// Administration's server actions — LAN-133, `WP-surfaces`. Thin adapters:
+// read the form, call one service, turn a ServiceError into a sentence. Each
+// opens with requireCapability("role_management") against the verified
+// session; the target-aware question is asked inside the service, never
+// here. A refusal comes back in `refusal` on the action state, never thrown
+// (a server action rethrow reaches the framework, not a refusal screen).
+// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 
 const ADMINISTRATION_CAPABILITY = "role_management" as const;
 
@@ -89,15 +44,7 @@ function optional(formData: FormData, field: string): string | undefined {
   return value === "" ? undefined : value;
 }
 
-/**
- * A service failure the operator can act on, or a refusal the club's rules make.
- *
- * Both come back as state; neither escapes as an exception. A refusal used to be
- * rethrown, which reached the operator as a Next.js error page — see the note on
- * `refusal` in `./action-state`. Anything that is not a service error still
- * throws, because an unexpected fault is not something to render beside a
- * button.
- */
+/** A service failure or refusal, both returned as state — never thrown (except an unexpected fault). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
 function failure(error: unknown): AdminActionState {
   if (!isServiceError(error)) throw error;
   if (error.kind === "not_permitted") {
@@ -110,14 +57,7 @@ function done(notice: string): AdminActionState {
   return { error: null, notice, candidates: null, refusal: null };
 }
 
-/**
- * The absolute URL an emailed link comes back to.
- *
- * `null` means this deployment has no trusted origin to build one from, and
- * both services refuse rather than sending a link that lands nowhere. The
- * refusal is theirs; this only supplies the empty string that triggers it, so
- * that the sentence the operator reads is the service's own.
- */
+/** The absolute URL an emailed link comes back to; empty triggers the service's own refusal. */
 async function callbackUrls(): Promise<{ invitation: string; recovery: string }> {
   const requestHeaders = await headers();
   const forwardedHost = requestHeaders.get("x-forwarded-host");
@@ -135,8 +75,7 @@ async function callbackUrls(): Promise<{ invitation: string; recovery: string }>
 function refreshOperator(operatorAccountId: string): void {
   revalidatePath("/operate/admin/operators");
   revalidatePath(`/operate/admin/operators/${operatorAccountId}`);
-  // A role's holder list carries the holder's access state, so an account
-  // change changes what role detail says as well.
+  // Role detail shows the holder's access state too.
   revalidatePath("/operate/admin/roles");
 }
 
@@ -157,19 +96,7 @@ function deliveryNotice(
     : "The record is saved, but the email could not be delivered. Check the address and send it again.";
 }
 
-// ---------------------------------------------------------------------------
-// The duplicate check
-// ---------------------------------------------------------------------------
-
-/**
- * Who this might already be — `REQ-invite-existing-person`'s first step, and the
- * successor picker for an assignment or a replacement.
- *
- * The search matches exactly rather than by prefix, which is
- * `findOperatorCandidates`' rule and not this screen's: a duplicate check that
- * matched loosely would disclose the club's contact details to anybody who
- * typed a letter. An empty result is a real answer and is rendered as one.
- */
+/** Who this might already be — `REQ-invite-existing-person`'s first step. Matches exactly, never by prefix. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
 export async function searchCandidatesAction(
   _previous: AdminActionState,
   formData: FormData,
@@ -204,23 +131,7 @@ export async function searchCandidatesAction(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Invitation
-// ---------------------------------------------------------------------------
-
-/**
- * One guided invitation — `REQ-invite-existing-person`.
- *
- * `personId` present means the administrator chose an existing Person from the
- * duplicate check; absent means they are creating one, and the service requires
- * a first and last name for that case. The operating year is not a field: the
- * active context is inherited (`DEC-active-operating-year`, "forms do not ask
- * for or repeat the year"), and no code path here can name another.
- *
- * On success it redirects to the new operator's record, which is where the
- * delivery result, the resend control and the audit history are. `redirect()`
- * throws, so it sits outside the `try`.
- */
+/** One guided invitation — `REQ-invite-existing-person`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
 export async function inviteOperatorAction(
   _previous: AdminActionState,
   formData: FormData,
@@ -316,10 +227,6 @@ export async function correctInvitationAction(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Account state
-// ---------------------------------------------------------------------------
-
 /** Stop this operator signing in. The reason is required. */
 export async function deactivateOperatorAction(
   _previous: AdminActionState,
@@ -395,17 +302,7 @@ export async function startEmailRehomeAction(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Roles
-// ---------------------------------------------------------------------------
-
-/**
- * Give somebody a seat — `REQ-effective-dated-role-history`.
- *
- * The start date defaults to today when the field is left blank, which is the
- * service's rule; a date in the past is audited backdating and the service
- * requires a reason for it. Neither is anticipated here.
- */
+/** Give somebody a seat — `REQ-effective-dated-role-history`. Backdating rules live in the service. */
 export async function assignRoleAction(
   _previous: AdminActionState,
   formData: FormData,

@@ -1,10 +1,4 @@
-/**
- * The comparable fields — every durable person fact but the contact points,
- * which compare separately (there can be more than one kind). LAN-185,
- * `REQ-merge`, invariant I6, `Q-5`. LAN-256: a choice is required whenever
- * the two sides disagree, in either direction — never assumed as the
- * survivor's.
- */
+// The comparable fields — every durable person fact but contact points. LAN-185, LAN-256, missions/intake/M-PEOPLE-AND-ROSTER
 
 export type MergePersonField =
   | "given_name"
@@ -37,18 +31,5 @@ export const MERGE_CONTACT_KIND_LABELS: Readonly<Record<MergeContactKind, string
 
 export type MergeChoice = "survivor" | "loser";
 
-/**
- * Every field an operator may choose per-side for.
- *
- * LAN-256: undeclared no longer means "keep the survivor's own value" on a row
- * where the two records disagree. It used to, and the comparison screen
- * pre-selected the survivor on every row to match, so a merge submitted
- * without touching a single radio silently kept the survivor's *blank* last
- * name, college, matriculation year, expected graduation, degree field, date
- * of birth and emergency contact over the loser's complete ones. A row where
- * both sides hold the same value still needs no declaration — there is
- * nothing to choose between — and `mergePersons` refuses a merge that leaves
- * any disagreeing row unanswered.
- */
 export type MergeFieldChoices = Partial<Record<MergePersonField, MergeChoice>> &
   Partial<Record<MergeContactKind, MergeChoice>>;

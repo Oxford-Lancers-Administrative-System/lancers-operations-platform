@@ -4,23 +4,11 @@ import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "../audit";
 import { actorRequirement, closeCurrentRow, currentDateOf } from "./shared";
 
-/**
- * The roster board's position columns — LAN-186. Special-teams reading and
- * the vocabulary invariant are in `relocations.md` (source: `roster-board.ts`
- * module header, decisions 1-2).
- * Decision history: docs/ux/tickets/LAN-186-roster-board.md.
- */
+/** The roster board's position columns — LAN-186. Decision history: docs/ux/tickets/LAN-186-roster-board.md */
 
 export type PositionColumn = "offence" | "defence" | "specialTeams";
 
-/**
- * `KO → kickoff, KR → kick_return, PUNT → punt, FG → field_goal` — LAN-186's
- * own words, not this module's invention. The club's special-teams codes are
- * unchanged between `VOCAB_2023` and `VOCAB_2026` (LAN-190), so this mapping is
- * stable across the one vocabulary change the club has made; a future
- * vocabulary that renamed them would need this table updated alongside it,
- * exactly as it would need the issue's own prose updated.
- */
+/** `KO → kickoff, KR → kick_return, PUNT → punt, FG → field_goal` — LAN-186, stable across `VOCAB_2023`/`VOCAB_2026` (LAN-190). */
 const SPECIAL_TEAMS_SLOT_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
   KO: "kickoff",
   KR: "kick_return",
@@ -59,11 +47,7 @@ const POSITION_COLUMN_SIDE: Readonly<
   specialTeams: "special_teams",
 });
 
-/**
- * Sets — or clears — the one position this board column holds, superseding
- * whatever was there rather than adding a second row or deleting the first
- * (invariant S4). See `relocations.md` for the special-teams reading.
- */
+/** Sets — or clears — the one position this board column holds, superseding whatever was there (invariant S4). */
 export async function commitPosition(params: {
   actorPersonId: string;
   membershipId: string;

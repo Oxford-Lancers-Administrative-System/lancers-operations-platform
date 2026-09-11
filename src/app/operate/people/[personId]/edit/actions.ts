@@ -26,37 +26,12 @@ import {
   type EditState,
 } from "./edit-state";
 
-/**
- * `/operate/people/[personId]/edit`'s one server action — W2, LAN-185.
- * `requireCapability("person_record_authority")` first, itself, the same
- * posture every action under this package states.
- *
- * ## Why every field is one submission
- *
- * The mockup draws one page and one Save. This action re-reads the current
- * record fresh (never trusting a hidden "previous value" the client could
- * carry stale or tampered) and writes only the fields that actually differ,
- * each through `person-write.ts`'s own function — the ordinary correction
- * path, unchanged. A field left untouched is never written.
- *
- * ## The concurrency check runs once, first
- *
- * `assertNoConcurrentPersonChange` (inside `person-write.ts`) is checked
- * against the version the form loaded with, on the *first* write this
- * submission makes. Every later write in the same submission omits it — by
- * then this submission's own earlier write has legitimately moved the
- * version, and checking again would refuse a save against itself.
- *
- * ## Mobile is one inline field, not a second screen (B3, correction round 2)
- *
- * The normalised preview and the WhatsApp-seam warning render inline in
- * `edit-person-form.tsx` as the operator types — both `validatePhoneNumber`
- * and `describeWhatsappSeamConsequence` are pure and client-safe by design
- * (their own module notes say so). This action re-validates and re-normalises
- * server-side regardless, the same posture `person-validation.ts` states for
- * why a client check never substitutes for the one here, and commits the
- * change in the same single submission as every other field.
- */
+// The record's one server action — W2, LAN-185. One submission for every
+// field: re-reads the record fresh, writes only what differs. The
+// concurrency check runs once, on the first write — later writes in the
+// same submission omit it, since that write already moved the version.
+// Mobile validates/normalises server-side too (B3 round 2), even though the
+// preview is inline and client-safe. Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
 export async function submitPersonEdit(
   previous: EditState,
   formData: FormData,
@@ -81,7 +56,6 @@ export async function submitPersonEdit(
     return expectedVersion;
   }
 
-  // ---- Mobile: validated and normalised in the same submission -----------
   const mobileChanged = values.mobile.trim() !== (currentMobile(current)?.rawValue ?? "");
   if (mobileChanged && values.mobile.trim() !== "") {
     const validation = validatePhoneNumber(values.mobile);
@@ -90,14 +64,9 @@ export async function submitPersonEdit(
     errors.mobile = "A mobile number cannot be cleared here — supersede it with a new one instead.";
   }
 
-  // ---- College email: the Oxford rule, before any write -------------------
-  // LAN-268, Brian 2026-09-09. The operator's edit form "refuses the same way"
-  // as the two recruitment doors and the player questionnaire, "before any
-  // write, naming the rule. No override." Asked of the one validator, in the
-  // same per-field shape the mobile above already uses. Clearing a college
-  // email stays a legitimate correction — a person may genuinely have none,
-  // and the missing-data queue is where that is chased — so only a supplied
-  // value is checked.
+  // College email: LAN-268, Brian 2026-09-09 — refuses before any write,
+  // naming the rule, no override. Clearing stays legitimate (only a
+  // supplied value is checked). Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
   const collegeEmailChanged =
     values.collegeEmail.trim() !== (currentEmail(current, "college")?.rawValue ?? "");
   if (collegeEmailChanged && values.collegeEmail.trim() !== "") {
@@ -105,22 +74,15 @@ export async function submitPersonEdit(
     if (!validation.valid) errors.collegeEmail = validation.message;
   }
 
-  // ---- Date of birth: named here, before any write ------------------------
-  // LAN-258 (walker M5, finding M5-03). The write used to reach
-  // `people_date_of_birth_in_the_past` and come back as "The database refused
-  // this change because it breaks one of the club's recorded rules. Nothing
-  // was saved." — true, and useless: neither the field nor the rule was ever
-  // named. `LAN-185`'s own contract asks for validation "per field, naming the
-  // rule, before any write", which is what the mobile field above already
-  // does, from the same module and in the same shape. Clearing a date of birth
-  // stays a legitimate correction and is not validated.
+  // Date of birth: LAN-258 (walker M5-03) — the raw database refusal named
+  // neither field nor rule; validated per field, before any write.
+  // Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
   const dateOfBirthChanged = values.dateOfBirth.trim() !== (current.dateOfBirth ?? "");
   if (dateOfBirthChanged && values.dateOfBirth.trim() !== "") {
     const validation = validateDateOfBirth(values.dateOfBirth);
     if (!validation.valid) errors.dateOfBirth = validation.message;
   }
 
-  // ---- Every other field, only where it changed -----------------------
   if (Object.keys(errors).length === 0) {
     if (values.givenName.trim() === "") errors.givenName = "Every person needs a first name.";
   }
@@ -227,8 +189,6 @@ export async function submitPersonEdit(
         expectedVersion: nextExpectedVersion(),
       });
     }
-    // LAN-267. Both are ordinary person fields on this form: filled without a
-    // reason, corrected with one, audited the same way as college or degree.
     if (values.studentNumber.trim() !== (current.studentNumber ?? "")) {
       await updatePersonField({
         actorPersonId: operator.personId,
@@ -342,12 +302,7 @@ export async function submitPersonEdit(
   redirect(`/operate/people/${personId}`);
 }
 
-/**
- * `person-write.ts` refuses "email already belongs to another person" with
- * only a rule and a sentence — `DatabaseErrorContext` deliberately carries no
- * row value. This asks the same duplicate check W3 uses to resolve the
- * other person's id, so the "Compare with …" handoff has somewhere to go.
- */
+/** Resolves the other person's id via W3's duplicate check, for the "Compare with…" handoff. Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md. */
 async function resolveEmailConflict(
   error: unknown,
   email: string,
@@ -399,19 +354,9 @@ function safeMessage(error: unknown): string {
   return isServiceError(error) ? error.message : GENERIC_FAILURE;
 }
 
-// ---------------------------------------------------------------------------
-// Aliases — three small actions, called from the Aliases field.
-//
-// HTML forbids a nested `<form>`, so each lives on its own submit button's
-// `formAction` inside the record's one outer form, bound with `personId` (and
-// an alias id, for remove/setDisplay) via `.bind`. React overrides a submit
-// button's own `name`/`value` the moment `formAction` is a function — "React
-// needs it to encode which action should be invoked" — so the alias id
-// cannot travel as a button's name/value the way `/operate/people/new`'s
-// candidate rows carry theirs; it has to be bound into the action itself
-// instead. Every one of these redirects back to this same page, so a click
-// here never also submits the record's other fields.
-// ---------------------------------------------------------------------------
+// Aliases — three small actions, each on its own submit button's formAction
+// (HTML forbids a nested form), bound with personId/aliasId via .bind since
+// React overrides a formAction button's own name/value. Decision history: docs/ux/tickets/LAN-185-person-write.md · missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
 
 export async function submitRemoveAlias(personId: string, aliasId: string): Promise<void> {
   const operator = await requireCapability("person_record_authority");

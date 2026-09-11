@@ -3,72 +3,29 @@ import "server-only";
 import { NotFound, withTransaction, type Tx } from "@/lib/db";
 import type { TermWindow } from "./event-input";
 
-/**
- * The season and term aggregate — the scheduling clocks an event hangs off.
- *
- * Two tables, one module, because model §1.1 makes them one question and not
- * two: "which season are we operating?" and "which term coordinate is this
- * date in?" are asked together by every screen that records an event, and the
- * schema deliberately has **no** foreign key between them. Splitting them into
- * two modules would suggest a relationship the club does not have.
- *
- * Nothing here writes. Opening and closing a season is an operator action the
- * frozen model gives to the President or Secretary, and no issue in this slice
- * builds it.
- */
+/** The season and term aggregate. One module, model §1.1: no foreign key between the two tables. Nothing here writes. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
 
-/** A season, as the interface needs it. */
 export interface Season {
   id: string;
   label: string;
   status: string;
-  /**
-   * `YYYY-MM-DD`. The season's window opens in the Long Vacation before
-   * Michaelmas, at the AGM (Brian, 17 August 2026).
-   *
-   * Read since LAN-153, because the Oxford View has to know which academic year
-   * the club is operating when today falls outside every term — a calendar
-   * opened in the middle of the Christmas vacation would otherwise have nothing
-   * to anchor on. Nullable because the column is.
-   */
+  /** `YYYY-MM-DD`. Read since LAN-153 so the Oxford View has an anchor outside every term. Nullable because the column is. */
   startsOn: string | null;
-  /**
-   * `YYYY-MM-DD`, or `null` while the season is still open-ended.
-   *
-   * Bounds the trailing Long Vacation on the Oxford View. When it is null the
-   * column runs as far as the club's own records reach; see
-   * `@/lib/services/oxford-year`.
-   */
+  /** `YYYY-MM-DD`, or `null` while open-ended. Bounds the trailing Long Vacation on the Oxford View — see `oxford-year.ts`. */
   endsOn: string | null;
 }
 
-/** A term instance — a scheduling coordinate, never a season boundary. */
 export interface Term {
   id: string;
   name: string;
   academicYear: string;
   startsOn: string;
   endsOn: string;
-  /** Michaelmas runs from week −1; Hilary and Trinity from 0th. */
   firstWeek: number;
   lastWeek: number;
 }
 
-/**
- * The statuses a season is being *operated* in, in the order they occur.
- *
- * `planning` is excluded because the season has not started — recording this
- * week's practice against next year is a data error nobody would notice.
- * `archived` is excluded because it is over. Both exclusions are what make the
- * answer refusable: a club with no open season gets a refusal naming the
- * problem, not last year's events.
- *
- * This reading of "current season" is a lead decision on LAN-76, recorded in
- * the pull request. `seasons.status` carries no "is current" flag and the
- * frozen model gives none, so somebody has to say what current means; the
- * alternative — picking the newest row whatever its status — would silently
- * operate an archived season.
- */
+/** Statuses a season is *operated* in, in order. `planning`/`archived` excluded (LAN-76's lead decision on what "current" means). */
 export const OPERATING_SEASON_STATUSES: readonly string[] = Object.freeze([
   "open",
   "active",
@@ -79,21 +36,7 @@ export const NO_CURRENT_SEASON_MESSAGE =
   "There is no season currently open. A season has to be opened before events can be " +
   "recorded against it.";
 
-/**
- * `NotFound.rule` for {@link NO_CURRENT_SEASON_MESSAGE} — exported so a caller
- * can identify exactly this refusal rather than any other `NotFound`.
- *
- * LAN-158, R158-B1: `/calendar/feed.ics` used to treat every `ServiceError` as
- * this case, which also swallowed a real database outage
- * (`UnexpectedDatabaseError`) and answered it with a fabricated empty,
- * publicly cached calendar. A caller that imports this constant instead of
- * restating the string — as `src/app/calendar/feed.ics/route.ts` now does —
- * cannot drift from what this module actually throws, which a hand-typed
- * literal already had once (a sibling module's own unrelated
- * `"no_open_season"` rule was typed here by mistake and passed every test,
- * because the route being corrected caught the whole `ServiceError` supertype
- * regardless of which rule fired).
- */
+/** `NotFound.rule` for {@link NO_CURRENT_SEASON_MESSAGE} — exported so a caller can identify exactly this refusal (LAN-158, R158-B1). */
 export const NO_CURRENT_SEASON_RULE = "no_current_season";
 
 interface SeasonRow {
@@ -104,18 +47,11 @@ interface SeasonRow {
   ends_on: Date | string | null;
 }
 
-/**
- * The season the club is operating, or `NotFound`.
- *
- * Ordered by `starts_on` so that a club which has opened next season before
- * closing this one — legal, and the normal state of affairs in September —
- * operates the newer of the two rather than an arbitrary row.
- */
+/** The season the club is operating, or `NotFound`. Ordered by `starts_on` so an already-opened next season wins over the closing one. */
 export async function readCurrentSeason(): Promise<Season> {
   return withTransaction(async (tx) => readCurrentSeasonIn(tx));
 }
 
-/** The same read, inside a caller's transaction. */
 export async function readCurrentSeasonIn(tx: Tx): Promise<Season> {
   const result = await tx.query<SeasonRow>(
     `select id, label, status, starts_on, ends_on
@@ -140,14 +76,7 @@ export async function readCurrentSeasonIn(tx: Tx): Promise<Season> {
   };
 }
 
-/**
- * A season's own label, by id — `null` when the id no longer resolves.
- *
- * Deliberately not `readSeasonIn`'s full shape: every caller so far (LAN-202's
- * opt-out page, naming the season it is stopping messages for) needs one
- * string, and reading `status`/`starts_on`/`ends_on` it never displays would
- * be a second, unused read on a public, unauthenticated page.
- */
+/** A season's own label, by id — `null` when unresolved. Deliberately not the full shape: LAN-202's opt-out page needs only the string. */
 export async function readSeasonLabelIn(tx: Tx, seasonId: string): Promise<string | null> {
   const result = await tx.query<{ label: string }>(
     `select label from public.seasons where id = $1::uuid`,
@@ -166,7 +95,6 @@ interface TermRow {
   last_week: number;
 }
 
-/** A `date` column as `YYYY-MM-DD`, whatever the driver handed back. */
 function asDate(value: Date | string): string {
   if (typeof value === "string") return value.slice(0, 10);
   const year = value.getFullYear();
@@ -175,25 +103,12 @@ function asDate(value: Date | string): string {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * Every term instance, newest first.
- *
- * Not filtered by season — there is no foreign key to filter on, and a term
- * that has just ended is still the right coordinate for an event being
- * recorded late. The interface orders the choice; it does not narrow it.
- */
+/** Every term instance, newest first. Not filtered by season — no foreign key, and a just-ended term is still a valid coordinate for a late-recorded event. */
 export async function listTerms(): Promise<Term[]> {
   return withTransaction(async (tx) => listTermsIn(tx));
 }
 
-/**
- * The same terms, in the shape `deriveTermCoordinate` needs.
- *
- * The event form and the event service both derive the Oxford coordinate from
- * a date, and both need the calendar to do it with. This is that calendar, and
- * it is the shape the derivation takes rather than the shape the terms table
- * has, so the pure function has no opinion about the database.
- */
+/** The same terms, in the shape `deriveTermCoordinate` needs — so that pure function has no opinion about the database. */
 export async function listTermWindows(): Promise<TermWindow[]> {
   const terms = await listTerms();
   return terms.map((term) => ({
@@ -207,7 +122,6 @@ export async function listTermWindows(): Promise<TermWindow[]> {
   }));
 }
 
-/** The same read, inside a caller's transaction. */
 async function listTermsIn(tx: Tx): Promise<Term[]> {
   const result = await tx.query<TermRow>(
     `select id, name::text as name, academic_year, starts_on, ends_on, first_week, last_week

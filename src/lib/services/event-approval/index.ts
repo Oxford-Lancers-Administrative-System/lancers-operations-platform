@@ -1,5 +1,3 @@
-/** Proposing an audience, and approving the event — LAN-77. */
-
 export type { AudienceMember, UnreachableAudienceMember } from "./shared";
 export { missingForApproval, describeMissingForApproval } from "./shared";
 

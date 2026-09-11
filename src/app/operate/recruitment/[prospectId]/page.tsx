@@ -8,11 +8,7 @@ import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import RecruitmentRecordView from "./record-view";
 
-/**
- * `/operate/recruitment/[prospectId]` — `W2`, LAN-204. One recruit's record,
- * on the shipped player record's own banded-card shell (`../roster/[membershipId]`,
- * LAN-187), gated on the same four-office `person_record_authority`.
- */
+// `/operate/recruitment/[prospectId]` — `W2`, LAN-204, on ../roster/[membershipId]'s shell (LAN-187).
 export default async function RecruitmentRecordPage({
   params,
 }: PageProps<"/operate/recruitment/[prospectId]">) {

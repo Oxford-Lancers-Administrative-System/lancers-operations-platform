@@ -36,71 +36,11 @@ import {
 } from "./participation-view";
 
 /**
- * The participation table and its three tiers — W7, REQ-participation-table,
- * REQ-club-link, REQ-three-tiers. LAN-157.
- *
- * ## The question this module answers
- *
- * *Who was asked, what did they say, and did they come?* One row per person,
- * carrying the invitation, the answer, the reason behind a no, the attendance
- * and one column per event question — plus, at the operator tier and nowhere
- * else, whether the invitation reached them (D3, D65).
- *
- * ## Authorisation is here, not on the route
- *
- * REQ-three-tiers says so in as many words, and the reason is that a route is
- * a URL somebody can type. There are exactly three entry points below and each
- * one resolves its own actor:
- *
- *   * `readOperatorParticipation` resolves the operator from the verified
- *     session — `requireGeneralOperator()`, which is the floor with the narrow
- *     coaching assignment removed (LAN-110). It takes no actor argument.
- *   * `readClubLinkParticipation` resolves the **token**, and takes no session
- *     at all. It cannot return an operator payload: the type it returns has no
- *     delivery field and no joining URL.
- *   * there is no third. The public tier reads events through
- *     `./events.ts` and never reaches this module, which is what makes "a
- *     public request reaches no person, no answer and no attendance record"
- *     true by construction rather than by a filter somebody has to remember.
- *
- * ## The two payloads are built by two queries, not one query and a filter
- *
- * `PARTICIPANT_QUERY` is assembled per tier, and the club-link tier's version
- * **does not select delivery at all** — no lateral join to `notification_jobs`,
- * no state expression, no column. The event facts are the same story: the
- * club-link shape has no `joiningUrl` key for a value to be assigned to.
- *
- * A column that is never selected cannot reach a payload. A column selected
- * and then deleted in TypeScript is one refactor from the DOM, and this is the
- * mission's most sensitive surface.
- *
- * **And the types are not what enforce it — R157-B5.** The two payload shapes
- * stop a component printing a column it does not hold, which is worth having.
- * They do not stop *this* file widening the tier: TypeScript's excess-property
- * check applies to fresh object literals, and freshness is lost through the
- * `.map()` in `buildClubLinkParticipationIn`, so adding
- * `delivery: person.delivery` there type-checks and ships. The query above and
- * the field-by-field reassembly below are the boundary; the payload assertions
- * in `./participation.test.ts` are the proof, and are the only thing that
- * fails when somebody widens the literal.
- *
- * ## What this module does not do
- *
- * **Write anything about attendance or RSVP.** It reads two authoritative
- * records and marks where they disagree; `discrepancyFor` is a pure function
- * of the pair and there is no path from here to `attendance_records` or
- * `rsvp_responses`. D64's "never auto-reconciled" is therefore structural.
- *
- * **Take the register.** That is Task 04's, on Task 04's surface, and the
- * buffer that opens it is `./attendance-window.ts`'s.
- *
- * **Show delivery detail.** The operator tier carries the five-state column and
- * a link out to the delivery screen; the diagnostics behind it are Mission 4's.
+ * The participation table and its three tiers — W7, REQ-three-tiers, LAN-157.
+ * One row per person: invitation, answer, attendance, question answers, plus
+ * (operator tier only) delivery state. Each entry point resolves its own actor.
+ * Decision history: LAN-157, missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
-
-// ---------------------------------------------------------------------------
-// Reading
-// ---------------------------------------------------------------------------
 
 interface PersonRow {
   invitation_id: string | null;
@@ -120,32 +60,10 @@ interface PersonRow {
 }
 
 /**
- * The delivery column, at the operator tier only.
- *
- * A lateral over the invitation's most recent job rather than a plain join:
- * `notification_jobs` has no unique constraint on `invitation_id`, and a second
- * job for one invitee — a reissue, a second channel — would otherwise duplicate
- * that person's row in the table. `j.idempotency_key not like` excludes W6's
- * automatic email-fallback shadow job for the same reason — it is not a second
- * channel this person was invited on, it is the same message one channel over.
- *
- * The `j.id is null` guard is load-bearing. `DELIVERY_STATE_EXPRESSION` ends in
- * `else 'failed'`, which is right for a job and very wrong for the absence of
- * one: without it, every invitee nobody has queued anything for would read
- * **Failed**.
- *
- * `channel`, `failure_reason` and the fallback's own status travel alongside
- * `state` for W4's two named exceptions to the plain vocabulary — **Not
- * dispatched — no channel** and **WhatsApp unresponsive** — which `presentation.ts`
- * derives from exactly these facts rather than from a sixth and seventh state
- * invented for this table alone.
- *
- * OWNER-LAN173-06 (correction round 2): "most recent job" used to mean
- * `order by created_at desc` alone, which has no tiebreaker for the tied
- * `created_at`s a whole ladder shares in real use — see
- * `NOTIFICATION_JOB_RECENCY_ORDER` in `./delivery.ts` for the full account of
- * why, and why it was invisible until a held reminder made two tied jobs
- * disagree about the delivery state.
+ * The delivery column, operator tier only — a lateral over the most recent
+ * job (`notification_jobs` has no unique constraint on `invitation_id`).
+ * `j.id is null` guard keeps a never-queued invitee from reading as Failed.
+ * Decision history: LAN-173, missions/intake/M-PEOPLE-AND-ROSTER
  */
 const DELIVERY_LATERAL = `
   left join lateral (
@@ -164,19 +82,7 @@ const DELIVERY_LATERAL = `
      limit 1
   ) delivery on true`;
 
-/**
- * Every invitee and every walk-up, in one list — the same `full outer join`
- * `./attendance.ts` uses, and for the same reason: the people who appear on one
- * side and not the other are the point of the screen.
- *
- * Both sides carry an `anchor_id` because invariant P8 puts the anchor in one
- * of two columns and PostgreSQL will not accept a disjunction of equalities as
- * a `full outer join` condition. See `./attendance.ts` for the long version.
- *
- * Deliberately **not** gated on the register window. The board asks "may this
- * be opened?" and answers no for an event a fortnight away; this table answers
- * "who is coming?", which is exactly the question a fortnight out.
- */
+/** Every invitee and walk-up, one list, via the same `full outer join` as `./attendance.ts` (invariant P8). Not gated on the register window. */
 function participantQuery(tier: ParticipationTier): string {
   const operator = tier === "operator";
   return `
@@ -249,15 +155,7 @@ interface AnswerRow {
   answer_choice: string | null;
 }
 
-/**
- * One stored answer, as the table prints it.
- *
- * `question_responses` holds exactly one of three columns per row — the check
- * constraint enforces it — so this reads whichever is set. A boolean question
- * is the dominant real case ("Transport to Cambridge?") and reads **Yes** or
- * **No**, which is what the answer means; printing `true` would be printing the
- * storage.
- */
+/** One stored answer, as the table prints it — reads whichever of the three columns the check constraint left set; a boolean prints Yes/No, not `true`. */
 function answerText(row: AnswerRow): string {
   if (row.answer_boolean !== null) return row.answer_boolean ? "Yes" : "No";
   if (row.answer_choice !== null) return row.answer_choice;
@@ -289,26 +187,14 @@ async function readQuestionsIn(tx: Tx, eventId: string): Promise<ParticipationQu
     answerType: row.answer_type,
     sortOrder: row.sort_order,
     appliesToCapacities: row.applies_to_capacities,
-    // Present only for a `choice` question — the constraint the table already
-    // carries (`event_questions_choices_match_type`) makes `null` here mean
-    // exactly what it means in storage, never "not read yet".
+    // choices: null means unset in storage, not "not read yet" (event_questions_choices_match_type).
     choices: row.choices,
-    // OWNER-LAN170-08: required of the player, never of the operator
-    // recording it — `RecordAnswerControl` reads this to word the field so
-    // that fact is never misstated as "optional for the player" either.
+    // isRequired: of the player, never the operator recording it. LAN-170.
     isRequired: row.is_required,
   }));
 }
 
-/**
- * The three headline numbers, for whichever tier is reading.
- *
- * The same five counts `readEventAttendanceSummary` computes, in this
- * transaction rather than a second one — UX standard 7 is about two surfaces
- * agreeing, and the surest way is one SQL definition. `attendance.test.ts`
- * already pins that definition to `summariseAttendance` over the board's rows;
- * `participation.test.ts` pins this reader to the same function.
- */
+/** The three headline numbers. Same counts as `readEventAttendanceSummary`, one SQL definition (UX standard 7); pinned by `participation.test.ts` and `attendance.test.ts`. */
 async function readHeadlineIn(tx: Tx, eventId: string): Promise<ParticipationHeadline> {
   const result = await tx.query<{
     invited: string;
@@ -353,12 +239,7 @@ interface ChaseJobRow {
   scheduled_for: Date | null;
 }
 
-/**
- * Every invitation/reminder/escalation job for this event, one invitation's
- * worth to a key — W4's raw material for `chasePositionLabel`. The fallback
- * shadow job is excluded for the identical reason `DELIVERY_LATERAL` excludes
- * it: it is not a rung of the ladder, it is the same message one channel over.
- */
+/** Every invitation/reminder/escalation job, keyed by invitation — W4's raw material for `chasePositionLabel`. Fallback shadow job excluded, as in `DELIVERY_LATERAL`. */
 async function readChaseJobsIn(tx: Tx, eventId: string): Promise<Map<string, ChaseJobFact[]>> {
   const rows = await tx.query<ChaseJobRow>(
     `select invitation_id, job_type::text as job_type, channel::text as channel,
@@ -386,19 +267,7 @@ async function readChaseJobsIn(tx: Tx, eventId: string): Promise<Map<string, Cha
   return byInvitation;
 }
 
-/**
- * Invitations with an unresolved escalation flag — W5's raised threshold —
- * each mapped to its own event's escalation job status, or `null` where none
- * exists yet (the office was vacant when the threshold was crossed).
- *
- * F-B1, mechanism 4. `chasePositionLabel` cannot read this from
- * `ChaseJobFact[]`: an escalation job is addressed to the office about the
- * *event*, so it is keyed to `event_id`/`person_id`, never to
- * `invitation_id`, and `readChaseJobsIn` above — like `notification_jobs`
- * itself — can never join it in. `nonresponse_flags.escalation_job_id` is the
- * only link from one flagged invitation to the one escalation raised for its
- * event, which is what this reads instead.
- */
+/** Invitations with an unresolved escalation flag (W5), mapped to that event's escalation job status (F-B1, mechanism 4; keyed via `nonresponse_flags.escalation_job_id`). */
 async function readEscalationStatusByInvitationIn(
   tx: Tx,
   eventId: string,
@@ -454,9 +323,7 @@ async function readPeopleIn(
       : null;
     const isWalkUp = row.invitation_id === null;
 
-    // W6, `REQ-no-channel-backstop`. The one delivery state that is a roster
-    // fix rather than a retry — see `DELIVERY_LATERAL`'s doc comment for why
-    // this is read from the failure reason rather than a sixth job state.
+    // W6, REQ-no-channel-backstop: a roster fix, not a retry.
     const noUsableRoute =
       row.delivery_state === "failed" &&
       (row.delivery_failure_reason === NO_USABLE_NUMBER_REASON ||
@@ -466,10 +333,7 @@ async function readPeopleIn(
       row.delivery_state === "failed" &&
       row.delivery_fallback_status === "completed";
 
-    // W4's exceptions table: nothing here to chase for a walk-up, and nothing
-    // to chase for somebody the club has never reached at all — a pending
-    // reminder rung existing on its own schedule would otherwise read as
-    // "chasing" a person no message has ever got to.
+    // W4's exceptions: nothing to chase for a walk-up or an unreached person.
     const chaseResponseState =
       answer === "yes" ? "responded_yes" : answer === "no" ? "responded_no" : "awaiting_response";
     const chasePosition =
@@ -489,14 +353,10 @@ async function readPeopleIn(
       capacity: row.capacity,
       isWalkUp,
       invitedAt: asIsoString(row.issued_at),
-      // LAN-170: the invitation to record an answer against. `null` for a
-      // walk-up, who was never invited and has nothing `RecordAnswerControl`
-      // could write to.
+      // LAN-170: null for a walk-up, who has nothing to record an answer against.
       invitationId: row.invitation_id,
       answer,
-      // Invariant P3 makes a reason mandatory on a "no", so a reason attached
-      // to anything else is a stored value that no longer describes the
-      // standing answer. It is not shown against a Yes.
+      // Invariant P3: reason is mandatory on a "no" only, so never shown against a Yes.
       reason: answer === "no" ? row.reason : null,
       presence,
       discrepancy: discrepancyFor({ answer, presence, isWalkUp }),
@@ -534,28 +394,13 @@ async function readEventFactsIn(tx: Tx, eventId: string) {
   };
 }
 
-/**
- * The operator's participation table — every column, delivery included.
- *
- * The floor is `requireGeneralOperator()` rather than a capability, and that is
- * a decision worth stating: reading who is coming to an event is not gated on
- * being able to change the event, so an operator who can open the event page at
- * all can read its table. What the floor does remove is LAN-110's narrow
- * coaching assignment, whose one operator surface is the register — a coach
- * reads this table through the club link, which is why the tier exists.
- */
+/** The operator's participation table — every column, delivery included. Floor is `requireGeneralOperator()`, not a capability; a coach reads it via the club link instead (LAN-110). */
 export async function readOperatorParticipation(eventId: string): Promise<OperatorParticipation> {
   await requireGeneralOperator();
   return withTransaction((tx) => buildOperatorParticipationIn(tx, eventId));
 }
 
-/**
- * The operator payload, without the guard.
- *
- * Exported so the suite can assert what the two tiers carry without staging a
- * session — and so the guard above has exactly one job, which a second test
- * asserts on its own by making it throw.
- */
+/** The operator payload, without the guard — exported so tests can assert tier shape without staging a session. */
 export async function buildOperatorParticipationIn(
   tx: Tx,
   eventId: string,
@@ -583,8 +428,7 @@ export async function buildClubLinkParticipationIn(
   const people = await readPeopleIn(tx, eventId, "club_link", questions);
   const headline = await readHeadlineIn(tx, eventId);
 
-  // Assembled field by field rather than spread from the operator row, so that
-  // adding a column to `PersonRow` cannot silently widen this tier.
+  // Field by field, not spread, so a new `PersonRow` column can't silently widen this tier.
   const visible: ParticipationPerson[] = people.map((person) => ({
     key: person.key,
     displayName: person.displayName,
@@ -607,39 +451,15 @@ export type ClubLinkPage =
   | { readonly state: "unavailable" };
 
 /**
- * The club-link tier — W7, D2, D81.
- *
- * No session is consulted, and none is needed: the signed token is the
- * authorisation, exactly as it is on the RSVP page. The three internal
- * resolutions stay distinct inside `./club-link.ts` for logs and tests and are
- * collapsed to one `unavailable` here, so a stranger cannot learn which of them
- * they are holding.
- *
- * A **draft** event resolves to `unavailable` even with a live token. A draft
- * carries no invitations (invariant P1), so there is nothing to show — and a
- * link issued against an approved event that was later returned to draft must
- * not keep opening.
+ * The club-link tier — W7, D2, D81. Signed token is the authorisation, no
+ * session. Draft events also resolve `unavailable` (invariant P1).
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export async function readClubLinkParticipation(
   token: string,
   options: { env?: EnvSource } = {},
 ): Promise<ClubLinkPage> {
-  // W157-R1 split resolution from the stamp so that concurrent readers of one
-  // link never queued on that link's row: stamping inside this transaction made
-  // every reader take the row lock and hold it, with its pooled connection,
-  // until the participation read committed. Forty simultaneous readers of one
-  // token filled the pool with waiters and were served Next's own error page.
-  //
-  // LAN-269 then took the second phase out of this function altogether. This is
-  // a `GET`, and a `GET` of a club link is what WhatsApp's and Apple's preview
-  // crawlers issue the moment the link is pasted into a chat, before any coach
-  // taps it. Counting those made `use_count` a measure of how often the link
-  // had been *shared*, which is not the question Q2 asks.
-  //
-  // The stamp is now `recordClubLinkUseByToken`, which `/e/[token]` calls from
-  // a server action once a real browser has run the page. What that costs is
-  // stated there; what it buys is a read with no side effect at all, which is
-  // the only version of this function a crawler may safely reach.
+  // Pure read, no stamp — see `recordClubLinkUseByToken` for the use-count side effect. LAN-269.
   return withTransaction(async (tx) => {
     const resolution: ClubLinkResolution = await resolveClubLinkIn(tx, token, options);
     if (resolution.state !== "live") return { state: "unavailable" };
@@ -658,19 +478,7 @@ export async function readClubLinkParticipation(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Issuing the link
-// ---------------------------------------------------------------------------
-
-/**
- * Issue — or return — this event's club link. §4.15, inventory amendment 1.
- *
- * Gated on `event_calendar_management`: the four calendar roles administer
- * events, and handing an event's participation table to somebody without an
- * account is an act of event administration. It is deliberately not the
- * ordinary operator floor, and deliberately not `event_approval` — approving is
- * a decision about whether the event happens, and this is not.
- */
+/** Issue — or return — this event's club link. §4.15, inventory amendment 1. Gated on `event_calendar_management`, not the ordinary operator floor or `event_approval`. */
 export async function issueEventClubLink(
   eventId: string,
   options: { env?: EnvSource } = {},
@@ -681,14 +489,7 @@ export async function issueEventClubLink(
   );
 }
 
-/**
- * The live link for an event, without creating one. `null` when none has been
- * issued.
- *
- * The share dialog reads this so that opening it is not itself an act: an
- * operator looking at what they already shared should not mint a token, and a
- * page render should never write.
- */
+/** The live link for an event, without creating one; `null` when none issued. The share dialog reads this so opening it is never itself a write. */
 export async function readEventClubLink(
   eventId: string,
   options: { env?: EnvSource } = {},

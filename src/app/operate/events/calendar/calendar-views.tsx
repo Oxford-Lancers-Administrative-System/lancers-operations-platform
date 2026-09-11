@@ -36,10 +36,6 @@ export function gregorianHref(month: string): string {
   return `${OPERATOR_CALENDAR_PATH}?mode=gregorian&month=${month}`;
 }
 
-// ---------------------------------------------------------------------------
-// Calendar View
-// ---------------------------------------------------------------------------
-
 export function GregorianView({
   events,
   params,
@@ -51,9 +47,7 @@ export function GregorianView({
   today: string;
   tile: Tile;
 }) {
-  // An unreadable `month` falls back rather than failing: the parameter arrives
-  // from a URL anybody can edit, and a calendar that throws on `?month=banana`
-  // is a worse answer than one that opens where it would have opened anyway.
+  // An unreadable `month` falls back rather than failing — the parameter comes from an editable URL.
   const month = parseMonth(first(params.month)) ?? defaultMonth(events, today);
   const grid = buildMonthGrid(month, events, today);
   const todayMonth = monthOf(today) ?? month;
@@ -89,10 +83,6 @@ export function GregorianView({
     </Stack>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Oxford View
-// ---------------------------------------------------------------------------
 
 export function OxfordView({
   year,
@@ -137,13 +127,8 @@ export function OxfordView({
 }
 
 /**
- * The events no cell can hold — undated ones, and the rare dated one outside the
- * year this column covers.
- *
- * Deliberately understated: a bordered block rather than a panel. It exists so
- * nothing is omitted silently, and on a normal season it renders nothing at all.
- * The term card's old "too far from any term" list is gone with the card — a
- * continuous year has a home for every date in it.
+ * The events no cell can hold — undated, or dated but outside the year.
+ * Understated (bordered block, not a panel) — renders nothing on a normal season.
  */
 function LeftOver({
   events,

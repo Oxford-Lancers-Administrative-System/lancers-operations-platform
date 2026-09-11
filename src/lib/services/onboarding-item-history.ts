@@ -4,31 +4,9 @@ import { type Tx } from "@/lib/db";
 import type { OnboardingItemStatus } from "./membership";
 
 /**
- * The typed home `REQ-item-history` asks for — LAN-214, `WP-onboarding-substrate`.
- *
- * `onboarding_items` (LAN-75) carries current state only; W6's own grounding
- * names exactly what that loses: "The record can say an item is complete; it
- * cannot say it was complete, reopened in November and completed again."
- * `public.onboarding_item_history` is the append-only record that answers it,
- * and this module is its only writer and its reader.
- *
- * ## Append-only, structurally
- *
- * The migration's grant on `onboarding_item_history` is `select, insert` —
- * no `update`, no `delete`. This module therefore exposes no update or delete
- * function; there is nothing here to call. A caller that tried to alter a row
- * directly would be refused by the database itself, which is what
- * `onboarding-item-history.test.ts` proves.
- *
- * ## Who calls this
- *
- * `membership.ts`'s `resolveOnboardingItem` (an operator's four resolutions,
- * `reopen` included) and `claimOnboardingItem` (a player's own trust-class
- * claim) both write through here in the same transaction as the state change
- * they describe — the same "a change and its history commit together or not
- * at all" posture every other typed table in this schema takes. Later
- * packages read it back through {@link readOnboardingItemHistoryIn} to render
- * "who said so, and when" on the record (W6).
+ * Append-only history for onboarding items (REQ-item-history, LAN-214).
+ * Migration grants only `select, insert`; no update/delete here.
+ * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 export type OnboardingActorKind = "operator" | "player" | "system";
@@ -71,17 +49,7 @@ function toEntry(row: HistoryRow): OnboardingItemHistoryEntry {
   };
 }
 
-/**
- * Appends one row. Never called for a no-op: every caller here has already
- * confirmed `fromStatus !== toStatus` before reaching this, and the database's
- * own `onboarding_item_history_is_a_real_change` check refuses a row that
- * claims otherwise (except the very first row for an item, whose
- * `fromStatus` is `null`).
- *
- * `actorKind: "system"` carries no `actorPersonId` — the database's
- * `onboarding_item_history_system_has_no_person` constraint requires it —
- * and every other kind requires one, enforced the same way.
- */
+/** Appends one row; never with `fromStatus === toStatus` (db enforces it, first row excepted). `actorKind: "system"` has no `actorPersonId`. */
 export async function writeOnboardingItemHistoryIn(
   tx: Tx,
   params: {
@@ -117,7 +85,7 @@ export async function writeOnboardingItemHistoryIn(
   return toEntry(result.rows[0] as unknown as HistoryRow);
 }
 
-/** One item's full history, oldest first — the whole point of `REQ-item-history` over the current-state-only `onboarding_items` row. */
+/** One item's full history, oldest first. */
 export async function readOnboardingItemHistoryIn(
   tx: Tx,
   onboardingItemId: string,

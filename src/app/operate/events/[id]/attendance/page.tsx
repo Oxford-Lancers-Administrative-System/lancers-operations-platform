@@ -35,37 +35,24 @@ import {
 
 /**
  * The attendance surface — UX-71, UX-72, UX-73 and UX-74. LAN-80. One route,
- * four states: the event's status chooses UX-71/UX-72, `?add=walk-up` opens
- * UX-73, UX-74 corrects in place on its row. Gated on `attendance_recording`
- * (four calendar roles, three coaching seats); every write re-resolves the
- * operator and row-locks the event, so this gate is a courtesy, not the
- * boundary. The payload never carries a decline reason, a contact detail, an
- * availability/injury note, or a delivery diagnostic — not filtered, never
- * selected, for either reader.
- *
+ * four states, gated on `attendance_recording`; every write re-resolves the
+ * operator, so this gate is a courtesy, not the boundary.
  * Decision history: docs/ux/tickets/LAN-80-attendance.md · LAN-110-coach-attendance.md
  */
 export default async function AttendancePage({
   params,
   searchParams,
 }: PageProps<"/operate/events/[id]/attendance">) {
-  // LAN-110. The one surface a coaching assignment opens, so it opts in — and
-  // the refusal here is UX-96 rather than UX-05, because this is the screen
-  // whose whole subject is whether the reader may take the register.
+  // LAN-110: the one surface a coaching assignment opens (opts in); refusal here is UX-96, not UX-05.
   const gate = await gateShellPage("/operate/events", "attendance_recording", {
     narrowRecorder: "allow",
     capabilityRefusal: "coach",
   });
   if ("screen" in gate) return gate.screen;
 
-  // Which board to draw. Not which writes to allow: `./actions.ts` re-resolves
-  // the operator from the verified session on every save, and the coach's
-  // constraints are enforced there whatever this page rendered.
+  // Which board to draw, not which writes to allow — ./actions.ts re-resolves the operator on every save.
   const isCoachView = isNarrowAttendanceRecorder(gate.operator.roleCodes);
-  // The same four calendar roles plus the IT Officer that `removeAttendanceAction`
-  // requires. `event_occurrence_assertion` guarded this until LAN-151 retired
-  // it; `event_calendar_management` carries the identical role list, so the
-  // boundary is unchanged.
+  // Same roles removeAttendanceAction requires — event_calendar_management carries the list event_occurrence_assertion had before LAN-151.
   const mayRemove = operatorHasCapability(gate.operator, "event_calendar_management");
 
   const { id } = await params;
@@ -94,13 +81,9 @@ export default async function AttendancePage({
 
   const { event } = board;
 
-  // UX-71, and UX-90 for a coach. There is nothing to record yet, and the
-  // service refuses a write as firmly as the screen refuses the control.
+  // UX-71/UX-90: nothing to record yet; the service refuses a write as firmly as the screen refuses the control.
   if (!board.isOpen) {
-    // Two closed states, and they are not the same refusal: one waits on the
-    // approval and the other only on the clock. `docs/ux/standards.md` rule 4
-    // says a refused control names the step that lifts it, so a register that
-    // simply has not opened yet must not be described as waiting on a person.
+    // Two closed states, different refusals — docs/ux/standards.md rule 4: name the step that lifts it.
     if (board.closedReason === "before_buffer") {
       return (
         <RegisterNotOpenYet
@@ -191,12 +174,7 @@ export default async function AttendancePage({
         </Stack>
 
         <Stack spacing={3}>
-          {/*
-          The counts are the operator's. Invited, Recorded and Walk-ups are
-          fine for anyone, but Mismatches is a count of an exception class the
-          Monday report acts on and the coach's surface deliberately does not —
-          and UX-91 shows no counts row at all, on either presentation.
-        */}
+          {/* UX-91: counts are the operator's — Mismatches is an exception class the coach's surface deliberately omits. */}
           {isCoachView ? null : <Counts board={board} />}
 
           {board.participants.length === 0 ? (
@@ -224,12 +202,7 @@ export default async function AttendancePage({
           )}
         </Stack>
 
-        {/*
-        **Complete attendance** returns to `/operate/events/[id]`, which is
-        event administration and refuses a coach outright. Offering a coach a
-        button to a screen that will refuse them is worse than offering none,
-        and UX-91 shows the coach's board ending at the list.
-      */}
+        {/* UX-91: Complete attendance omitted for a coach — it leads to a screen that refuses them. */}
         {isCoachView ? null : (
           <Stack spacing={1} sx={{ maxWidth: 420 }}>
             <Button

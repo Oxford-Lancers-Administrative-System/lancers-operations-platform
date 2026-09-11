@@ -40,15 +40,10 @@ const EVENT_STATUS_LABEL: Readonly<Record<"upcoming" | "occurred" | "cancelled",
   });
 
 /**
- * `/operate/recruitment/[prospectId]` — `W2`, rebuilt (2026-09-02
- * correction). Every card here is the shipped player record's own banded
- * card (`../../record-shell.tsx`, extracted from `../../roster/[membershipId]/record-view.tsx`,
- * LAN-187), its content replaced per `W2`'s own table: `Person` stays
- * Person; `Onboarding` becomes Recruitment; `Attendance` becomes
- * Recruitment events; `Their other seasons` becomes Notes; `Status history`
- * stays Status history. Brian, 2026-09-02: "How we did it for the roster
- * should be the same language, the same UI elements, and the same thing
- * should be identical here."
+ * `/operate/recruitment/[prospectId]` — W2, rebuilt (2026-09-02 correction).
+ * Card content follows W2's mapping onto the shipped roster record shell
+ * (`../../record-shell.tsx`, LAN-187).
+ * Decision history: missions/intake/M-RECRUITMENT
  */
 export default function RecruitmentRecordView({
   record,
@@ -57,25 +52,9 @@ export default function RecruitmentRecordView({
   record: RecruitmentProspectRecord;
   person: Partial<PersonRecord>;
 }) {
-  // LAN-204, item 9 — the consent deadlock, fixed (Brian, 2026-09-02: "The
-  // personal questionnaire is how we get consent… the fucking app is
-  // deadlocked now"). The two SEND actions no longer share one gate:
-  //
-  //   - the personal track carries the sign-up-form link, so it is the one
-  //     message allowed to establish consent rather than require it already
-  //     exist — refused only by an explicit `refused`/`withdrawn` or by
-  //     `declined` status, never by `never_asked`/`asked`.
-  //   - the recruitment (Questionnaire B) track keeps the strict
-  //     granted-only gate every other send in this codebase uses — and,
-  //     per `Q-read-back-authorises-how-much` (Brian, 2026-09-02), that
-  //     grant has to be the recruit's own, through the sign-up form
-  //     (`consentSource: "qr_self_entry"`): a touchline read-back's grant
-  //     authorises the welcome track alone.
-  //
-  // `sendRecruitmentQuestionnaireIn` (the service layer) enforces both of
-  // these independently; this is the same story told in the UI, so the
-  // button a recruit's consent state actually reaches matches what pressing
-  // it will do.
+  // LAN-204 item 9: the consent deadlock, fixed — personal and recruitment
+  // sends no longer share one gate. See `sendRecruitmentQuestionnaireIn`.
+  // Decision history: missions/intake/M-RECRUITMENT
   const blockedByStatus = record.status === "declined";
   const blockedByRefusal = record.consent === "refused" || record.consent === "withdrawn";
   const grantedViaSignupForm =
@@ -87,12 +66,8 @@ export default function RecruitmentRecordView({
     (event) => event.toStatus === "declined",
   )?.occurredAt;
 
-  // `W2-04` (Brian, 2026-08-31): the same fact stated three times, in
-  // descending order of how hard it is to miss — a banner at the top of the
-  // record, the send action itself, and the dialog reached by pressing it.
-  // The banner now fires only when *neither* track can reach this recruit —
-  // `declined`, or an explicit `refused`/`withdrawn` — never for
-  // `never_asked`/`asked`, which the personal track is built to answer.
+  // W2-04: the same fact stated three times — banner, send action, dialog.
+  // Decision history: missions/intake/M-RECRUITMENT
   const personalDisabledReason = blockedByStatus
     ? "Messaging is refused. This recruit declined."
     : record.consent === "refused"
@@ -153,13 +128,7 @@ export default function RecruitmentRecordView({
             ) : undefined
           }
         />
-        {/* V-8, correction round 2: the player record's own "strip of labelled
-          facts above the bands" (`Headline`, `../../roster/[membershipId]/record-view.tsx`).
-          Brought into this record's own shape rather than that file's
-          component reused directly — that file is LAN-204's own roster
-          surface, and this correction round is authorised to change what
-          the three named findings touch, not to import from a shipped
-          record it does not otherwise depend on. */}
+        {/* V-8: headline strip mirrors the roster record's own strip (own shape, not shared import). Decision history: missions/intake/M-RECRUITMENT */}
         <MetricRow columns={4} testId="recruitment-headline-strip">
           <Metric
             value={
@@ -194,14 +163,8 @@ export default function RecruitmentRecordView({
           />
         </MetricRow>
 
-        {/* Person and Recruitment stack full width, one above the other — the
-          same plain vertical flow the shipped player record uses for its own
-          bands (`../../roster/[membershipId]/record-view.tsx`), not a Grid
-          item pair sized to share a row. Brian, 2026-09-02: "The bands are
-          side by side when really they should be layered on top of each
-          other." */}
+        {/* Person and Recruitment stacked full width — mirrors the shipped roster bands. Decision history: missions/intake/M-RECRUITMENT */}
         <Stack spacing={3} data-testid="recruitment-record-top-bands">
-          {/* ------------------------------------------------------------ Person -- */}
           <Section variant="banded" band="person" title="Person" testId="person">
             <RecordField label="College" value={person.college ?? null} readOnly />
             <RecordField
@@ -244,7 +207,6 @@ export default function RecruitmentRecordView({
             </Box>
           </Section>
 
-          {/* ------------------------------------------------------- Recruitment -- */}
           <Section variant="banded" band="recruitment" title="Recruitment" testId="recruitment">
             <StatusRow
               status={record.status}
@@ -310,17 +272,8 @@ export default function RecruitmentRecordView({
           </Section>
         </Stack>
 
-        {/* Recruitment events, Notes and Status history continue the same
-          single column Person and Recruitment are in — Brian, 2026-09-09:
-          stack them, they should not be side by side (LAN-253). The
-          `LAN-204` contract already said so for the whole record ("Every card
-          is full width, stacked one above the other, in table order"); the
-          2026-09-02 correction that stacked Person and Recruitment left this
-          pair in a two-up Grid, which is the half of that sentence this
-          finishes. Status history was already full width and keeps its
-          place at the foot. */}
+        {/* LAN-253: recruitment events, notes and status history stacked single column, not two-up. Decision history: missions/intake/M-RECRUITMENT */}
         <Stack spacing={3} data-testid="recruitment-record-lower-bands">
-          {/* ------------------------------------------------- Recruitment events -- */}
           <Section variant="banded" band="attendance" title="Recruitment events" testId="events">
             {record.events.length === 0 ? (
               <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
@@ -356,14 +309,12 @@ export default function RecruitmentRecordView({
             )}
           </Section>
 
-          {/* ------------------------------------------------------------- Notes -- */}
           <Section variant="banded" band="person" title="Notes" testId="notes">
             <Box sx={{ py: 1 }}>
               <NotesCard prospectId={record.prospectId} notes={record.notes} />
             </Box>
           </Section>
 
-          {/* ---------------------------------------------------- Status history -- */}
           <Section collapsible title="Status history" testId="status-history">
             {record.statusHistory.length === 0 ? (
               <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
@@ -390,14 +341,7 @@ export default function RecruitmentRecordView({
                             : NOT_RECORDED}
                         </TableCell>
                         <TableCell>{PROSPECT_STATUS_LABELS[event.toStatus]}</TableCell>
-                        {/* The shared formatter, not `toLocaleString()` —
-                            LAN-248. Unqualified, it answered in whatever
-                            locale the server or the browser happened to be
-                            set to (`9/8/2026, 7:31:20 PM`) on a page whose
-                            every other date already read `8 Sep 2026`, and it
-                            hydrated differently on the two of them.
-                            `docs/ux/standards.md` rule 3: a recorded moment
-                            reads `27 Aug 2026, 14:22`, on club time. */}
+                        {/* LAN-248: shared formatter, not toLocaleString() — docs/ux/standards.md rule 3. Decision history: missions/intake/M-RECRUITMENT */}
                         <TableCell>{formatWhen(new Date(event.occurredAt))}</TableCell>
                         <TableCell>{event.actorLabel}</TableCell>
                         <TableCell>{event.reason ?? NOT_RECORDED}</TableCell>
@@ -415,9 +359,7 @@ export default function RecruitmentRecordView({
 }
 
 /**
- * The Recruitment card's own Status row — the interactive control (the same
- * click-to-edit pill every board cell and this record share), inside the
- * banded card rather than a bespoke header box.
+ * The Recruitment card's Status row — same click-to-edit pill as other board cells.
  */
 function StatusRow({
   status,

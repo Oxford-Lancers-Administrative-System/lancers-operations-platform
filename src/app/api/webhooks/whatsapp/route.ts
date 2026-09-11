@@ -8,58 +8,19 @@ import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import { applyProviderCallback } from "@/lib/services/delivery";
 
 /**
- * Meta's delivery callbacks. LAN-78.
+ * Meta's delivery callbacks. LAN-78. The only route an unauthenticated
+ * stranger is expected to POST to, so order of operations is the whole of its
+ * security: read the raw body, verify `X-Hub-Signature-256` over those exact
+ * bytes, only then parse and touch the database. A verified callback still
+ * answers 200 even when unmatched (Meta retries a non-2xx for hours, and a
+ * stale/foreign callback will never succeed); a genuine server failure
+ * answers 500. LAN-93 owns the public HTTPS endpoint this needs to ever
+ * receive a real callback.
  *
- * This is the only route in the application an unauthenticated stranger on the
- * internet is expected to POST to, which makes its order of operations the
- * whole of its security:
- *
- *   1. Read the **raw** body as text.
- *   2. Verify `X-Hub-Signature-256` over those exact bytes.
- *   3. Only then parse it, and only then touch the database.
- *
- * Reading `await request.json()` first would be the natural way to write this
- * and would destroy step 2: the signature is over bytes, and re-serialising
- * parsed JSON changes key order and whitespace. Such a route appears to work
- * until the provider reorders a field, at which point it either rejects
- * everything or — worse, if somebody "fixes" it by dropping the check — accepts
- * anything.
- *
- * ## What an unverified request gets
- *
- * `403`, an empty body, and no database access whatsoever. Nothing is stored:
- * `delivery_callbacks` carries a check constraint that only verified rows
- * exist, so the guarantee survives a future caller forgetting this.
- *
- * ## Why a failure still answers 200
- *
- * Once a callback is verified, this route answers 200 even if applying it found
- * nothing to apply. Meta retries a non-2xx for hours, and a callback for a
- * message this deployment has never heard of — a different environment sharing
- * a WhatsApp Business Account, a message sent before a database reset — is not
- * a transient failure and will never succeed. It is recorded as unmatched,
- * which is a fact worth having, and acknowledged.
- *
- * An unexpected *server* failure does answer 500, because that one is worth
- * retrying.
- *
- * ## LAN-93 owns what is not proven here
- *
- * Signature verification and deduplication are tested against synthesised
- * payloads signed with a test secret. Meta actually reaching this route needs a
- * public HTTPS endpoint, which LAN-93 owes, and until then no deployment
- * receives a real callback. That is disclosed rather than implied: an accepted
- * message stays **Attempted** forever without one.
+ * Decision history: docs/adr/0023-rsvp-token-and-whatsapp-delivery.md
  */
 
-/**
- * The largest callback this route will read.
- *
- * Meta's status payloads are a few kilobytes; 64 KiB is generous. The cap
- * exists because verifying costs an HMAC over the whole body, and an
- * unauthenticated caller must not get to choose how much of that the club pays
- * for.
- */
+/** The largest callback this route will read — Meta's payloads are a few KB; 64 KiB avoids an unauthenticated caller choosing the HMAC's cost. */
 export const MAX_CALLBACK_BYTES = 64 * 1024;
 
 /** Constant-time equality for a shared secret. `null` never matches. */
@@ -81,10 +42,7 @@ export async function GET(request: Request): Promise<Response> {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  // The verify token is a shared secret, so it is compared the same way the
-  // POST path compares a signature — length first, then `timingSafeEqual`. A
-  // `!==` on a secret leaks, through timing, how many leading characters were
-  // right. A mismatch says only "no", never which part was wrong.
+  // Compared the same way the POST path compares a signature: length first, then `timingSafeEqual`, so no timing leak.
   if (mode !== "subscribe" || !matchesSecret(token, webhook.config.webhookVerifyToken)) {
     return new NextResponse(null, { status: 403 });
   }
@@ -97,23 +55,12 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   const webhook = resolveWebhookConfig();
-  // Unconfigured means this deployment cannot verify anything, and a route that
-  // cannot verify must not accept. 503, not 200: it is a real inability.
+  // A route that cannot verify must not accept: 503, not 200.
   if (!webhook.configured) return new NextResponse(null, { status: 503 });
 
-  // Bounded before it is **hashed**, which is the honest claim. An earlier
-  // version of this comment said "before it is read", and that was false: the
-  // body is buffered by `request.text()` regardless, and the platform's own
-  // limit is what bounds that. What these two checks avoid is computing an HMAC
-  // over an arbitrarily large body chosen by an unauthenticated caller — the
-  // one endpoint a stranger is meant to reach.
-  //
-  // `content-length` is a hint, not a guarantee: it is absent on a chunked
-  // request and can be a lie. So it is used only when it is present and
-  // numeric, and the real check is on the decoded bytes afterwards —
-  // `Buffer.byteLength`, not `String.length`, because the latter counts UTF-16
-  // code units and would let a UTF-8 body of roughly three times the cap
-  // through.
+  // Bounded before it is hashed: avoids an HMAC over an arbitrarily large body.
+  // `content-length` is a hint (absent on chunked, can lie); the real check is
+  // on decoded bytes via `Buffer.byteLength`, not `String.length` (UTF-16 units).
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_CALLBACK_BYTES) {
     return new NextResponse(null, { status: 413 });
@@ -132,8 +79,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     payload = JSON.parse(raw);
   } catch {
-    // Signed, so it came from Meta, but unparseable. Acknowledged rather than
-    // retried forever; there is nothing a retry would fix.
+    // Signed (from Meta) but unparseable — acknowledged, not retried forever.
     return NextResponse.json({ received: 0 }, { status: 200 });
   }
 
@@ -147,8 +93,6 @@ export async function POST(request: Request): Promise<Response> {
     if (outcome === "applied") applied += 1;
   }
 
-  // Counts only. No identifier, no status, no recipient — this response goes
-  // back over the internet to a caller that has already been authenticated but
-  // is owed nothing about the club.
+  // Counts only — no identifier, status or recipient goes back over the internet.
   return NextResponse.json({ received: events.length, applied }, { status: 200 });
 }

@@ -4,14 +4,11 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 
 /**
- * A headline number — LAN-225, brief §2. Replaces the two byte-identical
- * `Metric`s on the event and delivery pages and the report's bare bold
- * numbers (audit E3), and the record head's mixed chip-and-number row (C5).
+ * A headline number — LAN-225, brief §2. Value at `h2`, label at `body2`, an
+ * optional caption. `value` may be a node for a status-as-headline case.
+ * Nothing is coloured or compared against a target.
  *
- * Value at `h2`, label at `body2`, an optional caption. `value` may be a node
- * for the one case where the headline is a status rather than a count — the
- * record's Membership chip — so that row still reads as one row of metrics.
- * Nothing is coloured or compared against a target: a quiet week is a fact.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function Metric({
   value,

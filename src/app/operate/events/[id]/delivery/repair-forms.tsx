@@ -13,18 +13,10 @@ import { retryDeliveryAction, revokeAndReissueAction } from "./actions";
 import { RETRY_DELIVERY, REVOKE_AND_REISSUE } from "./presentation";
 
 /**
- * UX-52's two controls.
- *
- * Both are real `form`s posting to Server Actions rather than links or fetches,
- * for the same reason the event transitions are: the action re-resolves the
- * operator from the verified session and re-checks the job's current state
- * inside the transaction, so a button rendered a minute ago against a failed
- * job that has since been retried produces a refusal rather than a second send.
- *
- * `pending` disables each button while it is in flight, which is § 9's Loading
- * requirement — "duplicate actions disabled" — and is also the cheap half of
- * not sending twice. The expensive half is in the service, where the claim is
- * guarded.
+ * UX-52's two controls — real `form`s posting to Server Actions (not links
+ * or fetches), so a stale button re-checks the job's state server-side.
+ * `pending` disables each button in flight (§9 Loading: "duplicate actions
+ * disabled"), cheap half of not sending twice; the service guards the claim.
  */
 
 export function RetryDeliveryForm({
@@ -75,12 +67,9 @@ export function RetryDeliveryForm({
 }
 
 /**
- * Revoke and reissue, behind a disclosure.
- *
- * The reason is mandatory and the field is not shown until the operator asks
- * for the action — an always-visible text box beside a destructive control is
- * the shape people click through by habit, and this control invalidates a link
- * somebody may be holding.
+ * Revoke and reissue, behind a disclosure — the reason field appears only
+ * once asked for, since an always-visible box beside a destructive control
+ * invites habitual clicking.
  */
 export function RevokeAndReissueForm({
   eventId,

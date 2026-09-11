@@ -22,12 +22,7 @@ import { EMPTY_QUEUE, PAGE_HEADING, subheading } from "./presentation";
 
 const FOLLOW_UPS_PATH = "/operate/admin/follow-ups";
 
-/**
- * The Follow-ups queue — W5, under Administration. One flat table (`T03-nonresponse-queue`,
- * a reading of the `nonresponse_queue` view), open to any operator.
- *
- * Decision history: docs/ux/tickets/LAN-173-operator-chase.md.
- */
+// The Follow-ups queue — W5. Decision history: docs/ux/tickets/LAN-173-operator-chase.md.
 export default async function FollowUpsPage({
   searchParams,
 }: PageProps<"/operate/admin/follow-ups">) {
@@ -38,13 +33,10 @@ export default async function FollowUpsPage({
   const search = typeof query.q === "string" ? query.q : "";
   const status = typeof query.status === "string" ? query.status : "";
   const rawPeriod = typeof query.period === "string" ? query.period : "";
-  // OWNER-LAN173-05: an unrecognised or absent period resolves to **All
-  // events**, this queue's own existing default — never "This month".
+  // OWNER-LAN173-05: unrecognised/absent period resolves to All events, never "This month".
   const period: EventPeriod = (EVENT_PERIODS as readonly string[]).includes(rawPeriod)
     ? (rawPeriod as EventPeriod)
     : "all";
-  // LAN-281's independent from/to range; anything not a calendar day is no
-  // boundary rather than an error. Decision history: docs/ux/tickets/LAN-173-operator-chase.md.
   const from = dayParam(query.from);
   const to = dayParam(query.to);
   const rawSort = typeof query.sort === "string" ? query.sort : "";

@@ -32,51 +32,15 @@ import { listTermWindows, readCurrentSeasonIn, type Season } from "./seasons";
 
 /**
  * Bulk import and export for a season's events. LAN-155, work package
- * `WP-csv-import`, workflow `W3`.
- *
- * `./event-csv.ts` decides what a file *means*; this module is the half that
- * touches the database. It reads the season, produces a proposal, and — only
- * when the operator confirms one — applies it.
- *
- * ## Authorisation is here, not in the route
- *
- * `slice-ux.md` § 4: routes do not authorize. `W3` is explicit that "event
- * management capability is required, enforced in the service layer", so every
- * exported function below opens with `requireCapability` before it reads or
- * writes anything. The server actions guard again, because a hidden control is a
- * courtesy and never a boundary — but deleting the gate from a page or an action
- * cannot reach these functions.
- *
- * ## Applying is one transaction, and the plan is recomputed inside it
- *
- * The workflow's exception table asks for two things that pull in opposite
- * directions: "applied as one transaction, so a failure part-way leaves the
- * season as it was", and "nothing is written until they confirm". A confirmation
- * is read at one moment and applied at another, and the season can move in
- * between — another operator approves an event this file also changes.
- *
- * So the file's text, not a stored plan, is what survives the confirmation. The
- * uploaded file is **not retained as a record** anywhere: it lives in the
- * request that produced the proposal and in the confirmation form the operator
- * is looking at, and nowhere else — no table, no temporary file, no cache. On
- * apply the plan is rebuilt from that text against a **locked** read of the
- * season, and refused outright unless its digest still matches the one the
- * operator confirmed. What is written is therefore always exactly what they
- * read, or nothing at all.
- *
- * ## What an import can never do
- *
- * Create and update drafts. That is the whole list. There is no delete here and
- * no bulk delete anywhere — D35 is retired for release one — no approval, no
- * cancellation, no audience, no invitation and no notification. An event in the
- * season and absent from the file is not touched by any statement this module
- * issues, which is `REQ-upsert-only` holding structurally rather than by
- * intention.
+ * `WP-csv-import`, workflow `W3`. ./event-csv.ts decides what a file *means*;
+ * this is the half that touches the database. Authorisation lives here, not
+ * in the route (slice-ux.md § 4, W3) — every exported function opens with
+ * requireCapability. Applying is one transaction with the plan recomputed
+ * inside it against a locked read, refused if the digest has moved — the
+ * uploaded file itself is never retained as a record. An import can only
+ * create and update drafts (REQ-upsert-only) — no delete, approval,
+ * cancellation, audience, invitation or notification. See relocations.md.
  */
-
-// ---------------------------------------------------------------------------
-// Messages
-// ---------------------------------------------------------------------------
 
 export const IMPORT_TOO_LARGE_MESSAGE = `That file is larger than ${Math.round(MAX_IMPORT_BYTES / 1024)} KB. A season's events are a few tens of kilobytes, so this is not a term card.`;
 
@@ -89,17 +53,8 @@ export const IMPORT_NOTHING_TO_APPLY_MESSAGE =
 const IMPORT_PLAN_MOVED_RULE = "event_import_plan_moved";
 const IMPORT_FILE_REFUSED_RULE = "event_import_file_refused";
 
-// ---------------------------------------------------------------------------
-// What the bulk import screen states
-// ---------------------------------------------------------------------------
-
-/**
- * The screen shows a **count, not a list** — decided 2026-08-21 on Brian's
- * invitation to propose. A full list duplicates the Events page one click away;
- * a count states the one thing that would otherwise surprise an operator halfway
- * through, which is how much of the season an import is actually allowed to
- * touch.
- */
+// A count, not a list (Brian, 2026-08-21) — the Events page is one click away; the count states
+// how much of the season an import is actually allowed to touch.
 export interface SeasonImportContext {
   season: Season;
   total: number;
@@ -124,26 +79,13 @@ export async function readSeasonImportContext(): Promise<SeasonImportContext> {
   });
 }
 
-// ---------------------------------------------------------------------------
-// The export
-// ---------------------------------------------------------------------------
-
 export interface SeasonExport {
   fileName: string;
   csv: string;
-  /** Zero when the season is empty, in which case the file is the template. */
-  eventCount: number;
+  eventCount: number; // zero when the season is empty, in which case the file is the template
 }
 
-/**
- * Every event in the season, in the import's columns plus `status` and
- * `term_week`. **Cancelled events are included** — leaving one out would make it
- * invisible in the file and look like something to re-add.
- *
- * On an empty season this is the template: the same header row with no data
- * under it. There is deliberately no second format and no separate template to
- * keep in step with it.
- */
+// Cancelled events are included; on an empty season this is the import template (same header, no data).
 export async function exportSeasonEvents(): Promise<SeasonExport> {
   await requireCapability("event_calendar_management");
 
@@ -166,16 +108,8 @@ export async function exportSeasonEvents(): Promise<SeasonExport> {
   });
 }
 
-/**
- * `term_week`, read off the same built academic year the list and the Oxford
- * View read.
- *
- * `REQ-three-arrangements` requires those surfaces to agree about when an event
- * is, and `events.week_number` cannot hold a vacation coordinate — it is
- * constrained to −1..8 — so an export that read the stored column would print
- * "Outside term" for a Christmas Vacation event the calendar happily names. The
- * column is read-only and ignored on the way back in; it still has to be true.
- */
+// Read off the same built academic year the list and Oxford View read (REQ-three-arrangements) —
+// events.week_number can't hold a vacation coordinate (-1..8 only), so this reads live instead.
 async function termWeekLabeller(season: Season): Promise<(day: string | null) => string> {
   const terms = await listTermWindows();
   const today = todayInClubZone();
@@ -196,22 +130,12 @@ async function termWeekLabeller(season: Season): Promise<(day: string | null) =>
   };
 }
 
-// ---------------------------------------------------------------------------
-// The proposal
-// ---------------------------------------------------------------------------
-
 export interface PlanRequest {
   csvText: string;
   fileName?: string | null;
 }
 
-/**
- * What the file would do, against the season as it is now. **Writes nothing.**
- *
- * Abandoning the confirmation therefore costs nothing and leaves nothing behind:
- * there is no reservation, no staging table and no held upload, because this
- * function's only effect is the value it returns.
- */
+// Writes nothing — abandoning the confirmation costs nothing (no reservation, no staging table).
 export async function planSeasonImport(request: PlanRequest): Promise<ImportPlanResult> {
   await requireCapability("event_calendar_management");
 
@@ -230,44 +154,18 @@ export async function planSeasonImport(request: PlanRequest): Promise<ImportPlan
   });
 }
 
-/**
- * The size limit, applied to the text before anything else looks at it.
- *
- * Measured in UTF-8 bytes rather than in characters, because that is what the
- * limit is about — a term card in a language with multi-byte characters is not
- * a bigger file in any sense the operator cares about, but it is a bigger
- * payload to carry through the confirmation form.
- */
 function refuseOversized(csvText: string): string | null {
-  const bytes = Buffer.byteLength(csvText, "utf8");
+  const bytes = Buffer.byteLength(csvText, "utf8"); // measured in UTF-8 bytes, since that's what the payload actually costs
   return bytes > MAX_IMPORT_BYTES ? IMPORT_TOO_LARGE_MESSAGE : null;
 }
 
-// ---------------------------------------------------------------------------
-// Applying
-// ---------------------------------------------------------------------------
-
 export interface ApplyRequest extends PlanRequest {
-  /** The digest of the plan the operator confirmed. */
-  digest: string;
+  digest: string; // the digest of the plan the operator confirmed
 }
 
-/**
- * Applies a confirmed proposal, as one transaction.
- *
- * Everything happens inside a single `withTransaction`, and both writers reuse
- * it: `withTransaction` **joins** an open transaction rather than nesting, so
- * `createEventDraft` and `updateEventDraft` run their derivation, their status
- * guard and their audit row inside this one. A failure on the fortieth row
- * therefore rolls back the thirty-nine before it, which is what "a failure
- * part-way leaves the season as it was" has to mean — and it means the import
- * reuses the two functions that already know how to write an event rather than
- * carrying a second, quieter copy of those rules.
- *
- * The season is read `for update`, so an approval that lands between the plan
- * and the writes waits rather than slipping through the gap the digest is
- * checked across.
- */
+// One withTransaction, joined (not nested) by createEventDraft/updateEventDraft, so a failure on
+// row forty rolls back the thirty-nine before it and no second copy of their write rules exists.
+// The season is read for update, so a racing approval waits rather than slipping through.
 export async function applySeasonImport(request: ApplyRequest): Promise<ImportApplied> {
   const operator = await requireCapability("event_calendar_management");
 
@@ -293,11 +191,8 @@ export async function applySeasonImport(request: ApplyRequest): Promise<ImportAp
 
     const plan: ImportPlan = planned.plan;
 
-    // The confirmation is what was agreed to. If rebuilding it against the
-    // season as it is *now* produces different writes, the operator agreed to
-    // something else, and this refuses rather than applying what they did not
-    // read.
     if (plan.digest !== request.digest) {
+      // rebuilt against the season as it is *now* differs — the operator agreed to something else
       throw new InvalidTransition(IMPORT_PLAN_MOVED_MESSAGE, { rule: IMPORT_PLAN_MOVED_RULE });
     }
 
@@ -316,13 +211,10 @@ export async function applySeasonImport(request: ApplyRequest): Promise<ImportAp
       }
     }
 
-    // One record of the import itself, beside the per-event rows the two
-    // writers above already wrote. The season is the entity: this is a thing
-    // that happened to a season's calendar, and no single event is its subject.
     await recordAudit(tx, {
       actorPersonId: operator.personId,
       action: "event.imported",
-      entityTable: "seasons",
+      entityTable: "seasons", // the season is the entity — no single event is this action's subject
       entityId: season.id,
       context: {
         fileName: request.fileName ?? null,
@@ -344,19 +236,8 @@ export async function applySeasonImport(request: ApplyRequest): Promise<ImportAp
   });
 }
 
-// ---------------------------------------------------------------------------
-// Reading the season
-// ---------------------------------------------------------------------------
-
-/**
- * Every template the club has, for the `type` column to be read against.
- *
- * Read in the same transaction as the season's events and, on the apply path,
- * under the same lock-and-digest discipline: a template renamed between the
- * proposal and the confirmation changes what a `type` cell resolves to, and the
- * digest check is what turns that into "the season changed while you were
- * reading this" rather than into a silently different write.
- */
+// Read under the same lock-and-digest discipline on the apply path — a template renamed between
+// proposal and confirmation changes what a `type` cell resolves to.
 async function readImportableTemplatesIn(tx: Tx): Promise<ImportableTemplate[]> {
   const result = await tx.query<{ id: string; name: string; event_type: string }>(
     "select id, name, event_type::text as event_type from public.event_templates order by lower(name)",
@@ -386,15 +267,8 @@ interface ImportEventRow {
   is_mandatory: boolean;
 }
 
-/**
- * Every event in the season, in exactly the fields an import reads or writes.
- *
- * A projection of its own rather than `listCurrentSeasonEvents`: that one joins
- * four participation tables to produce counts no importer needs, and none of
- * `description`, `required_equipment` or `joining_url` is in its list entry.
- * Cancelled and approved events are included, because an import has to be able
- * to *recognise* one in order to refuse a row that would change it.
- */
+// A projection of its own, not listCurrentSeasonEvents (which joins four participation tables for
+// counts no importer needs). Cancelled/approved events included so an import can recognise one to refuse a row.
 async function readSeasonEventsIn(
   tx: Tx,
   seasonId: string,
@@ -410,11 +284,7 @@ async function readSeasonEventsIn(
        join public.event_templates t on t.id = e.template_id
       where e.season_id = $1
       order by e.scheduled_on nulls last, e.starts_at nulls first, e.name, e.id${
-        // `of e` because the lock is on the events being rewritten. Without it
-        // PostgreSQL refuses `for update` over an outer join and, over an inner
-        // one, would lock every template row the season touches — serialising an
-        // import against anybody editing a template.
-        lock ? "\n        for update of e" : ""
+        lock ? "\n        for update of e" : "" // "of e": locking the join would serialise against anybody editing a template
       }`,
     [seasonId],
   );
@@ -438,7 +308,6 @@ async function readSeasonEventsIn(
   }));
 }
 
-/** `YYYY-MM-DD`, whether the driver handed back a string or a `Date`. */
 function asDate(value: Date | string | null): string | null {
   if (value === null) return null;
   if (typeof value === "string") return value.slice(0, 10);

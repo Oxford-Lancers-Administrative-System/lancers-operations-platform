@@ -17,42 +17,10 @@ import {
 
 /**
  * W5-01's search and Status filter — OWNER-LAN173-01 — plus the "When" date
- * filter OWNER-LAN173-05 adds.
- *
- * The search half reuses `useFilterSearch` for the same reason every other
- * filtered table in the operator shell does: filtering as you type, and never
- * dropping what was typed inside the debounce window. The Status and When
- * selects navigate from the change event's own value rather than on form
- * submit, because MUI's `TextField select` is a combobox over a hidden input
- * whose value React writes on the *next* render — submitting inside the
- * handler would post the previous selection, exactly the defect
- * `delivery-filters.tsx` documents for the same control.
- *
- * `sort`/`direction` travel through `filters` too, unread by either select
- * here, so choosing Status, search or When never drops whichever column the
- * table is currently sorted by (`participation-view.ts`'s own
- * `sortColumnHref`, which the table's headings use, does the same the other
- * way — a sort never drops a filter).
- *
- * The two date fields are LAN-281 — Clint's "filter by a date range", over
- * the same "When" the period select already narrows, and read alongside it
- * rather than instead of it. They are the kit's `DateField` rather than a
- * native `<input type="date">` for the reason `field.tsx` records: a UK club
- * never sees `mm/dd/yyyy`. Each side navigates on its own change, the same as
- * the selects, and either may be left empty — an open-ended range is the
- * ordinary case for "who has not answered what is coming".
- *
- * Nothing about the board's own organisation changes. The child ticket is
- * explicit that the by-player grouping, sort and columns Clint said he likes
- * stay exactly as they are, and that the event-pivot view argued for in the
- * same conversation is a different release.
- *
- * When's options are `@/lib/services/event-periods`'s own five, verbatim —
- * the same vocabulary the Events list and Calendar already offer as **This
- * week**, **This month**, **This term**, **All upcoming** and **All events**.
- * Brian named three of the five ("this week, this month, this term"); the
- * other two are the existing control's own remaining options, offered here
- * rather than invented or dropped.
+ * filter (OWNER-LAN173-05) and LAN-281's date range. Fields navigate on
+ * their own change event, not submit — MUI writes the hidden input on the
+ * *next* render. `sort`/`direction` travel through `filters` unread.
+ * Decision history: docs/ux/tickets/LAN-173-operator-chase.md
  */
 export default function FollowUpsFilter({
   basePath,

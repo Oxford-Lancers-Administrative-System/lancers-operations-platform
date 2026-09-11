@@ -505,3 +505,143 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > when) triple.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/[membershipId]/page.tsx — module header
+
+> `/operate/roster/[membershipId]` — W6, rebuilt. LAN-187.
+>
+> **Redesigned, not extended.** The person and the season are now visibly
+> different things: durable facts render as the person's and route to the
+> person record; everything else belongs to this one season's membership,
+> banded Person · Onboarding · Season in the board's own three colours
+> (`WP-roster-board`, LAN-186) so the two surfaces read as one product.
+>
+> ## `REQ-authority`, at the whole surface
+>
+> This is the most complete view of one human the application has — date of
+> birth and emergency contact render here and on no list. The gate below
+> therefore names `person_record_authority`, the same four-role capability
+> the board's own page gates on, rather than the wider "any linked operator"
+> floor the shipped LAN-75 page used. A coach, or any operator outside the
+> four offices, is refused **before `readPlayerRecord()` is ever called** —
+> absent from the payload, not merely unrendered.
+>
+> ## Two screens, one route — carried from the shipped page
+>
+> `?created=1` is UX-13's confirmation banner, still this same record rather
+> than a page of its own: the operator's next action is often to show
+> somebody the screen, and a state that vanished on reload could not do that.
+>
+> ## A merged-away person
+>
+> `readPlayerRecord()` resolves a membership whose person was merged away
+> (invariant I6) to wherever the survivor's own record now lives — W1-09 —
+> rather than rendering the stale identity.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/[membershipId]/record-actions.ts — module header
+
+> Player detail's own server actions — LAN-187, `REQ-player-detail`.
+>
+> Every one of these calls straight into `roster-board.ts`'s commit
+> functions or `membership.ts`'s own writes — the exact functions
+> `../board-actions.ts` and `../actions.ts` call for the board's identical
+> cells. Nothing here reimplements a commit; this file exists only because
+> this package's collision domain is `[membershipId]/**` and the board's own
+> action module only revalidates `/operate/roster`, never this record's own
+> route. Every wrapper below revalidates both, so an edit made here is
+> reflected on the board without a manual refresh, and vice versa.
+>
+> `REQ-authority` again, at the write boundary and not only the read one:
+> every season-fact wrapper — `recordResolveOnboardingItemAction` included, as
+> of LAN-214 correction round 2 (`F-NEW-001`) — opens with
+> `requireCapability("person_record_authority")`, the same four-role gate
+> this page's own read gate uses (`page.tsx`). `recordResolveOnboardingItemAction`
+> previously called `requireGeneralOperator()`, on the reading that resolving
+> an onboarding item was ordinary roster work rather than Exec-only; `OD7-four-
+role-only` (Brian, 2026-09-02) and `REQ-reason-free-waive` supersede that —
+> only the four-role group ever resolves an item, waive and reopen
+> explicitly included, and the physical act (handing out kit, say) is
+> anyone's without that meaning they record it here.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/recruitment/[prospectId]/record-view.tsx — file header
+
+> `/operate/recruitment/[prospectId]` — `W2`, rebuilt (2026-09-02
+> correction). Every card here is the shipped player record's own banded
+> card (`../../record-shell.tsx`, extracted from `../../roster/[membershipId]/record-view.tsx`,
+> LAN-187), its content replaced per `W2`'s own table: `Person` stays
+> Person; `Onboarding` becomes Recruitment; `Attendance` becomes
+> Recruitment events; `Their other seasons` becomes Notes; `Status history`
+> stays Status history. Brian, 2026-09-02: "How we did it for the roster
+> should be the same language, the same UI elements, and the same thing
+> should be identical here."
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/player-record.ts — module header
+
+> ## Why this is a new module rather than an addition to an existing one
+>
+> The same reasoning `roster-board.ts`'s own module note gives for itself:
+> this package's collision domain is `src/app/operate/roster/[membershipId]/**`
+> and a fresh file that _reads_ the substrate other packages already built —
+> `membership.ts` for the membership and its history, `person-record.ts` for
+> the durable person facts, `roster-board.ts` for the season's position
+> vocabulary — rather than editing any of them. Nothing here duplicates a
+> write path: every commit this page makes reuses `roster-board.ts`'s own
+> `commitPosition`, `commitJerseyNumbers`, `commitCoachGroup`,
+> `commitFormalwearItem`, `commitBlues`, `commitEligibility`,
+> `commitAvailability` and `commitEntry`, and `membership.ts`'s own
+> `setMembershipStatus` and `resolveOnboardingItem` — called from this
+> package's own `record-actions.ts`, never reimplemented.
+>
+> ## What this module adds that no existing read covers
+>
+> `listRosterBoard()` assembles the _whole current season's_ board in one
+> pass and does not expose a single-membership read — this membership may
+> belong to a past, closed season (a departed or archived record from an
+> earlier year), which `listRosterBoard()` never reaches at all. This module
+> is the single-membership equivalent: the same seven board columns
+> (positions, jersey numbers, coach group, formalwear, Blues, eligibility,
+> availability), the season's jersey holder map, and the season's position
+> vocabulary, all scoped to _this membership's own season_ rather than
+> whichever season happens to be current.
+>
+> Three facts this page states that neither existing read computes on its
+> own:
+>
+> - **The Blues total across seasons** — already derived, unmodified, by
+>   `person-record.ts`'s `halfBlueCount` / `fullBlueCount`
+>   (`public.person_blues_totals`). This module adds nothing; it surfaces
+>   what `readPersonRecord()` already returns.
+> - **Constitutional membership** — `public.constitutional_membership`,
+>   invariant I5, read directly by `season_membership_id` rather than
+>   reimplemented: admitted and paid, for this one season's membership.
+> - **The person's other seasons** — every other `season_memberships` row
+>   for the same person, with that season's label, status, predominant Blue
+>   jersey number and Blues award, for the "Their other seasons" panel.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/player-record.ts — readAttendanceHistoryIn
+
+> Brian ruled the prose stands: this season's RSVP and attendance history
+> renders here, read-only, from Mission 2's own tables.
+>
+> `cancelled` and `expired` invitations stay rows: the invitation was sent,
+> whatever became of it afterwards.
+>
+> `attendance-section.tsx` computes the mandatory-attendance score against
+> whichever rows the viewer's filters currently show — "the score follows
+> the filter" is a presentation rule, not a second query.
+>
+> W1/Q-19: Brian's walkthrough found the table listing every invited event —
+> including ones that have not happened yet — above a score that only counts
+> occurred ones, so a correct number sat over a table that looked like it
+> contradicted it. No new column, no migration — the event's `status` and
+> `scheduled_on` are exactly what `events` already stores.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

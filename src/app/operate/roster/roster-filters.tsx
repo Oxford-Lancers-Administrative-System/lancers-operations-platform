@@ -4,26 +4,10 @@ import ListFilters from "../list-filters";
 import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 import { SEARCH_DEBOUNCE_MS } from "../filter-search";
 
-/**
- * Re-exported so this screen's tests can advance timers by exactly the debounce
- * rather than guessing. The value, and the behaviour, live in
- * `../filter-search` — the events list needed the identical thing.
- */
 export { SEARCH_DEBOUNCE_MS };
 
-/**
- * UX-20's search and filters — the roster's vocabulary over the shared bar.
- *
- * Everything is in the query string, so a filtered roster is a link an operator
- * can send to somebody, the back button does what it looks like it does, and a
- * refresh keeps the view.
- *
- * The bar itself is `../list-filters`, shared with the events list since
- * LAN-127: the two screens had it twice at exactly 202 lines each, and the
- * copies had already drifted apart on the phone touch target. What stays here
- * is what belongs to the roster — which two things it narrows by, what it calls
- * them, and that "A to Z" is the right name for ordering people.
- */
+// UX-20's search and filters over the shared `../list-filters` bar
+// (LAN-127). Decision history: missions/intake/M-PEOPLE-AND-ROSTER/decision-history.md.
 export default function RosterFilters({
   statuses,
   entries,

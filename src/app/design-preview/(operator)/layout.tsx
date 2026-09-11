@@ -8,29 +8,17 @@ import { signOut } from "@/app/login/actions";
 import OperatorAccountState from "@/app/operate/account-state";
 import { administrationDestinationsFor, destinationsFor } from "@/app/operate/destinations";
 import { COACH_SECTION, OPERATOR_CAPTION, OPERATOR_SECTION } from "@/app/operate/layout";
-// The preview's own copy of the proposed shell, so `/operate`'s real one is
-// untouched on this branch and merging changes nobody's navigation.
+// Preview's own copy, so `/operate`'s real shell is untouched on this branch.
 import ShellNav from "@/app/operate/shell-nav";
 
 /**
- * The proposed operator shell — LAN-225 screen 0.
+ * The proposed operator shell — LAN-225 screen 0. Same frame as
+ * `src/app/operate/layout.tsx`, three presentation changes, no behaviour
+ * change: palette-drawn sidebar (B1), no redundant wordmark block above each
+ * page (B2), sign out in the sidebar's account block (B3). Same gating rule
+ * as the real layout; every page still gates itself with `gateShellPage`.
  *
- * The same frame `src/app/operate/layout.tsx` draws, with three presentation
- * changes and no behaviour change:
- *
- *   - **B1** the sidebar and drawer draw from the palette (`./shell-nav.tsx`,
- *     this folder's copy of `src/app/operate/shell-nav.tsx`, does; this layout
- *     only mounts it — the real one is left exactly as it is on `main`);
- *   - **B2** the "Lancers Operations / Signed in as …" block above every page
- *     is gone — the wordmark and the account live in the shell, and the page's
- *     own `PageHeader` is its one heading;
- *   - **B3** sign out moves into the sidebar's account block, so a phone never
- *     spends its first screen on the account before the page title.
- *
- * Gating is the same two-line rule as the real layout: no session redirects to
- * login; an unlinked or inactive account gets the account state and never the
- * children. Every page under this route gates itself again with
- * `gateShellPage`, exactly as every page under `/operate` does.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export default async function DesignPreviewOperatorLayout({
   children,

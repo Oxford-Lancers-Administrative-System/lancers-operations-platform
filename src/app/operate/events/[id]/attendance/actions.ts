@@ -13,56 +13,10 @@ import {
 } from "@/lib/services/attendance";
 import type { AttendanceSaveState, WalkUpFormState } from "./action-state";
 
-/**
- * The attendance server actions — LAN-80.
- *
- * ## Which capability, and the one this file got wrong first
- *
- * `attendance_recording` — the union of the four calendar roles and the three
- * coaching seats. `docs/ux/slice-ux.md` § 8 splits attendance in two and both
- * halves land here:
- *
- *   * **General attendance** — "Authorized operator after `occurred`". The
- *     surface the Exec, the Secretary and the General Manager use, so gating it
- *     on the narrow coaching grant would lock them out of their own screen.
- *
- *   * **Coach attendance** — Brian's 12 August 2026 decision puts the Head
- *     Coach, Offensive Coordinator and Defensive Coordinator on this workflow
- *     explicitly, which is why those three seats are in the grant too.
- *
- * The first implementation used `requireOperator()`, the ordinary-operator
- * floor, reading § 8's "authorized operator" as "any linked operator".
- * Independent review showed that fails one of LAN-80's own criteria: Brian's
- * coach decision requires that "an unauthorized coach and ordinary player are
- * refused at the service boundary, including direct action calls", and a floor
- * admitting every linked operator does not refuse an ordinary player who
- * happens to hold an operator account. The floor was not merely generous; it
- * was wrong against a recorded criterion.
- *
- * `attendance_recorder` stays the three coaching seats — plus, since LAN-124,
- * the administrative IT Officer seat — and is untouched by this. It answers a
- * different question — "is the constrained screen yours"
- * — which LAN-110 asks. A Secretary holds `attendance_recording` and not that
- * one, and gets the operator's board.
- *
- * ## What is still refused, and by whom
- *
- *   * **The event's state.** Every write goes through the service, which locks
- *     the event and refuses one that has not occurred — approved, with its date
- *     passed (D30); underneath that, the cascading composite foreign key makes a
- *     row against anything but an approved event impossible to write at all.
- *     Two independent refusals, neither relying on the other.
- *
- *   * **Who the write is about.** A posted participant key is resolved against
- *     rows that already exist for *this* event. A key naming somebody else's
- *     membership is a `NotFound`, not a new attendance record.
- *
- *   * **The occurrence assertion.** There is no longer one anywhere. LAN-151
- *     retired it: an event has occurred when its date has passed and it was not
- *     cancelled, and nobody types that. The rule it used to carry — a recorder
- *     may say who turned up and may not say that there was anything to turn up
- *     to — now holds because the second half is not a decision at all.
- */
+// The attendance server actions — LAN-80. `attendance_recording` (general
+// operators + coaching seats, `slice-ux.md` § 8) guards record/save/walk-up;
+// `event_calendar_management` guards removal (LAN-110 excludes coaches from
+// that). Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -76,16 +30,7 @@ function messageFor(error: unknown): string {
   return error.message;
 }
 
-/**
- * Saves one participant's attendance, and reports what is now committed.
- *
- * It deliberately does not redirect. § 9 requires the row to show `Saving…`,
- * then the committed value with its actor and time, or a failure that keeps the
- * unsaved selection visible next to what is really recorded — none of which
- * survives a navigation. `revalidatePath` still refreshes the server-rendered
- * board underneath, so the rest of the screen catches up with a second
- * recorder's saves without the operator losing their place.
- */
+/** Saves one participant's attendance; never redirects — § 9 needs the row's own Saving/Saved state. */
 export async function recordAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
@@ -96,8 +41,7 @@ export async function recordAttendanceAction(
   const presence = text(formData, "presence");
 
   // Narrowed here rather than cast, so the service is never handed a value the
-  // enum has no member for. The service checks it again — a caller that is not
-  // this action exists, and will exist more once LAN-110 adds its own surface.
+  // enum has no member for.
   if (!isAttendancePresence(presence)) {
     return {
       key,
@@ -133,35 +77,7 @@ export async function recordAttendanceAction(
   }
 }
 
-/**
- * Removes one attendance record.
- *
- * The only way to unwind an occurrence assertion made against the wrong event:
- * a row recorded against the wrong person is otherwise permanent, and an event
- * carrying attendance cannot be cancelled until it is gone. It is not the way to
- * change somebody's state — that is a save, which is audited as a correction and
- * keeps the history.
- *
- * ## Why this one guards on the calendar, and the other two do not. LAN-110
- *
- * Because removing a record is an act on the club's record of an event rather
- * than an observation about a person, and LAN-110's boundary puts changes to
- * the calendar's record outside what a coaching seat holds.
- *
- * It is also not in what LAN-110 permits. The capability is "record and correct
- * Present, Absent, Late or Excused"; a correction keeps the observation and the
- * history, and a removal destroys the evidence that anybody watched at all.
- *
- * This narrows LAN-80, which had removal on `attendance_recording`, and narrows
- * nothing else: the four calendar roles that could remove a record still can.
- *
- * The guard was `event_occurrence_assertion` until LAN-151 retired it, and is
- * now `event_calendar_management`. The boundary is unchanged, deliberately and
- * verifiably: the two capabilities carry the identical role list — President,
- * Vice-President, Secretary, General Manager and IT Officer — so exactly the
- * same people may remove an attendance record as before, and no coaching seat
- * may.
- */
+/** Removes one attendance record — the only way to unwind a mistaken row. Guarded on `event_calendar_management`, not LAN-110's coach capability. Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
 export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
@@ -187,21 +103,9 @@ export async function removeAttendanceAction(
   redirect(`/operate/events/${eventId}/attendance`);
 }
 
-/**
- * The attendance a walk-up is always recorded with. See
- * `WALK_UP_ALWAYS_PRESENT` in `./presentation.ts` for why the form stopped
- * asking, and why this is not a lock.
- */
 const WALK_UP_PRESENCE: AttendancePresence = "present";
 
-/**
- * UX-73 — records somebody who was never invited, and nothing else.
- *
- * It creates the person, their contact points and a **recruitment prospect** —
- * see `recordWalkUpAttendance` — and no season membership and no onboarding. On
- * success it returns to the board, where the new row carries the walk-up flag
- * the view computes for it and sits in the board's own Walk-ups group.
- */
+/** UX-73 — records somebody never invited, and nothing else (a person, contacts, a recruitment prospect; no membership, no onboarding). Decision history: docs/ux/tickets/LAN-80-attendance.md · docs/ux/tickets/LAN-110-coach-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
 export async function recordWalkUpAction(
   _previous: WalkUpFormState,
   formData: FormData,
@@ -222,11 +126,7 @@ export async function recordWalkUpAction(
       familyName: values.familyName,
       phone: values.phone,
       email: values.email === "" ? null : values.email,
-      // Fixed here, not read from the form — Brian, 14 August 2026. The form no
-      // longer asks, so a `presence` in the body came from somewhere else, and
-      // a server action is a POST endpoint anybody with a session can call. The
-      // value the club's rule produces is the value that gets written, and the
-      // row's four buttons correct it afterwards like any other.
+      // Fixed here, not read from the form — Brian, 14 August 2026.
       presence: WALK_UP_PRESENCE,
     });
   } catch (error) {

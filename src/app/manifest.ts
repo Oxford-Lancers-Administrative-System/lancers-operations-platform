@@ -3,31 +3,14 @@ import type { MetadataRoute } from "next";
 import { CLUB_NAME, CLUB_NAVY, SITE_DESCRIPTION } from "@/lib/brand";
 
 /**
- * What "Add to Home Screen" installs — LAN-269 item 2.
+ * What "Add to Home Screen" installs — LAN-269 item 2. Without this, a pinned
+ * `/me/[token]` takes a tab screenshot as its icon and the page title as its
+ * label. `start_url` is the front door, not a token link: the manifest is one
+ * document for everybody. `display: "browser"` is deliberate — these are
+ * ordinary pages a player follows links out of, and `standalone` would strand
+ * them by stripping the address bar.
  *
- * Players are given a durable link (`/me/[token]`) and will pin it. Without a
- * manifest a pinned page takes a screenshot of the tab as its icon and the page
- * title as its label, which is how a player ends up with an unlabelled white
- * square. With one they get the crest and the word "Lancers".
- *
- * `short_name` is what fits under an icon on a phone home screen — roughly a
- * dozen characters before the launcher truncates it — so it is the club's
- * short name, not its full one.
- *
- * `start_url` is the front door and not a token link: the manifest is served
- * from a fixed path and is the same document for everybody, so it cannot carry
- * anything personal. A player pinning their own page keeps their own URL
- * regardless; this is only what a bare install opens.
- *
- * `display: "browser"` is deliberate. `standalone` strips the address bar and
- * the back button, and these are ordinary web pages a player follows links out
- * of — to a WhatsApp group, to a map, to the club's own calendar feed. Taking
- * away the browser's controls would strand them.
- *
- * The two icon sizes are the ones Android asks for: 192 for the launcher, 512
- * for the splash screen and the install prompt. Both are the gold-outline mark
- * on the club navy, cut by `scripts/generate-brand-assets.mjs` from the same
- * source as the favicon, so the tab and the home screen agree.
+ * Decision history: docs/ux/design-system.md (LAN-269 has no ticket contract)
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

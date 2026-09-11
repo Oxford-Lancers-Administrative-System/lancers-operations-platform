@@ -1,67 +1,22 @@
 /**
  * The roster's own CSV: what a column means, and the shape checks a row must
- * pass before anybody is asked a duplicate question about it. LAN-215,
- * work package `WP-arrival-doors`, workflow `W1`.
- *
- * ## Follows `./event-csv.ts`'s shape, not its identity model
- *
- * `OD7-import-like-events`, Brian 2026-09-01: the roster import follows the
- * event import's shape rather than inventing one — the same three-state
- * screen, the same proposal-before-write contract, the same partial-apply
- * behaviour, the same never-store-the-file posture. What differs is the one
- * thing `W1`'s own specification names as the reason this workflow exists: an
- * event has an `id` column and upserts on it; a person does not carry a
- * spreadsheet identifier, so this module never asks "does this id match" and
- * always asks "who might this already be" — Mission 5's duplicate question
- * (`findPersonCandidates`, `person-duplicate.ts`), not a fourth
- * implementation of it. Because that question needs the database, this module
- * stops short of producing a full plan: it does the **pure** half — reading
- * the file, checking each row's shape, and refusing what a live season could
- * never fix — and `./roster-import.ts` is the other half, which reads the
- * roster and calls `findPersonCandidates` per row inside a transaction.
- *
- * ## The six columns, and the three required ones
- *
- * `first_name`, `last_name` and `mobile` are the required set at every tier
- * (`person-required.ts`'s recruit tier) and are what a welcome needs to
- * arrive. `personal_email`, `college` and `matriculation_year` are optional —
- * things a club spreadsheet genuinely holds and that save the player
- * retyping. Nothing else: no date of birth, no emergency contact — both are
- * asked of every player at onboarding, and neither belongs in a file on a
- * laptop (`acceptance/W1.md`'s locked decision).
- *
- * ## Why it is pure, and has no database
- *
- * The confirmation table is a client component and the uploaded file is never
- * stored — it lives in the request that produced the proposal and in the
- * confirmation form the operator is looking at, exactly as `./event-csv.ts`'s
- * own doc comment states for events. Anything the confirmation renders has to
- * be reachable without `pg`.
- *
- * ## The mobile shape check, since LAN-215's B-007
- *
- * `mobile` used to be checked by a private, deliberately loose rule — any
- * value with seven or more digits — because the club's real files contain
- * numbers one digit short, and rejecting the whole row lost the contact
- * entirely. Brian's correction is that the club's spreadsheet defects and a
- * form a person is typing into are different problems: this file still
- * refuses only the *one row* a bad number appears on, by its own reason,
- * naming the phone — every other row still lands — so tightening the rule
- * costs nothing an operator cannot see and fix. The check itself is now
- * `src/lib/validation/contact.ts`'s `looksLikePhone`, the same predicate
- * `/operate/roster/new` uses, so a number this importer accepts is a number
- * that could actually receive the welcome.
+ * pass before anybody is asked a duplicate question about it. LAN-215, `W1`.
+ * Follows `./event-csv.ts`'s shape (three-state screen, propose-before-write,
+ * partial-apply, never-store-the-file) but asks "who might this already be"
+ * (Mission 5's duplicate question) rather than upserting on an id — a person
+ * carries no spreadsheet identifier. This module is the pure half — read,
+ * shape-check, refuse what the database could never fix; `./roster-import.ts`
+ * is the other half, calling `findPersonCandidates` inside a transaction.
+ * Required: `first_name`, `last_name`, `mobile`. Optional: `personal_email`,
+ * `college`, `matriculation_year`. No date of birth, no emergency contact —
+ * both belong to onboarding, not a file on a laptop.
+ * Decision history: LAN-215, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 
 import { isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
 
-// ---------------------------------------------------------------------------
-// The file
-// ---------------------------------------------------------------------------
-
-/** The columns this importer reads, in the order the template writes them. */
 const IMPORT_COLUMNS = [
   "first_name",
   "last_name",
@@ -73,36 +28,20 @@ const IMPORT_COLUMNS = [
 
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
 
-/**
- * Without these three a row has no meaning at all: a welcome needs a mobile
- * to arrive at, and a person needs a name. `personal_email`, `college` and
- * `matriculation_year` are read as blank when the header omits them, on the
- * same "an absent column means nobody has that fact" reasoning
- * `./event-csv.ts` uses for its own optional columns.
- */
+/** Without these three a row has no meaning: a welcome needs a mobile, a person needs a name. */
 const REQUIRED_HEADER_COLUMNS: readonly ImportColumn[] = Object.freeze([
   "first_name",
   "last_name",
   "mobile",
 ]);
 
-/**
- * A season's squad is dozens of people, not thousands — the size limits here
- * are generous headroom over that, on the identical "refuse the whole file,
- * before any row is read" contract `./event-csv.ts` states for its own
- * limits.
- */
+/** A season's squad is dozens of people, not thousands — generous headroom. */
 export const MAX_IMPORT_BYTES = 1_048_576;
 const MAX_IMPORT_ROWS = 500;
 
-/** The empty club's download: the header row and nothing else. */
 export function importTemplateCsv(): string {
   return IMPORT_COLUMNS.join(",") + "\r\n";
 }
-
-// ---------------------------------------------------------------------------
-// One row, shape-checked
-// ---------------------------------------------------------------------------
 
 /** Whether a cell says anything at all — `./event-csv.ts`'s identical `said()`. */
 function said(cell: string): boolean {
@@ -114,11 +53,9 @@ function trimmedOrNull(value: string): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/** One row, read and shape-checked, before anybody has asked the database anything. */
 export interface ParsedRosterRow {
   /** The line in the file, counting the header as line 1. */
   line: number;
-  /** Every cell as the file wrote it, trimmed. Shown on a refused row so the operator can see what they typed. */
   rawCells: Readonly<Record<ImportColumn, string>>;
   firstName: string | null;
   lastName: string | null;
@@ -197,10 +134,6 @@ function parseRow(line: number, cells: Record<ImportColumn, string>): ParsedRost
   };
 }
 
-// ---------------------------------------------------------------------------
-// The header
-// ---------------------------------------------------------------------------
-
 type HeaderIndex = Partial<Record<ImportColumn, number>>;
 type HeaderRead = { ok: true; index: HeaderIndex } | { ok: false; reason: string };
 
@@ -250,24 +183,13 @@ function readHeader(rows: CsvTable): HeaderRead {
   return { ok: true, index };
 }
 
-// ---------------------------------------------------------------------------
-// Within-file duplicates
-// ---------------------------------------------------------------------------
-
-/** first name + last name + mobile, compared case-insensitively — the same three fields the required set fixes. */
 function withinFileKey(row: ParsedRosterRow): string | null {
   if (!row.firstName || !row.lastName || !row.mobile) return null;
   const phoneTail = row.mobile.replace(/\D/g, "").slice(-9);
   return `${row.firstName.toLowerCase()}|${row.lastName.toLowerCase()}|${phoneTail}`;
 }
 
-/**
- * Every row whose key another, earlier row already carries.
- *
- * `W1`'s exceptions table: "Two rows in the file are the same person → The
- * second is Refused, naming the first line." — the file's own internal
- * question, entirely independent of what the database holds.
- */
+/** Every row whose key another, earlier row already carries — W1: the second is refused, naming the first line. */
 function withinFileDuplicates(rows: readonly ParsedRosterRow[]): ReadonlyMap<number, number> {
   const firstSeenAt = new Map<string, number>();
   const duplicateOfLine = new Map<number, number>();
@@ -284,10 +206,6 @@ function withinFileDuplicates(rows: readonly ParsedRosterRow[]): ReadonlyMap<num
   return duplicateOfLine;
 }
 
-// ---------------------------------------------------------------------------
-// Reading the whole file
-// ---------------------------------------------------------------------------
-
 interface RosterImportRead {
   fileName: string | null;
   rows: readonly ParsedRosterRow[];
@@ -298,13 +216,7 @@ export type RosterImportReadResult =
   /** The file is refused whole, before any row is read. */
   | { ok: false; reason: string };
 
-/**
- * The file, shape-checked row by row. Writes nothing and touches no
- * database — every reason a row appears here is one the database could never
- * fix. A row with no shape reason still needs `./roster-import.ts`'s own
- * duplicate question before it is known to be `new`, `carried_forward` or
- * `unchanged`.
- */
+/** The file, shape-checked row by row. Writes nothing; a shape-valid row still needs `./roster-import.ts`'s duplicate question. */
 export function readRosterImport(options: {
   csvText: string;
   fileName?: string | null;
@@ -357,52 +269,33 @@ export const IMPORT_TOO_LARGE_MESSAGE =
   `That file is larger than ${Math.round(MAX_IMPORT_BYTES / 1024)} KB. A season's squad is a ` +
   "few tens of kilobytes, so this is not a term's spreadsheet.";
 
-/** The size limit, applied to the text before anything else looks at it. */
 export function refuseOversizedRosterFile(csvText: string): string | null {
   const bytes = Buffer.byteLength(csvText, "utf8");
   return bytes > MAX_IMPORT_BYTES ? IMPORT_TOO_LARGE_MESSAGE : null;
 }
 
-// ---------------------------------------------------------------------------
-// The plan's shape — pure, so the client confirmation screen can read it
-// ---------------------------------------------------------------------------
-//
-// `./roster-import.ts` is `server-only` and produces values of these types;
-// this module only declares their *shape*, on the identical split
-// `./event-csv.ts` (pure) / `./event-import.ts` (server-only) already makes.
-// A type import from a `server-only` module is exactly the leak the events
-// screen's own `import-state.ts` warns against, so every shape the
-// confirmation screen needs to read is declared here instead — including a
-// local copy of `roster.ts`'s `CandidateMatch` union, which is `server-only`
-// too even though the four-string type itself carries no behaviour.
+// The plan's shape — pure, so the client confirmation screen can read it (`./roster-import.ts` is `server-only`).
 
 type RosterCandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
 
 export type RosterRowOutcome = "new" | "carried_forward" | "unchanged" | "refused";
 
-/** One candidate shown beside an incoming row, for the operator's answer. */
 export interface RosterDuplicateCandidate {
   personId: string;
   displayName: string;
   email: string | null;
   phone: string | null;
   matchedOn: readonly RosterCandidateMatch[];
-  /** The season label they already hold a membership for, when they do. */
   currentMembershipSeasonLabel: string | null;
 }
 
 export interface RosterPlannedRow {
-  /** The line in the file, counting the header as line 1. */
   line: number;
   outcome: RosterRowOutcome;
-  /** What to call the row: the person's name, or "(no name)" when neither part could be read. */
   name: string;
   cells: Readonly<Record<ImportColumn, string>>;
-  /** Why the row was refused. Empty for every other outcome. */
   reasons: readonly string[];
-  /** Present exactly when this row has one or more possible duplicates — answered or not. */
   duplicate: { candidates: readonly RosterDuplicateCandidate[] } | null;
-  /** The person this row resolved to, for `carried_forward` and `unchanged`. */
   matchedPersonId: string | null;
 }
 
@@ -420,15 +313,9 @@ export interface RosterImportPlan {
   rowCount: number;
   totals: RosterImportTotals;
   rows: readonly RosterPlannedRow[];
-  /** `new` plus `carried_forward` — what confirming actually writes. */
   applicableCount: number;
-  /** Lines still waiting on an operator answer. Confirming while this is non-empty still refuses only those rows. */
   unansweredLines: readonly number[];
-  /**
-   * A fingerprint of exactly what applying would write, given the operator's
-   * duplicate answers so far. `./roster-import.ts` recomputes the plan inside
-   * the apply transaction and refuses when this no longer matches.
-   */
+  /** A fingerprint of what applying would write; `./roster-import.ts` recomputes and refuses on mismatch. */
   digest: string;
 }
 

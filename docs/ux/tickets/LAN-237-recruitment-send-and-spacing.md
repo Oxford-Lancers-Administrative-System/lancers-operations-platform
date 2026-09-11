@@ -64,3 +64,44 @@ rows already exist. Brian deploys the application deliberately after merge and
 reviews the recruitment record's spacing and send outcomes. Real Meta acceptance
 requires the existing owner-managed provider configuration; no agent enables it.
 LAN-238's dataset repair and any production reload are outside this PR.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/roster/[membershipId]/record-actions.ts — recordSendOnboardingQuestionnaireAction
+
+> The record's own **Send onboarding questionnaire** — LAN-266.
+>
+> Brian, 2026-09-09, with the recruit record as the model: "onboarding gets
+> the same thing, on the player's record, working the way the recruitment one
+> works." An operator looking at one player had to leave the record, find
+> their row in the missing-data queue, and nudge from there, and the record
+> itself never said whether the link had ever been sent.
+>
+> This calls `sendOnboardingNudges` with exactly one membership — the same
+> function `/operate/people/missing`'s own Nudge calls, unchanged. That is
+> requirement 6, and it is a call rather than a new send path precisely
+> because of it: one job type, one idempotency-key prefix, one activity-log
+> entry, so a nudge from either place appears identically in this record's
+> Activity section and in the queue's Last contact and Next columns. It also
+> dispatches within the action, so the dialog reports **Sent** only on
+> provider acceptance and a named refusal otherwise (LAN-237's own rule,
+> which `sendOnboardingNudges` already satisfied before this button existed —
+> see LAN-237's blast-radius audit).
+>
+> `person_record_authority`, the same four-role gate every other write on
+> this record uses and the same one the queue's own nudge action uses.
+>
+> Both routes are revalidated: the queue's Last contact and Next columns are
+> now stale the moment this succeeds, exactly as they are after a nudge made
+> from the queue itself.
+>
+> The refusal's own sentence is read back rather than invented. `sendOnboardingNudges`
+> returns an outcome word and no reason — the reason lives on the job it just
+> wrote, which is where the dispatcher put it — so a refused send re-reads the
+> membership's own send status and hands the dialog the stored, provider-neutral
+> sentence. Requirement 3 is explicit that a refusal names the reason on the
+> record rather than reading "could not be completed", and the walk found this
+> the hard way: with delivery unconfigured the dialog said nothing useful while
+> `notification_jobs.last_error` held the exact sentence an operator needed.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

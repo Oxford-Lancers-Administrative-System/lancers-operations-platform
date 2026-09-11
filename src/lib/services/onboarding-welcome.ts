@@ -4,48 +4,8 @@ import { InvalidTransition, type Tx } from "@/lib/db";
 import { mayReceiveWelcomeContactIn } from "./messaging-consent";
 import { recordOnboardingActivityIn } from "./onboarding-activity-log";
 
-/**
- * The `onboarding-opened` welcome emitter — LAN-214, `REQ-one-welcome` and
- * `REQ-transport`. One welcome template for everybody, door-independent
- * (W1/W2/W3 all fire it, and none of them is built here): "Welcome to the
- * team, 2026–27," carrying the compiled-outstanding-ask link.
- *
- * ## Idempotent, once per membership, regardless of door
- *
- * `notification_jobs.idempotency_key` is `onboarding-welcome:<membershipId>`
- * — the same "one key per real-world event" idiom `recruitment-cycle.ts`
- * uses (`recruit-cycle:<step>:<personId>:<seasonId>`) and
- * `messaging-scheduler.ts` uses throughout. `on conflict (idempotency_key) do
- * nothing` is what makes calling this twice for the same membership — a
- * retried request, two doors racing on the same person, a re-run after a
- * crash — insert nothing the second time rather than queue a second welcome.
- *
- * ## `REQ-transport`: the one message permitted before a basis exists
- *
- * `mayReceiveWelcomeContactIn` (built for the recruitment cycle's identical
- * consent deadlock — LAN-204: "If consent is not given, sending the personal
- * questionnaire is how we get it") is reused verbatim rather than
- * reimplemented: it already expresses exactly `REQ-transport`'s "the
- * refuse-without-basis check permits only the welcome before a basis exists"
- * — allowed unless the person has explicitly `refused` or `withdrawn`, which
- * is every other send's hard "no" and stays one here too. Every other kind of
- * onboarding message (a follow-up, a nudge, a targeted ask) keeps calling
- * `requireGrantedSeasonMessagingConsentIn`, unchanged — this module never
- * touches that gate, and `onboarding-welcome.test.ts` proves the two
- * disagree on exactly the case that matters: a person who has neither
- * granted nor refused anything yet.
- *
- * ## `job_type = 'other'`
- *
- * The same adoption `recruitment-cycle.ts`'s own note explains: the one
- * `notification_job_type` value nothing else in this codebase's *player-side*
- * onboarding jobs writes, discriminated by `idempotency_key` rather than a
- * new column. This module only ever declares the job — claiming and sending
- * it rides Mission 4's pipeline (`messaging-scheduler.ts`), whose dispatch
- * loop a later package wires to recognise the `onboarding-welcome:` prefix
- * exactly as it already recognises `recruit-cycle:`. That wiring is out of
- * this package's scope; see the receipt's limitations.
- */
+// The `onboarding-opened` welcome emitter (LAN-214, `REQ-one-welcome`, `REQ-transport`) — one door-independent welcome per membership, idempotent on `onboarding-welcome:<membershipId>`. Sending rides `messaging-scheduler.ts`.
+// Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
 
 export type OnboardingWelcomeResult =
   { queued: true; jobId: string } | { queued: false; reason: "already_queued" };
@@ -57,15 +17,7 @@ function welcomeIdempotencyKey(membershipId: string): string {
   return `onboarding-welcome:${membershipId}`;
 }
 
-/**
- * Declares the welcome job for one membership, idempotently, and logs it as
- * one `ask` entry in that membership's activity log (`REQ-activity-log`) —
- * the log's very first entry for a new membership.
- *
- * Throws {@link InvalidTransition} when the person has explicitly `refused`
- * or `withdrawn` messaging consent for this season — the one case even the
- * welcome does not override.
- */
+/** Declares the welcome job idempotently and logs one `ask` activity entry. Throws {@link InvalidTransition} if consent was `refused`/`withdrawn`. */
 export async function emitOnboardingOpenedWelcomeIn(
   tx: Tx,
   params: { membershipId: string; personId: string; seasonId: string },

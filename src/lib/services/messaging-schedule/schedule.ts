@@ -9,39 +9,18 @@ import { recordAudit } from "../audit";
  * `./index`.
  */
 
-/** One template's policy, as `public.messaging_schedules` holds it. */
 export interface MessagingSchedule {
-  /** LAN-265. The template this cadence belongs to, and the key it is read by. */
-  readonly templateId: string;
-  /** What the club calls that template — the only word any screen shows for it. */
-  readonly templateName: string;
-  /** The behavioural class underneath, which the recruit ladder still keys off. */
-  readonly eventType: string;
-  /** Whole days before the event's own start at which an answer is due. */
-  readonly rsvpByDays: number;
-  /** Whole days before the event's own start at which the invitation goes. */
-  readonly invitationLeadDays: number;
-  /** Hours between successive rungs. Reminders count forward from the invitation. */
-  readonly reminderCadenceHours: number;
-  /**
-   * Every WhatsApp message the ladder sends, **counting the invitation
-   * itself as the first one** (Q-19, `REQ-ladder-order` governs over W7's
-   * looser "reminders" wording). A club that wants one further WhatsApp
-   * reminder after the invitation sets this to 2, not 1 — the count column
-   * never calls the invitation a reminder, but it does count it.
-   */
-  readonly whatsappReminderCount: number;
-  /** Email reminders after the invitation. The invitation is never email. */
-  readonly emailReminderCount: number;
-  /** Hours after the RSVP deadline before the President is told. Zero is legal. */
-  readonly escalationHours: number;
-  /**
-   * The Recruits audience's own first-invitation lead (`DEC-split-on-the-
-   * schedule`, LAN-201). Null for every event type but `recruitment`.
-   */
-  readonly recruitInvitationLeadDays: number | null;
-  /** Hours after the recruit invitation before the one permitted follow-up. Null likewise. */
-  readonly recruitFollowUpCadenceHours: number | null;
+  readonly templateId: string; // LAN-265: the template this cadence belongs to, and the key it is read by
+  readonly templateName: string; // what the club calls it — the only word any screen shows
+  readonly eventType: string; // behavioural class the recruit ladder still keys off
+  readonly rsvpByDays: number; // whole days before start at which an answer is due
+  readonly invitationLeadDays: number; // whole days before start at which the invitation goes
+  readonly reminderCadenceHours: number; // hours between rungs, counting forward from the invitation
+  readonly whatsappReminderCount: number; // counts the invitation itself as #1 (Q-19) — see relocations.md
+  readonly emailReminderCount: number; // after the invitation; the invitation is never email
+  readonly escalationHours: number; // hours after the RSVP deadline before the President is told; zero is legal
+  readonly recruitInvitationLeadDays: number | null; // DEC-split-on-the-schedule (LAN-201); null off `recruitment`
+  readonly recruitFollowUpCadenceHours: number | null; // hours to the one permitted follow-up; null likewise
   readonly updatedAt: Date;
 }
 
@@ -61,14 +40,7 @@ const SCHEDULE_COLUMNS = `
   s.recruit_follow_up_cadence_hours,
   s.updated_at`;
 
-/**
- * The schedule joined to the template whose name every reader of it prints.
- *
- * One string rather than the join written out at each call site, and aliased `s`
- * and `t` so `SCHEDULE_COLUMNS` above can qualify every column: after LAN-265
- * `event_type` is no longer unique across this table, and an unqualified column
- * list beside a join is one added column away from being ambiguous.
- */
+// Aliased s/t so SCHEDULE_COLUMNS can qualify every column — after LAN-265, event_type is no longer unique across this table.
 const SCHEDULE_FROM = `public.messaging_schedules s
          join public.event_templates t on t.id = s.template_id`;
 
@@ -104,34 +76,12 @@ function toSchedule(row: ScheduleRow): MessagingSchedule {
   };
 }
 
-/**
- * The schedule for one template, or a refusal naming the gap.
- *
- * The refusal is ADR 0021's first surviving rule and it is the point of the
- * function. A template with no cadence row cannot approve an event, and says so
- * — rather than quietly inheriting a practice's two days and messaging forty
- * people on a schedule nobody approved.
- *
- * Since LAN-265 the gap it guards against is a different one and a narrower one.
- * It used to be "a migration widened `public.event_type` and nobody added a
- * row"; `messaging_schedules_pkey` on `template_id` and the cascade on
- * `messaging_schedules_template_fkey` now make a template without a cadence
- * unrepresentable, and `createEventTemplate` writes both rows in one
- * transaction. What is left is a template deleted between the read that offered
- * it and the approval that used it, which is exactly the sentence below.
- */
+// A refusal naming the gap — ADR 0021's first surviving rule (see relocations.md).
 export async function readMessagingScheduleIn(
   tx: Tx,
   templateId: string,
 ): Promise<MessagingSchedule> {
-  // Compared as text, not cast to `uuid`, and for the reason this function used
-  // to compare `event_type::text` rather than casting the parameter to the enum:
-  // the cast is the natural way to write it and it defeats the refusal below.
-  // PostgreSQL rejects a malformed uuid with an invalid-input error, so a caller
-  // holding a stale or hand-typed identifier got "the database could not
-  // complete this change" instead of the sentence naming what has no policy.
-  // The refusal is the whole reason this is not a plain lookup, so it has to
-  // survive the case it exists for.
+  // text, not uuid cast — a cast would raise a PostgreSQL error instead of this refusal
   const result = await tx.query<ScheduleRow>(
     `select ${SCHEDULE_COLUMNS} from ${SCHEDULE_FROM} where s.template_id::text = $1`,
     [templateId],
@@ -148,16 +98,7 @@ export async function readMessagingScheduleIn(
   return toSchedule(row);
 }
 
-/**
- * Every configured schedule, for the settings page and the approval panel.
- *
- * Ordered by the template's name since LAN-265, and no longer by
- * `public.event_type`'s declared order. The old order existed because the seven
- * rows *were* the seven types and the settings page grouped them that way; the
- * rows are now whatever the club has created, several may share a class, and the
- * only ordering an operator can perceive is the one they can read. `lower()` so
- * a name's casing does not decide its neighbourhood.
- */
+// Ordered by the template's name (LAN-265), not public.event_type's declared order.
 export async function listMessagingSchedulesIn(tx: Tx): Promise<readonly MessagingSchedule[]> {
   const result = await tx.query<ScheduleRow>(
     `select ${SCHEDULE_COLUMNS} from ${SCHEDULE_FROM} order by lower(t.name)`,
@@ -165,24 +106,7 @@ export async function listMessagingSchedulesIn(tx: Tx): Promise<readonly Messagi
   return result.rows.map(toSchedule);
 }
 
-/**
- * The cadence a template created today starts from — LAN-265.
- *
- * Brian, 2026-09-09: a new template's cadence "starts from a default cadence and
- * can then be edited on the Messaging schedule screen like the seven existing
- * ones". These are the numbers six of the seven shipped rows already carry, and
- * which `20260825120000_messaging_schedule_and_chase.sql` calls the routine
- * events': answer two days before, invite five days before, a rung a day, two
- * WhatsApps counting the invitation, one email, and the President told twelve
- * hours after the deadline. A game's seven days and a social's five are
- * decisions about a game and a social, and there is nothing to base such a
- * decision on for a kind of event that did not exist a minute ago.
- *
- * Exported because `createEventTemplate` records it in the audit context: the
- * cadence a template started life with is a fact about a club decision, and a
- * later edit on `/operate/admin/messaging` should be readable as a change from
- * something rather than as the first thing anybody ever said.
- */
+// The cadence a template created today starts from — LAN-265 (Brian, 2026-09-09; see relocations.md).
 export const DEFAULT_MESSAGING_SCHEDULE: MessagingScheduleChange = Object.freeze({
   rsvpByDays: 2,
   invitationLeadDays: 5,
@@ -192,19 +116,7 @@ export const DEFAULT_MESSAGING_SCHEDULE: MessagingScheduleChange = Object.freeze
   escalationHours: 12,
 });
 
-/**
- * The cadence row that a newly created template gets, before anybody edits it.
- *
- * `event_type` travels with it because `messaging_schedules_template_fkey` is
- * composite — the class on this row is provably the template's own rather than
- * conventionally so — and because
- * `messaging_schedules_recruit_fields_are_recruitment_only` still reads it: a
- * template of the `recruitment` class must carry the two recruit columns and any
- * other class must not. Operators cannot create a recruitment-class template
- * (`DEFAULT_TEMPLATE_CLASS` is `practice` and nothing offers the choice), so the
- * two columns are left null here; the day that changes, this is where the
- * recruit defaults go, and the check constraint is what will insist on it.
- */
+// The cadence row a newly created template gets, before anybody edits it (see relocations.md).
 export async function createMessagingScheduleIn(
   tx: Tx,
   templateId: string,
@@ -229,16 +141,7 @@ export async function createMessagingScheduleIn(
   return readMessagingScheduleIn(tx, templateId);
 }
 
-/**
- * Changes one event type's policy, attributed.
- *
- * Not a surface — LAN-171 builds `/operate/admin/messaging` on top of this —
- * but the write belongs here beside the arithmetic it governs, so the settings
- * page cannot grow its own SQL and a second reading of these columns.
- *
- * `insert` is deliberately absent: the seven rows exist from the migration and
- * an event type with no row is a refusal, not an invitation to create one.
- */
+// Not a surface — LAN-171 builds /operate/admin/messaging on this. No `insert`: rows come from the migration.
 export interface MessagingScheduleChange {
   readonly rsvpByDays: number;
   readonly invitationLeadDays: number;
@@ -246,14 +149,7 @@ export interface MessagingScheduleChange {
   readonly whatsappReminderCount: number;
   readonly emailReminderCount: number;
   readonly escalationHours: number;
-  /**
-   * The Recruits audience's own two fields (LAN-203) — present only when the
-   * caller is saving the Recruitment row's Recruits group. `undefined` on
-   * every other event type's save, which leaves the column untouched rather
-   * than writing a value the database would refuse
-   * (`messaging_schedules_recruit_fields_are_recruitment_only`).
-   */
-  readonly recruitInvitationLeadDays?: number;
+  readonly recruitInvitationLeadDays?: number; // LAN-203, Recruitment row only; undefined leaves the column untouched elsewhere
   readonly recruitFollowUpCadenceHours?: number;
 }
 
@@ -291,19 +187,7 @@ export async function updateMessagingScheduleIn(
     ],
   );
 
-  // W7: every change is attributed, and the trade it names is that a rule
-  // change stops being a reviewed pull request and becomes a runtime edit. The
-  // audit row is the whole of what replaces version control here, so it carries
-  // both the old and the new values rather than only the new ones.
-  //
-  // `entityId` is the template's own id, and OWNER-LAN171-01's workaround is
-  // retired with it. `audit_events.entity_id` is `uuid not null`, and this table
-  // used to be keyed by `public.event_type` — a plain enum label such as
-  // `"practice"`, which Postgres rejects outright as a uuid, rolling back the
-  // whole transaction and silently failing every save. The key that LAN-265 gave
-  // this table *is* a uuid, so the audit row now names the real row rather than
-  // a hash of its natural key, and `context` goes on carrying the full before
-  // and after.
+  // W7: every change is attributed; the audit row carries both old and new values (see relocations.md).
   await recordAudit(tx, {
     actorPersonId,
     action: "messaging_schedule.changed",
@@ -312,10 +196,6 @@ export async function updateMessagingScheduleIn(
     context: { before, after: change },
   });
 
-  // Re-read rather than `returning ${SCHEDULE_COLUMNS}`: those columns are
-  // qualified against the join that carries the template's name, and a
-  // `returning` clause cannot join. One extra read on a rarely used
-  // administrative write, in exchange for one definition of what a schedule row
-  // reads as.
+  // re-read, not `returning`: SCHEDULE_COLUMNS is qualified against the template-name join, which returning cannot do
   return readMessagingScheduleIn(tx, updated.rows[0].template_id);
 }

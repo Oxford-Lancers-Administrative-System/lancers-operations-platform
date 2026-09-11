@@ -4,28 +4,14 @@ import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { personDisplayAliasSql } from "./sql-text";
 
 /**
- * The one duplicate check — LAN-183, `REQ-duplicate-check`: "A duplicate check
- * runs before any person is created, matching first name, last name, aliases,
- * every email and every phone... Merged-away records are never offered."
- *
- * `main` has three separate implementations of this question today —
- * `roster.ts`'s `findPersonCandidates` for returner intake among them — each
- * written for its own workflow (`DEC-w3-09` records that as deliberate
- * duplication at inventory freeze, and delegates whether they are consolidated
- * to the Mission Lead). This module is not a fourth: it is the one this
- * package is built to be the canonical answer, for W3's "add or link a person"
- * and every later caller that needs the same question answered — matching on
- * every contact value a candidate record supplies, not just one email and one
- * phone, because a person being added may be typed with more than one address.
- * Consolidating the three existing call sites onto it is a separate, later
- * decision this package does not make on its own.
- *
- * Read-only, on purpose. `REQ-duplicate-check`'s "creating over an exact
- * contact-point match requires a reason, and rejected candidates are audited"
- * describes the **write** — minting a person — which this package does not
- * own (`REQ-create-without-roles`'s add-person surface is a later package's
- * workflow). This module answers "who might this already be", and stops
- * there; the write that follows is where a reason and an audit row belong.
+ * The one duplicate check — LAN-183, `REQ-duplicate-check`. `main` has three
+ * separate implementations of this question (`roster.ts`'s
+ * `findPersonCandidates` among them, `DEC-w3-09`); this is the canonical one
+ * for W3's "add or link a person" and every later caller, matching on every
+ * contact value a candidate supplies. Read-only: the write that follows
+ * (minting a person) is a later package's, where the reason and audit row
+ * belong.
+ * Decision history: LAN-183, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 export type PersonDuplicateMatch = "given_name" | "family_name" | "alias" | "email" | "phone";
@@ -36,9 +22,7 @@ export interface PersonDuplicateCandidate {
   familyName: string | null;
   displayAlias: string | null;
   displayName: string;
-  /** Every current (not superseded) email this candidate holds. */
   currentEmails: string[];
-  /** Every current (not superseded) phone this candidate holds. */
   currentPhones: string[];
   /** Every field that matched, in a stable order. Never empty. */
   matchedOn: PersonDuplicateMatch[];
@@ -47,9 +31,7 @@ export interface PersonDuplicateCandidate {
 export interface PersonDuplicateQuery {
   givenName: string;
   familyName?: string | null;
-  /** Every email the incoming record carries — college, personal, or both. */
   emails?: readonly string[];
-  /** Every phone the incoming record carries. */
   phones?: readonly string[];
 }
 
@@ -105,7 +87,6 @@ async function readCurrentContacts(
   return byPerson;
 }
 
-/** The same rule `person-record.ts`'s `displayNameOf` applies: the display alias if there is one, else the given name, plus the family name. */
 function displayNameFrom(
   givenName: string,
   familyName: string | null,
@@ -126,20 +107,7 @@ function matchedOnFrom(row: CandidateRow): PersonDuplicateMatch[] {
   return matched;
 }
 
-/**
- * Every existing, non-merged-away person who might already be the human being
- * described by `query`.
- *
- * Loose on purpose, for the reason `roster.ts`'s own duplicate check states:
- * a quarter of the club's real records carry a first name and nothing else, so
- * a given-name-only match is exactly the row an operator most needs to see. A
- * candidate that merely shares a first name costs the operator one more line to
- * read; a second Person for someone who already has one costs an audited merge
- * to undo.
- *
- * Refuses to run with nothing to match on — a query naming no given name, no
- * family name, no email and no phone would scan and return the entire club.
- */
+/** Every existing, non-merged-away person who might already be the human described by `query`. Loose on purpose. Refuses to run with nothing to match on. */
 export async function findPersonDuplicates(
   query: PersonDuplicateQuery,
 ): Promise<PersonDuplicateCandidate[]> {
@@ -256,27 +224,10 @@ export interface PersonNameAndPhoneMatch {
 }
 
 /**
- * LAN-208. **Not** `findPersonDuplicates` with a filter — a different query,
- * on purpose. That function's own doc explains why it is loose (an operator
- * scanning candidates for a person they might already have wants every
- * partial hit); this is the opposite question, for the one caller — the
- * anonymous QR sign-up probe (`recruitment-signup.ts`) — that must never
- * treat a fabricated name plus a real phone number as a match. `matched_given`
- * and `matched_phone` in that function's `CandidateRow` are each computed
- * against a candidate row independently and then OR'd together in the
- * `WHERE`, so a row can carry `matched_phone: true` on a phone match alone —
- * exactly the oracle LAN-208 found. This query requires both conditions
- * **on the same row**, in its own `WHERE`, so there is no boolean flag a
- * caller could misread or forget to check.
- *
- * Given name only, never family name — the QR door's probe never collects a
- * family name before asking "have you signed up before?", so requiring one
- * here would be a condition no legitimate caller could ever satisfy.
- *
- * Returns at most one row. Two different people sharing both a first name and
- * a phone number's last nine digits is not a case this function resolves —
- * it isn't the merge-candidate list `findPersonDuplicates` is for, and a
- * second row here would defeat the point of only asking for one.
+ * LAN-208. Not `findPersonDuplicates` with a filter — the opposite question,
+ * for the anonymous QR sign-up probe. Requires both conditions on the same
+ * row, so there is no OR'd flag to misread. Given name only. At most one row.
+ * Decision history: LAN-208, missions/intake/M-RECRUITMENT
  */
 export async function findPersonMatchingGivenNameAndPhoneIn(
   tx: Tx,

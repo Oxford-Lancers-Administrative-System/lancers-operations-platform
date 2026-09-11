@@ -21,14 +21,7 @@ import { BOARD_ELIGIBILITY_COMPETITION } from "./shared";
 
 export type BluesValue = "Full" | "Half" | "None";
 export type FormalwearItemKey = "tie" | "bowtie" | "socks";
-/**
- * `public.bps_selections.is_selected`, surfaced as a plain yes/no — item 5 of
- * the item-and-ask inventory. BPS deliberately left the onboarding checklist
- * to become a roster attribute (Brian, 2026-09-01: "We are going to add it
- * here into the roster for the BPS column"), so it lives here beside Blues
- * and Formalwear — read, written and surfaced exactly as they are — and is
- * never an onboarding item.
- */
+/** `public.bps_selections.is_selected`, plain yes/no — a roster attribute beside Blues and Formalwear, never an onboarding item. */
 export type BpsValue = "Yes" | "No";
 
 interface PositionOption {
@@ -46,12 +39,7 @@ export interface RosterBoardRow {
   membershipId: string;
   personId: string;
   displayName: string;
-  /**
-   * Every alias on the person record, `WP-people-read`'s substrate
-   * (`person_aliases`) — including one that is not the display name, so the
-   * board's search can find a player by it. LAN-186's own acceptance:
-   * "Search by an alias and find the player."
-   */
+  /** Every alias, including one that is not the display name, so search can find a player by it (LAN-186). */
   aliases: string[];
   status: MembershipStatus;
   entry: string;
@@ -65,14 +53,7 @@ export interface RosterBoardRow {
   hasEmail: boolean;
   /** Required facts for this rung, not yet recorded. `REQ-not-recorded`. */
   missingCount: number;
-  /**
-   * The raw mobile number, carried **only** to compose the phone condensed
-   * view's `tel:` link — the workflow's one permitted channel action (voice
-   * call, and nothing else). Never a column, never displayed as text, never
-   * part of `COLUMN_ROW_FIELDS` in `board-columns.ts`: "raw contact values
-   * leave the grid" governs what renders as a value, not the one functional
-   * exception the approved workflow itself calls for.
-   */
+  /** Raw mobile, carried only for the `tel:` link — never a column, never displayed as text. */
   phoneForCall: string | null;
 
   // Onboarding
@@ -95,15 +76,7 @@ export interface RosterBoardRow {
   availability: string | null;
   /** `public.bps_selections.is_selected`, defaulting to "No" — no row yet means never selected. */
   bps: BpsValue;
-  /**
-   * Correction round 2, item 5 (`WP-operator-record`, LAN-217): the
-   * operator-ticked onboarding items, keyed by `onboarding_item_types.code`
-   * — the same seven the record page's own Onboarding section edits.
-   * Read-only summary data for the two derived items
-   * (`contact_academic_details`, `season_welcome_consent`) is not carried
-   * here; the existing summary column covers them. A membership missing an
-   * entry for a code has not had that item generated yet.
-   */
+  /** The operator-ticked onboarding items, keyed by code — LAN-217. Missing entry means not yet generated. */
   onboardingItems: Readonly<Record<string, { id: string; status: OnboardingItemStatus }>>;
 }
 
@@ -147,20 +120,10 @@ export async function readPositionOptions(seasonId: string): Promise<PositionOpt
 }
 
 /**
- * The whole board: every membership in the current season, in any status,
- * carrying every column LAN-186 adds.
- *
- * Unfiltered on purpose. The season holds dozens of memberships, not
- * thousands (`DEC-w1-12`), so search, filter and sort are applied afterwards,
- * in the application, over the full set — exactly as the approved fidelity
- * mockup does it, and as `board-data.ts` implements it.
- *
- * The thirteen reads below run sequentially on the transaction's one pooled
- * client, not under `Promise.all` — `pg` serialises concurrent calls on a
- * single client's internal queue anyway and logs a pg@9 deprecation warning
- * for it (LAN-227); `roster-import.ts` states the same rule for the same
- * reason. Sequential here is also correct: every query still runs inside one
- * transaction snapshot, so the read stays consistent across columns.
+ * The whole board: every membership in the current season, unfiltered —
+ * search/filter/sort apply afterwards, in the application (`DEC-w1-12`).
+ * The reads run sequentially, not under `Promise.all` — `pg` serialises
+ * concurrent calls on one pooled client anyway (LAN-227).
  */
 export async function listRosterBoard(): Promise<RosterBoardData> {
   const roster = await listCurrentSeasonRoster();
@@ -283,11 +246,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         where season_id = $1::uuid`,
       [roster.season.id],
     );
-    // Correction round 2, item 5: the onboarding items as board columns.
-    // Every item this season carries, not only the operator-editable
-    // seven — the derived two are filtered out in TypeScript below, the
-    // same way `board-columns.ts` already keeps its own column list as
-    // the one place that decides what renders.
+    // Every item this season carries; the derived two are filtered out in TypeScript below.
     const onboardingItemRows = await tx.query<{
       season_membership_id: string;
       id: string;

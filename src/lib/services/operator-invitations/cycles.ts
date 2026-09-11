@@ -5,27 +5,15 @@ import type { ResolvedRole } from "./invite";
 const NO_ACTIVE_COMMITTEE_YEAR_RULE = "no_active_committee_year";
 const NO_OPEN_SEASON_RULE = "no_open_season";
 
-/**
- * The cycle a role's assignment hangs off, and the operating years reading
- * and writing mean by "this year" / "this season" — LAN-131,
- * `REQ-explicit-cycle-assignment`. Fails closed on a write; widens by
- * exactly one status on a read (LAN-141 findings 4 and 8).
- */
+// The cycle a role's assignment hangs off, and the operating years mean by "this year"/"this
+// season" — LAN-131, `REQ-explicit-cycle-assignment`. Fails closed on write, widens on read.
 export interface ResolvedCycle {
   readonly committeeYearId: string | null;
   readonly seasonId: string | null;
   readonly operatingYear: AdministrationOperatingYear;
 }
 
-/**
- * The cycle a role's assignment hangs off — register D8, and
- * `REQ-explicit-cycle-assignment`: the form does not ask for the year, the
- * stored cycle stays explicit, and it is inherited from the one active context.
- *
- * A committee seat hangs off the committee year; a coaching seat hangs off the
- * season, because coaches are appointed around seasons and do not turn over at
- * the AGM. The role says which, so this reads the role rather than asking.
- */
+/** The cycle a role's assignment hangs off: committee year for a committee seat, season for a coaching seat. */
 export async function resolveCycleFor(
   tx: Tx,
   scope: "committee_year" | "season",
@@ -54,14 +42,7 @@ export async function insertRoleAssignmentIn(
 ): Promise<string> {
   const { role } = input.entry;
 
-  // `scope`, `is_constitutional_office` and `is_single_holder_seat` are all
-  // denormalised from `public.roles` so that the schema's exclusion constraints
-  // are expressible, and all three are carried by composite foreign keys. There
-  // is no trigger filling them in — LAN-128 decided that deliberately — so a
-  // value taken from anywhere but the catalogue row is refused loudly by
-  // `role_assignments_agree_with_role` or
-  // `role_assignments_agree_with_single_holder_rule`. They are read from the
-  // row this insert names, and from nowhere else.
+  // scope/is_constitutional_office/is_single_holder_seat are denormalised from roles by design (LAN-128) — see decision history.
   const inserted = await tx.query<{ id: string }>(
     `insert into public.role_assignments
        (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
@@ -90,17 +71,7 @@ export async function currentDateIn(tx: Tx): Promise<string> {
   return result.rows[0].today;
 }
 
-/**
- * The one active committee year — `DEC-active-operating-year`: "routine
- * assignments inherit the single application-wide active operating-year
- * context", and forms do not ask for it.
- *
- * Fails closed in both directions, on `resolveOpenSeason`'s pattern: none is a
- * `NotFound` naming what has to happen first, and more than one is a `Conflict`
- * rather than a silent choice. `committee_years_do_not_overlap` makes the
- * second unreachable for dated years and not for open-ended ones, which is
- * exactly the case worth refusing.
- */
+/** The one active committee year (`DEC-active-operating-year`). Fails closed both ways: none is `NotFound`, more than one is `Conflict`. */
 export async function resolveActiveCommitteeYear(tx: Tx): Promise<AdministrationOperatingYear> {
   const result = await tx.query<{ id: string; label: string }>(
     `select id, label
@@ -128,13 +99,7 @@ export async function resolveActiveCommitteeYear(tx: Tx): Promise<Administration
   return { scope: "committee_year", id: result.rows[0].id, label: result.rows[0].label };
 }
 
-/**
- * The operating year an **activation** is recorded under — the active
- * committee year, and the most recent one when there is no active one
- * (activation is the invited person setting a password, after the fact, and
- * must not fail because a gap between committee years exists). Decision
- * history: relocations.md.
- */
+/** The operating year an activation is recorded under: active committee year, or the most recent one if none is active. */
 export async function resolveCommitteeYearForActivation(
   tx: Tx,
 ): Promise<AdministrationOperatingYear> {
@@ -199,20 +164,10 @@ export async function resolveCommitteeYearForReading(
 /** The season a reading surface means by "this season", and whether it takes writes. */
 export interface SeasonForReading {
   readonly year: AdministrationOperatingYear;
-  /**
-   * False for a season in `closing`. It is the club's current season to read —
-   * its coaches are in post and its fixtures are being wound up — and it is not
-   * one a new coaching appointment may be recorded against.
-   */
   readonly writable: boolean;
 }
 
-/**
- * The season a reading surface means by "this season", or `null`. Widens the
- * write-side resolver by exactly one status (`closing` is current but not
- * `writable`); `open`/`active` is preferred when both exist. Decision
- * history (LAN-141 finding 4): relocations.md.
- */
+/** The season a reading surface means by "this season", or `null`; widens the write-side resolver by exactly one status. */
 export async function resolveSeasonForReading(tx: Tx): Promise<SeasonForReading | null> {
   try {
     return { year: await resolveActiveSeason(tx), writable: true };

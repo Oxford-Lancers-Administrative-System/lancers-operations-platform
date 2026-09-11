@@ -27,40 +27,10 @@ import {
   WALK_UP_CHIP,
 } from "./presentation";
 
-/**
- * One participant on the attendance board — UX-72, and UX-74's correction in
- * place. LAN-80.
- *
- * ## Why the correction is not a second screen
- *
- * UX-74 is "Correct attendance", and what it shows is the latest committed
- * value, the four states, and a note that the correction changes attendance
- * only. Every one of those is already on this row. Sending an operator standing
- * at the side of a pitch to a separate screen to change Absent to Present —
- * because they misheard a name in the dark — is the interaction the phone
- * layout exists to avoid, and § 7 requires the four states to stay reachable at
- * 375px. So the first save and the correction are the same control, and the
- * difference between them lives in the audit trail where it belongs.
- *
- * ## Why each row is its own form
- *
- * § 9 wants `Saving…`, then the committed value with its actor and time, or a
- * failure that keeps the unsaved selection visible beside what is really
- * recorded. That is per-row state, and a single form around the whole board
- * could only have one of it.
- *
- * Each button is a real submit carrying its own `value`, so the four states
- * work with JavaScript disabled and with a screen reader driving the page. The
- * pending state comes from `useActionState`, not from a click handler, so it
- * cannot disagree with what the form is actually doing.
- *
- * ## What is on screen, and what is not
- *
- * The person's name, their standing RSVP, the four states, and the committed
- * line. Not the reason behind a "no", not a contact detail, not an availability
- * or injury note — none of which this row is given, because the service never
- * selects them.
- */
+// One participant on the attendance board — UX-72, UX-74, LAN-80. The
+// correction is the same control as the first save (§ 7's phone reachability);
+// each row is its own form for per-row Saving/Saved/failed state (§ 9).
+// Decision history: docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 export function AttendanceRow({
   eventId,
   participant,
@@ -69,52 +39,19 @@ export function AttendanceRow({
 }: {
   eventId: string;
   participant: AttendanceParticipant;
-  /**
-   * The RSVP-versus-attendance mismatch chip. Off for a coaching assignment:
-   * `slice-ux.md` § 3 keeps the mismatch exception on the operator's board and
-   * in the Monday report, and the chip is one word away from the RSVP reason a
-   * coach may not have.
-   */
+  /** Off for a coaching assignment — `slice-ux.md` § 3. Decision history: docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
   showMismatch?: boolean;
-  /**
-   * Whether **Remove this record** is offered. LAN-110: removal exists to
-   * unwind an occurrence assertion, so it belongs to whoever may make one — and
-   * a coach may not. `removeAttendanceAction` guards on the same capability, so
-   * this decides the control and never the permission.
-   */
+  /** LAN-110: this decides the control, never the permission (the action guards itself). */
   mayRemove?: boolean;
 }) {
   const slot = useOutcomeSlot(`record-${participant.key}`);
   const [state, formAction, pending] = useActionState(recordAttendanceAction, EMPTY_SAVE_STATE);
 
-  // The state only speaks for the row it came from. Without this check a
-  // failure on one person could render under another after a revalidation
-  // reordered the list.
   const mine = state.key === participant.key;
 
-  /**
-   * What is recorded comes from the **server props**, and only from them.
-   *
-   * This row used to prefer its own last save state over the props —
-   * `state.presence ?? participant.presence` in effect — on the reasoning that
-   * the state was fresher for one render after a save. That was unsound, and
-   * independent review demonstrated the failure: `removeAttendanceAction`
-   * revalidates and soft-navigates to the same route, so the row instance
-   * survives under its stable key while the props go to `null`. The stale save
-   * state then won, and the board went on displaying `Saved · … · 20:07` for a
-   * record that no longer existed — with the removal control still offered,
-   * whose second press returned "there is no attendance recorded for that
-   * person" directly beneath it. Two contradictory claims on one row about who
-   * was at a practice.
-   *
-   * The premise was wrong as well as the consequence: `recordAttendanceAction`
-   * calls `revalidatePath` **before** it returns, so the props a save produces
-   * have already been re-rendered by the time the state carrying them arrives.
-   * There was no window to cover.
-   *
-   * So `state` now does the one job props cannot: report a save that **failed**,
-   * which by definition left the server value alone.
-   */
+  // What is recorded comes from server props only, never `state` — a stale
+  // save state disagreeing with a removal was a found defect. `state` reports
+  // only a failed save. Decision history: docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
   const committed: AttendancePresence | null = participant.presence;
   const savedLine = describeCommitted(participant.recordedAt, participant.recordedByName);
   const mismatch = showMismatch ? describeMismatch(participant.mismatch) : null;
@@ -152,17 +89,7 @@ export function AttendanceRow({
               <input type="hidden" name="eventId" value={eventId} />
               <input type="hidden" name="participantKey" value={participant.key} />
               <Stack spacing={1}>
-                {/*
-            A grid, not a wrapping row. Brian's verdict on the real phone: four
-            buttons flowing until they run out of width put three on the first
-            line and one orphaned underneath, at three different widths — "super
-            janky", and worse than janky at the side of a pitch, because the
-            odd-one-out reads as the important one.
-
-            Two by two, each half the width available, so the block is a
-            predictable target square whichever state you are reaching for. Four
-            across on the desktop, where there is room and a row scans faster.
-          */}
+                {/* A grid, not a wrapping row — Brian's verdict on the real phone (relocations.md). */}
                 <Box
                   role="group"
                   aria-label={`Attendance for ${participant.displayName}`}
@@ -197,9 +124,6 @@ export function AttendanceRow({
                 </Box>
 
                 {failure ? (
-                  // § 9's failed save: the attempted value stays visible, and so does
-                  // what is actually recorded, because those are two different facts
-                  // and the operator has to be able to tell them apart.
                   <Notice severity="error" testId="attendance-save-error">
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {SAVE_FAILED_HEADLINE}
@@ -235,34 +159,9 @@ export function AttendanceRow({
   );
 }
 
-/**
- * Takes one attendance record away entirely.
- *
- * ## Why this is on the screen at all
- *
- * Because a row recorded against the wrong person, or against the wrong event
- * in a list, is otherwise permanent. A save corrects an observation — "they
- * were late, not absent" — and there is no save that means "there is no
- * observation here at all".
- *
- * It also unblocks cancelling an event. Invariant P5's cascading foreign key
- * refuses to move an event out of `approved` while attendance hangs off it, and
- * the service's own refusal reads "remove them before changing what happened at
- * the event". The service function existed from the start; the control did not,
- * so that instruction was a dead end. Independent review found it, and this is
- * the half that was missing.
- *
- * ## Why it is not one of the four buttons
- *
- * Removing a record is not correcting one. A correction says "they were late,
- * not absent" and keeps the history; this says "there is no observation here",
- * which is a real loss of evidence about who was at a practice. So it is behind
- * a disclosure, the way abandoning a draft is, and it asks a question with the
- * destructive answer second.
- *
- * It is still audited: `attendance.removed` records the actor and the value
- * that was removed, so the deletion is itself part of the trail.
- */
+// Takes one attendance record away entirely — unblocks cancelling an event
+// (invariant P5's cascading FK). A disclosure, not one of the four buttons —
+// destructive, audited (attendance.removed). Decision history: docs/ux/tickets/LAN-80-attendance.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 function RemoveAttendance({
   eventId,
   participant,

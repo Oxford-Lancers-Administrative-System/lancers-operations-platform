@@ -2,26 +2,15 @@ import "server-only";
 
 import { withTransaction } from "@/lib/db";
 
-/** The rest of the person record — roles and seasons. `W1-05`. */
-
-/** One entry on the record's "Roles" row — amendment `W1-A4`. Read-only; granting one is Mission 1's. */
 export interface PersonRoleAssignment {
   roleName: string;
-  /** The committee year or season label this seat was held in. */
   cycleLabel: string;
   effectiveFrom: string;
   effectiveTo: string | null;
-  /** Whether this seat has ended — the mockup's own "ended" chip. */
   hasEnded: boolean;
 }
 
-/**
- * Every role this person has held, any cycle, newest first — the person
- * record's "Roles" row. `PersonRecord` carries no role data of its own;
- * `role_assignments` is a different table from anything `person-record.ts`
- * reads, so this is a second, independent query rather than an extension of
- * that module.
- */
+/** Every role this person has held, any cycle, newest first. */
 export async function listPersonRoleAssignments(personId: string): Promise<PersonRoleAssignment[]> {
   return withTransaction(async (tx) => {
     const result = await tx.query<{
@@ -52,7 +41,6 @@ export async function listPersonRoleAssignments(personId: string): Promise<Perso
   });
 }
 
-/** One of the person's season records — `W1-05`'s "Their seasons" list, each linking to `W6`. */
 export interface PersonSeasonRecord {
   membershipId: string;
   seasonLabel: string;

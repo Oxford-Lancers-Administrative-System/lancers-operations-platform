@@ -12,12 +12,7 @@ export interface MergedPredecessor {
   mergedByDisplayName: string | null;
 }
 
-/**
- * The survivor's id, when `personId` names a person merged away under
- * invariant I6 — `readPersonRecordIn`'s own `NotFound` carries no such id, so
- * this is the second read `W1-09`'s redirect needs: "reaching its id directly
- * redirects to the surviving record."
- */
+/** The survivor's id, when `personId` names a person merged away (invariant I6) — the second read `W1-09`'s redirect needs. */
 export async function resolveMergeSurvivor(personId: string): Promise<string | null> {
   return withTransaction(async (tx) => {
     const result = await tx.query<{ merged_into_person_id: string | null }>(
@@ -28,13 +23,7 @@ export async function resolveMergeSurvivor(personId: string): Promise<string | n
   });
 }
 
-/**
- * Every person merged into this survivor, for `W1-09`'s one-sentence notice:
- * "'Holly Jarrowdale' was merged into this record on 3 October 2025 by
- * Caspian Hallowfield." A merge reads as one event naming what it moved
- * (`REQ-history-on-record`); this is that same fact, read for the record it
- * landed on rather than for the history section's own list.
- */
+/** Every person merged into this survivor, for `W1-09`'s one-sentence notice. */
 export async function listMergedPredecessors(
   survivorPersonId: string,
 ): Promise<MergedPredecessor[]> {

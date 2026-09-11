@@ -7,40 +7,16 @@ import type { PersonRecord } from "./person-record";
 
 /**
  * The disputed-fact raise-and-resolve pair — LAN-214, `REQ-no-silent-overwrite`.
- *
- * `person-record.ts`'s own module note says why this did not exist before
- * this package: "There is no contested-value field, no verification-mark
- * field and no confidence class anywhere below — not struck out, never
- * added" (`REQ-no-disputed`). `W5` raises a dispute when a player's answer
- * differs from an operator-recorded value; `W7` settles it. Neither
- * workflow's own screen is this package's — this module is the mechanism
- * both call through.
- *
- * ## Scope: exactly the seven fields that can silently overwrite today
- *
- * `person-write.ts`'s `updatePersonField` overwrites `given_name`,
- * `family_name`, `college`, `matriculation_year`, `expected_graduation_year`,
- * `degree_field` and `date_of_birth` in place — `PersonFieldUpdate`'s own
- * union. That is exactly the set `REQ-no-silent-overwrite` is about. Contact
- * values are deliberately out of scope: `supersedeContactPoint` already dates
- * the old value and inserts a new one rather than overwriting, so nothing
- * there silently overwrites and a dispute table over it would solve nothing.
- *
- * ## "The newer answer supersedes the waiting one"
- *
- * W7's own exceptions-and-recovery note. Enforced structurally by
- * `person_fact_disputes_one_open_per_field`: at most one *open* dispute per
- * (person, field), so {@link raisePersonFactDisputeIn} upserts the open row
- * rather than inserting a second one beside it.
- *
- * ## Resolution actually moves the field
- *
- * "One value stands, the other is retained" (W7's acceptance) is only true
- * of the record itself if resolving to the player's answer actually writes
- * it. `resolvePersonFactDisputeIn` calls `updatePersonField` for exactly that
- * — reusing the one write path this codebase already has for these seven
- * columns rather than a second copy of its column whitelist and its
- * `given_name`-must-not-be-blank rule.
+ * `W5` raises a dispute when a player's answer differs from an
+ * operator-recorded value; `W7` settles it — this module is the mechanism
+ * both call through. Scoped to `PersonFieldUpdate`'s seven overwritable
+ * fields; contact values are out of scope (`supersedeContactPoint` already
+ * dates and supersedes, never overwrites). At most one *open* dispute per
+ * (person, field) — {@link raisePersonFactDisputeIn} upserts rather than
+ * inserting a second row. `resolvePersonFactDisputeIn` calls
+ * `updatePersonField` to actually move the field, reusing the one write path
+ * rather than a second column whitelist.
+ * Decision history: LAN-214, missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 export type DisputedPersonField = PersonFieldUpdate["field"];
@@ -97,12 +73,7 @@ function optional(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/**
- * Raises a dispute, or — where one is already open for this (person, field)
- * — supersedes its waiting answer with the newer one. Never touches
- * `people`: the club's value stays exactly what it was until an operator
- * resolves the dispute.
- */
+/** Raises a dispute, or supersedes an already-open one's waiting answer. Never touches `people` until resolved. */
 export async function raisePersonFactDisputeIn(
   tx: Tx,
   params: {
@@ -148,14 +119,7 @@ const requireActor = actorRequirement(
   "Resolving a disputed fact has to name the four-role operator who decided.",
 );
 
-/**
- * Builds `updatePersonField`'s own discriminated-union argument for one
- * disputed field. A `switch` over the literal field name, not a generic
- * spread — `PersonFieldUpdate` is a discriminated union precisely so a caller
- * cannot construct a `{ field: "matriculation_year", value: "a string" }`
- * that type-checks, and this is the one place a disputed row's stored text
- * has to become that union again.
- */
+/** Builds `updatePersonField`'s discriminated-union argument for one field — a `switch`, not a spread, so a mismatched value can't type-check. */
 function updateFor(
   field: DisputedPersonField,
   text: string,
@@ -189,20 +153,11 @@ function updateFor(
 
 export interface ResolvePersonFactDisputeResult {
   dispute: PersonFactDispute;
-  /** The person record, re-read after the write — `null` when the club's value was kept, since nothing on `people` changed. */
+  /** Re-read after the write; `null` when the club's value was kept. */
   personRecord: PersonRecord | null;
 }
 
-/**
- * Settles one open dispute — `W7`'s "keep the club's value, or take the
- * player's." `resolution: "take_player"` writes the player's value onto
- * `people` through `updatePersonField`, in the same transaction as the
- * dispute's own resolution; `"keep_club"` writes nothing to `people` at all,
- * because the club's value already is what it was.
- *
- * The losing value is never deleted — it stays on this same row, in
- * whichever of `clubValue`/`playerValue` did not win, permanently.
- */
+/** Settles one open dispute (W7). `take_player` writes to `people` via `updatePersonField`, in the same transaction; `keep_club` writes nothing. The losing value stays on the row, permanently. */
 export async function resolvePersonFactDisputeIn(
   tx: Tx,
   params: {

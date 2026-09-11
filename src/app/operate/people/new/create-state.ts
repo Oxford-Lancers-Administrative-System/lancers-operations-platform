@@ -1,12 +1,5 @@
 import type { PersonDuplicateCandidate } from "@/lib/services/person-duplicate";
 
-/**
- * The state `/operate/people/new`'s form is driven by, and the pure helpers
- * that go with it — the same split `roster/new/intake-state.ts` states, and
- * for the same reason: a `"use server"` file may export only async
- * functions.
- */
-
 export interface CreateFormValues {
   givenName: string;
   familyName: string;
@@ -26,7 +19,6 @@ export type CreateFieldErrors = Partial<Record<keyof CreateFormValues, string>>;
 export interface CreateState {
   values: CreateFormValues;
   errors: CreateFieldErrors;
-  /** `null` before the first check; an array (possibly empty) afterwards. */
   candidates: PersonDuplicateCandidate[] | null;
   /** Set when creating over this exact match needs a reason — W3-04. */
   exactMatch: PersonDuplicateCandidate | null;

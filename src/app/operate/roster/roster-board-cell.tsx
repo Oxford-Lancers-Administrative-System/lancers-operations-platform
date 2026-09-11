@@ -55,10 +55,7 @@ export function Cell({
     minWidth: column.width,
     width: column.width,
     whiteSpace: "nowrap" as const,
-    // The same seam the band header draws, carried into the body so all three
-    // boundaries — Person|Onboarding, Onboarding|Season — read with equal
-    // weight instead of only the always-bordered Player column looking
-    // separated (LAN-186 item 12).
+    // Same seam the band header draws, carried into the body (LAN-186 item 12).
     borderRight: bandEnd ? 2 : 0,
     borderRightColor: "background.paper",
   };
@@ -110,12 +107,9 @@ export function Cell({
       );
     }
 
-    // The open list of choices reads `optionListLabel` — the label alone
-    // (LAN-186 item 9), except for a position column, whose options carry the
-    // code *and* the full name (Brian's walkthrough of the built board). The
-    // selected value shown when the dropdown is closed is `displayOf` below,
-    // unaffected: item 7's cell half — the code alone for a position — still
-    // stands.
+    // Open dropdown shows `optionListLabel` — code+name for position (Brian's
+    // walkthrough), label alone otherwise (LAN-186 item 9). Closed value
+    // (`displayOf`) unaffected — item 7's code-alone cell stands.
     const current = rawValue(row, column.key);
     return (
       <TableCell sx={shell}>
@@ -153,15 +147,10 @@ export function Cell({
       column.edit === "jersey" ||
       column.edit === "onboarding") &&
     (column.key !== "status" || canManageStatus) &&
-    // Correction round 2, item 5: a column whose item this membership has
-    // not (yet) had generated has nothing to edit — same posture as every
-    // other absent value on this board, never a control that would refuse.
+    // Correction round 2, item 5: a column with no item generated yet has nothing to edit.
     (column.edit !== "onboarding" ||
       (column.itemCode ? Boolean(row.onboardingItems[column.itemCode]) : false)) &&
-    // D-002 (correction round 3, Q-14): Subscription paid opens no control at
-    // all until Subscription invoiced is complete — there is nothing to
-    // record payment against yet, and the service itself refuses the write
-    // this cell would otherwise offer.
+    // D-002 (round 3, Q-14): Subscription paid opens no control until Subscription invoiced is complete.
     (column.key !== "subsPaid" || row.onboardingItems["subs_invoiced"]?.status === "complete");
 
   return (
@@ -223,11 +212,7 @@ function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) 
   }
 
   if (column.key === "status") {
-    // The board's one status-pill formula (`../board-filter-controls.tsx`) —
-    // the single exception to "plain text like every other select cell",
-    // kept because a status is the fact an operator scans the whole row
-    // for. Editing still opens the identical generic dropdown every other
-    // season fact uses.
+    // The board's one status-pill formula — the exception to plain-text cells (a status is scanned for).
     return (
       <StatusPill
         domain="membership"

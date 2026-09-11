@@ -15,11 +15,7 @@ import {
   type MissingQueueFilters,
 } from "./shared";
 
-/**
- * The missing-data queue — `W7`. Every person tied to the scope with at least
- * one required fact absent, naming which facts per row and never a value —
- * `REQ-missing-queue`.
- */
+/** The missing-data queue — `W7`. Every person with at least one required fact absent, naming which. */
 export async function listMissingDataQueue(filters: MissingQueueFilters): Promise<MissingQueue> {
   return withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
@@ -30,11 +26,7 @@ export async function listMissingDataQueue(filters: MissingQueueFilters): Promis
       .map((row) => toEntry(row, season, filters.scope, term))
       .filter((entry) => entry.missingRequiredFields.length > 0);
 
-    // LAN-218, `W8`'s own locked recommendation: the queue defaults to
-    // onboarding players, Mission 5's own wider scope one click away.
-    // Applied before `totalMissing` is captured — a scope decision, on the
-    // same footing as `scope` itself, rather than a filter layered on top of
-    // an already-computed total the way `status`/`fact`/search are.
+    // LAN-218: applied before totalMissing is captured — a scope decision, like `scope` itself.
     if (filters.onlyOnboardingPlayers) {
       entries = entries.filter((entry) => entry.status === "onboarding");
     }
@@ -64,9 +56,7 @@ export async function listMissingDataQueue(filters: MissingQueueFilters): Promis
       MISSING_QUEUE_SORT_COLUMNS,
       DEFAULT_MISSING_SORT,
     );
-    // "Sort by how much is missing" reads most-missing-first by default —
-    // `W7`'s own acceptance evidence 3 puts Bertram's eight ahead of Norbert's
-    // one — so the missing column's own default direction is `desc`.
+    // Most-missing-first by default (W7).
     const effectiveDirection = sort === "missing" && filters.direction == null ? "desc" : direction;
     entries = [...entries].sort(compareBy(sort, effectiveDirection));
 

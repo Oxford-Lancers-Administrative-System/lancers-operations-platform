@@ -3,39 +3,17 @@
  * LAN-130, `REQ-append-only-audit-evidence`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 
-/**
- * The four kinds of change `REQ-append-only-audit-evidence` names.
- *
- * They are recorded on the event so a projection can group without parsing the
- * action string, and so that adding a fifth family is a visible decision rather
- * than a new prefix somebody invents at a call site.
- */
 export const ADMINISTRATION_EVENT_FAMILIES = Object.freeze([
   "provisioning",
   "account_state",
   "email_recovery",
   "role_assignment",
-] as const);
+] as const); // recorded on the event so a projection groups without parsing the action string
 
 export type AdministrationEventFamily = (typeof ADMINISTRATION_EVENT_FAMILIES)[number];
 
-/**
- * How an action relates to the target's state, and therefore what the writer
- * demands of `fromState` and `toState`.
- *
- *   * `creation` — the thing being recorded did not exist before. There is no
- *     prior state to name, and there is an "after".
- *
- *   * `transition` — the target moved between two named states. **Both are
- *     required and they must differ.** A deactivation of an already
- *     deactivated account has nothing to record, and the writer refuses it
- *     rather than writing a row asserting a change that did not happen.
- *
- *   * `attempt` — something was tried against an unchanged state: a resend, a
- *     correction, a delivery failure that leaves the account exactly where it
- *     was. States are optional and are not compared, because "no change" is
- *     the normal and correct outcome.
- */
+// creation: no prior state, only an "after". transition: fromState/toState both required and must
+// differ — a no-op transition is refused. attempt: states optional, "no change" is the normal outcome.
 type AdministrationEventShape = "creation" | "transition" | "attempt";
 
 /** Every administration action, in the order the families are listed above. */
@@ -62,50 +40,19 @@ export interface AdministrationEventDefinition {
   readonly action: AdministrationAction;
   readonly family: AdministrationEventFamily;
   readonly shape: AdministrationEventShape;
-  /**
-   * Whether the event names a role, and therefore whether it is part of the
-   * role-related subset Holder history reads.
-   *
-   * This is the only thing that separates the two projections. It is a property
-   * of the event, not of a second copy of it.
-   */
-  readonly roleRelated: boolean;
-  /** A reason is required by the approved requirement for this action. */
+  readonly roleRelated: boolean; // whether the event names a role — the only thing separating the two projections
   readonly reasonRequired: boolean;
-  /**
-   * `REQ-final-admin-protection`: nobody may deactivate themselves, end their
-   * own role assignment, or use the administrator recovery flow on themselves.
-   *
-   * The service that performs the action is the primary boundary and refuses it
-   * before anything is written. This flag is the second line: an event naming
-   * the same person as actor and target is refused here too, so a self-action
-   * cannot reach the ledger even if a caller forgets. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
-   */
-  readonly selfActionForbidden: boolean;
-  /**
-   * Whether the target may act on their own account without an administrative
-   * capability. True only for first-login activation, where the person
-   * establishing their credentials is the account holder and holds no
-   * administrative authority at all.
-   */
-  readonly selfAuthorityAllowed: boolean;
-  /**
-   * Causal position among administration events that share one instant. Lower
-   * happens first; a projection ordering newest-first renders the higher one
-   * above the lower one. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
-   */
-  readonly instantOrder: number;
-  /** Club-facing description, for the two history surfaces. */
-  readonly label: string;
+  readonly selfActionForbidden: boolean; // REQ-final-admin-protection's second line — see relocations.md
+  readonly selfAuthorityAllowed: boolean; // true only for first-login activation
+  readonly instantOrder: number; // causal tie-break among events sharing one instant; lower happens first
+  readonly label: string; // club-facing description, for the two history surfaces
 }
 
 function definition(entry: AdministrationEventDefinition): AdministrationEventDefinition {
   return Object.freeze(entry);
 }
 
-/**
- * The closed set, with the rules each member carries. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
- */
+// The closed set, with the rules each member carries. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 export const ADMINISTRATION_EVENTS: Readonly<
   Record<AdministrationAction, AdministrationEventDefinition>
 > = Object.freeze({
@@ -197,11 +144,8 @@ export const ADMINISTRATION_EVENTS: Readonly<
     instantOrder: 0,
     label: "Email access recovery started",
   }),
-  /**
-   * A second or later verification link, on an account already held in Email
-   * change pending — LAN-132, `REQ-rehome-email`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
-   */
   "administration.operator.email_rehome_retried": definition({
+    // a second or later verification link, on an account already held in Email change pending (LAN-132, REQ-rehome-email)
     action: "administration.operator.email_rehome_retried",
     family: "email_recovery",
     shape: "attempt",
@@ -258,16 +202,11 @@ export const ADMINISTRATION_EVENTS: Readonly<
   }),
 });
 
-/**
- * The role-related subset — the actions Holder history reads.
- *
- * Derived from `roleRelated`, never hand-listed, so the two can never disagree.
- */
+// Derived from roleRelated, never hand-listed, so the two can never disagree.
 export const ROLE_RELATED_ADMINISTRATION_ACTIONS: readonly AdministrationAction[] = Object.freeze(
   ADMINISTRATION_ACTIONS.filter((action) => ADMINISTRATION_EVENTS[action].roleRelated),
 );
 
-/** A narrowing check, so a stored or posted string never passes untested. */
 export function isAdministrationAction(value: unknown): value is AdministrationAction {
   return typeof value === "string" && (ADMINISTRATION_ACTIONS as readonly string[]).includes(value);
 }

@@ -21,13 +21,7 @@ import { optional, requireActor, type OnboardingItemStatus } from "./shared";
  * D-002's per-item state model is in `relocations.md`.
  */
 
-/**
- * The club's words for an item's state, for refusals the operator reads.
- *
- * Deliberately here rather than imported from the presentation layer: a service
- * refusal has to be readable wherever it surfaces, including in a log or a test
- * name, and the service must not depend on a screen.
- */
+// Deliberately here, not the presentation layer — a refusal must be readable wherever it surfaces.
 const ONBOARDING_STATUS_WORDS: Readonly<Record<string, string>> = Object.freeze({
   pending: "pending",
   invited: "invited",
@@ -37,42 +31,16 @@ const ONBOARDING_STATUS_WORDS: Readonly<Record<string, string>> = Object.freeze(
   not_applicable: "not applicable",
 });
 
-/**
- * The two checklist items backed by a versioned agreement — LAN-240. Keyed by
- * `onboarding_item_types.code`, exactly as `onboarding-item-shapes.ts` keys
- * every other per-item fact, so the two codes are named once here rather than
- * spelled out at the one place that needs them. Every other item's code maps
- * to nothing: it has no agreement row and nothing to remove.
- */
+// The two checklist items backed by a versioned agreement (LAN-240), keyed by onboarding_item_types.code.
 const AGREEMENT_ITEM_TYPES: Readonly<Record<string, OnboardingAgreementType>> = Object.freeze({
   code_of_conduct: "code_of_conduct",
   photo_release: "photo_release",
 });
 
-/**
- * Sets one onboarding item to one of its own states — D-002 (correction
- * round 6, `WP-operator-record`, LAN-217): an operator names the item's own
- * target state directly, the same list `allowedItemStates` names as both
- * displayable and offerable. There is no separate "resolution" verb any
- * more, and no `reopen` — an operator corrects a mistake by naming a
- * different one of the item's own states, from any current state, not only
- * from a terminal one.
- *
- * `public.onboarding_item_history` (LAN-214, `onboarding-item-history.ts`) is
- * the typed home `REQ-item-history` asks for, and this writes it in the same
- * transaction as the state change — Register D9's "where a typed home
- * exists, that table is the record" applied to the table this package built.
- * The `audit_events` row alongside it is unchanged from LAN-75: this
- * codebase's own precedent (`setMembershipStatus`) keeps a typed table's
- * write and an `audit_events` row together rather than choosing one.
- *
- * `REQ-reason-free-waive` (LAN-214) unwound the schema's
- * `onboarding_items_waiver_is_justified` constraint: the author stays
- * mandatory — `actorPersonId` always is one — and the reason stops being. A
- * waiver with no reason is accepted, exactly as one with one always was.
- * `waived` itself is now offered by exactly one item's own list (Subscription
- * paid) rather than by every item as a shared escape hatch.
- */
+// D-002 (correction round 6, WP-operator-record, LAN-217): an operator names the item's own target
+// state directly — no separate "resolution" verb, no reopen. Writes onboarding_item_history (LAN-214)
+// and audit_events together (Register D9, matching setMembershipStatus's precedent). REQ-reason-free-waive
+// (LAN-214): the author is mandatory, the reason is not. See relocations.md.
 export async function resolveOnboardingItem(params: {
   actorPersonId: string;
   membershipId: string;
@@ -86,9 +54,6 @@ export async function resolveOnboardingItem(params: {
   const toStatus = params.status;
 
   return withTransaction(async (tx) => {
-    // Scoped to the membership as well as the item: the item id arrives from a
-    // form, and reading it alone would let a crafted request resolve an item
-    // belonging to somebody else's membership.
     const existing = await tx.query<{
       status: OnboardingItemStatus;
       label: string;
@@ -114,19 +79,13 @@ export async function resolveOnboardingItem(params: {
       });
     }
 
-    // D-002 (correction round 6): a derived item completes itself from other
-    // recorded facts and has no operator control at all — never a state this
-    // call may set, regardless of which one is named.
     if (isDerivedItem(item.code)) {
+      // a derived item completes itself from other facts — never a state this call may set
       throw new ConstraintViolated(`${item.label} is derived and cannot be set directly.`, {
         rule: "onboarding_item_derived_not_editable",
       });
     }
 
-    // D-002 (correction round 6): the state this call names has to be one
-    // this item's own list actually holds — B-001's Kit Distributed binary
-    // reduction, generalised to every item's own shape, with no shared
-    // escape hatch layered on top of any of them any more.
     if (!allowedItemStates(item.code).includes(toStatus)) {
       throw new ConstraintViolated(
         `${item.label} cannot be ${ONBOARDING_STATUS_WORDS[toStatus] ?? toStatus} — that is not one of its own states.`,
@@ -136,12 +95,8 @@ export async function resolveOnboardingItem(params: {
       );
     }
 
-    // D-002 (Q-14): "Subscription paid" is blank until "Subscription
-    // invoiced" is itself complete — an operator must not be able to record
-    // payment on something never invoiced. Checked read-only here, under the
-    // same row lock already taken above for the item itself; the sibling
-    // read below takes its own lock only when it actually has to write.
     if (item.code === SUBS_PAID_ITEM_CODE) {
+      // D-002 (Q-14): payment cannot be recorded on something never invoiced
       const invoiced = await tx.query<{ status: OnboardingItemStatus }>(
         `select i.status::text as status
            from public.onboarding_items i
@@ -157,24 +112,9 @@ export async function resolveOnboardingItem(params: {
       }
     }
 
-    /**
-     * Saving the status an item already has is not a change, and must not be
-     * recorded as one.
-     *
-     * Without this it wrote a fresh audit row whose `from_state` and
-     * `to_state` were identical, and re-dated `completed_on` to today — so an
-     * item completed in September silently claimed to have been completed
-     * again in August, and the history filled with events in which nothing
-     * happened. Owner review caught it: "if I change to say it's completed and
-     * the status didn't change, it should not change again."
-     *
-     * Refused rather than silently ignored, so the operator learns why the
-     * screen did not move. The message names the item and the state it is
-     * already in, which is the same shape every other refusal here uses.
-     */
-    // A waiver whose *reason* changed is a real correction, not a no-op — an
-    // operator who typo'd one has to be able to fix it without routing through
-    // another status and writing audit rows for changes that did not happen.
+    // Saving the status an item already has is not a change and must not be recorded as one (owner
+    // review: "if the status didn't change, it should not change again"). A changed waiver *reason*
+    // is a real correction, though — see relocations.md.
     const sameReason = toStatus !== "waived" || (item.waived_reason ?? null) === (reason ?? null);
     if (item.status === toStatus && sameReason) {
       throw new InvalidTransition(
@@ -194,17 +134,9 @@ export async function resolveOnboardingItem(params: {
       [itemId, toStatus, reason, actorPersonId],
     );
 
-    // Correction round 1, F-001: a reason-only correction to an already-waived
-    // item reaches here with `item.status === toStatus` (both `waived`) —
-    // `sameReason` above is what let it past the already-in-that-state guard,
-    // precisely so the typo-fix path in that guard's own comment keeps
-    // working. It is not a transition: nothing about the item's *state*
-    // changed, only the reason text. `onboarding_item_history_is_a_real_change`
-    // refuses a row whose `from_status` and `to_status` are equal (and rightly
-    // so — REQ-item-history's history is a state-pair record, not a reason
-    // log), so the history write is skipped for exactly this case. The
-    // `audit_events` row below still records the correction, same as before
-    // this package existed.
+    // Correction round 1, F-001: a reason-only correction to an already-waived item is not a state
+    // transition, so the history write is skipped (onboarding_item_history_is_a_real_change refuses
+    // a from=to row); the audit row still records the correction. See relocations.md.
     if (item.status !== toStatus) {
       await writeOnboardingItemHistoryIn(tx, {
         onboardingItemId: itemId,
@@ -233,19 +165,9 @@ export async function resolveOnboardingItem(params: {
       },
     });
 
-    // LAN-240 (walker M7, finding M7-01): reopening one of the two agreement
-    // items has to reach the player, and until now it never did. Setting
-    // Photo release or Code of Conduct back to "No" is the shipped reopen
-    // mechanism — there is no separate verb, by D-002 above — but it moved
-    // only `onboarding_items.status`. The `onboarding_agreements` row stayed,
-    // so the player's own link went on reading "Already agreed" under a
-    // navigator that said "Outstanding", and a bare load of the link resumed
-    // at "There is nothing left to fill in". Removing the row in the same
-    // transaction as the state change is what makes the reopen real: the
-    // player's next load lands on the step, the step reads outstanding, and
-    // `recordOnboardingAgreementIn` accepts their fresh agreement instead of
-    // refusing it as a duplicate. See `deleteOnboardingAgreementIn` for why a
-    // delete rather than a `superseded_at` column, and what keeps the record.
+    // LAN-240 (walker M7, finding M7-01): reopening an agreement item (setting it back off
+    // `complete`) removes the onboarding_agreements row in the same transaction, so the player's
+    // next load actually reads outstanding rather than "Already agreed" — see relocations.md.
     if (
       AGREEMENT_ITEM_TYPES[item.code] !== undefined &&
       item.status === "complete" &&
@@ -270,21 +192,13 @@ export async function resolveOnboardingItem(params: {
           person_id: item.person_id,
           season_id: item.season_id,
           agreement_type: AGREEMENT_ITEM_TYPES[item.code],
-          // Zero is legitimate: the item can be set back to "No" for a player
-          // who never agreed through the link at all. Recorded, not hidden.
-          removed_count: removed,
+          removed_count: removed, // zero is legitimate — recorded, not hidden
         },
       });
     }
 
-    // D-002 (Q-14): "correcting the invoice back to Not invoiced must do the
-    // right thing to the payment cell." A payment already recorded against
-    // an invoice that no longer stands is stale — an operator correcting
-    // Subscription invoiced away from `complete` resets its sibling
-    // Subscription paid back to `pending` in the same transaction. Never the
-    // other way — paying does not touch the invoice, and correcting an
-    // already-`pending` payment (it never having been invoiced, or already
-    // reset by an earlier correction) has nothing to cascade.
+    // D-002 (Q-14): correcting Subscription invoiced away from complete resets the sibling
+    // Subscription paid back to pending in the same transaction, never the reverse. See relocations.md.
     if (
       item.code === SUBS_INVOICED_ITEM_CODE &&
       item.status === "complete" &&
@@ -339,21 +253,9 @@ export async function resolveOnboardingItem(params: {
   });
 }
 
-/**
- * The player's own trust-class claim — `R2-V`: "the player says done and
- * awaits confirmation." LAN-214. Only offered on an item whose type is
- * `verification_class = 'trust'` (BUCS Play, Hudl, per the item-and-ask
- * inventory) and only from `pending` or `invited` — an item already
- * `claimed`, or resolved, has nothing left for a claim to do; the operator's
- * own `resolveOnboardingItem` is what moves a resolved item back to
- * `pending` (or `invited`) before it can be claimed again.
- *
- * `actorPersonId` here is the player themselves — the same person the
- * membership belongs to — not an operator. Authorization (that the caller
- * really is holding this person's own signed link) is the caller's job,
- * exactly as `src/lib/services/README.md` rule 1 asks of every service
- * function; this one only names who it was told made the claim.
- */
+// The player's own trust-class claim (R2-V, LAN-214) — only on a `trust` verification_class item,
+// only from pending/invited. actorPersonId is the player; authorization that the caller really
+// holds this person's own signed link is the caller's job (README.md rule 1).
 export async function claimOnboardingItem(params: {
   actorPersonId: string;
   membershipId: string;

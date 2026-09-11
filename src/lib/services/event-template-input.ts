@@ -1,69 +1,17 @@
-/**
- * What an event type's template holds, and the rules one submitted template has
- * to satisfy. LAN-154, workflow W8.
- *
- * Pure, like `event-input.ts` and `event-questions-input.ts` and for the same
- * reason: the template editor is a Client Component, and the module that
- * reaches the database cannot be in its import graph.
- *
- * ## Operators create templates, and name them — LAN-265
- *
- * D12's seven event types and D40's one-template-each were the same fact until
- * Brian reopened it on 2026-09-09: "A template is anything the operators want to
- * create." A template is now a row with its own id and its own name, and the
- * seven-value enum survives underneath it as the behavioural class the code
- * needs a closed vocabulary for. Adding a *class* is still a migration and
- * Brian's decision; adding a *template* is an ordinary administrative act.
- *
- * What that costs this module is one required field. Everything a template says
- * about the event is still optional; the name is not, because the name is the
- * whole of what an operator ever sees of a template.
- *
- * ## Every field is optional
- *
- * Brian, 2026-08-21: "the template does not mean that everything needs to be
- * changed ... You can have some details not decided." A field left undecided
- * arrives empty on a new event and overwrites nothing. That is why every value
- * below is nullable and why `defaultIsMandatory` is a tri-state rather than a
- * boolean: `null` means the template does not say, which is not the same as
- * "optional".
- *
- * ## What a template deliberately does not hold
- *
- * No date and no start time (D40, Brian 2026-08-21: "the name is always going to
- * be unique ... Usual time doesn't make any sense to me"). That quotation is
- * about the **event's** name, which a template still never supplies; the
- * template's own name, added by LAN-265, is what the kind of event is called
- * rather than what any one of them is called. What a template can usefully say
- * about time is how long it runs, so it holds a duration.
- *
- * And no RSVP timing of any kind. The per-type chase threshold lives in
- * `event_type_settings` for Mission 4 to consume; a template is what an event
- * arrives looking like, and when somebody is chased is not part of what an event
- * is.
- */
+// What an event type's template holds — LAN-154, W8. Pure, like event-input.ts (Client Component).
+// D12/D40/LAN-265: a row with its own id/name; the enum survives as the behavioural class. Every
+// field optional except name; null means "does not say" (see relocations.md).
+// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
 
 import { EVENT_DELIVERY_MODES, optional, trimmed, type EventDeliveryMode } from "./event-input";
 import type { AudienceGroupKey } from "./audience-selection";
 import type { RawEventQuestion } from "./event-questions-input";
 
-/**
- * The seven templates in the shape the create-and-edit form fills itself from.
- *
- * Here rather than in `event-templates.ts` because the form is a Client
- * Component: it needs the *type*, and the module that reads the rows is
- * `server-only`. `readEventFormDefaults` builds these.
- *
- * The values are strings and not nulls because they go straight into form
- * controls, where "the template does not say" and "empty" are the same thing.
- */
+// Here, not event-templates.ts (server-only) — readEventFormDefaults builds these.
 export interface EventTypeFormDefaults {
-  /** LAN-265. The template's own identity, which is what the event stores. */
-  id: string;
-  /** What the operator picks it by, and the only word the control shows. */
-  name: string;
-  /** The class this template gives an event. Never rendered. */
-  eventType: string;
+  id: string; // LAN-265: the template's own identity, which is what the event stores
+  name: string; // what the operator picks it by, the only word the control shows
+  eventType: string; // the class this template gives an event; never rendered
   deliveryMode: EventDeliveryMode;
   venue: string;
   description: string;
@@ -73,65 +21,21 @@ export interface EventTypeFormDefaults {
   questions: RawEventQuestion[];
 }
 
-/**
- * The behavioural class a template an operator creates carries.
- *
- * LAN-265: "the seven existing templates keep theirs, and a new template picks
- * the closest one at creation, with 'Practice' the default." Nothing on any
- * screen offers the choice, so in practice this *is* the class of every template
- * created from now on — which is right, because the classes that behave
- * differently (recruitment's audience rules, a game's report bucket) are the
- * ones a migration and a Brian decision would introduce.
- *
- * Here rather than in `event-templates.ts` because the create-and-edit form is a
- * Client Component and needs it: D15's "a blank form opens on a practice" is
- * expressed against the class now that no name can be relied on. That module is
- * `server-only`, so a value both sides need lives on the pure side.
- */
+// LAN-265: every new template picks "Practice" — nothing on screen offers a choice (D15).
 export const DEFAULT_TEMPLATE_CLASS = "practice";
 
-/** The narrowest and widest a default length may be — the schema's own bounds. */
-export const MIN_TEMPLATE_DURATION_MINUTES = 5;
+export const MIN_TEMPLATE_DURATION_MINUTES = 5; // the schema's own bounds
 export const MAX_TEMPLATE_DURATION_MINUTES = 1440;
 
-/** The narrowest and widest a template's own name may be. */
 const MAX_TEMPLATE_NAME_LENGTH = 60;
 
-// ---------------------------------------------------------------------------
-// Colour — LAN-276 correction round 1
-// ---------------------------------------------------------------------------
-
-/**
- * A template's colour, chosen and stored — LAN-276 correction round 1.
- *
- * Brian, walking the review environment, 2026-09-10: "In the template, swatch
- * color should be something that gets chosen, so it gets added as part of the
- * template." Before this, the calendar coloured a tile by `event_type` — the
- * behavioural class an operator never sees or picks — so every template an
- * operator created showed Practice's blue by accident, because `practice` is
- * `DEFAULT_TEMPLATE_CLASS`. This module is the one place that says which
- * colours exist and what hex each means, so the editor's picker, the calendar
- * and `event_templates_colour_key_known` all read from it rather than three
- * copies that could drift.
- *
- * The **key** is what is stored and posted, never the hex: a palette that
- * needs re-tuning — a new swatch, a nudged tint — changes this array and
- * nothing else, rather than a migration.
- *
- * The seven values that carry a seeded template's name below are exactly the
- * seven hex pairs `EVENT_TYPE_COLOURS` gave those seven event types before
- * this correction, so the migration's backfill keeps the calendar looking
- * exactly as it did. The rest exist only so an operator has more than seven
- * choices; nothing associates them with a class.
- */
+// A template's colour, chosen and stored — LAN-276 correction round 1 (see relocations.md). The
+// key is stored, never the hex, so re-tuning the palette changes this array and nothing else.
 export interface TemplateColourSwatch {
   readonly key: string;
-  /** The word the picker prints beside the swatch. */
-  readonly label: string;
-  /** The saturated edge. Strong enough to read at 3px against the tint. */
-  readonly accent: string;
-  /** The tile's background. Light enough for `text.primary` to sit on it. */
-  readonly tint: string;
+  readonly label: string; // the word the picker prints beside the swatch
+  readonly accent: string; // the saturated edge, strong enough to read at 3px against the tint
+  readonly tint: string; // the tile's background, light enough for text.primary to sit on
 }
 
 export const TEMPLATE_COLOUR_PALETTE: readonly TemplateColourSwatch[] = Object.freeze([
@@ -149,71 +53,45 @@ export const TEMPLATE_COLOUR_PALETTE: readonly TemplateColourSwatch[] = Object.f
   Object.freeze({ key: "lime", label: "Lime", accent: "#827717", tint: "#f9fbe7" }),
 ]);
 
-/** Every key the palette offers, in the order the picker shows them. */
 export const TEMPLATE_COLOUR_KEYS: readonly string[] = Object.freeze(
   TEMPLATE_COLOUR_PALETTE.map((swatch) => swatch.key),
 );
 
-/**
- * The suggested colour on **New template** — C6's "a default suggested"
- * rather than an empty picker. An operator sees it selected and can change it
- * before saving; nothing here is applied silently, which is the difference
- * between this and the accidental sharing the correction removes.
- */
-export const DEFAULT_TEMPLATE_COLOUR_KEY = "blue";
+export const DEFAULT_TEMPLATE_COLOUR_KEY = "blue"; // C6's "a default suggested", not an empty picker — changeable before saving
 
 function isTemplateColourKey(value: string): boolean {
   return TEMPLATE_COLOUR_KEYS.includes(value);
 }
 
-/** The swatch for a stored key. Falls back to the first rather than throwing. */
 export function templateColourFor(key: string): TemplateColourSwatch {
   return TEMPLATE_COLOUR_PALETTE.find((swatch) => swatch.key === key) ?? TEMPLATE_COLOUR_PALETTE[0];
 }
 
-/** What the template editor posted. Every field a string, every one optional. */
 export interface RawEventTemplate {
-  /**
-   * LAN-265. The one field that is **not** optional: a template with no name
-   * cannot be picked, listed or read, because the name is the whole of what an
-   * operator ever sees of it.
-   */
-  name?: string | null;
-  /**
-   * LAN-276 correction round 1. A palette key — see `TEMPLATE_COLOUR_PALETTE`
-   * — never a free hex value. Required exactly as `name` is: a template
-   * without a chosen colour is not the fact this correction asks for.
-   */
-  colourKey?: string | null;
+  name?: string | null; // LAN-265: the one non-optional field — unnamed, a template can't be picked, listed or read
+  colourKey?: string | null; // LAN-276 R1: a palette key, required exactly as name is
   defaultVenue?: string | null;
   defaultDeliveryMode?: string | null;
-  /** Minutes, as typed. Empty means the template does not say. */
-  defaultDurationMinutes?: string | null;
+  defaultDurationMinutes?: string | null; // minutes, as typed; empty means the template does not say
   defaultDescription?: string | null;
   defaultRequiredEquipment?: string | null;
-  /** `"mandatory"`, `"optional"`, or anything else for "the template does not say". */
-  defaultAttendance?: string | null;
-  /** The default audience, as group keys (D47). Never people. */
-  audienceGroups?: readonly string[];
+  defaultAttendance?: string | null; // "mandatory", "optional", or anything else for "does not say"
+  audienceGroups?: readonly string[]; // group keys (D47), never people
   questions?: readonly RawEventQuestion[];
 }
 
-/** The same values, checked. */
 export interface EventTemplateInput {
   name: string;
-  /** LAN-276 correction round 1. A key into `TEMPLATE_COLOUR_PALETTE`. */
-  colourKey: string;
+  colourKey: string; // LAN-276 R1: a key into TEMPLATE_COLOUR_PALETTE
   defaultVenue: string | null;
   defaultDeliveryMode: EventDeliveryMode | null;
   defaultDurationMinutes: number | null;
   defaultDescription: string | null;
   defaultRequiredEquipment: string | null;
-  /** Tri-state on purpose: `null` is "the template does not say". */
-  defaultIsMandatory: boolean | null;
+  defaultIsMandatory: boolean | null; // tri-state on purpose: null is "does not say"
   audienceGroups: AudienceGroupKey[];
 }
 
-/** One field, one correction — the same shape the event form uses. */
 export interface TemplateFieldIssue {
   field: keyof RawEventTemplate;
   message: string;
@@ -222,23 +100,10 @@ export interface TemplateFieldIssue {
 export type EventTemplateValidation =
   { ok: true; value: EventTemplateInput } | { ok: false; issues: TemplateFieldIssue[] };
 
-/**
- * Validates one submitted template, collecting every issue.
- *
- * The audience groups are **not** validated against the event type here, because
- * which groups a type may carry is a rule about the roster and the recruitment
- * funnel rather than about this form — `audience-selection.ts` owns it, the
- * service applies it, and `event_template_audience_groups_recruits_are_recruitment_only`
- * is the database's backstop. What this function owns is the shape of a value.
- */
+// Audience groups are not validated against the event type here — that's audience-selection.ts's rule.
 export function validateEventTemplate(raw: RawEventTemplate): EventTemplateValidation {
   const issues: TemplateFieldIssue[] = [];
 
-  // LAN-265. Uniqueness is not checked here and deliberately so: two operators
-  // can each be holding a form that says "Kicking Clinic", and the only place
-  // that can be decided is the database's own unique index at the moment of the
-  // write. This function owns the shape of a value, exactly as it does for the
-  // audience groups it also refuses to judge.
   const name = trimmed(raw.name);
   if (name === "") {
     issues.push({ field: "name", message: "Give this template a name." });
@@ -249,10 +114,6 @@ export function validateEventTemplate(raw: RawEventTemplate): EventTemplateValid
     });
   }
 
-  // LAN-276 correction round 1. Required exactly as `name` is: the editor
-  // always posts a value (a swatch is selected from the moment the form
-  // opens), so an empty or unrecognised one only ever reaches here from a
-  // hand-typed request.
   const colourKeyRaw = trimmed(raw.colourKey);
   if (colourKeyRaw === "") {
     issues.push({ field: "colourKey", message: "Choose a colour for this template." });
@@ -324,12 +185,7 @@ export function validateEventTemplate(raw: RawEventTemplate): EventTemplateValid
   };
 }
 
-/**
- * "2 hours" · "90 minutes" · "1 hour 30 minutes" — a default length, read aloud.
- *
- * The template list and the template editor both print it, so it is one
- * function: `docs/ux/standards.md` rule 7 is about exactly this kind of pair.
- */
+// "2 hours" · "90 minutes" · "1 hour 30 minutes" — the template list and editor both print it (docs/ux/standards.md rule 7).
 export function describeDuration(minutes: number | null): string {
   if (minutes === null) return "Not set";
   const hours = Math.floor(minutes / 60);
@@ -339,33 +195,12 @@ export function describeDuration(minutes: number | null): string {
   return [hourPart, minutePart].filter(Boolean).join(" ") || "Not set";
 }
 
-/**
- * C6. Brian: "the default times should be done in 30-minute increments
- * between 30 minutes and 4 hours ... It shouldn't be freeform text." Eight
- * options, each a multiple of 30 minutes; `describeDuration` is what labels
- * each one in the editor's select, so the wording can never drift from what
- * the template list and the confirmation dialog already say for the same
- * number.
- *
- * This is the editor's offered grid, not the model's limit — validation
- * still accepts any five-minute step from `MIN_TEMPLATE_DURATION_MINUTES` to
- * `MAX_TEMPLATE_DURATION_MINUTES`, unchanged, because a template saved before
- * this grid existed may hold a value that is not on it, and must go on
- * meaning exactly what it always meant.
- */
+// C6: 30-minute increments between 30 min and 4 hours, not freeform text — the editor's grid only.
 export const TEMPLATE_DURATION_OPTIONS: readonly number[] = Object.freeze([
   30, 60, 90, 120, 150, 180, 210, 240,
 ]);
 
-/**
- * The end time a start implies, given a default length (D78).
- *
- * Pure and string-in/string-out, so the browser can fill the End field as the
- * operator types a start and the service can apply the same rule to a draft
- * created from a template. Wraps past midnight rather than refusing: an event
- * that runs to 00:30 is a real social, and the event's own
- * `events_times_ordered` constraint is what decides whether the pair is legal.
- */
+// Pure, string-in/string-out (D78). Wraps past midnight — events_times_ordered decides legality.
 export function endTimeFromStart(startsAt: string | null, minutes: number | null): string | null {
   if (startsAt === null || minutes === null) return null;
   const hour = Number(startsAt.slice(0, 2));

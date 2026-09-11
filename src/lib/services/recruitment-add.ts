@@ -8,25 +8,14 @@ import { addRecruitmentProspectNoteIn } from "./recruitment-prospect";
 import { RECRUITMENT_ADD_OPT_IN_OPTIONS } from "./recruitment-vocabulary";
 
 /**
- * `W6` — add a recruit by hand. LAN-206.
- *
- * The four shipped fields and the duplicate check are `/operate/people/new`'s
- * own — `findPersonDuplicates` and `createPerson`, called and never
- * duplicated. This module is everything the door adds on top: the Academic
- * section's two person-record fields, the opt-in evidence that makes the
- * welcome lawful to send, refusing a link onto an existing player, and the
- * capture-time cycle declaration the 2026-09-01 amendment requires of this
- * door.
- *
- * `createPerson` opens its own transaction (`person-create.ts`'s own
- * pattern, unchanged here), so this module's own write runs as a second,
- * separate transaction immediately afterwards — the same two-transaction
- * shape `/operate/people/new`'s action already accepts implicitly (its own
- * redirect follows a single `createPerson` call with nothing else to do).
- * Nothing here is undone if the second transaction fails; the person and the
- * shipped audit row it wrote still exist, exactly as a genuine partial
- * failure of two related-but-separate database writes would leave them
- * anywhere else in this codebase that is not already one transaction.
+ * `W6` — add a recruit by hand. LAN-206. The four shipped fields and the
+ * duplicate check are `/operate/people/new`'s own (`findPersonDuplicates`,
+ * `createPerson`), called and never duplicated. This module adds: the
+ * Academic section, opt-in evidence, refusing a link onto an existing
+ * player, and the capture-time cycle declaration. `createPerson` opens its
+ * own transaction; this module's write is a second, separate one
+ * immediately after — nothing here is undone if it fails.
+ * Decision history: LAN-206, missions/intake/M-RECRUITMENT
  */
 
 const MOBILE_REQUIRED_RULE = "recruitment_add_mobile_required";
@@ -46,12 +35,7 @@ export function requireMobileProvided(mobile: string | null | undefined): void {
   }
 }
 
-/**
- * `W6`'s "they already hold a membership" exception: say so and refuse,
- * rather than creating a prospect beside a membership. Checked before
- * `createPerson` is ever called for a `link_existing` decision, so nothing
- * — not even that call's own audit row — is written for a refused link.
- */
+/** `W6`'s "they already hold a membership" exception. Checked before `createPerson` runs, so a refused link writes nothing at all. */
 export async function refuseIfAlreadyAMemberIn(
   tx: Tx,
   personId: string,
@@ -72,43 +56,22 @@ export async function refuseIfAlreadyAMemberIn(
 export interface RecruitmentAddAcademic {
   readonly college?: string | null;
   readonly matriculationYear?: string | null;
-  /**
-   * V-2, correction round 2 — Brian: "The add-to form seems narrow… We can
-   * use the forms from before to see which fields we're asking for there."
-   * Six more of the shipped intake forms' own fields, every one optional
-   * (`REQ-missing-never-blocks`), written the same "fill only while blank"
-   * way `college`/`matriculationYear` already are — this door never
-   * overwrites a value another door already recorded.
-   */
+  /** V-2: six more of the shipped intake fields, all optional, filled only while blank. */
   readonly knownAs?: string | null;
   readonly expectedGraduationYear?: string | null;
   readonly degreeField?: string | null;
-  /** `YYYY-MM-DD`, an HTML `date` input's own format. */
   readonly dateOfBirth?: string | null;
-  /**
-   * The emergency contact is one subject, per `person_emergency_contacts`'
-   * own "one per person" constraint — written only once, only when a name is
-   * given (the table's sole required field), never split across several
-   * partial writes the way the other fields above can be.
-   */
+  /** One subject (`person_emergency_contacts`' "one per person"); written once, only when a name is given. */
   readonly emergencyGivenName?: string | null;
   readonly emergencyFamilyName?: string | null;
   readonly emergencyRelationship?: string | null;
   readonly emergencyPhone?: string | null;
   readonly emergencyEmail?: string | null;
-  /** One of `RECRUITMENT_ADD_OPT_IN_OPTIONS`' own values, or blank for "not recorded". */
   readonly optInEvidence?: string | null;
-  /**
-   * `W6-01`'s "In your own words" — restored in correction round 1
-   * (F-206-02). Optional, beside the chooser above; written as the recruit's
-   * own first note, attributed to the operator, the same shipped mechanism
-   * (`addRecruitmentProspectNoteIn`) the record's own notes card already
-   * uses — never a second notes table.
-   */
+  /** W6-01, F-206-02: optional, written as the recruit's first note via the shipped `addRecruitmentProspectNoteIn`. */
   readonly optInNote?: string | null;
 }
 
-/** `finishRecruitmentAddIn`'s own "fill only while blank" idiom, generalised — V-2. */
 async function fillPersonTextFieldIfBlankIn(
   tx: Tx,
   personId: string,
@@ -155,13 +118,7 @@ async function fillDateOfBirthIfBlankIn(
   );
 }
 
-/**
- * The emergency contact — `person_emergency_contacts_one_per_person`. Given
- * name is the table's sole required column, so this writes only when one is
- * supplied, and only when the person does not already hold a row (this
- * door never overwrites one another door — or a later edit — already
- * recorded).
- */
+/** `person_emergency_contacts_one_per_person`: writes only when given name is supplied and no row exists yet. */
 async function fillEmergencyContactIfNoneIn(
   tx: Tx,
   personId: string,
@@ -225,30 +182,12 @@ export interface FinishRecruitmentAddResult {
   readonly cycleDeclared: boolean;
 }
 
-/**
- * Everything after `createPerson` resolves a person id: the Academic
- * section's two fields, ensuring the recruit's prospect row (offering the
- * existing one rather than an error when they are already a recruit this
- * season — `recruitment_prospects_one_per_person_per_season`'s own refusal,
- * turned into a redirect target instead of a raw constraint error), the
- * opt-in evidence, and — only once that evidence exists — the season
- * consent grant and the capture-time cycle declaration.
- *
- * `REQ-recruitment-cycle` fires the welcome on capture for this door; the
- * 2026-09-01 amendment is explicit that this calls
- * `declareRecruitmentCycleJobsIn` and never a second declaration. With no
- * opt-in evidence this function still creates the prospect — it simply never
- * grants consent and never calls the declaration at all, so nothing is sent
- * (`mayReceiveWelcomeContactIn` would otherwise read "never asked" as
- * permitted and send anyway, which is exactly the case this door exists to
- * avoid).
- */
+/** Everything after `createPerson`: Academic fields, the prospect row, opt-in evidence, and — only once evidence exists — the consent grant and cycle declaration. */
 export async function finishRecruitmentAddIn(
   tx: Tx,
   params: {
     actorPersonId: string;
     personId: string;
-    /** V-2, correction round 2: only "Known as" needs it, to refuse a value that just repeats the given name. */
     givenName: string;
     seasonId: string;
     academic: RecruitmentAddAcademic;
@@ -288,14 +227,7 @@ export async function finishRecruitmentAddIn(
   const evidenceValue = academic.optInEvidence?.trim() || null;
   const evidenceLabel = evidenceValue ? (OPT_IN_LABEL.get(evidenceValue) ?? null) : null;
 
-  // `first_contact_on` is the day somebody made contact, and on this door that
-  // is today: an operator is typing this recruit in because the club has just
-  // met them. Left unset (LAN-247) it stayed null forever — the record read
-  // "First contact: not recorded" after the flip to joined, and the board's
-  // default sort ("ladder order, then most recent first contact", LAN-204) had
-  // nothing to sort a hand-added recruit by. The walk-up door
-  // (`attendance.ts`) already records the fact this way, from the event's own
-  // date; the club's zone decides which day today is, never the server's.
+  // first_contact_on is today: the operator is typing this recruit in because the club just met them (LAN-247).
   const inserted = await tx.query<{ id: string }>(
     `insert into public.recruitment_prospects (person_id, season_id, source, first_contact_on)
      values ($1::uuid, $2::uuid, $3, $4::date)

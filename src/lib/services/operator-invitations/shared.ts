@@ -36,13 +36,7 @@ const ADMINISTRATION_CAPABILITY: CapabilityKey = "role_management";
  * original module exported. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 
-/**
- * Who this invitation is for.
- *
- * `DEC-minimal-person-creation`: the flow is duplicate-checked create-or-link,
- * and the choice between them is the administrator's explicit answer rather
- * than something this module guesses from a name.
- */
+/** Who this invitation is for — create-or-link, chosen explicitly by the administrator (`DEC-minimal-person-creation`). */
 export type InvitationSubject =
   | { kind: "existing"; personId: string }
   | {
@@ -58,13 +52,8 @@ export type InvitationSubject =
  * (`REQ-invite-existing-person`, `DEC-minimal-person-creation`).
  */
 export interface InitialRoleAssignment {
-  /** An exact `public.roles.code`. Resolved against the catalogue before use. */
   readonly roleCode: string;
-  /**
-   * ISO date. Defaults to today; a future date is permitted, and a past date is
-   * audited backdating and therefore requires a reason
-   * (`DEC-assignment-dates-and-cardinality`).
-   */
+  /** Defaults to today; a past date is audited backdating and requires a reason. */
   readonly effectiveFrom?: string | null;
   readonly reason?: string | null;
 }
@@ -123,16 +112,7 @@ export function blankToNull(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/**
- * The address, trimmed and lowercased.
- *
- * Addresses are lowercased **here and stored that way**, unlike
- * `contact_points.raw_value`, which is deliberately stored exactly as typed.
- * The two are different things: a contact point is a record of what the club
- * was told, and a login is a key. `Clint@Example.org` and `clint@example.org`
- * are one mailbox, one login and — because of
- * `operator_accounts_login_email_key` — one row.
- */
+/** The address, trimmed and lowercased and stored that way — unlike `contact_points.raw_value`. */
 export function normaliseEmail(value: string): string {
   return (value ?? "").trim().toLowerCase();
 }
@@ -146,22 +126,7 @@ export function requireOperator(operator: ResolvedOperator | null): ResolvedOper
   return operator;
 }
 
-/**
- * The capability floor, for the two **reads** in this module.
- *
- * The floor and not the target-level guard, and that is not the mistake the
- * mission warns about — it is the case the target-level guard has nothing to
- * say about. `assertAdministrationTarget` answers "may this operator do X *to
- * this target*", and a duplicate search has no target: it is the step that
- * decides who the target will be. Reading one account is the same shape.
- *
- * Every **write** below asks the target-aware question instead, twice, and it
- * is the write that decides anything. Guarding the reads matters for a
- * different reason — a duplicate check discloses names, addresses and phone
- * numbers of people who are not its subject — and `role_management` is exactly
- * the line `administration-audit.ts` draws around administration history for
- * the same reason.
- */
+/** The capability floor, for the two reads in this module — a duplicate search has no target to guard against. */
 export function assertAdministrationCapability(
   operator: ResolvedOperator | null,
 ): ResolvedOperator {
@@ -187,10 +152,6 @@ export function assertEachRolePermitted(
     assertAdministrationTarget(operator, {
       action: "assign_role",
       target: subject,
-      // The catalogue's own spelling, resolved from `public.roles` — never the
-      // string a form supplied. `WP-authorization` refuses an unrecognised code
-      // outright and normalises nothing, which is only safe if the caller
-      // resolves first. This is that resolution.
       roleCode: entry.role.code,
     });
   }
@@ -220,15 +181,7 @@ export async function requireAccount(
   return account;
 }
 
-/**
- * The same read, holding the row for the rest of the transaction.
- *
- * Used by the write half of {@link sendAgain}, which re-decides everything the
- * pre-flight transaction decided. A re-assertion against a row another
- * transaction can still change while this one deliberates is not a
- * re-assertion, which is why the lock comes first and the record is read
- * behind it.
- */
+/** The same read, holding the row for the rest of the transaction — the lock comes first, the record is read behind it. */
 export async function lockAccount(
   tx: Tx,
   operatorAccountId: string,
@@ -305,11 +258,6 @@ export async function createOrLinkPerson(
   const givenName = blankToNull(subject.givenName);
   const familyName = blankToNull(subject.familyName);
   if (givenName === null || familyName === null) {
-    // `people.family_name` is nullable by design — a quarter of the club's real
-    // records are first-name-only — and `DEC-minimal-person-creation` still
-    // requires both here. That is not a contradiction: the schema records what
-    // the club's history contains, and this flow records somebody being given
-    // an account today, which is a moment where both names are known.
     throw new ConstraintViolated(NAME_REQUIRED_MESSAGE, { rule: NAME_REQUIRED_RULE });
   }
 
@@ -322,10 +270,7 @@ export async function createOrLinkPerson(
   );
   const personId = inserted.rows[0].id;
 
-  // LAN-182: known-as is no longer a column. A supplied one becomes the
-  // person's display alias, which is the same fact in the place that now holds
-  // it — and, unlike the old column, it also makes this person matchable by
-  // that name the next time somebody is entered.
+  // LAN-182: known-as is a display alias, not a column — see decision history.
   if (knownAs !== null && knownAs.toLowerCase() !== givenName.toLowerCase()) {
     await tx.query(
       `insert into public.person_aliases (person_id, alias, source, is_display_name)
@@ -335,12 +280,7 @@ export async function createOrLinkPerson(
     );
   }
 
-  // The email and the optional phone become contact points, preferred, because
-  // a brand-new Person has none of either and the club now knows both. An
-  // *existing* Person's contact points are deliberately untouched: editing a
-  // profile is outside this mission (`REQ-invite-existing-person`), and
-  // silently re-preferring somebody's address because they were given a login
-  // would be an edit nobody asked for.
+  // An existing Person's contact points are deliberately untouched — out of scope (`REQ-invite-existing-person`).
   await insertContactPoint(tx, personId, "email", email);
   const phone = blankToNull(subject.phone);
   if (phone !== null) await insertContactPoint(tx, personId, "phone", phone);
@@ -382,16 +322,7 @@ export interface RoleRow {
   is_single_holder_seat: boolean;
 }
 
-/**
- * Every requested role, resolved against the catalogue, with its dates checked.
- *
- * The resolution is the part that matters for authorization: the guard refuses
- * a code the catalogue does not have and normalises nothing, so a caller that
- * passed a form value straight through would be refused for a typo and — worse
- * — a caller that trimmed one itself would be judging a seat nobody named. Here
- * the code is looked up exactly, and what the guard is given afterwards is the
- * catalogue's own `code` column.
- */
+/** Every requested role, resolved against the catalogue exactly (not normalised), with its dates checked. */
 export async function resolveRoles(
   tx: Tx,
   requested: readonly InitialRoleAssignment[],
@@ -400,17 +331,7 @@ export async function resolveRoles(
   const resolved: ResolvedRole[] = [];
 
   for (const entry of requested) {
-    // **Not trimmed.** `" kit_manager "` is refused, not tidied up.
-    //
-    // Trimming and then looking the result up in the catalogue would not have
-    // been a bypass — the guard would still have received an exact
-    // `roles.code`, or the lookup would have failed — but it is leniency
-    // nothing needs. A role code comes from a fixed list of twenty, chosen from
-    // a control; whitespace around one means a caller built the request
-    // wrongly, and `WP-authorization` refuses the same input for the same
-    // reason rather than guessing what was meant about the most dangerous seat
-    // in the club. Two layers refusing identically is one fewer thing to
-    // reason about than two layers disagreeing harmlessly.
+    // Not trimmed — `" kit_manager "` is refused, not tidied up. See decision history.
     const code = entry.roleCode ?? "";
     const found = await tx.query<RoleRow>(
       `select id, code, scope::text as scope, is_constitutional_office, is_single_holder_seat
@@ -427,19 +348,11 @@ export async function resolveRoles(
     }
 
     if (resolved.some((already) => already.role.code === found.rows[0].code)) {
-      // Two assignments of one seat to one person, starting the same day, is
-      // not something any schema constraint forbids for a multi-holder seat —
-      // and it is not something an administrator ever means. Refused here
-      // rather than de-duplicated silently, because "I picked it twice" and "I
-      // meant two different seats" look identical afterwards.
       throw new ConstraintViolated(DUPLICATE_ROLE_MESSAGE, { rule: DUPLICATE_ROLE_RULE });
     }
 
     const effectiveFrom = blankToNull(entry.effectiveFrom) ?? today;
     if (!ISO_DATE.test(effectiveFrom)) {
-      // Caught here so the administrator gets a sentence rather than a date
-      // cast failing inside the insert and arriving as "the database refused
-      // this change".
       throw new ConstraintViolated(INVALID_DATE_MESSAGE, { rule: INVALID_DATE_RULE });
     }
 

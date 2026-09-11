@@ -33,14 +33,7 @@ import { CancelledEvent, ResponseSaved } from "./saved-and-cancelled";
  */
 export const dynamic = "force-dynamic";
 
-/**
- * The generic club card — LAN-269.
- *
- * Static, and it names no event and no player. A card built from the token
- * would unfurl differently for a live link than for a dead one, which would put
- * the uniform terminal response this whole file preserves into a chat bubble
- * for everyone to read. `TOKEN_LINK_METADATA` states the rest.
- */
+/** The generic club card (LAN-269) — static, names no event/player: a token-built card would leak whether a link is live into a chat bubble. */
 export const metadata: Metadata = TOKEN_LINK_METADATA;
 
 interface PageProps {
@@ -59,12 +52,7 @@ export default async function RsvpPage({ params, searchParams }: PageProps) {
 
   const resolved = await withUniformTerminalTiming(
     async () => {
-      // Counted before the token is even looked at, so that a scanner cannot
-      // spend database round trips. A throttled request is reported as the same
-      // terminal outcome everything else unusable produces — a distinct "too
-      // many requests" page would tell a scanner it was being counted — but the
-      // server says so in its own log, so that a throttled player is something
-      // the club can discover rather than something nobody can see.
+      // Counted before the token is even looked at, so a scanner cannot spend database round trips; a throttled request is the same terminal outcome, logged server-side.
       const requestHeaders = await headers();
       const decision = allowRsvpRequest(clientKeyFrom(requestHeaders), token);
       if (!decision.allowed) {
@@ -72,9 +60,7 @@ export default async function RsvpPage({ params, searchParams }: PageProps) {
         return { state: "unknown" as const, page: null };
       }
 
-      // Resolution and the page read share one transaction: the event could
-      // otherwise be cancelled between deciding the link is valid and reading
-      // what to show for it.
+      // Resolution and the page read share one transaction: the event could otherwise be cancelled between the two.
       return withTransaction(async (tx) => {
         const resolution = await resolveRsvpTokenIn(tx, token);
         if (resolution.invitation === null) {
@@ -86,14 +72,11 @@ export default async function RsvpPage({ params, searchParams }: PageProps) {
         };
       });
     },
-    // `unknown`, `expired`, `revoked`, `superseded` and `event_started` are all
-    // terminal, and all held to the same floor so that the work each one costs
-    // is not visible from outside.
+    // All terminal states held to the same floor so the work each costs is not visible from outside.
     (outcome) => outcome.page === null || outcome.state === "event_started",
   );
 
-  // They stay distinct in the resolver, in secure logs and in tests, and become
-  // one response at exactly this line.
+  // Distinct in the resolver, secure logs and tests; one response from exactly this line.
   if (resolved.page === null || resolved.state === "event_started") {
     notFound();
   }
@@ -114,15 +97,7 @@ export default async function RsvpPage({ params, searchParams }: PageProps) {
 
   return (
     <>
-      {/*
-        Counts this as a real opening — LAN-269. The render stamps nothing, so a
-        WhatsApp or iMessage preview crawler fetching this URL leaves no trace;
-        the beacon runs only in a browser that executed the page.
-
-        Below the cancelled branch, and deliberately: `resolveRsvpTokenIn` used
-        to stamp only after it had ruled out a cancelled event, so a cancelled
-        link never counted as a use. That stays true.
-      */}
+      {/* Counts as a real opening (LAN-269); render stamps nothing. Below the cancelled branch, deliberately: a cancelled link never counted as a use. */}
       <LinkOpenedBeacon record={noteRsvpLinkOpened.bind(null, token)} />
       {screen}
     </>

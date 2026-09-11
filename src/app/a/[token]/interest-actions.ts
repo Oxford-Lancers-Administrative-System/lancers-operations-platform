@@ -10,22 +10,14 @@ import { submitQuestionnaireBAnswersIn } from "@/lib/services/recruitment-questi
 import { splitMultiAnswer } from "@/lib/services/recruitment-vocabulary";
 
 /**
- * Questionnaire B's one write — LAN-206, on the same cookie-gated posture
- * `/a/[token]`'s own `submitAnswer` already keeps: `src/proxy.ts` sets
- * `ANSWER_GATE_COOKIE` on every GET to this exact path, scoped to this exact
- * token, and this POST is refused without it — the cheapest possible refusal
- * for the automated traffic that gate exists to repel, before any
- * transaction opens.
+ * Questionnaire B's one write — LAN-206, same cookie-gated posture as
+ * `submitAnswer`: refused without `ANSWER_GATE_COOKIE`, before any
+ * transaction opens. Redirects back to `/a/[token]?saved=1` on success — no
+ * second "answered" route; a recruit may return and change any answer any
+ * time (W4's "the recruit answers twice" exception), reaching the form again
+ * via `?edit=1`.
  *
- * Redirects back to the same `/a/[token]` route on success, `?saved=1` —
- * this page has no second, "answered" route the way the RSVP flow's
- * `/me/[token]` is; the same GET re-resolves the same token and renders the
- * mockup's own "Answers received" screen (`interest-questionnaire.tsx`'s
- * `QuestionnaireBScreen`). A recruit may return and change any answer at any
- * time (W4's own "the recruit answers twice" exception) — a later visit with
- * no `?saved=1` and an answer already on record shows "Already completed"
- * instead, with its own "Change an answer" link back to the same route with
- * `?edit=1`, which is what actually reaches the form again.
+ * Decision history: missions/intake/M-RECRUITMENT
  */
 function yesNoOrNull(value: FormDataEntryValue | null): "yes" | "no" | null {
   if (value === "true") return "yes";
@@ -37,19 +29,7 @@ function textOrNull(value: FormDataEntryValue | null): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
-/**
- * F-206-02 / V-5, correction round 2: "Which positions interest you?" and
- * "What playing gear do you already have?" are genuine multi-selects,
- * `multi-select-checkboxes.tsx`'s own `TextField select` with
- * `slotProps.select.multiple` — MUI's own hidden native input for a
- * multi-select posts one field, its value the selection joined with a bare
- * comma (`SelectInput.js`'s `value.join(',')`), never several same-`name`
- * fields the way correction round 1's plain checkboxes did — so this reads
- * `form.get`, not `getAll`, and splits with the same `splitMultiAnswer`
- * this record's own read path already uses for its stored `", "`-joined
- * answer (a bare `,` and a `", "` split identically once each piece is
- * trimmed).
- */
+/** F-206-02/V-5, round 2: MUI's multi-select posts one comma-joined field, not several same-name fields — `form.get`, not `getAll`, split with the same `splitMultiAnswer` the read path uses. */
 function multiOrEmpty(form: FormData, name: string): readonly string[] {
   const value = form.get(name);
   return splitMultiAnswer(typeof value === "string" ? value : null);
@@ -69,9 +49,7 @@ export async function submitInterestQuestionnaire(form: FormData): Promise<void>
     await withTransaction(async (tx) => {
       const resolution = await resolveRecruitmentInterestTokenIn(tx, token);
       if (resolution.state !== "valid" || !resolution.resolved) {
-        // Resolved again on the next GET, which renders the uniform invalid
-        // page if the token really is dead — this action never distinguishes
-        // the reason itself.
+        // Resolved again on the next GET; this action never distinguishes the reason.
         return;
       }
       await submitQuestionnaireBAnswersIn(tx, resolution.resolved.prospectId, {

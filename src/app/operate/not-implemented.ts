@@ -1,17 +1,5 @@
-/**
- * The failure a privileged action raises once it has authorized the caller and
- * found it has no behaviour yet.
- *
- * It is deliberately **not** a `ServiceError`. A `ServiceError` is a refusal or
- * a rule the club recognises, and an operator may be shown one; this is a
- * statement that the software is unfinished, which is a developer's problem and
- * must never be mistaken for "you may not do that". Keeping the two classes
- * apart is what lets a test assert that a *permitted* caller got past the
- * guard: the guard throws `NotPermitted`, and this is what is left when it did
- * not.
- */
+// Deliberately not a ServiceError. Decision history: docs/ux/tickets/LAN-73-shell-and-access.md.
 export class ActionNotImplemented extends Error {
-  /** The Linear issue that gives this action its behaviour. */
   readonly issue: string;
 
   constructor(issue: string, action: string) {

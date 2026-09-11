@@ -12,13 +12,8 @@ import {
   NEXT_WEEK_HEADLINE,
 } from "./presentation";
 
-/**
- * The week ahead, read-only, with a link into each event.
- *
- * Brian's bounded amendment of 15 August: one week forward, so he can see which
- * of next week's events are still drafts and which have already gone out. The
- * three-week planning horizon remains LAN-109's, and nothing here edits.
- */
+// The week ahead, read-only — Brian's bounded amendment of 15 August (one
+// week forward; the three-week horizon remains LAN-109's). Decision history: docs/ux/tickets/LAN-81-monday-report.md.
 export function NextWeek({ content }: { content: WeeklyReportContent }) {
   return (
     <ReportSection
@@ -48,8 +43,6 @@ export function NextWeek({ content }: { content: WeeklyReportContent }) {
 }
 
 function UpcomingCard({ event }: { event: UpcomingEvent }) {
-  // What an operator needs to know at a glance: has anything gone out, and how
-  // many people have answered if so.
   const invitations =
     event.invited === 0 ? "No invitations sent" : `${event.answered} of ${event.invited} answered`;
 

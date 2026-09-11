@@ -9,15 +9,8 @@ import {
   labelFor,
 } from "./presentation";
 
-/**
- * Who is not fully available, and since when.
- *
- * A level and two dates, and nothing else — `availability_statuses` has no
- * column that could hold a note and none is to be added until the Oxford
- * guidance arrives. The screen no longer says so: Brian's instruction on
- * 15 August was to take the caption out, and a sentence explaining an absence
- * belongs in the code that maintains it rather than on his Monday morning.
- */
+// Who is not fully available, and since when — a level and two dates, and
+// nothing else. Decision history: docs/ux/tickets/LAN-81-monday-report.md.
 export function Availability({ content }: { content: WeeklyReportContent }) {
   return (
     <ReportSection

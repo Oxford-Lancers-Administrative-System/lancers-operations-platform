@@ -1,9 +1,3 @@
-/**
- * The rule codes this module's refusals carry, that a caller matches on.
- * LAN-131. The words behind each are in `./shared.ts`, alongside every
- * refusal this module has that a caller does not need to distinguish by code.
- */
-
 export const PERSON_ALREADY_HAS_LOGIN_RULE = "operator_account_already_exists";
 export const EMAIL_ALREADY_HAS_LOGIN_RULE = "operator_login_email_taken";
 export const ROLE_REQUIRED_RULE = "operator_invitation_role_required";

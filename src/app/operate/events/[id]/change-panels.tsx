@@ -25,34 +25,15 @@ import {
   HISTORY_HEADING,
 } from "./change-presentation";
 
-/**
- * The three panels W5 and W6 add to the event page — LAN-156.
- *
- * They live here rather than in `page.tsx` so that the page's own diff stays
- * small while two sibling work packages are editing the same file. Every one of
- * them is a server component that renders from stored rows; none holds state,
- * and none decides anything.
- */
+/** The three panels W5 and W6 add to the event page — LAN-156. Server components only. */
 
-/**
- * W5-01 — the two ways out of an approved event.
- *
- * Neither exists on `main`: an approved event is terminal there, so a
- * rescheduled practice means telling people in WhatsApp and leaving the record
- * wrong. Both guard themselves server-side; rendering them only for an operator
- * who may press them is the courtesy, not the boundary.
- */
+/** W5-01 — the two ways out of an approved event, both guarded server-side. */
 export function ApprovedEventActions({
   eventId,
   isGame = false,
 }: {
   eventId: string;
-  /**
-   * LAN-267. The roster form is a game-day artefact and nothing else: a
-   * practice has no officials to hand it to, so the action does not appear
-   * on one. The route refuses a non-game outright as well — this only stops
-   * an operator finding it by guessing.
-   */
+  /** LAN-267: roster form is a game-day artefact only — hidden for a practice, refused server-side too. */
   isGame?: boolean;
 }) {
   return (
@@ -92,16 +73,8 @@ export function ApprovedEventActions({
 }
 
 /**
- * W5-05 — actor, change and notify choice, retained and queryable (§4.13).
- *
- * "This is the only place in the mission where somebody changes something
- * people have already acted on, so the history is the point rather than a
- * nicety. It answers the question a committee actually asks three weeks later:
- * who moved it, and were people told?"
- *
- * A table on a wide screen and a stack of rows on a narrow one, which is why it
- * is a CSS grid rather than a `<table>`: at 375px a four-column table either
- * scrolls sideways or truncates the column that matters.
+ * W5-05 — actor, change and notify (§4.13); CSS grid so 375px doesn't scroll/truncate a table.
+ * Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md
  */
 export function ChangeHistoryPanel({ entries }: { entries: readonly EventChangeEntry[] }) {
   return (
@@ -136,10 +109,7 @@ export function ChangeHistoryPanel({ entries }: { entries: readonly EventChangeE
                 </Typography>
                 <Typography
                   variant="body2"
-                  // LAN-264. Description and required equipment are multi-line
-                  // free text, so a change to one of them carries the operator's
-                  // own line breaks into this column rather than running the
-                  // lines together into one paragraph.
+                  // LAN-264: multi-line free text keeps its own line breaks here.
                   sx={{ fontWeight: 600, whiteSpace: "pre-line" }}
                   aria-label={HISTORY_COLUMN_WHAT}
                 >
@@ -163,16 +133,9 @@ export function ChangeHistoryPanel({ entries }: { entries: readonly EventChangeE
 }
 
 /**
- * W6-02 — what a cancelled event keeps.
- *
- * "A cancelled event is not deleted, because deleting it would erase the fact
- * that the club planned a game and called it off. The 32 people who said yes
- * still said yes — that is what happened."
- *
- * The reason is shown here and marked internal. This route is the operator
- * tier; the reason reaches no other surface and no payload, which
- * `event-amendment.test.ts` asserts against the message rather than against
- * this screen.
+ * W6-02 — what a cancelled event keeps. The reason is shown here and marked
+ * internal; it reaches no other surface (see `event-amendment.test.ts`).
+ * Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md
  */
 export function CancelledPanel({
   reason,

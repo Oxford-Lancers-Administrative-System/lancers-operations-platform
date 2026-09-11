@@ -4,13 +4,11 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 /**
- * A form's foot — LAN-225, brief §2. Replaces form footers built five ways
- * (audit A8, E10, F5): primary, secondary, cancel, in that order, left-aligned
- * on a desktop and sticky at the bottom of a phone so the one button the
- * reader needs is never 5,000px away.
+ * A form's foot — LAN-225, brief §2. Primary, secondary, cancel, in order;
+ * sticky at the bottom of a phone. `note` is the one sentence a disabled
+ * control owes the reader (`docs/ux/standards.md` rule 4).
  *
- * `note` is the one sentence a disabled control owes the reader —
- * `docs/ux/standards.md` rule 4 — and nothing else goes here.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function ActionBar({
   primary,
@@ -35,9 +33,7 @@ export function ActionBar({
       sx={{
         position: { xs: sticky ? "sticky" : "static", md: "static" },
         bottom: 0,
-        // A number, not a theme function: this is a Server Component and a function
-        // inside `sx` cannot cross to the client. MUI's appBar is 1100.
-        zIndex: 1099,
+        zIndex: 1099, // a number, not a theme function: a Server Component, and MUI's appBar is 1100
         bgcolor: { xs: "background.paper", md: "transparent" },
         borderTop: { xs: 1, md: 0 },
         borderColor: "divider",

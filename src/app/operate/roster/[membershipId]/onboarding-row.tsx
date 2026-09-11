@@ -22,11 +22,7 @@ function shortDay(occurredAt: Date): string {
   return formatDay(occurredAt.toISOString().slice(0, 10));
 }
 
-/**
- * The row's provenance slot — who and when, per state, never narrative text
- * (`W6`'s own acceptance correction). Decision history: docs/ux/tickets/LAN-187-player-record.md.
- * (WP2-A, onboarding provenance).
- */
+/** The row's provenance slot — who and when, per state, never narrative text (W6's acceptance correction). Decision history: docs/ux/tickets/LAN-187-player-record.md. */
 function provenanceNote(item: OnboardingItemDisplay): string | undefined {
   const history = item.history;
   if (history.length === 0) return undefined;
@@ -42,9 +38,7 @@ function provenanceNote(item: OnboardingItemDisplay): string | undefined {
   const when = shortDay(latest.occurredAt);
 
   let head: string;
-  // The one transition already folded into `head` above, so the trailing
-  // summary below never repeats it — set only by the `complete` branch,
-  // which names the player's own claim rather than the latest entry.
+  // The one transition already folded into `head` — set only by `complete`, naming the player's own claim.
   let folded: OnboardingItemHistoryEntry | null = null;
   switch (latest.toStatus) {
     case "waived":
@@ -52,9 +46,7 @@ function provenanceNote(item: OnboardingItemDisplay): string | undefined {
         ? `Waived by ${who}, ${when} — ${latest.reason}`
         : `Waived by ${who}, ${when}`;
       break;
-    // D-002 (correction round 6): no "Reopen" verb, on this row or anywhere
-    // else — a transition back to the item's own off state (`pending`) is
-    // named the same way any other transition is, in the item's own word.
+    // D-002 (round 6): no "Reopen" verb — a transition back to `pending` is named like any other.
     case "pending":
       head = `Set to ${itemStateLabel(item.code, "pending")} by ${who}, ${when}`;
       break;
@@ -62,9 +54,7 @@ function provenanceNote(item: OnboardingItemDisplay): string | undefined {
       head = `${who}, ${when} · awaiting confirmation`;
       break;
     case "complete": {
-      // `R2-V`: a trust-class item completes on the player's own word — the
-      // note names the player who claimed it and when, found by looking back
-      // through this same item's history for the claim that led here.
+      // `R2-V`: a trust-class item completes on the player's own word — note names who claimed it and when.
       const claim = [...history]
         .reverse()
         .find((entry) => entry.toStatus === "claimed" && entry.actorKind === "player");
@@ -93,10 +83,7 @@ function provenanceNote(item: OnboardingItemDisplay): string | undefined {
   return `${head} · ${previousWord} ${shortDay(previous.occurredAt)}${earlierSuffix}`;
 }
 
-/**
- * One onboarding item — provenance shown, edited the same in-place way as
- * every other season value, no Resolve/SAVE pair. Decision history: docs/ux/tickets/LAN-187-player-record.md.
- */
+/** One onboarding item — provenance shown, edited in-place like every other season value, no Resolve/SAVE pair. Decision history: docs/ux/tickets/LAN-187-player-record.md. */
 export default function OnboardingRow({
   item,
   editing,

@@ -2,13 +2,11 @@ import Chip from "@mui/material/Chip";
 
 /**
  * One status → colour vocabulary for the whole application — LAN-225, brief
- * §1.3. Filled chips for stored statuses, outlined for derived or secondary
- * facts, always with the word: `label` is required and comes from the owning
- * vocabulary module (`*-vocabulary.ts`, `presentation.ts`), never from here.
- * Nothing in this file renames a state.
+ * §1.3. Filled for stored statuses, outlined for derived/secondary facts,
+ * always with the word — `label` comes from the owning vocabulary module,
+ * never from here. `neutral` is "not yet, none, archived".
  *
- * `neutral` is "not yet, none, archived" — the chip MUI would call `default`,
- * drawn in the club's own grey so it sits with the rest.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 type StatusColour = "success" | "info" | "warning" | "error" | "neutral" | "primary";
 type StatusVariant = "filled" | "outlined";

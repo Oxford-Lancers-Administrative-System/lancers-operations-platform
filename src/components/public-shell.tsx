@@ -6,26 +6,12 @@ import { BrandMark } from "./brand-mark";
 
 /**
  * The frame every page reached without a session shares — LAN-225, brief §2.
- * Replaces the four public chromes the audit found (A9, F8, G3): `AuthShell`,
- * the RSVP and answer pages' `Shell`, the calendar's `PublicShell`, and the
- * pages with none.
+ * See `docs/architecture/components.md` and `docs/ux/design-system.md` § 5.
+ * `width` is the measure (`narrow`/`medium`/`wide`); `layout` is one card or
+ * a stack the page fills itself — `card` for one panel, `stack` for several
+ * genuine sections.
  *
- * A full-bleed Oxford Blue masthead carrying the crest and the club's name,
- * one `<main>` landmark, and one card on the ground. `caption` is what the
- * page is ("Club calendar · Season 2026-27", "Sign in"); `action` is the one
- * control a masthead may carry (the calendar's subscribe link). No operator
- * navigation, no sign-in prompt where there is no account to sign in to.
- *
- * `width` is the measure: `narrow` for a form (login, reset), `medium` for a
- * page a player reads on a phone (RSVP, my page), `wide` for the calendar.
- *
- * `layout` is whether that measure holds one card or a stack the page fills
- * itself. `card` is the default at `narrow` and `medium` and is right for a
- * page that is one panel. `stack` is for a public page that is genuinely
- * several sections — the player's own invitations, the questionnaire's steps —
- * where one card around all of them would be a card around a whole page and
- * the sections inside it would be cards inside a card. `wide` is `stack`
- * because a calendar was never a panel.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function PublicShell({
   caption,

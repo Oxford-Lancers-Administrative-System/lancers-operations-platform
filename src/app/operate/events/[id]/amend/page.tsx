@@ -15,24 +15,11 @@ import { AMEND_HEADLINE_PREFIX } from "../change-presentation";
 import AmendForm from "./amend-form";
 
 /**
- * W5 — amending an approved event, on its own route.
- *
- * ## Why a route rather than a mode of `/edit`
- *
- * `/operate/events/[id]/edit` is UX-31 against a draft, and it refuses anything
- * that is not one. Amending an approved event is a different act with different
- * consequences: it holds queued messages, it makes a notify decision, and it
- * touches an event thirty-seven people have already been told about. Sharing
- * one route would mean one screen whose surrounding panels, buttons and
- * confirmations changed with the status — the shape that produces a screen
- * saying one thing and doing another.
- *
- * ## The refusal is rendered here as well as thrown
- *
- * Arriving at this URL for a draft or a cancelled event should explain itself
- * rather than present a form whose save will be refused —
- * `docs/ux/standards.md` rule 6. The service refuses regardless of what was
- * rendered.
+ * W5 — amending an approved event, on its own route (not a mode of `/edit`,
+ * UX-31's draft-only screen) — different consequences: queued messages, a
+ * notify decision, an already-told audience. The refusal for a draft or
+ * cancelled event is rendered here too, not just thrown
+ * (`docs/ux/standards.md` rule 6); the service refuses regardless.
  */
 export default async function AmendEventPage({ params }: PageProps<"/operate/events/[id]/amend">) {
   const gate = await gateShellPage("/operate/events", "event_approval");

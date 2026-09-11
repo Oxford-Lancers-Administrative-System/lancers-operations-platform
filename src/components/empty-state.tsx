@@ -5,11 +5,11 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 /**
- * What a list says when it has nothing to list — LAN-225, brief §2, and
- * `docs/ux/standards.md` rule 5: a failed search names what was searched for
- * and links to the action that resolves it. It never states a constraint and
- * stops. Replaces `EmptyPeople`, `EmptyQueue` and the inline "no rows" copy
- * (audit E7).
+ * What a list says when it has nothing to list — LAN-225, brief §2,
+ * `docs/ux/standards.md` rule 5: names what was searched for, links to the
+ * action that resolves it, never just states a constraint and stops.
+ *
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export function EmptyState({
   title,

@@ -2,29 +2,13 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 
 /**
- * The Events area's two switches — List/Calendar, and inside Calendar,
- * Gregorian/Oxford term. LAN-114.
+ * The Events area's two switches — List/Calendar, and Gregorian/Oxford term.
+ * LAN-114. Each choice is a real `<a href>`, not a button: a view belongs in
+ * the URL, so it's shareable, survives a refresh, and needs no client
+ * component — the highlight is computed from the same URL that produced the
+ * page. A labelled `nav` with `aria-current="page"` on the active choice.
  *
- * ## Links, not buttons
- *
- * Each choice is a real `<a href>` to the view it selects, following the same
- * reasoning as the list's sortable column headers: a view is a different
- * presentation of the same records, so it belongs in the URL. That makes a
- * chosen view shareable, survivable across a refresh, and reachable with the
- * back button — and it is what "preserve the user's selected view during
- * ordinary navigation where practical" amounts to in a server-rendered
- * application, without a preference to store anywhere.
- *
- * It also means the switch needs no JavaScript and no client component, so it
- * cannot get into a state where the highlighted option and the rendered view
- * disagree: the highlight is computed from the same URL that produced the page.
- *
- * ## Accessibility
- *
- * A labelled `nav` containing links, with `aria-current="page"` on the active
- * one. That is what a screen reader announces as the current view; the filled
- * variant is the sighted equivalent of the same fact, never the only carrier of
- * it.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export interface ViewChoice {
   readonly href: string;

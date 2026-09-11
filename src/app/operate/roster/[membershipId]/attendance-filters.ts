@@ -1,9 +1,6 @@
 import type { AttendanceEvent } from "@/lib/services/player-record";
 
-/**
- * Sort/filter vocabulary and pure helpers for the Attendance band's table and
- * cards. Decision history: docs/ux/tickets/LAN-187-player-record.md.
- */
+/** Sort/filter vocabulary and pure helpers for the Attendance band's table and cards. Decision history: docs/ux/tickets/LAN-187-player-record.md. */
 
 export type SortKey = "eventName" | "date" | "isMandatory" | "rsvp" | "attendance" | "eventStatus";
 export type FilterKey = "isMandatory" | "rsvp" | "attendance" | "eventStatus";
@@ -15,17 +12,11 @@ export const COLUMNS: readonly { key: SortKey; label: string; filterKey?: Filter
     { key: "isMandatory", label: "Mandatory", filterKey: "isMandatory" },
     { key: "rsvp", label: "RSVP", filterKey: "rsvp" },
     { key: "attendance", label: "Attendance", filterKey: "attendance" },
-    // Appended rather than inserted earlier (W1) — the five existing columns
-    // keep their own order and behaviour exactly; this is the one new column.
+    // Appended rather than inserted (W1) — the five existing columns keep their order/behaviour.
     { key: "eventStatus", label: "Event status", filterKey: "eventStatus" },
   ]);
 
-/**
- * Defaults the table to `Occurred` (W1, Q-19) — Brian's walkthrough found
- * every invited event on screen, including ones that had not happened yet,
- * above a score that only ever counted occurred ones. `clearAll()` drops this
- * back to "everything", same as any other filter.
- */
+/** Defaults to `Occurred` (W1, Q-19) — Brian's walkthrough found unhappened events skewing the score. `clearAll()` resets to "everything". */
 export const DEFAULT_FILTERS: Readonly<Record<FilterKey, string>> = Object.freeze({
   isMandatory: "",
   rsvp: "",
@@ -68,12 +59,7 @@ export const ATTENDANCE_LABEL: Readonly<Record<"present" | "late" | "excused" | 
     absent: "Absent",
   });
 
-/**
- * `derivedEventState()`'s three words, in the club's language — the same
- * wording `/operate/events`'s own Status column already uses. Restyled as a
- * local constant: this package does not import from `roster-board.tsx` or the
- * events surface.
- */
+/** `derivedEventState()`'s three words, restyled locally so this package avoids importing `roster-board.tsx` or the events surface. */
 export const EVENT_STATUS_LABEL: Readonly<Record<AttendanceEvent["eventStatus"], string>> =
   Object.freeze({
     upcoming: "Upcoming",
@@ -81,12 +67,7 @@ export const EVENT_STATUS_LABEL: Readonly<Record<AttendanceEvent["eventStatus"],
     cancelled: "Cancelled",
   });
 
-/**
- * The third score figure (W2, Q-19) — occurred mandatory events with no
- * attendance record, out of exactly the rows given. A separate, named
- * function rather than inlined so a later reversal to a miss-counting
- * denominator is a one-line change here, not a search through the render.
- */
+/** The third score figure (W2, Q-19): occurred mandatory events with no attendance record, out of the given rows. */
 export function countUnrecordedOccurredMandatory(rows: readonly AttendanceEvent[]): number {
   return rows.filter(
     (event) => event.isMandatory && event.eventStatus === "occurred" && event.attendance === null,

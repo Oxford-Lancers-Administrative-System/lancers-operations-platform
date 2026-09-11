@@ -7,22 +7,9 @@ import { gateShellPage } from "../../../gate";
 import FindOtherRecord from "./find-other-record";
 import MergeComparison from "./merge-comparison";
 
-/**
- * `/operate/people/[personId]/merge` — W4-01 … W4-08. LAN-185, `REQ-merge`.
- *
- * Reached only from a record the operator already holds — `W1`'s search, or
- * the "Compare with …" handoff `W2-07` offers — never from a list. The
- * comparison is the most disclosing screen this mission draws, and this is
- * why: two people's contact details, academic detail, date of birth and
- * emergency contact, side by side.
- *
- * B5, LAN-185 correction round 2 (Brian's walk): `previewPersonMerge` refuses
- * — same record, the comparison target not on record, or already merged
- * away — by throwing, the same posture every service in this codebase takes.
- * Those are refusals the product owns, not crashes; rendered here as
- * `Refusal`, the same shape `events/[id]/edit/page.tsx` already uses for an
- * uneditable draft.
- */
+// `/operate/people/[personId]/merge` — W4-01..W4-08, LAN-185, `REQ-merge`.
+// Reached only from a record the operator already holds, never a list.
+// Decision history: docs/ux/tickets/LAN-185-person-write.md.
 export default async function MergePage({
   params,
   searchParams,

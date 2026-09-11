@@ -22,33 +22,16 @@ export type PeopleScope = "in_season" | "outside_season";
 export interface PersonListEntry {
   personId: string;
   displayName: string;
-  /**
-   * A non-display alias the current search term matched, distinct from
-   * `displayName` — `REQ-person-record`'s "including an alias that is not the
-   * display name" and `W1-02`'s "the row says which alias matched." `null`
-   * when there is no search term, or the term did not match an alias.
-   */
+  /** A non-display alias the search term matched (`W1-02`); `null` when no term or no alias match. */
   matchedAlias: string | null;
   status: AssembledStatus;
-  /**
-   * "What they are to the club" — `DEC-w1-03`. `Player`, `Recruit`, a role
-   * name (with the season or committee year it was drawn from), or a
-   * combination joined by " · ". `null` for a person who is a player, coach,
-   * committee member or recruit at no point this scope can see — Task 08 §4's
-   * "or nothing."
-   */
+  /** "What they are to the club" (`DEC-w1-03`): Player, Recruit, role(s), or `null` for none this scope can see. */
   clubRoleSummary: string | null;
   hasMobile: boolean;
   hasPersonalEmail: boolean;
   /** Every required field this person's rung asks for that is absent. Never a bare count. */
   missingRequiredFields: RequiredField[];
-  /**
-   * LAN-218, `W8`. This person's season membership for the season in view,
-   * where one exists — the chase's own unit of state. Optional and
-   * `undefined` where a caller has no use for it (`listPeople`, `W1`, never
-   * sets it), so it adds no obligation to every existing reader of this
-   * shared row shape.
-   */
+  /** LAN-218, `W8`. This person's membership for the season in view. Optional — `listPeople` never sets it. */
   membershipId?: string | null;
 }
 
@@ -80,11 +63,7 @@ export interface MissingQueueFilters {
   fact?: RequiredField | null;
   sort?: string | null;
   direction?: string | null;
-  /**
-   * LAN-218, `W8`. Restricts the queue to players currently in `onboarding`
-   * status — the locked default recommendation. `false`/`undefined` is
-   * Mission 5's original, unrestricted scope.
-   */
+  /** LAN-218, `W8`. Restricts to `onboarding` status. `false`/`undefined` is the original, unrestricted scope. */
   onlyOnboardingPlayers?: boolean;
 }
 
@@ -118,7 +97,6 @@ interface DirectoryRow {
   status: AssembledStatus;
   is_past_member: boolean | null;
   has_membership_tie: boolean;
-  /** LAN-218. This person's own season_memberships row for the season in view, if any. */
   membership_id: string | null;
   has_prospect_tie: boolean;
   roles_in_view: string[] | null;
@@ -139,13 +117,9 @@ interface DirectoryRow {
 
 /**
  * Every person tied to (`in_season`) or excluded from (`outside_season`) the
- * season in view, unfiltered by search, status or missing data.
- *
- * `season_roles` computes the tie itself, `role_assignments.effective_from` /
- * `effective_to` notwithstanding: a role assignment scoped to the season or
- * committee year in view is a tie to it by construction, whether or not the
- * seat has since ended — the same reading `W1-05`'s own "ended" chip on a past
- * committee year gives an assignment that is over but still real.
+ * season in view, unfiltered. `season_roles` computes the tie itself — a
+ * role assignment scoped to the season/committee year is a tie by
+ * construction, whether or not the seat has since ended (`W1-05`).
  */
 export async function fetchDirectoryRows(
   tx: Tx,
@@ -339,9 +313,7 @@ export const PEOPLE_LIST_SORT_COLUMNS: readonly string[] = Object.freeze([
   "club",
   "contactable",
   "missing",
-  // Finding 8, Brian 2026-09-01. A binary collapse of the six-rung status
-  // ladder — recruit, or everyone else — never a second ranking of the same
-  // field `status` already sorts.
+  // Finding 8: binary collapse of the status ladder, never a second ranking of `status`.
   "type",
 ]);
 export const DEFAULT_PEOPLE_SORT = "name";
@@ -358,8 +330,7 @@ export function compareBy(sort: string, direction: "asc" | "desc") {
         cmp = statusRank(a.status) - statusRank(b.status);
         break;
       case "type": {
-        // Recruit first, ascending — the one grouping a fan-out across five
-        // player statuses cannot give on its own (finding 8).
+        // Recruit first, ascending (finding 8).
         const rank = (status: PersonListEntry["status"]) => (status === "recruit" ? 0 : 1);
         cmp = rank(a.status) - rank(b.status);
         break;
@@ -382,8 +353,7 @@ export function compareBy(sort: string, direction: "asc" | "desc") {
         break;
     }
     if (cmp !== 0) return cmp * sign;
-    // A stable tie-break, so two operators sorting by the same column see the
-    // same order rather than whatever the fetch returned it in.
+    // A stable tie-break.
     return a.displayName.localeCompare(b.displayName);
   };
 }

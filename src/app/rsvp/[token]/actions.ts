@@ -24,24 +24,13 @@ import {
 } from "./params";
 
 /**
- * The player's two submissions. LAN-79.
+ * The player's two submissions. LAN-79. Plain `<form action={…}>` POSTs
+ * answered with a redirect, no client component — errors travel in the query
+ * string so the page works with scripting switched off. The token is
+ * re-resolved inside the writing transaction by `recordSignedLinkResponse`;
+ * neither action trusts an invitation, person or event id from the form.
  *
- * ## Plain forms, on purpose
- *
- * Both actions are reached by an ordinary `<form action={…}>` POST and answer
- * with a redirect. Nothing here needs `useActionState`, a fetch, or any client
- * component, because the acceptance criteria require the page to work "with
- * JavaScript restricted to what a plain form submission needs" — a player is on
- * a phone, outdoors, on a bad connection. Errors therefore travel back in the
- * query string rather than in React state, which is the only version of this
- * that survives with scripting switched off.
- *
- * ## The token comes from the URL, and the invitation from the token
- *
- * Neither action accepts an invitation id, a person id or an event id, and
- * neither trusts anything else the form carries. The token is re-resolved
- * inside the writing transaction by `recordSignedLinkResponse`, so a form
- * rendered before the event started cannot be replayed after it.
+ * Decision history: docs/ux/tickets/LAN-79-player-rsvp.md
  */
 
 function tokenFrom(form: FormData): string {
@@ -54,15 +43,7 @@ function text(form: FormData, field: string): string {
   return typeof value === "string" ? value : "";
 }
 
-/**
- * Rate limiting on the write path.
- *
- * Refused with its own error rather than with `closed`. The first version told
- * a throttled player "responses close when the event starts" — a statement
- * about their event that was simply untrue, and one they could do nothing
- * about. Independent review caught it. `busy` says what is actually happening
- * and invites them to try again, which is the honest and the useful answer.
- */
+/** Rate limiting on the write path. `busy`, not `closed`: an earlier version's "responses close when the event starts" was simply untrue (independent review caught it). */
 async function throttled(token: string): Promise<boolean> {
   const requestHeaders = await headers();
   const decision = allowRsvpRequest(clientKeyFrom(requestHeaders), token);
@@ -71,15 +52,7 @@ async function throttled(token: string): Promise<boolean> {
   return true;
 }
 
-/**
- * Every refusal on this path costs the same wall clock, for the same reason the
- * read path equalises: an unknown token is refused without a database round
- * trip while a revoked one costs a three-table join, and Next's server-action
- * ids are recoverable from any legitimate player's rendered form, so an
- * attacker can post arbitrary tokens straight at this action and time the
- * redirect. Equalising only the GET would leave the side channel open on the
- * POST.
- */
+/** Every refusal on this path costs the same wall clock — Next's server-action ids are recoverable from a rendered form, so equalising only the GET would leave a timing side channel open on the POST. */
 async function refuse(target: string, startedAt: number): Promise<never> {
   await holdUniformRefusal(startedAt);
   redirect(target);
@@ -121,9 +94,7 @@ export async function submitNotAttending(form: FormData): Promise<void> {
     });
   } catch (error) {
     const failure = failureFor(error);
-    // A missing reason returns to the declining step with the message, rather
-    // than to the invitation — the player is mid-answer and should not lose it.
-    // It is also the one refusal that is not a secret, so it is not padded.
+    // A missing reason returns to the declining step, not the invitation, so the player doesn't lose their place; not padded, since it isn't a secret.
     if (failure === REASON_REQUIRED_ERROR) {
       redirect(
         `/rsvp/${encoded}?${STEP_PARAM}=${DECLINE_STEP}&${ERROR_PARAM}=${REASON_REQUIRED_ERROR}`,
@@ -135,17 +106,7 @@ export async function submitNotAttending(form: FormData): Promise<void> {
   redirect(`/rsvp/${encoded}?${SAVED_PARAM}=1`);
 }
 
-/**
- * Which failure the player is told about.
- *
- * Exactly two outcomes are distinguishable, and both are things the player can
- * act on: the reason is missing, or the window is shut. Every other failure —
- * including a revoked token and an unknown one — collapses into the shut-window
- * case, because saying more would undo the uniform terminal response.
- *
- * `redirect()` throws to perform the navigation, so it must not be caught here;
- * this function only classifies, and the caller redirects.
- */
+/** Which failure the player is told: reason missing, or window shut — everything else collapses into shut-window so as not to undo the uniform terminal response. Only classifies; the caller redirects (`redirect()` throws). */
 function failureFor(error: unknown): string {
   if (isServiceError(error) && error.rule === NO_REQUIRES_A_REASON_RULE) {
     return REASON_REQUIRED_ERROR;
@@ -154,23 +115,13 @@ function failureFor(error: unknown): string {
 }
 
 /**
- * Counts one real opening of this invitation — LAN-269.
+ * Counts one real opening of this invitation — LAN-269. Fired by
+ * `LinkOpenedBeacon` after the browser has run the page; the render itself
+ * stamps nothing (a crawler triggers the render). Throttled on the page's
+ * budget; a throttled call is silent, and `recordRsvpTokenUse` swallows its
+ * own failures, so this never distinguishes a guess.
  *
- * Fired by `LinkOpenedBeacon` after the browser has run the page, and by
- * nothing else. The render itself stamps nothing, because a render is what a
- * WhatsApp or iMessage preview crawler triggers when the link is pasted into a
- * chat — see `resolveRsvpTokenIn`.
- *
- * Throttled on the same budget as the page, because this is a `POST` an
- * anonymous caller can reach with a guessed token and must not be able to spend
- * database round trips through. A throttled call is silent: it is not the
- * player's problem, and telling a scanner it was counted would defeat the
- * uniform terminal response the whole surface is built on.
- *
- * Returns nothing and never throws. `recordRsvpTokenUse` refuses a malformed
- * token without a round trip and swallows its own failures, and an unknown
- * token updates no row — so this stays silent for a guess exactly as the page
- * does.
+ * Decision history: docs/ux/design-system.md (LAN-269 has no ticket contract)
  */
 export async function noteRsvpLinkOpened(token: string): Promise<void> {
   const decision = allowRsvpRequest(clientKeyFrom(await headers()), token);

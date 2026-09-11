@@ -63,15 +63,10 @@ function toContactValue(row: {
 }
 
 /**
- * Replaces the current preferred contact value of one kind and scope,
- * preserving the old one, dated. Filling a kind/scope this person has no
- * current preferred value for needs no reason; replacing one does.
- *
- * `contact_points_one_preferred_per_kind` is the schema's own guarantee of "one
- * preferred value per kind" — a partial unique index on
- * `(person_id, kind, scope)`. This function keeps that true by dating the old
- * preferred row's `valid_until` in the same statement that would otherwise
- * collide with it, rather than racing it.
+ * Replaces the current preferred contact value of one kind/scope, preserving
+ * the old one, dated. Filling a kind/scope with no current value needs no
+ * reason; replacing one does. Keeps `contact_points_one_preferred_per_kind`
+ * true by dating the old row rather than racing it.
  */
 export async function supersedeContactPoint(
   params: SupersedeContactPointParams,
@@ -131,15 +126,7 @@ export async function supersedeContactPoint(
         : "the mobile number";
     requireReasonForChange(supersededRow ? supersededRow.raw_value : null, reason, fieldLabel);
 
-    // LAN-185, W2-07: "An email that already belongs to another person" is
-    // refused rather than saved twice. `contact_points` carries no unique
-    // constraint on `raw_value` — Source Data Analysis §11.1's messy real
-    // data would refuse a legitimate import on day one — so this is checked
-    // here, the one write path a duplicate email can arrive through. Phones
-    // are deliberately not checked the same way: a shared household number
-    // is common and not itself a signal of one person recorded twice, the
-    // reading the workflow's own acceptance evidence draws by only ever
-    // showing this refusal for an email.
+    // LAN-185 W2-07: a shared email is refused; a shared phone is not (a household number is common).
     if (kind === "email") {
       const collision = await tx.query<{ person_id: string; display_name: string }>(
         `select c.person_id, ${personDisplayNameSql("p")} as display_name
@@ -162,13 +149,7 @@ export async function supersedeContactPoint(
     }
 
     if (supersededRow) {
-      // Both columns, in one statement. `contact_points_one_preferred_per_kind`
-      // is a partial unique index over every row where `is_preferred` is true —
-      // it carries no `valid_until` condition — so leaving the old row flagged
-      // preferred while inserting a new preferred row for the same
-      // `(person_id, kind, scope)` would collide with the index the very
-      // guarantee this function exists to keep true. Dated *and* demoted is
-      // what "no longer the preferred, current value" means.
+      // Both columns, in one statement: the partial unique index carries no valid_until condition, so both must change together.
       await tx.query(
         `update public.contact_points set valid_until = now(), is_preferred = false where id = $1::uuid`,
         [supersededRow.id],

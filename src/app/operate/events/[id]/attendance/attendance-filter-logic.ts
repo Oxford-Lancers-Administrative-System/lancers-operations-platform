@@ -1,14 +1,7 @@
 import type { AttendanceParticipant } from "@/lib/services/attendance";
 
-/**
- * The board's filters, applied in memory.
- *
- * In memory rather than in SQL because the list is one event's audience — tens
- * of people, already read in full to compute the counts above — and a recorder
- * switching filters mid-evening should not re-run a `full outer join` for it.
- * The counts deliberately describe the **whole** event rather than the filtered
- * view, so a filter never makes the club look like it invited fewer people.
- */
+// The board's filters, applied in memory (the list is one event's audience,
+// already read in full). Decision history: docs/ux/tickets/LAN-80-attendance.md.
 export function filterParticipants(
   participants: AttendanceParticipant[],
   filters: { search: string; rsvp: string; attendance: string },

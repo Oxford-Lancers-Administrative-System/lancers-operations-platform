@@ -15,30 +15,7 @@ export interface GeneratedReport {
   reportOn: string;
 }
 
-/**
- * Files one immutable snapshot, inside the caller's transaction, and returns
- * what it allocated.
- *
- * Version allocation is deliberately above the database —
- * `docs/architecture/data-model.md` § _Rules deliberately left to TypeScript_:
- * that `version` is exactly `predecessor.version + 1`, and that the predecessor
- * is the current latest, are read-then-write decisions that need the
- * transaction to have looked at existing rows.
- *
- * Two operators opening the report at the same instant is therefore a real
- * race, and it is closed twice over:
- *
- *   * the caller's transaction-scoped advisory lock on the
- *     `(season, reporting date)` series, so the second waits for the first to
- *     commit and then sees its row. An advisory lock rather than
- *     `select … for update` because `weekly_reports` grants `service_role` only
- *     `select, insert` — row locking needs `update`, and widening that grant to
- *     take a lock would hand the append-only table a way to be rewritten;
- *
- *   * the database's own `weekly_reports_one_per_version` and
- *     `weekly_reports_one_superseding_row`, which make a duplicate version and
- *     a forked lineage impossible regardless of what any caller does.
- */
+/** Files one immutable snapshot inside the caller's transaction. Version allocation is above the database; the race is closed by the caller's advisory lock and the database's own uniqueness constraints. */
 export async function fileSnapshot(
   tx: Tx,
   season: Season,
@@ -61,10 +38,7 @@ export async function fileSnapshot(
   const content = await computeReportContent(tx, season, reportOn);
   const now = await tx.query<{ at: Date }>("select now() as at");
 
-  // No `try` around this. The two constraints that close the race the lock
-  // already narrowed, and the composite foreign key that refuses a cross-season
-  // supersession, are all named in `CONSTRAINT_MESSAGES`, so a violation
-  // arrives as a readable `Conflict` or `ConstraintViolated` for every caller.
+  // No try: the constraints are named in CONSTRAINT_MESSAGES, so a violation arrives readable.
   const inserted = await tx.query<{ id: string }>(
     `insert into public.weekly_reports
        (season_id, report_on, version, supersedes_id, metric_definition_version,

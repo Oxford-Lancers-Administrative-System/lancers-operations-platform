@@ -10,116 +10,58 @@ export interface ReturnerIntakeInput {
   givenName: string;
   familyName?: string | null;
   knownAs?: string | null;
-  /** Stored verbatim if supplied. Shape-checked only to help the operator. */
   email?: string | null;
-  /** Stored verbatim if supplied. Never normalised to E.164 — out of scope. */
   phone?: string | null;
-  /**
-   * LAN-215, `roster-import.ts`'s own addition to this shared write: the two
-   * optional columns the CSV import carries beyond what UX-10's form ever
-   * asked for. Written **only** for a person this call mints — see
-   * `insertPerson`. UX-10 never supplies either, so this changes nothing
-   * about the shipped returner-intake path.
-   */
+  /** LAN-215: `roster-import.ts`'s addition. Written only for a person this call mints — see `insertPerson`. */
   college?: string | null;
   matriculationYear?: number | null;
 }
 
-/** Why a candidate surfaced. Shown to the operator so the choice is informed. */
 export type CandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
 
-/** One possible existing Person, for UX-11. */
 export interface PersonCandidate {
   personId: string;
   givenName: string;
   familyName: string | null;
-  /** The alias flagged as this person's display name, if they have one. */
   displayAlias: string | null;
-  /**
-   * An email to show on UX-11: of the person's **current** emails (those with
-   * no `valid_until`), the preferred one if there is one, else the most
-   * recently recorded. `null` when they have no current email at all — a
-   * superseded college address does not appear here.
-   *
-   * Not strictly "the preferred one": a person can hold a current email that
-   * nothing ever marked preferred — an earlier intake left one, or the
-   * missing-data queue has not classified it yet — and a candidate list
-   * showing those as "—" would drop the field the operator's decision most
-   * depends on.
-   */
+  /** UX-11: current preferred email, else most recent current one; `null` when none current. */
   email: string | null;
-  /** A current phone, on exactly the same rule as `email`. */
   phone: string | null;
-  /**
-   * Their membership in the open season, when they already hold one.
-   *
-   * `seasonLabel` is carried so that UX-12 can render its approved sentence —
-   * "<name> is already a member for the <season> season" — without a second
-   * query, and without the interface inventing a season name of its own.
-   */
+  /** Their membership in the open season, when they hold one; `seasonLabel` lets UX-12 render its sentence without a second query. */
   currentMembership: { id: string; status: string; seasonLabel: string } | null;
-  /** Every field that matched, in a stable order. Never empty. */
   matchedOn: CandidateMatch[];
 }
 
-/** The operator's explicit answer to "who is this?". There is no third option. */
 export type IntakeDecision =
   { kind: "existing"; personId: string } | { kind: "new"; confirmed: true };
 
-/** What was actually written, for UX-13. */
 export interface ReturnerIntakeResult {
   personId: string;
   membershipId: string;
   seasonId: string;
   seasonLabel: string;
-  /** True when this submission minted the `people` row. */
   personCreated: boolean;
-  /** A display alias was written because the known-as differs from the given name. */
   aliasCreated: boolean;
-  /** The contact points this submission wrote, in the order written. */
   contactsRecorded: RecordedContact[];
-  /**
-   * LAN-257 — what the operator typed that this submission deliberately did
-   * not write, so the confirmation can say so. Only ever non-empty on the
-   * "Use selected person" path: a value the chosen person does not already
-   * hold is discarded rather than appended to their record. Empty when they
-   * already hold it, because then nothing was discarded either.
-   */
+  /** LAN-257: typed but deliberately not written, so the confirmation can say so. Non-empty only on "Use selected person". */
   contactsNotRecorded: TypedContact[];
   confirmedOn: string;
-  /**
-   * LAN-215, W2's own addition: the welcome queued in the same transaction as
-   * the membership. `false` only for the "already queued" idempotent replay
-   * this function's own transaction never actually produces (a membership is
-   * always freshly created here) — carried as a result field rather than
-   * assumed, so a caller reads what happened instead of re-deriving it.
-   */
+  /** LAN-215: the welcome queued in the same transaction as the membership. */
   welcomeQueued: boolean;
 }
 
 export interface RecordedContact {
   kind: "email" | "phone";
-  /** Exactly as the operator typed it. */
   rawValue: string;
-  /**
-   * `false` when the person already had a preferred contact of this kind.
-   * Since LAN-257 only a person this submission minted is written to at all,
-   * so in practice this is always `true` — the flag is kept because it is
-   * what the confirmation screen states, and a screen that derives "preferred"
-   * from an assumption rather than from the write is how the old behaviour
-   * went unnoticed.
-   */
+  /** `false` when already preferred; in practice always `true` since LAN-257, kept because the confirmation screen states it. */
   isPreferred: boolean;
 }
 
-/** A value the operator typed, named by its kind — LAN-257's "this was not written". */
 export interface TypedContact {
   kind: "email" | "phone";
-  /** Exactly as the operator typed it. */
   rawValue: string;
 }
 
-/** The open season every membership in this slice is created in. */
 export interface OpenSeason {
   id: string;
   label: string;
@@ -131,13 +73,7 @@ export function trimmedOrNull(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/**
- * The intake input reduced to the values this module is willing to act on.
- *
- * Names are trimmed because they are identity and the database refuses a blank
- * one. `email` and `phone` keep their original string — `raw` is what gets
- * stored — alongside a trimmed copy used only for comparison and shape checks.
- */
+/** The intake input reduced to the values this module acts on. `raw` is stored as typed; `compare` is trimmed, for comparison only. */
 export interface NormalisedInput {
   givenName: string;
   familyName: string | null;
@@ -173,19 +109,7 @@ export function normaliseInput(input: ReturnerIntakeInput): NormalisedInput {
   };
 }
 
-/**
- * The one season a membership may be created in today.
- *
- * The frozen model calls this "the currently open or active season", and both
- * `open` and `active` are legal here: `open` is a season taking registrations,
- * `active` is one under way, and a returner can be entered in either.
- *
- * It fails closed in both directions. No open season is a `NotFound` telling
- * the operator the season has not been opened yet — not an invitation to pick
- * one. **More than one** is a `Conflict`, because nothing in the schema forbids
- * two seasons being open at once and quietly choosing the newer of them would
- * put a player on the wrong roster with no evidence of the choice.
- */
+/** The one season a membership may be created in today (`open` or `active`). Fails closed both ways: none is `NotFound`, more than one is `Conflict`. */
 export async function resolveOpenSeason(tx: Tx): Promise<OpenSeason> {
   const result = await tx.query<{ id: string; label: string }>(
     `select id, label

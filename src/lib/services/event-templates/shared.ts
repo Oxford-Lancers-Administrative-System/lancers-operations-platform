@@ -9,43 +9,24 @@ import { UUID_PATTERN, type EventDeliveryMode } from "../event-input";
 import { groupsForEventType, type AudienceGroupKey } from "../audience-selection";
 import type { EventQuestion } from "../event-questions";
 
-/** One template, as stored. Every value is optional — the template may not say. */
 export interface EventTemplate {
-  /** LAN-265. The identity, which survives a rename. */
-  id: string;
-  /** The club's own word for this kind of event, and the only label ever shown. */
-  name: string;
-  /** LAN-276 correction round 1. A key into `TEMPLATE_COLOUR_PALETTE`. */
-  colourKey: string;
-  /** The behavioural class underneath. Never shown to an operator. */
-  eventType: string;
+  id: string; // LAN-265: the identity, which survives a rename
+  name: string; // the club's own word for this kind of event, the only label ever shown
+  colourKey: string; // LAN-276 R1: a key into TEMPLATE_COLOUR_PALETTE
+  eventType: string; // behavioural class underneath, never shown to an operator
   defaultVenue: string | null;
   defaultDeliveryMode: EventDeliveryMode | null;
   defaultDurationMinutes: number | null;
   defaultDescription: string | null;
   defaultRequiredEquipment: string | null;
-  /** Tri-state: `null` is "the template does not say". */
-  defaultIsMandatory: boolean | null;
-  /** D47. The default audience, as groups. Never people. */
-  audienceGroups: AudienceGroupKey[];
-  /** D42. Arrive with every event of this type, and are removable per event. */
-  questions: EventQuestion[];
+  defaultIsMandatory: boolean | null; // tri-state: null is "the template does not say"
+  audienceGroups: AudienceGroupKey[]; // D47: default audience, as groups, never people
+  questions: EventQuestion[]; // D42: arrive with every event of this type, removable per event
 }
 
-/**
- * The concrete values a new event of this type is created with.
- *
- * The single definition of "what the template gave it", used by
- * `createEventDraft` to build a draft and by the change plan to decide whether a
- * field was touched. Two copies of this would eventually disagree, and the
- * disagreement would look exactly like the destruction D41's refinement exists
- * to prevent.
- *
- * A `null` on the template is not passed through as a null: `delivery_mode` and
- * `is_mandatory` are `not null` on the event, so "the template does not say"
- * resolves to what an event with nobody's opinion on it would have been — in
- * person, and attendance not expected.
- */
+// The single definition of "what the template gave it" — used by createEventDraft and the change
+// plan; two copies would disagree. A null on the template resolves to the event's own not-null
+// default (delivery_mode/is_mandatory): in person, attendance not expected.
 export interface TemplateDefaults {
   deliveryMode: EventDeliveryMode;
   venue: string | null;
@@ -91,13 +72,8 @@ export interface TemplateRow {
   default_is_mandatory: boolean | null;
 }
 
-/**
- * One stored row in the camel-cased shape `templateDefaults` reads.
- *
- * A named function rather than a spread at each call site, because both readers
- * of `event_templates` resolve their defaults through `templateDefaults` and a
- * second hand-written mapping is a second chance to drop a column.
- */
+// A named function, not a spread at each call site: both readers of event_templates resolve
+// defaults through templateDefaults, so a second hand-written mapping can't drop a column.
 export function toTemplateShape(row: TemplateRow) {
   return {
     defaultVenue: row.default_venue,
@@ -113,14 +89,9 @@ export const TEMPLATE_COLUMNS = `id, name, colour_key, event_type::text as event
         default_delivery_mode::text as default_delivery_mode, default_duration_minutes,
         default_description, default_required_equipment, default_is_mandatory`;
 
-/** One template, with its questions and its default audience. */
 export async function readEventTemplateIn(tx: Tx, templateId: string): Promise<EventTemplate> {
-  // Checked before the parameter reaches PostgreSQL. `template_id` is a `uuid`,
-  // and a hand-typed route segment that is not one raises an invalid-input error
-  // rather than returning no rows — which would surface as "the database could
-  // not complete this change" instead of the sentence below.
   if (!isUuid(templateId)) {
-    throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE });
+    throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE }); // checked before a malformed uuid reaches PostgreSQL
   }
 
   const result = await tx.query<TemplateRow>(
@@ -174,34 +145,20 @@ export async function readEventTemplateIn(tx: Tx, templateId: string): Promise<E
       choices: question.choices,
       isRequired: question.is_required,
       sortOrder: question.sort_order,
-      // A template question is not itself "from a template" — it *is* the
-      // template. The flag exists on the event copy, and is set there.
-      fromTemplate: false,
+      fromTemplate: false, // a template question is not itself "from a template" — it *is* the template
     })),
   };
 }
 
-/**
- * The groups in the order the builder shows them, so every surface agrees.
- *
- * Also the filter that keeps a stored group honest: `recruits` is refused on
- * anything but Recruitment by the database, and a group the vocabulary no longer
- * offers for a type is simply not shown rather than printed as a raw value.
- */
+// The groups in the order the builder shows them; also filters a stored group the vocabulary no
+// longer offers for this type, rather than printing it as a raw value.
 export function orderedGroups(eventType: string, stored: readonly string[]): AudienceGroupKey[] {
   return groupsForEventType(eventType)
     .filter((group) => stored.includes(group.key))
     .map((group) => group.key);
 }
 
-/**
- * Whether a route segment can be a `uuid` at all.
- *
- * The pattern is `event-input.ts`'s, not a second copy: the only job here is to
- * keep a hand-typed URL from reaching a `uuid` parameter, where PostgreSQL would
- * raise an invalid-input error that surfaces as "the database could not complete
- * this change" rather than as "that template no longer exists".
- */
+// event-input.ts's own pattern, not a second copy — keeps a hand-typed URL from raising a raw uuid-cast error.
 export function isUuid(value: string): boolean {
   return UUID_PATTERN.test(value);
 }

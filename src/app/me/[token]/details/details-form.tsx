@@ -53,29 +53,13 @@ import {
 
 /**
  * The step 1 form, client-side — LAN-216 correction round 2, B-009.
- *
- * ## Why this is a client component and the rest of the route is not
- *
  * `useActionState` is the only way to get `saveDetails`'s returned
- * values-and-errors state back onto the screen without a navigation — the
- * same reason `src/app/operate/roster/new/returner-intake-form.tsx` is a
- * client component wrapping a "use server" action while its own `page.tsx`
- * stays a plain Server Component. Everything that does not need that state —
- * the checklist strip, the heading, the privacy note — stays server-rendered
- * in `page.tsx`; only the form itself, which has to redraw with per-field
- * errors and the player's own typed values after a failed submit, needs to be
- * a client boundary.
- *
- * ## `noValidate`
- *
- * The form used to rely on the DOM `required` attribute (still present, on
- * every `TextField` below, purely for the label asterisk and `aria-required`)
- * to stop a blank submission — which meant Chrome's own bubble intercepted
- * the submit before this app ever saw it, in the browser's own wording,
- * pointed at whatever the browser's tab order reached first. `noValidate` on
- * the `<form>` disables that constraint-validation pass entirely: every
- * submission now reaches `saveDetails`, whatever was or was not typed, and
+ * values-and-errors state back without a navigation; everything that doesn't
+ * need it stays server-rendered in `page.tsx`. `noValidate` disables the DOM
+ * `required` bubble entirely, so every submission reaches `saveDetails` and
  * this app decides what "you missed one" looks like.
+ *
+ * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 interface FieldMeta {
@@ -197,12 +181,7 @@ export function DetailsForm({
             {field("given_name", FIELD_GIVEN_NAME, { fieldMeta: meta.given_name })}
             {field("family_name", FIELD_FAMILY_NAME, { fieldMeta: meta.family_name })}
             {field("mobile", FIELD_MOBILE, { phone: true })}
-            {/*
-              LAN-268: the college email sits with the name and the phone, not
-              with the academic facts. It is the club's proof that the person
-              filling this in is at the university, and it is required here for
-              the same reason it is required at the sign-up door.
-            */}
+            {/* LAN-268: sits with name/phone, not academic facts — the club's proof of university affiliation. */}
             {field("college_email", FIELD_COLLEGE_EMAIL, {
               type: "email",
               hint: FIELD_COLLEGE_EMAIL_HINT,
@@ -222,9 +201,7 @@ export function DetailsForm({
             {field("degree_field", FIELD_DEGREE_FIELD, { fieldMeta: meta.degree_field })}
           </Stack>
         </Section>
-        {/* LAN-267. Neither is required; the roster form prints a blank row
-            and names the gap in its warning line instead of this page
-            refusing to move on. */}
+        {/* LAN-267: neither required — the roster form names the gap instead of this page refusing to move on. */}
         <Section title={SECTION_GAME_DAY}>
           <Stack spacing={2}>
             <FormHelperText sx={{ fontSize: 13, mt: 0 }}>{SECTION_GAME_DAY_NOTE}</FormHelperText>

@@ -34,16 +34,7 @@ import { readAdministrationSubject } from "./subject";
  * that writes, with `includeScheduled: true`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
  */
 
-/**
- * A role the caller asked for, resolved against the catalogue with its dates
- * checked.
- *
- * Exported for `./operator-administration.ts` (LAN-132), which creates the same
- * rows for a standalone assignment and for a replacement's successor. Writing
- * those rules a second time there would have been two copies of "the catalogue
- * decides `scope`, `is_constitutional_office` and `is_single_holder_seat`",
- * which is exactly what the composite foreign keys exist to make loud.
- */
+/** A role the caller asked for, resolved against the catalogue with its dates checked. Also used by `operator-administration/`. */
 export interface ResolvedRole {
   readonly role: RoleRow;
   readonly effectiveFrom: string;
@@ -52,14 +43,7 @@ export interface ResolvedRole {
   readonly reason: string | null;
 }
 
-/**
- * Invites one operator, in one transaction plus two Auth calls.
- *
- * The order of operations, and why it is that order, is in the module note. The
- * short version: create the login, write everything, send the email — so that a
- * delivery failure leaves a complete, resendable operator record rather than
- * nothing at all.
- */
+/** Invites one operator, in one transaction plus two Auth calls; see the module note for the ordering. */
 export async function inviteOperator(params: InviteOperatorParams): Promise<InviteOperatorResult> {
   const identity = params.identity ?? supabaseOperatorIdentity();
   const email = normaliseEmail(params.email);
@@ -75,7 +59,6 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
     throw new ConstraintViolated(ROLE_REQUIRED_MESSAGE, { rule: ROLE_REQUIRED_RULE });
   }
 
-  // ---- Everything that can be refused, refused before anything is created.
   const preflight = await withTransaction(async (tx) => {
     const operatingYear = await resolveActiveCommitteeYear(tx);
     const roles = await resolveRoles(tx, params.roles);
@@ -99,10 +82,8 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
     return { operatingYear, roles };
   });
 
-  // ---- The login. Creates nothing else, and sends nothing.
   const { authUserId } = await identity.createLogin(email);
 
-  // ---- Every row, or none of them.
   let written: {
     personId: string;
     operatorAccountId: string;
@@ -115,19 +96,7 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
       const correlationId = randomUUID();
       const { personId, personCreated } = await createOrLinkPerson(tx, params.subject, email);
 
-      // The authoritative snapshot: read here, inside the transaction that is
-      // about to write, and judged by the guard before a single row is
-      // inserted. `WP-authorization` records that a stale or empty snapshot is
-      // the one way to disarm the leadership rules; this is the read that stops
-      // that being possible.
-      //
-      // `includeScheduled` for the reason every other administration write
-      // gives, and because leaving it off here was the sharper half of it: a
-      // Person holding a seat dated to begin at a handover, and no login yet,
-      // is exactly the target this flow reaches. Without the widening they are
-      // invisible to the leadership rule, and whoever may not assign that seat
-      // could give them another one *and* an account at an address they chose.
-      // Fail-closed is the only direction the option can move the guard.
+      // The authoritative snapshot, read and judged inside the writing transaction — see decision history.
       const subject = await readAdministrationSubject(tx, personId, { includeScheduled: true });
       assertEachRolePermitted(params.operator, subject, preflight.roles);
 
@@ -180,22 +149,11 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
       return { personId, operatorAccountId, personCreated, roleAssignmentIds };
     });
   } catch (error) {
-    // The only compensation in this module, and it applies to exactly one
-    // thing: a login created seconds ago that no `operator_accounts` row
-    // points at, because the statement that would have pointed at it did not
-    // commit. A dangling login grants nothing — `resolveOperatorAccess()`
-    // reports it `unlinked` — but leaving it behind would make the honest
-    // retry fail with "that address already has a login".
-    //
-    // Best effort: if the removal itself fails, the original failure is what
-    // the administrator needs to see, and a second error thrown from a catch
-    // block would replace it.
+    // Best effort: remove the dangling login so a retry does not fail with "already has a login".
     await identity.deleteLogin(authUserId).catch(() => undefined);
     throw error;
   }
 
-  // ---- The email. Everything above is committed; a failure here is a
-  //      recorded delivery failure, not a rollback.
   const delivery = await deliverInvitation(identity, email, callbackUrl);
 
   if (!delivery.ok) {

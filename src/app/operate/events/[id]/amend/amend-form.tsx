@@ -97,16 +97,9 @@ export default function AmendForm({
 
   const [chosenStep, setChosenStep] = useState<Step>("edit");
   /**
-   * The refusal the operator has already been shown and moved on from.
-   *
-   * A server refusal has to put them back at the fields, because that is where
-   * the thing to fix is — but it must not pin them there afterwards, or
-   * pressing **Save changes…** a second time would appear to do nothing. So the
-   * step is derived from "is there a refusal I have not acknowledged yet"
-   * rather than pushed by an effect, which is also what
-   * `react-hooks/set-state-in-effect` is asking for: an effect that
-   * synchronously sets state is a cascading render, and this is a value that
-   * can simply be computed.
+   * The refusal already shown and moved on from — derived from "is there an
+   * unacknowledged refusal" rather than pushed by an effect (avoids a
+   * cascading-render lint violation).
    */
   const [acknowledged, setAcknowledged] = useState<unknown>(null);
   const [changes, setChanges] = useState<readonly AmendmentChange[]>([]);
@@ -131,9 +124,7 @@ export default function AmendForm({
   const [endsAt, setEndsAt] = useState(value("endsAt"));
   const [attendance, setAttendance] = useState(value("attendance"));
   const [deliveryMode, setDeliveryMode] = useState(value("deliveryMode") || "in_person");
-  // `VenueField` is a controlled combobox — see the doc comment above on
-  // "The review reads the form, not a copy of it" for why that no longer
-  // means what it once did here.
+  // `VenueField` is a controlled combobox — see the file header for why.
   const [venue, setVenue] = useState(value("venue"));
 
   const issues = localIssues.length > 0 ? localIssues : state.issues;
@@ -172,9 +163,7 @@ export default function AmendForm({
     };
     return {
       name: field("name"),
-      // LAN-265. The form carries it as a hidden field rather than a control:
-      // an amendment cannot change the template, and `validateEventDraft`
-      // refuses a draft that names none.
+      // LAN-265: template can't change on an amendment — hidden field, not a control.
       templateId: field("templateId"),
       scheduledOn: field("scheduledOn"),
       startsAt: field("startsAt"),
@@ -225,11 +214,7 @@ export default function AmendForm({
     setStep("review");
   }
 
-  /**
-   * Moving the tick. Turning it **off** on a change that moved the date, time
-   * or venue does not simply toggle — it opens the confirmation, which is the
-   * whole of W5-03b. Turning it back on closes it again.
-   */
+  /** Turning notify off on a date/time/venue change opens confirmation (W5-03b); back on closes it. */
   function moveTheTick(next: boolean) {
     if (!next && silenceNeedsConfirmation(changes, { isFuture })) {
       setNotify(false);
@@ -241,9 +226,7 @@ export default function AmendForm({
   }
 
   const material = changes.some((change) => change.material);
-  // W8, REQ-reschedule-recomputes. `startsAt` moves the anchor exactly as
-  // `scheduledOn` does — see `recomputeScheduleOnRescheduleIn`'s own note on
-  // why `endsAt` is not here.
+  // W8, REQ-reschedule-recomputes: startsAt moves the anchor like scheduledOn does.
   const isReschedule = changes.some(
     (change) => change.field === "scheduledOn" || change.field === "startsAt",
   );
@@ -251,14 +234,7 @@ export default function AmendForm({
   return (
     <Box component="form" action={formAction} ref={formRef} data-testid="amend-form">
       <input type="hidden" name="eventId" value={eventId} />
-      {/*
-        LAN-244. The version this form was opened on, posted alongside the
-        fields, so the save can tell what this operator changed from what they
-        merely carried. Without it a second tab's save reverted whatever the
-        first tab had written and the change history recorded the reversion as
-        an amendment somebody made. `before` is the same snapshot the review
-        panel diffs against, so the review and the write agree by construction.
-      */}
+      {/* LAN-244: the version this form opened on, posted with the fields, so a second tab's save can't silently revert the first tab's write. */}
       <input
         type="hidden"
         name="baseline"
@@ -398,12 +374,7 @@ export default function AmendForm({
                     label={notify ? "Notify" : "Silent"}
                   />
                 </Box>
-                {/*
-                  Two lines at most, and the second only where it is true:
-                  how many people get a message, and whether moving the tick
-                  will stop and ask. Brian, 2026-08-23 — a control says what it
-                  does and what the consequence is, and nothing else.
-                */}
+                {/* Two lines at most: how many people get a message, and whether moving the tick will stop and ask. Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md */}
                 <Typography variant="body2" data-testid="who-hears">
                   {whoHearsAboutIt(audience.invited)}
                 </Typography>
@@ -414,10 +385,7 @@ export default function AmendForm({
                 ) : null}
               </Box>
 
-              {/*
-                Only where messages are actually held. A heading over a sentence
-                saying nothing is waiting is a fact about nothing.
-              */}
+              {/* Only shown where messages are actually held. */}
               {queuedMessagesDetail(unsentMessages) ? (
                 <Box>
                   <Typography variant="overline" color="text.secondary" component="p">

@@ -10,23 +10,7 @@ const JERSEY_NUMBERS: readonly string[] = Object.freeze(
   Array.from({ length: 99 }, (_, index) => String(index + 1)),
 );
 
-/**
- * The jersey number picker Brian approved on `chore/roster-fidelity-mockup`
- * and asked to keep exactly: *"jersey number being a picker and not free text
- * is also very good, and it should allow for picking multiple numbers… I love
- * the way it's built. I want to keep that exactly."*
- *
- * A picker over all 99 numbers, never free text — `jersey_assignments_number_range`
- * allows 1–99 and nothing else, so free entry could only ever produce a value
- * the database refuses, and a list is the only place that can say which
- * numbers are already gone *before* one is chosen rather than after (`Q-8`).
- *
- * A number held by another player is ticked, named, and cannot be clicked.
- * There is deliberately no take-it-from-them gesture: to free a number, an
- * operator goes to the player holding it and unticks it there, which makes a
- * swap two deliberate acts by somebody who has seen both sides of it rather
- * than one click that strips a number off somebody not on screen.
- */
+/** The jersey number picker Brian asked to keep exactly — all 99, never free text, another player's number ticked/named/unclickable. Decision history: missions/intake/M-PEOPLE-AND-ROSTER */
 export default function JerseyPicker({
   held,
   holders,

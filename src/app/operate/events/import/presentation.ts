@@ -1,12 +1,6 @@
 import type { ImportColumn, PlanCell, PlannedRow, RowOutcome } from "@/lib/services/event-csv";
 
-/**
- * How the confirmation reads. LAN-155, screen `W3-03`.
- *
- * Pure, and separate from the component, so the wording and the outcome colours
- * can be asserted without rendering a table — the precedent is
- * `../presentation.ts`, which does the same for the event screens.
- */
+/** How the confirmation reads. LAN-155, screen `W3-03`. Pure, separate from the component. */
 
 /** The four outcomes, in the club's words. */
 export const OUTCOME_LABELS: Readonly<Record<RowOutcome, string>> = Object.freeze({
@@ -44,32 +38,17 @@ export const SHOWN_COLUMNS: readonly ImportColumn[] = Object.freeze([
   "mandatory",
 ]);
 
-/**
- * An em dash for an empty cell.
- *
- * `docs/ux/standards.md` rule 3: a value that is not there is stated as not
- * there. A blank table cell reads as a rendering fault; a dash reads as "there
- * is nothing here", which is what an unset venue actually means.
- */
+/** An em dash for an empty cell (`docs/ux/standards.md` rule 3): a blank cell reads as a rendering fault. */
 export function cellText(cell: PlanCell): string {
   return cell.value === "" ? "—" : cell.value;
 }
 
-/** What the old value reads as underneath a changed cell. */
 export function previousText(cell: PlanCell): string | null {
   if (cell.previous === null) return null;
   return cell.previous === "" ? "(empty)" : cell.previous;
 }
 
-/**
- * The right-hand column: what this row does, derived from the comparison rather
- * than written down beside it.
- *
- * Brian, 2026-08-21, rejecting an earlier draft of the mockup: "you should
- * highlight the cell itself to show what changed … Row doesn't make sense … get
- * rid of it." The highlighted cells are the change; this sentence is the summary
- * of them, and it is computed from the same list so the two cannot disagree.
- */
+/** What this row does, derived from the comparison, same list the highlighted cells use. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */
 export function changeSummary(row: PlannedRow): string {
   if (row.outcome === "refused") return row.reasons.join(" ");
   if (row.outcome === "new") return "Will be created as a draft";
@@ -78,18 +57,15 @@ export function changeSummary(row: PlannedRow): string {
   return `${row.changes.length} field${row.changes.length > 1 ? "s" : ""} changed: ${fields}`;
 }
 
-/** The Apply button's label, which counts what it will actually write. */
 export function applyLabel(applicableCount: number): string {
   if (applicableCount === 0) return "Nothing to apply";
   return `Apply ${applicableCount} change${applicableCount > 1 ? "s" : ""}`;
 }
 
-/** "47 rows read · nothing has been changed yet" — the line under the heading. */
 export function describeProposal(seasonLabel: string, rowCount: number): string {
   return `Season ${seasonLabel} · ${rowCount} row${rowCount === 1 ? "" : "s"} read · nothing has been changed yet`;
 }
 
-/** What the operator is told after an apply that committed. */
 export function describeApplied(applied: {
   created: number;
   updated: number;

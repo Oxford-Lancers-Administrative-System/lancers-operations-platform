@@ -1,6 +1,3 @@
-// The recruit record's public surface — `/operate/recruitment/[prospectId]`,
-// LAN-204. See `read.ts`, `notes.ts`, `status.ts`, `flip.ts`, `send.ts`.
-
 export type {
   RecruitmentProspectNote,
   RecruitmentProspectRecord,

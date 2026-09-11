@@ -72,27 +72,9 @@ import {
 } from "./attendance/presentation";
 
 /**
- * The three headline numbers — REQ-headline-numbers, D62, D73 and D74. LAN-152.
- *
- * **Invited · Said yes · Showed**, at the top of the event page and large,
- * because they are the primary operational facts about an event and the build
- * rendered them nowhere. Everything else on this page is administration; this
- * is what somebody opened it to find out.
- *
- * ## Three deliberate absences
- *
- * **No percentages.** D62 asks for raw pairs. `20 / 37` is the fact; `54%` is
- * the fact with both of the numbers the club wanted removed from it.
- *
- * **No sentence explaining the dash.** `Showed` reads `— / 37` until a register
- * has been saved and `0 / 37` afterwards, and the packet is explicit that the
- * application explains neither in words: "explanatory text about washouts
- * belongs in a review artifact, not in the product". The two values carry it.
- *
- * **No judgment.** Nothing here is coloured, flagged or compared against a
- * target. A quiet Tuesday in fifth week is a fact about the term, not a
- * failing, and a screen that decided otherwise would be inventing a club
- * policy nobody has agreed.
+ * The three headline numbers — Invited, said yes, showed — REQ-headline-numbers,
+ * D62, D73, D74. LAN-152. Raw pairs, no percentages, no dash explanation, no judgment.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
   return (
@@ -117,18 +99,10 @@ function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
 }
 
 /**
- * The register, and whether it is open yet.
- *
- * D71 opens it on a buffer before the event starts and D72 never closes it, so
- * this panel has one question to answer and it is the clock's. Nobody is asked
- * to decide anything here, and there is nothing to confirm.
- *
- * `isRegisterAvailable` is the same function the register itself calls, with
- * `registerSaved` taken off the headline numbers this page has already read.
- * `docs/ux/standards.md` rule 7 is why it has to be the same one: this panel
- * offering **Attendance** beside a register that then says "not open yet" is
- * two screens answering one question two ways, and it is what the LAN-152
- * browser preflight found.
+ * The register, and whether it is open yet — D71 (opens on a buffer before
+ * start), D72 (never closes). Uses `isRegisterAvailable`, the same function
+ * the register itself calls, with `registerSaved` off the headline numbers.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 function RegisterPanel({ event, registerSaved }: { event: EventDetail; registerSaved: boolean }) {
   const available = isRegisterAvailable(event, registerSaved);
@@ -199,10 +173,8 @@ export function EventDetailView({
   frozenPlan: FrozenMessagingPlan | null;
 }) {
   const preApproval = isPreApproval(event.status);
-  // W5-04's recovery path is offered exactly where it is needed: the last
-  // amendment went out to nobody, and there is somebody to tell. Offering it
-  // after a change that already notified would be a button whose press means
-  // "send that again", which nobody asked for.
+  // W5-04 recovery path: offered only when the last amendment went out
+  // silently and there is somebody left to tell.
   const lastAmendment = history.find((entry) => entry.kind === "amended") ?? null;
   const changeWentOutSilently =
     event.status === "approved" &&
@@ -211,12 +183,10 @@ export function EventDetailView({
     event.invitationCount > 0;
   const cancellation = history.find((entry) => entry.kind === "cancelled") ?? null;
   const proposed = event.status === "draft" && audience.length > 0;
-  // LAN-243. Counted from the very rows the participation table below is about
-  // to draw, so the Distribution note and the Delivered chips are one reading
-  // of one set of rows rather than two that can — and did — contradict.
+  // LAN-243: counted from the participation rows below, not recomputed.
+  // Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
   const deliveryCounts = countDeliveryStates(participation);
-  // D30, derived and never stored. Shown beside the stored status rather than
-  // instead of it: "Approved" and "Occurred" answer different questions.
+  // D30: derived, never stored; shown beside the stored status — different questions.
   const derived = derivedEventState(event, todayInClubZone());
 
   return (
@@ -329,12 +299,7 @@ export function EventDetailView({
                 testId="description-fact"
               />
             ) : null}
-            {/*
-            LAN-284 reversed REQ-no-joining-url: this link is now published on
-            the public event page and carried in the subscription feed. The note
-            is the warning, and it belongs here rather than on the public page —
-            the operator is the only person who can do anything about it.
-          */}
+            {/* LAN-284: joining URL note. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
             {event.joiningUrl ? (
               <Fact
                 label={JOINING_LINK_LABEL}
@@ -343,13 +308,7 @@ export function EventDetailView({
                 testId="joining-url-fact"
               />
             ) : null}
-            {/*
-            A cancelled event's reason is shown by `CancelledPanel`, with the
-            sentence that says it is internal and reaches nobody who was
-            invited. Showing it here as well would be two surfaces answering
-            "why is this off?" — `docs/ux/standards.md` rule 7 — and the one
-            without that sentence is the one that reads as publishable.
-          */}
+            {/* Cancelled reason shown by CancelledPanel instead. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
             {event.decisionReason && event.status !== "cancelled" ? (
               <Fact label="Reason" value={event.decisionReason} testId="decision-reason" />
             ) : null}
@@ -388,12 +347,7 @@ export function EventDetailView({
               }
               testId="distribution-fact"
             />
-            {/*
-            W7: the audience list "becomes the full table". It survives for the
-            one state the table cannot describe — a draft whose audience is
-            chosen but not yet approved, which has no invitations, no answers
-            and no attendance to put in columns (invariant P1).
-          */}
+            {/* W7: audience list survives only for the one state the table can't show — chosen but not approved (invariant P1). */}
           </FactList>
           {audience.length > 0 && participation === null && audienceGroupSummary !== null ? (
             <AudienceList
@@ -405,12 +359,7 @@ export function EventDetailView({
           ) : null}
         </Section>
 
-        {/*
-        W1's purpose extends past the review step: once approved, this is what
-        was actually committed. Frozen — `REQ-schedule-not-retroactive` — so a
-        later change to the club's schedule never rewrites what this page says
-        already ran.
-      */}
+        {/* W1: frozen at approval — REQ-schedule-not-retroactive. A later schedule change never rewrites this. */}
         {frozenPlan ? (
           <MessagingPlanDisclosure
             display={frozenPlanForDisplay(frozenPlan)}
@@ -427,28 +376,13 @@ export function EventDetailView({
           </Notice>
         ) : null}
 
-        {/*
-        §4.13. Below the facts and above the actions, because it answers a
-        question about the past and the buttons are about the future.
-      */}
+        {/* §4.13: below the facts, above the actions — past, not future. */}
         {event.status !== "draft" ? <ChangeHistoryPanel entries={history} /> : null}
 
-        {/*
-        Amendment W4-A1. The questions are read here and written on the form:
-        "it's ingrained in the process, so you separated that inappropriately."
-        The RSVP's own first question is not repeated — this panel is about what
-        this event adds, and the approval review is where the whole page is read
-        in order.
-      */}
+        {/* Amendment W4-A1: this panel is what the event adds beyond the RSVP's own first question. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
         <Section title={QUESTIONS_HEADLINE} testId="event-questions">
           <Stack spacing={2}>
-            {/*
-            C4. There was filler here — "Nothing extra is asked. Add a
-            question if this event needs one." — and Brian's reaction was
-            "I hate extra text like this." The heading above already says
-            what this panel is; an event with nothing extra to ask says so by
-            showing nothing.
-          */}
+            {/* C4: shows nothing when there are no extra questions. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
             {questions.length === 0 ? null : (
               <QuestionList
                 questions={questions}
@@ -459,20 +393,12 @@ export function EventDetailView({
           </Stack>
         </Section>
 
-        {/*
-        REQ-delete-draft, D29. On the draft's own page, low emphasis, and only
-        where the operator could actually do it — an approved event is cancelled
-        rather than deleted, and W6 owns that.
-      */}
+        {/* REQ-delete-draft, D29: draft only — approved events are cancelled (W6), not deleted. */}
         {mayManage && event.status === "draft" ? (
           <DeleteDraft eventId={event.id} name={event.name} />
         ) : null}
 
-        {/*
-        REQ-participation-table — W7's centre. One row per person: who was
-        asked, what they said, and whether they came, with delivery at this
-        tier and one column per question.
-      */}
+        {/* REQ-participation-table, W7: one row per person — asked, answered, showed, delivery. */}
         {participation ? (
           <Stack spacing={2}>
             {/* D68's counts, collapsed. The per-person answers are in the table. */}
@@ -496,9 +422,7 @@ export function EventDetailView({
           ) : null}
 
           {mayAdministerDelivery && !preApproval ? (
-            // LAN-78's surface, reachable only once there is something to look
-            // at. The route guards itself on `delivery_administration`; this is
-            // the courtesy that stops an operator finding it by guessing.
+            // LAN-78: shown only once there is something to look at; the route itself guards `delivery_administration`.
             <Button
               variant="outlined"
               href={`/operate/events/${event.id}/delivery`}
@@ -530,12 +454,7 @@ export function EventDetailView({
             </Button>
           ) : null}
 
-          {/*
-          D39, as Brian settled it on 2026-08-22: duplicate opens the create
-          form prefilled, and nothing is written until the operator saves. It is
-          offered on every status, because the event worth copying is usually one
-          that already happened.
-        */}
+          {/* D39: duplicate prefills the create form; nothing is written until saved. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
           {mayManage ? (
             <Button
               variant="outlined"

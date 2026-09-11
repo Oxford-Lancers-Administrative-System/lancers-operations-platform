@@ -4,10 +4,7 @@ import { sortColumnHref, sortColumnState, stableSortRows } from "@/lib/services/
 import { readCurrentSeason } from "@/lib/services/seasons";
 import type { FollowUpEvent, FollowUpRow } from "@/lib/services/follow-ups";
 
-/**
- * Query params, sorting and date-range filtering for the Follow-ups queue —
- * W5, LAN-281. Decision history: docs/ux/tickets/LAN-173-operator-chase.md.
- */
+/** Query params, sorting and date-range filtering for the Follow-ups queue — W5, LAN-281. Decision history: docs/ux/tickets/LAN-173-operator-chase.md. */
 
 const FOLLOW_UPS_PATH = "/operate/admin/follow-ups";
 
@@ -45,11 +42,7 @@ export function dayParam(value: unknown): string {
   return typeof value === "string" && CALENDAR_DAY.test(value) ? value : "";
 }
 
-/**
- * Every filter key this page's URL carries, so a sort link or a keystroke in
- * the search box preserves the others — LAN-281 adds `from` and `to` to the
- * three that were already here.
- */
+/** Every filter key this page's URL carries (LAN-281 adds `from`/`to`). */
 function filterParams(filters: FollowUpsFilters): Record<string, string> {
   return {
     q: filters.search,
@@ -104,9 +97,7 @@ function followUpsSortValue(row: QueueRow, column: FollowUpsSortColumn): string 
     case "event":
       return row.eventName.toLocaleLowerCase();
     case "when":
-      // Undated sorts last ascending, the same "￿" convention
-      // `participation-view.ts`'s own `sortValue` uses for "no date here" —
-      // a plain `""` would put every undated row above the earliest real one.
+      // Undated sorts last ascending — "￿" convention from participation-view.ts.
       return row.scheduledOn ?? "￿";
     case "deadline":
       return row.deadline ? row.deadline.getTime() : Number.MAX_SAFE_INTEGER;
@@ -117,16 +108,7 @@ function followUpsSortValue(row: QueueRow, column: FollowUpsSortColumn): string 
   }
 }
 
-/**
- * Whether a row's event falls inside a pair of day boundaries, either of which
- * may be absent — OWNER-LAN173-05's period, and LAN-281's explicit range, which
- * are the same question asked twice and so are answered here once.
- *
- * An event with no recorded date is never excluded, the same rule
- * `bucketEventsByPeriod` gives an undated event on the Events list. `scheduled_on`
- * is a `date` column read as text, so `YYYY-MM-DD` strings compare as days
- * without parsing either side.
- */
+/** Whether a row's event falls inside a pair of day boundaries, either absent (OWNER-LAN173-05, LAN-281) — undated events are never excluded. */
 function withinBounds(
   row: Pick<QueueRow, "scheduledOn">,
   bounds: { startsOn: string | null; endsOn: string | null },
@@ -138,15 +120,7 @@ function withinBounds(
   return true;
 }
 
-/**
- * "This term"'s own boundary, read the same way the Events list and Calendar
- * read it (`@/app/calendar/year`) — `docs/ux/standards.md` rule 7. `[]` in
- * place of an event list: this queue only needs the segment's start and end.
- *
- * A club with no open season, or today in no configured term, degrades to no
- * boundary on either side rather than failing the whole page over a lookup
- * this queue does not otherwise need.
- */
+/** "This term"'s boundary, read like Events/Calendar do (`@/app/calendar/year`, docs/ux/standards.md rule 7); degrades to no boundary rather than failing the page. */
 export async function currentTermBounds(
   today: string,
 ): Promise<{ startsOn: string | null; endsOn: string | null }> {
@@ -178,8 +152,7 @@ export function sortFilteredRows(
       (filters.status === "" || row.status === filters.status) &&
       (needle === "" || row.personName.toLowerCase().includes(needle)) &&
       withinBounds(row, bounds) &&
-      // Each control narrows: the range is read alongside "When", never
-      // instead of it — LAN-281.
+      // Each control narrows: the range is read alongside "When", never instead of it — LAN-281.
       withinBounds(row, { startsOn: filters.from || null, endsOn: filters.to || null }),
   );
 
@@ -191,8 +164,6 @@ export function sortFilteredRows(
     descending,
     (left, right) => {
       const order = left.personName.localeCompare(right.personName);
-      // The tie-break stays ascending in both directions — reversing "When"
-      // must not also reverse two people at the same event.
       return order === 0 ? left.invitationId.localeCompare(right.invitationId) : order;
     },
   );

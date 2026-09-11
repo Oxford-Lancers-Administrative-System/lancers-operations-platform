@@ -1,21 +1,4 @@
-/**
- * The Monday report's copy and formatting.
- *
- * Beside the screen rather than inside it: the client components and the tests
- * both import from here, and a `"use server"` module may export only async
- * functions. Nothing in this file touches the database, so importing it never
- * drags `pg` into the browser bundle.
- *
- * Every heading names a thing the club already has a word for — an event, a
- * walk-up, recruitment, onboarding, availability. Brian's instruction of
- * 15 August 2026, after an abstract "Fix these things" bucket: "I'm organizing
- * around things that they would know how to use."
- *
- * Dates are formatted in `en-GB` at UTC and instants in `Europe/London`, the
- * same split the events screens use and for the same reason: `scheduled_on` is
- * a `date` with no zone and means the day it says, while `generated_at` is a
- * real instant and means the moment the club was at.
- */
+// The Monday report's copy and formatting — Brian, 15 August 2026. Decision history: docs/ux/tickets/LAN-81-monday-report.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 
 export const REPORT_HEADLINE = "Monday report";
 
@@ -36,12 +19,7 @@ export const WALK_UPS_EMPTY = "No walk-ups last week.";
 export const RECRUITMENT_EMPTY = "No open prospects.";
 export const ONBOARDING_EMPTY = "Every active member is up to date.";
 
-/**
- * § 9 requires an empty state to distinguish filter-empty, system-empty and
- * nothing-to-report. This is the third, and the distinction it draws is the one
- * that costs the club something if it is blurred: a quiet week and a week
- * nobody ran look identical on a screen and mean opposite things.
- */
+/** § 9's nothing-to-report empty state, distinct from filter-empty and system-empty. Decision history: docs/ux/tickets/LAN-81-monday-report.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
 export const NOTHING_AT_ALL =
   "No events last week and nothing outstanding. If that is a surprise, check that last " +
   "week's events were approved — an empty report can mean a quiet week or a week nobody " +
@@ -50,34 +28,22 @@ export const NOTHING_AT_ALL =
 export const CHANGE_DATE_LABEL = "Reporting date";
 export const CHANGE_DATE_SUBMIT = "Show report";
 
-/** Said once, at the bottom, where it explains rather than interrupts. */
 export const STORED_NOTE =
   "This is the report as it stood when it was first opened today. It is kept exactly as it was.";
 
-/**
- * What a reader sees when the stored content was written under metric
- * definitions this build does not know.
- *
- * The snapshot is still shown, with its metadata, rather than hidden or
- * "upgraded". Invariant M5 exists so that an old report stays readable, and
- * quietly recomputing one under today's definitions would answer a different
- * question from the one the reader asked.
- */
+/** Shown, not hidden or "upgraded" — invariant M5: an old report stays readable, never quietly recomputed. */
 export const OTHER_METRIC_VERSION_NOTE =
   "This report was generated under earlier metric definitions, so it is not organised the way " +
   "the current one is. It is shown unchanged — a filed report is never recomputed.";
 
-/** The two sub-columns under every event. */
 export const RSVP_COLUMN = "RSVP";
 export const ATTENDED_COLUMN = "Attended";
 
-/** What was said. `null` — never answered — is the dash. */
 export const RSVP_LABELS: Readonly<Record<string, string>> = Object.freeze({
   yes: "Yes",
   no: "No",
 });
 
-/** What was done. `null` — not on the register — is the dash. */
 export const ATTENDANCE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   present: "Present",
   late: "Late",
@@ -87,16 +53,7 @@ export const ATTENDANCE_LABELS: Readonly<Record<string, string>> = Object.freeze
 
 export const NOT_RECORDED = "—";
 
-/**
- * The right-hand column: how many of this person's events went wrong, out of
- * how many they were asked to.
- *
- * Brian, 15 August 2026: "If they have 4 events and they don't attend any of
- * the events, that's a 4 out of 4, right? Versus 3 to 1." The denominator is
- * their own week, not the club's — somebody asked to two events and absent from
- * both is a worse week than somebody asked to five and absent from two, and a
- * bare count of two would rank them the same.
- */
+/** Denominator is the person's own week, not the club's — Brian, 15 August 2026. Decision history: docs/ux/tickets/LAN-81-monday-report.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
 export const ISSUES_COLUMN = "Issues";
 export const OUTSTANDING_COLUMN = "Outstanding";
 
@@ -104,12 +61,6 @@ export function formatIssues(problems: number, asked: number): string {
   return `${problems} of ${asked}`;
 }
 
-/**
- * Where an onboarding item has got to.
- *
- * `Done`, `Waived` and `N/A` are settled; `Pending` and `Invited` are not, and
- * are what the count on the right adds up.
- */
 export const ONBOARDING_STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   complete: "Done",
   waived: "Waived",
@@ -118,7 +69,6 @@ export const ONBOARDING_STATUS_LABELS: Readonly<Record<string, string>> = Object
   invited: "Invited",
 });
 
-/** How the attendance grid may be ordered. The default matches the snapshot. */
 const GRID_SORTS = Object.freeze(["issues", "person"] as const);
 
 export type GridSort = (typeof GRID_SORTS)[number];
@@ -127,39 +77,17 @@ export function isGridSort(value: string): value is GridSort {
   return (GRID_SORTS as readonly string[]).includes(value);
 }
 
-/**
- * Availability levels, in the words the approved wireframe shows.
- *
- * The stored snapshot keeps the frozen model's own level names — `green`,
- * `orange`, `red` — and only the label is the wireframe's. Renaming a state in
- * the data would be a change to the approved domain model; naming it for a
- * reader is presentation, and UX-81 is the authority for that.
- */
+/** The frozen model keeps green/orange/red; only the label is the wireframe's — UX-81. */
 export const AVAILABILITY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   green: "Active",
   orange: "Limited",
   red: "Unavailable",
 });
 
-/**
- * `event_status`, in the club's words — the events screens' own map, not a
- * second copy of it.
- *
- * It was a copy, and it had already drifted: the two files disagreed about the
- * word for a status while a comment asserted they matched.
- *
- * Re-exported rather than corrected in place, because correcting the string
- * would have restored a claim that only a person re-reading both files could
- * keep true. One event status now has one label wherever it is shown — three of
- * them, since LAN-151.
- */
+// Re-exported, not copied — the two files had already drifted once. Decision history: docs/ux/tickets/LAN-81-monday-report.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 export { STATUS_LABELS as EVENT_STATUS_LABELS } from "../events/presentation";
 
 export { labelFor } from "../labels";
-
-// ---------------------------------------------------------------------------
-// Formatting
-// ---------------------------------------------------------------------------
 
 function datePart(day: string, options: Intl.DateTimeFormatOptions): string {
   return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(
@@ -211,7 +139,6 @@ export function formatInstant(iso: string): string {
   return `${day} ${month} ${year}, ${time}`;
 }
 
-/** Today, in the club's zone, as `YYYY-MM-DD`. The reporting date's default. */
 export function todayInClubZone(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/London",

@@ -26,50 +26,12 @@ import {
 } from "./presentation";
 
 /**
- * Adding a walk-on — Brian, 14 August 2026.
- *
- * ## The same four fields as adding a player, in the same order
- *
- * First name, last name, phone, email. That is not a coincidence and it is not
- * a coincidence that they are the same four `/operate/roster/new` asks for:
- * "it should be almost identical to adding a player… to grab as much as they
- * can". Two screens that add a person to the club should not feel like two
- * different products, and the operator holding the phone should not have to
- * work out which one they are on.
- *
- * The first version of this screen asked for one **Name** field, one combined
- * **Email or phone** field, and a **Possible roster match** dropdown. Brian's
- * verdict on the built screen was blunt and correct on every count: the name
- * field does not align with how the club stores a name, one field cannot hold
- * two different contact details, and the roster match was clutter — "they know
- * who's on their roster, there are only 40 people".
- *
- * ## What is required, and why it is stricter than intake
- *
- * First name, last name and phone. The returner intake requires only a first
- * name, because the club's own files are full of records that never had more —
- * and that is right for somebody already known. A walk-on is the opposite case:
- * nobody knew them ten minutes ago, and the entire point of writing them down
- * is that somebody follows them up. A walk-on with no surname and no number is
- * a row nobody can act on.
- *
- * ## What it creates
- *
- * A person, their contact points, a **recruitment prospect**, granted
- * `walk_up_read_back` consent for the season, and the recruitment cycle's
- * declared jobs — see `recordWalkUpAttendance`. Not a season membership: they
- * are not on the team, which is what made them a walk-up. ("Walk-on" above is
- * this screen's own history; Brian locked *walk-up* as the word on
- * 2026-08-31, and every label on the form now uses it.)
- *
- * ## The one message this now sends — LAN-205, 2026-09-01
- *
- * Saving is also the touchline's whole consent act: the phone number just
- * typed is read back aloud, and pressing save is what turns that read-back
- * into a granted, season-scoped consent and one WhatsApp send — the signed,
- * prefilled link to the sign-up form, never a second template. `WALK_UP_SEND_NOTE`
- * says so on the form, because a save with a real-world consequence this
- * direct should not be silent about having one.
+ * Adding a walk-on — Brian, 14 August 2026. Same four fields as adding a
+ * player, in the same order. First name, last name and phone required
+ * (stricter than intake — nobody here is already known). Creates a person,
+ * contact points, a recruitment prospect, `walk_up_read_back` consent, and
+ * the recruitment cycle's jobs (LAN-205) — never a season membership.
+ * Decision history: missions/intake/M-RECRUITMENT
  */
 export function WalkUpForm({ eventId }: { eventId: string }) {
   const [state, formAction, pending] = useActionState(recordWalkUpAction, EMPTY_WALK_UP_STATE);
@@ -117,9 +79,7 @@ export function WalkUpForm({ eventId }: { eventId: string }) {
             required
           />
 
-          {/* LAN-211. The one surface a coach reaches, and the one where a
-              mistyped country code costs the club a contact it can never
-              recover — the person is standing there once. */}
+          {/* LAN-211: the one surface a coach reaches with one shot — a mistyped country code loses the contact for good. */}
           <PhoneField
             name="phone"
             label={WALK_UP_PHONE_LABEL}

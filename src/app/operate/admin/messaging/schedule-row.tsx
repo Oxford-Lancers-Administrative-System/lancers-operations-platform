@@ -30,18 +30,9 @@ import type { ScheduleRowData } from "./schedule-form";
 import { useResultClearedByEditing } from "./use-result-cleared-by-editing";
 
 /**
- * The two field groups Brian's own round-2 mockup draws for one row:
- *
- * ```
- *   RSVP by      First inv.   Cadence
- *   [ 2 ] days   [ 5 ] days   [ 24 ] h
- *
- *   WhatsApp     Email        President
- *   [ 2 ]        [ 1 ]        [ 12 ] h
- * ```
- *
- * `SCHEDULE_FIELDS` is already declared in exactly this order, so the groups
- * are a slice rather than a second list that could drift from it.
+ * The two field groups Brian's round-2 mockup draws for one row — a slice
+ * of `SCHEDULE_FIELDS`, not a second list that could drift from it.
+ * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md
  */
 const TIMING_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(0, 3);
 const LADDER_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(3, 6);
@@ -79,9 +70,7 @@ function ScheduleField({
 
 /**
  * One event type — its own form, its six editable fields, and its own save.
- *
- * The worked example always starts closed (OWNER-LAN171-09) — there is no
- * `defaultOpen` prop to override that, on any row.
+ * Worked example always starts closed (OWNER-LAN171-09) — no override.
  */
 export function ScheduleRow({ row }: { row: ScheduleRowData }) {
   const [open, setOpen] = useState(false);
@@ -104,16 +93,7 @@ export function ScheduleRow({ row }: { row: ScheduleRowData }) {
       <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
         <input type="hidden" name="templateId" value={row.templateId} />
 
-        {/*
-        Q-23: the row heading is a style question, not structure — the
-        mockup's own rendering does not govern it, the shipped application
-        does. `../roles/page.tsx` and `../operators/page.tsx` both draw
-        their per-card entity-name heading as `subtitle2`/700, not the
-        all-caps `overline` this card carried before that check (chosen on
-        the strength of the dispatch's own capitalised ASCII art) nor the
-        `subtitle1` a first pass at fixing it picked by eye from a mockup
-        screenshot rather than the real component.
-      */}
+        {/* Q-23: row heading matches the shipped subtitle2/700 pattern, not the mockup's overline/subtitle1. Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md */}
 
         <Stack spacing={2} sx={{ mt: 0.5 }}>
           <Box
@@ -190,21 +170,7 @@ export function ScheduleRow({ row }: { row: ScheduleRowData }) {
                   </Box>
                 ))}
               </Stack>
-              {/*
-              OWNER-LAN171-07, round 3: the gap-before-the-deadline callout is
-              deliberately not rendered here. Brian: "get rid of this
-              callout. The last reminder lands 1 day before the deadline it
-              is chasing. Nobody is contacted in the 1 day that actually
-              matter. I don't know why that's there. That's confusing." Under
-              the corrected ladder arithmetic (Q-19) it fires on the shipped
-              defaults, so a warning that should flag a misconfigured
-              schedule instead fires on the normal case and trains an
-              operator to ignore it. `row.preview.warning` itself is still
-              computed by `buildSchedulePreview` and still proved by
-              `presentation.test.ts` and R3-B1 in
-              `messaging-schedule.test.ts` — only this surface stopped
-              drawing it.
-            */}
+              {/* OWNER-LAN171-07 round 3: gap-before-deadline callout removed. Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md */}
             </Box>
           </Collapse>
         </Stack>
@@ -214,11 +180,8 @@ export function ScheduleRow({ row }: { row: ScheduleRowData }) {
 }
 
 /**
- * The Recruitment event row, split into its two audiences. The row keeps its
- * identity: one row per `event_type`, one SAVE per row — the six fields
- * above stay Regular players' own, unchanged, and the two Recruits fields
- * append into the same form and the same submit. No President field for
- * Recruits: recruits are never escalated (`REQ-two-ladders`, `REQ-never-harsh`).
+ * The Recruitment event row, split into its two audiences — one row per
+ * `event_type`, one SAVE. No President field for Recruits (never escalated).
  *
  * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */

@@ -121,3 +121,136 @@ reason.
 
 `docs/ux/review/LAN-275/` — the picking screen at desktop and at a measured
 375px, and the generated form printed to PDF.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/[id]/roster-form/actions.ts — module header
+
+> The one write this surface makes — LAN-267: "A one-line audit event when a
+> form is generated (who, which event, when)."
+>
+> Nothing is stored beyond that row. The form itself is the page, printed; the
+> ticket puts storing generated PDFs and a document library explicitly out of
+> scope, and a copy of a dozen student numbers sitting in object storage is
+> exactly the thing a generated-on-demand form avoids.
+>
+> `event_calendar_management` is the gate — the same capability every other
+> deliberate act on a game already requires, and the narrowest existing one
+> that fits. It is deliberately not a new capability: the capability map is a
+> recorded authority decision (`capabilities.ts`, and
+> `tests/capability-map-single-source.test.ts` makes it the only place a role
+> code decides anything), and adding a row to it is Brian's, not this
+> package's.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/person-required.ts — module header
+
+> Pure. No database, no `server-only`. `docs/architecture/data-model.md`'s
+> field inventory records the table this module is: required-ness depends on
+> where a person stands, approved by Brian on 2026-08-26 and amended the same
+> day, and it is data rather than a chain of `if`s for the same reason
+> `membership.ts`'s transition table is — a rung a reader cannot find by
+> reading `REQUIRED_FIELDS_BY_TIER` is a rung this module does not enforce.
+>
+> **Last name is required at every tier**, amended 2026-08-27 — the field
+> inventory's own words: "roughly a quarter of the club flags for a missing
+> last name the day the queue opens, and the queue is where they get chased."
+> That is the intent, not a defect in this module.
+>
+> ## College email, and the one place the tiers stopped nesting (LAN-268)
+>
+> Brian, 2026-09-09: "The required set on both the onboarding questionnaire
+> and the recruitment forms is four things: first name, last name, phone
+> number, college email." It is the club's own proof that somebody is
+> actually at the university — "I had a weird online guy trying to join one
+> year and he wasn't a student" — so it joins the recruit tier, superseding
+> LAN-246's three-field sign-up minimum, and it is required of a player for
+> the whole of their season.
+>
+> It is **not** required of the everyone-else tier, and that is a decision
+> rather than an omission. Until now every tier nested inside the next, so
+> `everyoneElse` was written as "recruit's set plus personal email". A
+> recruit's set now contains a fact that the everyone-else rung must not
+> inherit, so the three lists are spelled out from a shared base instead.
+>
+> Two reasons, both in sources this module already answers to. The
+> everyone-else rung is where a coach, a committee member and an **alumnus**
+> land, and `docs/architecture/data-model.md`'s own contact-details note says
+> a college address "expires around graduation" — chasing an alumnus for one
+> would be chasing them for an address the university has taken away. And
+> neither door that collects a college email is a door those people ever walk
+> through: a coach is invited and given a role assignment, and never sees the
+> player questionnaire (LAN-267 makes exactly that point about the BAFA
+> number), so a required fact nothing can collect is a queue row nobody can
+> clear.
+>
+> Required-ness is not the same question as validity. `validateCollegeEmail`
+> in `person-validation.ts` refuses a non-Oxford address from _anybody_,
+> including a coach, because a value stored as a college address has to be
+> one. This table only decides who is chased for having none.
+>
+> ## Which assembled status maps to which tier
+>
+> `AssembledStatus` is the six-rung ladder `person-record.ts` assembles:
+> `"recruit"` from a prospect with no membership, the five stored
+> `membership_status` values from a membership, or `null` for a person who is
+> neither — a coach or committee member holding no season tie at all
+> (`REQ-create-without-roles`: the add-person path "creates people and
+> nothing else… a person created here has no tie to any season").
+>
+> The field inventory's "Onboarding, active or inactive" row is the mission's
+> name for a **player working through the season**, and its "Everyone else
+> (coach, committee, alumnus)" row is every other standing a person can hold.
+> This module reads that distinction off the assembled status rather than off
+> a role or a job title — nothing in this mission's substrate records "this
+> person is a coach" as a fact about the _person_; a coaching seat is an
+> operator role assignment, which this package does not touch
+> (`REQ-create-without-roles`, and the boundary that "no login, seat or club
+> role is granted or changed anywhere in this mission"). So `departed`,
+> `archived` and no membership at all all fall to `everyoneElse` — the same
+> tier the field inventory gives an alumnus or a coach, and for the same
+> reason: none of them is a player currently working through a season's
+> onboarding, so none of them owes the club matriculation year or a date of
+> birth to keep their record current. Recorded here as the reading this
+> package makes, cheap for a later mission to narrow if a source ever ties a
+> person to a coaching role structurally.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/roster-form.ts — module header
+
+> > "The club has to hand the officials a BAFRA roster form at every game.
+> > Today it is a Word document filled in by hand. The ask is to generate it
+> > from the app."
+>
+> ## What the form's three tables come from
+>
+> | Column            | Source                                                               |
+> | ----------------- | -------------------------------------------------------------------- |
+> | Team              | Constant. There is one club.                                         |
+> | Date              | `events.scheduled_on`                                                |
+> | Opponent          | The event's name — see below                                         |
+> | Surname, Forename | `people.family_name`, `people.given_name`                            |
+> | Student no        | `people.student_number` (LAN-275's migration)                        |
+> | Jersey no         | `jersey_assignments`, per kit, current rows only                     |
+> | BAFA no           | `people.bafa_registration_number` (LAN-275's migration)              |
+> | Role              | `role_assignments` → `roles` → `role_groups.code = 'coaching_staff'` |
+>
+> ## The opponent is not a column, and the ticket says it is
+>
+> LAN-267 reads "`events.event_date` and `events.opponent` on a game event (D14
+> made opponent a real field)". That is the wrong way round: D14 **removed**
+> `events.opponent`. `20260822120000_events_target_state.sql` drops it —
+> "There is no opponent field, and there never was a real second one" — and
+> the event form has said "The opponent goes in the name." for a game ever
+> since. There is no column to read.
+>
+> So the generation screen offers an **Opponent** box that starts from the
+> event's own name and the operator can correct before printing. Nothing is
+> stored: the club's record of who it played is still the event's name, and
+> inventing a column to hold a second copy of it would be a schema change this
+> package has no owner decision for. The one thing that must not happen is the
+> officials being handed a form whose Opponent line says "Game vs" and a date.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

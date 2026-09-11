@@ -49,40 +49,18 @@ import {
   templateDeleteQuestion,
 } from "./presentation";
 
-/**
- * W8-02 and W8-03 — one template, and what changing it will touch. **Save…**
- * previews the blast radius (`previewEventTemplateAction`, no write); the
- * dialog re-posts the same fields as hidden inputs to `saveEventTemplateAction`,
- * which recomputes and applies under its own locks — never a plan carried
- * forward by the browser. The button names the drafts it will touch before
- * it touches them.
- *
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
- */
+// W8-02 and W8-03 — one template, and what changing it will touch. Save…
+// previews (no write); the dialog re-posts to saveEventTemplateAction, which
+// recomputes under its own locks. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 
 export interface TemplateEditorProps {
-  /**
-   * The template being edited, or `null` when this is **New template**.
-   *
-   * One component for both, on the same reasoning `EventForm` gives for create
-   * and edit: they are the same screen with the same rules, and the differences
-   * are the action it posts to, the heading above it and whether the fields
-   * start empty. LAN-265.
-   */
+  /** One component for create and edit — same screen, same rules (LAN-265). */
   templateId: string | null;
-  /** What the club calls it. The heading, and the word every event of it reads. */
   eventTypeLabel: string;
   initial: RawEventTemplate;
   initialQuestions: RawEventQuestion[];
-  /** The groups this template may carry — recruits on Recruitment alone (D46). */
   groups: readonly AudienceGroup[];
-  /**
-   * How many events were created from this template — LAN-265.
-   *
-   * Decides whether **Delete** is offered at all. Zero on a template nobody has
-   * used, and on the new-template form, where there is nothing to delete yet and
-   * the control is absent for that reason instead.
-   */
+  /** Decides whether Delete is offered — zero on an unused or new template. */
   eventCount: number;
 }
 
@@ -102,10 +80,6 @@ export default function TemplateEditor({
     saveEventTemplateAction,
     EMPTY_TEMPLATE_FORM_STATE,
   );
-  // Its own slot rather than a share of `saveState`: a delete that is refused
-  // ("events have already been created from this") is not a failed save, and
-  // showing it through the save form's state would leave the change plan and
-  // the refusal fighting over the same banner. LAN-265.
   const [deleteState, deleteAction, deletingNow] = useActionState(
     deleteEventTemplateAction,
     EMPTY_TEMPLATE_FORM_STATE,
@@ -115,27 +89,15 @@ export default function TemplateEditor({
     EMPTY_TEMPLATE_FORM_STATE,
   );
 
-  /**
-   * Creating skips the preview, and the form posts straight to the write.
-   *
-   * `previewEventTemplateAction` exists because saving an existing template can
-   * reach drafts the operator was not thinking about. A template that does not
-   * exist yet has no drafts, so the dialog would be asking somebody to approve
-   * nothing happening to anybody — see `createEventTemplateAction`.
-   */
+  // Creating skips the preview and posts straight to the write — nothing exists yet to have a blast radius.
   const creatingNew = templateId === null;
 
-  // The later of the two outcomes wins. A save that has produced anything is
-  // the current answer about this template; before that, the preview is.
   const state = creatingNew
     ? createState
     : saveState.phase === "editing" && saveState.error === null
       ? previewState
       : saveState;
 
-  // Every field is controlled from here, so a refused submission keeps what the
-  // operator typed without the action having to hand it back — and so the
-  // dialog can re-post exactly what the form holds.
   const text = (field: keyof RawEventTemplate): string => {
     const raw = initial[field];
     return typeof raw === "string" ? raw : "";
@@ -147,7 +109,6 @@ export default function TemplateEditor({
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [...initialQuestions]);
   const [name, setName] = useState(text("name"));
   const [colourKey, setColourKey] = useState(text("colourKey"));
-  /** Whether the delete confirmation is open. Nothing is written until it is. */
   const [deleting, setDeleting] = useState(false);
   const [venue, setVenue] = useState(text("defaultVenue"));
   const [deliveryMode, setDeliveryMode] = useState(text("defaultDeliveryMode") || "unset");
@@ -156,27 +117,15 @@ export default function TemplateEditor({
   const [equipment, setEquipment] = useState(text("defaultRequiredEquipment"));
   const [attendance, setAttendance] = useState(text("defaultAttendance") || "unset");
 
-  /**
-   * The plan the operator has already dismissed with **Back**.
-   *
-   * Compared by identity rather than by a boolean, so a *new* preview reopens the
-   * dialog without anything having to reset a flag. Nothing was written, so
-   * dismissing is genuinely free — there is no draft on the server to discard.
-   */
+  // Compared by identity, not a boolean, so a new preview reopens the dialog without resetting a flag.
   const [dismissed, setDismissed] = useState<TemplateChangePlan | null>(null);
 
   const confirming =
     !creatingNew && state.phase === "confirming" && state.plan !== null && state.plan !== dismissed;
   const busy = previewing || saving || deletingNow || creating;
 
-  /**
-   * C6's off-grid case: a template saved before the eight-option grid existed
-   * can hold a duration that is not one of them. A `select` refuses to show a
-   * value that is not one of its own options, and snapping it to the nearest
-   * one would silently change what the template means, so this becomes a
-   * ninth `MenuItem`, truthfully labelled, only while it is what is selected
-   * — choosing any of the eight makes it disappear.
-   */
+  // C6's off-grid case: a duration saved before the eight-option grid existed
+  // becomes a truthful ninth MenuItem, only while selected. Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/decision-history.md · missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
   const offGridDuration =
     duration !== "" && !TEMPLATE_DURATION_OPTIONS.includes(Number(duration))
       ? Number(duration)
@@ -188,7 +137,6 @@ export default function TemplateEditor({
     );
   }
 
-  /** Every field, as the dialog has to re-post it. One place, so they agree. */
   const hiddenFields = (
     <>
       {templateId === null ? null : <input type="hidden" name="templateId" value={templateId} />}
@@ -240,13 +188,6 @@ export default function TemplateEditor({
         {templateId === null ? null : <input type="hidden" name="templateId" value={templateId} />}
 
         <Stack spacing={3}>
-          {/*
-            LAN-265. The one field a template cannot leave undecided, and the
-            first one on the screen because it is the only thing an operator
-            ever sees of a template anywhere else in the application. The helper
-            text states the consequence of a rename rather than leaving somebody
-            to discover it: Brian, 2026-09-09, asked for it out loud.
-          */}
           <Section title={TEMPLATE_NAME_HEADLINE}>
             <Field
               label="Name"
@@ -261,14 +202,6 @@ export default function TemplateEditor({
             />
           </Section>
 
-          {/*
-            LAN-276 correction round 1. Brian, walking the review environment,
-            2026-09-10: "In the template, swatch color should be something
-            that gets chosen, so it gets added as part of the template." A
-            fixed palette of swatches, never a free hex value — the same
-            pattern the audience-group buttons below use, so a value is
-            posted only once it has genuinely been chosen.
-          */}
           <Section title={TEMPLATE_COLOUR_HEADLINE}>
             <Stack spacing={1.5}>
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
@@ -316,7 +249,6 @@ export default function TemplateEditor({
             </Stack>
           </Section>
 
-          {/* D47 — the default audience, as groups and never as people. */}
           <Section title={TEMPLATE_AUDIENCE_HEADLINE}>
             <Stack spacing={2}>
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
@@ -363,11 +295,6 @@ export default function TemplateEditor({
             onAttendanceChange={setAttendance}
           />
 
-          {/*
-            D42. The questions every event of this type arrives with. The same
-            editor the event form uses, because they are the same thing — one
-            marked as coming from the template when it lands on an event.
-          */}
           <QuestionEditor
             questions={questions}
             onChange={setQuestions}
@@ -396,14 +323,8 @@ export default function TemplateEditor({
                     : TEMPLATE_SAVE_ACTION}
               </Button>
             }
-            /*
-              LAN-265, "delete when unused". Absent rather than disabled on a
-              template the club has used: a control that is always there and
-              usually refuses teaches an operator to ignore it, and the sentence
-              under the list already says why this one is missing. The service
-              refuses regardless — `events_template_fkey` is `on delete
-              restrict` — so this is a courtesy and never the boundary.
-            */
+            // LAN-265: absent, not disabled, on a used template — the service
+            // refuses regardless (events_template_fkey ON DELETE RESTRICT).
             secondary={
               templateId !== null && eventCount === 0 ? (
                 <Button
@@ -445,11 +366,6 @@ export default function TemplateEditor({
           {state.plan ? <ChangePlan plan={state.plan} eventTypeLabel={eventTypeLabel} /> : null}
         </DialogContent>
         <DialogActions>
-          {/*
-            Back closes the dialog and leaves the form exactly as it was. It
-            posts nothing, because nothing was written to undo — the preview
-            took locks, read rows and released them.
-          */}
           <Button
             onClick={() => setDismissed(state.plan)}
             disabled={busy}
@@ -473,14 +389,7 @@ export default function TemplateEditor({
         </DialogActions>
       </Dialog>
 
-      {/*
-        LAN-265 — deleting a template, confirmed by name.
-        The same shape D29 gives a draft's own delete: one dialog, naming the
-        thing, and the destructive button saying what it destroys. It is offered
-        only where nothing was ever created from this template, so there is no
-        blast radius to preview — which is exactly why this is a sentence and not
-        the change plan the save path shows.
-      */}
+      {/* LAN-265 — deleting a template, confirmed by name, same shape as D29's draft delete. */}
       <Dialog
         open={deleting}
         onClose={() => (busy ? undefined : setDeleting(false))}

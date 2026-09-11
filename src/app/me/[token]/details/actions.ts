@@ -31,16 +31,12 @@ import {
 } from "./validation";
 
 /**
- * Every write `/me/[token]/details` makes — LAN-216.
+ * Every write `/me/[token]/details` makes — LAN-216. Every action re-resolves
+ * the durable token inside its own transaction, acting only on the resolved
+ * `personId`/`seasonId`, never anything the form claims. The throttle bucket
+ * is `/me/[token]`'s own (`allowPlayerHomeRequest`), not a new allowance.
  *
- * Every action re-resolves the durable token inside its own transaction and
- * acts only on the `personId`/`seasonId` that resolution returns — never on
- * anything the form itself claims — the same posture `/me/[token]/actions.ts`
- * already states for its own writes. The throttle and uniform-timing pair is
- * `src/lib/rsvp/public-surface.ts`'s `allowPlayerHomeRequest` /
- * `logThrottledPlayerHomeRequest`, the exact bucket `/me/[token]` itself
- * uses — this is the same durable credential and the same page family, not a
- * new surface with its own allowance.
+ * Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION
  */
 
 function str(form: FormData, field: string): string {
@@ -105,47 +101,23 @@ async function nextStepUrl(token: string, resolution: Resolution): Promise<strin
   return detailsUrl(token, step === "done" ? "done" : step);
 }
 
-/**
- * The literal next page in the sequence — `R3-G`, "nothing gates": BUCS Play
- * and Hudl are not required to advance, so "Continue"/"Finish" must move
- * forward through the five pages whether or not the player just claimed this
- * one, exactly as `W4-05`/`W4-06` say ("continue anyway. The club will ask
- * you again"). A **fresh** page load with no step named still resumes at the
- * first step genuinely still outstanding (`readQuestionnaireView`'s own
- * `nextStep`) — the two are only ever the same step when this one just
- * became done.
- */
+/** The literal next page — `R3-G`, "nothing gates": BUCS Play/Hudl are not required to advance ("continue anyway", W4-05/06). A fresh load with no step still resumes at the outstanding one. */
 function literalNextStepUrl(token: string, current: QuestionnaireStep): string {
   const index = STEP_ORDER.indexOf(current);
   const next = STEP_ORDER[index + 1];
   return detailsUrl(token, next ?? "done");
 }
 
-// ---------------------------------------------------------------------------
 // Step 1 — the details
-// ---------------------------------------------------------------------------
 
 /**
- * B-009 (LAN-216, correction round 2): with `noValidate` now on the form
- * (`./details-form.tsx`), every submission reaches this action regardless of
- * what was or was not typed — the browser no longer refuses a blank required
- * field before this code ever runs. This is therefore where "required" is
- * enforced: `validateRequiredDetails` names every blank required field.
- *
- * F1 (LAN-230, critical — Brian's own confirmed requirement, 2026-09-02:
- * "Whatever a step saved stays saved… never discards"): this used to return
- * the moment `validateRequiredDetails` found even one blank required field,
- * *never calling `saveDetailsStep` at all* — nine valid answers submitted
- * alongside one blank required one were silently discarded, not merely left
- * unmarked as complete. `saveDetailsStep` is now always called, and always
- * writes every field that validated, whether or not a required field was
- * left blank or another field failed its own shape check (that module's own
- * fix, `player-questionnaire.ts`). The two error maps are merged afterwards —
- * a shape error `saveDetailsStep` already reported for a field wins over a
- * generic "required" one, since a value that failed shape *was* submitted —
- * for `useActionState` to redraw the form with, rather than a redirect:
- * everything that validated is already saved, nothing typed is lost, and no
- * navigation happens while anything still needs fixing.
+ * B-009 (LAN-216, r2): `noValidate` on the form means every submission
+ * reaches this action, so `validateRequiredDetails` is where "required" is
+ * enforced. F1 (LAN-230, critical — Brian, 2026-09-02: "Whatever a step
+ * saved stays saved… never discards"): `saveDetailsStep` is always called,
+ * even with a blank required field — it used to return early and silently
+ * discard nine valid answers alongside one blank one. Error maps are merged
+ * afterwards, shape error winning over generic "required" for the same field.
  */
 export async function saveDetails(
   _previous: DetailsFormState,
@@ -196,9 +168,7 @@ export async function saveDetails(
 
   const result = await saveDetailsStep(input);
   const shapeErrors = mapServiceErrors(result.errors);
-  // A field the service itself flagged (it was submitted, but malformed)
-  // takes precedence over a generic "required" one for the same field — the
-  // player typed something; say what is wrong with it, not that it is blank.
+  // A field the service flagged as malformed takes precedence over a generic "required" for the same field.
   const errors: DetailsFormState["errors"] = { ...requiredErrors, ...shapeErrors };
   if (Object.keys(errors).length > 0) {
     return { values, errors };
@@ -207,9 +177,7 @@ export async function saveDetails(
   redirect(await nextStepUrl(token, resolution));
 }
 
-// ---------------------------------------------------------------------------
 // Steps 2 and 3 — the two documents
-// ---------------------------------------------------------------------------
 
 export async function agreeDocument(form: FormData): Promise<void> {
   const startedAt = startUniformClock();
@@ -236,8 +204,7 @@ export async function agreeDocument(form: FormData): Promise<void> {
       agreementType,
     });
   } catch (error) {
-    // Already agreed this season (a resubmitted or double-clicked form) is not
-    // a failure — the step is already done, so the sequence simply moves on.
+    // Already agreed this season (resubmitted/double-clicked) is not a failure — the step is already done.
     if (
       !isServiceError(error) ||
       error.rule !== "onboarding_agreements_one_per_person_season_type"
@@ -249,9 +216,7 @@ export async function agreeDocument(form: FormData): Promise<void> {
   redirect(await nextStepUrl(token, resolution));
 }
 
-// ---------------------------------------------------------------------------
 // Steps 4 and 5 — BUCS Play and Hudl
-// ---------------------------------------------------------------------------
 
 export async function submitTrustStep(form: FormData): Promise<void> {
   const startedAt = startUniformClock();

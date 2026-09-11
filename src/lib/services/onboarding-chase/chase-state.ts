@@ -8,33 +8,10 @@ import { readCompiledOutstandingAskIn } from "../onboarding-ask";
 import { DEFAULT_CALLING_CODE } from "../person-validation";
 import { readOnboardingChaseSettingsIn, type OnboardingChaseSettings } from "./settings";
 
-// ---------------------------------------------------------------------------
-// The chase's own state — LAN-218, `W8`/`W9`. No migration: every fact below
-// is derived from `notification_jobs` and its own idempotency-key shape, per
-// the packet's own answer (see the module note this file already carries for
-// the settings singleton, and the brief this package shipped against).
-// ---------------------------------------------------------------------------
+// The chase's own state — LAN-218, `W8`/`W9`. No migration: every fact below is derived from
+// `notification_jobs` and its idempotency-key shape.
 
-/**
- * The whole state machine, as an idempotency-key shape rather than a column.
- *
- * Each automated attempt is one `notification_jobs` row, `job_type = 'other'`,
- * keyed `onboarding-chase:<membershipId>:<ordinal>` — an attempt that exists
- * cannot be queued twice (`on conflict (idempotency_key) do nothing`), so the
- * key alone is what makes "how many times has this membership been chased"
- * answerable without a counter column anywhere. An operator nudge is a
- * different key, `onboarding-nudge:<membershipId>:<nonce>`, because it is
- * unlimited and outside the cap (`T11-nudge-outside-cap`) — counting it
- * against `onboarding-chase:` would burn the automated cap on a human's own
- * action. The exhaustion marker and the escalation it raises are two more
- * shapes again, documented beside {@link onboardingChaseExhaustedMarkerKey}
- * below.
- *
- * `messaging-scheduler.ts` is the only other reader of these four prefixes —
- * imported from here rather than duplicated, because getting one of the four
- * subtly wrong there would silently stop counting, chasing or escalating
- * rather than fail loudly.
- */
+/** The whole state machine, as an idempotency-key shape rather than a column: `onboarding-chase:<membershipId>:<ordinal>` for an automated attempt (deduped via `on conflict do nothing`), `onboarding-nudge:<membershipId>:<nonce>` for a nudge, unlimited and outside the cap (`T11-nudge-outside-cap`). `messaging-scheduler.ts` imports these prefixes from here rather than duplicating them. */
 export const ONBOARDING_CHASE_KEY_PREFIX = "onboarding-chase:";
 export const ONBOARDING_NUDGE_KEY_PREFIX = "onboarding-nudge:";
 const ONBOARDING_CHASE_EXHAUSTED_MARKER_PREFIX = "onboarding-chase-exhausted:";
@@ -50,27 +27,12 @@ export function onboardingNudgeIdempotencyKey(membershipId: string, nonce: strin
   return `${ONBOARDING_NUDGE_KEY_PREFIX}${membershipId}:${nonce}`;
 }
 
-/**
- * The exhaustion marker — one row per membership, ever, the moment its
- * automated chase first reaches `chaseCount` delivered attempts. It carries
- * no message of its own (`status: 'completed'` from the moment it is
- * written; nothing dispatches it) and exists only so a second sweep tick
- * cannot tell the office about the same exhausted membership twice. Every
- * marker this call inserts in one tick is one exhausted cohort, batched into
- * exactly one escalation job — see `raiseDueOnboardingChaseEscalations` in
- * `messaging-scheduler.ts`.
- */
+/** The exhaustion marker — one row per membership, ever, once its chase reaches `chaseCount` delivered attempts; carries no message, exists only so a second sweep tick cannot re-tell the office. */
 export function onboardingChaseExhaustedMarkerKey(membershipId: string): string {
   return `${ONBOARDING_CHASE_EXHAUSTED_MARKER_PREFIX}${membershipId}`;
 }
 
-/**
- * Under 18, from the derived standing view — `REQ-restricted-fields`: date of
- * birth itself never reaches this module. `null` (no date of birth on file)
- * reads as `false` here, deliberately: a person cannot be chased to *supply*
- * their date of birth if the absence of one already silenced every message,
- * and only a recorded, positive flag ever blocks a send.
- */
+/** Under 18, from the derived standing view (`REQ-restricted-fields`: date of birth never reaches this module). `null` reads as `false`, deliberately — only a recorded, positive flag blocks a send. */
 export async function isPersonUnder18In(tx: Tx, personId: string): Promise<boolean> {
   const result = await tx.query<{ is_under_18: boolean | null }>(
     `select is_under_18 from public.person_standing where person_id = $1::uuid`,
@@ -80,69 +42,17 @@ export async function isPersonUnder18In(tx: Tx, personId: string): Promise<boole
 }
 
 export interface OnboardingChaseProgress {
-  /**
-   * Asks actually delivered to this membership — every automated attempt and
-   * every manual one alike. Spent only on delivery (`T11-cap-delivered`): a
-   * `failed`/`rejected` outcome is never counted here.
-   *
-   * Manual asks joined the count for LAN-266, on Brian's own decision that
-   * the record's **Send onboarding questionnaire** "counts toward the
-   * configured chase count, and re-spaces the next automatic chase from this
-   * send". It is one count because it is one thing being counted — the number
-   * of times this player has been asked — and the queue's Nudge and the
-   * record's button write the identical job, so counting one and not the
-   * other would make the same act mean two different things depending on
-   * which screen it was pressed from.
-   *
-   * This does not make a manual ask refusable. Exhaustion still only warns
-   * (`chaseNeedsAHuman`); the one absolute refusal stays no channel or under
-   * 18 (`isNudgeable`), exactly as LAN-218 correction round 1 left it. What
-   * changes is that four delivered asks are four delivered asks however they
-   * were sent, so the automated cadence stops asking a fifth time and the
-   * office is told a human is needed.
-   */
+  /** Asks actually delivered, automated and manual alike — spent only on delivery (`T11-cap-delivered`), never a failed/rejected outcome. Manual asks joined the count for LAN-266. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
   readonly deliveredCount: number;
   /** The most recent delivered ask of either kind — the base the next automated chase is spaced from. */
   readonly lastDeliveredAt: Date | null;
-  /**
-   * The membership's own next undelivered ordinal has reached
-   * `MAX_ATTEMPTS` and is `failed` with nothing further scheduled —
-   * `T11-terminal-failure`, `W8-03`. Distinct from `exhausted`: this
-   * membership's cap has *not* run out, delivery to it has.
-   */
+  /** The next undelivered ordinal reached `MAX_ATTEMPTS` and is `failed`, nothing further scheduled (`T11-terminal-failure`, `W8-03`) — distinct from `exhausted`: the cap has not run out, delivery has. */
   readonly currentAttemptTerminallyFailed: boolean;
-  /**
-   * Correction round 1, C-5 (Brian, 2026-09-03 walkthrough): the same
-   * provider-neutral sentence `delivery.ts`'s own event-delivery reader shows
-   * an operator (`DeliveryRow.failureReason`, itself `notification_jobs.last_error`)
-   * — read here from the identical failed attempt's `delivery_results.detail`
-   * rather than reimplemented, so the two surfaces can never describe the same
-   * failure two different ways. `null` unless {@link currentAttemptTerminallyFailed}
-   * is true.
-   */
+  /** Same provider-neutral sentence `delivery.ts` shows an operator, read from the failed attempt's own `delivery_results.detail`. `null` unless {@link currentAttemptTerminallyFailed}. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
   readonly terminalFailureReason: string | null;
-  /**
-   * The highest automated-attempt ordinal that exists for this membership,
-   * or `0` when none does — LAN-266.
-   *
-   * `declareDueOnboardingChasesIn` used to compute its next key as
-   * `deliveredCount + 1`, which was exact only while `deliveredCount` counted
-   * automated attempts and nothing else. Now that a manual ask counts too
-   * (see {@link deliveredCount}), that arithmetic would skip ordinals and, in
-   * the narrow case of an attempt still retrying past the interval, could
-   * declare a second live job beside it. The ordinal is therefore read from
-   * the keys that actually exist rather than inferred from a count that no
-   * longer only describes them.
-   */
+  /** Highest automated-attempt ordinal for this membership, or `0` — read from the keys that exist, not inferred from {@link deliveredCount} (LAN-266). */
   readonly automatedOrdinal: number;
-  /**
-   * Whether the highest existing automated attempt has yet to deliver — still
-   * pending, retrying, or failed. LAN-266's companion to
-   * {@link automatedOrdinal}: with the next key no longer recomputing to the
-   * same value, the "an existing ordinal is a no-op" property that used to
-   * keep one attempt in flight at a time has to be stated rather than fall
-   * out of the arithmetic. `false` when there is no automated attempt at all.
-   */
+  /** Whether the highest existing automated attempt has yet to deliver (pending, retrying, or failed); `false` when there is none. */
   readonly automatedAttemptOutstanding: boolean;
 }
 
@@ -155,34 +65,7 @@ const NO_PROGRESS: OnboardingChaseProgress = Object.freeze({
   automatedAttemptOutstanding: false,
 });
 
-/**
- * Every membership's chase progress, read from `notification_jobs` and
- * `delivery_results` rather than a counter — batched over `membershipIds`
- * rather than one query per row, on `people-directory.ts`'s own "fetch wide"
- * idiom.
- *
- * Two queries, deliberately not one: which asks delivered (an aggregate) and
- * what the *latest automated* ordinal's own outcome is (`distinct on`, highest
- * ordinal only) answer different questions, and folding both into one query
- * bought nothing but a harder-to-read one. Both read a job's current truth as
- * its **latest attempt's own `delivery_results` row**, never the job's
- * `status` column — `delivery.ts`'s `DELIVERY_LATEST_RESULT_JOIN` comment's
- * own reasoning, applied here rather than imported, because that constant's
- * SQL text hard-codes the alias `j` for `notification_jobs` and this module's
- * own join needs `occurred_at` alongside `outcome`, which that shared text
- * does not select.
- *
- * The two queries now deliberately scope differently, and that difference is
- * the whole of LAN-266's change here. The aggregate spans **both** ask
- * prefixes — an automated `onboarding-chase:` attempt and an operator's
- * `onboarding-nudge:` ask are both asks, and both count toward the cap and
- * re-space what follows (see {@link OnboardingChaseProgress.deliveredCount}).
- * The `distinct on` query stays `onboarding-chase:` only: it exists to find
- * the highest *ordinal*, and a nudge key carries a nonce where an automated
- * key carries an ordinal, so ordering nudges by it would be meaningless.
- * Terminal delivery failure is likewise a property of the automated attempt
- * the sweep is holding, not of a manual ask an operator can simply repeat.
- */
+/** Every membership's chase progress, read from `notification_jobs` and `delivery_results` rather than a counter. Two queries deliberately, not one (delivered aggregate over both ask prefixes; latest automated ordinal's own outcome, `onboarding-chase:` only). Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
 export async function readOnboardingChaseProgressIn(
   tx: Tx,
   membershipIds: readonly string[],
@@ -191,8 +74,7 @@ export async function readOnboardingChaseProgressIn(
   if (membershipIds.length === 0) return progress;
 
   const membershipIdPattern = `^${ONBOARDING_CHASE_KEY_PREFIX}([0-9a-f-]+):`;
-  // Both ask prefixes share the shape `<prefix><membership id>:<discriminator>`,
-  // so one pattern reads the membership out of either — LAN-266.
+  // One pattern reads the membership out of either ask prefix — LAN-266.
   const askIdPattern = `^onboarding-(?:chase|nudge):([0-9a-f-]+):`;
   const latestAttemptJoin = `
     left join lateral (
@@ -274,10 +156,7 @@ export async function readOnboardingChaseProgressIn(
       automatedAttemptOutstanding: automatedOutstanding.has(row.membership_id),
     });
   }
-  // A membership with an automated attempt but no delivered ask of any kind
-  // appears in `latest.rows` and not necessarily in `delivered.rows`'s
-  // aggregate (an aggregate over zero matching filtered rows still groups,
-  // but belt and braces: a membership present only in `latest` is folded in).
+  // Belt and braces: a membership present only in `latest.rows` is folded in.
   for (const membershipId of automatedOrdinals.keys()) {
     if (!progress.has(membershipId)) {
       progress.set(membershipId, {
@@ -303,65 +182,18 @@ export interface OnboardingChaseCandidate {
   readonly deliveredCount: number;
   readonly lastDeliveredAt: Date | null;
   readonly currentAttemptTerminallyFailed: boolean;
-  /** {@link OnboardingChaseProgress.terminalFailureReason}, carried through unchanged. */
   readonly terminalFailureReason: string | null;
-  /** {@link OnboardingChaseProgress.automatedOrdinal}, carried through unchanged. */
   readonly automatedOrdinal: number;
-  /** {@link OnboardingChaseProgress.automatedAttemptOutstanding}, carried through unchanged. */
   readonly automatedAttemptOutstanding: boolean;
   /** From the compiled ask — a missing required field or an unresolved checklist item, either counts. */
   readonly hasOutstanding: boolean;
   readonly hasConsent: boolean;
-  /**
-   * Whether anything could actually be sent to this person — correction round
-   * 1, C-1/C-2 (Brian, 2026-09-03 walkthrough — Jorvik Kirkbride and Kenelm
-   * Netherby, an email and no phone, "nudge reported failed"), corrected again
-   * for LAN-249.
-   *
-   * It used to be read off the compiled ask (`!ask.missingRequiredFields
-   * .includes("mobile")`) on the reasoning that `mobile` is required at every
-   * tier, so its absence there is exactly "no reachable number". That is true
-   * of an *absent* number and false of a *recorded but unusable* one: Montague
-   * Everleigh's seeded `contact.phone.malformed` ("07700 90039", one digit
-   * short) is a recorded mobile, so the compiled ask did not miss it, so the
-   * queue offered a live checkbox and Nudge for a person nothing can be sent
-   * to — and the nudge created a `notification_jobs` row that could only ever
-   * fail (walker M7, finding M7-05).
-   *
-   * So it is now the send path's own question, asked of the send path's own
-   * function: `selectMobileNumber` is what dispatch actually calls to turn
-   * this person's contact points into a number for the provider, and a person
-   * it returns `null` for is a person no surface should offer a send for.
-   * That is deliberately not "`normalised_value` is non-empty" — roster intake
-   * leaves `normalised_value` null on purpose (`roster.ts`'s own note), so
-   * that test would withhold the nudge from most of the roster while still
-   * passing a normalised value that is itself unusable. Asking the dispatcher's
-   * own question is the only formulation under which the queue, the record's
-   * own send button and the actual send can never disagree.
-   *
-   * The old formulation's benign "assume reachable when the compiled ask
-   * could not be read" default goes with it, and is not replaced by another:
-   * there is no unknown left to default. A person with no current phone
-   * contact point, or none that converts, is not reachable, and that is the
-   * whole answer.
-   */
+  /** Whether anything could actually be sent — `selectMobileNumber`'s own question (the send path's own function), not "a mobile field is present", so the queue, the send button and the actual send can never disagree (LAN-249). Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
   readonly hasReachableNumber: boolean;
   readonly isUnder18: boolean;
 }
 
-/**
- * Every membership currently `onboarding`, with its chase progress and
- * eligibility — the one list both `declareDueOnboardingChasesIn` and
- * `raiseDueOnboardingChaseEscalations` (`messaging-scheduler.ts`) and the
- * missing-data queue's own "Next" column read from, so the sweep's idea of
- * "due" and the queue's idea of "what it will say" can never quietly
- * disagree.
- *
- * Fetches every onboarding membership, then reads each one's compiled ask,
- * consent and under-18 flag — `people-directory.ts`'s own "hundreds, not
- * millions" reasoning: this mission's collection loop is players, one season
- * at a time.
- */
+/** Every membership currently `onboarding`, with its chase progress and eligibility — the one list the sweep, the escalation raiser and the missing-data queue all read from, so they can never quietly disagree. */
 interface MembershipRow {
   id: string;
   person_id: string;
@@ -369,21 +201,7 @@ interface MembershipRow {
   created_at: Date;
 }
 
-/**
- * Which of these people a message could actually be sent to — LAN-249.
- *
- * Batched over every person the caller is about to build a candidate for,
- * rather than one query per row, on the same "fetch wide" idiom
- * `readOnboardingChaseProgressIn` already uses. The decision itself is
- * `selectMobileNumber`'s and not this function's: the same call, on the same
- * contact rows, with the same calling code, that `dispatchOnboardingChaseJob`
- * makes at the moment of sending. See {@link OnboardingChaseCandidate.hasReachableNumber}
- * for why the dispatcher's own question is the only right one to ask here.
- *
- * Only current contact points count — `valid_until` is how the club records
- * that a number stopped being this person's — matching `person-record.ts`'s
- * own reader and `selectMobileNumber`'s own documented expectation.
- */
+/** Which of these people a message could actually be sent to — LAN-249. Batched, not one query per row. The decision is `selectMobileNumber`'s; see {@link OnboardingChaseCandidate.hasReachableNumber}. Only current contact points count (`valid_until is null`). */
 async function readReachablePersonIdsIn(
   tx: Tx,
   personIds: readonly string[],
@@ -486,14 +304,7 @@ export async function listOnboardingChaseCandidatesIn(
   return buildCandidatesIn(tx, memberships.rows);
 }
 
-/**
- * The identical candidate, scoped to exactly the memberships named — the
- * missing-data queue's own reader (`W8`), which never needs every onboarding
- * membership in the club, only the rows a filtered, paged view actually
- * shows. Reuses {@link buildCandidatesIn} so the queue's "Next" column and
- * the sweep's own due check can never quietly disagree about what a
- * membership's chase state is.
- */
+/** The identical candidate, scoped to exactly the memberships named — the missing-data queue's own reader (`W8`). Reuses {@link buildCandidatesIn} so the queue and the sweep can never disagree. */
 export async function readOnboardingChaseCandidatesForMembershipsIn(
   tx: Tx,
   membershipIds: readonly string[],
@@ -509,14 +320,7 @@ export async function readOnboardingChaseCandidatesForMembershipsIn(
   return new Map(candidates.map((candidate) => [candidate.membershipId, candidate]));
 }
 
-/**
- * What the queue's "Next" column says, per `T11-visibility` / `REQ-queue-visibility`.
- *
- * `reason: "no_consent"` is gone as of correction round 1, `C-4` (Q-11,
- * recorded against `LAN-218`) — see the paragraph in
- * {@link describeOnboardingChaseNext}'s own comment below. `reason:
- * "no_channel"` is new, `C-1` of the same round.
- */
+/** What the queue's "Next" column says (`T11-visibility` / `REQ-queue-visibility`). Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
 export type OnboardingChaseNext =
   | { readonly kind: "scheduled"; readonly at: Date }
   | { readonly kind: "exhausted" }
@@ -524,48 +328,7 @@ export type OnboardingChaseNext =
   | { readonly kind: "terminal_failure"; readonly reason: string | null }
   | { readonly kind: "no_automated_chase" };
 
-/**
- * The pure derivation behind the queue's "Next" column and the sweep's own
- * due check — `describeOnboardingChaseNext` and `declareDueOnboardingChasesIn`
- * read the identical fields of the identical candidate, so the queue can
- * never say "2 Sep" about a membership the sweep has already decided not to
- * chase.
- *
- * Order matters and is deliberate: a chase that has run its full course
- * (`exhausted`) is reported before a person's messageability is even
- * considered, because `W9`'s exhaustion is permanent and does not become
- * "unmessageable" retroactively if a number is later added or consent later
- * withdrawn. `under_18` is checked next and stays exactly where it was — an
- * absolute rule, unaffected by anything below it. `no_channel` — no reachable
- * mobile number — is checked immediately after, and deliberately *before*
- * `terminal_failure`: a missing number is a structural, not-fixable-by-retry
- * defect exactly like `under_18`, so it must never be masked by a generic
- * "ran out of retries" verdict once the automated chase has actually burned
- * through its attempts against it (`C-1`/`C-2`/`C-3`, Brian's 2026-09-03
- * walkthrough — Jorvik Kirkbride and Kenelm Netherby, an email and no phone,
- * "his nudge reported failed").
- *
- * ## `no_consent` — removed, not narrowed (`C-4`, Q-11)
- *
- * This reader's only population is `season_memberships.status = 'onboarding'`
- * — a person already on the team, never a recruit still deciding whether to
- * join one (`onboarding-chase.ts`'s own module note: recruits carry no
- * membership row at all, so they never reach this list). Brian, 2026-09-03:
- * "Only a recruit may decline messaging, and only while a recruit… A team
- * member without consent is not unmessageable — they still receive the
- * onboarding and consent form, which is the first page of onboarding." The
- * approved `W8-01` mockup's wording ("Unmessageable · no consent") was
- * therefore superseded in session ("then amend it") rather than found to be a
- * departure from it: consent not yet granted is this population's ordinary,
- * expected starting state, not a refusal, and this function no longer treats
- * it as a reason to withhold the schedule it would otherwise report. Nothing
- * about `mayReceiveWelcomeContactIn`'s own refuse-without-basis check
- * (`messaging-consent.ts`, `REQ-transport`) changes — the welcome still goes
- * regardless of a basis, and a genuine `refused`/`withdrawn` consent still
- * stops it there — this function simply stops modelling a second, queue-only
- * copy of that state. No departure is triggered here or anywhere this
- * correction round touches; that stays the human matter Brian named it.
- */
+/** The pure derivation behind the queue's "Next" column and the sweep's own due check, reading the identical candidate fields so the two can never disagree. Order is deliberate and load-bearing: `exhausted` (permanent) before messageability; `under_18` before `no_channel`; `no_channel` before `terminal_failure`, since a missing number must never be masked by a generic "ran out of retries" verdict. No `no_consent` state: a team member without consent still receives the welcome/consent form. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
 export function describeOnboardingChaseNext(
   candidate: Pick<
     OnboardingChaseCandidate,
@@ -615,19 +378,7 @@ export interface OnboardingLastContact {
 
 const NUDGE_CHANNEL = "operator nudge";
 
-/**
- * The queue's "Last contact" column — `T11-visibility`. Reads
- * `onboarding_activity_log` (`REQ-activity-log`) rather than
- * `notification_jobs`, because a nudge and an automated attempt look
- * identical on the job table (`onboarding-chase:`/`onboarding-nudge:` differ
- * only in the id neither the queue nor an operator ever sees) and the log is
- * the one place "asked automatically" and "asked by an operator" were
- * written apart, at the moment each ask happened
- * ({@link recordOnboardingActivityIn}'s own callers in `messaging-scheduler.ts`).
- *
- * `null` for a membership never yet contacted — a real, unremarkable answer
- * for someone the welcome has not reached, or whose chase count is zero.
- */
+/** The queue's "Last contact" column — `T11-visibility`. Reads `onboarding_activity_log` (`REQ-activity-log`), not `notification_jobs` (a nudge and an automated attempt look identical there). `null` for a membership never yet contacted. */
 export async function readOnboardingLastContactIn(
   tx: Tx,
   membershipId: string,
@@ -687,26 +438,11 @@ export async function readOnboardingLastContactIn(
 export interface OnboardingChaseQueueInfo {
   readonly lastContact: OnboardingLastContact | null;
   readonly next: OnboardingChaseNext;
-  /**
-   * Correction round 2, F-1: the same fact {@link describeOnboardingChaseNext}
-   * already reads to decide `no_channel`, carried alongside `next` rather
-   * than re-derived from it. `next.kind` alone cannot tell the queue "no
-   * reachable number" once exhaustion has already claimed the row — that
-   * collapse is exactly what let an exhausted, unreachable person keep an
-   * active Nudge button. `true` when there is no candidate at all (a
-   * membership `describeOnboardingChaseNext` never runs), the same benign
-   * default `hasReachableNumber` itself documents.
-   */
+  /** Carried alongside `next` rather than re-derived: `next.kind` alone can't tell the queue "no reachable number" once exhaustion has claimed the row (F-1). `true` when there is no candidate at all. Decision history: missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION */
   readonly hasReachableNumber: boolean;
 }
 
-/**
- * The queue's own composite read — `readOnboardingLastContactIn` and
- * `describeOnboardingChaseNext`, batched over every membership the page is
- * about to render, with the chase settings read once rather than once per
- * row. The one function `/operate/people/missing` calls for everything this
- * package's three columns need.
- */
+/** The queue's own composite read, batched over every membership the page renders, settings read once. The one function `/operate/people/missing` calls for its three columns. */
 export async function readOnboardingChaseQueueInfoIn(
   tx: Tx,
   membershipIds: readonly string[],

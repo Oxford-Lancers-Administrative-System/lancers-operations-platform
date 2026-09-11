@@ -312,3 +312,45 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > is a perfectly good open-ended range.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/follow-ups/page.tsx — LAN-281 from/to range
+
+> LAN-281's independent from/to range; anything not a calendar day is no
+> boundary rather than an error.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/follow-ups/follow-ups-filter.tsx — file header
+
+> The two date fields are LAN-281 — Clint's "filter by a date range", over
+> the same "When" the period select already narrows, and read alongside it
+> rather than instead of it. They are the kit's `DateField` rather than a
+> native `<input type="date">` for the reason `field.tsx` records: a UK club
+> never sees `mm/dd/yyyy`. Each side navigates on its own change, the same as
+> the selects, and either may be left empty — an open-ended range is the
+> ordinary case for "who has not answered what is coming".
+>
+> Nothing about the board's own organisation changes. The child ticket is
+> explicit that the by-player grouping, sort and columns Clint said he likes
+> stay exactly as they are, and that the event-pivot view argued for in the
+> same conversation is a different release.
+>
+> When's options are `@/lib/services/event-periods`'s own five, verbatim —
+> the same vocabulary the Events list and Calendar already offer as **This
+> week**, **This month**, **This term**, **All upcoming** and **All events**.
+> Brian named three of the five ("this week, this month, this term"); the
+> other two are the existing control's own remaining options, offered here
+> rather than invented or dropped.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/participation.ts — DELIVERY_LATERAL
+
+> OWNER-LAN173-06 (correction round 2): "most recent job" used to mean
+> `order by created_at desc` alone, which has no tiebreaker for the tied
+> `created_at`s a whole ladder shares in real use — see
+> `NOTIFICATION_JOB_RECENCY_ORDER` in `./delivery.ts` for the full account of
+> why, and why it was invisible until a held reminder made two tied jobs
+> disagree about the delivery state.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

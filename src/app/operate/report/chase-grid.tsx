@@ -23,21 +23,10 @@ import {
 } from "./presentation";
 
 /**
- * People down, last week's events across — and **two** values under each event.
- *
- * Brian's own specification, 15 August 2026: "I then want to see RSVP status
- * and attendance status for the two of them. For each one of the events, did
- * they come? Did they RSVP, or did they not RSVP? Did they attend, or did they
- * not attend? We're looking for discrepancies there." Four events gives the
- * eight values he counted.
- *
- * A single collapsed verdict per event — which is what this was — hides the
- * comparison that is the whole point of the section. Here the two are side by
- * side and the eye does the work.
- *
- * Only people something went wrong for appear. A reason for declining sits in
- * the cell's `title`, so it is there for the operator who needs it without
- * turning a grid into prose.
+ * People down, last week's events across — two values under each event
+ * (RSVP and attendance), side by side, per Brian's 15 August 2026 spec.
+ * Only people something went wrong for appear; a decline reason sits in the cell's `title`.
+ * Decision history: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY
  */
 export function ChaseGrid({
   content,
@@ -48,10 +37,7 @@ export function ChaseGrid({
 }) {
   const { columns } = content.grid;
 
-  // Ordering is a view concern, so it happens here rather than in the snapshot.
-  // The stored order is `issues` descending, which is what an unsorted visit
-  // shows — so the default view and the filed record agree, and any other order
-  // is something the reader asked for in the URL.
+  // Ordering is a view concern (stored order is `issues` descending); any other order is a URL request.
   const rows = sortRows(content.grid.rows, sort);
   const link = (by: GridSortState["by"]) => {
     const flip = sort.by === by && !sort.ascending;
@@ -170,16 +156,9 @@ export function ChaseGrid({
 }
 
 /**
- * One of the two values under an event.
- *
- * A discrepancy is emphasised rather than colour-coded alone: § 9 requires
- * status not to rely on colour, and a Monday report read on a phone in daylight
- * is exactly where that matters.
- *
- * LAN-227. The reason rides as a native `title` attribute rather than an MUI
- * `Tooltip` — this table renders inside a Server Component, and a `Tooltip`
- * mounted there produced a client/server hydration mismatch on every render.
- * `title` needs no client boundary, so server and client markup are identical.
+ * One of the two values under an event. Emphasised rather than colour-coded
+ * alone (§9). LAN-227: reason rides as a native `title`, not an MUI
+ * `Tooltip` — a Tooltip in this Server Component caused a hydration mismatch.
  */
 function CellValue({ cell, of }: { cell: GridCell | undefined; of: "rsvp" | "attendance" }) {
   if (!cell) {
@@ -216,13 +195,8 @@ function CellValue({ cell, of }: { cell: GridCell | undefined; of: "rsvp" | "att
 }
 
 /**
- * Orders the grid.
- *
- * `issues` sorts on the **proportion** rather than the count, because that is
- * the comparison Brian asked for: four of four is a worse week than two of
- * five, and ranking on the bare count would put them the other way round. The
- * count breaks ties, so two people at 100% are ordered by how many events that
- * covers.
+ * Orders the grid. `issues` sorts on proportion, not count (Brian) — four
+ * of four is worse than two of five; count breaks ties.
  */
 function sortRows(rows: GridRow[], sort: GridSortState): GridRow[] {
   const ordered = [...rows].sort((left, right) => {

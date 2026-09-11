@@ -256,3 +256,213 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > copy of.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/import/import-state.ts — module header
+
+> What the bulk import screen hands back and forth. LAN-155.
+>
+> It lives beside `actions.ts` rather than in it for the reason
+> `../form-state.ts` gives: a `"use server"` module may export only async
+> functions, so a shared constant or a type exported from there would be a build
+> error.
+>
+> It imports from `@/lib/services/event-csv`, which is pure, and never from
+> `event-import.ts`, which is `server-only` — the client component reads this
+> module, and a type import that dragged the database module into the browser
+> bundle would not build.
+>
+> ## Why the file's own text is in here
+>
+> `REQ-import-confirmation`: an import is a proposal until accepted, and nothing
+> is written until the operator confirms. The proposal therefore has to survive
+> a round trip, and the two ways of doing that are storing it on the server or
+> carrying it in the form. `W3` says the uploaded file is "held only long enough
+> to produce the confirmation, and not retained as a record", which rules the
+> first one out: a staging table is a record, and an abandoned confirmation
+> would leave one behind.
+>
+> So the text goes back to the browser and returns with the confirmation, and
+> `applySeasonImport` rebuilds the plan from it inside the apply transaction and
+> refuses unless the digest still matches. Abandoning the confirmation leaves
+> nothing anywhere, because there was never anything to leave.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/import/export/route.ts — module header
+
+> The season's events, as the file an operator edits and brings back. LAN-155.
+>
+> ## Why this is a route rather than a Server Action
+>
+> It is a download. A Server Action returns a value to a React tree; giving the
+> browser a file with a name needs a response carrying `Content-Disposition`,
+> and a link the operator can middle-click. Every _write_ on these screens is
+> still a Server Action; this is the one thing that is not a write at all.
+>
+> ## Why it is authorized, and where
+>
+> `exportSeasonEvents()` calls `requireCapability("event_calendar_management")`
+> before it reads a row — `slice-ux.md` § 4, "routes do not authorize", and
+> `W3`'s "event management capability is required, enforced in the service
+> layer". Deleting this handler's error branch cannot grant the export; deleting
+> the handler entirely is the only thing it does.
+>
+> A refusal is a `403` with a fixed body rather than a redirect: this is opened
+> from a page the operator is already on, and a redirect to `/login` would
+> arrive as a page of HTML where a spreadsheet was expected.
+>
+> ## The byte order mark
+>
+> Excel on Windows reads a CSV without one as the system code page, which turns
+> every accented venue name into mojibake the operator then "corrects" and
+> imports back. The importer strips it again, so the round trip is unaffected.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/import/page.tsx — module header
+
+> `/operate/events/import` — bulk import, and the export that feeds it.
+> LAN-155, work package `WP-csv-import`, workflow `W3`.
+>
+> A new surface. There is no import, no export and no CSV handling anywhere on
+> `main` before this package, and the one thing this work changes on an existing
+> screen is the Events page's **Create event** control, which becomes a menu of
+> two — `../create-menu.tsx`.
+>
+> ## Three independent refusals, as everywhere under `/operate`
+>
+> The layout guards the frame, `gateShellPage` guards this page, and
+> `readSeasonImportContext()` guards itself in the service layer. `W3` asks for
+> the third by name: "event management capability is required, enforced in the
+> service layer". Reading the calendar is open to any linked, active operator;
+> _changing_ it is `event_calendar_management`, and an import is the largest
+> change to it the application offers.
+>
+> ## Why the screen is a client component
+>
+> `REQ-import-confirmation` makes an import a proposal the operator reads before
+> anything is written, so the file, the proposal and the confirmation are three
+> states of one screen rather than three routes. A server-rendered flow would
+> need somewhere to keep the proposal between them, and `W3` says the uploaded
+> file is not retained as a record.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/create-menu.tsx — module header
+
+> **Create event**, as a menu of exactly two. LAN-155, screen `W3-04`.
+>
+> Brian, 2026-08-21: "Create Event should be Add Single Event, and then Bulk
+> Import. It should be only two options. You should not export the season. That
+> doesn't make sense to be in the proposed column."
+>
+> Two consequences, and both are decisions rather than layout:
+>
+> - **Importing is here** because it is a way of creating events, so it
+>   belongs under the control that creates them rather than as a third button
+>   competing in the header.
+> - **Exporting is not here**, because it is not a way of creating anything.
+>   It lives on the bulk import screen, beside the file it produces.
+>
+> This is the only change this work package makes to the Events page. The list,
+> the filters, the period control and the view switch are `W1`'s and are
+> untouched.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/import/import-screen.tsx — file header, export location
+
+> Brian, 2026-08-21: "If you Mass Export the season … that detail should be in
+> that screen." Importing is a way of creating events, so it sits under **Create
+> event**; exporting is not a way of creating anything, so it lives beside the
+> file it produces. One button whose label follows the state — _Download the
+> template_ on an empty season, _Download the current season's events_ once
+> there are any — rather than two buttons one of which is always wrong.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/import/actions.ts — file header, authorization and cancel
+
+> Both open with `requireCapability("event_calendar_management")`, which resolves
+> the actor from the **verified session** and refuses unless they hold a
+> permitted role. Neither takes an actor argument and neither may: a server
+> action is a POST endpoint the browser can call directly, so an action that
+> accepted "who am I" would accept whatever was sent.
+>
+> The services behind them guard again — `W3` requires the capability enforced in
+> the service layer, and `@/lib/services/event-import` does exactly that. Two
+> independent refusals, neither depending on the other having run.
+>
+> The screen is one screen: choosing a file, reading the proposal and applying
+> it are three steps through the same state, and `useActionState` holds one
+> state per action. Splitting them into three actions would mean three states
+> and a component reconciling them, which is where a screen ends up showing a
+> stale proposal beside a fresh error.
+>
+> `cancel` reaches no service and issues no statement. That is not an oversight to be
+> tidied into a client-side reset later: the workflow's exception table says
+> "the operator abandons the confirmation → nothing is written. The import is not
+> a transaction that half-happened", and an action that provably does nothing is
+> the clearest possible statement of it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/csv.ts — file header (hostile-file assumptions, formula injection)
+
+> ## The file is hostile by default
+>
+> The operator's file is not one this application produced. It is one a
+> spreadsheet produced, from something an AI tool produced, from a term card.
+> Every one of the following is assumed rather than hoped for:
+>
+> - **A UTF-8 byte order mark.** Excel writes one. Left in place it becomes
+>   part of the first header name, so `id` is not `id` and the whole file is
+>   refused for a reason nobody can see.
+> - **CRLF, and lone CR.** Windows writes the first; a very old Mac export
+>   writes the second. Both are record separators here.
+> - **Quoted fields containing commas, quotes and newlines.** A venue called
+>   `The Lamb and Flag, St Giles` is one field, and a description may carry a
+>   paragraph break.
+> - **Formula injection.** A cell a spreadsheet reads as a formula — one
+>   beginning `=`, `+`, `-`, `@`, a tab or a carriage return — is a live
+>   instruction in Excel, Numbers and Google Sheets. Everything this module
+>   _writes_ is prefixed with an apostrophe when it begins with one of those,
+>   which is the escape those applications understand, and everything it
+>   _reads_ strips exactly that apostrophe again. The two are inverses on
+>   purpose: without the second, exporting a venue called `-- the Astro` and
+>   importing it straight back would report a change nobody made, and the
+>   round trip would stop being the no-op `REQ-import-drafts-only` requires.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-csv/shared.ts — ImportPlan.digest
+
+> A fingerprint of exactly what applying would write.
+>
+> The confirmation is a proposal computed at one moment and applied at
+> another, and the season can move in between. `./event-import.ts`
+> recomputes the plan inside the apply transaction and refuses when this
+> no longer matches, so what is written is always what the operator read.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-import.ts — file header (why applying is one transaction)
+
+> ## Applying is one transaction, and the plan is recomputed inside it
+>
+> The workflow's exception table asks for two things that pull in opposite
+> directions: "applied as one transaction, so a failure part-way leaves the
+> season as it was", and "nothing is written until they confirm". A confirmation
+> is read at one moment and applied at another, and the season can move in
+> between — another operator approves an event this file also changes.
+>
+> So the file's text, not a stored plan, is what survives the confirmation. The
+> uploaded file is **not retained as a record** anywhere: it lives in the
+> request that produced the proposal and in the confirmation form the operator
+> is looking at, and nowhere else — no table, no temporary file, no cache. On
+> apply the plan is rebuilt from that text against a **locked** read of the
+> season, and refused outright unless its digest still matches the one the
+> operator confirmed. What is written is therefore always exactly what they
+> read, or nothing at all.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

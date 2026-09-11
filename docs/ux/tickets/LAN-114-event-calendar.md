@@ -226,3 +226,35 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > therefore a property of the module's imports rather than a promise.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/club-time.ts — module header, "Why this module exists" / "What this is not" (LAN-114).
+
+> There is one club, it plays in Oxford, and every wall-clock rule in this
+> application is expressed in that zone: the response deadline
+> (`services/response-deadline.ts`), the RSVP page's "has it started yet"
+> (`services/rsvp.ts`), and now which day the calendar considers _today_.
+>
+> LAN-114 requires the calendar to "use the application's configured club
+> timezone" and explicitly forbids "a second timezone rule inside the calendar
+> component". Before this file the zone was a string literal repeated at each
+> call site, so a calendar with its own literal would have been that second
+> rule by definition — identical today, and free to drift. The constant is
+> declared once here and the rules refer to it.
+>
+> Not a general date library, and not a claim that every stored value is an
+> instant. `events.scheduled_on` is a bare `date` and `starts_at`/`ends_at` are
+> bare `time`s — none carries a zone, and none is converted here. The only
+> question this module answers is the one that genuinely needs a zone: given
+> the current instant, which calendar day is it in Oxford?
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/calendar.ts — Oxford week arithmetic section note (LAN-153 retirement)
+
+> LAN-114 also built a per-term _card_ here — `buildTermCard`, `nearestTerm`,
+> `termOwning`, a six-week reach and a leftover panel. LAN-153 retired all of
+> it along with the surface it drew (D85). Those functions existed to decide
+> which term should borrow a vacation week; a continuous year has no vacation
+> weeks to lend, so the questions they answered no longer arise.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

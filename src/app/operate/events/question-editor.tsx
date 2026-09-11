@@ -22,42 +22,12 @@ import {
 } from "./presentation";
 
 /**
- * Writing the questions an event asks — amendment W4-A1, inside the create and
- * edit form rather than on a screen of its own.
- *
- * Brian, 2026-08-21: "This is part of the create event workflow. It's not a
- * separate screen that needs its own thing ... it's ingrained in the process, so
- * you separated that inappropriately." Writing an event and deciding what to ask
- * the people invited to it are one act, so this is a section of that form and
- * posts through it.
- *
- * ## Every question is editable in place
- *
- * There is no read mode and no edit mode. A question is four small controls and
- * hiding three of them behind an **Edit** button buys a tidier list at the cost
- * of a click before every correction — on a form whose whole purpose is
- * correcting things. What the operator can see, they can change.
- *
- * ## The order is the order asked, and moving one really moves it
- *
- * The arrows reorder the array, which is what `sort_order` is written from, and
- * the hidden inputs below are emitted in that order. There is no drag and drop:
- * a pointer gesture that a keyboard cannot perform would put the ordering out of
- * reach of anybody not using a mouse, and this list is three items long.
- *
- * ## Controlled, because the type owns the template questions
- *
- * The parent holds the list. Changing the event's type has to swap the questions
- * that came from the old type's template for the new one's while leaving the
- * operator's own questions alone (D42), and a component holding its own copy
- * could not be told.
- *
- * ## The hidden inputs are the payload
- *
- * Five parallel repeating fields, read back with `FormData.getAll`. `fromTemplate`
- * travels with each one because it is what marks a question as having come with
- * the type — the chip an operator reads, and the flag that decides whether a
- * later template change may touch it.
+ * Writing the questions an event asks — amendment W4-A1, inside the create/edit
+ * form itself, not a separate screen. Every question is editable in place (no
+ * read/edit toggle); reordering moves the array (no drag-and-drop); the type
+ * owns template questions (D42) so the list is controlled by the parent; the
+ * hidden inputs are the payload, read back via `FormData.getAll`.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 
 export interface QuestionEditorProps {
@@ -69,12 +39,8 @@ export interface QuestionEditorProps {
   issues: readonly QuestionIssue[];
   disabled?: boolean;
   /**
-   * The heading, so the template editor can say whose questions these are.
-   *
-   * The same component serves both surfaces because they *are* the same thing:
-   * a template's questions become an event's questions unchanged, and an editor
-   * that differed between the two would eventually accept something on one that
-   * the other refused.
+   * The heading — same component serves the event and template editors,
+   * since a template's questions become an event's questions unchanged.
    */
   headline?: string;
   detail?: string;
@@ -119,21 +85,10 @@ export default function QuestionEditor({
 
   return (
     <Section title={headline} description={detail} testId="question-editor">
-      {/*
-        Always posted, even with no questions at all, and it is the difference
-        between "this event asks nothing" and "this submission was not about the
-        questions". Without it, removing the last question would post exactly
-        what a caller with no opinion posts, and the service would leave the
-        question it was told to delete in place.
-      */}
+      {/* Always posted, even with no questions — distinguishes "asks nothing" from "not about questions" (service would otherwise leave a deleted question in place). */}
       <input type="hidden" name="questionsPresent" value="1" />
       <Stack spacing={2}>
-        {/*
-          C4. There was filler here — "Nothing extra is asked. Add a
-          question if this event needs one." — and Brian's reaction was
-          "I hate extra text like this." The Add a question control below
-          already says what to do; an empty list needs nothing above it.
-        */}
+        {/* C4: no filler when the list is empty — Add a question already says what to do. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE */}
 
         <Stack component="ol" spacing={2} sx={{ listStyle: "none", p: 0, m: 0 }}>
           {questions.map((question, index) => {

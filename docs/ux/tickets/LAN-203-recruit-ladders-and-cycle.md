@@ -282,3 +282,179 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > recruits are never escalated (`REQ-two-ladders`, `REQ-never-harsh`).
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/messaging/cycle-validation.ts — module header
+
+> Reading and checking the recruitment cycle's own rows — LAN-203,
+> `REQ-recruitment-cycle`. The `validation.ts` ergonomic-layer-in-front-of-
+> the-database idiom, for the cycle's four steps instead of the seven event
+> types.
+>
+> ## Why a form can cover more than one step
+>
+> `messaging_schedules_and_chase`'s law is one row, one form, one SAVE — and
+> the cycle's own two rows (Brian, 2026-09-01) keep it: **Welcome** is one
+> page row _of the page_ covering two database rows, `welcome` and its own
+> `details_reminder` — "the top two bars here should be made as one… the
+> first message gets sent out 0 hours after, and then the second one" — and
+> **Recruitment questionnaire** is the same shape, covering `interest_ask`
+> and its own `interest_reminder`. Both are the same "several columns, one
+> row, one save" idiom the Recruitment event type's six fields already use.
+> `readCycleStepsChange` is therefore given the list of step names one
+> submission covers, and reads each one's own field out of the same
+> `FormData` by a `step_<name>_` prefix, rather than being called once per
+> database row.
+>
+> ## No `enabled` — superseded, Brian, 2026-09-01
+>
+> `REQ-recruitment-cycle`'s per-step toggle is gone: "the toggles were
+> completely invented… Remove the toggles." This module reads and validates
+> only each step's timing field now; `recruitment-cycle.ts`'s own module note
+> explains why the database column survives untouched while the application
+> stops reading and writing it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/messaging/schedule-row.tsx — TIMING_FIELDS/LADDER_FIELDS
+
+> The two field groups Brian's own round-2 mockup draws for one row:
+>
+> ```
+>   RSVP by      First inv.   Cadence
+>   [ 2 ] days   [ 5 ] days   [ 24 ] h
+>
+>   WhatsApp     Email        President
+>   [ 2 ]        [ 1 ]        [ 12 ] h
+> ```
+>
+> `SCHEDULE_FIELDS` is already declared in exactly this order, so the groups
+> are a slice rather than a second list that could drift from it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/messaging/schedule-row.tsx — ScheduleRow, row heading (Q-23)
+
+> Q-23: the row heading is a style question, not structure — the
+> mockup's own rendering does not govern it, the shipped application
+> does. `../roles/page.tsx` and `../operators/page.tsx` both draw
+> their per-card entity-name heading as `subtitle2`/700, not the
+> all-caps `overline` this card carried before that check (chosen on
+> the strength of the dispatch's own capitalised ASCII art) nor the
+> `subtitle1` a first pass at fixing it picked by eye from a mockup
+> screenshot rather than the real component.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/messaging/schedule-row.tsx — worked-example preview, gap-before-deadline callout
+
+> OWNER-LAN171-07, round 3: the gap-before-the-deadline callout is
+> deliberately not rendered here. Brian: "get rid of this
+> callout. The last reminder lands 1 day before the deadline it
+> is chasing. Nobody is contacted in the 1 day that actually
+> matter. I don't know why that's there. That's confusing." Under
+> the corrected ladder arithmetic (Q-19) it fires on the shipped
+> defaults, so a warning that should flag a misconfigured
+> schedule instead fires on the normal case and trains an
+> operator to ignore it. `row.preview.warning` itself is still
+> computed by `buildSchedulePreview` and still proved by
+> `presentation.test.ts` and R3-B1 in
+> `messaging-schedule.test.ts` — only this surface stopped
+> drawing it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/a/[token]/presentation.ts — LAN-203 section banner.
+
+> A recruit reaches this exact route through `recruit_event_followup`'s own
+> yes/no buttons (the invitation itself reuses `event_invitation`
+> unchanged), and needs distinct copy in three places: the player's page
+> name and event questions are never asked of them, a No is never asked
+> for a reason, and "Go see other events" presumes an app account they do
+> not have.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-approval/write.ts — countByCapacity (W11/LAN-203)
+
+> W11's second defect, LAN-203: this omitted recruits entirely, so an
+> operator approving a recruitment event was never told how many recruits it
+> reaches — precisely the number they care about most. `recruit` is one of
+> four values `AudienceCapacity` already carries (`../event-audience.ts`);
+> this function had simply never been extended to read it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/recruitment-cycle.ts — module header
+
+> ## The per-step toggle — superseded, Brian, 2026-09-01
+>
+> `REQ-recruitment-cycle`'s "each of which can be turned off, per cycle" is
+> superseded: "the toggles were completely invented. That has never been
+> part of this… Remove the toggles." The `enabled` column stays in the
+> database, untouched — this is a presentation-layer change, not a
+> migration — but the application no longer reads or writes it, so every
+> row's stored value is inert from here on and every step sends on its own
+> offset alone. `RecruitmentCycleStep`/`RecruitmentCycleStepChange` below
+> carry no `enabled` field for exactly that reason.
+>
+> ## The declaration — Brian, 2026-09-01
+>
+> {@link declareRecruitmentCycleJobsIn} turns "recruit X was captured" into
+> the `notification_jobs` rows the two steps describe, honouring consent,
+> the recruit's own status, and completion (below). It still has **no
+> caller**: the capture event itself belongs to LAN-205 (walk-up) and
+> LAN-206 (operator-add and Questionnaire B's own form), neither of which
+> has landed. "The cycle can be built and cannot run" now means exactly
+> that one thing — the capture-time trigger — not the declaration or the
+> dispatch, both of which are real and tested here and in
+> `messaging-scheduler.ts`.
+>
+> ## Completion — `REQ-recruitment-cycle` amended, Brian, 2026-09-01, corrected
+>
+> by LAN-205
+>
+> "If they fill out the whole thing… then it doesn't send out again." The
+> Welcome step's own completing fact is **the recruit having reached the
+> sign-up form themselves** — LAN-202's `qr_self_entry` consent source,
+> `season_messaging_consents.source = 'qr_self_entry'` for this
+> `(person, season)` — and Questionnaire B's B1–B5 for the questionnaire
+> step — never B6, and never college, matriculation, graduation or degree,
+> which stay optional at recruit stage (`REQ-recruit-stage-optional`,
+> finding 7, Mission 7's own enforcement, record-only here).
+> {@link readRecruitmentCycleCompletionIn} is the read; `declareRecruitmentCycleJobsIn`
+> and `messaging-scheduler.ts`'s `dispatchRecruitmentCycleJob` are its two
+> callers, the first turning it into a refusal to create a job, the second
+> into a refusal to send one already declared.
+>
+> This was originally "first name, last name and mobile on file", which is
+> what the sign-up form's own required set happens to be — correct for the
+> QR and tokenised doors, where those fields arrive _because_ the recruit
+> filled the form in, and wrong everywhere else. LAN-205 found the defect
+> this produced: the walk-up door writes that exact set (given name, family
+> name, a current phone) in the _same transaction_ that captures the
+> recruit, per its own 2026-09-01 mandatory-mobile amendment, so the welcome
+> track read `already_complete` for every walk-up before its declaration was
+> ever attempted — and `declareRecruitmentCycleJobsIn` sent
+> `recruit_interest_ask` (a football-background questionnaire) instead of
+> `recruit_welcome` (the signed sign-up-form link), which is not the one
+> template the walk-up's read-back opt-in authorises. The fields being on
+> file said only that an _operator_ had captured them; they never said the
+> recruit had been through the form the welcome message exists to send them
+> to. Keying completion on the consent source instead answers the question
+> the step is actually asking, for every door alike, walk-up and
+> operator-add (LAN-206) included, with no per-caller flag to remember.
+>
+> Questionnaire B's own collecting form does not exist yet — LAN-206 — so
+> nothing can honestly answer B1–B5 today outside a test that inserts rows
+> directly. The completion check is built against
+> `recruitment_questionnaire_responses` as the real, permanent source
+> regardless — never a stub, never gated on a form this package cannot
+> reach — proved by tests that insert B1–B5 rows directly and observe the
+> check flip. The two-ask cap (`the ask and one reminder, then silence,
+never a third`) is structural, not counted: the schema offers exactly one
+> `ask_offset`-shaped slot and one reminder-shaped slot per step (still
+> `recruitment_cycle_steps.offset_hours`, one column, two rows —
+> `interest_ask`/`interest_reminder` — per the presentation-layer note
+> above), so there is no third slot to ever schedule from.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

@@ -32,13 +32,7 @@ function currentCollegeEmail(view: QuestionnaireView): string {
   return contact?.rawValue ?? "";
 }
 
-/**
- * F4 (LAN-230): the source line for one of the seven disputable fields, read
- * from who actually supplied it (`view.fieldSuppliedBy`) rather than a
- * hard-coded "you" or "the club" per field name. `null` when nobody
- * attributable did — the same "nothing to say" case the field already
- * rendered silently.
- */
+/** F4 (LAN-230): source line read from who actually supplied it (`view.fieldSuppliedBy`), not hard-coded per field name. */
 function sourceOf(
   view: QuestionnaireView,
   field: keyof QuestionnaireView["fieldSuppliedBy"],
@@ -47,15 +41,7 @@ function sourceOf(
   return who ? sourceLine(who, null) : null;
 }
 
-/**
- * B-009 (LAN-216, correction round 2): the field-level rendering — errors
- * under each field, values surviving a failed submit, focus on the first
- * invalid control — lives in `./details-form.tsx`, a client component, because
- * only a client component can hold `saveDetails`'s returned state without a
- * navigation. Everything computed here is plain data the server already has:
- * the values a fresh page load starts from, and the source/dispute badges
- * that come from `view` rather than from anything the player just typed.
- */
+/** B-009 (LAN-216, r2): field-level rendering lives in `./details-form.tsx`, a client component holding `saveDetails`'s returned state. Everything here is plain server data. */
 export function DetailsStepPage({ view, token }: { view: QuestionnaireView; token: string }) {
   const p = view.person;
   const ec = view.emergencyContact;

@@ -21,40 +21,15 @@ import { Outcome as AdminOutcome, useOutcomeSlot } from "@/components/outcome-sl
 import type { PermittedAccountActions } from "../../permissions";
 
 /**
- * The account actions on one operator's record — LAN-133.
- *
- * `DEC-administration-language-and-states` names them, and these are those
- * names: **Deactivate operator access**, **Restore operator access**, and the
- * invitation pair. Nothing here is called "disable", "revoke", "suspend" or
- * "reset", and nothing here mentions a durable Person, effective access or an
- * access log.
- *
- * ## Which of them appear
- *
- * Two independent questions, and both have to say yes:
- *
- *   * **Does the account's state make it meaningful?** Resend is offered "while
- *     pending or failed", which is `resendAvailable` on the state definition
- *     rather than a list of states written here. Restore is offered only to a
- *     deactivated account and Deactivate only to one that is not.
- *   * **May this administrator do it to this person?** `permitted` is
- *     `canAdministerTarget`'s answer, computed on the server against seats read
- *     from the database. A President opening the General Manager's record sees
- *     no Deactivate button, because `REQ-final-admin-protection` makes that
- *     refusal a fact about the club rather than a message about a click.
- *
- * Neither question is authorization. Every button posts to a server action that
- * asks the whole question again, against the same target, inside the
- * transaction that writes.
- *
- * ## Why each action opens a panel rather than firing
- *
- * `DEC-single-actor` settles that these are single-actor and immediate — "there
- * is no second-confirmation workflow" — so a confirmation dialog would be
- * inventing a step the decision removed. But three of the four need something
- * typed: a required reason for deactivation, a corrected address, a replacement
- * address and a reason. The panel is where that goes, and Resend, which needs
- * nothing, submits from its own button with no panel at all.
+ * The account actions on one operator's record — LAN-133. Names from
+ * `DEC-administration-language-and-states`: **Deactivate operator access**,
+ * **Restore operator access**, and the invitation pair. Shown only when the
+ * account state makes them meaningful (`resendAvailable`, current state) AND
+ * `permitted` (server-computed `canAdministerTarget`) allows them — neither
+ * check is authorization; every button re-checks server-side on submit.
+ * `DEC-single-actor`: a panel, not a confirmation dialog, for the three that
+ * need typed input; Resend submits directly.
+ * Decision history: docs/operating-the-slice.md
  */
 export default function OperatorActions({
   operatorAccountId,

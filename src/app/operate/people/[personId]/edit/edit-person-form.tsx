@@ -42,14 +42,7 @@ function currentContact(
  * `/operate/people/[personId]/edit` — W2-01 … W2-10. One page, sectioned
  * exactly as the record reads, one Save. See `actions.ts`'s module note for
  * why every field lives on one submission.
- *
- * B1/B3, LAN-185 correction round 2 (Brian's walk): every reason-bearing
- * field is a `CorrectableField` below — one inline interaction, the same
- * shape for all fifteen fields including mobile. Its *Reason for the change*
- * box appears only once the operator's live value actually differs from what
- * is stored, and disappears again if they put the original value back;
- * mobile's normalised preview and WhatsApp-seam warning render inline the
- * same way, with no second screen.
+ * Decision history: missions/intake/M-PEOPLE-AND-ROSTER
  */
 export default function EditPersonForm({
   personId,
@@ -161,10 +154,7 @@ export default function EditPersonForm({
               original={personalEmail?.rawValue ?? ""}
               error={state.errors.personalEmail}
             />
-            {/* LAN-268: the same rule the two recruitment doors and the
-                player questionnaire apply. The operator's edit form refuses a
-                non-Oxford address before any write, with no override — a
-                value stored as a college address has to be one. */}
+            {/* LAN-268: same rule as the recruitment doors and player questionnaire — refused before write, no override. */}
             <CorrectableField
               name="collegeEmail"
               reasonName="collegeEmailReason"
@@ -204,10 +194,7 @@ export default function EditPersonForm({
               label="Degree field"
               original={record.degreeField ?? ""}
             />
-            {/* LAN-267. The BAFA number is operator-editable *because* a coach
-                never sees the player questionnaire: if it could only be
-                collected there, no coach would ever have one and the roster
-                form's coach table would print blank at every game. */}
+            {/* LAN-267: BAFA number is operator-editable — a coach never sees the player questionnaire. */}
             <CorrectableField
               name="studentNumber"
               reasonName="studentNumberReason"
@@ -235,10 +222,7 @@ export default function EditPersonForm({
               original={record.dateOfBirth ?? ""}
             />
 
-            {/* B2, LAN-185 correction round 2: the emergency contact is one
-                subject — the way the record itself reads it as a single
-                `Fact` — so its five fields render as their own labelled
-                group, not loose among the restricted fields. */}
+            {/* B2, LAN-185 round 2: emergency contact is one subject, grouped rather than loose among restricted fields. */}
             <FieldGroup title="Emergency contact">
               <Stack spacing={2}>
                 <CorrectableField
@@ -290,14 +274,9 @@ export default function EditPersonForm({
 }
 
 /**
- * One reason-governed field — B1/B3's single shared shape for every one of
- * the fifteen fields `person-write.ts`'s reason rule covers, mobile
- * included. `original` is the value currently on record (`""` means
- * genuinely empty, `REQ-not-recorded`). The *Reason for the change* box
- * appears only once the live value differs from `original` **and**
- * `original` is not empty — required to correct a value, never to fill an
- * empty one — and disappears again the moment the operator puts the
- * original value back, per field, live, the way B1 asked for it.
+ * One reason-governed field — B1/B3's shared shape for all fifteen reason-rule
+ * fields. `original` = value on record (`""` = empty, REQ-not-recorded). The
+ * reason box appears only when live value differs from a non-empty original.
  */
 function CorrectableField({
   name,
@@ -331,10 +310,7 @@ function CorrectableField({
   return (
     <>
       {phone ? (
-        // The control owns how it is typed; this component still owns whether
-        // a change needs a reason, and it compares the same joined string the
-        // hidden input posts, so putting the original number back makes the
-        // reason box disappear exactly as it does for every other field.
+        // The control owns typing; this component owns whether a change needs a reason (same joined string the hidden input posts).
         <PhoneField
           name={name}
           label={label}
@@ -375,11 +351,8 @@ function CorrectableField({
 }
 
 /**
- * B3's inline normalise-and-confirm, in place of the old second screen.
- * `validatePhoneNumber` is pure and explicitly documented safe to call from
- * a client component — the same posture `describeWhatsappSeamConsequence`
- * states for the same reason. Neither call writes anything; the server
- * action re-validates and re-normalises before it ever commits.
+ * B3's inline normalise-and-confirm, replacing the old second screen.
+ * Pure calls only — the server action re-validates before it commits.
  */
 function MobilePreview({
   value,
@@ -414,15 +387,10 @@ function MobilePreview({
 }
 
 /**
- * Three actions, one shared `<form>` — the outer edit form itself.
- *
- * HTML forbids a nested `<form>`, so each alias action is a submit button
- * carrying its own `formAction`, bound with `personId` and (for remove and
- * set-display) the alias id — React overrides a submit button's own
- * `name`/`value` the moment `formAction` is a function, so the id has to
- * travel bound into the action rather than as the button's own value. Every
- * one of these redirects back to this same page, so a click here never also
- * submits the record's other fields.
+ * Three alias actions share the outer edit `<form>` — HTML forbids nesting,
+ * so each is a submit button with its own bound `formAction` (`personId`
+ * and, for remove/set-display, the alias id) — React overrides a button's
+ * own name/value once `formAction` is a function.
  */
 function AliasesEditor({ personId, record }: { personId: string; record: PersonRecord }) {
   const addAction = submitAddAlias.bind(null, personId);

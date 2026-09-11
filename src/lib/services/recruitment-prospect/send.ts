@@ -29,12 +29,7 @@ export interface SendRecruitmentQuestionnaireResult {
   readonly reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
 }
 
-/**
- * `W2`'s two SEND buttons, both routed through the one declaration path the
- * amendment names — `declareRecruitmentCycleJobsIn`, called and never
- * duplicated. See the module comment for what "created" and "reason" mean
- * when only one of the two tracks was requested.
- */
+/** `W2`'s two SEND buttons, routed through `declareRecruitmentCycleJobsIn`, never duplicated. */
 export async function sendRecruitmentQuestionnaireIn(
   tx: Tx,
   actorPersonId: string,
@@ -63,8 +58,7 @@ export async function sendRecruitmentQuestionnaireIn(
   let reason: SendRecruitmentQuestionnaireResult["reason"] =
     created.length > 0 ? null : result.reason;
 
-  // An existing job is not the same thing as an answered questionnaire.
-  // Keep the completion refusal, but let an unanswered ask be sent again.
+  // An existing job is not an answered questionnaire — let an unanswered ask be sent again.
   if (created.length === 0 && reason === "already_complete") {
     const completion = await readRecruitmentCycleCompletionIn(
       tx,

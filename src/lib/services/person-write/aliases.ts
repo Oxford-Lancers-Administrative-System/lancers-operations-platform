@@ -6,24 +6,17 @@ import { type PersonRecord, readPersonRecordIn } from "../person-record";
 import { assertNoConcurrentPersonChange, lockPersonRow, optional, requireActor } from "./shared";
 
 /**
- * Aliases — add, remove, flag as the display name. LAN-185.
- *
- * `person-record.ts`'s own note: LAN-182 collapsed `people.known_as` into
- * `person_aliases`, where a single row may be flagged `is_display_name`
- * (`person_aliases_one_display_name_per_person`, at most one per person).
- * Every write here needs no reason: aliases are name forms, not the durable
- * facts `REQ-audit`'s reason rule guards, and the workflow names none.
+ * Aliases — add, remove, flag as the display name. LAN-185. LAN-182
+ * collapsed `people.known_as` into `person_aliases` (at most one
+ * `is_display_name` row). Every write here needs no reason: aliases are name
+ * forms, not the durable facts `REQ-audit`'s reason rule guards.
+ * Decision history: LAN-182, LAN-185, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
-/**
- * Adds one alias. Never a reason, never destructive — a second alias is
- * additional evidence, not a correction to the first.
- */
 export async function addPersonAlias(params: {
   actorPersonId: string;
   personId: string;
   alias: string;
-  /** Free text — who supplied it, `REQ-no-verification-mark`'s posture applied to a name form. */
   source?: string | null;
   expectedVersion?: string | null;
 }): Promise<PersonRecord> {
@@ -72,16 +65,9 @@ export async function addPersonAlias(params: {
 }
 
 /**
- * Removes one alias. Not a delete for the *person* — `given_name`,
- * `family_name` and every other durable fact are untouched — but it is a
- * real row delete on `person_aliases`, which carries no soft-hide column of
- * its own on `main`. The audit row this writes is what "kept as dedupe
- * evidence" means once the live row is gone: the fact that this person once
- * carried this name form survives permanently in `audit_events`, readable on
- * the person's own history, even though `findPersonDuplicates()` — which
- * matches only current, live rows — can no longer see it. Recorded here
- * rather than smoothed over: a structural "hidden, not deleted" column is a
- * migration, and this package does not own one.
+ * Removes one alias — a real row delete, `person_aliases` has no soft-hide
+ * column. The audit row is what "kept as dedupe evidence" means once the
+ * live row is gone; `findPersonDuplicates()` can no longer see it.
  */
 export async function removePersonAlias(params: {
   actorPersonId: string;
@@ -122,12 +108,6 @@ export async function removePersonAlias(params: {
   });
 }
 
-/**
- * Flags one alias as the display name, replacing whichever alias held the
- * flag before — `person_aliases_one_display_name_per_person` permits at most
- * one. The list's name column follows this immediately, because
- * `person-record.ts`'s `displayNameOf()` reads it directly.
- */
 export async function setDisplayNamePersonAlias(params: {
   actorPersonId: string;
   personId: string;
@@ -158,8 +138,6 @@ export async function setDisplayNamePersonAlias(params: {
       });
     }
 
-    // Unflag whichever alias held it, then flag this one — in one statement so
-    // the partial unique index is never asked to hold two `true` rows at once.
     await tx.query(
       `update public.person_aliases
           set is_display_name = (id = $1::uuid)

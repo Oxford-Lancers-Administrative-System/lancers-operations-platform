@@ -215,3 +215,141 @@ that address appeared on no screen at all. The record now carries an
 > recorded in the pull request; see LAN-74's acceptance criteria.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/new/page.tsx — module header
+
+> `/operate/roster/new` — UX-10, UX-11 and UX-12. LAN-74.
+>
+> The gate is the page's own boundary, independent of the layout's: a page
+> reached in any way that skipped the layout would otherwise render unguarded.
+> No capability is named, because returner intake is an ordinary operator
+> action — the reasoning is in `./actions.ts`, next to the guard that actually
+> enforces it.
+>
+> The page itself reads nothing. Every query this screen makes happens inside
+> the server action, after that action has authorized its own caller, so an
+> unauthorized request never causes a club record to be loaded at all — there
+> is no protected data in the initial payload to leak.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/new/actions.ts — module header
+
+> The returner intake server action. LAN-74, screens UX-10 → UX-13.
+>
+> ## Why one action with an intent, rather than three actions
+>
+> The three things an operator can do here — check for matches, use the person
+> they picked, confirm this is a new person — are three answers to one
+> question, and every one of them has to re-read the same five fields and
+> re-authorize the same caller. Splitting them into three entry points would
+> mean three places that could forget the guard. There is one place, and it is
+> the first statement.
+>
+> ## Authorization
+>
+> `requireGeneralOperator()` — a linked, active operator who is not a coaching
+> assignment, and nothing more.
+>
+> That is the whole requirement, and choosing it is a reading worth stating.
+> `docs/ux/slice-ux.md` § 8 puts "ordinary operator actions" under "only the
+> role/capability mapping in LAN-73 and owning live issue"; LAN-73's capability
+> map names activation, approval, attendance, role management, delivery and the
+> report, and does **not** name roster intake; and LAN-74 says only "an
+> authenticated operator enters a returning player". `destinations.ts` already
+> treats Roster as an ordinary operator surface for the same reason.
+>
+> Inventing a `roster_intake` capability here would be adding a role mapping
+> without a recorded decision, which `docs/ux/tickets/LAN-74-returner-intake.md`
+> explicitly forbids. If Brian wants intake narrowed to particular seats, that
+> is one entry added to `capabilities.ts` and one word changed here.
+>
+> The one seat the floor does **not** admit is a coaching assignment, and that
+> is LAN-110 rather than a new mapping: its fixed boundaries say a coach cannot
+> edit "the roster, membership, recruitment/onboarding state", and this action
+> mints a person, their contact points and a season membership. `requireOperator()`
+> admitted a Head Coach exactly as it admitted the Social Secretary, so the
+> floor failed a recorded boundary rather than merely being generous — the same
+> shape of defect LAN-80's own attendance guard had. Nobody else's access
+> changes; see `assertGeneralOperator` for why this is not a capability.
+>
+> The guard resolves the actor from the verified session. The actor is never
+> read from the form — a server action is a POST endpoint the browser can call
+> directly, and an action that accepted "who am I" would accept whatever was
+> sent.
+>
+> ## Why nothing is written until step two
+>
+> `check` never writes. `use_existing` and `confirm_new` are the only intents
+> that reach the database, and each of them is a decision the operator has
+> explicitly made about a named human being. There is deliberately no path
+> where an empty candidate list creates a person on its own: "nothing matched"
+> is still the operator's call, and UX-10's own note promises them that.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/list-filters.tsx — module header
+
+> The search-and-filter bar the roster and the events list both use — LAN-127
+> finding 3.
+>
+> ## Why this is shared
+>
+> The two screens had it twice, at exactly 202 lines each, structurally
+> identical down to the order of the hidden inputs. `filter-search.ts` was
+> already extracted from them for the same reason — the same broken
+> Enter-only search shipped on both, and Brian found it twice — so the search
+> box was shared while everything around it stayed duplicated.
+>
+> The copies had already diverged where it mattered: the roster's Filters
+> toggle carried a 44px minimum touch target and the events one carried none,
+> although `docs/ux/tickets/LAN-74-returner-intake.md` requires "every action
+> … carries a 44px minimum" and fifteen other files honour it. That is what
+> two copies do — not disagree loudly, but drift on the thing nobody re-reads.
+> Both now get the target, because one component cannot forget it on one
+> screen.
+>
+> ## What stays with the screen
+>
+> Every word. Labels, placeholders, the "All …" option, the order names, the
+> widths and the vocabulary maps are all passed in, because they belong to the
+> roster or to the events list and not to a shared control. "A to Z" is right
+> for names and wrong for dates; the component has no opinion.
+>
+> ## The two behaviours worth not re-deriving
+>
+> The selects **navigate** rather than submitting the form. MUI's
+> `TextField select` is a combobox backed by a hidden input that React writes
+> on the _next_ render, so `requestSubmit()` inside the change handler posts
+> the previous value and the selection appears to clear itself. Brian found
+> that on the real screen; no render test could, because none of them submits
+> a form. The value is taken straight off the change event instead.
+>
+> Filters **combine**. Each control patches one key and carries the rest
+> through, so Status and Type narrow together rather than replacing one
+> another. The form stays a real `GET` around the search box so Enter still
+> works and a filtered list is still a shareable link, with the other filters
+> mirrored as hidden inputs so a native submit never silently drops them.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/new/validation.ts — file header
+
+> LAN-74: "Validate shape enough to help the operator; do not silently rewrite
+> what was typed." Both halves of that sentence are load-bearing.
+>
+> The required-field rules below are this form's own — first name, last name
+> and mobile, per `W2`'s locked decision. The _shape_ of a phone number or an
+> email address is a question this form shares with the bulk importer, so it
+> is delegated to `src/lib/validation/contact.ts` rather than kept as a
+> private copy: LAN-215, B-007, Brian at this form, "the same phone
+> validation everywhere."
+>
+> Email stays permissive, as LAN-74 decided: `avery@example.ac.ox` passes,
+> because it is not a real domain and also not this form's business —
+> normalisation and verification are separate, reversible steps the data
+> model deliberately keeps apart from intake. Phone no longer is: B-007
+> tightened it to "can this become E.164", because the old rule — any value
+> with seven or more digits — is how a nonsense number got in.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

@@ -29,26 +29,14 @@ import { pickApprovedEvent, pickInvitationId } from "../picks";
 
 /**
  * S11 — the one-tap answer landing (`/a/[token]`), on the public shell.
- * LAN-225's player-surfaces addendum.
+ * LAN-225's player-surfaces addendum. Read by invitation id through the
+ * operator tier, never by token. The Yes side is drawn (the audit's captured
+ * state, `a-token--confirm-yes--*.png`); copy unchanged, including the
+ * deliberate Yes emphasis (LAN-172, REQ-emphasis-points-at-yes). Drawn, not
+ * wired — the real page's single form both records and saves; a preview must
+ * not.
  *
- * The second half of the invite pair. `/rsvp/[token]` (S5) is the invitation
- * the player is sent; this is where the Yes or No button in that message
- * lands them, with the answer already taken and the event's own questions
- * asked in the same form that records it. Read by invitation id through the
- * operator tier — never by token, and no token is rendered.
- *
- * The Yes side is drawn, because it is the side that carries the questions
- * and is the state the audit captured on `main`
- * (`a-token--confirm-yes--*.png`). The copy is `/a/[token]`'s own, unchanged,
- * including the deliberate Yes emphasis (LAN-172, REQ-emphasis-points-at-yes).
- *
- * What changes: the masthead with the crest instead of the plain-text banner
- * (audit A9, F8, G3); the facts in one `FactGrid` with one `Fact` shape; the
- * questions in a `Section` on `SelectField` and `Field` at one size; the
- * confirm as an `ActionBar` with "Plans changed?" as its secondary, so the
- * page has one foot rather than a button, then a link, then another form.
- * Drawn, not wired — the real page's single form both records the answer and
- * saves the questions, and a preview must not.
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 export default async function AnswerPreviewPage() {
   const gate = await gateShellPage("/design-preview/answer");
@@ -82,12 +70,7 @@ export default async function AnswerPreviewPage() {
   return (
     <PublicShell caption="Your answer" width="medium" layout="stack" testId="answer-preview">
       <Stack spacing={3}>
-        {/*
-          The heading is the answer, not the event — `/a/[token]` opens with
-          "You're attending" because the player has already pressed a button
-          and the page's job is to confirm what it recorded. The event's name
-          is the subtitle, exactly as the real page puts it under the heading.
-        */}
+        {/* Heading is the answer, not the event — the player already pressed a button; the page confirms what it recorded. */}
         <PageHeader
           eyebrow={eventTypeLabel(base.eventType)}
           title={YES_HEADING}
@@ -105,11 +88,7 @@ export default async function AnswerPreviewPage() {
               <Fact label="When" value={when} emphasis />
               <Fact label="Venue" value={base.venue} emphasis />
               <Fact label="Response deadline" value={formatDeadline(base.responseDeadline)} />
-              {/*
-                The real page carries this fact too, and it is not a chip
-                beside the heading: the heading already says the answer, and a
-                chip repeating it word for word is colour without information.
-              */}
+              {/* Not a chip beside the heading, which already says the answer — that would be colour without information. */}
               <Fact
                 label="Your answer"
                 value={<StatusChip domain="rsvp" status="yes" label={YES_HEADING} />}

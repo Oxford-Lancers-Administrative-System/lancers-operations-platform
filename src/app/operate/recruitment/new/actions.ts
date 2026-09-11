@@ -22,14 +22,9 @@ import {
 } from "./create-state";
 
 /**
- * `/operate/recruitment/new`'s one server action — `W6`, LAN-206. The same
- * three-intent shape `/operate/people/new/actions.ts` uses ("check", "link"
- * and "create" are three answers to one question), because this door reuses
- * that exact form and that exact duplicate check.
- *
- * Every request re-authorizes itself with `requireCapability`, the same
- * "the page's own gate is not the enforcement" posture the shipped action
- * states.
+ * `/operate/recruitment/new`'s one server action — `W6`, LAN-206. Same
+ * three-intent shape as `/operate/people/new/actions.ts`; every request
+ * re-authorizes itself with `requireCapability`.
  */
 export async function submitAddRecruit(
   previous: AddRecruitState,
@@ -42,10 +37,7 @@ export async function submitAddRecruit(
   const intent =
     typeof linkPersonId === "string" && linkPersonId !== "" ? "link" : formData.get("intent");
 
-  // F-206-02, correction round 1: `src/app/recruitment-preview/add-recruit.tsx`'s
-  // own "Go back and change the details" — hides the candidates panel so the
-  // still-visible fields below can be edited before checking again. No
-  // service call, nothing written; this is a pure state reset.
+  // F-206-02, correction round 1: "Go back and change the details" is a pure state reset — no service call, nothing written.
   if (intent === "dismiss") {
     return { values, errors: {}, candidates: null, exactMatch: null };
   }
@@ -113,13 +105,9 @@ export async function submitAddRecruit(
         return finished.prospectId;
       });
     } catch (error) {
-      // V-3 / V-4, correction round 2: a player match used to fall into the
-      // ordinary `formError` banner, stacked on the still-visible candidates
-      // panel and form beneath it — Brian's own "flurry of information."
-      // `refuseIfAlreadyAMemberIn`'s own rule names exactly this outcome; it
-      // is not an error to report, it is the one clean confirmation screen
-      // below, and everything else this action would otherwise return is
-      // dropped in favour of it.
+      // V-3/V-4, correction round 2: an existing-member match resolves to
+      // AlreadyMemberScreen, not the ordinary formError banner.
+      // Decision history: missions/intake/M-RECRUITMENT
       if (
         isServiceError(error) &&
         error.rule === "recruitment_add_existing_member_is_not_a_recruit"
@@ -262,14 +250,9 @@ function requiredErrors(values: {
   const errors: AddRecruitFieldErrors = {};
   if (values.givenName.trim() === "") errors.givenName = "Required";
   if (values.familyName.trim() === "") errors.familyName = "Required";
-  // Task 09 §9.1 / Brian 2026-09-01: mobile is required at this door, not
-  // "mobile or email" — `requireMobileProvided` is the service layer's own
-  // backstop of the same rule; this is the form-facing field error for it.
+  // Task 09 §9.1, Brian 2026-09-01: mobile required at this door. Decision history: missions/intake/M-RECRUITMENT
   if (values.mobile.trim() === "") errors.mobile = "A mobile number is required at this door.";
-  // LAN-268, Brian 2026-09-09: the required set at this door is the same four
-  // things the recruit's own sign-up door asks for. Whether the value is an
-  // Oxford address is `validateCollegeEmail`'s answer, surfaced through
-  // `validationFieldErrors` below; this is only "you left it blank".
+  // LAN-268, Brian 2026-09-09: same four required things as the recruit's own sign-up door. Decision history: missions/intake/M-RECRUITMENT
   if (values.collegeEmail.trim() === "")
     errors.collegeEmail = "A college email is required at this door.";
   return errors;
@@ -279,10 +262,7 @@ function validationFieldErrors(error: unknown): AddRecruitFieldErrors | null {
   if (!isServiceError(error)) return null;
   if (typeof error.rule !== "string") return null;
   if (error.rule.startsWith("phone_")) return { mobile: error.message };
-  // Before the generic `email_` prefix: `validateCollegeEmail` defers to the
-  // shared shape check, so a college address that is not an address at all
-  // comes back as `email_not_well_formed` and would otherwise land the
-  // message on the wrong field.
+  // Before the generic email_ prefix: validateCollegeEmail defers to the shared shape check, so a malformed address lands on the right field.
   if (error.rule.startsWith("college_email_")) return { collegeEmail: error.message };
   if (error.rule.startsWith("email_")) return { personalEmail: error.message };
   if (error.rule === "people_given_name_not_blank") return { givenName: error.message };

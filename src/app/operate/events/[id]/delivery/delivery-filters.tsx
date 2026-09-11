@@ -9,21 +9,10 @@ import { Field } from "@/components/field";
 import { useFilterSearch } from "../../../filter-search";
 import { SEARCH_LABEL, STATUS_FILTERS } from "./presentation";
 
-/**
- * UX-51's search and status filter.
- *
- * Both live in the query string, so a filtered diagnostics view is a link an
- * operator can send to somebody and the back button does what it looks like it
- * does.
- *
- * The search behaviour comes from the shared `useFilterSearch`, which carries
- * two corrections paid for on real screens: filtering as you type rather than
- * on an unadvertised Enter, and not losing text typed inside the debounce
- * window. The status select navigates from the change event's value rather than
- * submitting the form, because MUI's `TextField select` is a combobox over a
- * hidden input whose value React writes on the *next* render — submitting
- * inside the handler posts the previous selection.
- */
+// UX-51's search and status filter, in the query string. The status select
+// navigates from the change event's value, not a form submit — MUI's
+// TextField select writes its hidden input on the NEXT render.
+// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 export default function DeliveryFilters({
   basePath,
   search,
@@ -51,8 +40,7 @@ export default function DeliveryFilters({
       data-testid="delivery-filters"
       sx={{ width: "100%" }}
     >
-      {/* Mirrored so a native submit — Enter in the search box — never drops
-          the other filters silently. */}
+      {/* Mirrored so Enter in the search box never drops the other filters. */}
       <input type="hidden" name="view" value="diagnostics" />
       <Stack
         direction={{ xs: "column", sm: "row" }}

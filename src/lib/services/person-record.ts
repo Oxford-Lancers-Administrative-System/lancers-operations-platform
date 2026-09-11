@@ -16,52 +16,16 @@ import {
 } from "./sql-text";
 
 /**
- * The person record, assembled — LAN-183, `REQ-person-record` and
- * `REQ-status-ladder`. The four surface packages this mission still owes call
- * here instead of each writing their own read.
- *
- * ## What "assembled" means
- *
- * One `people` row, its aliases, its current and superseded contact points,
- * its emergency contact (0 or 1 row, structurally its own table —
- * `REQ-restricted-fields`), and two derived views LAN-182 built —
- * `person_standing` and `person_blues_totals` — read together and returned as
- * one shape. Nothing here writes; `person-write.ts` is the correction path.
- *
- * ## `REQ-no-disputed` and `REQ-no-verification-mark`
- *
- * There is no contested-value field, no verification-mark field and no
- * confidence class anywhere below — not struck out, never added. A contact
- * value's `source` says who supplied it and nothing more, which is the whole
- * of what LAN-182's schema carries and the whole of what this module returns.
- *
- * ## Derived provenance — `Q-13`
- *
- * `given_name`, `family_name`, `college`, `matriculation_year`,
- * `expected_graduation_year`, `degree_field` and `date_of_birth` have no
- * `source` column of their own on `main`. Brian's walkthrough of LAN-184
- * chose to derive "who supplied it" for these seven from `audit_events`
- * instead of adding one: the most recent `person_<field>_updated` row this
- * module finds naming the person is who supplied the value currently on file;
- * a field never changed through the application — seeded, imported, or set at
- * `person_created`, which names no single field and is deliberately not
- * treated as attributing one — has no such row, and the corresponding
- * `<field>Source` reads `null` rather than a guess. See
- * `readFieldProvenanceIn` below.
- *
- * ## Merged-away records
- *
- * Invariant I6: a merged person's row survives forever, pointing at the
- * survivor, and is never offered as a live identity again. `readPersonRecord`
- * refuses one with `NotFound` rather than assembling it — the identity it
- * would return is not the one anybody holds a live tie to — and
- * `searchPeople` excludes them from its `where` clause outright, the same
- * guarantee `roster.ts`'s duplicate check gives.
+ * The person record, assembled — LAN-183, `REQ-person-record`,
+ * `REQ-status-ladder`. One `people` row, its aliases, current and superseded
+ * contact points, its emergency contact (0 or 1 row, its own table), and two
+ * derived views (`person_standing`, `person_blues_totals`) — read together,
+ * returned as one shape. Nothing here writes; `person-write.ts` corrects.
+ * No contested-value/verification-mark/confidence field anywhere (LAN-182).
+ * A merged person's row (invariant I6) is refused with `NotFound`, never
+ * assembled or returned by search.
+ * Decision history: LAN-182, LAN-183, LAN-184, missions/intake/M-PEOPLE-AND-ROSTER
  */
-
-// ---------------------------------------------------------------------------
-// Shapes
-// ---------------------------------------------------------------------------
 
 interface PersonAlias {
   id: string;
@@ -99,10 +63,9 @@ export interface EmergencyContact {
 export interface PersonRecord {
   personId: string;
   givenName: string;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  /** Every `*Source` field below: derived from `audit_events`, `null` when no edit has named it (Q-13). */
   givenNameSource: string | null;
   familyName: string | null;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   familyNameSource: string | null;
   aliases: PersonAlias[];
   /** The alias flagged `is_display_name`, if there is one; else `givenName`, plus `familyName`. */
@@ -110,32 +73,23 @@ export interface PersonRecord {
   /** The six-rung ladder. `null` for a person on neither the prospect nor the membership record. */
   status: AssembledStatus;
   college: string | null;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   collegeSource: string | null;
   matriculationYear: number | null;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   matriculationYearSource: string | null;
   expectedGraduationYear: number | null;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   expectedGraduationYearSource: string | null;
   degreeField: string | null;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   degreeFieldSource: string | null;
-  /** LAN-267. A personal fact, shown to an authorised operator and printed on the roster form. */
+  /** LAN-267. Operator-editable as well as questionnaire-collected. */
   studentNumber: string | null;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   studentNumberSource: string | null;
-  /** LAN-267. Operator-editable as well as questionnaire-collected — a coach never sees a questionnaire. */
   bafaRegistrationNumber: string | null;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   bafaRegistrationNumberSource: string | null;
   /** `REQ-restricted-fields`: four-role only, and never on a list, board or queue. */
   dateOfBirth: string | null;
-  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
   dateOfBirthSource: string | null;
   /** `REQ-restricted-fields`: structurally isolated; four-role only. `null` when none is recorded. */
   emergencyContact: EmergencyContact | null;
-  /** Current and superseded, oldest last within each kind and scope. */
   contacts: PersonContactValue[];
   isPastMember: boolean;
   standingIsOverridden: boolean;
@@ -166,10 +120,6 @@ export interface PersonSummary {
 export const PERSON_NOT_FOUND_MESSAGE = "That person is not on record.";
 export const PERSON_MERGED_AWAY_MESSAGE =
   "This record was merged into another person and is no longer opened on its own.";
-
-// ---------------------------------------------------------------------------
-// Reading one person
-// ---------------------------------------------------------------------------
 
 interface PersonRow {
   person_id: string;
@@ -310,13 +260,7 @@ async function readEmergencyContactIn(tx: Tx, personId: string): Promise<Emergen
   };
 }
 
-/**
- * The seven `people` columns `person-write.ts`'s `updatePersonField` can
- * change and LAN-182's schema gives no `source` column of their own. Each
- * name here is also the `field` half of that function's own
- * `person_<field>_updated` audit action — the one place these columns are
- * ever the subject of an audit row.
- */
+/** The `people` columns with no `source` column of their own; each name is also the `field` half of `updatePersonField`'s `person_<field>_updated` audit action. */
 const DERIVED_PROVENANCE_FIELDS = [
   "given_name",
   "family_name",
@@ -331,21 +275,7 @@ const DERIVED_PROVENANCE_FIELDS = [
 
 type DerivedProvenanceField = (typeof DERIVED_PROVENANCE_FIELDS)[number];
 
-/**
- * "Who supplied it" for the seven fields above, read from `audit_events`
- * rather than stored — `Q-13`. The most recent `person_<field>_updated` row
- * naming this person is who supplied that field's current value; a field
- * with no such row reads `null`, which the page renders as an explicit "not
- * recorded" rather than a guess.
- *
- * `person_created` is deliberately excluded even though it may have set
- * several of these columns at once: it names no single field, so treating it
- * as provenance for every column it happened to populate would attribute a
- * fact this row does not actually state — the exact shape of invented
- * caption `Q-13` and amendment `W1-A2` both refuse. This is also why almost
- * nothing renders a caption yet: almost every person on file today arrived
- * through an intake path that writes `person_created` and nothing more.
- */
+/** "Who supplied it" (Q-13), from the most recent `person_<field>_updated` row; `null` when none. `person_created` excluded — names no single field. */
 async function readFieldProvenanceIn(
   tx: Tx,
   personId: string,
@@ -368,8 +298,6 @@ async function readFieldProvenanceIn(
 
   const bySource = new Map<string, string>();
   for (const row of result.rows) {
-    // Inverse of `person_${field}_updated` — the field name is what
-    // `updatePersonField` put in the middle of its own action string.
     const field = row.action.slice("person_".length, -"_updated".length);
     if (bySource.has(field)) continue; // the newest row for this field is already kept
     bySource.set(field, row.actor_display_name ?? row.actor_label ?? "Unknown");
@@ -389,9 +317,7 @@ function presenceFrom(
     givenName: true, // people.given_name is `not null` in the schema
     familyName: row.family_name !== null,
     mobile: contacts.some((c) => c.kind === "phone" && c.validUntil === null),
-    // LAN-268: a stored college address that is not an Oxford one counts as
-    // missing, so the queue chases it. The rule is asked of the one validator
-    // rather than restated here.
+    // LAN-268: the rule lives in isOxfordCollegeEmail, not restated here.
     collegeEmail: contacts.some(
       (c) =>
         c.kind === "email" &&
@@ -411,12 +337,7 @@ function presenceFrom(
   };
 }
 
-/**
- * The transaction-scoped read, exported so `person-write.ts` can read back the
- * record it just changed **inside the same transaction** — a write followed
- * by `readPersonRecord()` would open a second connection and could read the
- * pre-commit state, or deadlock against the write's own row lock.
- */
+/** Transaction-scoped read, exported so `person-write.ts` can read back a record it just changed inside the same transaction. */
 export async function readPersonRecordIn(tx: Tx, personId: string): Promise<PersonRecord> {
   const row = await readPersonRowIn(tx, personId);
   const [aliases, contacts, emergencyContact, fieldProvenance] = await Promise.all([
@@ -463,26 +384,10 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
   };
 }
 
-/**
- * One person, assembled from every record this mission touches. Throws
- * `NotFound` when the id does not exist, and throws it again — with a
- * different message — when the id names a person merged away under
- * invariant I6.
- *
- * Returns the **full** record. Authorization is not here — the same
- * separation `membership.ts` states for `setMembershipStatus()`: a caller
- * redacts with `src/lib/auth/person-authority.ts`'s `redactPersonRecord()`
- * before this reaches anybody outside the four offices. Keeping the two apart
- * means this function is testable against the database with an arbitrary role,
- * and the redaction is testable with no database at all.
- */
+/** One person, assembled. Throws `NotFound` (a distinct message for one merged away, invariant I6). Full record — a caller redacts with `redactPersonRecord()`. */
 export async function readPersonRecord(personId: string): Promise<PersonRecord> {
   return withTransaction(async (tx) => readPersonRecordIn(tx, personId));
 }
-
-// ---------------------------------------------------------------------------
-// Search — REQ-person-record, "Search"
-// ---------------------------------------------------------------------------
 
 /** The most this call returns. `DEC-w1-12`: query shape and pagination are delegated; the club holds hundreds of people, not millions. */
 const SEARCH_RESULT_LIMIT = 100;
@@ -504,14 +409,9 @@ function toSummary(row: SummaryRow): PersonSummary {
     givenName: true,
     familyName: row.family_name !== null,
     mobile: row.has_mobile,
-    // Knowable from a summary row and therefore answered honestly, exactly as
-    // mobile and personal email already are — a college address is not one of
-    // the restricted facts a list may not carry.
     collegeEmail: isOxfordCollegeEmail(row.college_email),
     personalEmail: row.has_personal_email,
-    // A list row never carries these facts (`REQ-restricted-fields`), so they
-    // cannot be known to be missing from here — `readPersonRecord` is where a
-    // caller learns the full missing set for one person.
+    // Not knowable from a list row (REQ-restricted-fields); readPersonRecord has the full set.
     college: true,
     matriculationYear: true,
     expectedGraduationYear: true,
@@ -535,17 +435,10 @@ function toSummary(row: SummaryRow): PersonSummary {
 }
 
 /**
- * Finds people by first name, last name, or **any** alias — including one
- * that is not the display name (`REQ-person-record`: "including an alias that
- * is not the display name"). Never returns a merged-away record.
- *
- * A list-shaped result, structurally: `PersonSummary` has no `dateOfBirth` and
- * no `emergencyContact` field to leave absent, so there is nothing a role
- * check could fail to redact. `DEC-w1-03`'s "missing-data flag" is
- * `missingRequiredFields`, computed only from what a list is allowed to know —
- * academic and safety facts are assumed present here and corrected by opening
- * the full record, which is what keeps this query from reaching restricted
- * columns at all.
+ * Finds people by first name, last name, or **any** alias, including one
+ * that is not the display name. Never returns a merged-away record.
+ * `PersonSummary` has no `dateOfBirth`/`emergencyContact` field to redact —
+ * a list-shaped result structurally, never reaching restricted columns.
  */
 export async function searchPeople(
   query: string,

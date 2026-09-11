@@ -12,9 +12,8 @@ import {
 
 /**
  * The roster board's remaining columns — coach group, formalwear, Blues, BPS,
- * eligibility, availability, entry. LAN-186 / LAN-217.
- * Decision history: docs/ux/tickets/LAN-186-roster-board.md.
- * (BPS), invariants S4/A1.
+ * eligibility, availability, entry. LAN-186 / LAN-217, invariants S4/A1.
+ * Decision history: docs/ux/tickets/LAN-186-roster-board.md
  */
 
 /** One row per membership. Storage only — Mission 9 owns what the value means. */
@@ -62,14 +61,7 @@ export async function commitCoachGroup(params: {
   });
 }
 
-/**
- * One formalwear item, ticked or unticked. The underlying fact is free text
- * (`"Yes (paid)"` is a real club answer), so unticking writes `"No"` rather
- * than deleting the row, and an already-recorded `"Yes (paid)"` is only ever
- * moved to `"No"` from here — re-ticking after that writes the plainer `"Yes"`,
- * which is the one simplification this column makes and is recorded here
- * rather than silently.
- */
+/** One formalwear item, ticked or unticked. The fact is free text (`"Yes (paid)"` is real); unticking writes `"No"`, re-ticking writes plain `"Yes"`. */
 export async function commitFormalwearItem(params: {
   actorPersonId: string;
   membershipId: string;
@@ -165,16 +157,7 @@ export async function commitBlues(params: {
   });
 }
 
-/**
- * BPS — a plain yes/no roster attribute, `WP-operator-record` (LAN-217),
- * mission owner-question Q-2/Q-3. Item 5 of the item-and-ask inventory left
- * the onboarding checklist on Brian's explicit instruction (2026-09-01):
- * "it's not a fucking mission change. We are going to add it here into the
- * roster for the BPS column." It is a coaching selection rotated on
- * attendance, never chased and never gating anything — this function is
- * `commitBlues`'s own shape, one boolean rather than a three-way enum, since
- * `bps_selections` is unique per membership the same way `blues_awards` is.
- */
+/** BPS — a plain yes/no roster attribute (LAN-217), a coaching selection never chased or gating anything. `commitBlues`'s own shape, one boolean. */
 export async function commitBps(params: {
   actorPersonId: string;
   membershipId: string;
@@ -216,12 +199,7 @@ export async function commitBps(params: {
 
 export type EligibilityStatus = "pending" | "eligible" | "ineligible" | "expired";
 
-/**
- * Eligibility for the `club_play` competition — the one every player needs
- * regardless of which representative sides they may separately qualify for.
- * See `relocations.md` for why this column reads one competition rather than
- * all of them.
- */
+/** Eligibility for the `club_play` competition — the one every player needs regardless of representative-side qualification. */
 export async function commitEligibility(params: {
   actorPersonId: string;
   membershipId: string;
@@ -284,17 +262,11 @@ export async function commitEligibility(params: {
 export type AvailabilityLevel = "green" | "orange" | "red";
 
 /**
- * A new current availability status. Append-only (invariant A1) — always an
- * insert, never an update. `availability_statuses_green_records_its_confirmer`
- * requires a confirmer for Green; the acting operator is that confirmer,
- * because making the change on this board is the act of confirming it.
- *
- * `effectiveFrom` defaults to today, which is right for a change made on this
- * board in the moment. LAN-215, B-008's arrival-sets-green rule passes it
- * explicitly instead: the row has to carry the membership's own joining date,
- * which is not always today — the recruit flip (`W3`) can commit a
- * `season_memberships.confirmed_on` that was set on an earlier day than the
- * one the flip itself executes on.
+ * A new current availability status, append-only (invariant A1), never an
+ * update. The acting operator is the confirmer for Green
+ * (`availability_statuses_green_records_its_confirmer`). `effectiveFrom`
+ * defaults to today; LAN-215 B-008 passes it explicitly for a joining date
+ * that is not today.
  */
 export async function commitAvailability(params: {
   actorPersonId: string;
@@ -338,10 +310,7 @@ export async function commitAvailability(params: {
   });
 }
 
-/**
- * `season_memberships.entry` — new or returning. A plain field with no
- * effective dating in the schema, unlike `status`.
- */
+/** `season_memberships.entry` — new or returning. A plain field, no effective dating unlike `status`. */
 export async function commitEntry(params: {
   actorPersonId: string;
   membershipId: string;

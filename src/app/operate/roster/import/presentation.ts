@@ -6,16 +6,8 @@ import type {
   RosterRowOutcome,
 } from "@/lib/services/roster-csv";
 
-/**
- * How the roster import's confirmation reads. LAN-215, `W1`.
- *
- * Pure, and separate from the component — the precedent is
- * `../../events/import/presentation.ts`, which does the same for the event
- * screens, so wording and outcome colours can be asserted without rendering
- * a table.
- */
+// How the roster import's confirmation reads — LAN-215, `W1`.
 
-/** The four outcomes, in the club's words. */
 export const OUTCOME_LABELS: Readonly<Record<RosterRowOutcome, string>> = Object.freeze({
   new: "New",
   carried_forward: "Carried forward",
@@ -23,7 +15,6 @@ export const OUTCOME_LABELS: Readonly<Record<RosterRowOutcome, string>> = Object
   refused: "Refused",
 });
 
-/** The confirmation's column headings, in the order the table shows them. */
 export const COLUMN_HEADINGS: Readonly<Record<ImportColumn, string>> = Object.freeze({
   first_name: "First name",
   last_name: "Last name",
@@ -33,7 +24,6 @@ export const COLUMN_HEADINGS: Readonly<Record<ImportColumn, string>> = Object.fr
   matriculation_year: "Year",
 });
 
-/** Every column the table shows, left to right, after the player's name. */
 export const SHOWN_COLUMNS: readonly ImportColumn[] = Object.freeze([
   "mobile",
   "personal_email",
@@ -41,12 +31,10 @@ export const SHOWN_COLUMNS: readonly ImportColumn[] = Object.freeze([
   "matriculation_year",
 ]);
 
-/** An em dash for an empty cell — `docs/ux/standards.md` rule 3. */
 export function cellText(value: string): string {
   return value === "" ? "—" : value;
 }
 
-/** The right-hand column: what this row does, or why it did not. */
 export function changeSummary(row: RosterPlannedRow): string {
   if (row.outcome === "refused") return row.reasons.join(" ");
   if (row.outcome === "new")
@@ -56,18 +44,15 @@ export function changeSummary(row: RosterPlannedRow): string {
   return "Already on this season's roster · no second checklist, no second welcome";
 }
 
-/** The Confirm button's label, which counts what it will actually write. */
 export function applyLabel(applicableCount: number): string {
   if (applicableCount === 0) return "Nothing to apply";
   return `Confirm — add ${applicableCount} player${applicableCount > 1 ? "s" : ""}`;
 }
 
-/** "42 rows read · nothing has been changed yet" — the line under the heading. */
 export function describeProposal(seasonLabel: string, rowCount: number): string {
   return `Season ${seasonLabel} · ${rowCount} row${rowCount === 1 ? "" : "s"} read · nothing is written until you confirm`;
 }
 
-/** "1 to answer" — the duplicates section's own count, or nothing when there is none. */
 export function describeUnanswered(unansweredLines: readonly number[]): string {
   const count = unansweredLines.length;
   return count === 1 ? "1 to answer" : `${count} to answer`;

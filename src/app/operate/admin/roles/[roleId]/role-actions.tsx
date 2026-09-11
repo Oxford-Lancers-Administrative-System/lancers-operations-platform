@@ -29,45 +29,16 @@ import {
 } from "@/components/outcome-slot";
 import type { PermittedRoleActions } from "../../permissions";
 
-/**
- * Changing who holds one seat — LAN-133.
- *
- * Three actions, named by `DEC-administration-language-and-states`: **Replace
- * role**, **End role**, and the assignment into a vacancy. They are three
- * because `DEC-account-state-separation` makes them three different facts —
- * "Replace role ends the outgoing assignment and creates the successor … only
- * End role creates a Not assigned vacancy" — and a single "change holder" form
- * with an optional successor would have collapsed that distinction into a
- * checkbox.
- *
- * Nothing here edits the role or what it can do. `DEC-no-runtime-role-editing`
- * puts the catalogue and the capability map beyond the application, and this
- * component has no field that could reach either.
- *
- * ## Choosing a person is a search, not a list
- *
- * `findOperatorCandidates` matches **exactly** — a whole given name, a whole
- * family name, a whole address, the last nine digits of a phone. That is its
- * rule and not this screen's, and the reason it is not a dropdown of everybody:
- * a picker listing the club's members would disclose the roster to anybody who
- * opened a role, and a loose search would do the same one letter at a time.
- *
- * So the administrator types who they mean, and gets the people who are
- * certainly that person. An empty result is a real answer — the successor has
- * to exist as a Person before they can be given a seat, and the invitation flow
- * is where a new one is created.
- */
+// Changing who holds one seat — LAN-133. Three actions (Replace role, End
+// role, assign into a vacancy) because DEC-account-state-separation makes
+// them three different facts, not one form with an optional successor.
+// Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 /** One current holder, with the two dates the forms below have to respect. */
 export interface RoleActionHolder {
   readonly roleAssignmentId: string;
   readonly displayName: string;
   readonly effectiveFrom: string;
-  /**
-   * The earliest date this assignment may be given as its end, `YYYY-MM-DD`.
-   *
-   * Computed by `earliestEndFor()` — the same function the service's guard uses
-   * — so the form and the refusal cannot disagree about it.
-   */
+  /** The earliest date this assignment may be given as its end, `YYYY-MM-DD` (`earliestEndFor()`). */
   readonly earliestEnd: string;
 }
 
@@ -86,23 +57,9 @@ export default function RoleActions({
   roleCode: string;
   roleLabel: string;
   vacant: boolean;
-  /**
-   * Whether the cycle this seat hangs off can take a new assignment today.
-   *
-   * False between committee years, and false for a season in `closing` — which
-   * is current to read and closed to write. Offering Assign there would open a
-   * form the service is certain to refuse, which is the same defect as the end
-   * date below wearing different clothes.
-   */
+  /** Whether the cycle this seat hangs off can take a new assignment today. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
   assignable: boolean;
-  /**
-   * `DEC-assignment-dates-and-cardinality`: "Single-holder restrictions follow
-   * the constitution, with General Manager additionally single-holder; other
-   * roles permit multiple holders unless another authoritative rule says
-   * otherwise." A seat that admits several can be assigned again while it is
-   * held — two Social Secretaries is in the club's own 2025 AGM record — and
-   * one that does not cannot, which is why Assign is not simply "when vacant".
-   */
+  /** `DEC-assignment-dates-and-cardinality`. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md. */
   admitsMultipleHolders: boolean;
   /** The club's own day, `YYYY-MM-DD`, as the page read it. */
   today: string;
@@ -115,13 +72,9 @@ export default function RoleActions({
 
   const offered = {
     assign: permitted.assign && assignable && (vacant || admitsMultipleHolders),
-    // Replacement hands **one** assignment over, so it is offered only when
-    // there is exactly one to hand over. On a seat with several holders the
-    // question "who is being replaced?" has no single answer, and End plus
-    // Assign say the same thing without guessing. It creates the successor's
-    // assignment, so it needs a cycle to hang it off exactly as Assign does.
+    // Replacement hands one assignment over, offered only when exactly one
+    // exists to hand over. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
     replace: assignable && holders.length === 1 && permitted.replace,
-    // Ending needs no cycle: it dates an assignment that already hangs off one.
     end: holders.length > 0 && permitted.end,
   };
 
@@ -184,12 +137,7 @@ export default function RoleActions({
             personField="successorPersonId"
             successorOf={holders}
             today={today}
-            /*
-              A replacement's start date is also the outgoing assignment's end
-              date, so it carries the same floor End does — LAN-141 finding 2.
-              Handing over a seat somebody took up this morning cannot happen
-              until tomorrow, and the form is where that has to be said.
-            */
+            // Same floor as End — LAN-141 #2. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
             earliestFrom={holders[0]?.earliestEnd}
           >
             <input type="hidden" name="roleId" value={roleId} />
@@ -229,14 +177,7 @@ function PersonPanel({
   successorOf?: readonly RoleActionHolder[];
   /** The club's own day, `YYYY-MM-DD`. */
   today: string;
-  /**
-   * The earliest start this form may offer, `YYYY-MM-DD`, where one applies.
-   *
-   * Absent for an assignment into a vacancy: nothing is being ended, so any day
-   * is a legitimate start. Present for a replacement, where the successor's
-   * start is the incumbent's end and the schema requires it to be later than
-   * the incumbent's own start.
-   */
+  /** The earliest start this form may offer, `YYYY-MM-DD` — absent for an assignment into a vacancy. */
   earliestFrom?: string;
   children?: ReactNode;
 }) {
@@ -246,33 +187,12 @@ function PersonPanel({
   );
   const [result, submitAction, submitting] = useActionState(action, EMPTY_ADMIN_ACTION_STATE);
   const [chosen, setChosen] = useState("");
-  /**
-   * Two slots on one panel, not one — LAN-141 finding 15.
-   *
-   * This panel runs **two** actions: a search that asks something, and a submit
-   * that changes something. Only the second was inside the slot, so a failed
-   * search sat above a fresh confirmation and both read as current — which is
-   * exactly the state LAN133-BRIAN-3's rule exists to forbid, reached on the
-   * screen with three panels rather than the one with two. Registering the
-   * search as its own panel is what puts it under the rule: starting either
-   * clears the other.
-   */
+  // Two slots on one panel, not one — LAN-141 #15. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
   const searchSlot = useOutcomeSlot(`${testId}-search`);
   const slot = useOutcomeSlot(testId);
 
-  /**
-   * The search terms, held here rather than in the DOM — LAN133-BRIAN-7.
-   *
-   * React resets a form after its action runs, which is right for a form that
-   * *submits* something and wrong for one that *asks* something: pressing
-   * Search emptied the three fields the administrator had just typed, so the
-   * result appeared beneath a blank form with no way to tell what had been
-   * searched for, and refining a near miss meant retyping all of it.
-   *
-   * Controlled inputs survive that reset, because their value comes from state
-   * the reset does not touch. It also makes the terms available to the empty
-   * result below, which can then say what it looked for.
-   */
+  // Search terms held here, not in the DOM — LAN133-BRIAN-7 (a submit form's
+  // reset would otherwise empty them). Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
   const [terms, setTerms] = useState({ givenName: "", familyName: "", email: "" });
   const term = (field: keyof typeof terms) => ({
     value: terms[field],
@@ -280,20 +200,8 @@ function PersonPanel({
       setTerms((current) => ({ ...current, [field]: event.target.value })),
   });
 
-  /**
-   * LAN133-BRIAN-8, below. The constraint an empty result expresses is real — a
-   * seat goes to somebody the club already holds a record for — but stating a
-   * rule is not the same as showing the way out. It told the administrator to
-   * invite the person first, then left them on a screen with no link to do it
-   * and a submit button that could never enable, which reads as a broken page
-   * rather than as a rule. The alert now carries the route, and the disabled
-   * button says what would enable it.
-   */
-
-  /**
-   * Whether leaving the date blank — which the service reads as today — is a
-   * date this form may offer. LAN-141 finding 2.
-   */
+  // LAN133-BRIAN-8: the empty-result alert carries the invite route.
+  // Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
   const todayIsAllowed = earliestFrom === undefined || earliestFrom <= today;
 
   /** What the administrator asked for, so an empty answer can name it. */
@@ -419,9 +327,7 @@ function PersonPanel({
                 }
               />
               {chosen === "" ? (
-                // A disabled control that does not say what would enable it is a
-                // dead end — LAN133-BRIAN-8. This is the one sentence that turns
-                // it back into a step.
+                // LAN133-BRIAN-8: the disabled control names what would enable it.
                 <Typography
                   variant="caption"
                   color="text.secondary"
@@ -457,24 +363,8 @@ function EndPanel({
   const [assignment, setAssignment] = useState(holders[0]?.roleAssignmentId ?? "");
   const slot = useOutcomeSlot("end-panel");
 
-  /**
-   * The earliest end the chosen assignment can be given, and whether that is
-   * today — LAN-141 finding 2.
-   *
-   * The period is half-open and `role_assignments_period_ordered` requires
-   * `effective_to > effective_from`, so a seat filled this morning cannot be
-   * vacated until tomorrow. Both this field and the service's own default were
-   * "today", so leaving it blank produced a refusal every time — under helper
-   * text that read "Leave blank to end it today", on the only action that
-   * corrects a role given to the wrong person. There is no delete, and
-   * deactivating the account deliberately does not vacate the seat, so this was
-   * the whole of the recovery route.
-   *
-   * Correcting it same-day would mean relaxing a schema constraint on the
-   * frozen domain model, which is Brian's decision and not this package's. What
-   * is this package's is that the form stops offering a date the service will
-   * refuse, and names the one it will accept.
-   */
+  // The earliest end the chosen assignment can be given — LAN-141 #2.
+  // Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
   const chosen = holders.find((holder) => holder.roleAssignmentId === assignment) ?? holders[0];
   const earliestEnd = chosen?.earliestEnd;
   const todayIsAllowed = earliestEnd === undefined || earliestEnd <= today;

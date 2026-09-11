@@ -24,12 +24,7 @@ import { limitsLine, NO_CYCLE, permissionsSummary } from "../../presentation";
 import CurrentHolderPanel from "./current-holder-panel";
 import RoleActions from "./role-actions";
 
-/**
- * One seat — LAN-133. Shows the current holder, a plain-language Permissions
- * summary and holder history; the role itself is not editable here.
- *
- * Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
- */
+// One seat — LAN-133. Decision history: missions/intake/M-OPERATOR-ADMIN-WITHOUT-SQL/decision-history.md.
 export default async function RoleRecordPage({
   params,
 }: PageProps<"/operate/admin/roles/[roleId]">) {
@@ -50,9 +45,7 @@ export default async function RoleRecordPage({
           group,
           cycleLabel:
             role.scope === "committee_year"
-              ? // LAN-141 finding 8: a gap between committee years is an
-                // ordinary Monday, not a reason to refuse the page.
-                (catalogue.committeeYear?.label ?? NO_CYCLE.committee_year)
+              ? (catalogue.committeeYear?.label ?? NO_CYCLE.committee_year)
               : (catalogue.season?.label ?? NO_CYCLE.season),
         };
         break;
@@ -74,9 +67,6 @@ export default async function RoleRecordPage({
   );
   const permissions = permissionsSummary(role.code);
   const limits = limitsLine(role.code);
-  // The club's own day, so "today" on this form means the same day the service
-  // means by it. `currentDateIn()` is the database's answer and is not reachable
-  // from a page; both read Europe/London, which is the whole of the agreement.
   const today = todayInClubZone();
 
   return (
@@ -129,10 +119,6 @@ export default async function RoleRecordPage({
             roleAssignmentId: holder.roleAssignmentId,
             displayName: holder.displayName,
             effectiveFrom: holder.effectiveFrom,
-            // The one rule, computed where it is defined — LAN-141 finding 2.
-            // The form must not offer a date the service will refuse, and the
-            // date it may not offer is decided by the same function the guard
-            // uses.
             earliestEnd: earliestEndFor(holder),
           }))}
           permitted={permitted}

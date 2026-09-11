@@ -12,10 +12,10 @@ import {
 
 /**
  * Preview — W4-02 through W4-08's comparison and "what will move", plus the
- * per-tuple-unique combinations (`season_messaging_consents`,
- * `onboarding_agreements`, `person_fact_disputes`) `mergePersons` later
- * writes from the same read. LAN-185, `WP-operator-record` (LAN-217),
- * mission owner-question Q-3/Q-4/Q-5.
+ * per-tuple-unique combinations `mergePersons` later writes from the same
+ * read (`season_messaging_consents`, `onboarding_agreements`,
+ * `person_fact_disputes`). LAN-185, LAN-217, Q-3/Q-4/Q-5.
+ * Decision history: LAN-185, LAN-217, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 export const CONTACT_KIND_SCOPE: Readonly<
@@ -26,17 +26,7 @@ export const CONTACT_KIND_SCOPE: Readonly<
   college_email: { kind: "email", scope: "college" },
 });
 
-/**
- * Whether a comparison row is a question the operator has to answer — LAN-256.
- *
- * Deliberately *not* `differs`. `differs` is B-004's warning chip and means
- * "both sides hold a value and those values disagree"; absence is not a
- * difference there, and that reading is Brian's. Whether the survivor keeps a
- * blank where the loser holds a value is a different question, and it is the
- * one an untouched merge used to answer by discarding the loser's record. A
- * choice is required whenever the two sides do not hold the same value, in
- * either direction.
- */
+/** Whether a comparison row is a question the operator has to answer (LAN-256) — deliberately not `differs`, which fires only when both sides hold a disagreeing value. */
 export function needsChoiceBetween(
   survivorValue: string | null,
   loserValue: string | null,
@@ -50,7 +40,6 @@ interface MergeFieldComparison {
   survivorValue: string | null;
   loserValue: string | null;
   differs: boolean;
-  /** LAN-256 — the two sides do not hold the same value, so the operator must say which the survivor keeps. */
   needsChoice: boolean;
 }
 
@@ -60,21 +49,13 @@ interface MergeContactComparison {
   survivor: { id: string; rawValue: string } | null;
   loser: { id: string; rawValue: string } | null;
   differs: boolean;
-  /** LAN-256 — as on a plain field: not the same value on both sides, so it is a question. */
   needsChoice: boolean;
 }
 
 interface MergeAliasComparison {
   survivorAliases: string[];
   loserAliases: string[];
-  /**
-   * D-001 (correction round 3, Q-14, Brian): "differs" means two different
-   * recorded values, applied here the honest way for a multi-valued field —
-   * two alias *sets* that hold the same names, in any order, with any
-   * duplication, are not a difference. `merge-comparison.tsx` used to
-   * hardcode `differs={true}` unconditionally; this is the real computation
-   * it now reads instead.
-   */
+  /** D-001: alias sets compared as sets, not ordered lists — order/duplication is not a difference. */
   differs: boolean;
 }
 
@@ -103,15 +84,9 @@ export interface PersonMergePreview {
   contacts: MergeContactComparison[];
   aliases: MergeAliasComparison;
   prospectCombinations: MergeProspectCombination[];
-  /** B-003 — one more operator-choosable row beside the fields and contacts above. */
   consentCombinations: MergeConsentCombination[];
   willMove: MergeMovementLine[];
-  /**
-   * `Q-16`: an archived season membership that cleared the overlap refusal
-   * stays on the merged-away record — never re-pointed. Named here so the
-   * confirmation screen says so plainly before the merge, per Brian's own
-   * words.
-   */
+  /** Q-16: an archived overlap membership stays with the loser, never re-pointed. */
   staysWithLoser: { seasonLabel: string }[];
 }
 
@@ -142,13 +117,7 @@ function emergencyContactLine(ec: EmergencyContact | null): string | null {
   return ec.relationship ? `${name} · ${ec.relationship}` : name;
 }
 
-/**
- * D-001 (correction round 3, Q-14): the honest "differs" for a multi-valued
- * field. Aliases are a set, not an ordered list and not a single value — two
- * records that hold the same names, in any order and with any duplication
- * between them, are not a difference. Compared as sets rather than arrays for
- * exactly that reason.
- */
+/** D-001: aliases are a set, not an ordered list — compared as sets. */
 function aliasSetsDiffer(
   survivorAliases: readonly string[],
   loserAliases: readonly string[],
@@ -174,11 +143,7 @@ export function currentPreferred(
   );
 }
 
-// LAN-201: `converted` -> `joined`, `lapsed` -> `disengaged`. `void` ranks
-// below everything else — it marks a record as wrong rather than as a stage,
-// so it never wins a merge combination over a status that says something real
-// about the person; a legitimate rank on the other side survives, and two
-// `void` sides tie exactly as before.
+// LAN-201. `void` ranks below everything else — it marks a record as wrong, not a stage, and never wins over a real one.
 const PROSPECT_STATUS_RANK: Readonly<Record<string, number>> = Object.freeze({
   void: -1,
   declined: 0,
@@ -247,18 +212,9 @@ export async function readProspectCombinations(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Consent at a merge — `WP-operator-record` (LAN-217), mission
-// owner-question Q-3/Q-4. B-003 (correction round 2, Q-10, Brian: "If it is
-// a merge, they obviously get to choose") supersedes `T07-merge-precedence`,
-// which locked the survivor to the most-restrictive state automatically —
-// a recommendation, never an owner decision. `season_messaging_consents` is
-// still unique on `(person_id, season_id)`, so a merge of two people who
-// both hold a consent row for the same season still cannot keep both; which
-// one survives is now the operator's own choice, like any other field or
-// contact row on this same screen, defaulting to the survivor's own value
-// when the operator makes no explicit choice — nothing is imposed.
-// ---------------------------------------------------------------------------
+// Consent at a merge — LAN-217, Q-3/Q-4. B-003: the operator chooses which of a colliding pair
+// survives (season_messaging_consents is unique on (person_id, season_id)), defaulting to the
+// survivor's own value when unanswered.
 
 export interface MergeConsentCombination {
   seasonId: string;
@@ -267,7 +223,6 @@ export interface MergeConsentCombination {
   loserState: string;
 }
 
-/** LAN-256 — a colliding consent row is a question exactly when the two states disagree. */
 export function consentNeedsChoice(combo: MergeConsentCombination): boolean {
   return combo.survivorState !== combo.loserState;
 }
@@ -312,10 +267,7 @@ export async function repointConsents(
   choices: MergeConsentChoices,
 ): Promise<void> {
   for (const combo of combinations) {
-    // B-003: the operator's own choice. LAN-256: the fallback to the
-    // survivor only ever applies where the two states already agree —
-    // `assertEveryDifferenceAnswered` refuses the merge before this runs if a
-    // colliding season's two states disagree and nobody answered for it.
+    // B-003: the fallback to survivor only applies where the states already agree (LAN-256).
     if ((choices[combo.seasonId] ?? "survivor") === "loser") {
       await tx.query(
         `update public.season_messaging_consents a
@@ -327,45 +279,25 @@ export async function repointConsents(
         [survivorId, loserId, combo.seasonId],
       );
     }
-    // Whichever side's value now stands is on the survivor's own row — the
-    // loser's, superseded, is removed the same way a colliding prospect
-    // season is: the current-state row collapses to one, and every actor
-    // column naming who acted is already re-pointed blindly elsewhere
-    // (`recorded_by_person_id`, in `PERSON_REFERENCE_COLUMNS`).
+    // Superseded row removed; the current-state row collapses to one.
     await tx.query(
       `delete from public.season_messaging_consents where person_id = $1::uuid and season_id = $2::uuid`,
       [loserId, combo.seasonId],
     );
   }
-  // Everything left on the loser has no counterpart on the survivor — a
-  // plain re-point, safe because `season_messaging_consents_one_per_person_
-  // per_season` cannot collide with a season already handled above.
+  // Everything left has no counterpart on the survivor — a plain re-point.
   await tx.query(
     `update public.season_messaging_consents set person_id = $2::uuid where person_id = $1::uuid`,
     [loserId, survivorId],
   );
 }
 
-// ---------------------------------------------------------------------------
-// Two more per-tuple-unique tables the mission's owner-question Q-3/Q-5
-// assigned to this package to close, on the same "combine, then collapse to
-// one current row" shape T07 above uses.
-// ---------------------------------------------------------------------------
-
 interface AgreementCombination {
   seasonId: string;
   agreementType: string;
 }
 
-/**
- * `onboarding_agreements` is keyed `(person_id, season_id, agreement_type)`.
- * There is no restrictive/permissive axis for "did they agree" the way
- * consent has one — so where two identities both hold an agreement for the
- * same season and type, the earlier `agreed_at` is what survives: the true
- * historical fact of when this person first agreed, the same "earliest date
- * is the real one" reasoning `readProspectCombinations`' own
- * `combinedFirstContact` already applies to a first-contact date.
- */
+/** Keyed `(person_id, season_id, agreement_type)`. Earlier `agreed_at` survives — the true first-agreed date. */
 export async function repointAgreements(
   tx: Tx,
   survivorId: string,
@@ -418,24 +350,7 @@ export async function repointAgreements(
   );
 }
 
-/**
- * `person_fact_disputes` allows at most one OPEN row per `(person_id,
- * field)`. Two identities can each hold an open dispute on the same field
- * only when both have separately been asked and separately answered
- * differently from the same club-recorded value — a genuine collision, not a
- * common case. Resolved rows never collide (the partial unique index only
- * covers `status = 'open'`), so only open-on-both-sides needs combining.
- *
- * The rule already governs a single person's own repeated answer — W7's own
- * exceptions-and-recovery note, "the newer answer supersedes the waiting
- * one" — and `raisePersonFactDisputeIn`'s own upsert already implements it by
- * overwriting the one open row in place rather than keeping two. Applied here
- * the same way: the more recently raised of the two open rows is the one that
- * survives, updated in place on the survivor's own row; the older, now
- * superseded, is removed exactly as an upsert would remove it — never
- * resolved, because resolving is a four-role decision this merge does not
- * make on anybody's behalf.
- */
+/** At most one OPEN row per `(person_id, field)`. The more recently raised of a colliding pair survives, in place; the older is removed, never resolved (a four-role decision this merge does not make). */
 export async function repointDisputes(tx: Tx, survivorId: string, loserId: string): Promise<void> {
   const colliding = await tx.query<{
     field: string;
@@ -468,21 +383,14 @@ export async function repointDisputes(tx: Tx, survivorId: string, loserId: strin
       [loserId, row.field],
     );
   }
-  // Every other dispute the loser holds — resolved ones, and an open one on a
-  // field the survivor has no open dispute on — has no counterpart to collide
-  // with and re-points blindly.
+  // Everything else re-points blindly — no counterpart to collide with.
   await tx.query(
     `update public.person_fact_disputes set person_id = $2::uuid where person_id = $1::uuid`,
     [loserId, survivorId],
   );
 }
 
-/**
- * `retainedMembershipIds` — `Q-16`'s archived overlap memberships — are
- * excluded from the "season membership" count: they will not move, so
- * counting them as "will move" would contradict `staysWithLoser`'s own note
- * on the same screen.
- */
+/** `retainedMembershipIds` (Q-16's archived overlap memberships) are excluded — they will not move. */
 export async function readWillMove(
   tx: Tx,
   loserId: string,
@@ -540,11 +448,7 @@ export async function readSideLabelIn(
   return { displayName: row?.display_name ?? "Unknown", createdAt: row?.created_at ?? new Date() };
 }
 
-/**
- * The whole comparison, read-only. `survivorPersonId` and `loserPersonId` are
- * the operator's current choice of which record survives — `W4-02`'s "Make
- * this the survivor" swaps which id is passed as which.
- */
+/** The whole comparison, read-only. `survivorPersonId`/`loserPersonId` swap on `W4-02`'s "Make this the survivor". */
 export async function previewPersonMerge(
   survivorPersonId: string,
   loserPersonId: string,
@@ -582,10 +486,7 @@ export async function previewPersonMerge(
         label: MERGE_PERSON_FIELD_LABELS[field],
         survivorValue,
         loserValue,
-        // B-004 (correction round 2, Brian): absence is not a difference. A
-        // value compared against an absent (`null`) one on either side is not
-        // recorded, not disputed — the warning chip fires only when both
-        // sides actually hold a value and those values disagree.
+        // B-004: absence is not a difference — fires only when both sides hold a disagreeing value.
         differs: survivorValue !== null && loserValue !== null && survivorValue !== loserValue,
         needsChoice: needsChoiceBetween(survivorValue, loserValue),
       };
@@ -601,13 +502,7 @@ export async function previewPersonMerge(
         label: MERGE_CONTACT_KIND_LABELS[kind],
         survivor: survivor ? { id: survivor.id, rawValue: survivor.rawValue } : null,
         loser: loser ? { id: loser.id, rawValue: loser.rawValue } : null,
-        // D-001 (correction round 3, Q-14): the B-004 null guard on plain
-        // fields (below) never reached this bare comparison — a present
-        // value on one side and an absent one on the other read as
-        // "differs" here too, which is what Brian saw on Mobile phone and
-        // College email. Absence is not a difference on a contact any more
-        // than it is on a plain field: the chip fires only when both sides
-        // actually hold a value and those values disagree.
+        // D-001: same B-004 null guard, extended to contacts (Mobile phone, College email).
         differs: survivor !== null && loser !== null && survivor.rawValue !== loser.rawValue,
         needsChoice: needsChoiceBetween(survivor?.rawValue ?? null, loser?.rawValue ?? null),
       };

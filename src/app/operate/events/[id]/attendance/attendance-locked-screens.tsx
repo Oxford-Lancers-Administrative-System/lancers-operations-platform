@@ -12,16 +12,9 @@ import {
   REGISTER_NOT_YET_HEADLINE,
 } from "./presentation";
 
-/**
- * The register's buffer, before it lifts — D71 and D72. LAN-152.
- *
- * One screen for both readers, unlike the two below. The reason those differ is
- * authority: an operator can go and assert occurrence and a coach cannot, so
- * the sentence has to change with who is reading it. Nobody can hurry a clock,
- * so this one says the same thing to everybody, and only the way back out
- * differs — a coach's route is their eligible events, not event administration
- * that would refuse them.
- */
+// The register's buffer, before it lifts — D71, D72, LAN-152. One screen for
+// both readers (nobody can hurry a clock); only the way back out differs.
+// Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
 export function RegisterNotOpenYet({
   eventId,
   status,

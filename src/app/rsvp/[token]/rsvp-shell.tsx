@@ -1,7 +1,4 @@
-/**
- * The shell every RSVP screen shares, and the current-answer label the
- * invitation and saved screens both read off. Split from `page.tsx` (LAN-300).
- */
+// The shell every RSVP screen shares, and the current-answer label. Split from `page.tsx` (LAN-300).
 import { PublicShell } from "@/components/public-shell";
 import Stack from "@mui/material/Stack";
 

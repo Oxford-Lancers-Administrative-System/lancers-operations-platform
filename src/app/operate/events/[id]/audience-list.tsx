@@ -5,14 +5,7 @@ import type { AudienceMember } from "@/lib/services/event-approval";
 import type { AudienceGroupSummary } from "@/lib/services/audience-selection";
 import { CAPACITY_LABELS, joinWithAnd, labelFor } from "../presentation";
 
-/**
- * "All active players, all coaches — 35 people".
- *
- * The groups first and the headcount after, which is the order Brian asked for.
- * People chosen by hand belong to no group and are counted rather than named
- * here; the list underneath is where they are read. A partly-selected group is
- * never named, because naming it would say the whole group is invited.
- */
+/** "All active players, all coaches — 35 people" — groups first, headcount after (Brian). Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
 export function describeAudienceShape(summary: AudienceGroupSummary): string {
   const people = `${summary.total} ${summary.total === 1 ? "person" : "people"}`;
   const parts = [...summary.groups];
@@ -26,18 +19,7 @@ export function describeAudienceShape(summary: AudienceGroupSummary): string {
   return parts.length === 0 ? people : `${joinWithAnd(parts)} — ${people}`;
 }
 
-/**
- * The named list, used by the confirmation and by the event detail alike.
- *
- * D3 (round 2): the event detail page named a count and then people, with no
- * group named anywhere — "I do see where it got confused because I'm one of
- * the pages the audience is listed above. On the pre-send, it says who's sent
- * to all players, but I wanted it to be here." `groupSummary` is optional
- * because the approval review already states the shape in its own block
- * above this list and does not repeat it here; the event detail has nowhere
- * else to say it, so it passes one and this renders it — `describeAudienceShape`
- * itself is the one place either surface knows how to say it.
- */
+/** The named list, used by the confirmation and the event detail alike — D3 round 2. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
 export function AudienceList({
   audience,
   groupSummary,

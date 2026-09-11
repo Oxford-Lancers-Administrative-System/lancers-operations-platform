@@ -14,21 +14,14 @@ import { assertAdministrationCapability, blankToNull } from "./shared";
 /** Why a candidate surfaced. Same vocabulary the returner intake uses. */
 type CandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
 
-/** One possible existing Person, and what they already have. */
 export interface OperatorCandidate {
   readonly personId: string;
   readonly givenName: string;
   readonly familyName: string | null;
-  /** The alias flagged as this person's display name, if they have one. */
   readonly displayAlias: string | null;
-  /** A current email of theirs, preferred first. Shown so the choice is informed. */
   readonly email: string | null;
   readonly phone: string | null;
-  /**
-   * Their operator login, when they have one. Non-null is the answer to the
-   * question the invitation flow is really asking — this person cannot be
-   * invited again, and the administrator should open their record instead.
-   */
+  /** Non-null: this person already has a login and cannot be invited again. */
   readonly operatorAccount: {
     readonly id: string;
     readonly loginEmail: string | null;
@@ -76,11 +69,7 @@ export async function findOperatorCandidates(
   operator: ResolvedOperator | null,
   query: OperatorCandidateQuery,
 ): Promise<OperatorCandidate[]> {
-  // A duplicate check discloses names, addresses and phone numbers of people
-  // who are not the subject of the search, which is why it is guarded here and
-  // not by whatever screen calls it. `assign_role` is the decision this search
-  // is a step of; the role is not chosen yet, so the floor is what can be
-  // asserted, and the target-level guard runs before anything is written.
+  // Guarded here, not by the caller screen — see decision history.
   assertAdministrationCapability(operator);
 
   return withTransaction(async (tx) => {
@@ -220,12 +209,6 @@ function toCandidate(row: CandidateRow): OperatorCandidate {
               isActive: row.operator_is_active === true,
               activatedAt: row.operator_activated_at,
               invitationDeliveryFailedAt: row.operator_delivery_failed_at,
-              // Read, not assumed. This was hard-coded `false` and the column
-              // was not selected, so an operator whose sign-in is refused
-              // pending verification of a replacement address was reported as
-              // **Active** — here and in the successor picker this search
-              // feeds. `toAccount` and `readOperatorDirectory` both read it
-              // correctly; this projection was the one that did not.
               emailChangePending: row.operator_email_rehome_pending_at !== null,
             }),
           },

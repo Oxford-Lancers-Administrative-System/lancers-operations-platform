@@ -4,15 +4,8 @@ import Typography from "@mui/material/Typography";
 import { describeQuestionAnswer, type EventQuestion } from "@/lib/services/events";
 import { RSVP_FIRST_QUESTION, RSVP_FIRST_QUESTION_ANSWER } from "../presentation";
 
-/**
- * The questions, exactly as a player will meet them — amendment W4-A1.
- *
- * Shared by the approval review and the event page, because they are the same
- * list and `docs/ux/standards.md` rule 7 is about exactly that. The review adds
- * the RSVP's own first question at the top, because "are you coming?" is asked
- * before any of these and an approver reading the list should see the page as it
- * will arrive rather than the part of it this screen happens to own.
- */
+// The questions, exactly as a player will meet them — amendment W4-A1.
+// Decision history: docs/ux/tickets/LAN-77-event-approval.md.
 export function QuestionList({
   questions,
   leadWithRsvp,

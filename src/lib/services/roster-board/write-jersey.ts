@@ -8,13 +8,7 @@ import { actorRequirement, closeCurrentRow, currentDateOf } from "./shared";
 
 export type Kit = "blue" | "white";
 
-/**
- * Sets the whole held set for one kit, effective-dating the difference:
- * a number leaving the set closes its row (never dropped, unlike the fidelity
- * mockup); a number entering it opens a new one. A number already held by
- * another current membership in this season and kit is refused — belt and
- * braces behind the UI, which should never offer it in the first place (`Q-8`).
- */
+/** Sets the whole held set for one kit, effective-dating the difference. A number already held elsewhere this season/kit is refused (belt and braces behind the UI, `Q-8`). */
 export async function commitJerseyNumbers(params: {
   actorPersonId: string;
   membershipId: string;
@@ -53,14 +47,7 @@ export async function commitJerseyNumbers(params: {
         [params.seasonId, params.kit, Number(number)],
       );
       if (holder.rows.some((row) => row.season_membership_id !== params.membershipId)) {
-        // Application-level pre-check, named distinctly from the database's own
-        // `jersey_assignments_unique_within_season_and_kit` exclusion below it
-        // (LAN186-F2): both guard the same rule, but a test asserting on `rule`
-        // has to be able to tell which layer actually refused. Reusing the
-        // constraint's name here made this check and its database backstop
-        // indistinguishable to a caller — disabling this block entirely still
-        // left every test green, because the exclusion constraint threw the
-        // identical `rule` string on the very next statement.
+        // Application-level pre-check, named distinctly from the database's own exclusion constraint (LAN186-F2).
         throw new Conflict(
           `Number ${number} is already held by another player this season. Release it from ` +
             "them before assigning it here.",
@@ -74,12 +61,7 @@ export async function commitJerseyNumbers(params: {
       );
     }
 
-    // `jersey_assignments_one_predominant_per_kit`: exactly one predominant row
-    // among current ones, or none when the kit holds no number. No UI here
-    // chooses which — that is player detail's fuller editor — so the lowest
-    // current number is promoted automatically whenever nothing else is
-    // already predominant, which keeps the column the club reports against
-    // populated rather than left ambiguous.
+    // No UI here chooses predominant; the lowest current number is promoted automatically when none is.
     const after = await tx.query<{ id: string; is_predominant: boolean }>(
       `select id, is_predominant
          from public.jersey_assignments

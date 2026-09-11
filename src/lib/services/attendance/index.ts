@@ -1,11 +1,6 @@
 /** Attendance's public surface — locked Requirement 7, invariants P5, P6, P8. LAN-80. */
 
-/**
- * Re-exported from `../attendance-vocabulary`, which is pure and is what the
- * client components import — a client component importing these names from
- * this module would drag `pg` into the browser bundle, and the build refuses
- * it.
- */
+// Re-exported from ../attendance-vocabulary (pure) — a client import of these names here would drag pg into the browser bundle.
 export {
   isAttendancePresence,
   summariseAttendance,

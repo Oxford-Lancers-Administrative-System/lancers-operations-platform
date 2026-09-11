@@ -3,33 +3,19 @@ import { Field, SelectField } from "@/components/field";
 import type { EventQuestionForAnswer } from "@/lib/services/player-home";
 
 /**
- * One event question's own answer control — text, boolean or choice,
- * required or optional. Shared between the two surfaces that ask an event's
- * questions: `/a/[token]`'s own landing page (owner correction round 5,
- * OWNER-LAN172-12 — "the answers should be [there]... I shouldn't have to
- * click twice") and `/me/[token]`'s focused panel, which still asks whatever
- * the landing page did not collect (Q-11 keeps the landing page's GET
- * side-effect-free, so a scanner or reload never answers on the player's
- * behalf; the panel remains the fallback surface for anything left over).
+ * One event question's answer control — text, boolean or choice. Shared by
+ * `/a/[token]`'s landing page and `/me/[token]`'s focused panel. A hidden
+ * `qkind_<id>` field rides beside the answer so the server action can parse
+ * `q_<id>` without a second database round trip.
  *
- * A hidden `qkind_<id>` field always rides beside the answer field itself so
- * the server action can parse `q_<id>`'s value without a second round trip
- * to the database to learn what kind of question it was answering.
+ * `enforceRequired` (OWNER-LAN172-18): `/a/[token]` passes `false` because
+ * its confirm button shares one `<form>` with the questions, so native
+ * `required` would silently block the click that records the answer itself
+ * — the opposite of W2's "a Yes stands while required questions remain
+ * outstanding." `answerEventQuestionsIn` already skips a blank submission
+ * rather than recording a false answer.
  *
- * ## `enforceRequired` — OWNER-LAN172-18
- *
- * `/me/[token]`'s own dedicated questions form (`submitQuestions`) never
- * records the RSVP itself — the Yes already stands by the time that form is
- * on screen — so the native `required` attribute there only ever blocks
- * *that form's own* save, never the answer, and stays on by default.
- * `/a/[token]`'s landing page is different: its confirm button and its
- * questions share one `<form>`, so `required` there silently blocked the
- * click that records the answer itself — the opposite of W2's "a Yes stands
- * while required event questions remain outstanding." `/a/[token]` passes
- * `enforceRequired={false}` so a blank required question never stops that
- * submit (auto- or manual); `answerEventQuestionsIn` already skips a blank
- * submission rather than saving an empty answer, so nothing false is ever
- * recorded — the question simply stays outstanding for the follow-up panel.
+ * Decision history: docs/ux/tickets/LAN-172-player-answer.md
  */
 export function QuestionField({
   question,

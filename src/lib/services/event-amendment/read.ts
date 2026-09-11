@@ -13,25 +13,14 @@ import { readChaseThresholdDaysIn } from "./shared";
  * `./index`.
  */
 
-/** Who is owed a message, counted the way the confirmation screens name them. */
 export interface NotifyAudience {
-  /** Rows in `invitations` — everyone who was told about this event. */
-  invited: number;
+  invited: number; // rows in invitations — everyone who was told about this event
   saidYes: number;
   saidNo: number;
-  /** Invited and carrying no standing answer. */
-  noAnswer: number;
+  noAnswer: number; // invited and carrying no standing answer
 }
 
-/**
- * The counts the confirmations state in people rather than in fields.
- *
- * `invited` and `saidYes` answer the same questions as the event page's
- * headline numbers, and `event-amendment.test.ts` pins the two readers to each
- * other — `docs/ux/standards.md` rule 7 — because a confirmation saying "37
- * people were told" above a page saying 36 invited would be two answers to one
- * question on two surfaces.
- */
+// Stated in people, matching the event page's headline numbers (docs/ux/standards.md rule 7).
 export async function readNotifyAudienceIn(tx: Tx, eventId: string): Promise<NotifyAudience> {
   const result = await tx.query<{
     invited: string;
@@ -55,48 +44,22 @@ export async function readNotifyAudienceIn(tx: Tx, eventId: string): Promise<Not
   return { invited, saidYes, saidNo, noAnswer: invited - saidYes - saidNo };
 }
 
-/** Everything the amendment screen needs before anything is typed. */
 export interface AmendmentContext {
   event: EventDetail;
   audience: NotifyAudience;
-  /**
-   * Invitations for this event that have not gone out and would be held by a
-   * save — the same population the delivery screen reports, so the two screens
-   * cannot describe one event differently. See the query for why it is scoped.
-   */
-  unsentMessages: number;
-  /** D75, D77 — this event type's threshold, in days. */
-  chaseThresholdDays: number;
-  /** Where the chase lands against the date the event has now. */
-  chaseThresholdOn: string | null;
-  /** Whether the event is still ahead of the club, in the club's zone. */
+  unsentMessages: number; // invitations not yet sent, held by a save — see relocations.md
+  chaseThresholdDays: number; // D75, D77
+  chaseThresholdOn: string | null; // where the chase lands against the event's current date
   isFuture: boolean;
-  /** The last amendment, if there has been one — W5-04's recovery path. */
-  lastAmendment: EventChangeEntry | null;
+  lastAmendment: EventChangeEntry | null; // W5-04's recovery path
 }
 
 export async function readAmendmentContext(eventId: string): Promise<AmendmentContext> {
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
     const audience = await readNotifyAudienceIn(tx, eventId);
-    // LAN-156, corrected at the visual gate. Scoped to `invitation` jobs, and
-    // the scope is the point rather than a detail: this number is shown to the
-    // operator as "N queued messages are held", and the screen they go to in
-    // order to see those messages is `/operate/events/<id>/delivery`, which
-    // reports on invitation jobs and nothing else.
-    //
-    // Counting every job type made the two screens contradict each other. An
-    // event amended once carries a `schedule_change_notice` per invitee; on the
-    // next visit to this form those were counted back at the operator as
-    // messages awaiting delivery, while the delivery screen — correctly, for
-    // its own scope — showed nothing at all. Brian saw 47 here and 0 there for
-    // one event, and neither number was wrong on its own terms.
-    //
-    // The hold that `amendApprovedEvent` places is deliberately NOT narrowed to
-    // match: REQ-amend-hold holds every unsent job for the event, notices
-    // included, and narrowing that would let a stale change notice go out. What
-    // is narrowed is only the number the operator is shown, to the population
-    // the operator can go and look at.
+    // Scoped to `invitation` jobs so this matches /operate/events/<id>/delivery (LAN-156; see
+    // relocations.md). amendApprovedEvent's hold stays unnarrowed (REQ-amend-hold).
     const unsent = await tx.query<{ count: string }>(
       `select count(*)::text as count
          from public.notification_jobs
@@ -122,23 +85,14 @@ export async function readAmendmentContext(eventId: string): Promise<AmendmentCo
 
 export type EventChangeKind = "approved" | "amended" | "renotified" | "cancelled";
 
-/** One row of the change history, in the words W5-05's table uses. */
 export interface EventChangeEntry {
   id: string;
   kind: EventChangeKind;
   occurredAt: Date;
-  /** Who did it. `null` only where the actor was not a person. */
-  actorName: string | null;
-  /** The fields that moved, empty for anything that moved none. */
-  changes: readonly AmendmentChange[];
-  /**
-   * The notify choice for this entry. `null` where the entry is not one
-   * somebody decided about — an approval, or a history row written before the
-   * decision existed.
-   */
-  notified: boolean | null;
-  /** How many people the entry's message was owed to. */
-  recipients: number | null;
+  actorName: string | null; // null only where the actor was not a person
+  changes: readonly AmendmentChange[]; // empty for anything that moved none
+  notified: boolean | null; // null where nobody decided — an approval, or a pre-decision row
+  recipients: number | null; // how many people the entry's message was owed to
 }
 
 const HISTORY_ACTIONS: Readonly<Record<string, EventChangeKind>> = Object.freeze({
@@ -148,14 +102,7 @@ const HISTORY_ACTIONS: Readonly<Record<string, EventChangeKind>> = Object.freeze
   "event.cancelled": "cancelled",
 });
 
-/**
- * The queryable history §4.13 asks for: actor, change, notify choice.
- *
- * Read from `audit_events` rather than from `schedule_changes` because it is
- * the only one of the two that sees a description-only amendment — see the
- * module header. Newest first, which is the order the committee reads it in
- * three weeks later.
- */
+// Read from audit_events, not schedule_changes — the only one that sees a description-only amendment.
 export async function readEventChangeHistory(eventId: string): Promise<EventChangeEntry[]> {
   return withTransaction(async (tx) => readEventChangeHistoryIn(tx, eventId));
 }

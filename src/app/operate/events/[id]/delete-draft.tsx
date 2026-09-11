@@ -25,33 +25,12 @@ import {
 } from "../presentation";
 
 /**
- * Deleting a draft, from the draft's own page — REQ-delete-draft, D29.
- *
- * ## Why it is here and not on the form
- *
- * Brian, 2026-08-21: "there should be a Delete Event button ... I don't know
- * where that button exists on this event." A saved draft has a page, and that
- * page is where an operator edits it, chooses its audience, or decides it should
- * not exist. There is nothing to delete on the create form.
- *
- * ## The confirmation names the event and says one thing
- *
- * It names what is about to go, says it cannot come back, and says nobody will
- * be told — because nobody was told in the first place, which is the whole
- * reason a draft may be deleted at all.
- *
- * What it deliberately does **not** say is that an approved event cannot be
- * deleted. Brian, again: "That warning should pop up if you try to delete an
- * approved event ... I don't think it needs to be called out there
- * specifically." A rule stated where it does not apply is a rule the reader has
- * to work out is not about them.
- *
- * ## The dialog is a courtesy; the service is the guard
- *
- * This whole component could be skipped by posting to the action directly, and
- * `deleteEventDraft` would still refuse anything that is not a draft. The
- * confirmation exists so a person does not do it by accident, not so the rule
- * holds.
+ * Deleting a draft, from the draft's own page — REQ-delete-draft, D29
+ * (Brian, 2026-08-21). Names the event, says it can't come back, says
+ * nobody will be told. Says nothing about approved events (Brian: not
+ * called out where it doesn't apply). The dialog is a courtesy — the
+ * service refuses anything that isn't a draft either way.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE
  */
 export default function DeleteDraft({ eventId, name }: { eventId: string; name: string }) {
   const [open, setOpen] = useState(false);

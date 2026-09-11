@@ -275,3 +275,69 @@ Which operator roles may record is not settled — the workflow document
 records it as "Open — needs Brian" and this ticket uses the recommended
 default (any authorized operator who can already see the participation
 table). Narrowing it is additive and does not block the rest of the workflow.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/services/participation-view.ts — ParticipationQuestion field docs
+
+> `event_questions.applies_to_capacities`. Capacity decides which questions
+> apply, and a null answer from somebody the question does not apply to means
+> "not applicable to this invitee", never "no answer" — which is why the
+> counts below need it.
+>
+> `event_questions.choices`, present only for `answerType === "choice"`.
+> LAN-170's recording form needs the actual options to offer; nothing before
+> it read this far into a question, so it was never surfaced. Optional so
+> every fixture in this file's own tests and in `screens.test.tsx` that
+> predates the field keeps compiling — treat a missing key the same as
+> `null`. Carried at both tiers, unlike `delivery` and `invitationId`: a
+> question's own defined options are not the kind of fact D3 gates.
+>
+> `event_questions.is_required` — whether the event marks this question
+> required _of the player_. OWNER-LAN170-08 (correction round 3): the
+> recording form has to say so without implying the same is true of
+> recording it, since it never is — `REQ-questions-in-the-same-form`
+> itself says the event's questions "never block the answer". Optional,
+> defaulting to `false`, for the same fixture-compatibility reason
+> `choices` is.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/participation-view.ts — invitationId and chasePosition field docs
+
+> `invitations.id`, or `null` for a walk-up who was never invited.
+>
+> LAN-170's `RecordAnswerControl` needs the actual invitation to record
+> against, and `key` deliberately is not it — `key` is
+> `capacity:anchorId`, stable across a person's whole history at this
+> event, while a real write needs the row itself. Off `ParticipationPerson`
+> and off the club-link reassembly in `buildClubLinkParticipationIn`, the
+> same way `delivery` is: a club-link reader records nothing, so it is
+> never handed the id to record against.
+>
+> Optional so every existing fixture in `participation-view.test.ts` and
+> `screens.test.tsx` keeps compiling — the real payload always sets it.
+>
+> W4's chase position: the rung already sent and the next one due, for a
+> person who has not answered — `null` for an answered row, a walk-up, or
+> anybody whose delivery itself needs attention first (there is nothing to
+> chase somebody the club has not reached). See `./chase-position.ts`.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/participation-view.ts — EventFactsBase and ClubLinkEvent docs
+
+> Exported (correction round 4, OWNER-LAN170-09) so `RecordAnswerControl` can
+> type the event-identity facts it needs for the dialog's subtitle — `name`,
+> `scheduledOn`, `startsAt`, `endsAt` — as a `Pick` of this rather than a
+> second, separately-maintained shape.
+>
+> What a club-link reader is told about the event.
+>
+> There is no `joiningUrl` key here, so no code path can put one in this object
+> and no serialisation of it can carry one. That absence outlived
+> `REQ-no-joining-url` (LAN-284 publishes the link on the public calendar) and
+> is now simply what this tier reads: a club-link reader follows the event's
+> own public page for the link, and this type is about the participation table.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

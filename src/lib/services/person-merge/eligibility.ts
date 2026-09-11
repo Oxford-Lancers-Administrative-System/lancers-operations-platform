@@ -11,16 +11,10 @@ import { readPersonRecordIn } from "../person-record";
 export interface MergeRefusal {
   rule: string;
   message: string;
-  /**
-   * `Q-16` (Brian, correction round 2): the season-overlap refusal names the
-   * exact membership to archive and links to it — one entry per season still
-   * blocking the merge. Absent for the active-operator-seat refusal, which
-   * already links to Mission 1's administration surface generically.
-   */
+  /** Q-16: one entry per season still blocking. Absent for the active-operator-seat refusal. */
   blockingMemberships?: { seasonLabel: string; membershipId: string }[];
 }
 
-/** One season where both records hold a membership — `Q-16`'s overlap check. */
 interface SeasonOverlap {
   seasonId: string;
   seasonLabel: string;
@@ -28,11 +22,6 @@ interface SeasonOverlap {
   loserStatus: string;
 }
 
-/**
- * An overlap `Q-16` resolves by archiving rather than by refusing — the
- * loser's own membership row, named so both the preview's `staysWithLoser`
- * note and the write's re-point exclusion can use the same id.
- */
 interface RetainedMembership {
   seasonId: string;
   seasonLabel: string;
@@ -52,11 +41,7 @@ export async function readMergeSide(
   return { record: await readPersonRecordIn(tx, personId), createdAt: row.rows[0].created_at };
 }
 
-/**
- * Every season where both the survivor and the loser hold a membership,
- * naming the loser's own membership row and its status — the input both the
- * refusal and the write's exclusion (below) are computed from.
- */
+/** Every season where both hold a membership, naming the loser's row and status. */
 async function findSeasonOverlaps(
   tx: Tx,
   survivorId: string,
@@ -84,16 +69,7 @@ async function findSeasonOverlaps(
   }));
 }
 
-/**
- * `Q-16` (Brian, correction round 2, superseding the original season-overlap
- * refusal): "A merge may proceed once the losing record's membership for the
- * shared season is archived. The refusal says so explicitly: it names the
- * season, links to that membership, and tells the operator to archive it on
- * the roster before merging." An overlap whose loser-side status is already
- * `archived` is not a refusal — it is returned as `retained` instead, so the
- * caller can exclude that one membership row from the re-point (below) and
- * report that it stays with the loser.
- */
+/** Q-16: proceeds once the loser's membership for the shared season is archived. An already-archived overlap is `retained`, not refused. */
 async function evaluateSeasonOverlap(
   tx: Tx,
   survivorId: string,
@@ -130,12 +106,7 @@ async function evaluateSeasonOverlap(
   };
 }
 
-/**
- * The two refusals `Q-5` names, checked read-only — used by the preview
- * screen so a refusal renders without attempting a write, and re-checked
- * (under a real lock) inside `mergePersons()` itself, because a preview is
- * never authoritative under a race.
- */
+/** The two refusals `Q-5` names, checked read-only; re-checked under a real lock inside `mergePersons()` — a preview is never authoritative under a race. */
 export async function checkMergeRefusal(
   tx: Tx,
   survivorId: string,

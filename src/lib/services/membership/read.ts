@@ -22,14 +22,9 @@ export const RESOLVED_ITEM_STATUSES: readonly OnboardingItemStatus[] = Object.fr
   "not_applicable",
 ]) as readonly OnboardingItemStatus[];
 
-/**
- * D-002 (correction round 6, `WP-operator-record`, LAN-217) — one per-item
- * state list lives in `onboarding-item-shapes.ts`, a module deliberately
- * without `server-only`: the roster board and record page's client
- * components need the identical "what can this item be, and what can its
- * own control choose" answer this write path uses, and a client component
- * may not import a `server-only` module.
- */
+// D-002 (correction round 6, WP-operator-record, LAN-217): the per-item state list lives in
+// onboarding-item-shapes.ts, deliberately without server-only, since client components need the
+// same answer this write path uses.
 export interface OnboardingItem {
   id: string;
   code: string;
@@ -44,19 +39,9 @@ export interface OnboardingItem {
   updatedAt: Date;
 }
 
-/**
- * The required items still outstanding — the set activation asks about.
- *
- * Two exclusions, both deliberate:
- *
- *   * **Anything flagged `is_subscription`.** Register D10 and frozen model
- *     §2.1. Subs are tracked and waivable and are never a gate on `active`.
- *   * **Anything not `is_required`.** An optional item is information, not a
- *     condition; blocking on one would make "required" meaningless.
- *
- * `waived` and `not_applicable` count as resolved because that is exactly what
- * the model means by "required item set met **or consciously waived**".
- */
+// The required items still outstanding — what activation asks about. Excludes is_subscription
+// (D10, model §2.1: never a gate) and anything not is_required. waived/not_applicable count as
+// resolved — "required item set met or consciously waived".
 function outstandingFrom(items: readonly OnboardingItem[]): OnboardingItem[] {
   return items.filter(
     (item) =>
@@ -64,15 +49,8 @@ function outstandingFrom(items: readonly OnboardingItem[]): OnboardingItem[] {
   );
 }
 
-/**
- * The same rule, in SQL, for the roster list's `required_outstanding` count.
- *
- * It has to exist twice — once in TypeScript for the record, once in SQL so the
- * roster can count across 42 memberships in one query rather than reading every
- * item of every one of them. `membership.test.ts` asserts the two copies
- * **agree** against a membership whose only unresolved item is the
- * subscription. See `relocations.md` for why this is a named constant.
- */
+// The same rule, in SQL, for the roster's required_outstanding count — exists twice so the roster
+// can count across 42 memberships in one query; membership.test.ts asserts the two copies agree.
 const GATING_ITEM_PREDICATE = `t.is_required and not t.is_subscription
       and i.status not in ('complete', 'waived', 'not_applicable')`;
 
@@ -124,48 +102,28 @@ interface RosterEntry {
   personId: string;
   givenName: string;
   familyName: string | null;
-  /** The alias flagged as this person's display name, if they have one. */
-  displayAlias: string | null;
-  /** The name as the roster shows it. */
-  displayName: string;
+  displayAlias: string | null; // the alias flagged as this person's display name, if they have one
+  displayName: string; // the name as the roster shows it
   status: MembershipStatus;
   entry: string;
   email: string | null;
   phone: string | null;
-  /** Every onboarding item this membership has. */
   itemsTotal: number;
-  /** Those in `complete`, `waived` or `not_applicable`. */
-  itemsResolved: number;
-  /** Required, non-subscription, unresolved — what activation asks about. */
-  requiredOutstanding: number;
+  itemsResolved: number; // complete, waived or not_applicable
+  requiredOutstanding: number; // required, non-subscription, unresolved — what activation asks about
 }
 
 export interface RosterFilters {
-  /** Free text over names and raw contact values. */
-  search?: string | null;
-  /** A `membership_status` value, or `null` for all. */
-  status?: string | null;
-  /** An `membership_entry` value, or `null` for all. */
-  entry?: string | null;
-  /** One of `ROSTER_SORT_COLUMNS`. Anything else falls back to the default. */
-  sort?: string | null;
-  /** `"asc"` or `"desc"`. Anything else falls back to the column's default. */
-  direction?: string | null;
+  search?: string | null; // free text over names and raw contact values
+  status?: string | null; // a membership_status value, or null for all
+  entry?: string | null; // a membership_entry value, or null for all
+  sort?: string | null; // one of ROSTER_SORT_COLUMNS; anything else falls back to the default
+  direction?: string | null; // "asc" or "desc"; anything else falls back to the column's default
 }
 
-/**
- * The columns an operator may sort by, and the SQL each one means.
- *
- * A whitelist, for the same reason `events.ts` keeps one: `sort` arrives in the
- * query string and the only safe way to put a caller's word in an `order by` is
- * to look it up in a list written here. An unrecognised value is the default,
- * never an error and never the caller's text.
- *
- * `status` sorts by the enum's own declaration order rather than
- * alphabetically, so the roster reads onboarding, active, inactive, departed,
- * archived — the order a season actually moves through — instead of "active,
- * archived, departed".
- */
+// A whitelist (as events.ts keeps one): sort arrives in the query string. status sorts by the
+// enum's own declaration order (onboarding, active, inactive, departed, archived) — the order a
+// season actually moves through — not alphabetically.
 const ROSTER_SORT_COLUMNS: Readonly<Record<string, { sql: string; default: "asc" | "desc" }>> =
   Object.freeze({
     name: Object.freeze({
@@ -180,28 +138,20 @@ const ROSTER_SORT_COLUMNS: Readonly<Record<string, { sql: string; default: "asc"
 const DEFAULT_ROSTER_SORT = "name";
 
 function rosterOrderBy(sort: string | null, direction: string | null): string {
-  // `Object.hasOwn`, not a plain lookup. `ROSTER_SORT_COLUMNS["toString"]`
-  // resolves through `Object.prototype` to a function, which is truthy — so
-  // `??` never falls back, `column.sql` is `undefined`, and the query becomes
-  // `order by undefined`, which the database refuses and the screen renders as
-  // "the roster is unavailable". `?sort=toString` is a URL anybody can type;
-  // `constructor`, `valueOf` and `hasOwnProperty` do the same. Not injection —
-  // the whitelist still holds and nothing of the caller's text reaches the SQL
-  // — but a denial of service on a screen, found by independent review.
+  // Object.hasOwn, not a plain lookup — a plain {}[sort] resolves prototype props like "toString"
+  // to a truthy function, defeating ??, and the query becomes `order by undefined` (independent
+  // review finding; see relocations.md).
   const column = Object.hasOwn(ROSTER_SORT_COLUMNS, sort ?? "")
     ? ROSTER_SORT_COLUMNS[sort as string]
     : ROSTER_SORT_COLUMNS[DEFAULT_ROSTER_SORT];
   const dir = direction === "asc" || direction === "desc" ? direction : column.default;
-  // A stable tie-break on the name, so two operators sorting by status see the
-  // same list rather than whatever order the rows came back in.
-  return `${column.sql} ${dir === "asc" ? "asc" : "desc"} nulls last, coalesce(p.family_name, p.given_name) asc, p.given_name asc`;
+  return `${column.sql} ${dir === "asc" ? "asc" : "desc"} nulls last, coalesce(p.family_name, p.given_name) asc, p.given_name asc`; // stable name tie-break
 }
 
 export interface Roster {
   season: Season;
   entries: RosterEntry[];
-  /** Memberships in the season before any filter was applied. */
-  totalInSeason: number;
+  totalInSeason: number; // memberships in the season before any filter was applied
 }
 
 function displayNameOf(row: {
@@ -213,14 +163,8 @@ function displayNameOf(row: {
   return formal;
 }
 
-/**
- * A current contact value of one kind, chosen the way UX-11 chooses one: the
- * preferred one where there is one, else the most recently recorded. Superseded
- * values (`valid_until` set) never appear.
- *
- * Written as a correlated sub-select rather than a join so that a person with
- * three emails still produces exactly one roster row.
- */
+// A current contact value, chosen as UX-11 chooses one: preferred, else most recent. A correlated
+// sub-select, not a join, so a person with three emails still produces one roster row.
 const CONTACT_COLUMNS = `
   (select c.raw_value from public.contact_points c
     where c.person_id = p.id and c.kind = 'email' and c.valid_until is null
@@ -273,19 +217,9 @@ function toRosterEntry(row: RosterRow): RosterEntry {
   };
 }
 
-/**
- * The current season's memberships, optionally filtered.
- *
- * `totalInSeason` comes back alongside so the screen can tell UX-23's
- * filter-empty state from a season that genuinely has nobody in it — the shared
- * state contract requires the two to be distinguished, and the recovery differs
- * (clear the filters, or enter the first returner). It is counted in the same
- * transaction as the list, so the two cannot disagree.
- *
- * The search matches names *and* raw contact values, because the wireframe's
- * box says "Search name or contact" and an operator with a phone number and no
- * name is the case that box exists for.
- */
+// totalInSeason distinguishes UX-23's filter-empty state from a genuinely empty season (shared
+// state contract), counted in the same transaction as the list. Search matches names and raw
+// contact values (wireframe: "Search name or contact").
 export async function listCurrentSeasonRoster(filters: RosterFilters = {}): Promise<Roster> {
   return withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
@@ -352,7 +286,6 @@ export interface MembershipRecord {
   personId: string;
   givenName: string;
   familyName: string | null;
-  /** The alias flagged as this person's display name, if they have one. */
   displayAlias: string | null;
   displayName: string;
   status: MembershipStatus;
@@ -364,16 +297,11 @@ export interface MembershipRecord {
   inactivityLabel: string | null;
   contacts: MembershipContact[];
   onboardingItems: OnboardingItem[];
-  /** Required, non-subscription and unresolved. What activation asks about. */
-  outstandingRequired: OnboardingItem[];
+  outstandingRequired: OnboardingItem[]; // required, non-subscription and unresolved — what activation asks about
   statusHistory: MembershipStatusEvent[];
 }
 
-/**
- * Reads one membership inside an existing transaction. Exported so
- * `write-status.ts` and `write-items.ts` can return the fresh record after a
- * write without opening a second transaction.
- */
+// Exported so write-status.ts and write-items.ts can return the fresh record after a write without opening a second transaction.
 export async function readMembershipIn(tx: Tx, membershipId: string): Promise<MembershipRecord> {
   const result = await tx.query<{
     membership_id: string;

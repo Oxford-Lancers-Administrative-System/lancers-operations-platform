@@ -7,24 +7,9 @@ import Stack from "@mui/material/Stack";
 import { DateField } from "@/components/field";
 import { CHANGE_DATE_LABEL, CHANGE_DATE_SUBMIT } from "./presentation";
 
-/**
- * Choosing the reporting date.
- *
- * A plain `GET` form. Choosing a date changes which report is read, so it
- * belongs in the address bar: the result is shareable, a refresh re-runs it
- * harmlessly, and the back button does what the operator expects.
- *
- * Two things the first version got wrong, both of which Brian met on the first
- * screen he opened. The field carried a visible "Choose another date" label
- * *and* a button reading the same words, which is one instruction printed
- * twice; and the button sat in a fixed-height row that its own text overflowed.
- * The label is now the field's own floating label, the button says what
- * pressing it does rather than restating the heading, and the row wraps instead
- * of clipping.
- */
+// Choosing the reporting date — a plain GET form (shareable, refreshable).
+// Decision history: docs/ux/tickets/LAN-81-monday-report.md.
 export function ReportDateForm({ date }: { date: string }) {
-  // Held in state so the operator sees what they picked while the navigation is
-  // in flight, rather than the value snapping back.
   const [value, setValue] = useState(date);
   const [picked, setPicked] = useState<Date | null>(() => new Date(`${date}T00:00:00`));
 
@@ -36,12 +21,7 @@ export function ReportDateForm({ date }: { date: string }) {
       data-testid="report-date-form"
       sx={{ maxWidth: 420 }}
     >
-      {/*
-        What tells the page this was a press rather than a visit. Sorting and
-        refreshing navigate to the same route without it, and show what is
-        already on file; this files a new snapshot. The page strips it again
-        immediately, so a refresh afterwards does not file a second one.
-      */}
+      {/* Tells the page this was a press, not a visit; stripped again immediately. */}
       <input type="hidden" name="show" value="1" />
       <Stack
         direction={{ xs: "column", sm: "row" }}
@@ -61,10 +41,9 @@ export function ReportDateForm({ date }: { date: string }) {
           variant="outlined"
           sx={{
             minHeight: 44,
-            // The overflow Brian hit: a fixed-height outlined button whose
-            // label was longer than the box the row gave it. It gets its own
-            // width now, and never shrinks below its text.
+            // Never shrinks below its text — the overflow Brian hit.
             flexShrink: 0,
+
             whiteSpace: "nowrap",
             px: 2.5,
           }}

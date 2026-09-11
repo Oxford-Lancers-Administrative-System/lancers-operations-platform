@@ -26,16 +26,7 @@ function modeOf(value: string): CalendarMode {
   return value === "oxford" ? "oxford" : "gregorian";
 }
 
-/**
- * The Events calendar — Calendar View, and the Oxford View. LAN-114, remade by
- * LAN-153. Reads `listEventsForOperator()` with no filter — the same call and
- * result the list at `/operate/events` uses, so the two arrangements never
- * disagree (`REQ-three-arrangements`). Read-only: no server action, no form,
- * every navigation a `GET`. Today comes once from `@/lib/club-time`, passed
- * down as `YYYY-MM-DD` — no grid calls `new Date()` itself.
- *
- * Decision history: docs/ux/tickets/LAN-114-event-calendar.md.
- */
+// The Events calendar — LAN-114, remade by LAN-153. Decision history: docs/ux/tickets/LAN-114-event-calendar.md.
 export default async function EventCalendarPage({
   searchParams,
 }: PageProps<"/operate/events/calendar">) {
@@ -61,10 +52,6 @@ export default async function EventCalendarPage({
     );
   }
 
-  // Awaited here rather than inside the arrangement below: an async component
-  // element returned from another async component is resolved by the framework
-  // but not by a direct `render(await Page())`, which is the level these screens
-  // are tested at.
   const year =
     mode === "oxford"
       ? await readEventYear(list.events, {
@@ -104,8 +91,6 @@ export default async function EventCalendarPage({
           choices={[
             { href: OPERATOR_EVENTS_PATH, label: "List", active: false, testId: "view-list" },
             {
-              // Carries where you are, so re-clicking the view you are already
-              // in does not quietly send you back to the default month.
               href:
                 mode === "oxford"
                   ? `${OPERATOR_CALENDAR_PATH}?mode=oxford`

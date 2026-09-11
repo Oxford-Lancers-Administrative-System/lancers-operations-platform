@@ -1,7 +1,3 @@
-/**
- * The step sequence. `WP-player-questionnaire`, LAN-216, W4 and W5.
- */
-
 export type QuestionnaireStep =
   "details" | "code_of_conduct" | "photo_release" | "bucs_play" | "hudl" | "done";
 

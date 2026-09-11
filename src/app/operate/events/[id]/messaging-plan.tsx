@@ -28,36 +28,11 @@ import {
 import type { UnreachableAudienceMember } from "@/lib/services/event-approval";
 
 /**
- * The messaging plan disclosure — W1, LAN-171.
- *
- * The event page's own account of what a plan looks like, in the club's
- * language rather than in job records: which rung happens when, on which
- * channel, and for whom. Reading this creates nothing and sends nothing — it
- * is a projection, exactly as `messaging-schedule.ts` documents, and both
- * shapes it accepts below are values already resolved by that module.
- *
- * ## Two callers, one renderer
- *
- * Before approval the page has a live {@link MessagingPlan} — recomputed
- * against "now" on every read, so an approver reading it twice an hour apart
- * may see the invitation move. After approval the plan is frozen in
- * `event_messaging_plans`, which stores the counts and the anchor but not each
- * rung's own instant — so {@link buildLadder} replays the same arithmetic
- * `scheduleEventLadderIn` used to create the real jobs, against the frozen
- * values, rather than a second copy of it living here.
- *
- * `toDisplayPlan` is the seam: both shapes normalise to the handful of fields
- * this component actually draws, and the component itself never learns which
- * caller it came from.
+ * The messaging plan disclosure — W1, LAN-171. Projects a resolved plan
+ * (pre- or post-approval) into what the event page shows; creates and sends
+ * nothing itself. See `messaging-schedule.ts` for where the values come from.
  */
-/**
- * REQ-approval-shows-both-ladders. `null` on every event but Recruitment's
- * own — see {@link RecruitMessagingLadder}. One invitation and at most one
- * follow-up, never an escalation: the rungs are built directly here rather
- * than through {@link buildLadder}, which exists for the player ladder's
- * WhatsApp/email split and rung-count arithmetic, neither of which the
- * recruit ladder has.
- */
+/** REQ-approval-shows-both-ladders. Recruit ladder only — one invitation and at most one follow-up, built directly rather than through {@link buildLadder}. */
 interface DisplayRecruitPlan {
   readonly rungs: readonly LadderRung[];
   readonly dispatchesImmediately: boolean;
@@ -126,11 +101,7 @@ interface DescribedRung {
   readonly side: string;
 }
 
-/**
- * Every rung, described in order — a plain pass over the array rather than a
- * mutation performed inside the JSX that renders it, so the description is
- * computed once, as data, before anything is drawn.
- */
+/** Every rung, described in order — computed once, as data, before rendering. */
 function describeRungs(rungs: readonly LadderRung[], audienceSize: number): DescribedRung[] {
   const people = `${audienceSize} ${audienceSize === 1 ? "person" : "people"}`;
   const totalEmail = rungs.filter((rung) => rung.channel === "email").length;
@@ -152,9 +123,7 @@ function describeRungs(rungs: readonly LadderRung[], audienceSize: number): Desc
       };
     }
 
-    // The first reminder after the invitation reads "have not answered";
-    // every one after that reads "still have not answered" — the escalating
-    // wording W1's approved mockup uses once a chase is under way.
+    // Escalating wording per W1's approved mockup: first reminder differs from later ones.
     const note =
       reminderIndex === 0
         ? "Only to people who have not answered."
@@ -247,10 +216,8 @@ function PlanRows({ display, audienceSize }: { display: DisplayPlan; audienceSiz
 }
 
 /**
- * REQ-approval-shows-both-ladders. The recruit ladder's own rows — never an
- * escalation row (recruits are never escalated, `REQ-two-ladders`), and
- * never a "still unanswered" second wording, because there is never a second
- * reminder to distinguish it from (`REQ-never-harsh`).
+ * REQ-approval-shows-both-ladders. Recruit rows: never an escalation
+ * (REQ-two-ladders) and never "still unanswered" (REQ-never-harsh).
  */
 function RecruitPlanRows({
   recruit,
@@ -313,12 +280,7 @@ export function MessagingPlanDisclosure({
   approved,
 }: {
   display: DisplayPlan;
-  /**
-   * When `display.recruit` is present, this is the non-recruit audience —
-   * everyone the player ladder above actually reaches (players, coaches and
-   * committee alike; recruits are never part of it). Otherwise the whole
-   * confirmed audience, unchanged from before LAN-203.
-   */
+  /** Non-recruit audience when `display.recruit` present; otherwise the whole confirmed audience (pre-LAN-203 behaviour unchanged). */
   audienceSize: number;
   /** The recruit audience size. Required exactly when `display.recruit` is not null. */
   recruitAudienceSize?: number;
@@ -347,13 +309,7 @@ export function MessagingPlanDisclosure({
             {PLAN_DISPATCHES_IMMEDIATELY}
           </Notice>
         ) : null}
-        {/*
-            REQ-approval-shows-both-ladders. Grouped by audience, exactly what
-            approval will send to each — the "Regular players"/"Recruits"
-            heading pair only appears once there is a second ladder to tell
-            apart from the first; every event without a recruit ladder renders
-            exactly as it always has, with no heading at all.
-          */}
+        {/* REQ-approval-shows-both-ladders: heading pair appears only once there is a second ladder. */}
         {display.recruit ? (
           <Typography
             variant="overline"
@@ -403,12 +359,9 @@ export function MessagingPlanDisclosure({
 }
 
 /**
- * "1 user has an error." — W1's concise pre-approval WhatsApp check, D8.
- *
- * A count first, a name only on request: `docs/ux/standards.md`'s refusal
- * rules read the same way here as everywhere else in the application. There is
- * no manual-send control beside it — W1 offers none, and W6 owns correction
- * and recovery.
+ * "1 user has an error." — W1's pre-approval WhatsApp check, D8. Count
+ * first, name only on request (`docs/ux/standards.md` refusal rules). No
+ * manual-send control here — W6 owns recovery.
  */
 export function WhatsAppErrorsAlert({
   unreachable,

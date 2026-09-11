@@ -6,11 +6,10 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 /**
- * The phone half of every table — LAN-225, brief §2. Replaces the seven
- * phone card renderers (audit E4, F4, F7, G4): a title, one or two sublines,
- * the status chips, and one tap target, which is the whole card when it has
- * an `href`. A value that used to hide behind an icon button — a phone
- * number — is text on the card, and a missing one says so in words.
+ * The phone half of every table — LAN-225, brief §2. A title, one or two
+ * sublines, status chips, one tap target (the whole card when it has `href`).
+ *
+ * Decision history: docs/ux/tickets/LAN-231-design-rollout.md
  */
 /** The width the row's own controls get at `sm` and up — `/me/[token]`'s own measure. */
 const ACTION_COLUMN = 236;
@@ -38,13 +37,7 @@ export function RowCard({
   href?: string;
   /** A short value at the right of the title row: a count, a date. */
   trailing?: ReactNode;
-  /**
-   * The row's own controls, at the foot of the card — for a list whose rows
-   * are answered in place rather than opened. The player's invitations are
-   * that list: `docs/ux/standards.md` rule 3 wants the answer where the
-   * question is, not two taps away behind a destination. Mutually exclusive
-   * with `href`: a card cannot be one tap target and carry two buttons.
-   */
+  /** The row's own controls, at the foot — for a list answered in place (rule 3). Mutually exclusive with `href`. */
   actions?: ReactNode;
   /** Wider inline controls, such as the four-state attendance recorder. */
   actionWidth?: number | string;
@@ -94,13 +87,7 @@ export function RowCard({
             : undefined
         }
       >
-        {/*
-          Beside the content at `sm` and up, under it on a phone. Stacking the
-          controls under every row at desktop too is what turned a 45-row list
-          into a 9,676px page in the first draft of S9 — three times the
-          height of the page it was meant to improve. The measure is the same
-          one `/me/[token]` already uses for the same list.
-        */}
+        {/* Beside the content at `sm`+, under it on a phone — stacking at desktop turned a 45-row list into 9,676px in S9's first draft. */}
         <Stack
           direction={{ xs: "column", sm: "row" }}
           sx={{ alignItems: { sm: "center" }, justifyContent: "space-between" }}
@@ -147,15 +134,7 @@ export function RowCard({
   );
 }
 
-/**
- * Row cards. `at="phone"` — the default — shows them below `md` only and pairs
- * with `TableFrame` for the desktop half, which is what every table does.
- *
- * `at="all"` is for a list that has no desktop table to pair with, because it
- * is not a table at either width: the player's own invitations are read on a
- * phone and on a laptop as the same stack of cards, and rendering them as a
- * table on a desktop would invent a surface no wireframe drew.
- */
+/** Row cards. `at="phone"` (default) shows below `md`, paired with `TableFrame`. `at="all"` is for a list with no desktop table — read as the same card stack at every width. */
 export function RowCardList({
   at = "phone",
   component = "div",

@@ -14,12 +14,7 @@ export function ValueOrNotRecorded({ value }: { value: string | null }) {
   );
 }
 
-/**
- * The board's own funnel-in-a-bordered-button — restyled here rather than
- * imported from `roster-board.tsx`, which this package does not edit. Same
- * inline SVG for the same reason the board's own comment gives: no icon
- * package in this dependency tree.
- */
+// Restyled here rather than imported from roster-board.tsx (not edited by this package).
 export function FilterButton({
   label,
   active,

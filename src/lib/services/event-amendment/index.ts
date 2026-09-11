@@ -1,7 +1,4 @@
-/**
- * Amending, re-notifying and cancelling an approved event — W5 and W6, LAN-156.
- * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
- */
+/** Amending, re-notifying and cancelling an approved event — W5 and W6, LAN-156. Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md. */
 
 export { readAmendmentContext, readEventChangeHistory, readNotifyAudienceIn } from "./read";
 export type { AmendmentContext, EventChangeEntry, EventChangeKind } from "./read";

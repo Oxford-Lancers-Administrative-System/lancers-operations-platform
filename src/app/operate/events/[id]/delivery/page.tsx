@@ -13,14 +13,8 @@ import { Overview } from "./delivery-overview";
 import { Diagnostics } from "./delivery-diagnostics";
 import { RepairPanel } from "./delivery-repair-panel";
 
-/**
- * Delivery — UX-50, UX-51 and UX-52. LAN-78, one route at three depths:
- * `?view=diagnostics` opens the per-invitee table, `?invitation=` opens one
- * invitee's repair panel. Reads `readEventDelivery`'s stored rows only.
- * Gated on `delivery_administration`, read after the gate returns.
- *
- * Decision history: docs/ux/tickets/LAN-78-delivery.md
- */
+// Delivery — UX-50, UX-51, UX-52, LAN-78: one route at three depths. Gated
+// on `delivery_administration`. Decision history: docs/ux/tickets/LAN-78-delivery.md
 export default async function DeliveryPage({
   params,
   searchParams,
@@ -66,12 +60,7 @@ export default async function DeliveryPage({
   }
 
   if (view === "diagnostics") {
-    // A second read rather than folding attempts into `readEventDelivery`:
-    // that reader is scoped to `job_type = 'invitation'` on purpose (the
-    // overview counts an *invitation*, once, per invitee) and this one is
-    // scoped to nothing — every job type, every attempt, R15's evidence.
-    // Widening the first to carry both would mean one row sometimes meaning
-    // an invitee and sometimes meaning an attempt.
+    // A second read: readEventDelivery is scoped to job_type='invitation', this to every attempt (R15).
     const attempts = await readEventDeliveryDiagnostics(id);
     return (
       <DeliveryLayout delivery={delivery} basePath={basePath}>

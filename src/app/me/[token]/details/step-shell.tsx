@@ -26,9 +26,7 @@ import { PRIVACY_NOTE, stepLabel } from "./presentation";
 /** The onboarding item codes this questionnaire's five steps map onto. */
 type QuestionnaireItemCode = keyof QuestionnaireView["itemStatus"];
 
-// ---------------------------------------------------------------------------
 // The checklist strip — the map of the sequence
-// ---------------------------------------------------------------------------
 
 function ChecklistStrip({
   view,
@@ -48,9 +46,8 @@ function ChecklistStrip({
       });
       continue;
     }
-    // `STEP_ORDER` stops before "done"; the guard is here because the step
-    // union carries it and the item codes below do not.
-    if (step === "done") continue;
+    if (step === "done") continue; // the step union carries "done"; item codes below do not
+
     const code: QuestionnaireItemCode = step === "hudl" ? "hudl_access" : step;
     const status = view.itemStatus[code] ?? "pending";
     steps.push({ label: stepLabel(step), status, statusLabel: itemStepWord(code, status) });
@@ -60,14 +57,10 @@ function ChecklistStrip({
 }
 
 /**
- * The one word this page says about an onboarding item's state.
- *
- * Sourced from `status` alone — never a second, separate test — so this
- * label and any chip drawn from the same status can never disagree. `claimed`
- * keeps its own word (the player says done, the club has not confirmed);
- * every other settled state (`RESOLVED_ITEM_STATUSES`) reads as resolved.
- * Player-facing only: `itemStateLabel` answers the same question for an
- * administrator and is not interchangeable with this one.
+ * The one word this page says about an onboarding item's state. Sourced from
+ * `status` alone, never a second test. `claimed` keeps its own word (player
+ * says done, club hasn't confirmed). Player-facing only — `itemStateLabel`
+ * is the administrator's version and not interchangeable.
  *
  * Decision history: docs/ux/tickets/LAN-216-player-questionnaire.md.
  */
@@ -87,10 +80,9 @@ export function itemIsSettled(status: OnboardingItemStatus | null): boolean {
 }
 
 /**
- * The two-column status box the Done and BUCS Play screens both show above
- * their own steps — one grid shared by both rather than two copies.
- * `positive` colours a row's value with this route's own Alert convention
- * (`success.main`/`warning.main`).
+ * The two-column status box Done and BUCS Play both show above their own
+ * steps, one grid shared rather than two copies. `positive` colours a row
+ * with this route's Alert convention (`success.main`/`warning.main`).
  *
  * Decision history: docs/ux/tickets/LAN-216-player-questionnaire.md.
  */

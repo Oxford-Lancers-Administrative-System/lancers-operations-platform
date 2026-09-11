@@ -31,25 +31,19 @@ import {
 
 /**
  * The write — every reference this package knows how to re-point.
- * {@link mergePersons} re-checks eligibility under a real row lock (a
- * preview is never authoritative under a race), then repoints every table
- * in turn and blind-repoints everything in `PERSON_REFERENCE_COLUMNS`.
- * LAN-185. `tests/person-merge-reference-catalogue.test.ts` asks
- * `pg_constraint` for the real set and fails if this has drifted from it.
- * Decision history (the module's full "which references" note): docs/ux/tickets/LAN-185-person-write.md.
+ * {@link mergePersons} re-checks eligibility under a real row lock, then
+ * repoints every table in turn and blind-repoints everything in
+ * `PERSON_REFERENCE_COLUMNS`. LAN-185.
+ * `tests/person-merge-reference-catalogue.test.ts` asks `pg_constraint` for
+ * the real set and fails if this has drifted.
+ * Decision history: LAN-185, missions/intake/M-PEOPLE-AND-ROSTER
  */
 
 /**
- * Every foreign key to `public.people` this module blind-re-points:
- * `UPDATE <table> SET <column> = survivor WHERE <column> = loser`. Safe
- * unconditionally — none of these columns sits in a unique constraint that
- * also names another foreign key `mergePersons()` does not already
- * neutralise first (`recruitment_prospects` and `person_emergency_contacts`
- * are re-pointed separately, above this list, precisely because they are not
- * safe blind; `season_memberships` joins them as of `Q-16` — correction
- * round 2 — because an archived overlap membership must stay on the loser).
- * `tests/person-merge-reference-catalogue.test.ts` proves this against
- * `pg_constraint` directly.
+ * Every foreign key to `public.people` this module blind-re-points. Safe
+ * unconditionally — none collides with a unique constraint `mergePersons()`
+ * does not already neutralise first. Proved against `pg_constraint` by
+ * `tests/person-merge-reference-catalogue.test.ts`.
  */
 export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: string }> = [
   { table: "attendance_records", column: "person_id" },
@@ -75,9 +69,7 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "nonresponse_flags", column: "resolved_by_person_id" },
   { table: "notification_jobs", column: "held_by_person_id" },
   { table: "notification_jobs", column: "person_id" },
-  // LAN-214 (WP-onboarding-substrate). Actor columns with no per-person
-  // uniqueness to collide on — the same shape `audit_events.actor_person_id`
-  // already re-points blindly.
+  // LAN-214. Actor columns with no per-person uniqueness to collide on.
   { table: "bps_selections", column: "recorded_by_person_id" },
   { table: "onboarding_activity_log", column: "actor_person_id" },
   { table: "onboarding_item_history", column: "actor_person_id" },
@@ -85,15 +77,11 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "person_access_tokens", column: "issued_by_person_id" },
   { table: "person_access_tokens", column: "person_id" },
   { table: "person_emergency_contacts", column: "recorded_by_person_id" },
-  // LAN-214. The four-role operator who raised or resolved a disputed
-  // fact — an actor column, not the dispute's subject (`person_id`, excluded
-  // below).
+  // LAN-214. Actor, not the dispute's subject (excluded below).
   { table: "person_fact_disputes", column: "raised_by_person_id" },
   { table: "person_fact_disputes", column: "resolved_by_person_id" },
   { table: "position_assignments", column: "recorded_by_person_id" },
-  // LAN-201 (WP-recruitment-schema). Each is an actor/author column with no
-  // per-season uniqueness to collide on — the same shape
-  // `season_membership_status_events.actor_person_id` already re-points blindly.
+  // LAN-201. Actor/author columns with no per-season uniqueness to collide on.
   { table: "recruitment_prospect_notes", column: "author_person_id" },
   { table: "recruitment_prospect_status_events", column: "actor_person_id" },
   { table: "recruitment_signup_codes", column: "deactivated_by_person_id" },
@@ -105,8 +93,7 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "schedule_changes", column: "approved_by_person_id" },
   { table: "schedule_changes", column: "recorded_by_person_id" },
   { table: "season_membership_status_events", column: "actor_person_id" },
-  // The actor, not the subject — `season_messaging_consents.person_id` is
-  // excluded below for the same reason `recruitment_prospects.person_id` is.
+  // The actor, not the subject (excluded below).
   { table: "season_messaging_consents", column: "recorded_by_person_id" },
   { table: "seasons", column: "closed_by_person_id" },
   { table: "seasons", column: "opened_by_person_id" },
@@ -114,11 +101,7 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "weekly_reports", column: "generated_by_person_id" },
 ];
 
-/**
- * Every foreign key to `public.people` this module deliberately leaves
- * untouched, and why — read by the catalogue test alongside
- * `PERSON_REFERENCE_COLUMNS` so the two together account for the whole set.
- */
+/** Every foreign key deliberately left untouched, and why — read by the catalogue test alongside `PERSON_REFERENCE_COLUMNS`. */
 export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
   table: string;
   column: string;
@@ -190,17 +173,14 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
 ];
 
 async function repointAliases(tx: Tx, survivorId: string, loserId: string): Promise<void> {
-  // A loser alias whose text the survivor already carries would collide with
-  // `person_aliases_unique_per_person` — dropped rather than duplicated; the
-  // survivor already has that name form.
+  // Dropped rather than duplicated: would collide with person_aliases_unique_per_person.
   await tx.query(
     `delete from public.person_aliases
       where person_id = $1::uuid
         and alias in (select alias from public.person_aliases where person_id = $2::uuid)`,
     [loserId, survivorId],
   );
-  // Re-pointed aliases are never the display name on the survivor —
-  // "dedupe evidence, never as roster display."
+  // Dedupe evidence, never roster display.
   await tx.query(
     `update public.person_aliases set person_id = $2::uuid, is_display_name = false
       where person_id = $1::uuid`,
@@ -208,11 +188,7 @@ async function repointAliases(tx: Tx, survivorId: string, loserId: string): Prom
   );
 }
 
-/**
- * Every current, preferred contact point of one kind and scope, for either
- * person — the two candidates a "differs" comparison row ever offers a
- * choice between.
- */
+/** Every current, preferred contact point of one kind/scope, for either person. */
 async function currentPreferredIdIn(
   tx: Tx,
   personId: string,
@@ -238,18 +214,10 @@ async function demoteContactIn(tx: Tx, contactId: string): Promise<void> {
 }
 
 /**
- * Re-points every current and historical contact point of both people onto
- * the survivor, resolving which one stays preferred per kind and scope —
- * REQ-merge: "contact points from both are kept; one per kind stays
- * preferred."
- *
- * The demotion happens *before* either row is re-pointed, while the two
- * candidates still carry their own distinct `person_id` — demoting a row in
- * place never collides with anything, because `contact_points_one_preferred_
- * per_kind` is scoped per person. Only once at most one candidate is left
- * `is_preferred` does the blind move of every remaining row follow; doing it
- * in the other order asks the unique index to hold two preferred rows for
- * the survivor at once, even for an instant inside one statement.
+ * Re-points every contact point of both people onto the survivor, resolving
+ * which stays preferred per kind/scope (REQ-merge). Demotion happens before
+ * either row is re-pointed — the scoped-per-person unique index would
+ * otherwise briefly hold two preferred rows for the survivor.
  */
 async function repointContacts(
   tx: Tx,
@@ -273,10 +241,7 @@ async function repointContacts(
       await demoteContactIn(tx, loserPreferredId);
     }
 
-    // Every one of the loser's contact points of this kind moves to the
-    // survivor, retained. At most one row across both sides is still
-    // `is_preferred` for this (kind, scope) at this point, so this can never
-    // collide with the survivor's own remaining row.
+    // At most one row across both sides is still is_preferred here, so this can never collide.
     await tx.query(
       `update public.contact_points set person_id = $2::uuid
         where person_id = $1::uuid and kind = $3::public.contact_point_kind
@@ -293,13 +258,7 @@ async function repointProspects(
   combinations: readonly MergeProspectCombination[],
 ): Promise<void> {
   for (const combo of combinations) {
-    // A joined prospect carries `converted_membership_id`, tied to a real
-    // season membership — combining it here would either drop that link or
-    // claim a membership the survivor's own row never had. Left alone: the
-    // blind re-point below then meets
-    // `recruitment_prospects_one_per_person_per_season` for this one season
-    // and refuses the whole merge cleanly, rather than this module silently
-    // deciding what a joined record should say.
+    // Joined carries converted_membership_id; left alone, the blind re-point below refuses cleanly on the unique constraint.
     if (combo.combinedStatus === "joined") continue;
     await tx.query(
       `update public.recruitment_prospects
@@ -320,25 +279,14 @@ async function repointProspects(
       [loserId, combo.seasonId],
     );
   }
-  // Everything left on the loser has no counterpart on the survivor — a plain
-  // re-point, safe because `recruitment_prospects_one_per_person_per_season`
-  // cannot collide with a season already handled above.
+  // Everything left has no counterpart on the survivor — a plain re-point.
   await tx.query(
     `update public.recruitment_prospects set person_id = $2::uuid where person_id = $1::uuid`,
     [loserId, survivorId],
   );
 }
 
-/**
- * `Q-16` (Brian, correction round 2): a season membership the operator
- * archived to clear the overlap refusal stays on the merged-away record —
- * re-pointing it here would violate `season_memberships_one_per_person_per_
- * season` and re-break the very thing archiving cleared. Excluded
- * deliberately, the same shape `repointProspects()` already uses for a
- * joined prospect it also declines to re-point. Everything else the loser
- * holds — a season with no survivor counterpart — is a plain re-point, safe
- * because the excluded row is the only one that could collide.
- */
+/** Q-16: a season membership the operator archived to clear the overlap refusal stays on the merged-away record. */
 async function repointSeasonMemberships(
   tx: Tx,
   survivorId: string,
@@ -487,18 +435,7 @@ export interface MergePersonsResult {
   loserPersonId: string;
 }
 
-/**
- * LAN-256's backstop, inside the merge's own transaction and under its own row
- * locks.
- *
- * The comparison screen disables Merge until every disagreeing row has an
- * answer, but a server action is a POST endpoint the browser can call
- * directly, and the whole defect was that an unanswered row quietly resolved
- * to the survivor. So the rule lives here, where the records are already read
- * and locked, rather than only in the component that draws the radios. It
- * names the fields it is missing, because "answer everything" is not something
- * an operator can act on.
- */
+/** LAN-256's backstop, inside the merge's own transaction and row locks — a server action is a POST endpoint the client-side disable cannot protect alone. Names the fields missing. */
 function assertEveryDifferenceAnswered(
   survivorRecord: PersonRecord,
   loserRecord: PersonRecord,
@@ -538,12 +475,7 @@ function assertEveryDifferenceAnswered(
   }
 }
 
-/**
- * The merge. One transaction: every reference re-pointed, every chosen field
- * value written as an ordinary correction, the losing row marked and dated,
- * and one `person_merged` audit event naming what moved — invariant I6, and
- * `Q-5` in full.
- */
+/** The merge. One transaction: every reference re-pointed, every chosen field written as an ordinary correction, the loser marked and dated, one audit event (invariant I6, Q-5). */
 export async function mergePersons(params: {
   actorPersonId: string;
   survivorPersonId: string;
@@ -569,9 +501,7 @@ export async function mergePersons(params: {
   }
 
   return withTransaction(async (tx) => {
-    // Row locks first, in a fixed order (survivor before loser, by id
-    // otherwise) so two concurrent merges naming the same pair can never
-    // deadlock against each other.
+    // Row locks first, in a fixed order, so concurrent merges of the same pair can never deadlock.
     const [first, second] =
       survivorPersonId < loserPersonId
         ? [survivorPersonId, loserPersonId]
@@ -605,8 +535,7 @@ export async function mergePersons(params: {
     const combinations = await readProspectCombinations(tx, survivorPersonId, loserPersonId);
     const consentCombinations = await readConsentCombinations(tx, survivorPersonId, loserPersonId);
 
-    // LAN-256, before anything is written: an unanswered disagreement is not
-    // an implicit vote for the survivor.
+    // LAN-256: an unanswered disagreement is not an implicit vote for the survivor.
     assertEveryDifferenceAnswered(
       survivorSide.record,
       loserSide.record,
@@ -630,11 +559,9 @@ export async function mergePersons(params: {
     await repointContacts(tx, survivorPersonId, loserPersonId, fieldChoices);
     await repointAliases(tx, survivorPersonId, loserPersonId);
     await repointProspects(tx, survivorPersonId, loserPersonId, combinations);
-    // B-003 — `WP-operator-record`, LAN-217. The operator's own choice per
-    // season, defaulting to the survivor's own value.
+    // B-003, LAN-217: the operator's own choice per season.
     await repointConsents(tx, survivorPersonId, loserPersonId, consentCombinations, consentChoices);
-    // Mission owner-question Q-3/Q-5 — the two other per-tuple-unique tables
-    // this package was assigned to close, the same shape as consents above.
+    // Q-3/Q-5: two more per-tuple-unique tables, same shape as consents above.
     await repointAgreements(tx, survivorPersonId, loserPersonId);
     await repointDisputes(tx, survivorPersonId, loserPersonId);
     await repointSeasonMemberships(
@@ -645,8 +572,7 @@ export async function mergePersons(params: {
     );
 
     for (const { table, column } of PERSON_REFERENCE_COLUMNS) {
-      // `staging.legacy_roster_rows` already names its own schema; every
-      // other entry here is bare and lives in `public`.
+      // staging.legacy_roster_rows already names its own schema; others are bare.
       const qualified = table.includes(".") ? table : `public.${table}`;
       await tx.query(`update ${qualified} set ${column} = $2::uuid where ${column} = $1::uuid`, [
         loserPersonId,

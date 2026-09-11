@@ -1,21 +1,9 @@
 import type { SeasonMessagingConsentState } from "./messaging-consent";
 
 /**
- * The recruitment mission's own fixed vocabulary — types, labels, and the
- * ladder's order — shared by the server-only read/write modules
- * (`recruitment-board.ts`, `recruitment-prospect.ts`) and by client
- * components (`../../app/operate/recruitment/**`) alike.
- *
- * ## Why this file carries no `"server-only"`
- *
- * `recruitment-board.ts` and `messaging-consent.ts` both open with
- * `import "server-only"`, so a client component that imports a **value**
- * (not merely a type) from either fails at build time — Next.js forbids a
- * client bundle from ever reaching a module tagged that way, the same
- * boundary `../roster/presentation.ts` already exists to respect for the
- * roster board's own labels. This module holds no database access and no
- * secret, so it carries none of that restriction, and both sides import the
- * one copy rather than each keeping a wording of its own that could drift.
+ * The recruitment mission's own fixed vocabulary — types, labels, ladder
+ * order. No `"server-only"` tag, so a client bundle can reach it directly.
+ * Decision history: missions/intake/M-RECRUITMENT
  */
 
 export type ProspectStatus =
@@ -31,7 +19,6 @@ export const PROSPECT_STATUS_LABELS: Readonly<Record<ProspectStatus, string>> = 
   void: "Void",
 });
 
-/** The three exits, `W13`. `joined` is the fourth way off the ladder and is `W14`'s alone. */
 export const EXIT_STATUSES: readonly ProspectStatus[] = Object.freeze([
   "declined",
   "disengaged",
@@ -61,13 +48,7 @@ export const ATTENDANCE_LABEL: Readonly<Record<AttendanceValue, string>> = Objec
   absent: "Absent",
 });
 
-/**
- * The six Questionnaire B columns, and the codebook this package had to
- * choose — see `recruitment-board.ts`'s own module comment for the full
- * reasoning. `B1`–`B5` are `recruitment-cycle.ts`'s own
- * `QUESTIONNAIRE_B_COMPLETING_CODES`; `B6` is the free-text "anything else"
- * that never completes anything, in both places.
- */
+/** The six Questionnaire B columns. `B1`-`B5` are `QUESTIONNAIRE_B_COMPLETING_CODES`; `B6` is the free-text "anything else" that never completes anything. */
 export const QUESTIONNAIRE_B_CODE = Object.freeze({
   playedBefore: "B1",
   watchedBefore: "B2",
@@ -77,19 +58,7 @@ export const QUESTIONNAIRE_B_CODE = Object.freeze({
   anythingElse: "B6",
 } as const);
 
-/**
- * "How we came by this number" — `W6`'s opt-in evidence. Correction round 1,
- * F-206-02: Brian ruled "Mock up wins" on structure and copy wherever the
- * runnable fidelity mockup (`src/app/recruitment-preview/add-recruit.tsx` on
- * `origin/chore/recruitment-fidelity-mockup`) disagrees with the approved,
- * generated `W6-01.js` proposal script — this option set is that mockup's
- * own literal list, superseding the earlier one drawn from the script. A
- * value, not a type, so it lives here rather than in `recruitment-add.ts`
- * (`server-only`) for the same reason every other value this module exports
- * does — `add-recruit-form.tsx` is a client component and a client bundle
- * may never reach a `server-only`-tagged module (see this file's own module
- * note above).
- */
+/** "How we came by this number" — `W6`'s opt-in evidence (F-206-02). A value, not a type, so a client component can import it directly. */
 export const RECRUITMENT_ADD_OPT_IN_OPTIONS: readonly { value: string; label: string }[] =
   Object.freeze([
     { value: "gave_it", label: "They gave it to us themselves" },
@@ -98,21 +67,7 @@ export const RECRUITMENT_ADD_OPT_IN_OPTIONS: readonly { value: string; label: st
     { value: "other", label: "Something else — written below" },
   ]);
 
-/**
- * V-10, correction round 2 — Brian could not tell what either field was for:
- * "I don't know what the two are for... In your own words, what the fuck
- * does that mean? Neither of those fields makes any sense to me." He then
- * authorised the one explicit, scoped exception to the no-narrative-text
- * rule on this surface: "You should explain why it's needed in the first
- * place... why are you being added? Explain that, right? That's fine."
- *
- * These three strings are that exception, and only it — a short paragraph
- * above the two fields (`RECRUITMENT_ADD_EXPLANATION`) plus the two field
- * labels themselves in plain language, replacing "How we came by this
- * number" and "In your own words". The machinery this explains is
- * unchanged: without an answer here, the recruit is still created and
- * nothing is ever sent (`finishRecruitmentAddIn`, `recruitment-add.ts`).
- */
+/** V-10: the one explicit, scoped exception to the no-narrative-text rule on this surface — replaces "How we came by this number" and "In your own words". */
 export const RECRUITMENT_ADD_EXPLANATION =
   "Why we ask: added this way, this recruit did not hand over their own number through a form, so the club needs a record of how it reached you before messaging them. Answer below and the welcome message goes out; leave it blank and they are still added, but nothing is sent.";
 
@@ -123,15 +78,7 @@ export const RECRUITMENT_ADD_OPT_IN_NOTE_LABEL = "Describe how, in your own word
 export const RECRUITMENT_ADD_OPT_IN_NOTE_HELPER =
   "A word or two is enough — this is what the club could show them if they ever asked how it had their number.";
 
-/**
- * "Which positions interest you?" — `W4`'s Questionnaire B, correction round
- * 1 (F-206-02). Genuine multi-select, grouped Offence / Defence / Special
- * teams, `CODE · Label` — the fidelity mockup's own `POSITION_GROUPS`
- * (`src/app/recruitment-preview/fixtures.ts`), carrying Brian's own dated
- * quote: "A recruit is allowed to be interested in more than one thing."
- * Twenty-two positions, not the nine flat aggregates the superseded single
- * chooser offered.
- */
+/** "Which positions interest you?" — `W4`'s Questionnaire B (F-206-02). Genuine multi-select, grouped, twenty-two positions, not the nine flat aggregates superseded. */
 export const POSITION_GROUPS: readonly {
   readonly label: string;
   readonly positions: readonly { readonly code: string; readonly label: string }[];
@@ -175,19 +122,11 @@ export const POSITION_GROUPS: readonly {
   }),
 ]);
 
-/** The `CODE · Label` value `POSITION_GROUPS`' own entries store and prefill by. */
 export function positionValue(entry: { readonly code: string; readonly label: string }): string {
   return `${entry.code} · ${entry.label}`;
 }
 
-/**
- * "What playing gear do you already have?" — `W4`'s Questionnaire B,
- * correction round 1 (F-206-02). Genuine multi-select over six individual
- * items, the fidelity mockup's own `GEAR_ITEMS`, retiring the five preset
- * bundles a single chooser offered — a recruit owning boots and a
- * mouthguard could previously only claim "Full pads" (false) or "Something
- * else" (uninformative). Note the mockup's own verb is *have*, not *own*.
- */
+/** "What playing gear do you already have?" — `W4`'s Questionnaire B (F-206-02). Genuine multi-select, retiring the five preset bundles a single chooser offered. */
 export const GEAR_ITEMS: readonly string[] = Object.freeze([
   "Boots",
   "Gloves",
@@ -197,7 +136,6 @@ export const GEAR_ITEMS: readonly string[] = Object.freeze([
   "Padded trousers",
 ]);
 
-/** Splits a stored joined multi-select answer back into its selected values. */
 export function splitMultiAnswer(value: string | null): readonly string[] {
   if (!value) return [];
   return value
@@ -206,7 +144,6 @@ export function splitMultiAnswer(value: string | null): readonly string[] {
     .filter((entry) => entry !== "");
 }
 
-/** Joins selected multi-select values into the one string a single `answer_choice` column stores. */
 export function joinMultiAnswer(values: readonly string[]): string {
   return values.join(", ");
 }

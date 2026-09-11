@@ -4,44 +4,11 @@ import { type Tx } from "@/lib/db";
 import { hashToken, mintToken, TOKEN_PATTERN } from "./rsvp-tokens";
 
 /**
- * The credential Questionnaire B's ask and reminder carry — LAN-206, the
- * 2026-09-01 amendment's own send machinery.
- *
- * ## Why this is `single_use = true` despite resolving repeatedly
- *
- * The credential's own *behaviour* is the player-page credential's: durable,
- * re-resolvable across repeat visits, never dead the moment it is used once
- * — Questionnaire B's own Done-when is explicit that a recruit answering
- * twice supersedes the earlier answer, which is kept, and W4's exceptions
- * name the same visit answered twice. But `single_use = false` is exactly
- * what `person_access_tokens_one_live_per_person_season` — the *existing*
- * partial index, keyed on `(person_id, season_id)` alone and blind to
- * `purpose` — already claims for the player-page credential itself.
- * `dispatchRecruitmentCycleJob` mints both credentials in the same
- * transaction (the opt-out link is always the durable one, whichever step is
- * sending), so a second `not single_use` row for the same `(person_id,
- * season_id)` collides with that index the moment both exist together —
- * proved by `recruitment-cycle-dispatch.test.ts`'s own end-to-end suite, not
- * a hypothetical. `single_use = true` opts this credential *out* of that
- * older index entirely (its own `where not single_use` no longer matches),
- * while this module's own resolver never writes `single_use_at`, so nothing
- * about the column's usual RSVP-token meaning ("consumed, and now dead")
- * applies here — `purpose` (LAN-206's own migration) and
- * `person_access_tokens_one_open_purpose_request` are this credential's own,
- * separate substrate, entirely independent of the `single_use` flag's
- * original meaning.
- *
- * ## One open request per person, ever
- *
- * {@link issueRecruitmentInterestTokenIn} is a straight revoke-then-insert —
- * `issuePersonTokenIn`'s own idiom, parameterised by `purpose` instead of
- * `season_id`. The partial unique index is the substrate that makes this
- * safe under a race; the function's own ordering (revoke, then insert) is
- * what makes it correct under the ordinary, single-writer case. Every fresh
- * mint — the ask, then its one reminder — supersedes whatever was open
- * before it, which is also what "an expired or revoked link" (W4-03) means
- * in practice: the ask's own link goes dead the moment the reminder mints
- * its own.
+ * The credential Questionnaire B's ask and reminder carry — LAN-206.
+ * `single_use = true` despite resolving repeatedly, to avoid colliding with
+ * `person_access_tokens_one_live_per_person_season`; this resolver never
+ * writes `single_use_at`, so "consumed, now dead" never applies here.
+ * Decision history: LAN-206, missions/intake/M-RECRUITMENT
  */
 
 const PURPOSE = "recruit_interest_request";
@@ -96,17 +63,7 @@ export interface RecruitmentInterestTokenResolution {
 
 const UNRESOLVED: RecruitmentInterestTokenResolution = { state: "unknown", resolved: null };
 
-/**
- * Resolves a Questionnaire B link. **Writes nothing** — the same
- * side-effect-free GET rule `resolveAnswerTokenIn`/`resolvePersonTokenIn`
- * already keep, so a scanner or a link preview fetching this before a human
- * does changes nothing.
- *
- * `unknown` covers a malformed token, a hash miss, a revoked row and a row
- * whose prospect no longer exists for this (person, season) alike — the
- * uniform-invalid rule (E1) that a caller must not be able to tell those
- * apart from the outside.
- */
+/** Resolves a Questionnaire B link. Writes nothing. `unknown` covers every invalid case alike — uniform-invalid (E1). */
 export async function resolveRecruitmentInterestTokenIn(
   tx: Tx,
   token: string,

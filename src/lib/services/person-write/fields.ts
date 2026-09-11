@@ -21,21 +21,10 @@ export type PersonFieldUpdate =
   | { field: "matriculation_year"; value: number | null }
   | { field: "expected_graduation_year"; value: number | null }
   | { field: "degree_field"; value: string | null }
-  /**
-   * The university's own identifier. LAN-267: collected on the player
-   * questionnaire and printed beside the name on the BAFRA roster form. Free
-   * text — the club has no authority over its shape, and refusing a real one
-   * would lose it.
-   */
+  /** LAN-267: collected on the player questionnaire, printed on the BAFRA roster form. Free text. */
   | { field: "student_number"; value: string | null }
-  /**
-   * LAN-267, and the reason it is here rather than questionnaire-only: a coach
-   * is invited and given a role assignment and never sees a questionnaire, so
-   * if this could only arrive that way the roster form's coach table would
-   * print blank at every game — which is the half the officials need.
-   */
+  /** LAN-267: not questionnaire-only — a coach never sees the questionnaire, so this also has an operator edit. */
   | { field: "bafa_registration_number"; value: string | null }
-  /** `YYYY-MM-DD`, or `null`. Restricted — `REQ-restricted-fields` — but this is the one edit surface it is reached from. */
   | { field: "date_of_birth"; value: string | null };
 
 const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
@@ -68,23 +57,7 @@ function normalisedFieldValue(update: PersonFieldUpdate): string | number | null
   return update.value;
 }
 
-/**
- * Overwrites one durable person field, other than a contact value or the
- * emergency contact. `given_name` may never become blank — the schema's own
- * `people_given_name_not_blank` says so, and this refuses it before the
- * statement is sent so the operator gets the club's sentence rather than an
- * integrity error.
- *
- * `date_of_birth` is refused here on the same footing, and for the same
- * reason, as of LAN-245/LAN-258: `people_date_of_birth_in_the_past` was the
- * only thing standing between a future date and the `people` row, and a check
- * constraint reaching a caller raw is what produced a 500 on the player's own
- * questionnaire and an unnamed "the database refused this change" on the
- * operator's edit form. Both forms now ask `validateDateOfBirth` before they
- * offer the save; this is the service layer's own backstop, so a third caller
- * — a script, a future surface — gets the club's sentence naming the field
- * rather than an integrity error, exactly as `given_name` already does.
- */
+/** Overwrites one durable person field. `given_name` never blank (`people_given_name_not_blank`); `date_of_birth` refused the same way (LAN-245/LAN-258). */
 export async function updatePersonField(
   params: {
     actorPersonId: string;
@@ -104,8 +77,7 @@ export async function updatePersonField(
     });
   }
 
-  // Clearing a date of birth is a legitimate correction and is not validated;
-  // only a value actually being recorded is.
+  // Clearing a date of birth is legitimate and not validated; only a recorded value is.
   if (field === "date_of_birth" && typeof value === "string" && value !== "") {
     const validation = validateDateOfBirth(value);
     if (!validation.valid) {
@@ -118,11 +90,7 @@ export async function updatePersonField(
     await assertNoConcurrentPersonChange(tx, personId, params.expectedVersion);
 
     const column = PERSON_FIELD_COLUMNS[field];
-    // `date_of_birth` is read as text, matching `person-record.ts`'s own
-    // `to_char` — the driver otherwise returns a `date` column as a
-    // JavaScript `Date`, whose `String()` form ("Sat Jan 01 2005…") neither
-    // equals the `"YYYY-MM-DD"` this module writes nor reads back sensibly
-    // from an audit row.
+    // date_of_birth read as text (to_char) — a driver Date's String() form doesn't match "YYYY-MM-DD".
     const selectExpr = field === "date_of_birth" ? "to_char(date_of_birth, 'YYYY-MM-DD')" : column;
     const current = await tx.query<Record<string, string | number | null>>(
       `select ${selectExpr} as value from public.people where id = $1::uuid`,

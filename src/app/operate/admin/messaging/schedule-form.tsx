@@ -1,10 +1,6 @@
 "use client";
 
-/**
- * The whole editable messaging schedule form — the recruitment cycle and
- * onboarding chase rows live here; the per-event-type rows split into
- * `schedule-row.tsx` (LAN-300) to keep this file under the line budget.
- */
+/** The whole editable messaging schedule form — event-type rows split into `schedule-row.tsx` (LAN-300) to keep this file under the line budget. */
 import { useActionState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -47,22 +43,14 @@ export interface ScheduleRowData {
   readonly label: string;
   /** Keyed by `SCHEDULE_FIELDS[].key`. */
   readonly values: Readonly<Record<string, number>>;
-  /**
-   * LAN-203. Keyed by `RECRUIT_SCHEDULE_FIELDS[].key`, populated only for
-   * the Recruitment row — every other event type's two recruit columns are
-   * `null` in the database, and this is `null` to match.
-   */
+  /** LAN-203: keyed by RECRUIT_SCHEDULE_FIELDS[].key, populated only for the Recruitment row. */
   readonly recruitValues: Readonly<Record<string, number>> | null;
   readonly preview: SchedulePreview;
 }
 
 /**
- * The whole editable schedule, in three sections in this order: Recruitment
- * (the cycle that fires on capture), Onboarding (the two person-lifecycle
- * chases), then Event messaging (one row per event type, the Recruitment row
- * split into its two audiences). No QR code here — it lives on the recruit
- * board and its own page.
- *
+ * The whole editable schedule: Recruitment, Onboarding, then Event
+ * messaging (Recruitment row split into two audiences). No QR code here.
  * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */
 export default function MessagingScheduleForm({
@@ -103,9 +91,7 @@ export default function MessagingScheduleForm({
           ) : null}
         </Stack>
 
-        {/* LAN-218, W11. Directly below Recruitment and above Event messaging
-          — Brian's own placement, and the reason `W11-01` was reshot: the
-          two person-lifecycle chases sit together, then the events. */}
+        {/* LAN-218, W11: onboarding chases sit directly below Recruitment. Decision history: docs/ux/tickets/LAN-218-chase-and-queue.md */}
         <Stack spacing={1.5} data-testid="onboarding-section">
           <Typography variant="h2" component="h2">
             {ONBOARDING_SECTION_HEADING}
@@ -138,13 +124,8 @@ export default function MessagingScheduleForm({
 }
 
 /**
- * One recruitment cycle row — always two `recruitment_cycle_steps` rows, one
- * form, one SAVE: Welcome covers `welcome` and its own `details_reminder`;
- * Recruitment questionnaire covers `interest_ask` and its own
- * `interest_reminder`. Two offset fields, two rows, one save — never two
- * cards, never two saves. No per-step on/off control: `enabled` still exists
- * on the row (no migration), this page just never draws or submits it.
- *
+ * One recruitment cycle row — two steps, one form, one SAVE. No per-step
+ * on/off control (`enabled` still exists on the row, unused here).
  * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */
 function CycleStepRow({
@@ -226,11 +207,8 @@ function CycleStepRow({
 }
 
 /**
- * The Onboarding section's one row: one form, three narrow fields and one
- * SAVE — how many times, how often, and the first delay, and nothing else.
- * No give-up value, no quiet hours, no per-item owner, no escalation-office
- * field: `OD7-cadence-is-the-config`'s own boundary, nothing here draws them.
- *
+ * Onboarding's one row: how many times, how often, first delay — nothing
+ * else (`OD7-cadence-is-the-config`'s boundary).
  * Decision history: docs/ux/tickets/LAN-218-chase-and-queue.md.
  */
 function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings }) {

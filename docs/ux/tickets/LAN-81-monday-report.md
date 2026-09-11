@@ -251,3 +251,116 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > been quietly lost by making the page "just show the numbers".
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/report/report-date-form.tsx — module header
+
+> Choosing the reporting date.
+>
+> A plain `GET` form. Choosing a date changes which report is read, so it
+> belongs in the address bar: the result is shareable, a refresh re-runs it
+> harmlessly, and the back button does what the operator expects.
+>
+> Two things the first version got wrong, both of which Brian met on the first
+> screen he opened. The field carried a visible "Choose another date" label
+> _and_ a button reading the same words, which is one instruction printed
+> twice; and the button sat in a fixed-height row that its own text overflowed.
+> The label is now the field's own floating label, the button says what
+> pressing it does rather than restating the heading, and the row wraps instead
+> of clipping.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/report/availability.tsx — module header
+
+> Who is not fully available, and since when.
+>
+> A level and two dates, and nothing else — `availability_statuses` has no
+> column that could hold a note and none is to be added until the Oxford
+> guidance arrives. The screen no longer says so: Brian's instruction on
+> 15 August was to take the caption out, and a sentence explaining an absence
+> belongs in the code that maintains it rather than on his Monday morning.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/report/next-week.tsx — module header
+
+> The week ahead, read-only, with a link into each event.
+>
+> Brian's bounded amendment of 15 August: one week forward, so he can see which
+> of next week's events are still drafts and which have already gone out. The
+> three-week planning horizon remains LAN-109's, and nothing here edits.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/actions.ts — readLeadershipReport (retired)
+
+> `readLeadershipReport` used to be here, gated on `leadership_report` and
+> raising `ActionNotImplemented` past the guard. LAN-81 built the report, so
+> the claim it made — "authorization is in place and the behaviour is not" —
+> stopped being true, and a placeholder that lies is worse than no placeholder.
+>
+> The capability did not go anywhere and neither did its enforcement, but the
+> shape of the enforcement changed twice during LAN-81's review and this
+> comment described a middle version of it. There is no server action: Brian's
+> 15 August decision removed the Generate button, so the report both reads and
+> files its snapshot through `src/app/operate/report/page.tsx`, behind
+> `gateShellPage(..., "leadership_report")`.
+>
+> That gate is the whole boundary, and it is tested as one:
+> `report/screens.test.tsx` drives it with real role codes and asserts that a
+> refused reader causes no read — and therefore no write, since filing a
+> snapshot happens inside the read.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/report/presentation.ts — module header
+
+> The Monday report's copy and formatting.
+>
+> Beside the screen rather than inside it: the client components and the tests
+> both import from here, and a `"use server"` module may export only async
+> functions. Nothing in this file touches the database, so importing it never
+> drags `pg` into the browser bundle.
+>
+> Every heading names a thing the club already has a word for — an event, a
+> walk-up, recruitment, onboarding, availability. Brian's instruction of
+> 15 August 2026, after an abstract "Fix these things" bucket: "I'm organizing
+> around things that they would know how to use."
+>
+> Dates are formatted in `en-GB` at UTC and instants in `Europe/London`, the
+> same split the events screens use and for the same reason: `scheduled_on` is
+> a `date` with no zone and means the day it says, while `generated_at` is a
+> real instant and means the moment the club was at.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/report/presentation.ts — ISSUES_COLUMN
+
+> The right-hand column: how many of this person's events went wrong, out of
+> how many they were asked to.
+>
+> Brian, 15 August 2026: "If they have 4 events and they don't attend any of
+> the events, that's a 4 out of 4, right? Versus 3 to 1." The denominator is
+> their own week, not the club's — somebody asked to two events and absent from
+> both is a worse week than somebody asked to five and absent from two, and a
+> bare count of two would rank them the same.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/report/report-section.tsx — showCount prop
+
+> Brian, 15 August: "Don't include the number. The numbers don't really
+> help." True of the two sections that already carry a date — the span says
+> what the section is about better than a tally of its rows does.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/weekly-report/compute.ts — onboarding items query
+
+> Every onboarding item the club has, not only the required ones. Brian,
+> 15 August 2026: "It should just be all the things that are considered
+> onboarding things." Subscription paid is the reason that matters — it is
+> not `is_required`, because subscription never gates activation, and it is
+> still the thing a treasurer opens this section to find.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

@@ -43,73 +43,33 @@ const AMENDMENT_NEEDS_A_DATE_MESSAGE =
   "An approved event has to have a date. Put one back before saving.";
 export const AMENDMENT_NEEDS_A_DATE_RULE = "event_amendment_requires_a_date";
 
-/** Recorded on a job the amendment held, so Mission 4 knows what it is holding. */
 function holdReason(changes: readonly AmendmentChange[]): string {
-  return `Event amended: ${changes.map((change) => change.label).join(", ")}.`;
+  return `Event amended: ${changes.map((change) => change.label).join(", ")}.`; // so Mission 4 knows what it is holding
 }
 
-/**
- * Recorded on a rung a reschedule's shortened runway no longer has room for.
- *
- * W8, `REQ-reschedule-recomputes`. Not a failure — the runway shrank the same
- * way a late approval's does, and `REQ-late-approval`'s own rule applies: the
- * ladder loses its email rung first, then its later WhatsApp reminders, before
- * it loses the invitation. A job cancelled for this reason must never appear
- * as a delivery failure, exactly as a cancellation's own jobs must not.
- */
+// W8: a rung a shortened runway has no room for is cancelled, never a failure (REQ-late-approval).
 const JOB_CANCELLED_BY_RESCHEDULE = "The rescheduled runway no longer has room for this reminder.";
 
 export interface AmendmentOptions {
-  /** The one decision, for the whole amendment. */
-  notify: boolean;
-  /**
-   * Set only by a caller that has shown the operator the confirmation naming
-   * how many people were told and what they were told. Ignored where no
-   * confirmation is required.
-   */
-  silenceConfirmed?: boolean;
-  /**
-   * The event as the form that is submitting loaded it — LAN-244.
-   *
-   * Given it, this call amends only the fields that differ from it, and every
-   * other field keeps whatever the row holds now. Omitted, `input` is applied
-   * whole, which is the behaviour that let a stale second tab revert a field it
-   * never touched and record the reversion as somebody's amendment. Every
-   * screen passes it; it is optional only so that a service-level test may
-   * state an amendment as one complete intention.
-   */
-  baseline?: AmendableEvent;
+  notify: boolean; // the one decision, for the whole amendment
+  silenceConfirmed?: boolean; // set only by a caller that has shown the confirmation; ignored where not required
+  baseline?: AmendableEvent; // the event as the submitting form loaded it (LAN-244) — see relocations.md
 }
 
 export interface AmendmentOutcome {
   event: EventDetail;
   changes: readonly AmendmentChange[];
   notified: boolean;
-  /** Everyone invited, decliners included (OD-1/Q9). */
-  recipients: number;
-  /** Unsent messages this save put on hold (REQ-amend-hold). */
-  messagesHeld: number;
-  /** Change notifications this save made owing. Zero when it was silent. */
-  noticesOwed: number;
-  /** OD-1/Q6 — where the chase lands against the new date. */
-  chaseThresholdOn: string | null;
-  /** W8, `REQ-reschedule-recomputes`. True when this amendment moved the date or start. */
-  rescheduled: boolean;
-  /** The recomputed response deadline, where `rescheduled` is true — else `null`. */
-  recomputedDeadlineAt: Date | null;
-  /** Held jobs this save released — resumed as they were, or onto a recomputed schedule. */
-  messagesResumed: number;
+  recipients: number; // everyone invited, decliners included (OD-1/Q9)
+  messagesHeld: number; // unsent messages this save put on hold (REQ-amend-hold)
+  noticesOwed: number; // change notifications this save made owing; zero when silent
+  chaseThresholdOn: string | null; // OD-1/Q6 — where the chase lands against the new date
+  rescheduled: boolean; // W8, REQ-reschedule-recomputes: true when this amendment moved the date or start
+  recomputedDeadlineAt: Date | null; // the recomputed response deadline where rescheduled is true, else null
+  messagesResumed: number; // held jobs this save released — resumed as they were, or onto a recomputed schedule
 }
 
-/**
- * Amends an approved event in place. It does not leave `approved` at any point.
- *
- * Everything commits together, because every partial state is a specific
- * operational failure: an event carrying the new venue with its queued
- * invitations un-held is the exact defect REQ-amend-hold exists to prevent, and
- * a notice owed for a change that rolled back is a message about something that
- * did not happen.
- */
+// Amends an approved event in place; never leaves `approved`. Commits as one unit (REQ-amend-hold).
 export async function amendApprovedEvent(
   actorPersonId: string,
   eventId: string,
@@ -119,10 +79,7 @@ export async function amendApprovedEvent(
   requireActor(actorPersonId);
 
   return withTransaction(async (tx) => {
-    // The lock first, before anything is read that a decision is made from —
-    // `lockEventIn` documents why. It is what makes the guarded update below a
-    // guard rather than a second opinion.
-    const before = await lockEventIn(tx, eventId);
+    const before = await lockEventIn(tx, eventId); // lock first, before any decision is read from — lockEventIn documents why
     assertNotTerminal(before);
     if (before.status !== "approved") {
       throw new InvalidTransition(
@@ -131,21 +88,16 @@ export async function amendApprovedEvent(
       );
     }
 
-    // LAN-244. What this form actually asks to change, against the row as it
-    // stands under the lock — not the whole snapshot it happens to be carrying.
-    // `mergeAmendment` explains why a form that never touched a field must not
-    // be able to revert it, and the history entry below is built from `applied`
-    // for the same reason: it must describe the amendment that happened.
+    // LAN-244: what the form actually asks to change, against the row under the lock — not the
+    // whole snapshot it happens to be carrying. See relocations.md.
     const applied = options.baseline
       ? mergeAmendment(snapshotOf(before), options.baseline, snapshotOfInput(input))
       : snapshotOfInput(input);
 
-    // Invariant E1a. An approved event has a date, so an amendment that would
-    // take it away is refused rather than allowed to reach an integrity error.
     if (applied.scheduledOn === null) {
       throw new ConstraintViolated(AMENDMENT_NEEDS_A_DATE_MESSAGE, {
         rule: AMENDMENT_NEEDS_A_DATE_RULE,
-      });
+      }); // invariant E1a: an approved event has a date
     }
 
     const changes = diffAmendment(snapshotOf(before), applied);
@@ -153,10 +105,7 @@ export async function amendApprovedEvent(
       throw new ConstraintViolated(NOTHING_CHANGED_MESSAGE, { rule: NOTHING_CHANGED_RULE });
     }
 
-    // Future in either arrangement. An event being moved *out* of the past
-    // strands people exactly as much as one moved within the future, and an
-    // amendment to a past event that puts it in the future is a reschedule
-    // people have to hear about.
+    // future in either arrangement — moving an event out of the past strands people too
     const today = todayInClubZone();
     const isFuture =
       isFutureEvent(before, today) || isFutureEvent({ scheduledOn: applied.scheduledOn }, today);
@@ -171,15 +120,8 @@ export async function amendApprovedEvent(
 
     const term = deriveTermCoordinate(applied.scheduledOn, await listTermWindowsIn(tx));
 
-    // `status` is deliberately absent from the set list, and `where status =
-    // 'approved'` is deliberately present. The first is REQ-amend-in-place; the
-    // second refuses an amendment that raced a cancellation, rather than
-    // resurrecting a cancelled event by writing its fields.
+    // status absent (REQ-amend-in-place); where status='approved' refuses a race with a cancellation.
     const updated = await tx.query<{ id: string }>(
-      // Neither `template_id` nor `event_type` is in the set list, since
-      // LAN-265: an amendment cannot change what kind of event this is (see
-      // `AMENDABLE_FIELDS`), and the two columns are held equal to the
-      // template's own row by `events_template_fkey`.
       `update public.events
           set name = $2,
               scheduled_on = $3, starts_at = $4::time, ends_at = $5::time,
@@ -227,24 +169,13 @@ export async function amendApprovedEvent(
       reason: holdReason(changes),
     });
 
-    // W8, REQ-reschedule-recomputes. `startsAt` is here as well as
-    // `scheduledOn` because the anchor every offset is measured from is the
-    // event's start instant, not its date alone — moving the start two hours
-    // later without moving the date is exactly as much a reschedule as moving
-    // the date is. `endsAt` is not: nothing in the messaging plan reads it.
+    // W8: startsAt counts as much as scheduledOn — the anchor every offset is measured from.
     const rescheduled = changes.some(
       (change) => change.field === "scheduledOn" || change.field === "startsAt",
     );
 
-    // F-A2/F-C3. `rescheduled` alone used to decide whether this ran, which
-    // is why amending one of the 97 approved-but-plan-less events into a new
-    // venue, still on the same date, froze `event_messaging_plans` from
-    // nowhere and created nothing (F-C3), and an event whose date an operator
-    // never touches had no route back to a working ladder at all (F-A2). An
-    // approved event that has never been given a plan needs the identical
-    // repair a reschedule already does — resolve one against its own current
-    // schedule, freeze it, and create the jobs it promises — whether or not
-    // this particular amendment moved the date.
+    // F-A2/F-C3: an approved event with no messaging plan yet needs the identical repair a
+    // reschedule does, whether or not this amendment moved the date. See relocations.md.
     const hasMessagingPlan = await tx.query(
       "select 1 from public.event_messaging_plans where event_id = $1",
       [eventId],
@@ -254,9 +185,7 @@ export async function amendApprovedEvent(
       ? await recomputeScheduleOnRescheduleIn(tx, eventId, applied)
       : null;
 
-    // W8, "Held is never a resting state". Unconditional, and after the
-    // recompute above so a resumed job already carries its correct time.
-    const messagesResumed = await resumeHeldMessagesIn(tx, eventId);
+    const messagesResumed = await resumeHeldMessagesIn(tx, eventId); // W8 "held is never a resting state" — unconditional, after the recompute so times are already correct
 
     const audience = await readNotifyAudienceIn(tx, eventId);
     const noticesOwed = options.notify
@@ -286,10 +215,7 @@ export async function amendApprovedEvent(
         messagesResumed,
         noticesOwed,
         scheduleChangeId,
-        // OD-1/Q6, recorded rather than merely computed, so that "the chase was
-        // recomputed against the new date" is a fact somebody can read back
-        // three weeks later rather than an assertion about code.
-        chaseThresholdDays: thresholdDays,
+        chaseThresholdDays: thresholdDays, // OD-1/Q6, recorded so the recompute is a fact somebody can read back, not an assertion about code
         chaseThresholdOn: threshold,
         rescheduled,
         recomputedDeadlineAt: recomputed?.responseDeadlineAt.toISOString() ?? null,
@@ -311,19 +237,8 @@ export async function amendApprovedEvent(
   });
 }
 
-/**
- * REQ-amend-hold. Sets the hold on everything for this event that has not gone.
- *
- * `pending` and `ready` are waiting to go. `failed` is here too, and
- * deliberately: a failed job carries a Retry on the delivery screen, and a
- * retry after an amendment would send the superseded details as surely as a
- * first attempt would. `processing` is in flight and cannot be recalled;
- * `completed` has arrived, and nothing recalls that either.
- *
- * `held_at is null` keeps a second amendment from overwriting the first hold's
- * attribution — the hold is already on, and who put it there is the person who
- * first stopped the message.
- */
+// REQ-amend-hold: holds everything unsent. pending/ready/failed held (Retry would send superseded
+// details); processing/completed cannot be recalled. held_at is null keeps a second amendment from overwriting the first hold's attribution.
 async function holdUnsentMessagesIn(
   tx: Tx,
   args: { eventId: string; actorPersonId: string; reason: string },
@@ -340,30 +255,10 @@ async function holdUnsentMessagesIn(
   return held.rowCount ?? 0;
 }
 
-/**
- * W8, `REQ-resume-follows-notify` and "Held is never a resting state".
- *
- * Releases the hold `holdUnsentMessagesIn` places, unconditionally — the
- * operator's notify choice decides whether a *change notice* is owed
- * (`recordNoticesOwedIn`, `./shared`), never whether the held jobs themselves
- * come back. W8's own workflow document is explicit that both branches resume
- * the same way: "Re-notify chosen — the held messages resume… Re-notify not
- * chosen — the held messages resume unchanged." The difference the notify
- * choice makes is entirely in the extra notice job; this function does not
- * read `options.notify` because there is nothing here for it to decide.
- *
- * Runs after `recomputeScheduleOnRescheduleIn` when this amendment is a
- * reschedule, so a job resumes at its recomputed `scheduled_for` rather than
- * at the one it was queued with before the date moved.
- */
+// W8: releases the hold unconditionally — notify decides only whether a notice is owed, never whether jobs resume. Runs after the recompute, so times are already correct.
 async function resumeHeldMessagesIn(tx: Tx, eventId: string): Promise<number> {
-  // All three, together — `notification_jobs_held_pairing`'s own constraint
-  // (LAN-151) requires `held_reason` and `held_by_person_id` to be null
-  // exactly when `held_at` is, so a resumed job has to read as "never held"
-  // by every column at once rather than carrying history the database itself
-  // refuses to store half of. The audit trail (`messagesHeld`,
-  // `messagesResumed` on the amendment's own audit row) is where that history
-  // lives instead.
+  // All three columns together — notification_jobs_held_pairing (LAN-151) requires held_reason and
+  // held_by_person_id null exactly when held_at is. History lives in the audit row instead.
   const resumed = await tx.query<{ id: string }>(
     `update public.notification_jobs
         set held_at = null, held_reason = null, held_by_person_id = null, updated_at = now()
@@ -374,15 +269,7 @@ async function resumeHeldMessagesIn(tx: Tx, eventId: string): Promise<number> {
   return resumed.rowCount ?? 0;
 }
 
-/**
- * F-A2/F-C3. Backfills the one `invitation`-type job `approveEvent`'s own
- * insert would have created, for an event whose approval predates that
- * insert entirely — the oldest shape of "approved before the messaging
- * feature existed" F-A2 names, where `event_messaging_plans` is missing and
- * so is every job, not only the ladder. Identical to `approveEvent`'s own
- * insert (`event-approval.ts`), and idempotent with `on conflict do nothing`
- * for the ordinary case, an event that already has one.
- */
+// F-A2/F-C3: backfills the invitation job approveEvent's insert would have created; idempotent.
 async function backfillInvitationJobsIn(tx: Tx, eventId: string): Promise<number> {
   const created = await tx.query<{ id: string }>(
     `insert into public.notification_jobs
@@ -403,59 +290,12 @@ async function backfillInvitationJobsIn(tx: Tx, eventId: string): Promise<number
   return created.rowCount ?? 0;
 }
 
-/**
- * W8, `REQ-reschedule-recomputes` and `OD-1`/`Q6`. The deliberate answer ADR
- * 0021 left open: a reschedule recomputes the response deadline and
- * everything counted from it, using W7's own rules — `resolveMessagingPlanIn`,
- * the identical arithmetic approval runs, resolved `asOf` the amendment's own
- * moment rather than the original approval's. A game moved three weeks later
- * gets its full runway back rather than inheriting a deadline that has
- * already passed, and one moved to next week gets `REQ-late-approval`'s
- * WhatsApp-only shortened ladder for exactly the reason a late approval does:
- * the runway is what it is, computed from now.
- *
- * ## F-A2/F-C3's second trigger
- *
- * `amendApprovedEvent` also calls this for an amendment that never touched
- * the date at all, whenever the event has no `event_messaging_plans` row yet
- * — an event approved before LAN-169 shipped, or one the seed deliberately
- * left plan-less. Nothing below reads `rescheduled`; every step is exactly as
- * correct starting from "never had a plan" as it is starting from "had one at
- * an earlier time", because a missing plan and jobs behave, to this function,
- * like a plan and jobs that are simply due to move onto the current schedule.
- *
- * Four things move together:
- *
- *   * `events.response_deadline_at` and every `invitations.expires_at` —
- *     the single deadline every invitee's answer is measured against.
- *   * `event_messaging_plans` — re-frozen via `freezeMessagingPlanIn`'s own
- *     `on conflict (event_id) do update`, which exists for exactly this call.
- *     `raiseDueEscalations` reads this row fresh on every sweep tick, so
- *     re-freezing it is the whole of fixing the escalation's own timing going
- *     forward — nothing else references the old one.
- *   * `scheduleEventLadderIn` — F-A2/F-C3. `freezeMessagingPlanIn` only ever
- *     wrote the plan's own description; nothing called this, the function
- *     that actually anchors the invitation job and inserts the reminder rows,
- *     unless the event was being approved for the first time. An event with
- *     no plan therefore has no ladder either, and this is what gives it one:
- *     idempotent by the same `on conflict (idempotency_key) do nothing` a
- *     fresh approval leans on, and guarded (see its own doc comment) against
- *     rewriting an invitation job that has already gone.
- *   * The **held** invitation/reminder jobs' `scheduled_for` (and
- *     `next_attempt_at`, if a backoff was already ticking), moved onto the
- *     new plan's own rung times, matched by `ladder_rung`. A rung the new,
- *     shorter runway no longer schedules is cancelled rather than left to
- *     fire against a ladder that no longer has it — never as a failure
- *     (`JOB_CANCELLED_BY_RESCHEDULE`), for the identical reason a
- *     cancelled event's jobs are not. This is also what re-times the rows
- *     `scheduleEventLadderIn` just inserted for a previously plan-less event,
- *     onto exactly the same rung times it used to create them — a harmless
- *     restatement there, and the only step that matters for a genuine
- *     reschedule's pre-existing rows.
- *
- * Called before `resumeHeldMessagesIn`, so a job resumes already carrying its
- * correct time rather than resuming once and moving again a statement later.
- */
+// W8, REQ-reschedule-recomputes, OD-1/Q6 (ADR 0021's deliberate answer): recomputes the response
+// deadline and everything counted from it, resolved asOf this amendment's own moment. Also the
+// F-A2/F-C3 repair path for an event that has never had a messaging plan at all — see relocations.md
+// for both defects and the four things this moves together (deadline/expiry, the frozen plan, the
+// ladder, and each held job's own scheduled_for, cancelling any rung the shortened runway drops).
+// Called before resumeHeldMessagesIn so a resumed job already carries its correct time.
 async function recomputeScheduleOnRescheduleIn(
   tx: Tx,
   eventId: string,
@@ -476,15 +316,8 @@ async function recomputeScheduleOnRescheduleIn(
     plan.responseDeadlineAt,
   ]);
 
-  // Re-freezes `event_messaging_plans` and fixes the escalation threshold
-  // for every future sweep — no actor to attribute this write to, since a
-  // reschedule is not itself an approval.
-  await freezeMessagingPlanIn(tx, eventId, plan, null);
+  await freezeMessagingPlanIn(tx, eventId, plan, null); // re-freezes the plan; no actor, since a reschedule is not itself an approval
 
-  // F-A2/F-C3. See the doc comment above. Both are no-ops (`on conflict do
-  // nothing`) for an event that already has its invitation job and every
-  // reminder rung; together they are the whole of the repair for one that
-  // predates LAN-78's own insert and has neither.
   await backfillInvitationJobsIn(tx, eventId);
   await scheduleEventLadderIn(tx, eventId, plan);
 
@@ -503,10 +336,9 @@ async function recomputeScheduleOnRescheduleIn(
     );
   }
 
-  // A rung the shortened runway dropped entirely — `ladder_rung <> all(kept)`
-  // is true of everything when `kept` is empty, which is correct: a runway
-  // with room for nothing but the invitation cancels every reminder.
   await tx.query(
+    // ladder_rung <> all(kept) is true of everything when kept is empty — a runway with room for
+    // nothing but the invitation cancels every reminder.
     `update public.notification_jobs
         set status = 'cancelled', cancelled_reason = $2, claimed_at = null, claimed_by = null,
             updated_at = now()
@@ -519,32 +351,18 @@ async function recomputeScheduleOnRescheduleIn(
   return { responseDeadlineAt: plan.responseDeadlineAt };
 }
 
-/**
- * Invariant E2's typed schedule history, where the amendment moved something it
- * can hold.
- *
- * Returns `null` — and writes nothing — for an amendment that moved only the
- * description, the equipment, the type, the joining link or
- * mandatory-versus-optional, because `schedule_changes_something_actually_changed`
- * refuses a row in which none of its own columns differ. That is the table
- * saying what it is for, not a gap to work around; the audit row records the
- * amendment either way, and the module header explains the split.
- *
- * `source` is `club`: an operator moved the club's own event. The other five
- * values describe a schedule the club did not set.
- *
- * `reason` is left null. OD-1/Q7 removed the amendment reason — the required
- * description carries any explanation, and it is what people will actually
- * read.
- */
+// Invariant E2's typed schedule history, where the amendment moved something it can hold. Returns
+// null (writes nothing) for a change to only description/equipment/type/joiningUrl/isMandatory —
+// schedule_changes_something_actually_changed refuses a row where none of its own columns differ;
+// the audit row still records the amendment. `source` is 'club'; `reason` is null (OD-1/Q7 removed
+// it — the required description carries any explanation).
 async function recordScheduleChangeIn(
   tx: Tx,
   args: {
     actorPersonId: string;
     eventId: string;
     before: EventDetail;
-    /** LAN-244: what is actually being written, not what the form posted. */
-    applied: AmendableEvent;
+    applied: AmendableEvent; // LAN-244: what is actually being written, not what the form posted
     notified: boolean;
   },
 ): Promise<string | null> {

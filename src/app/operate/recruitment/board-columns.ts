@@ -3,31 +3,13 @@ import { BAND_COLOURS as CLUB_BANDS } from "@/components/section";
 import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitment-vocabulary";
 
 /**
- * The recruit board's column model — `W1`, LAN-204. Modelled directly on
- * `../roster/board-columns.ts`, and reworked (2026-09-02 correction) to
- * drive the identical banded-header machinery
- * (`../board-filter-controls.tsx`'s `groupRuns`/`bandBoundaryKeys`) the
- * roster board itself now imports from, rather than the board's own
- * hand-rolled header markup: every column is one entry here, driving which
- * filter chips exist and which cells route to the person record — never a
- * column invented outside `W1`'s own table.
- *
- * ## The bands
- *
- * `W1`'s three bands — Person (slate, unchanged from the roster), Recruitment
- * (teal, this mission's own facts), and one Events band per recruitment event
- * — replace the roster's Onboarding/Season bands, because a recruit holds no
- * membership and those two describe nothing for them.
- *
- * Every recruitment event needs its **own** header label (the event's name),
- * not one shared "Events" label — so unlike the roster, whose three bands are
- * each one fixed string, an event column's `band` is the synthetic key
- * `events:<eventId>`, one per event. `groupRuns`/`bandBoundaryKeys` group
- * purely by string equality, so this is enough to give each event's own
- * RSVP/Attendance pair its own run and its own boundary, with no change to
- * either shared helper. {@link bandKind} recovers which of the three *kinds*
- * of band a value is, for colour and column-set lookups; {@link eventIdOfBand}
- * recovers which event.
+ * The recruit board's column model — `W1`, LAN-204. Modelled on
+ * `../roster/board-columns.ts`, driving the shared banded-header machinery
+ * (`../board-filter-controls.tsx`'s `groupRuns`/`bandBoundaryKeys`). Three
+ * bands: Person, Recruitment, and one `events:<eventId>` band per
+ * recruitment event — {@link bandKind} recovers the band kind, {@link
+ * eventIdOfBand} recovers the event.
+ * Decision history: missions/intake/M-RECRUITMENT
  */
 export type Band = "person" | "recruitment" | `events:${string}`;
 type BandKind = "person" | "recruitment" | "events";
@@ -168,12 +150,8 @@ export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze([
     filterable: true,
   },
   {
-    // LAN-204, item 7 (Brian, 2026-09-02: "It's WhatsApp consent, as in,
-    // have they consented to being contacted? That's important."). The key
-    // stays `consent` — the field this reads (`season_messaging_consents`)
-    // is unchanged and season-scoped, not WhatsApp-specific by schema — but
-    // the label says what an operator needs it to say. `width` widened to
-    // fit the longer label without wrapping.
+    // LAN-204 item 7: label says "WhatsApp consent"; key/field unchanged.
+    // Decision history: missions/intake/M-RECRUITMENT
     key: "consent",
     label: "WhatsApp consent",
     band: "recruitment",
@@ -246,16 +224,10 @@ function eventColumnKey(eventId: string, cell: "rsvp" | "attendance"): string {
 }
 
 /**
- * Two columns per event — RSVP and Attendance, side by side, `W1`. Each
- * event's own synthetic band (`events:<eventId>`) is what gives it its own
- * header run and its own boundary — see the module note.
- *
- * Both sort — Brian, 2026-09-02: "RSVP in attendance should be sortable
- * here" — through the same `column.sortable` idiom every other column
- * already uses (the board's `TableSortLabel` header and `applyBoard`'s
- * generic `rawValue`/`comparable` machinery need nothing event-specific;
- * `rawValue`'s `event:<eventId>:rsvp|attendance` case already resolves
- * these two).
+ * Two columns per event — RSVP and Attendance, `W1`. Each event's own
+ * synthetic band (`events:<eventId>`) gives it its own header run (see the
+ * module note). Both sortable, through the same generic column machinery.
+ * Decision history: missions/intake/M-RECRUITMENT
  */
 export function eventColumns(events: readonly RecruitmentEventColumn[]): readonly ColumnDef[] {
   return events.flatMap((event) => {

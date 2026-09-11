@@ -32,12 +32,8 @@ export function filterChipLabel(key: string, value: string, columns: readonly Co
 }
 
 /**
- * Walk correction (W-2): the RSVP/Attendance and yes/no answer columns were
- * rendering their raw database enum through the generic `displayOf`'s bare
- * `String(value)`, while `NOT_RECORDED` alongside them read correctly
- * capitalised. Reuses `record-view.tsx`'s own `RSVP_LABEL`/`ATTENDANCE_LABEL`
- * mapping rather than a third one. Rendering only — `rawValue` and the
- * column definitions are unchanged.
+ * Walk correction (W-2): RSVP/Attendance/yes-no columns render through the
+ * club's own `RSVP_LABEL`/`ATTENDANCE_LABEL`, not `displayOf`'s bare `String()`.
  */
 function displayText(row: RecruitmentBoardRow, column: ColumnDef): string {
   if (column.key === "consent") return CONSENT_LABELS[row.consent];
@@ -97,8 +93,7 @@ export function RecruitCell({
   }
 
   if (column.edit === "record") {
-    // `W1`: routes to the person record on click, exactly as the roster
-    // board's person columns do.
+    // `W1`: routes to the person record on click, same as the roster board's person columns.
     const value = displayOf(rawValue(row, column.key));
     return (
       <TableCell sx={shell}>

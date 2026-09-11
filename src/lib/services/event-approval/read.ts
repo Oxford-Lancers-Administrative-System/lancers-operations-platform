@@ -22,21 +22,9 @@ import {
 
 /** The preview an approver reads, and the two plainer audience reads. */
 
-/**
- * Audience members with no usable WhatsApp route, right now — W1's D8,
- * LAN-171.
- *
- * Reads the same contact points, in the same preference order, and converts
- * them through the same `selectMobileNumber` the dispatcher calls at send
- * time (`delivery.ts`), so the count an approver reads here and the failures
- * W6 reports afterwards cannot disagree about who has no route.
- *
- * Deliberately independent of `DELIVERY_RECIPIENT_ALLOWLIST`. That allowlist is
- * a deployment safety control over which real numbers this environment may
- * contact — it says nothing about whether the invitee actually has WhatsApp —
- * and folding it in here would tell an approver a real person is unreachable
- * when the only obstacle is the showcase's own guard rail.
- */
+// Audience members with no usable WhatsApp route right now (W1's D8, LAN-171) — reads the same
+// contact points, same order, through the same selectMobileNumber the dispatcher uses at send time,
+// so this count and W6's failures can't disagree. Independent of DELIVERY_RECIPIENT_ALLOWLIST — see relocations.md.
 async function resolveUnreachableIn(
   tx: Tx,
   members: readonly AudienceMember[],
@@ -52,9 +40,7 @@ async function resolveUnreachableIn(
     normalised_value: string | null;
     is_preferred: boolean;
   }>(
-    // Same ordering `delivery.ts` reads for the same reason: sending to an
-    // arbitrary one of somebody's numbers is the kind of wrong that looks like
-    // working software.
+    // same ordering delivery.ts reads — sending to an arbitrary number is the kind of wrong that looks like working software
     `select person_id, kind::text as kind, raw_value, normalised_value, is_preferred
        from public.contact_points
       where person_id = any($1::uuid[])
@@ -89,15 +75,8 @@ async function resolveUnreachableIn(
   return unreachable;
 }
 
-/**
- * The event, the people who can be chosen, the audience already chosen, the
- * whole messaging plan approval would commit, and who cannot be reached.
- *
- * Reads the plan through the same function the write path uses
- * (`resolveMessagingPlanIn`), so the sentence on the confirmation screen and
- * the value stored a moment later come from one rule rather than from two that
- * can disagree.
- */
+// Reads the plan through the same function the write path uses (resolveMessagingPlanIn), so the
+// confirmation screen and what's stored a moment later come from one rule, not two that can disagree.
 export async function readApprovalPreview(eventId: string): Promise<ApprovalPreview> {
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
@@ -108,10 +87,7 @@ export async function readApprovalPreview(eventId: string): Promise<ApprovalPrev
       event.eventType,
     );
     const audience = await readAudienceIn(tx, eventId, catalogue);
-    // D23 removed "Response requested": everyone sent an event is expected to
-    // answer, so the only thing that can stop a plan being computed is the
-    // event not having a date yet.
-    const plan = event.scheduledOn !== null ? await resolveMessagingPlanIn(tx, event) : null;
+    const plan = event.scheduledOn !== null ? await resolveMessagingPlanIn(tx, event) : null; // D23: a plan needs only a date; response is never required
 
     return {
       event,
@@ -145,19 +121,8 @@ export async function readEventAudience(eventId: string): Promise<AudienceMember
   });
 }
 
-/**
- * Just the shape — "All active players — 32 people" — for a screen that names
- * the audience's groups before its people without needing the full candidate
- * catalogue `readApprovalPreview` returns, contact details included.
- *
- * D3 (round 2): the event detail page showed a count and then names, with no
- * group named anywhere, which is the same fact the approval review already
- * states with `summariseAudienceGroups`. This calls that same function so the
- * rule is one rule in two places, not two — the detail page just does not get
- * a payload built for an approver working the review, which is the whole
- * reason this is its own read rather than a second use of
- * `readApprovalPreview`.
- */
+// Just the shape ("All active players — 32 people") without the full candidate catalogue
+// readApprovalPreview returns — D3 round 2 (see relocations.md).
 export async function readEventAudienceGroupSummary(
   eventId: string,
 ): Promise<AudienceGroupSummary> {

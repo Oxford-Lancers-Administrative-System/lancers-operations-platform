@@ -4,14 +4,7 @@ import { isServiceError, withTransaction } from "@/lib/db";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import { withdrawSeasonMessagingConsentIn } from "@/lib/services/messaging-consent";
 
-/**
- * The opt-out surface's one write — LAN-202, item 6. "Honoured immediately
- * across every channel" falls out of there being exactly one gate
- * (`season_messaging_consents`) rather than one per channel: this write is
- * the only thing standing between a `granted` state and a refused send, and
- * `requireGrantedSeasonMessagingConsentIn` (`messaging-consent.ts`) is what
- * every send already checks.
- */
+/** The opt-out surface's one write (LAN-202, item 6) — one gate (`season_messaging_consents`), not one per channel, so it's honoured immediately everywhere. */
 export interface StopOutcome {
   readonly ok: boolean;
   readonly message?: string;

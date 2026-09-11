@@ -176,3 +176,89 @@ and Apple** needs a publicly reachable URL this worker does not have; the
 document's RFC 5545 conformance is proved by a structural parser
 (`tests/helpers/icalendar-validate.ts`) instead, and live provider
 subscription is Brian's to confirm after deployment.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/services/calendar-feed.ts — file header (Q-21, Q-29, Lead's determinations)
+
+> No dependency, by the Lead's decision (Q-21)
+>
+> There is no iCalendar library on `main`, and adding one puts `package.json`
+> and `package-lock.json` on the merge gate's prohibited-surface list. RFC 5545
+> for this shape is small, and the Lead's original determination was exact
+> about what that shape is: "a VCALENDAR wrapper and one VEVENT per event
+> carrying UID, DTSTAMP, DTSTART, DTEND, SUMMARY, LOCATION, STATUS and
+> SEQUENCE." That list was complete and deliberate for the head this module
+> shipped at, and this module followed it exactly — it was simply too thin.
+> Brian walked the feed, subscribed to it, and asked for the event's
+> description and required equipment to appear alongside the rest, so a
+> member reading the calendar entry never has to tap through to the public
+> page for detail (Q-29). `DESCRIPTION` is now part of the list; still no
+> CATEGORIES, and nothing else the workflow's "what the subscriber gets"
+> table does not list. `SUMMARY` already carries the type where an operator
+> wrote it into the event's name (the seeded data does this — "Chalk —
+> michaelmas week 4").
+>
+> `DESCRIPTION` matches the public event page, not a new rule (Q-29)
+>
+> `REQ-subscription` says the feed carries "the public tier's content", and
+> `readPublicEvent` (`./events.ts`) already selects both `description` and
+> `required_equipment` for the public event page — so before this change the
+> public page showed strictly more than the feed did, for the same event, at
+> the same tier.
+>
+> Route and URL shape: `/calendar/feed.ics`
+>
+> Permanently stable, no season in the path, always serving the open season —
+> the Lead's determination. A subscriber adds a calendar URL once and cannot be
+> asked to re-add it every year, so stability beats making the season visible
+> in the path; "season-scoped" is satisfied by the content instead.
+>
+> `URL` carries an online event's joining link — LAN-284
+>
+> The joining URL used to be on that list. Brian reversed it on 2026-09-09:
+> the calendar stays public and the protection lives on the meeting, so the
+> link is published here as it is on the public event page. It goes in the
+> `URL` property rather than appended to `DESCRIPTION`, because `URL` is what
+> Google, Apple and Outlook render as a tappable link on the entry — a link
+> buried in description text is a string the subscriber has to copy out.
+>
+> Times, and the defect this module exists not to repeat
+>
+> `scheduled_on`, `starts_at` and `ends_at` are bare — no zone attached — and
+> the workflow specification is explicit that they mean Europe/London wall
+> clock. A test elsewhere in this mission found "today" resolved once in UTC
+> and once in `Europe/London`, wrong for one hour a night.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/events/public-tier.ts — listPublicSeasonEventsForFeed
+
+> `description` and `required_equipment` are the same two columns
+> `readPublicEvent` already selects for the public event page — Q-29 is the
+> decision that the feed may carry them too, matching what `readPublicEvent`
+> has always returned. `joining_url` joined them under LAN-284 (Brian,
+> 2026-09-09), reversing "never will be"; nothing from `PARTICIPATION_TABLES`
+> ever does.
+>
+> `readCurrentSeasonIn` throws when no season is open — the same refusal
+> `listPublicSeasonEvents` propagates today. The route handler decides what a
+> machine consumer does with that; this function's contract does not change to
+> accommodate it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/seasons.ts — NO_CURRENT_SEASON_RULE
+
+> LAN-158, R158-B1: `/calendar/feed.ics` used to treat every `ServiceError` as
+> this case, which also swallowed a real database outage
+> (`UnexpectedDatabaseError`) and answered it with a fabricated empty,
+> publicly cached calendar. A caller that imports this constant instead of
+> restating the string — as `src/app/calendar/feed.ics/route.ts` now does —
+> cannot drift from what this module actually throws, which a hand-typed
+> literal already had once (a sibling module's own unrelated
+> `"no_open_season"` rule was typed here by mistake and passed every test,
+> because the route being corrected caught the whole `ServiceError` supertype
+> regardless of which rule fired).
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

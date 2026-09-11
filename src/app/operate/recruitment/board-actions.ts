@@ -11,23 +11,7 @@ import {
 import type { ProspectStatus } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentActionState } from "./action-state";
 
-/**
- * The board's own server actions — LAN-204.
- *
- * `setRecruitmentStatusAction` opens with `requireCapability("person_record_authority")`,
- * the same four-office-plus-administrative-seat gate `W1` names for reading
- * and changing the board's own facts — `../roster/actions.ts`'s own precedent
- * (LAN-124: the administrative seat holds every capability in the file), and
- * unaffected by this file's other correction.
- *
- * `flipRecruitmentProspectAction` is narrower — `FLIP_ROLE_CODES`
- * (`@/lib/auth/recruitment-flip-authority`) is the full reasoning, kept in
- * its own module rather than here so this file stays inside
- * `tests/capability-map-single-source.test.ts`'s row-8 scan: correction
- * round 1 first put this whole file in that scan's allow-list, and the
- * reviewer proved the cost (F-LAN204-CORR1-008) by slipping an unrelated
- * role literal in here and watching the invariant pass anyway.
- */
+// The board's own server actions — LAN-204. Decision history: docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md.
 
 function refresh(prospectId?: string): void {
   revalidatePath("/operate/recruitment");
@@ -42,12 +26,7 @@ function stateFor(error: unknown): RecruitmentActionState {
 
 const OK: RecruitmentActionState = { error: null };
 
-/**
- * Every status except `joined` — `W13`'s three exits, one control each, and
- * re-engagement. `joined` reaching here is refused by the service layer,
- * naming the flip instead of silently writing a status nobody can reach this
- * way.
- */
+/** Every status except `joined` — `W13`'s three exits plus re-engagement. Decision history: docs/ux/tickets/LAN-204-recruit-board-record-exits-flip.md. */
 export async function setRecruitmentStatusAction(params: {
   prospectId: string;
   toStatus: Exclude<ProspectStatus, "joined">;
@@ -65,11 +44,7 @@ export async function setRecruitmentStatusAction(params: {
   return OK;
 }
 
-/**
- * `W14`. The one interruption in the mission — confirmed on the client
- * before this ever runs, and gated on the four constitutional offices alone
- * (see the module comment) rather than on `person_record_authority`.
- */
+/** `W14`. The one interruption in the mission — gated on the four constitutional offices, not `person_record_authority`. */
 export async function flipRecruitmentProspectAction(params: {
   prospectId: string;
 }): Promise<RecruitmentActionState> {

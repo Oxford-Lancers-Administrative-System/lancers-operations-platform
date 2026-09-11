@@ -33,43 +33,19 @@ interface CandidateRow {
 }
 
 /**
- * Every existing Person who might already be the human being entered.
- *
- * ## What counts as a match, and why it is this loose
- *
- * A given name on its own is enough. That looks over-eager until you read the
- * source data analysis: a quarter of the squad is recorded with a first name
- * and nothing else, so "Bertram, no surname" is exactly the row an operator
- * entering "Bertram Fielding" most needs to see. Requiring a surname to match
- * would hide precisely the duplicates this check exists to catch.
- *
- * The cost of a loose match is a longer list the operator reads; the cost of a
- * tight one is a second Person for someone who already has one, which invariant
- * I6 then makes an audited merge to undo. The asymmetry is the whole argument.
- *
- * Aliases count too, because the club's files already carry "Ben"/"Benjamin"
- * and "A. Ashcombe" for single people, and `person_aliases` is where that is
- * recorded.
- *
- * Phones are compared on their **last nine digits**, so `+44 7700 900101` and
- * `07700 900101` match — the same number written the two ways the club's files
- * actually write it. That comparison never touches what is stored.
- *
- * ## Who is excluded
- *
- * People merged away under invariant I6. Their row is retained forever and
- * points at the survivor, but they are not an identity anybody may be given a
- * new membership as; offering one as a candidate would invite an operator to
- * resurrect a record the club has already decided is a duplicate.
+ * Every existing Person who might already be the human being entered. A
+ * given name alone is enough to match — a quarter of the squad is recorded
+ * first-name-only, and a tight match would hide exactly the duplicates this
+ * check exists to catch (the cost of loose is a longer list; the cost of
+ * tight is an audited merge, invariant I6). Aliases count too
+ * (`person_aliases`). Phones compare on their last nine digits. Excludes
+ * people merged away under invariant I6.
  */
 export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<PersonCandidate[]> {
   const normalised = normaliseInput(input);
 
   return withTransaction(async (tx) => {
-    // Resolved first, and deliberately: a candidate is only useful alongside
-    // "do they already hold a membership this season?", and an operator who
-    // cannot create a membership at all should learn that before typing a
-    // second screen of detail rather than after.
+    // Resolved first: an operator who cannot create a membership at all should learn that before typing more.
     const season = await resolveOpenSeason(tx);
 
     const result = await tx.query<CandidateRow>(

@@ -20,8 +20,7 @@ export const COMPARED_COLUMNS: readonly ImportColumn[] = Object.freeze([
 
 export interface CompareShape {
   name: string;
-  /** LAN-265. The `type` column prints the template's name, so it compares it. */
-  templateName: string;
+  templateName: string; // LAN-265: the `type` column prints the template's name, so it compares it
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -38,11 +37,7 @@ export function valueOf(event: CompareShape, column: ImportColumn): string {
       return "";
     case "name":
       return event.name;
-    // LAN-265. The template's own name, not a class token: it is what the
-    // screens print, what `resolveTemplate` reads back, and the only value that
-    // survives a rename. An export re-imports unchanged because the name it
-    // wrote matches by name on the way back in.
-    case "type":
+    case "type": // LAN-265: the template's own name, not a class token — see relocations.md
       return event.templateName;
     case "date":
       return event.scheduledOn ?? "";
@@ -63,16 +58,8 @@ export function valueOf(event: CompareShape, column: ImportColumn): string {
   }
 }
 
-/**
- * What one planned row will write, plus the one thing the table has to print
- * that the write itself does not carry — LAN-265.
- *
- * `EventDraftInput` holds a `templateId`, because that is what
- * `createEventDraft` needs; the `type` **column** shows the template's name.
- * Rather than have the confirmation table look a name up per row, the row that
- * resolved the template carries it here, so the value printed and the value
- * written came from the same resolution.
- */
+// What one planned row will write, plus the one thing the table prints that the write doesn't
+// carry — LAN-265. EventDraftInput holds templateId; the type column shows the name.
 export type PlannedInput = EventDraftInput & { templateName: string };
 
 export function changesBetween(before: CompareShape, after: CompareShape): FieldChange[] {

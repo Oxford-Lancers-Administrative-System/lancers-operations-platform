@@ -14,14 +14,9 @@ export interface UpdateRecruitmentStatusOptions {
 const JOINED_THROUGH_FLIP_RULE = "recruitment_prospect_joined_through_flip";
 
 /**
- * Every status change except `joined` — the three exits and re-engagement —
- * `W13`: one status control each, no confirmation, no callout. Cancels every
- * queued cycle job on an exit (`declined`, `disengaged`, `void`): "nothing is
- * sent to them" has to mean a queued ask does not go out five minutes later
- * because the sweep had already claimed it before this ran, so this cancels
- * `pending`/`ready`/`failed` rows outright rather than relying on
- * `dispatchRecruitmentCycleJob`'s own re-check to catch every one of them in
- * time.
+ * Every status change except `joined` (W13). Cancels every queued cycle job
+ * on an exit (`declined`, `disengaged`, `void`): "nothing is sent to them"
+ * must be true even for a job the sweep already claimed.
  */
 export async function updateRecruitmentProspectStatusIn(
   tx: Tx,
@@ -30,11 +25,7 @@ export async function updateRecruitmentProspectStatusIn(
   toStatus: Exclude<ProspectStatus, "joined">,
   options: UpdateRecruitmentStatusOptions = {},
 ): Promise<void> {
-  // Belt and braces against a server action called directly with a raw
-  // payload: the type parameter excludes `joined` at compile time, but a
-  // request that bypasses TypeScript entirely must still be refused here,
-  // in words, rather than falling through to
-  // `recruitment_prospects_conversion_matches_status`'s raw constraint error.
+  // Belt and braces: a raw payload bypassing TypeScript must still be refused in words, not a raw constraint error.
   assertNotJoinedThroughStatusControl(toStatus);
 
   const current = await tx.query<{ person_id: string; season_id: string; status: string }>(
@@ -64,19 +55,7 @@ export async function updateRecruitmentProspectStatusIn(
     );
   }
 
-  // `Q-every-status-reachable` (Brian, 2026-09-02): "It shouldn't stop me" —
-  // the service supplies what the two constraints need rather than gating the
-  // control on them. `recruitment_prospects_commitment_is_dated` needs
-  // `committed_on` the moment `status` becomes `committed`;
-  // `Q-committed-on-is-derived` (same walkthrough) is explicit that this is
-  // always today's date on the write that makes it committed, never a second
-  // field an operator flips themselves. `recruitment_prospects_conversion_matches_status`
-  // needs `converted_membership_id` cleared the moment a `joined` recruit is
-  // moved to any other status through this same free-select control — the
-  // membership the earlier flip created is left exactly as it is; only the
-  // prospect's own back-reference to it is cleared, so the constraint reads
-  // consistently either way and no transition through this control is ever
-  // refused by a constraint the write itself could have satisfied.
+  // Q-every-status-reachable: the service supplies what the two constraints need rather than gating the control on them.
   await tx.query(
     `update public.recruitment_prospects
         set status = $2::public.prospect_status,

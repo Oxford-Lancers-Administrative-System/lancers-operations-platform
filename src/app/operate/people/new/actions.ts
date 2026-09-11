@@ -16,13 +16,8 @@ import {
 
 /**
  * `/operate/people/new`'s one server action — W3, LAN-185. Every request
- * calls `requireCapability("person_record_authority")` first, itself: the
- * page's own gate is not the enforcement, this is (`src/app/operate/
- * actions.ts`'s own stated posture, applied here).
- *
- * Three intents on one action, the same reason `submitReturnerIntake` gives:
- * "check", "create" and "link" are three answers to one question, and every
- * one re-reads the same fields and re-authorizes the same caller.
+ * re-calls `requireCapability("person_record_authority")`. Three intents
+ * ("check"/"create"/"link") on one action, all re-reading and re-authorizing.
  */
 export async function submitCreatePerson(
   previous: CreateState,
@@ -78,8 +73,7 @@ export async function submitCreatePerson(
         formError: safeMessage(error),
       };
     }
-    // Outside the try: `redirect` signals by throwing, and catching it here
-    // would turn a successful link into a generic failure message.
+    // Outside the try — `redirect` throws, and catching it would report a successful link as failure.
     redirect(landing);
   }
 
@@ -140,19 +134,9 @@ export async function submitCreatePerson(
 }
 
 /**
- * Where "This is them" lands, and what it has to admit — LAN-257.
- *
- * `link_existing` writes nothing to the chosen person: linking says "this
- * human is that human", not "edit that human's record". That was already the
- * behaviour, and it is now the behaviour on `/operate/roster/new` too — but
- * neither screen said so. An operator who typed a mobile number, pressed "This
- * is them" and landed on a record showing a *different* number had no way to
- * know whether theirs had been kept, ignored, or added somewhere they could
- * not see.
- *
- * Named by field rather than by value, for the reason `confirmationHref` in
- * `../../roster/new/actions.ts` gives: a query string is bookmarked, kept in
- * history and logged, and this one is about somebody's phone number.
+ * Where "This is them" lands, and what it has to admit — LAN-257. Nothing
+ * is written to the chosen person; a differing typed value is named, not
+ * guessed at. Query carries only field names, never the value.
  */
 function linkedHref(
   personId: string,
@@ -169,12 +153,8 @@ function linkedHref(
 }
 
 /**
- * Whether a typed value is one this person does not already hold.
- *
- * A value they already hold was not discarded — nothing was lost — and saying
- * "not recorded" about a value printed on the record below would be its own
- * false statement. Historical rows count: a superseded address is still an
- * address the club holds, and the operator did not lose it by typing it again.
+ * Whether a typed value is one this person does not already hold — a value
+ * already on record was not discarded, and historical rows count too.
  */
 function typedValueIsNew(
   typed: string,
