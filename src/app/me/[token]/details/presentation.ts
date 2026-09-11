@@ -199,7 +199,8 @@ export const HUDL_HEADING = "Get into Hudl";
 /** LAN-333 reversed the assumed flow: Hudl is self-serve from a join link and the club sends nothing, so there is no invitation to accept. */
 export const HUDL_LEAD = "Step 5 of 5 · Join the team, then tell us";
 
-export const HUDL_JOIN_LINK_LABEL = "Join the Oxford Lancers on Hudl";
+/** The link's own words, used only by `hudlSteps` below; the step text never carries a bare URL. */
+const HUDL_JOIN_LINK_LABEL = "Join the Oxford Lancers on Hudl";
 /** The one state an unconfigured deployment shows. The steps stay; only the link is absent, and it is named rather than invented. */
 export const HUDL_LINK_NOT_PUBLISHED =
   "The join link is not published yet. Ask anybody at the club.";

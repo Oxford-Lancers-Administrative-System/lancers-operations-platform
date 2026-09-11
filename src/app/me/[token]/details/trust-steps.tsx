@@ -44,7 +44,11 @@ import { BucsHudlShell, itemIsSettled, itemStepWord } from "./step-shell";
  */
 function Instructions({ steps, testId }: { steps: readonly InstructionStep[]; testId: string }) {
   return (
-    <ol style={{ margin: 0, paddingLeft: 22 }} data-testid={testId}>
+    // `listStyleType` is set here because Tailwind's preflight resets `ol` to
+    // no marker, and these steps are numbered for a reason: "join the general
+    // community first", "then search". Without the numbers they read as four
+    // unordered paragraphs.
+    <ol style={{ margin: 0, paddingLeft: 22, listStyleType: "decimal" }} data-testid={testId}>
       {steps.map((step) => (
         <li key={step.text} style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 8 }}>
           {step.text}
