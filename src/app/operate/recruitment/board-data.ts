@@ -144,6 +144,3 @@ export function optionListLabel(column: { key: string }, value: string): string 
       return value;
   }
 }
-
-/** The chip and menu label for a filter's *selected* value — same word, no distinct "not recorded" case here. */
-export const filterOptionLabel = optionListLabel;

@@ -73,7 +73,7 @@ export const PERIOD_LABELS: Readonly<Record<EventPeriod, string>> = Object.freez
 });
 
 /** The bucket keys, in the order they are rendered. */
-export type BucketKey =
+type BucketKey =
   | "soon"
   | "later_this_month"
   | "later_this_term"

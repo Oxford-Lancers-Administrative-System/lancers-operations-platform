@@ -1,6 +1,6 @@
 import "server-only";
 
-import { withTransaction, type Tx } from "@/lib/db";
+import { type Tx } from "@/lib/db";
 
 /**
  * "Each candidate has to say who it is" — `W8`, Brian 2026-08-31: "Are they a
@@ -83,11 +83,4 @@ export async function readCandidateIdentitiesIn(
   }
 
   return identities;
-}
-
-export async function readCandidateIdentities(
-  personIds: readonly string[],
-  currentSeasonId: string,
-): Promise<Map<string, CandidateIdentity>> {
-  return withTransaction((tx) => readCandidateIdentitiesIn(tx, personIds, currentSeasonId));
 }

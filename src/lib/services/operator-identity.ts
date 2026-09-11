@@ -92,12 +92,12 @@ export interface OperatorIdentityPort {
 }
 
 /** The message an administrator sees when the address already has a login. */
-export const DUPLICATE_LOGIN_MESSAGE =
+const DUPLICATE_LOGIN_MESSAGE =
   "That email address already has an operator login. One person has one login, so if this is " +
   "the same person, open their operator record instead of inviting them again — and if it is " +
   "somebody else, invite them with their own address.";
 
-export const DUPLICATE_LOGIN_RULE = "operator_login_email_taken";
+const DUPLICATE_LOGIN_RULE = "operator_login_email_taken";
 
 /**
  * The real implementation, over the privileged Supabase client.

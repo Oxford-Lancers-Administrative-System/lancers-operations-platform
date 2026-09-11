@@ -73,12 +73,12 @@ import { OPERATOR_ACCOUNT_STATE_DEFINITIONS } from "@/lib/services/operator-acco
 /** A run of answer text. `strong` is used only for a label the reader clicks or sees. */
 export type GuideRun = string | { readonly strong: string };
 
-export interface GuideParagraph {
+interface GuideParagraph {
   readonly kind: "paragraph";
   readonly runs: readonly GuideRun[];
 }
 
-export interface GuideList {
+interface GuideList {
   /** `steps` renders in order and is numbered; `points` is unordered. */
   readonly kind: "steps" | "points";
   readonly items: readonly (readonly GuideRun[])[];
@@ -490,12 +490,12 @@ export const ADMINISTRATION_GUIDE: readonly GuideEntry[] = Object.freeze([
 ]);
 
 /** One run as plain text. */
-export function guideRunText(run: GuideRun): string {
+function guideRunText(run: GuideRun): string {
   return typeof run === "string" ? run : run.strong;
 }
 
 /** One block as plain text, blocks joined by a space. */
-export function guideBlockText(block: GuideBlock): string {
+function guideBlockText(block: GuideBlock): string {
   if (block.kind === "paragraph") return block.runs.map(guideRunText).join("");
   return block.items.map((item) => item.map(guideRunText).join("")).join(" ");
 }

@@ -266,7 +266,7 @@ export function joinPhoneParts(callingCode: string, nationalNumber: string): str
 }
 
 /** Which of the two controls a refusal is about. */
-export type PhonePart = "country" | "number";
+type PhonePart = "country" | "number";
 
 export interface PhonePartsValidation extends PhoneValidation {
   /** `null` when the value is valid. */

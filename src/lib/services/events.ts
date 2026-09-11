@@ -92,24 +92,13 @@ import { todayInClubZone } from "@/lib/club-time";
  */
 export {
   derivedEventState,
-  deriveTermCoordinate,
-  DRAFTABLE_EVENT_TYPES,
-  EVENT_DELIVERY_MODES,
-  EVENT_ORIGINS,
   EVENT_STATUS_FILTERS,
   EVENT_STATUSES,
-  OCCURRED_FILTER,
   EVENT_TYPES,
-  OPERATOR_CREATED_ORIGIN,
   validateEventDraft,
   type DerivedEventState,
-  type EventDeliveryMode,
   type EventDraftInput,
-  type EventDraftValidation,
-  type EventStatus,
-  type FieldIssue,
   type RawEventDraft,
-  type TermCoordinate,
   type TermWindow,
 } from "./event-input";
 
@@ -120,16 +109,10 @@ export {
  */
 export {
   describeQuestionAnswer,
-  describeQuestionCount,
   joinQuestionChoices,
-  QUESTION_ANSWER_TYPE_LABELS,
-  QUESTION_ANSWER_TYPES,
-  splitQuestionChoices,
   validateEventQuestions,
   type EventQuestion,
   type EventQuestionInput,
-  type QuestionAnswerType,
-  type QuestionIssue,
   type RawEventQuestion,
 } from "./event-questions";
 
@@ -1057,7 +1040,7 @@ export async function listPublicSeasonEventsForFeed(): Promise<{
  * event from any season resolves. A refusal that describes a rule the code does
  * not apply teaches the reader something false about the system.
  */
-export const EVENT_NOT_FOUND_MESSAGE = "That event no longer exists.";
+const EVENT_NOT_FOUND_MESSAGE = "That event no longer exists.";
 
 /** One event, with everything the detail screen states as fact. */
 export async function readEvent(eventId: string): Promise<EventDetail> {
@@ -1451,9 +1434,9 @@ export async function updateEventDraft(
   });
 }
 
-export const DELETE_REFUSAL_MESSAGE = "Only a draft can be deleted.";
+const DELETE_REFUSAL_MESSAGE = "Only a draft can be deleted.";
 
-export const DELETE_REFUSAL_RULE = "event_delete_requires_draft";
+const DELETE_REFUSAL_RULE = "event_delete_requires_draft";
 
 /**
  * Deletes a draft, permanently — REQ-delete-draft, D29.
@@ -1546,7 +1529,7 @@ export async function deleteEventDraft(
  * not built yet, so this names the act rather than linking to a screen that does
  * not exist — which is honest, and becomes a link when that work package lands.
  */
-export const CANCEL_INSTEAD_MESSAGE =
+const CANCEL_INSTEAD_MESSAGE =
   "People have been told about it, so it is cancelled rather than deleted.";
 
 // ---------------------------------------------------------------------------

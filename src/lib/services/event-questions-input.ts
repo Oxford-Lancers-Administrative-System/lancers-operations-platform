@@ -22,7 +22,7 @@
  * nothing about "which shirt size do you need".
  */
 
-import { optional, trimmed } from "./event-input";
+import { trimmed } from "./event-input";
 
 /**
  * `public.question_answer_type`, in full.
@@ -215,6 +215,3 @@ export function describeQuestionCount(count: number): string {
   if (count === 0) return "None";
   return count === 1 ? "1 question" : `${count} questions`;
 }
-
-/** Re-exported so a caller working with questions has one import. */
-export { optional, trimmed };

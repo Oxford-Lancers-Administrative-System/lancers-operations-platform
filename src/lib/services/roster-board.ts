@@ -173,7 +173,7 @@ export type FormalwearItemKey = "tie" | "bowtie" | "socks";
  */
 export type BpsValue = "Yes" | "No";
 
-export interface PositionOption {
+interface PositionOption {
   code: string;
   label: string;
 }
@@ -249,7 +249,7 @@ export interface RosterBoardRow {
   onboardingItems: Readonly<Record<string, { id: string; status: OnboardingItemStatus }>>;
 }
 
-export interface JerseyHolders {
+interface JerseyHolders {
   blue: Record<string, string>;
   white: Record<string, string>;
 }

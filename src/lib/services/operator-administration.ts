@@ -9,7 +9,6 @@ import {
   usableAdministrationPaths,
   type AdministrationPath,
   type AdministrationPathEffect,
-  type AdministrationSubject,
 } from "@/lib/auth/administration-authority";
 import { capabilityRoleCodes, roleLabel } from "@/lib/auth/capabilities";
 import { assertCapability } from "@/lib/auth/guards";
@@ -172,37 +171,37 @@ import { personDisplayNameSql } from "./sql-text";
 const ADMINISTRATION_CAPABILITY = "role_management" as const;
 
 export const UNKNOWN_ROLE_RULE = "administration_role_unknown";
-export const UNKNOWN_ROLE_MESSAGE =
+const UNKNOWN_ROLE_MESSAGE =
   "That role is not one of the club's roles. The list of roles is fixed and is not editable " +
   "in the application; choose one from it.";
 
 export const PERSON_NOT_FOUND_RULE = "administration_person_not_found";
-export const PERSON_NOT_FOUND_MESSAGE =
+const PERSON_NOT_FOUND_MESSAGE =
   "That person is not in the club's records any more. Search again and choose from the list.";
 
 export const MERGED_PERSON_RULE = "administration_person_merged";
-export const MERGED_PERSON_MESSAGE =
+const MERGED_PERSON_MESSAGE =
   "That person's record has been merged into another one. Open the record it was merged into " +
   "and make the change there.";
 
-export const ASSIGNMENT_NOT_FOUND_RULE = "administration_role_assignment_not_found";
-export const ASSIGNMENT_NOT_FOUND_MESSAGE =
+const ASSIGNMENT_NOT_FOUND_RULE = "administration_role_assignment_not_found";
+const ASSIGNMENT_NOT_FOUND_MESSAGE =
   "That role assignment no longer exists. Reload the role and try again.";
 
 export const ALREADY_HOLDS_ROLE_RULE = "administration_already_holds_role";
-export const ALREADY_HOLDS_ROLE_MESSAGE =
+const ALREADY_HOLDS_ROLE_MESSAGE =
   "That person already holds this role over the same period. End the assignment they have " +
   "before giving them another one.";
 
-export const INVALID_DATE_RULE = "administration_date_invalid";
-export const INVALID_DATE_MESSAGE = "Enter the date as a calendar date, for example 2026-09-01.";
+const INVALID_DATE_RULE = "administration_date_invalid";
+const INVALID_DATE_MESSAGE = "Enter the date as a calendar date, for example 2026-09-01.";
 
 export const BACKDATING_REASON_RULE = "administration_backdating_reason_required";
-export const BACKDATING_REASON_MESSAGE =
+const BACKDATING_REASON_MESSAGE =
   "A start date in the past has to say why. Record the reason for backdating this assignment.";
 
 export const END_REASON_RULE = "administration_end_reason_required";
-export const END_REASON_MESSAGE =
+const END_REASON_MESSAGE =
   "Ending a role assignment has to say why. Record the reason, so the club's history explains " +
   "itself later.";
 
@@ -211,33 +210,29 @@ export const ALREADY_ENDED_RULE = "administration_role_assignment_already_ended"
 export const END_BEFORE_START_RULE = "administration_end_before_start";
 
 export const DEACTIVATION_REASON_RULE = "administration_deactivation_reason_required";
-export const DEACTIVATION_REASON_MESSAGE =
+const DEACTIVATION_REASON_MESSAGE =
   "Deactivating somebody's access has to say why. Record the reason.";
 
-export const NO_OPERATOR_ACCOUNT_RULE = "administration_no_operator_account";
-export const NO_OPERATOR_ACCOUNT_MESSAGE =
-  "That person has no operator login, so there is no access to change. Invite them first.";
-
 export const REHOME_REASON_RULE = "administration_rehome_reason_required";
-export const REHOME_REASON_MESSAGE =
+const REHOME_REASON_MESSAGE =
   "Moving somebody's sign-in to a different email address has to say why. Record the reason.";
 
 export const REHOME_SAME_ADDRESS_RULE = "administration_rehome_same_address";
-export const REHOME_SAME_ADDRESS_MESSAGE =
+const REHOME_SAME_ADDRESS_MESSAGE =
   "That is the address this login already uses. Enter the replacement address instead.";
 
 export const REHOME_EMAIL_TAKEN_RULE = "administration_rehome_email_taken";
-export const REHOME_EMAIL_TAKEN_MESSAGE =
+const REHOME_EMAIL_TAKEN_MESSAGE =
   "That email address already has an operator login, so it cannot be used as a replacement. " +
   "Use an address nobody else signs in with.";
 
 export const REHOME_NOT_AVAILABLE_RULE = "administration_rehome_not_available";
 
-export const INVALID_EMAIL_RULE = "administration_email_invalid";
-export const INVALID_EMAIL_MESSAGE = "Enter an email address, for example name@example.com.";
+const INVALID_EMAIL_RULE = "administration_email_invalid";
+const INVALID_EMAIL_MESSAGE = "Enter an email address, for example name@example.com.";
 
-export const CALLBACK_URL_RULE = "administration_callback_url_required";
-export const CALLBACK_URL_MESSAGE =
+const CALLBACK_URL_RULE = "administration_callback_url_required";
+const CALLBACK_URL_MESSAGE =
   "The verification link has nowhere to point. This is a configuration problem rather than " +
   "something you did — tell whoever runs the deployment.";
 
@@ -844,7 +839,7 @@ export class EmailRehomeDeliveryFailure extends Error {
  * for it. Nobody is sitting at that browser here — an administrator asked, and
  * somebody else's phone opens the mail.
  */
-export function supabaseOperatorEmailRecovery(): OperatorEmailRecoveryPort {
+function supabaseOperatorEmailRecovery(): OperatorEmailRecoveryPort {
   return {
     changeLoginEmail: (authUserId, email) =>
       supabaseOperatorIdentity().changeLoginEmail(authUserId, email),
@@ -1113,7 +1108,7 @@ export async function verifyOperatorEmailRehome(
 // Role detail
 // ---------------------------------------------------------------------------
 
-export interface RoleHolder {
+interface RoleHolder {
   readonly roleAssignmentId: string;
   readonly personId: string;
   readonly displayName: string;
@@ -1994,4 +1989,3 @@ async function assertClubKeepsAnAdministrator(
 }
 
 /** Re-exported so a caller can build the same subject shape this module judges. */
-export type { AdministrationSubject };

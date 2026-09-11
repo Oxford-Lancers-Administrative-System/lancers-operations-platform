@@ -1,6 +1,6 @@
 import "server-only";
 
-import { withTransaction, type Tx } from "@/lib/db";
+import { type Tx } from "@/lib/db";
 import { hashToken, mintToken, TOKEN_PATTERN } from "./rsvp-tokens";
 
 /**
@@ -80,14 +80,14 @@ export async function issueRecruitmentInterestTokenIn(
   return { token, tokenId: inserted.rows[0].id };
 }
 
-export interface ResolvedRecruitmentInterestToken {
+interface ResolvedRecruitmentInterestToken {
   readonly personId: string;
   readonly seasonId: string;
   readonly prospectId: string;
   readonly displayName: string;
 }
 
-export type RecruitmentInterestTokenState = "valid" | "unknown";
+type RecruitmentInterestTokenState = "valid" | "unknown";
 
 export interface RecruitmentInterestTokenResolution {
   readonly state: RecruitmentInterestTokenState;
@@ -143,10 +143,4 @@ export async function resolveRecruitmentInterestTokenIn(
       displayName: [row.given_name, row.family_name].filter(Boolean).join(" "),
     },
   };
-}
-
-export async function resolveRecruitmentInterestToken(
-  token: string,
-): Promise<RecruitmentInterestTokenResolution> {
-  return withTransaction((tx) => resolveRecruitmentInterestTokenIn(tx, token));
 }

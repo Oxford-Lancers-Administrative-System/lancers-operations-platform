@@ -63,7 +63,7 @@ import { createTheme } from "@mui/material/styles";
 
 import { CLUB, LAYOUT, RADIUS, SEMANTIC } from "@/theme-tokens";
 
-export { CLUB, LAYOUT, RADIUS, SEMANTIC, FONT_MONO } from "@/theme-tokens";
+export { CLUB, SEMANTIC } from "@/theme-tokens";
 
 declare module "@mui/material/styles" {
   interface Palette {

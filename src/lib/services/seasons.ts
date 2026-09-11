@@ -208,7 +208,7 @@ export async function listTermWindows(): Promise<TermWindow[]> {
 }
 
 /** The same read, inside a caller's transaction. */
-export async function listTermsIn(tx: Tx): Promise<Term[]> {
+async function listTermsIn(tx: Tx): Promise<Term[]> {
   const result = await tx.query<TermRow>(
     `select id, name::text as name, academic_year, starts_on, ends_on, first_week, last_week
        from public.terms

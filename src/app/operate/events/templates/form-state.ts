@@ -24,7 +24,7 @@ import type { TemplateChangePlan } from "@/lib/services/event-templates";
  * locks, so what the operator saw is a courtesy and what happens is derived from
  * the rows again at the moment of the write.
  */
-export type TemplateFormPhase = "editing" | "confirming";
+type TemplateFormPhase = "editing" | "confirming";
 
 export interface TemplateFormState {
   phase: TemplateFormPhase;

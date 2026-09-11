@@ -22,14 +22,6 @@ export const MESSAGING_SCHEDULE_INTRO =
   "When the club messages people about each kind of event, and when an unanswered invitation " +
   "reaches the President.";
 
-export const MESSAGING_SCHEDULE_RULE_HEADLINE =
-  "The invitation goes first, then a reminder every cadence until they run out — WhatsApp, " +
-  "then email last.";
-
-export const MESSAGING_SCHEDULE_RULE_DETAIL =
-  "Days are counted before the event starts. Open any row for a worked example. There are no " +
-  "quiet hours.";
-
 export const MESSAGING_SCHEDULE_FOOTER =
   "Changes take effect for events approved afterwards. Events already approved keep the " +
   "schedule they were approved with. Every change is recorded against your name.";
@@ -43,14 +35,10 @@ export const NO_SCHEDULE_CHANGES_NOTICE = "Nothing had changed, so there was not
 // ---------------------------------------------------------------------------
 
 export const RECRUITMENT_SECTION_HEADING = "Recruitment";
-export const RECRUITMENT_SECTION_INTRO = "What the club sends after somebody is captured.";
 
 export const EVENT_MESSAGING_SECTION_HEADING = "Event messaging";
-export const EVENT_MESSAGING_SECTION_INTRO =
-  "What an event sends, and how it chases, by event type.";
 
 export const ONBOARDING_SECTION_HEADING = "Onboarding";
-export const ONBOARDING_SECTION_NOTE = "Not built yet.";
 
 // ---------------------------------------------------------------------------
 // LAN-218 — the Onboarding section itself, `W11`
@@ -58,9 +46,6 @@ export const ONBOARDING_SECTION_NOTE = "Not built yet.";
 
 export const ONBOARDING_CHASE_ROW_LABEL = "Onboarding checklist";
 export const ONBOARDING_CHASE_SAVE_LABEL = "SAVE ONBOARDING";
-export const ONBOARDING_CHASE_SECTION_NOTE =
-  "One packet, chased on one link. When the count runs out the chase is exhausted and a person " +
-  "takes over.";
 
 export function onboardingChaseSavedNotice(): string {
   return "Onboarding's chase was updated.";
@@ -110,7 +95,7 @@ export function scheduleSavedNotice(label: string): string {
  * {@link scheduleSaveFailedNotice}, which names them rather than making the
  * operator guess what was lost.
  */
-export function summarizeScheduleValues(change: MessagingScheduleChange): string {
+function summarizeScheduleValues(change: MessagingScheduleChange): string {
   return (
     `RSVP by ${change.rsvpByDays} days, first invitation ${change.invitationLeadDays} days, ` +
     `cadence ${change.reminderCadenceHours} h, WhatsApp ${change.whatsappReminderCount}, ` +
@@ -160,7 +145,7 @@ export function formatScheduleWhen(at: Date): string {
 }
 
 /** One line of the worked example — a step, its date, and why. */
-export interface PreviewStep {
+interface PreviewStep {
   readonly label: string;
   readonly when: string;
   readonly note: string;

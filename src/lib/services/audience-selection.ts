@@ -51,7 +51,7 @@ export const RECRUITMENT_EVENT_TYPE = "recruitment";
  * event. The resolved capacity is shown on screen, so a wrong guess is visible
  * and correctable before approval rather than discovered afterwards.
  */
-export const CAPACITY_PRECEDENCE: readonly AudienceCapacity[] = Object.freeze([
+const CAPACITY_PRECEDENCE: readonly AudienceCapacity[] = Object.freeze([
   "player",
   "coach",
   "committee",
@@ -346,7 +346,7 @@ export function audiencePeople(candidates: readonly AudienceCandidate[]): Audien
 }
 
 /** One resolved audience member — exactly what a row and an invitation need. */
-export interface ResolvedAudienceMember {
+interface ResolvedAudienceMember {
   capacity: AudienceCapacity;
   /** `season_memberships.id` for a player, `people.id` otherwise. Invariant P8. */
   anchorId: string;
@@ -372,13 +372,13 @@ export const EMPTY_AUDIENCE_MESSAGE =
 
 export const UNKNOWN_SELECTION_RULE = "event_audience_selection_unknown";
 
-export const UNKNOWN_SELECTION_MESSAGE =
+const UNKNOWN_SELECTION_MESSAGE =
   "Some of the people chosen are no longer selectable for this event — a membership " +
   "or a role may have changed while the audience was being built. Rebuild the " +
   "audience and try again.";
 
 /** Why a selection did not resolve. Two causes, two different recoveries. */
-export type SelectionFailure = "empty" | "unknown";
+type SelectionFailure = "empty" | "unknown";
 
 export type SelectionResolution =
   | { ok: true; members: ResolvedAudienceMember[] }

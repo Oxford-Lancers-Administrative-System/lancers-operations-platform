@@ -145,13 +145,6 @@ export async function setOnboardingChaseSettingsIn(
   return toSettings(result.rows[0]);
 }
 
-/** Convenience wrapper for a caller with no open transaction. */
-export async function setOnboardingChaseSettings(
-  params: Parameters<typeof setOnboardingChaseSettingsIn>[1],
-): Promise<OnboardingChaseSettings> {
-  return withTransaction((tx) => setOnboardingChaseSettingsIn(tx, params));
-}
-
 // ---------------------------------------------------------------------------
 // The chase's own state — LAN-218, `W8`/`W9`. No migration: every fact below
 // is derived from `notification_jobs` and its own idempotency-key shape, per
@@ -181,7 +174,7 @@ export async function setOnboardingChaseSettings(
  */
 export const ONBOARDING_CHASE_KEY_PREFIX = "onboarding-chase:";
 export const ONBOARDING_NUDGE_KEY_PREFIX = "onboarding-nudge:";
-export const ONBOARDING_CHASE_EXHAUSTED_MARKER_PREFIX = "onboarding-chase-exhausted:";
+const ONBOARDING_CHASE_EXHAUSTED_MARKER_PREFIX = "onboarding-chase-exhausted:";
 export const ONBOARDING_CHASE_ESCALATION_KEY_PREFIX = "onboarding-chase-escalation:";
 
 /** One automated attempt's key. `ordinal` is 1-based — the first chase is `:1`. */
@@ -638,7 +631,7 @@ export async function listOnboardingChaseCandidatesIn(
  * the sweep's own due check can never quietly disagree about what a
  * membership's chase state is.
  */
-export async function readOnboardingChaseCandidatesForMembershipsIn(
+async function readOnboardingChaseCandidatesForMembershipsIn(
   tx: Tx,
   membershipIds: readonly string[],
 ): Promise<ReadonlyMap<string, OnboardingChaseCandidate>> {
@@ -746,7 +739,7 @@ export function describeOnboardingChaseNext(
 }
 
 /** `T11-visibility`'s "when, and what kind" — the welcome, an automated follow-up, or a human nudge. */
-export type OnboardingLastContactKind = "welcome" | "follow_up" | "nudge";
+type OnboardingLastContactKind = "welcome" | "follow_up" | "nudge";
 
 export interface OnboardingLastContact {
   readonly occurredAt: Date;
@@ -772,7 +765,7 @@ const NUDGE_CHANNEL = "operator nudge";
  * `null` for a membership never yet contacted — a real, unremarkable answer
  * for someone the welcome has not reached, or whose chase count is zero.
  */
-export async function readOnboardingLastContactIn(
+async function readOnboardingLastContactIn(
   tx: Tx,
   membershipId: string,
 ): Promise<OnboardingLastContact | null> {
@@ -884,7 +877,7 @@ export async function readOnboardingChaseQueueInfoIn(
 // ---------------------------------------------------------------------------
 
 /** What became of the most recent ask the club actually queued for this player. */
-export type OnboardingAskDelivery = "queued" | "delivered" | "failed";
+type OnboardingAskDelivery = "queued" | "delivered" | "failed";
 
 /**
  * Everything `/operate/roster/[membershipId]`'s **Send onboarding

@@ -63,7 +63,7 @@ import {
 // Shapes
 // ---------------------------------------------------------------------------
 
-export interface PersonAlias {
+interface PersonAlias {
   id: string;
   alias: string;
   isDisplayName: boolean;
@@ -485,7 +485,7 @@ export async function readPersonRecord(personId: string): Promise<PersonRecord> 
 // ---------------------------------------------------------------------------
 
 /** The most this call returns. `DEC-w1-12`: query shape and pagination are delegated; the club holds hundreds of people, not millions. */
-export const SEARCH_RESULT_LIMIT = 100;
+const SEARCH_RESULT_LIMIT = 100;
 
 interface SummaryRow {
   person_id: string;

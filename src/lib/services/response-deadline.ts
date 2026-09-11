@@ -1,15 +1,5 @@
 import "server-only";
 
-import { CLUB_TIME_ZONE } from "@/lib/club-time";
-import { type Tx } from "@/lib/db";
-
-import {
-  PLAN_NEEDS_A_DATE_RULE,
-  SCHEDULE_NOT_CONFIGURED_RULE,
-  resolveMessagingPlanIn,
-  type PlannableEvent,
-} from "./messaging-schedule";
-
 /**
  * The club's RSVP response deadline. LAN-77, as amended by LAN-169.
  *
@@ -62,37 +52,15 @@ import {
  */
 
 /**
- * The zone every wall-clock rule is expressed in. The club is in Oxford.
- *
- * Kept as a re-export because callers already import it from here and because
- * the deadline rules read better naming their own zone. Same single
- * declaration; no second timezone rule anywhere in the application.
- */
-export const RESPONSE_DEADLINE_ZONE = CLUB_TIME_ZONE;
-
-/**
  * The rule for one event type.
  *
  * `atTime` is gone with the fixed clock. What remains is the day count and the
  * statement of what it is counted from, which is the event's own start.
  */
-export interface ResponseDeadlineRule {
+interface ResponseDeadlineRule {
   /** Calendar days before the event's start. Never negative. */
   readonly daysBefore: number;
 }
-
-/**
- * The refusal an unconfigured event type produces.
- *
- * Unchanged in name and in meaning, and still ADR 0021's first surviving rule:
- * an event type with no configured policy is a refusal that names itself, never
- * an inherited two days. What changed is only where the absence is detected —
- * a missing row in `public.messaging_schedules` rather than a missing key in a
- * frozen object.
- */
-export const UNCONFIGURED_EVENT_TYPE_RULE = SCHEDULE_NOT_CONFIGURED_RULE;
-
-export const DEADLINE_NEEDS_A_DATE_RULE = PLAN_NEEDS_A_DATE_RULE;
 
 /** A deadline, resolved against a specific event and a specific moment. */
 export interface ResolvedResponseDeadline {
@@ -110,31 +78,4 @@ export interface ResolvedResponseDeadline {
    */
   readonly clamped: boolean;
   readonly rule: ResponseDeadlineRule;
-}
-
-/**
- * Resolves the deadline for one event, as of a given moment.
- *
- * `asOf` is the approval instant on the write path and `now()` on the preview
- * path, so the approver sees the same value the transaction is about to store.
- *
- * A caller that also needs the invitation anchor, the ladder or the escalation
- * threshold should call `resolveMessagingPlanIn` directly rather than calling
- * this and recomputing the rest — the plan is one arithmetic, and two callers
- * deriving halves of it from different moments is how the panel and the
- * scheduler come to disagree.
- */
-export async function resolveResponseDeadlineIn(
-  tx: Tx,
-  event: PlannableEvent,
-  asOf?: Date,
-): Promise<ResolvedResponseDeadline> {
-  const plan = await resolveMessagingPlanIn(tx, event, asOf);
-
-  return {
-    at: plan.responseDeadlineAt,
-    configuredAt: plan.configuredDeadlineAt,
-    clamped: plan.deadlineClamped,
-    rule: { daysBefore: plan.schedule.rsvpByDays },
-  };
 }

@@ -57,7 +57,7 @@ export const BAND_ROW_HEIGHT = 28;
  */
 export const BAND_LABEL_INSET_PX = 16;
 
-export const BANDS: readonly BandDef[] = Object.freeze([
+const BANDS: readonly BandDef[] = Object.freeze([
   Object.freeze({
     key: "person" as const,
     label: "Person",
@@ -103,7 +103,7 @@ export function bandOf(key: Band): BandDef {
  * there is no separate resolution vocabulary any more, and no `reopen`: the
  * open dropdown offers exactly the states the closed cell can show.
  */
-export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey" | "onboarding";
+type EditKind = "none" | "record" | "select" | "multiselect" | "jersey" | "onboarding";
 
 export interface ColumnDef {
   readonly key: string;
@@ -152,7 +152,7 @@ export const AVAILABILITY_LABELS: Readonly<Record<string, string>> = Object.free
   red: "Red",
 });
 /** BPS — a plain yes/no, `WP-operator-record` (LAN-217). The value and its label are the same word, like eligibility and availability. */
-export const BPS_VALUES = Object.freeze(["Yes", "No"]);
+const BPS_VALUES = Object.freeze(["Yes", "No"]);
 
 export const PLAYER_COLUMN_WIDTH = 200;
 

@@ -97,8 +97,8 @@ export const IMPORT_NOTHING_TO_APPLY_MESSAGE =
   "There is nothing to apply. Every row in that file is either already on this season's roster, " +
   "refused, or waiting on a duplicate answer.";
 
-export const IMPORT_PLAN_MOVED_RULE = "roster_import_plan_moved";
-export const IMPORT_FILE_REFUSED_RULE = "roster_import_file_refused";
+const IMPORT_PLAN_MOVED_RULE = "roster_import_plan_moved";
+const IMPORT_FILE_REFUSED_RULE = "roster_import_file_refused";
 
 const UNANSWERED_DUPLICATE_REASON = "Refused until the possible duplicate below is answered.";
 const STALE_ANSWER_REASON =
@@ -116,17 +116,7 @@ const STALE_ANSWER_REASON =
 // `server-only` module ever being the one a client component's types resolve
 // through.
 
-export type {
-  DuplicateAnswers,
-  RosterCandidateMatch,
-  RosterDuplicateCandidate,
-  RosterImportApplied,
-  RosterImportPlan,
-  RosterImportPlanResult,
-  RosterImportTotals,
-  RosterPlannedRow,
-  RosterRowOutcome,
-} from "./roster-csv";
+export type { DuplicateAnswers, RosterImportApplied, RosterImportPlanResult } from "./roster-csv";
 
 function answerFor(answers: DuplicateAnswers, line: number): string | null {
   return answers[String(line)] ?? null;

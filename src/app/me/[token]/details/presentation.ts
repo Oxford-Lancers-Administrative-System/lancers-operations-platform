@@ -14,8 +14,6 @@
  * LAN-213 owes the real wording. Nothing below is invented club policy.
  */
 
-export const BANNER = "LANCERS OPERATIONS";
-
 export const PRIVACY_NOTE =
   "This secure page shows only your own record. Nobody else's details are ever shown here, and the club's privacy policy applies to everything you give.";
 
@@ -33,7 +31,6 @@ export const TERMINAL_PRIVACY_NOTE =
   "For privacy, we can’t provide more information about this link.";
 export const CLOSE = "Close";
 
-export const BUSY_ERROR = "busy";
 export const BUSY_MESSAGE =
   "Your response could not be saved just now because the club received a lot of requests at once. Please try again in a minute.";
 
@@ -132,8 +129,6 @@ export const SAVE_AND_CONTINUE = "Save and continue";
 export const DETAILS_SECONDARY =
   "You can leave and come back to this link. What you have entered is kept.";
 export const SAVE_CHANGES = "Save changes";
-export const RETURNING_SECONDARY =
-  "Anything the club needs to change itself, it changes its own way.";
 
 export const DISPUTED_NOTICE =
   "This differs from what the club has on file. Both values are kept, and a person will check before anything changes — you are not blocked while that happens.";

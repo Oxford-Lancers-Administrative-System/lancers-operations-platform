@@ -53,7 +53,7 @@
  */
 
 import {
-  DRAFTABLE_EVENT_TYPES,
+  EVENT_TYPES,
   isFiveMinuteIncrement,
   trimmed,
   type EventDeliveryMode,
@@ -92,7 +92,7 @@ export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
  * are read-only: an import makes drafts and derives the term from the date, so
  * neither is the operator's to set, and a row that changes one changes nothing.
  */
-export const READ_ONLY_EXPORT_COLUMNS = ["status", "term_week"] as const;
+const READ_ONLY_EXPORT_COLUMNS = ["status", "term_week"] as const;
 
 /** The export is the import template, populated. There is no second format. */
 export const EXPORT_COLUMNS: readonly string[] = Object.freeze([
@@ -110,7 +110,7 @@ export const EXPORT_COLUMNS: readonly string[] = Object.freeze([
  * without which a row has no meaning: `id` decides create-or-update, and a new
  * row is nothing without a name, a type and a date to place it on.
  */
-export const REQUIRED_HEADER_COLUMNS: readonly ImportColumn[] = Object.freeze([
+const REQUIRED_HEADER_COLUMNS: readonly ImportColumn[] = Object.freeze([
   "id",
   "name",
   "type",
@@ -141,7 +141,7 @@ export const MAX_IMPORT_ROWS = 2_000;
  * two agree on six of seven and the seventh is a column heading in a
  * spreadsheet, where "Strength and conditioning" is a paragraph.
  */
-export const CSV_TYPE_TOKENS: Readonly<Record<string, string>> = Object.freeze({
+const CSV_TYPE_TOKENS: Readonly<Record<string, string>> = Object.freeze({
   practice: "Practice",
   strength_and_conditioning: "S&C",
   chalk: "Chalk",
@@ -218,9 +218,7 @@ function resolveTemplate(
  * here because `IMPORT_PROMPT` is a static versioned block an operator keeps a
  * copy of.
  */
-export const TYPE_TOKEN_LIST = DRAFTABLE_EVENT_TYPES.map((type) => CSV_TYPE_TOKENS[type]).join(
-  ", ",
-);
+const TYPE_TOKEN_LIST = EVENT_TYPES.map((type) => CSV_TYPE_TOKENS[type]).join(", ");
 
 /** What a `type` cell may say, in the words a refusal uses. */
 const TYPE_CELL_EXPECTATION = `It must be one of your template names, or one of ${TYPE_TOKEN_LIST}.`;
@@ -349,7 +347,7 @@ export interface ImportableEvent {
 export type RowOutcome = "new" | "updated" | "unchanged" | "refused";
 
 /** One field an update row changes, named as the file names it. */
-export interface FieldChange {
+interface FieldChange {
   column: ImportColumn;
   from: string;
   to: string;
@@ -384,7 +382,7 @@ export type PlannedWrite =
   | { kind: "create"; input: EventDraftInput }
   | { kind: "update"; eventId: string; input: EventDraftInput };
 
-export interface ImportTotals {
+interface ImportTotals {
   new: number;
   updated: number;
   unchanged: number;
@@ -995,7 +993,7 @@ function rawCells(cells: Record<ImportColumn, string>): Record<ImportColumn, Pla
  * the season moving between the confirmation and the apply. An attacker who
  * could choose the digest could only make their own import refuse.
  */
-export function digestOf(rows: readonly PlannedRow[]): string {
+function digestOf(rows: readonly PlannedRow[]): string {
   const canonical = rows
     .map((row) => {
       if (row.write === null) return `${row.line}|${row.outcome}|${row.eventId ?? ""}`;

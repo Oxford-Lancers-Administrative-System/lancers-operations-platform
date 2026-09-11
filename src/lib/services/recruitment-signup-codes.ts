@@ -66,7 +66,7 @@ export async function mintRecruitmentSignupCodeIn(
   return { id: inserted.rows[0].id, code, seasonId };
 }
 
-export type SignupCodeState = "valid" | "unknown";
+type SignupCodeState = "valid" | "unknown";
 
 export interface ResolvedSignupCode {
   readonly state: SignupCodeState;
@@ -139,13 +139,6 @@ export async function readLiveRecruitmentSignupCodeIn(
         signInCount: row.sign_in_count,
       }
     : null;
-}
-
-/** Convenience wrapper for a caller with no open transaction. */
-export async function readLiveRecruitmentSignupCode(
-  seasonId: string,
-): Promise<LiveSignupCode | null> {
-  return withTransaction((tx) => readLiveRecruitmentSignupCodeIn(tx, seasonId));
 }
 
 /**

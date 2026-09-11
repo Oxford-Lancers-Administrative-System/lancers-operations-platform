@@ -109,18 +109,11 @@ export const STEP_ORDER: readonly QuestionnaireStep[] = Object.freeze([
 ]);
 
 /** The four checklist items this package is the sole writer of, plus the two derived ones. */
-export const DIRECT_PLAYER_ITEM_CODES = Object.freeze([
-  "code_of_conduct",
-  "photo_release",
-] as const);
-export const DERIVED_ITEM_CODES = Object.freeze([
-  "contact_academic_details",
-  "season_welcome_consent",
-] as const);
+const DIRECT_PLAYER_ITEM_CODES = Object.freeze(["code_of_conduct", "photo_release"] as const);
 export const TRUST_ITEM_CODES = Object.freeze(["bucs_play", "hudl_access"] as const);
 
 /** Every field `updatePersonField` can silently overwrite — `person_fact_disputes`'s own scope. */
-export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
+const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "given_name",
   "family_name",
   "college",
@@ -195,12 +188,12 @@ export function emergencyContactIsComplete(facts: EmergencyContactFacts | null):
 // The read model
 // ---------------------------------------------------------------------------
 
-export interface OutstandingSectionItem {
+interface OutstandingSectionItem {
   label: string;
   step: QuestionnaireStep;
 }
 
-export interface OutstandingSection {
+interface OutstandingSection {
   section: string;
   items: OutstandingSectionItem[];
 }
@@ -744,7 +737,7 @@ const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonR
     date_of_birth: "dateOfBirth",
   });
 
-export type FieldSaveOutcome = "unchanged" | "filled" | "self-corrected" | "overwritten";
+type FieldSaveOutcome = "unchanged" | "filled" | "self-corrected" | "overwritten";
 
 function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFieldUpdate {
   switch (field) {
@@ -799,7 +792,7 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
  *     with its own provenance, and the prior value's history is exactly
  *     what the person record's audit trail already keeps.
  */
-export async function applyDisputableFieldIn(
+async function applyDisputableFieldIn(
   tx: Tx,
   params: {
     personId: string;

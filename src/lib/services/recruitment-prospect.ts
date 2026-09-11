@@ -67,7 +67,7 @@ const SENT_STEP_KEYS: Readonly<
 
 export type RecruitmentQuestionnaireTrack = "personal" | "recruitment";
 
-export interface RecruitmentQuestionnaireSendState {
+interface RecruitmentQuestionnaireSendState {
   readonly lastSentAt: string | null;
   /**
    * V-6, correction round 2 (Brian: "it should say that something was, at
@@ -87,7 +87,7 @@ export interface RecruitmentProspectNote {
   readonly createdAt: string;
 }
 
-export interface RecruitmentProspectStatusEvent {
+interface RecruitmentProspectStatusEvent {
   readonly id: string;
   readonly fromStatus: ProspectStatus | null;
   readonly toStatus: ProspectStatus;
@@ -96,7 +96,7 @@ export interface RecruitmentProspectStatusEvent {
   readonly reason: string | null;
 }
 
-export interface RecruitmentProspectEvent {
+interface RecruitmentProspectEvent {
   readonly eventId: string;
   readonly name: string;
   readonly date: string | null;
@@ -563,7 +563,7 @@ export async function updateRecruitmentProspectStatus(
 }
 
 /** Refuses `joined` explicitly, naming the flip, rather than writing a status nobody can reach this way. */
-export function assertNotJoinedThroughStatusControl(toStatus: string): void {
+function assertNotJoinedThroughStatusControl(toStatus: string): void {
   if (toStatus === "joined") {
     throw new InvalidTransition(
       "Joined is not a status you can set directly — it flips the recruit onto the roster. Use the confirmation for that.",

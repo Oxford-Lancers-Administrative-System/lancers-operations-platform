@@ -11,12 +11,9 @@ import { DELIVERY_MODE_LABELS, labelFor } from "../presentation";
  * test does.
  */
 
-export { describeDuration, describeQuestionCount, labelFor, TEMPLATE_DURATION_OPTIONS };
+export { describeDuration, describeQuestionCount, TEMPLATE_DURATION_OPTIONS };
 
 export const TEMPLATES_HEADLINE = "Event templates";
-
-/** What the list says under its heading. What it is, not why it is. */
-export const TEMPLATES_DETAIL = "What each kind of event starts as.";
 
 /**
  * The one sentence on this surface that states a rule, and it earns its place.
@@ -62,10 +59,6 @@ export function templateDeleteQuestion(name: string): string {
   return `No event has been created from ${name}, so deleting it changes nothing else. Its messaging schedule goes with it.`;
 }
 
-export function templateDeleted(name: string): string {
-  return `${name} deleted.`;
-}
-
 /** The columns of W8-01, so the list and the phone cards name them the same. */
 export const TEMPLATE_COLUMN_LABELS = Object.freeze({
   type: "Template",
@@ -86,15 +79,6 @@ export function describeTemplateWhere(deliveryMode: string | null, venue: string
   return [mode, venue].filter(Boolean).join(" · ");
 }
 
-/** The editor's heading and the sentence under it. */
-export function templateEditorDetail(eventTypeLabel: string): string {
-  return `What a new ${eventTypeLabel.toLowerCase()} starts as. Leave anything undecided.`;
-}
-
-/** The same sentence, for a template that does not exist yet. */
-export const NEW_TEMPLATE_DETAIL =
-  "What a new event of this kind starts as. Leave anything undecided.";
-
 /**
  * LAN-276 correction round 1. Brian, 2026-09-10: "In the template, swatch
  * color should be something that gets chosen, so it gets added as part of
@@ -108,22 +92,9 @@ export const TEMPLATE_COLOUR_HELP =
 
 export const TEMPLATE_AUDIENCE_HEADLINE = "Who it invites";
 
-/**
- * The one thing about the default audience an operator cannot see for themselves.
- *
- * A template holds groups, and the people are worked out when an event is
- * created from it — so a template that says "all active players" today invites
- * whoever the active players are then. That is a fact about what this screen
- * stores, not a policy being explained.
- */
-export const TEMPLATE_AUDIENCE_DETAIL = "Groups, never people.";
-
 export const TEMPLATE_EVENT_HEADLINE = "The event itself";
 
 export const TEMPLATE_QUESTIONS_HEADLINE = "Questions every event of this kind asks";
-
-export const TEMPLATE_QUESTIONS_DETAIL =
-  "They arrive on every new one. Any of them can be removed on a single event.";
 
 export const TEMPLATE_SAVE_ACTION = "Save…";
 
@@ -132,17 +103,15 @@ export const TEMPLATE_DISCARD_ACTION = "Discard";
 /** The default-length field, which is a duration and never a start time. */
 export const TEMPLATE_DURATION_LABEL = "Default length";
 
-export const TEMPLATE_DURATION_HELP = "Entering a start on an event fills the end in from this.";
-
 // ---------------------------------------------------------------------------
 // W8-03 — what the change will touch, before it touches it
 // ---------------------------------------------------------------------------
 
 export const TEMPLATE_CONFIRM_TITLE = "Save this template?";
 
-export const TEMPLATE_TAKING_HEADLINE = "will take this change";
+const TEMPLATE_TAKING_HEADLINE = "will take this change";
 
-export const TEMPLATE_HOLDING_HEADLINE = "will not";
+const TEMPLATE_HOLDING_HEADLINE = "will not";
 
 export const TEMPLATE_UNTOUCHED_HEADLINE = "Nothing else changes";
 

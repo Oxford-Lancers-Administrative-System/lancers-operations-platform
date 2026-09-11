@@ -100,7 +100,7 @@ export function printedPlayerRows(
  * vanish from a form the operator believed they were on. That is the failure
  * this predicate exists to make nameable rather than invisible.
  */
-export function hasAPrintableRow(player: { jerseyNumber: number | null }): boolean {
+function hasAPrintableRow(player: { jerseyNumber: number | null }): boolean {
   return (
     player.jerseyNumber !== null &&
     player.jerseyNumber >= ROSTER_FORM_FIRST_NUMBER &&

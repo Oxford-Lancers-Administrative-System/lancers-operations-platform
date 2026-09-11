@@ -13,13 +13,13 @@ import Typography from "@mui/material/Typography";
 import { useFilterSearch } from "../filter-search";
 
 /** The badge on a session happening today. */
-export const TODAY_CHIP = "Today";
+const TODAY_CHIP = "Today";
 
 /** Said on a card whose register cannot be opened yet. */
-export const NOT_OPEN_YET = "Attendance not open";
+const NOT_OPEN_YET = "Attendance not open";
 
 /** One event, reduced to what a coach needs to pick the right one. */
-export interface CoachEligibleEvent {
+interface CoachEligibleEvent {
   id: string;
   name: string;
   when: string;
@@ -39,13 +39,13 @@ export interface CoachEligibleSection {
   events: CoachEligibleEvent[];
 }
 
-export const COACH_EVENTS_HEADING = "Attendance";
-export const COACH_EVENTS_DETAIL = "This season's sessions";
+const COACH_EVENTS_HEADING = "Attendance";
+const COACH_EVENTS_DETAIL = "This season's sessions";
 
-export const COACH_EVENTS_EMPTY =
+const COACH_EVENTS_EMPTY =
   "This season has no approved sessions yet. They appear here as soon as one is approved.";
 
-export const COACH_EVENTS_FILTER_EMPTY =
+const COACH_EVENTS_FILTER_EMPTY =
   "No session matches that search. Clear it to see everything in the season.";
 
 /**

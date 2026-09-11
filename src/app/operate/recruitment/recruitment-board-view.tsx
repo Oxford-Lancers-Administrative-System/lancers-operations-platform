@@ -51,7 +51,6 @@ import {
 import {
   applyBoard,
   displayOf,
-  filterOptionLabel,
   filterOptions,
   NOT_RECORDED,
   optionListLabel,
@@ -494,7 +493,7 @@ export default function RecruitmentBoardView({
                               textOverflow: "ellipsis",
                             }}
                           >
-                            {filterOptionLabel(column, filters[column.key])}
+                            {optionListLabel(column, filters[column.key])}
                           </Typography>
                         ) : column.edit === "record" ? (
                           <Typography
@@ -610,7 +609,7 @@ function labelForKey(key: string, columns: readonly ColumnDef[]): string {
 function filterChipLabel(key: string, value: string, columns: readonly ColumnDef[]): string {
   if (key === "attendedAnyEvent") return value === "yes" ? "Attended" : "Never attended";
   const column = columns.find((c) => c.key === key);
-  return column ? filterOptionLabel(column, value) : value;
+  return column ? optionListLabel(column, value) : value;
 }
 
 function PinnedSelect({

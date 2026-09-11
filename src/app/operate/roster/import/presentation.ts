@@ -23,20 +23,6 @@ export const OUTCOME_LABELS: Readonly<Record<RosterRowOutcome, string>> = Object
   refused: "Refused",
 });
 
-/** Colour is never the only carrier — every chip states its outcome in words. */
-export function outcomeColour(outcome: RosterRowOutcome): "default" | "info" | "success" | "error" {
-  switch (outcome) {
-    case "new":
-      return "success";
-    case "carried_forward":
-      return "info";
-    case "refused":
-      return "error";
-    default:
-      return "default";
-  }
-}
-
 /** The confirmation's column headings, in the order the table shows them. */
 export const COLUMN_HEADINGS: Readonly<Record<ImportColumn, string>> = Object.freeze({
   first_name: "First name",

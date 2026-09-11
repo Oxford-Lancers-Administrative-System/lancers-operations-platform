@@ -72,7 +72,7 @@ export const EMAIL_SHAPE = EMAIL_SHAPE_MESSAGE;
 export const PHONE_SHAPE = PHONE_SHAPE_MESSAGE;
 
 /** The order fields are focused in, matching the order they appear on screen. */
-export const FIELD_ORDER: readonly (keyof IntakeFormValues)[] = [
+const FIELD_ORDER: readonly (keyof IntakeFormValues)[] = [
   "givenName",
   "familyName",
   "email",

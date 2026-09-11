@@ -100,7 +100,7 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
   ];
 }
 
-export function QuestionnaireBShell({ children }: { children: React.ReactNode }) {
+function QuestionnaireBShell({ children }: { children: React.ReactNode }) {
   return (
     <PublicShell caption="Football background">
       <Stack spacing={3}>{children}</Stack>

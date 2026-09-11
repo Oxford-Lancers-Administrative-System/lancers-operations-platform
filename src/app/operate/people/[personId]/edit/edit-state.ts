@@ -44,7 +44,7 @@ export interface EditFieldErrors {
  * populated. That is client behaviour (`edit-person-form.tsx`'s own state),
  * not a shape change here.
  */
-export interface CorrectionReasonFormValues {
+interface CorrectionReasonFormValues {
   givenNameReason: string;
   familyNameReason: string;
   collegeReason: string;

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { InvalidTransition, type Tx, withTransaction } from "@/lib/db";
+import { InvalidTransition, type Tx } from "@/lib/db";
 import { mayReceiveWelcomeContactIn } from "./messaging-consent";
 import { recordOnboardingActivityIn } from "./onboarding-activity-log";
 
@@ -103,15 +103,6 @@ export async function emitOnboardingOpenedWelcomeIn(
   });
 
   return { queued: true, jobId };
-}
-
-/** Convenience wrapper for a caller with no open transaction. */
-export async function emitOnboardingOpenedWelcome(params: {
-  membershipId: string;
-  personId: string;
-  seasonId: string;
-}): Promise<OnboardingWelcomeResult> {
-  return withTransaction((tx) => emitOnboardingOpenedWelcomeIn(tx, params));
 }
 
 /** Whether this membership's welcome has already been queued or sent — for a caller checking before it decides to call the emitter again. */

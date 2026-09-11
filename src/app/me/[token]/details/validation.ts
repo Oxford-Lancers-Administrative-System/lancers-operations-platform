@@ -113,13 +113,13 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
  * roster form prints a blank row and warns about them rather than this form
  * refusing to move on.
  */
-export type ValidatedDetailsField = Exclude<
+type ValidatedDetailsField = Exclude<
   keyof DetailsFormValues,
   "ec_relationship" | "student_number" | "bafa_registration_number"
 >;
 
 /** The screen's own top-to-bottom order. */
-export const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
+const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
   "given_name",
   "family_name",
   "mobile",

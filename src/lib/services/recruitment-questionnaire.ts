@@ -1,6 +1,6 @@
 import "server-only";
 
-import { NotFound, withTransaction, type Tx } from "@/lib/db";
+import { NotFound, type Tx } from "@/lib/db";
 import { QUESTIONNAIRE_B_CODE, joinMultiAnswer } from "./recruitment-vocabulary";
 
 /**
@@ -152,11 +152,4 @@ export async function submitQuestionnaireBAnswersIn(
   }
 
   if (answeredSomething) await engageOnAnswerIn(tx, prospectId);
-}
-
-export async function submitQuestionnaireBAnswers(
-  prospectId: string,
-  submission: QuestionnaireBSubmission,
-): Promise<void> {
-  return withTransaction((tx) => submitQuestionnaireBAnswersIn(tx, prospectId, submission));
 }

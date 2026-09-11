@@ -42,7 +42,7 @@ export interface AddRecruitFormValues {
   optInNote: string;
 }
 
-export const EMPTY_VALUES: AddRecruitFormValues = {
+const EMPTY_VALUES: AddRecruitFormValues = {
   givenName: "",
   familyName: "",
   mobile: "",
@@ -77,7 +77,7 @@ export interface AddRecruitCandidate extends PersonDuplicateCandidate {
  * Set only for that one outcome, and rendered as this record's own single
  * confirmation screen — everything else disappears while it is set.
  */
-export interface AddRecruitAlreadyMember {
+interface AddRecruitAlreadyMember {
   readonly displayName: string;
   readonly membershipStatus: string;
   readonly seasonLabel: string;

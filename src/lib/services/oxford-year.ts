@@ -64,7 +64,7 @@ import { labelFor, TERM_LABELS } from "./event-vocabulary";
  * them: the vacation after Michaelmas is the Christmas one wherever Michaelmas
  * happens to fall.
  */
-export const VACATION_AFTER: Readonly<Record<string, string>> = Object.freeze({
+const VACATION_AFTER: Readonly<Record<string, string>> = Object.freeze({
   michaelmas: "Christmas Vacation",
   hilary: "Easter Vacation",
   trinity: "Long Vacation",
@@ -79,20 +79,20 @@ export const VACATION_AFTER: Readonly<Record<string, string>> = Object.freeze({
  * carries a Long Vacation at each end, and the leading one is named from the
  * term it runs into rather than from a term in a year this column is not showing.
  */
-export const VACATION_BEFORE: Readonly<Record<string, string>> = Object.freeze({
+const VACATION_BEFORE: Readonly<Record<string, string>> = Object.freeze({
   michaelmas: "Long Vacation",
 });
 
 /** What an unnamed gap is called. Reachable only if `terms.name` grows a value. */
-export const UNNAMED_VACATION = "Vacation";
+const UNNAMED_VACATION = "Vacation";
 
 // ---------------------------------------------------------------------------
 // Shapes
 // ---------------------------------------------------------------------------
 
-export type YearSegmentKind = "term" | "vacation";
+type YearSegmentKind = "term" | "vacation";
 
-export interface YearDay {
+interface YearDay {
   /** `YYYY-MM-DD`. */
   day: string;
   /** 0 for Sunday through 6 for Saturday — the column this cell is in. */

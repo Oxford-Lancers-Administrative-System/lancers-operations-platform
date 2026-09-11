@@ -387,7 +387,7 @@ function toEntry(
 // Sorting — every meaningfully orderable column, `DEC-w1-05`
 // ---------------------------------------------------------------------------
 
-export const PEOPLE_LIST_SORT_COLUMNS: readonly string[] = Object.freeze([
+const PEOPLE_LIST_SORT_COLUMNS: readonly string[] = Object.freeze([
   "name",
   "status",
   "club",
@@ -400,7 +400,7 @@ export const PEOPLE_LIST_SORT_COLUMNS: readonly string[] = Object.freeze([
 ]);
 export const DEFAULT_PEOPLE_SORT = "name";
 
-export const MISSING_QUEUE_SORT_COLUMNS: readonly string[] = Object.freeze(["missing", "name"]);
+const MISSING_QUEUE_SORT_COLUMNS: readonly string[] = Object.freeze(["missing", "name"]);
 export const DEFAULT_MISSING_SORT = "missing";
 
 function compareBy(sort: string, direction: "asc" | "desc") {

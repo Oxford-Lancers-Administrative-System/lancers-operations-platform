@@ -35,25 +35,6 @@ export const FILTERABLE_STATUSES: readonly AssembledStatus[] = Object.freeze([
 
 export { labelFor } from "@/lib/services/event-vocabulary";
 
-/**
- * `roster/presentation.ts`'s own mapping, reused rather than re-derived:
- * active success, onboarding info, inactive warning, everything else default.
- * Recruit is not a membership status at all and takes the default, exactly as
- * the approved `W1-01` mockup draws it.
- */
-export function statusColour(status: AssembledStatus): "default" | "info" | "success" | "warning" {
-  switch (status) {
-    case "active":
-      return "success";
-    case "onboarding":
-      return "info";
-    case "inactive":
-      return "warning";
-    default:
-      return "default";
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Finding 8, Brian 2026-09-01: a sortable Player/Recruit column
 // ---------------------------------------------------------------------------
@@ -76,10 +57,6 @@ export const PERSON_TYPE_LABELS: Readonly<Record<PersonType, string>> = Object.f
   player: "Player",
   recruit: "Recruit",
 });
-
-export function personTypeColour(type: PersonType): "default" | "info" {
-  return type === "recruit" ? "info" : "default";
-}
 
 /** Every fact the missing-data queue may name or filter by, in the field inventory's own order. */
 export const MISSING_FILTER_FIELDS: readonly RequiredField[] = Object.freeze([

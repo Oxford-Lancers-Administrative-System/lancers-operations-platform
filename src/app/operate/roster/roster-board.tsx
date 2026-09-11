@@ -1187,5 +1187,3 @@ function PhoneIcon() {
     </Box>
   );
 }
-
-export { MISSING_DATA_ROUTE };

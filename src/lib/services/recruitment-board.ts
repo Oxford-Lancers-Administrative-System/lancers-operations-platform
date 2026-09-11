@@ -30,24 +30,13 @@ import {
  * carries none of the `"server-only"` restriction across) or reads through to
  * the same shared module a client component would import directly.
  */
-export type { ProspectStatus, RsvpValue, AttendanceValue } from "./recruitment-vocabulary";
-export {
-  PROSPECT_STATUS_ORDER,
-  PROSPECT_STATUS_LABELS,
-  EXIT_STATUSES,
-  CONSENT_LABELS,
-  RSVP_LABEL,
-  ATTENDANCE_LABEL,
-  QUESTIONNAIRE_B_CODE,
-} from "./recruitment-vocabulary";
-
 export interface RecruitmentEventColumn {
   readonly eventId: string;
   readonly name: string;
   readonly date: string | null;
 }
 
-export interface RecruitmentEventCell {
+interface RecruitmentEventCell {
   readonly rsvp: RsvpValue | null;
   readonly attendance: AttendanceValue | null;
 }

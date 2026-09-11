@@ -133,29 +133,27 @@ export const CANCEL_REQUIRES_APPROVED_MESSAGE = "Only an approved event can be c
 export const CANCEL_REQUIRES_APPROVED_RULE = "event_cancellation_requires_approved";
 
 /** D60. The sentence a cancelled event answers every write with. */
-export const EVENT_IS_CANCELLED_MESSAGE = "This event is cancelled. Nothing further can change it.";
+const EVENT_IS_CANCELLED_MESSAGE = "This event is cancelled. Nothing further can change it.";
 export const EVENT_IS_CANCELLED_RULE = "event_cancellation_is_terminal";
 
-export const NOTHING_CHANGED_MESSAGE = "Nothing has changed, so there is nothing to save.";
+const NOTHING_CHANGED_MESSAGE = "Nothing has changed, so there is nothing to save.";
 export const NOTHING_CHANGED_RULE = "event_amendment_is_empty";
 
-export const AMENDMENT_NEEDS_A_DATE_MESSAGE =
+const AMENDMENT_NEEDS_A_DATE_MESSAGE =
   "An approved event has to have a date. Put one back before saving.";
 export const AMENDMENT_NEEDS_A_DATE_RULE = "event_amendment_requires_a_date";
 
-export const SILENCE_NEEDS_CONFIRMATION_MESSAGE =
+const SILENCE_NEEDS_CONFIRMATION_MESSAGE =
   "Confirm that this change goes out to nobody before saving it.";
 export const SILENCE_NEEDS_CONFIRMATION_RULE = "event_change_silence_unconfirmed";
 
-export const CANCELLATION_NEEDS_A_REASON_MESSAGE = "Say why this event is off, for the record.";
+const CANCELLATION_NEEDS_A_REASON_MESSAGE = "Say why this event is off, for the record.";
 export const CANCELLATION_NEEDS_A_REASON_RULE = "event_cancellation_requires_a_reason";
 
-export const NOBODY_TO_NOTIFY_MESSAGE =
-  "Nobody was invited to this event, so there is nobody to tell.";
-export const NOBODY_TO_NOTIFY_RULE = "event_renotify_requires_an_audience";
+const NOBODY_TO_NOTIFY_MESSAGE = "Nobody was invited to this event, so there is nobody to tell.";
+const NOBODY_TO_NOTIFY_RULE = "event_renotify_requires_an_audience";
 
-export const NOTHING_TO_RENOTIFY_MESSAGE =
-  "Nothing has changed about this event since it was approved.";
+const NOTHING_TO_RENOTIFY_MESSAGE = "Nothing has changed about this event since it was approved.";
 export const NOTHING_TO_RENOTIFY_RULE = "event_renotify_requires_a_change";
 
 /**
@@ -167,7 +165,7 @@ export const NOTHING_TO_RENOTIFY_RULE = "event_renotify_requires_a_change";
  * now where this is enforced; the page's own check becomes the courtesy of
  * not offering a control that would refuse.
  */
-export const RENOTIFY_ALREADY_SENT_MESSAGE =
+const RENOTIFY_ALREADY_SENT_MESSAGE =
   "The last change to this event has already been sent to everyone invited.";
 export const RENOTIFY_ALREADY_SENT_RULE = "event_renotify_requires_a_silent_change";
 
@@ -1366,16 +1364,4 @@ const requireActor = actorRequirement(
   "A change to an approved event has to name the operator who made it.",
 );
 
-export {
-  chaseThresholdOn,
-  cancellationDefaultNotify,
-  defaultNotify,
-  diffAmendment,
-  hasMaterialChange,
-  isFutureEvent,
-  mergeAmendment,
-  silenceNeedsConfirmation,
-  cancellationSilenceNeedsConfirmation,
-  type AmendableEvent,
-  type AmendmentChange,
-} from "./event-amendment-rules";
+export { type AmendableEvent } from "./event-amendment-rules";

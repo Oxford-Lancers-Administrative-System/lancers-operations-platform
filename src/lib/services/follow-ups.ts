@@ -38,7 +38,7 @@ import { personDisplayNameSql as displayName } from "./sql-text";
  * (`FollowUpStatus`), not a second query.
  */
 
-export type FollowUpStatus = "delivery_problem" | "escalated" | "escalation_held" | "chasing";
+type FollowUpStatus = "delivery_problem" | "escalated" | "escalation_held" | "chasing";
 
 export interface FollowUpRow {
   readonly invitationId: string;

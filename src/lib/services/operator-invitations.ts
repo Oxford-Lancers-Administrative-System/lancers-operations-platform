@@ -184,7 +184,7 @@ const ADMINISTRATION_CAPABILITY: CapabilityKey = "role_management";
  * and the choice between them is the administrator's explicit answer rather
  * than something this module guesses from a name.
  */
-export type InvitationSubject =
+type InvitationSubject =
   | { kind: "existing"; personId: string }
   | {
       kind: "new";
@@ -198,7 +198,7 @@ export type InvitationSubject =
  * One initial role. At least one is required before an invitation can be sent
  * (`REQ-invite-existing-person`, `DEC-minimal-person-creation`).
  */
-export interface InitialRoleAssignment {
+interface InitialRoleAssignment {
   /** An exact `public.roles.code`. Resolved against the catalogue before use. */
   readonly roleCode: string;
   /**
@@ -248,60 +248,60 @@ export interface InviteOperatorResult {
 // ---------------------------------------------------------------------------
 
 export const PERSON_ALREADY_HAS_LOGIN_RULE = "operator_account_already_exists";
-export const PERSON_ALREADY_HAS_LOGIN_MESSAGE =
+const PERSON_ALREADY_HAS_LOGIN_MESSAGE =
   "That person already has an operator login. One person has one login, however many roles " +
   "they hold — open their operator record to give them another role, resend their invitation, " +
   "or restore their access.";
 
 export const EMAIL_ALREADY_HAS_LOGIN_RULE = "operator_login_email_taken";
-export const EMAIL_ALREADY_HAS_LOGIN_MESSAGE =
+const EMAIL_ALREADY_HAS_LOGIN_MESSAGE =
   "That email address already has an operator login. One person has one login, so if this is " +
   "the same person, open their operator record instead of inviting them again — and if it is " +
   "somebody else, invite them with their own address.";
 
 export const ROLE_REQUIRED_RULE = "operator_invitation_role_required";
-export const ROLE_REQUIRED_MESSAGE =
+const ROLE_REQUIRED_MESSAGE =
   "An invitation has to give the person at least one role. Choose the role they are being " +
   "invited to do, then send the invitation.";
 
 export const UNKNOWN_ROLE_RULE = "operator_invitation_role_unknown";
 export const INVALID_EMAIL_RULE = "operator_invitation_email_invalid";
-export const INVALID_EMAIL_MESSAGE =
+const INVALID_EMAIL_MESSAGE =
   "That does not look like an email address. Check it and try again — the invitation is the " +
   "only way this person gets in, so it has to go to an address they can read.";
 
 export const NAME_REQUIRED_RULE = "operator_invitation_name_required";
-export const NAME_REQUIRED_MESSAGE =
+const NAME_REQUIRED_MESSAGE =
   "A new person needs a first name and a last name. If they are already in the club's records, " +
   "choose them from the list of possible matches instead of creating a second record.";
 
-export const MERGED_PERSON_RULE = "operator_invitation_person_merged";
-export const MERGED_PERSON_MESSAGE =
+const MERGED_PERSON_RULE = "operator_invitation_person_merged";
+const MERGED_PERSON_MESSAGE =
   "That record has been merged into another one and is kept only for history. Invite the " +
   "record it was merged into.";
 
 export const BACKDATING_REASON_RULE = "operator_invitation_backdating_reason_required";
-export const BACKDATING_REASON_MESSAGE =
+const BACKDATING_REASON_MESSAGE =
   "A role that starts before today has to say why it is being backdated. Record the reason " +
   "and try again.";
 
-export const DUPLICATE_ROLE_RULE = "operator_invitation_duplicate_role";
-export const DUPLICATE_ROLE_MESSAGE =
+const DUPLICATE_ROLE_RULE = "operator_invitation_duplicate_role";
+const DUPLICATE_ROLE_MESSAGE =
   "That role has been chosen twice. Choose each role once — one person can hold several " +
   "different roles, but not the same one twice.";
 
-export const INVALID_DATE_RULE = "operator_invitation_date_invalid";
-export const INVALID_DATE_MESSAGE =
+const INVALID_DATE_RULE = "operator_invitation_date_invalid";
+const INVALID_DATE_MESSAGE =
   "That start date is not a date. Give the day the role begins, or leave it blank for today.";
 
 /** A calendar day, as a `date` column stores one. Not a validity check — only a shape. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const NOT_RESENDABLE_RULE = "operator_invitation_not_resendable";
-export const NO_ACTIVE_COMMITTEE_YEAR_RULE = "no_active_committee_year";
-export const NO_OPEN_SEASON_RULE = "no_open_season";
-export const CALLBACK_URL_RULE = "operator_invitation_callback_url_required";
-export const CALLBACK_URL_MESSAGE =
+const NO_ACTIVE_COMMITTEE_YEAR_RULE = "no_active_committee_year";
+const NO_OPEN_SEASON_RULE = "no_open_season";
+const CALLBACK_URL_RULE = "operator_invitation_callback_url_required";
+const CALLBACK_URL_MESSAGE =
   "This installation does not know its own web address, so it cannot build an invitation " +
   "link. Set APP_BASE_URL and try again.";
 
@@ -310,7 +310,7 @@ export const CALLBACK_URL_MESSAGE =
 // ---------------------------------------------------------------------------
 
 /** Why a candidate surfaced. Same vocabulary the returner intake uses. */
-export type CandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
+type CandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
 
 /** One possible existing Person, and what they already have. */
 export interface OperatorCandidate {
@@ -625,15 +625,6 @@ export async function readOperatorAccountIn(
     [operatorAccountId],
   );
   return result.rows.length === 0 ? null : toAccount(result.rows[0]);
-}
-
-/** One account, guarded, for a surface that is about to render it. */
-export async function readOperatorAccount(
-  operator: ResolvedOperator | null,
-  operatorAccountId: string,
-): Promise<OperatorAccountRecord | null> {
-  assertAdministrationCapability(operator);
-  return withTransaction((tx) => readOperatorAccountIn(tx, operatorAccountId));
 }
 
 // ---------------------------------------------------------------------------
@@ -1773,7 +1764,7 @@ export async function resolveCommitteeYearForActivation(
 }
 
 /** The season a coaching appointment hangs off. Same fail-closed shape. */
-export async function resolveActiveSeason(tx: Tx): Promise<AdministrationOperatingYear> {
+async function resolveActiveSeason(tx: Tx): Promise<AdministrationOperatingYear> {
   const result = await tx.query<{ id: string; label: string }>(
     `select id, label from public.seasons where status in ('open', 'active') order by label`,
   );

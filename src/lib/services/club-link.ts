@@ -84,7 +84,7 @@ export const CLUB_LINK_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const CLUB_LINK_LABEL = "club-link:v1";
 
 /** The setting that carries the signing key. Named, never printed. */
-export const CLUB_LINK_SECRET_SETTING = "CLUB_LINK_SECRET";
+const CLUB_LINK_SECRET_SETTING = "CLUB_LINK_SECRET";
 
 /**
  * The floor on the secret's length, in characters.
@@ -94,7 +94,7 @@ export const CLUB_LINK_SECRET_SETTING = "CLUB_LINK_SECRET";
  * guessed at, and the difference between "configured" and "configured with
  * something worth signing with" is worth failing on.
  */
-export const CLUB_LINK_SECRET_MIN_LENGTH = 32;
+const CLUB_LINK_SECRET_MIN_LENGTH = 32;
 
 export const CLUB_LINK_UNCONFIGURED_RULE = "club_link_secret_missing";
 
@@ -261,14 +261,6 @@ export async function issueClubLinkIn(
   return { linkId: created.id, token, issuedAt: created.issued_at, reused: false };
 }
 
-/** `issueClubLinkIn` in its own transaction. */
-export async function issueClubLink(
-  eventId: string,
-  options: { actorPersonId?: string | null; env?: EnvSource } = {},
-): Promise<IssuedClubLink> {
-  return withTransaction((tx) => issueClubLinkIn(tx, eventId, options));
-}
-
 export type ClubLinkResolution =
   | { readonly state: "live"; readonly linkId: string; readonly eventId: string }
   | { readonly state: "unknown" }
@@ -380,7 +372,7 @@ export async function resolveClubLinkIn(
  * stale is a reporting problem, and a coach staring at an error panel instead
  * of a squad list is an operational one.
  */
-export async function recordClubLinkUseIn(tx: Tx, linkId: string): Promise<boolean> {
+async function recordClubLinkUseIn(tx: Tx, linkId: string): Promise<boolean> {
   // Postgres has no `skip locked` on `update` itself, so the row is taken in a
   // sub-select that has one and the update is driven from what it returns. A
   // locked row makes the sub-select empty, the update touch nothing, and the

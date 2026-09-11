@@ -53,7 +53,7 @@ export type VenueSearchOutcome =
  * that operator is concerned. The timeout also bounds how long a request holds
  * a server connection when the provider is hanging rather than refusing.
  */
-export const SEARCH_TIMEOUT_MS = 5_000;
+const SEARCH_TIMEOUT_MS = 5_000;
 
 export interface SearchOptions {
   /** Defaults to `process.env`. A test passes its own literal. */

@@ -84,7 +84,7 @@ export interface RosterFormData {
   readonly coaches: readonly RosterFormCoachRow[];
 }
 
-export const ROSTER_FORM_NOT_A_GAME = "A roster form is only for a game. This event is not one.";
+const ROSTER_FORM_NOT_A_GAME = "A roster form is only for a game. This event is not one.";
 
 export const ROSTER_FORM_NOT_APPROVED =
   "This game is still a draft. Approve it before handing the officials a roster form.";

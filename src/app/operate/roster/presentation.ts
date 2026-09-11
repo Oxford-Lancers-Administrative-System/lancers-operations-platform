@@ -1,4 +1,4 @@
-import type { MembershipStatus, RosterEntry } from "@/lib/services/membership";
+import type { MembershipStatus } from "@/lib/services/membership";
 
 /**
  * The words the roster screens use, fixed in one place.
@@ -39,76 +39,6 @@ export const ENTRY_LABELS: Readonly<Record<string, string>> = Object.freeze({
 
 /** The label for a value, falling back to the value so nothing renders blank. */
 export { labelFor } from "../labels";
-
-/**
- * The statuses the roster filter offers, in the season's own order.
- *
- * The whole vocabulary, deliberately: an operator looking for somebody who has
- * gone needs to be able to find them, and a filter that hid half the states
- * would send them to the database.
- */
-export const FILTERABLE_MEMBERSHIP_STATUSES: readonly MembershipStatus[] = Object.freeze([
-  "onboarding",
-  "active",
-  "inactive",
-  "departed",
-  "archived",
-]) as readonly MembershipStatus[];
-
-export const FILTERABLE_ENTRIES: readonly string[] = Object.freeze(["returning", "new"]);
-
-/**
- * Colour never carries meaning alone — every chip states its status in words,
- * which is what the accessibility criterion in the ticket contract asks for.
- * This only decides which of them the eye reaches first.
- */
-export function membershipStatusColour(
-  status: MembershipStatus | string,
-): "default" | "info" | "success" | "warning" {
-  switch (status) {
-    case "active":
-      return "success";
-    case "onboarding":
-      return "info";
-    case "inactive":
-      return "warning";
-    default:
-      return "default";
-  }
-}
-
-/**
- * UX-20's Onboarding column, in one sentence.
- *
- * Four distinct things an operator needs to tell apart, and each gets its own
- * words rather than a shared "incomplete":
- *
- *   * no items at all — a real configuration state, not a failure;
- *   * everything resolved;
- *   * required items outstanding, which is what activation will ask about;
- *   * only optional items left, which will not stand in anybody's way.
- *
- * The wireframe's fourth value, "Waiver needed", is deliberately absent: it
- * would require a rule deciding when a waiver is *needed* rather than merely
- * possible, and no source in this issue states one. Inventing it here would be
- * an interface decision this ticket is not allowed to make. Recorded as a
- * deviation in the pull request.
- */
-export function describeOnboarding(entry: RosterEntry): string {
-  if (entry.itemsTotal === 0) return "No items configured";
-  if (entry.requiredOutstanding > 0) {
-    return `${entry.requiredOutstanding} outstanding`;
-  }
-  if (entry.itemsResolved === entry.itemsTotal) return "Complete";
-  // "none blocking", not "optional". An unpaid subscription is very often
-  // marked `is_required` — the pilot scenario marks it so deliberately — and
-  // calling it optional would be false about the item while trying to be true
-  // about the gate. This says only what the count means: nothing here stands
-  // between this member and activation. Independent review caught the earlier
-  // wording.
-  const remaining = entry.itemsTotal - entry.itemsResolved;
-  return `${remaining} outstanding, none blocking`;
-}
 
 /**
  * A fixed, explicit locale and time zone.

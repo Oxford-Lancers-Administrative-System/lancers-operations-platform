@@ -13,8 +13,6 @@
 import { TYPE_LABELS } from "@/app/operate/events/presentation";
 import { NO_BUTTON_LABEL } from "@/lib/delivery/templates";
 
-export const BANNER = "LANCERS OPERATIONS";
-
 /**
  * The kind of event, in the club's word for it.
  *
@@ -75,7 +73,6 @@ export const NO_HEADING = "You're not attending — no reason given";
 export const NO_EXPLANATION =
   "The club plans numbers, transport and coaching from these responses. Tell the club why if you can.";
 export const CHANGE_TO_YES = "Change to Yes";
-export const OUTSTANDING_QUESTIONS = "Additional questions outstanding";
 
 // ---------------------------------------------------------------------------
 // Owner correction round 5 (OWNER-LAN172-12, OWNER-LAN172-13): the follow-up

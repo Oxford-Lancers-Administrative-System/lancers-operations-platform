@@ -54,6 +54,3 @@ export const LAYOUT = Object.freeze({
   drawerWidth: 280,
   touchTarget: 44,
 });
-
-/** Geist Mono, for identifiers and the import prompt only (brief §1.4). */
-export const FONT_MONO = "var(--font-geist-mono), ui-monospace, monospace";

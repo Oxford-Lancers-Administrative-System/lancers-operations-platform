@@ -21,17 +21,6 @@ import type { SeasonMessagingConsentState } from "./messaging-consent";
 export type ProspectStatus =
   "identified" | "engaged" | "committed" | "joined" | "declined" | "disengaged" | "void";
 
-/** Ladder order — `W1`'s default sort, and what sinks the three exits to the bottom. */
-export const PROSPECT_STATUS_ORDER: readonly ProspectStatus[] = Object.freeze([
-  "identified",
-  "engaged",
-  "committed",
-  "joined",
-  "declined",
-  "disengaged",
-  "void",
-]);
-
 export const PROSPECT_STATUS_LABELS: Readonly<Record<ProspectStatus, string>> = Object.freeze({
   identified: "Identified",
   engaged: "Engaged",

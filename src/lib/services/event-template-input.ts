@@ -95,7 +95,7 @@ export const MIN_TEMPLATE_DURATION_MINUTES = 5;
 export const MAX_TEMPLATE_DURATION_MINUTES = 1440;
 
 /** The narrowest and widest a template's own name may be. */
-export const MAX_TEMPLATE_NAME_LENGTH = 60;
+const MAX_TEMPLATE_NAME_LENGTH = 60;
 
 // ---------------------------------------------------------------------------
 // Colour — LAN-276 correction round 1
@@ -162,7 +162,7 @@ export const TEMPLATE_COLOUR_KEYS: readonly string[] = Object.freeze(
  */
 export const DEFAULT_TEMPLATE_COLOUR_KEY = "blue";
 
-export function isTemplateColourKey(value: string): boolean {
+function isTemplateColourKey(value: string): boolean {
   return TEMPLATE_COLOUR_KEYS.includes(value);
 }
 

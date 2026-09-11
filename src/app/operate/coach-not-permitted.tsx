@@ -35,15 +35,11 @@ import { signOut } from "../login/actions";
  * be would be exactly that. When there is nowhere, the screen is the wireframe.
  */
 
-export const COACH_NOT_PERMITTED_HEADING = "You cannot record attendance for this event";
+const COACH_NOT_PERMITTED_HEADING = "You cannot record attendance for this event";
 
-export const COACH_NOT_PERMITTED_MESSAGE =
+const COACH_NOT_PERMITTED_MESSAGE =
   "This account does not have an active Head Coach, Offensive Coordinator or Defensive " +
   "Coordinator assignment for this scope.";
-
-export const COACH_NOT_PERMITTED_WITHHELD =
-  "No roster, contact, RSVP reason, availability, attendance data or operator navigation " +
-  "is exposed.";
 
 export default function CoachNotPermittedScreen({ returnHref }: { returnHref?: string }) {
   const signOutControl = (

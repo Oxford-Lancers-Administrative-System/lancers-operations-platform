@@ -222,7 +222,7 @@ function groupByDay(events: readonly CalendarEvent[]): {
 // The Gregorian month
 // ---------------------------------------------------------------------------
 
-export interface MonthDay {
+interface MonthDay {
   /** `YYYY-MM-DD`. */
   day: string;
   dayOfMonth: number;

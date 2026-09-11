@@ -95,7 +95,7 @@ export type AdministrationEventFamily = (typeof ADMINISTRATION_EVENT_FAMILIES)[n
  *     happened; a refused one never reaches the writer, and — unlike a
  *     transition — that is a caller obligation this module cannot check for it.
  */
-export type AdministrationEventShape = "creation" | "transition" | "attempt";
+type AdministrationEventShape = "creation" | "transition" | "attempt";
 
 /** Every administration action, in the order the families are listed above. */
 export const ADMINISTRATION_ACTIONS = Object.freeze([
@@ -415,7 +415,7 @@ export const ADMINISTRATION_ENVELOPE_VERSION = 1;
  * `resolveOperator()` reported it, copied rather than referenced — re-deriving
  * it later would answer a different question.
  */
-export type AdministrationAuthority =
+type AdministrationAuthority =
   | {
       readonly kind: "capability";
       /** The capability the action was permitted under. */
@@ -445,7 +445,7 @@ export interface AdministrationOperatingYear {
 }
 
 /** Who the event is about. */
-export interface AdministrationTarget {
+interface AdministrationTarget {
   /** The durable Person. Always present — it is what Operator audit history keys on. */
   readonly personId: string;
   /** The operator account, where the event concerns the login rather than a role. */
@@ -453,7 +453,7 @@ export interface AdministrationTarget {
 }
 
 /** The role and assignment a role-related event concerns. */
-export interface AdministrationRoleSubject {
+interface AdministrationRoleSubject {
   readonly id: string;
   readonly code: string;
   readonly assignmentId: string;
@@ -492,7 +492,7 @@ export interface AdministrationEventRecord {
 }
 
 /** The envelope as it is stored under `context.administration`. */
-export interface AdministrationEnvelope {
+interface AdministrationEnvelope {
   readonly version: number;
   readonly targetPersonId: string;
   readonly targetOperatorAccountId: string | null;

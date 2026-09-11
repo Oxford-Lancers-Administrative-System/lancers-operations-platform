@@ -53,14 +53,6 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   chasing: "Chasing",
 });
 
-export const STATUS_COLOURS: Readonly<Record<string, "default" | "warning" | "error" | "info">> =
-  Object.freeze({
-    delivery_problem: "warning",
-    escalated: "error",
-    escalation_held: "error",
-    chasing: "default",
-  });
-
 export const DEADLINE_UNSET = "No deadline recorded";
 export const CHASE_NONE = "not recorded";
 

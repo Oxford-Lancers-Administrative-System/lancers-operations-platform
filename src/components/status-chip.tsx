@@ -10,8 +10,8 @@ import Chip from "@mui/material/Chip";
  * `neutral` is "not yet, none, archived" — the chip MUI would call `default`,
  * drawn in the club's own grey so it sits with the rest.
  */
-export type StatusColour = "success" | "info" | "warning" | "error" | "neutral" | "primary";
-export type StatusVariant = "filled" | "outlined";
+type StatusColour = "success" | "info" | "warning" | "error" | "neutral" | "primary";
+type StatusVariant = "filled" | "outlined";
 
 export interface StatusStyle {
   readonly colour: StatusColour;

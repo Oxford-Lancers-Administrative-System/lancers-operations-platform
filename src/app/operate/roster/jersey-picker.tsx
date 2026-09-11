@@ -6,7 +6,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 
 /** Every number the club can issue, 1–99 — `jersey_assignments_number_range`. */
-export const JERSEY_NUMBERS: readonly string[] = Object.freeze(
+const JERSEY_NUMBERS: readonly string[] = Object.freeze(
   Array.from({ length: 99 }, (_, index) => String(index + 1)),
 );
 

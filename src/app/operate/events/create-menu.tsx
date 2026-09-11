@@ -26,7 +26,7 @@ import MenuItem from "@mui/material/MenuItem";
  * untouched.
  */
 
-export const CREATE_MENU_CHOICES: readonly {
+const CREATE_MENU_CHOICES: readonly {
   href: string;
   label: string;
   detail: string;

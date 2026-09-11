@@ -40,7 +40,7 @@ const EVENT_START_EXPRESSION = eventStartExpression("e");
  * 2026-08-26, "I'd rather get this out and see what the functionality looks
  * like rather than change it."
  */
-export const PLAYER_HOME_HORIZON_DAYS = 21;
+const PLAYER_HOME_HORIZON_DAYS = 21;
 
 /**
  * Owner correction round 5 (OWNER-LAN172-15): the one shared definition of
@@ -60,7 +60,7 @@ function eventWithinHorizonExpression(alias: string): string {
 // The answer-specific landing content
 // ---------------------------------------------------------------------------
 
-export interface EventQuestionAnswer {
+interface EventQuestionAnswer {
   readonly text: string | null;
   readonly boolean: boolean | null;
   readonly choice: string | null;
@@ -187,7 +187,7 @@ export async function readPlayerAnswerLandingIn(
   };
 }
 
-export const QUESTION_ANSWER_REQUIRES_A_VALUE_RULE = "event_question_answer_requires_a_value";
+const QUESTION_ANSWER_REQUIRES_A_VALUE_RULE = "event_question_answer_requires_a_value";
 
 /** What the form posts for one question. Exactly one of the three is set. */
 export interface QuestionAnswerSubmission {
@@ -534,7 +534,7 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
 }
 
 export const INVITATION_NOT_OWNED_RULE = "player_home_invitation_not_owned";
-export const INVITATION_WRITE_WINDOW_CLOSED_RULE = "player_home_write_window_closed";
+const INVITATION_WRITE_WINDOW_CLOSED_RULE = "player_home_write_window_closed";
 
 /**
  * Records a Yes/No change made from the player's own page, or refuses.

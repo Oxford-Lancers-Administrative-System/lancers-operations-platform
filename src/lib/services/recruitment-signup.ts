@@ -113,8 +113,8 @@ export const SIGNUP_INVALID_MOBILE_RULE = "recruitment_signup_invalid_mobile_num
 /** Finding 3 — optional, but validated when supplied rather than silently discarded. */
 export const SIGNUP_INVALID_EMAIL_RULE = "recruitment_signup_invalid_email_address";
 /** LAN-268. The college email joins the required set on both doors. */
-export const SIGNUP_REQUIRES_COLLEGE_EMAIL_RULE = "recruitment_signup_requires_a_college_email";
-export const SIGNUP_INVALID_COLLEGE_EMAIL_RULE = "recruitment_signup_invalid_college_email";
+const SIGNUP_REQUIRES_COLLEGE_EMAIL_RULE = "recruitment_signup_requires_a_college_email";
+const SIGNUP_INVALID_COLLEGE_EMAIL_RULE = "recruitment_signup_invalid_college_email";
 export const SIGNUP_INVALID_MATRICULATION_YEAR_RULE =
   "recruitment_signup_invalid_matriculation_year";
 export const SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE =

@@ -55,16 +55,16 @@ export const PROVIDER_VARIABLE = "VENUE_SEARCH_PROVIDER";
 export const BASE_URL_VARIABLE = "VENUE_SEARCH_BASE_URL";
 
 /** The one provider implemented today. Adding a second one adds a case here. */
-export type VenueSearchProvider = typeof PHOTON_PROVIDER;
+type VenueSearchProvider = typeof PHOTON_PROVIDER;
 
-export interface ConfiguredVenueSearch {
+interface ConfiguredVenueSearch {
   readonly configured: true;
   readonly provider: VenueSearchProvider;
   /** Origin and path prefix of the geocoder, without a trailing slash. */
   readonly baseUrl: string;
 }
 
-export interface UnconfiguredVenueSearch {
+interface UnconfiguredVenueSearch {
   readonly configured: false;
   /** The variables that are absent or unusable, by name — never by value. */
   readonly missing: readonly string[];

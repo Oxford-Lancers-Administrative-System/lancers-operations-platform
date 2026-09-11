@@ -28,7 +28,7 @@ import MenuItem from "@mui/material/MenuItem";
  * destination's own page and service guard again.
  */
 
-export const ADD_PLAYERS_MENU_CHOICES: readonly {
+const ADD_PLAYERS_MENU_CHOICES: readonly {
   href: string;
   label: string;
   detail: string;

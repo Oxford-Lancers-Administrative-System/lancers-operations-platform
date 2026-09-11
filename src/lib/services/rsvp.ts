@@ -105,7 +105,7 @@ export interface SignedRsvpPage {
   readonly currentResponse: CurrentResponse | null;
 }
 
-export interface CurrentResponse {
+interface CurrentResponse {
   readonly response: "yes" | "no";
   readonly reason: string | null;
   readonly respondedAt: Date;
@@ -230,10 +230,10 @@ export const RESPONSE_WINDOW_CLOSED_RULE = "rsvp_response_window_closed";
 export const INVITATION_WITHDRAWN_RULE = "rsvp_invitation_withdrawn";
 
 /** Why a pending reminder was called off, recorded on the job itself. */
-export const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
+const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
 
 /** Why a raised flag was cleared, recorded on the flag itself. */
-export const FLAG_RESOLVED_BY_ANSWER = "The invitee answered.";
+const FLAG_RESOLVED_BY_ANSWER = "The invitee answered.";
 
 /**
  * Stops chasing one person about one event. LAN-169, `REQ-chase-stopped`.

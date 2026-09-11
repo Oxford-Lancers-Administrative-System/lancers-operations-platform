@@ -103,9 +103,8 @@ export interface MessagingSchedule {
   readonly updatedAt: Date;
 }
 
-export const SCHEDULE_NOT_CONFIGURED_RULE = "messaging_schedule_not_configured";
-export const PLAN_NEEDS_A_DATE_RULE = "messaging_plan_requires_a_date";
-export const PLAN_NOT_FROZEN_RULE = "messaging_plan_not_frozen";
+const SCHEDULE_NOT_CONFIGURED_RULE = "messaging_schedule_not_configured";
+const PLAN_NEEDS_A_DATE_RULE = "messaging_plan_requires_a_date";
 
 const SCHEDULE_COLUMNS = `
   s.template_id,
@@ -860,10 +859,7 @@ export async function freezeMessagingPlanIn(
   );
 }
 
-export async function readFrozenPlanIn(
-  tx: Tx,
-  eventId: string,
-): Promise<FrozenMessagingPlan | null> {
+async function readFrozenPlanIn(tx: Tx, eventId: string): Promise<FrozenMessagingPlan | null> {
   const result = await tx.query<{
     event_id: string;
     template_id: string;

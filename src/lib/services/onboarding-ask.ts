@@ -1,6 +1,6 @@
 import "server-only";
 
-import { type Tx, withTransaction } from "@/lib/db";
+import { type Tx } from "@/lib/db";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import type { RequiredField } from "./person-required";
 import { readPersonRecordIn } from "./person-record";
@@ -26,7 +26,7 @@ import type { OnboardingItemStatus } from "./membership";
  * how a token is issued.
  */
 
-export interface OutstandingOnboardingItem {
+interface OutstandingOnboardingItem {
   itemId: string;
   code: string;
   label: string;
@@ -100,14 +100,6 @@ export async function readCompiledOutstandingAskIn(
     })),
     hasGrantedConsent,
   };
-}
-
-/** Convenience wrapper for a caller with no open transaction. */
-export async function readCompiledOutstandingAsk(
-  personId: string,
-  seasonId: string,
-): Promise<CompiledOutstandingAsk | null> {
-  return withTransaction((tx) => readCompiledOutstandingAskIn(tx, personId, seasonId));
 }
 
 /**

@@ -24,7 +24,7 @@ import type { DeliveryState } from "@/lib/services/delivery";
  * all, so no existing word covers it. It was previously rendered as **Queued**,
  * which told the operator the opposite of the truth: that it was on its way.
  */
-export const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.freeze({
+const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.freeze({
   queued: "Queued",
   attempted: "Attempted",
   delivered: "Delivered",
@@ -39,31 +39,6 @@ export const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Ob
 });
 
 /**
- * MUI severity per state, used for the chip colour.
- *
- * `attempted` is deliberately neutral rather than positive. It means "the
- * provider took it and we do not yet know", which was proven on 13 August 2026
- * to be a state a message can sit in while never arriving. Colouring it green
- * would say delivered.
- */
-export const DELIVERY_STATE_COLOURS: Readonly<
-  Record<DeliveryState, "default" | "info" | "success" | "warning" | "error">
-> = Object.freeze({
-  queued: "default",
-  attempted: "info",
-  delivered: "success",
-  failed: "error",
-  retryable: "warning",
-  // Not an error — nothing has gone wrong, and the club did this on purpose.
-  // Warning rather than neutral because it is a message that has stopped.
-  held: "warning",
-  // Not an error either, and calmer than Held: the event is cancelled and
-  // terminal, so there is no change coming that would make this message
-  // send after all.
-  cancelled: "default",
-});
-
-/**
  * W6's two named exceptions to the plain five-state vocabulary above —
  * `REQ-no-channel-backstop` and `REQ-whatsapp-outage-visible`. Both replace
  * what would otherwise render as an undifferentiated **Failed**, on this
@@ -73,8 +48,8 @@ export const DELIVERY_STATE_COLOURS: Readonly<
  * this file's five rather than importing them — `docs/ux/standards.md` rule
  * 7 asks the two surfaces to agree, not to share one module).
  */
-export const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
-export const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
+const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
+const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
 
 export const NEEDS_ATTENTION_HEADING = "Needs attention";
 export const NEEDS_ATTENTION_NOTE =
@@ -96,17 +71,6 @@ export function deliveryRowLabel(row: DeliveryExceptionFacts): string {
   return DELIVERY_STATE_LABELS[row.state];
 }
 
-/** The chip's actual colour, once the two exceptions are applied. */
-export function deliveryRowColour(
-  row: DeliveryExceptionFacts,
-): "default" | "info" | "success" | "warning" | "error" {
-  if (row.noUsableRoute) return "error";
-  // Reached — the club's own channel failed and that stays visible, but it is
-  // not the same alarm as a person nothing has reached at all.
-  if (row.whatsappUnresponsive) return "warning";
-  return DELIVERY_STATE_COLOURS[row.state];
-}
-
 export const TOKEN_LABELS: Readonly<Record<string, string>> = Object.freeze({
   live: "Live",
   revoked: "Revoked",
@@ -114,17 +78,6 @@ export const TOKEN_LABELS: Readonly<Record<string, string>> = Object.freeze({
 });
 
 // --- UX-50 -----------------------------------------------------------------
-
-export const OVERVIEW_SUBTITLE = "Official 1:1 WhatsApp delivery";
-
-/**
- * The sentence the wireframe puts at the top of every delivery screen, and the
- * one piece of copy on it that is a policy statement rather than a description.
- * Both halves are load-bearing: no manual path exists, and delivery is not RSVP.
- */
-export const OVERVIEW_NOTE =
-  "Operators never copy, send or post invitations manually. Delivery telemetry does not " +
-  "imply an RSVP.";
 
 export const VIEW_DIAGNOSTICS = "View diagnostics";
 
@@ -155,16 +108,6 @@ export const OVERVIEW_FACTS: readonly { label: string; value: string; note: stri
 // --- UX-51 -----------------------------------------------------------------
 
 export const DIAGNOSTICS_HEADING = "Delivery diagnostics";
-
-/**
- * OWNER-LAN173-02, W6-02. The mockup draws one table on this page — per
- * attempt, not per invitee — so the standing note says what that table is
- * rather than a claim (RSVP independence) that belonged to the table this
- * correction removed.
- */
-export const DIAGNOSTICS_NOTE =
-  "Every attempt on every channel, including the automatic email fallback. No message content " +
-  "is shown.";
 
 export const SEARCH_LABEL = "Search invitees";
 
@@ -229,10 +172,6 @@ export function matchesAttemptStatusFilter(outcome: string, filter: string): boo
 
 export const REPAIR_HEADING = "Repair delivery";
 
-export const REPAIR_NOTE =
-  "Retry and token repair are auditable system actions. There is no copy-link, send-message " +
-  "or post-to-group control.";
-
 export const RETRY_DELIVERY = "Retry delivery";
 export const REVOKE_AND_REISSUE = "Revoke and reissue link";
 
@@ -258,7 +197,7 @@ export const SAFE_REASON_PREFIX = "Safe provider reason";
 export const FALLBACK_VALUE = "Automated email / calendar";
 export const FALLBACK_NOTE = "No manual send action";
 
-export const NO_ATTEMPT_YET = "Not attempted yet";
+const NO_ATTEMPT_YET = "Not attempted yet";
 
 /**
  * The note under the Retry fact.

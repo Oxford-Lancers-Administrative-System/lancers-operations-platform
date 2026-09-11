@@ -5,12 +5,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 
-import {
-  CALLING_COUNTRIES,
-  DEFAULT_CALLING_CODE,
-  joinPhoneParts,
-  splitPhoneNumber,
-} from "@/lib/services/phone-parts";
+import { CALLING_COUNTRIES, joinPhoneParts, splitPhoneNumber } from "@/lib/services/phone-parts";
 
 /**
  * The one phone control — LAN-211, Brian 2026-09-01.
@@ -195,8 +190,3 @@ export function PhoneField({
     </div>
   );
 }
-
-/** What the number box means, for the forms that want to say it. */
-export const PHONE_FIELD_HINT = "Pick the country, then the number without its country code.";
-
-export { DEFAULT_CALLING_CODE };

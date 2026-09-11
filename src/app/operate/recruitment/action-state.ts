@@ -11,5 +11,3 @@ export interface RecruitmentActionState {
   /** One sentence about the whole attempt, or `null`. */
   error: string | null;
 }
-
-export const EMPTY_RECRUITMENT_ACTION_STATE: RecruitmentActionState = { error: null };

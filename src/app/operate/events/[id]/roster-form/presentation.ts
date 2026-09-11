@@ -35,7 +35,6 @@ export const PRINT = "Print";
 export const BACK_TO_PICKING = "Change who is dressing";
 
 export const COLUMN_DRESSED = "Dressed";
-export const COLUMN_NAME = "Name";
 export const COLUMN_JERSEY = "Jersey";
 export const COLUMN_STUDENT_NUMBER = "Student no";
 export const COLUMN_RSVP = "RSVP";

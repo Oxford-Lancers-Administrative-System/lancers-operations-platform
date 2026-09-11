@@ -34,16 +34,9 @@ import { type EventQuestionInput, type QuestionAnswerType } from "./event-questi
 
 export {
   describeQuestionAnswer,
-  describeQuestionCount,
   joinQuestionChoices,
-  QUESTION_ANSWER_TYPE_LABELS,
-  QUESTION_ANSWER_TYPES,
-  splitQuestionChoices,
   validateEventQuestions,
   type EventQuestionInput,
-  type EventQuestionsValidation,
-  type QuestionAnswerType,
-  type QuestionIssue,
   type RawEventQuestion,
 } from "./event-questions-input";
 

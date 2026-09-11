@@ -126,9 +126,6 @@ function isFormattableScheduledOn(candidate: string): boolean {
   return !Number.isNaN(Date.parse(`${candidate}T00:00:00Z`));
 }
 
-/** The inherited text fields, and how each is read out of a form value bag. */
-const INHERITED_TEXT = ["venue", "description", "requiredEquipment"] as const;
-
 export default function EventForm({
   mode,
   eventId,
@@ -659,5 +656,3 @@ export default function EventForm({
     </Box>
   );
 }
-
-export { INHERITED_TEXT };

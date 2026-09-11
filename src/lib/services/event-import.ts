@@ -86,8 +86,8 @@ export const IMPORT_PLAN_MOVED_MESSAGE =
 export const IMPORT_NOTHING_TO_APPLY_MESSAGE =
   "There is nothing to apply. Every row in that file either matches what is already in the season or was refused.";
 
-export const IMPORT_PLAN_MOVED_RULE = "event_import_plan_moved";
-export const IMPORT_FILE_REFUSED_RULE = "event_import_file_refused";
+const IMPORT_PLAN_MOVED_RULE = "event_import_plan_moved";
+const IMPORT_FILE_REFUSED_RULE = "event_import_file_refused";
 
 // ---------------------------------------------------------------------------
 // What the bulk import screen states

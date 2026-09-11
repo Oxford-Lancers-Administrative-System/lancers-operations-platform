@@ -77,32 +77,17 @@ import {
  */
 
 export {
-  AUDIENCE_GROUPS,
   audiencePeople,
-  groupsForEventType,
-  templateGroupsForEventType,
   summariseAudienceGroups,
-  CAPACITY_PRECEDENCE,
   EMPTY_AUDIENCE_MESSAGE,
   EMPTY_AUDIENCE_RULE,
-  groupIsSelected,
   groupSelectionKeys,
-  groupSize,
-  toggleGroup,
-  RECRUITMENT_EVENT_TYPE,
   resolveSelection,
   selectionKey,
-  UNKNOWN_SELECTION_MESSAGE,
   UNKNOWN_SELECTION_RULE,
-  type AudienceCandidate,
   type AudienceCapacity,
   type AudienceCatalogue,
-  type AudienceGroup,
-  type AudienceGroupKey,
   type AudienceGroupSummary,
-  type AudiencePerson,
-  type ResolvedAudienceMember,
-  type SelectionResolution,
 } from "./audience-selection";
 
 interface CandidateRow {

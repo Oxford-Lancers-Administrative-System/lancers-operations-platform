@@ -112,10 +112,7 @@ import { personDisplayNameSql as displayName } from "./sql-text";
  * would drag `pg` into the browser bundle, and the build refuses it.
  */
 export {
-  ATTENDANCE_PRESENCES,
   isAttendancePresence,
-  isShowedPresence,
-  SHOWED_PRESENCES,
   summariseAttendance,
   type AttendanceParticipant,
   type AttendancePresence,
@@ -123,14 +120,7 @@ export {
   type WalkUpInput,
 } from "./attendance-vocabulary";
 
-export {
-  ATTENDANCE_REGISTER_BUFFER_HOURS,
-  ATTENDANCE_REGISTER_BUFFER_MS,
-  eventStartInstant,
-  isRegisterAvailable,
-  isRegisterOpen,
-  registerOpensAt,
-} from "./attendance-window";
+export { eventStartInstant, isRegisterAvailable, registerOpensAt } from "./attendance-window";
 
 /**
  * The stored status an event must be in for a register to exist at all.
@@ -146,7 +136,7 @@ export {
  * coach with the sheet in front of them at kick-off is exactly who this
  * surface is for.
  */
-export const ATTENDANCE_OPEN_STATUS: EventStatus = "approved";
+const ATTENDANCE_OPEN_STATUS: EventStatus = "approved";
 
 export const ATTENDANCE_CLOSED_MESSAGE =
   "Attendance can only be recorded against an approved event.";
@@ -182,7 +172,7 @@ export const PARTICIPANT_NOT_FOUND_MESSAGE =
  * asserts occurrence any more (D30), so the state a register waits on is the
  * approval — which is also the only stored fact left that can withhold one.
  */
-export type AttendanceClosedReason = "not_approved" | "before_buffer";
+type AttendanceClosedReason = "not_approved" | "before_buffer";
 
 /** The board, and the event it belongs to. */
 export interface AttendanceBoard {
@@ -715,7 +705,7 @@ export const WALK_UP_FAMILY_NAME_REQUIRED =
 export const WALK_UP_PHONE_REQUIRED =
   "Enter a phone number. It is how the club follows this person up.";
 
-export const WALK_UP_EMAIL_SHAPE =
+const WALK_UP_EMAIL_SHAPE =
   "This does not look like an email address. Enter it as it was given, including the @, " +
   "or leave it blank.";
 

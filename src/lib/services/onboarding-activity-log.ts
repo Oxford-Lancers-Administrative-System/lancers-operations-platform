@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ConstraintViolated, type Tx, withTransaction } from "@/lib/db";
+import { ConstraintViolated, type Tx } from "@/lib/db";
 
 /**
  * The sectioned per-player activity log — LAN-214, `REQ-activity-log`.
@@ -138,13 +138,6 @@ export async function recordOnboardingActivityIn(
     ],
   );
   return toEntry(result.rows[0] as unknown as ActivityRow);
-}
-
-/** Convenience wrapper for a caller with no open transaction. */
-export async function recordOnboardingActivity(
-  params: Parameters<typeof recordOnboardingActivityIn>[1],
-): Promise<OnboardingActivityEntry> {
-  return withTransaction((tx) => recordOnboardingActivityIn(tx, params));
 }
 
 /**

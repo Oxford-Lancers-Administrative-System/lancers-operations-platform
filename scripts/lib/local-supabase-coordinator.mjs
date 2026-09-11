@@ -176,7 +176,7 @@ function writeRegistry(registryPath, registry) {
   fs.renameSync(temporary, registryPath);
 }
 
-export function ownerAlive(pid, probe = process.kill) {
+function ownerAlive(pid, probe = process.kill) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     probe(pid, 0);
@@ -217,7 +217,7 @@ function assertSessionPid(pid, caller) {
 }
 
 /** A lease is demonstrably in use when its heartbeat is inside the window. */
-export function leaseLive(record, now) {
+function leaseLive(record, now) {
   const beat = Date.parse(record?.lastHeartbeat ?? "");
   return Number.isFinite(beat) && now - beat <= LEASE_TTL_MS;
 }
@@ -554,7 +554,7 @@ export async function acquireLease({
  * implementation record, and resetting one can never destroy the state the
  * implementers are working against.
  */
-export const LEASE_PURPOSES = ["implementation", "review"];
+const LEASE_PURPOSES = ["implementation", "review"];
 
 const purposeOf = (record) => record?.purpose ?? "implementation";
 

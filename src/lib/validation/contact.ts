@@ -61,7 +61,7 @@ export const EMAIL_SHAPE_MESSAGE =
   "or leave it blank.";
 
 /** The Oxford Lancers' own calling code — the one a bare national number defaults to. */
-export const DEFAULT_CALLING_CODE = "44";
+const DEFAULT_CALLING_CODE = "44";
 
 /**
  * Whether `value` can become an E.164 number — the same question, and the

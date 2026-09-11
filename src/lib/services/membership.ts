@@ -106,15 +106,6 @@ import { escapeLikePattern, personDisplayAliasSql } from "./sql-text";
  */
 export type MembershipStatus = "onboarding" | "active" | "inactive" | "departed" | "archived";
 
-/** Every value the ladder holds, in the order the board and every filter offer them. */
-export const MEMBERSHIP_STATUSES: readonly MembershipStatus[] = Object.freeze([
-  "onboarding",
-  "active",
-  "inactive",
-  "departed",
-  "archived",
-]) as readonly MembershipStatus[];
-
 // ---------------------------------------------------------------------------
 // Onboarding items
 // ---------------------------------------------------------------------------
@@ -169,15 +160,6 @@ const ONBOARDING_STATUS_WORDS: Readonly<Record<string, string>> = Object.freeze(
  * directly (an `OnboardingItemStatus`), and corrects a mistake by naming a
  * different one — there is no separate reopen verb on any item.
  */
-export {
-  allowedItemStates,
-  isDerivedItem,
-  itemStateLabel,
-  KIT_DISTRIBUTED_ITEM_CODE,
-  SUBS_INVOICED_ITEM_CODE,
-  SUBS_PAID_ITEM_CODE,
-} from "./onboarding-item-shapes";
-
 export interface OnboardingItem {
   id: string;
   code: string;
@@ -311,7 +293,7 @@ async function readOnboardingItems(tx: Tx, membershipId: string): Promise<Onboar
 // Reading the roster — UX-20 and UX-23
 // ---------------------------------------------------------------------------
 
-export interface RosterEntry {
+interface RosterEntry {
   membershipId: string;
   personId: string;
   givenName: string;
@@ -358,19 +340,18 @@ export interface RosterFilters {
  * archived — the order a season actually moves through — instead of "active,
  * archived, departed".
  */
-export const ROSTER_SORT_COLUMNS: Readonly<
-  Record<string, { sql: string; default: "asc" | "desc" }>
-> = Object.freeze({
-  name: Object.freeze({
-    sql: "coalesce(p.family_name, p.given_name), p.given_name",
-    default: "asc" as const,
-  }),
-  status: Object.freeze({ sql: "m.status", default: "asc" as const }),
-  entry: Object.freeze({ sql: "m.entry", default: "asc" as const }),
-  onboarding: Object.freeze({ sql: "required_outstanding", default: "desc" as const }),
-});
+const ROSTER_SORT_COLUMNS: Readonly<Record<string, { sql: string; default: "asc" | "desc" }>> =
+  Object.freeze({
+    name: Object.freeze({
+      sql: "coalesce(p.family_name, p.given_name), p.given_name",
+      default: "asc" as const,
+    }),
+    status: Object.freeze({ sql: "m.status", default: "asc" as const }),
+    entry: Object.freeze({ sql: "m.entry", default: "asc" as const }),
+    onboarding: Object.freeze({ sql: "required_outstanding", default: "desc" as const }),
+  });
 
-export const DEFAULT_ROSTER_SORT = "name";
+const DEFAULT_ROSTER_SORT = "name";
 
 function rosterOrderBy(sort: string | null, direction: string | null): string {
   // `Object.hasOwn`, not a plain lookup. `ROSTER_SORT_COLUMNS["toString"]`
@@ -535,7 +516,7 @@ export async function listCurrentSeasonRoster(filters: RosterFilters = {}): Prom
 // Reading one membership — UX-21
 // ---------------------------------------------------------------------------
 
-export interface MembershipContact {
+interface MembershipContact {
   kind: string;
   rawValue: string;
   isPreferred: boolean;
@@ -572,7 +553,7 @@ export interface MembershipRecord {
   statusHistory: MembershipStatusEvent[];
 }
 
-export const MEMBERSHIP_NOT_FOUND_MESSAGE = "That membership no longer exists.";
+const MEMBERSHIP_NOT_FOUND_MESSAGE = "That membership no longer exists.";
 
 async function readMembershipIn(tx: Tx, membershipId: string): Promise<MembershipRecord> {
   const result = await tx.query<{

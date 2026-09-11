@@ -11,9 +11,6 @@
 
 import { TYPE_LABELS } from "@/app/operate/events/presentation";
 
-/** The club's name, as the page banner shows it. */
-export const BANNER = "LANCERS OPERATIONS";
-
 // ---------------------------------------------------------------------------
 // UX-60 — the invitation
 // ---------------------------------------------------------------------------

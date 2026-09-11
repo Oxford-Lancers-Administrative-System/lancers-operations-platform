@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // LAN-300: the dead-export finder. `npm run knip` runs clean and is part of `npm run verify`.
+  // Excluded trees are either prohibited merge paths (.github/merge-rules.json), trust
+  // boundaries this tool must never drive a change to, or the LAN-285 delivery carve-out.
+  "ignore": [
+    "scripts/mission/**",
+    "scripts/merge/**",
+    "scripts/intake/**",
+    "scripts/production/**",
+    "scripts/lib/local-db.mjs",
+    "src/lib/auth/**",
+    "src/lib/supabase/**",
+    "src/lib/db/**",
+    "src/lib/rsvp/**",
+    "src/lib/services/rsvp-tokens.ts",
+    "src/lib/services/player-answer-tokens.ts",
+    "src/lib/delivery/**",
+    "src/lib/services/delivery.ts",
+    "src/lib/services/messaging-scheduler.ts",
+  ],
+  "entry": ["scripts/*.mjs", "scripts/telemetry/*.mjs", "tests/**/*.ts"],
+  "project": ["src/**", "scripts/**", "tests/**"],
+  // Reached transitively through @playwright/test and @mui/material; sharp is a one-off
+  // asset generator's own requirement, installed by hand when the crest changes.
+  "ignoreDependencies": ["playwright", "@mui/utils", "sharp"],
+}

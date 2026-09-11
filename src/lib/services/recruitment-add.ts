@@ -1,7 +1,7 @@
 import "server-only";
 
 import { todayInClubZone } from "@/lib/club-time";
-import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
+import { ConstraintViolated, InvalidTransition, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import { addRecruitmentProspectNoteIn } from "./recruitment-prospect";
@@ -364,10 +364,4 @@ export async function finishRecruitmentAddIn(
   }
 
   return { prospectId, prospectCreated, cycleDeclared };
-}
-
-export async function finishRecruitmentAdd(
-  params: Parameters<typeof finishRecruitmentAddIn>[1],
-): Promise<FinishRecruitmentAddResult> {
-  return withTransaction((tx) => finishRecruitmentAddIn(tx, params));
 }

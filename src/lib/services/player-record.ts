@@ -85,7 +85,7 @@ export interface PlayerSeasonFacts {
   availability: string | null;
 }
 
-export interface JerseyHolders {
+interface JerseyHolders {
   blue: Record<string, string>;
   white: Record<string, string>;
 }
@@ -105,10 +105,10 @@ export interface OtherSeasonSummary {
  * `readAttendanceHistoryIn` excludes it below, the same "sent" filter
  * `Q15-attendance`'s approved design applies.
  */
-export type AttendanceInvitationStatus = "issued" | "responded" | "expired" | "cancelled";
+type AttendanceInvitationStatus = "issued" | "responded" | "expired" | "cancelled";
 
 /** `public.rsvp_value` — binary, no "maybe" (Requirement 5). */
-export type AttendanceRsvp = "yes" | "no";
+type AttendanceRsvp = "yes" | "no";
 
 /**
  * One event this membership held a sent invitation for, this season —
@@ -173,7 +173,7 @@ export interface OnboardingItemDisplay extends OnboardingItem {
  * display name the same way, rather than a second copy of the write path or
  * the grouping.
  */
-export interface OnboardingActivityEntryDisplay {
+interface OnboardingActivityEntryDisplay {
   kind: OnboardingActivityKind;
   channel: string;
   who: string;
@@ -627,7 +627,7 @@ async function readMilestonesIn(
  * *same season* lives, or to the survivor's person record when they never
  * held one.
  */
-export interface PlayerRecordRedirect {
+interface PlayerRecordRedirect {
   kind: "redirect";
   href: string;
 }

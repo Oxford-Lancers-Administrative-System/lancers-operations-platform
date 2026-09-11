@@ -50,7 +50,7 @@ import { MEMBERSHIP_STATUS_LABELS } from "../roster/presentation";
  * appear on the Operators page under its catalogue name until somebody chooses
  * a club word for it. It never silently merges into another section.
  */
-export const OPERATOR_SECTION_LABELS: Readonly<Record<string, string>> = Object.freeze({
+const OPERATOR_SECTION_LABELS: Readonly<Record<string, string>> = Object.freeze({
   operational_administration: "Standing Officers",
   club_committee: "Club Officers",
   coaching_staff: "Coaches",

@@ -193,8 +193,8 @@ export function CheckField({
   );
 }
 
-export const DATE_FORMAT_HINT = "Day, month, year — e.g. 24/08/2026.";
-export const TIME_FORMAT_HINT = "12-hour clock, e.g. 08:00 PM.";
+const DATE_FORMAT_HINT = "Day, month, year — e.g. 24/08/2026.";
+const TIME_FORMAT_HINT = "12-hour clock, e.g. 08:00 PM.";
 
 export function DateField({
   label,

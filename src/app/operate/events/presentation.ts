@@ -30,22 +30,16 @@ import { joinWithAnd, labelFor, shortMonthOf, TERM_LABELS } from "@/lib/services
  * `@/lib/auth/event-tier`'s question, and nothing in the vocabulary answers it.
  */
 export {
-  CLUB_TIME_ZONE,
   DELIVERY_MODE_LABELS,
   DERIVED_STATE_LABELS,
   describeAttendance,
   formatDetailWhen,
   formatListWhen,
   formatLongDate,
-  formatShortDate,
-  formatTimes,
   joinWithAnd,
   JOINING_LINK_LABEL,
   labelFor,
-  SHORT_MONTHS,
-  shortMonthOf,
   STATUS_LABELS,
-  TERM_LABELS,
   TYPE_LABELS,
   venueLabel,
 } from "@/lib/services/event-vocabulary";
@@ -70,10 +64,6 @@ export const NO_AUDIENCE_YET = "Not chosen yet";
 export const NO_DISTRIBUTION_HEADLINE = "Nothing distributed";
 
 export const NO_DISTRIBUTION_DETAIL = "No invitations or responses";
-
-export const NO_DISTRIBUTION_RULE =
-  "A draft can carry no invitations, responses or attendance. " +
-  "Nothing is sent until the designated approver approves it.";
 
 /**
  * True where that rule applies. One state, since LAN-151 retired
@@ -254,9 +244,6 @@ export const EMPTY_AUDIENCE_HEADLINE = "This event cannot be approved";
 export const EMPTY_AUDIENCE_DETAIL =
   "The resolved audience is empty. No invitations or notification jobs were created.";
 
-export const EMPTY_AUDIENCE_SERVER_NOTE =
-  "Approval is refused on the server even if this screen is bypassed.";
-
 /** UX-41 — the event, the people and the questions, read once before approving. */
 export const APPROVAL_HEADLINE_PREFIX = "Approve";
 
@@ -363,7 +350,7 @@ export interface DistributionCounts {
   cancelled: number;
 }
 
-export function describeDelivery(counts: DistributionCounts): string {
+function describeDelivery(counts: DistributionCounts): string {
   const parts: string[] = [];
   if (counts.delivered > 0) parts.push(`${counts.delivered} delivered`);
   if (counts.attempted > 0) parts.push(`${counts.attempted} attempted`);
@@ -438,7 +425,7 @@ export const RSVP_FIRST_QUESTION = "Are you coming?";
 export const RSVP_FIRST_QUESTION_ANSWER = "Yes · No — a reason is asked on No";
 
 /** D42. What marks a question that came with the type. */
-export const FROM_TEMPLATE_CHIP_PREFIX = "From the";
+const FROM_TEMPLATE_CHIP_PREFIX = "From the";
 
 export function fromTemplateChip(eventTypeLabel: string): string {
   return `${FROM_TEMPLATE_CHIP_PREFIX} ${eventTypeLabel} template`;

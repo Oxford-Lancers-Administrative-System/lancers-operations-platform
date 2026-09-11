@@ -150,7 +150,7 @@ export function formatLongDate(scheduledOn: string | null): string {
 }
 
 /** "20:00–22:00", "from 20:00", "until 22:00", or nothing at all. */
-export function formatTimes(startsAt: string | null, endsAt: string | null): string {
+function formatTimes(startsAt: string | null, endsAt: string | null): string {
   if (startsAt && endsAt) return `${startsAt}–${endsAt}`;
   if (startsAt) return `from ${startsAt}`;
   if (endsAt) return `until ${endsAt}`;

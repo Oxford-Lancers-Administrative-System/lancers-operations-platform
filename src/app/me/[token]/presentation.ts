@@ -15,7 +15,6 @@ import { TYPE_LABELS } from "@/app/operate/events/presentation";
 import { attendingSentence, otherOutstandingSentence } from "@/app/a/[token]/presentation";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 
-export const BANNER = "LANCERS OPERATIONS";
 export const PRIVACY_NOTE =
   "This secure page shows only your own events and answers. Nobody else's response is ever shown here.";
 

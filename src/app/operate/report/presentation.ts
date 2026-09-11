@@ -119,7 +119,7 @@ export const ONBOARDING_STATUS_LABELS: Readonly<Record<string, string>> = Object
 });
 
 /** How the attendance grid may be ordered. The default matches the snapshot. */
-export const GRID_SORTS = Object.freeze(["issues", "person"] as const);
+const GRID_SORTS = Object.freeze(["issues", "person"] as const);
 
 export type GridSort = (typeof GRID_SORTS)[number];
 

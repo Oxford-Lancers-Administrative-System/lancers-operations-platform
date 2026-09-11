@@ -18,7 +18,7 @@
     "test:gate:ci": "node scripts/ci-local-command.mjs test-gate",
     "pretest:watch": "node scripts/require-local-supabase-lease.mjs",
     "test:watch": "vitest",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run knip && npm run test && npm run build",
     "preverify:gate": "node scripts/require-local-supabase-lease.mjs",
     "verify:gate": "PILOT_GUARD_CHECK=1 vitest run --project gate",
     "db:coordinator": "node scripts/local-supabase-coordinator.mjs",
@@ -51,7 +51,8 @@
     "visual:status": "node scripts/visual-environment.mjs status",
     "visual:disposition": "node scripts/visual-environment.mjs disposition",
     "visual:release": "node scripts/visual-environment.mjs release",
-    "mission:finish": "node scripts/mission/finish-mission.mjs"
+    "mission:finish": "node scripts/mission/finish-mission.mjs",
+    "knip": "knip --no-config-hints"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",
@@ -85,6 +86,7 @@
     "eslint-config-next": "16.3.0",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^27.0.1",
+    "knip": "^6.35.1",
     "prettier": "^3.9.6",
     "supabase": "^2.113.0",
     "tailwindcss": "^4",

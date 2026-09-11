@@ -83,7 +83,7 @@ export interface ReturnerIntakeInput {
 }
 
 /** Why a candidate surfaced. Shown to the operator so the choice is informed. */
-export type CandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
+type CandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
 
 /** One possible existing Person, for UX-11. */
 export interface PersonCandidate {
@@ -154,7 +154,7 @@ export interface ReturnerIntakeResult {
   welcomeQueued: boolean;
 }
 
-export interface RecordedContact {
+interface RecordedContact {
   kind: "email" | "phone";
   /** Exactly as the operator typed it. */
   rawValue: string;
@@ -170,7 +170,7 @@ export interface RecordedContact {
 }
 
 /** A value the operator typed, named by its kind — LAN-257's "this was not written". */
-export interface TypedContact {
+interface TypedContact {
   kind: "email" | "phone";
   /** Exactly as the operator typed it. */
   rawValue: string;

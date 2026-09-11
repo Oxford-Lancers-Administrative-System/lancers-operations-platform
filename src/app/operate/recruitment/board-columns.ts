@@ -32,22 +32,21 @@ import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitme
 export type Band = "person" | "recruitment" | `events:${string}`;
 type BandKind = "person" | "recruitment" | "events";
 
-export const BAND_COLOURS: Readonly<
-  Record<"person" | "recruitment", { header: string; tint: string }>
-> = Object.freeze({
-  person: CLUB_BANDS.person,
-  recruitment: CLUB_BANDS.recruitment,
-});
+const BAND_COLOURS: Readonly<Record<"person" | "recruitment", { header: string; tint: string }>> =
+  Object.freeze({
+    person: CLUB_BANDS.person,
+    recruitment: CLUB_BANDS.recruitment,
+  });
 
 /** The Events band reuses the Season band's own blue, `W1`'s own reasoning. */
-export const EVENTS_BAND_COLOUR = CLUB_BANDS.season;
+const EVENTS_BAND_COLOUR = CLUB_BANDS.season;
 
 export const BAND_ROW_HEIGHT = 28;
 export const BAND_LABEL_INSET_PX = 16;
 export const RECRUIT_COLUMN_WIDTH = 200;
 
 /** Which of the three *kinds* of band a value is — see the module note. */
-export function bandKind(band: Band): BandKind {
+function bandKind(band: Band): BandKind {
   return band.startsWith("events:") ? "events" : (band as BandKind);
 }
 
@@ -62,7 +61,7 @@ export function eventIdOfBand(band: Band): string | null {
   return band.startsWith("events:") ? band.slice("events:".length) : null;
 }
 
-export type EditKind = "none" | "record" | "status";
+type EditKind = "none" | "record" | "status";
 
 export interface ColumnDef {
   readonly key: string;
@@ -242,7 +241,7 @@ export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze([
 export const STATUS_FILTER_OPTIONS = Object.freeze(Object.keys(PROSPECT_STATUS_LABELS));
 export const CONSENT_FILTER_OPTIONS = Object.freeze(Object.keys(CONSENT_LABELS));
 
-export function eventColumnKey(eventId: string, cell: "rsvp" | "attendance"): string {
+function eventColumnKey(eventId: string, cell: "rsvp" | "attendance"): string {
   return `event:${eventId}:${cell}`;
 }
 

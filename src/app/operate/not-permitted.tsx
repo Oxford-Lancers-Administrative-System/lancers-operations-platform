@@ -29,15 +29,11 @@ import { signOut } from "../login/actions";
  * therefore a real one: return to a destination they can open.
  */
 
-export const NOT_PERMITTED_HEADING = "You do not have access to this action";
+const NOT_PERMITTED_HEADING = "You do not have access to this action";
 
-export const NOT_PERMITTED_MESSAGE =
+const NOT_PERMITTED_MESSAGE =
   "Your operator profile is active, but your current role assignments do not permit " +
   "this action.";
-
-export const NOT_PERMITTED_NOTE =
-  "Authorization is enforced by the service action independently of whether a " +
-  "navigation item was visible.";
 
 export default function NotPermittedScreen({
   requirement,

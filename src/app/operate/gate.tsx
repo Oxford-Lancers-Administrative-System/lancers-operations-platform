@@ -59,7 +59,7 @@ import { firstPermittedDestination } from "./destinations";
 export type ShellGate = { operator: ResolvedOperator } | { screen: ReactElement };
 
 /** What a coach is told when they reach a surface their one destination is not. */
-export const COACH_SURFACE_REQUIREMENT =
+const COACH_SURFACE_REQUIREMENT =
   "Attendance recording is the only operator surface open to a coaching assignment. " +
   "This action requires a club role that carries general operator access.";
 

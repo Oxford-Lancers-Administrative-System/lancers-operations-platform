@@ -144,7 +144,7 @@ const FIELD_LABELS: Readonly<Record<AmendableField, string>> = Object.freeze({
 });
 
 /** Every field an amendment compares, in the order the editor shows them. */
-export const AMENDABLE_FIELDS: readonly AmendableField[] = Object.freeze([
+const AMENDABLE_FIELDS: readonly AmendableField[] = Object.freeze([
   "name",
   "scheduledOn",
   "startsAt",

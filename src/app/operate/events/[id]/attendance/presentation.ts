@@ -61,7 +61,7 @@ export function describeRsvp(rsvp: "yes" | "no" | null, isWalkUp: boolean): stri
 }
 
 /** `public.rsvp_attendance_mismatches.mismatch`, in the club's words. */
-export const MISMATCH_LABELS: Readonly<Record<string, string>> = Object.freeze({
+const MISMATCH_LABELS: Readonly<Record<string, string>> = Object.freeze({
   said_yes_no_attendance_recorded: "Said Attending · nothing recorded",
   said_yes_marked_absent: "Said Attending · marked Absent",
   said_no_but_attended: "Said Not attending · turned up",
@@ -193,7 +193,7 @@ export const HEADLINE_SAID_YES_LABEL = "Said yes";
 export const HEADLINE_SHOWED_LABEL = "Showed";
 
 /** What a value reads before there is anything to read. */
-export const NOT_RECORDED_VALUE = "—";
+const NOT_RECORDED_VALUE = "—";
 
 /**
  * `— / 37` before a register has been saved, `0 / 37` after one was saved with
@@ -258,27 +258,11 @@ export const COACH_RETURN_TO_ELIGIBLE = "Return to eligible events";
 
 export const COACH_BOARD_SUBTITLE = "Coach recorder view";
 
-/**
- * The sentence UX-91 puts at the top of the coach's board.
- *
- * It is not a disclaimer. `slice-ux.md` § 3 withholds RSVP reasons, contact
- * details, availability and injury notes from this surface, and the person
- * reading it is the one who would otherwise go looking for them — a coach who
- * cannot see why somebody said no needs to know that the screen is not broken
- * and that the answer is not one press away.
- */
-export const COACH_BOARD_NOTE =
-  "Only event context, player identity, standing RSVP state and attendance are shown. " +
-  "RSVP reasons, contact, availability and administration are omitted.";
-
 // ---------------------------------------------------------------------------
 // UX-72 — the board
 // ---------------------------------------------------------------------------
 
 export const ATTENDANCE_HEADLINE_PREFIX = "Attendance ·";
-
-export const RSVP_STAYS_SEPARATE =
-  "RSVP and attendance remain separate. Mismatches are visible and never auto-reconciled.";
 
 export const NOT_MARKED = "Not marked";
 
@@ -334,12 +318,12 @@ export interface ParticipantGroup {
   participants: AttendanceParticipant[];
 }
 
-export const ATTENDING_GROUP_LABEL = "Attending";
-export const ATTENDING_GROUP_DETAIL = "Said yes to this event";
-export const EVERYONE_ELSE_GROUP_LABEL = "Everyone else";
-export const EVERYONE_ELSE_GROUP_DETAIL = "Not attending, and no response";
-export const WALK_UP_GROUP_LABEL = "Walk-ups";
-export const WALK_UP_GROUP_DETAIL = "Turned up uninvited, recorded present, to reconcile";
+const ATTENDING_GROUP_LABEL = "Attending";
+const ATTENDING_GROUP_DETAIL = "Said yes to this event";
+const EVERYONE_ELSE_GROUP_LABEL = "Everyone else";
+const EVERYONE_ELSE_GROUP_DETAIL = "Not attending, and no response";
+const WALK_UP_GROUP_LABEL = "Walk-ups";
+const WALK_UP_GROUP_DETAIL = "Turned up uninvited, recorded present, to reconcile";
 
 /**
  * The fourth group, at the top of a recruitment event's sheet only — W12,
@@ -347,8 +331,8 @@ export const WALK_UP_GROUP_DETAIL = "Turned up uninvited, recorded present, to r
  * (`chore/recruitment-fidelity-mockup`, `attendance-sheet.tsx`), the
  * authoritative source for this surface's structure and copy alike.
  */
-export const RECRUITS_GROUP_LABEL = "Recruits";
-export const RECRUITS_GROUP_DETAIL =
+const RECRUITS_GROUP_LABEL = "Recruits";
+const RECRUITS_GROUP_DETAIL =
   "Every recruit on the board this season, the ones who said yes first.";
 
 /**
@@ -469,18 +453,6 @@ export const ADD_WALK_UP = "Add walk-up";
 
 export const COMPLETE_ATTENDANCE = "Complete attendance";
 
-/**
- * What **Complete attendance** actually does, said on the screen.
- *
- * There is no finalisation column in `attendance_records` and LAN-80 forbids
- * authoring a migration without Brian, so this button closes the recorder's
- * session and returns to the event. Every value it leaves behind stays
- * correctable. Saying so is better than a button that implies a lock the
- * database does not have — the gap is reported in the pull request.
- */
-export const COMPLETE_ATTENDANCE_MEANING =
-  "Finishes recording and returns to the event. Values stay correctable afterwards.";
-
 // ---------------------------------------------------------------------------
 // The save line — § 9, Saving / Saved / failed save
 // ---------------------------------------------------------------------------
@@ -511,8 +483,6 @@ export function describeCommitted(
 
 /** Brian locked *walk-up* as the word, 2026-08-31 — never "walk-on". */
 export const WALK_UP_HEADLINE = "Add a walk-up";
-
-export const WALK_UP_DETAIL = "Somebody who turned up and is not on the roster.";
 
 /**
  * What the club ends up with, said before the operator commits — Brian,

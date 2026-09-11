@@ -49,32 +49,6 @@ export const EVENT_TYPES: readonly string[] = Object.freeze([
 ]);
 
 /**
- * The types a draft may be created as. Every one of the seven, now that the
- * types the form could not honestly describe are gone — so this is `EVENT_TYPES`
- * and stays a separate name only because callers already import it.
- */
-export const DRAFTABLE_EVENT_TYPES: readonly string[] = EVENT_TYPES;
-
-/**
- * `public.event_origin`, in full. Source Data Analysis §5.6 — not every event's
- * schedule is the club's to set.
- *
- * The column stays, and so does every value in it: a BUCS game really is
- * externally assigned, and that provenance is load-bearing. What went away in
- * Brian's LAN-76 clarification is the *choice* — an operator creating an event
- * on the club's own calendar was being asked to classify its provenance from
- * four unexplained words. An event this form creates is by definition one the
- * club scheduled, so the value is derived rather than asked for, and an event
- * that came from elsewhere keeps whatever provenance it already had.
- */
-export const EVENT_ORIGINS: readonly string[] = Object.freeze([
-  "club_controlled",
-  "externally_assigned",
-  "externally_scheduled",
-  "negotiated",
-]);
-
-/**
  * The origin of an event created through this form.
  *
  * An operator sitting in the club's own calendar, typing in a practice, is
@@ -408,7 +382,7 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
  * the real term card does — and a constraint would refuse that data when the
  * migration ran. The rule is about *entry*, which is where it is applied.
  */
-export const FIVE_MINUTE_INCREMENT_MESSAGE = "Enter the time in five-minute steps.";
+const FIVE_MINUTE_INCREMENT_MESSAGE = "Enter the time in five-minute steps.";
 
 /**
  * What the operator is told when the joining link is not a web address.

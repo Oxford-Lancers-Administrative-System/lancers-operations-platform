@@ -47,7 +47,7 @@ export interface Destination {
   readonly detail?: string;
 }
 
-export const DESTINATIONS: readonly Destination[] = Object.freeze([
+const DESTINATIONS: readonly Destination[] = Object.freeze([
   Object.freeze({
     href: "/operate/roster",
     label: "Roster",
@@ -95,7 +95,7 @@ export const DESTINATIONS: readonly Destination[] = Object.freeze([
  * wireframe shows and what the destination is for a coach: the list is filtered
  * to occurred events, and every row leads to an attendance board.
  */
-export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
+const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
   Object.freeze({
     href: "/operate/events",
     label: "Attendance",
@@ -157,7 +157,7 @@ export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
  * matters anyway, because a low-frequency privileged area advertised to
  * everybody who cannot open it is an invitation to try.
  */
-export const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
+const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
   /**
    * W5. "Shown as a Follow-ups item under Administration, above Operators" —
    * the mockup's own placement, and `capability: null` rather than
@@ -241,10 +241,7 @@ export function destinationsFor(roleCodes: readonly string[]): readonly Destinat
 }
 
 /** Can this operator's current roles open the destination? */
-export function permitsDestination(
-  roleCodes: readonly string[],
-  destination: Destination,
-): boolean {
+function permitsDestination(roleCodes: readonly string[], destination: Destination): boolean {
   return destination.capability === null || roleCodesPermit(roleCodes, destination.capability);
 }
 

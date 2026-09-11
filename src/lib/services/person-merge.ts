@@ -151,7 +151,7 @@ function needsChoiceBetween(survivorValue: string | null, loserValue: string | n
 // Eligibility — the two refusals `Q-5` names, read-only
 // ---------------------------------------------------------------------------
 
-export interface MergeRefusal {
+interface MergeRefusal {
   rule: string;
   message: string;
   /**
@@ -310,7 +310,7 @@ async function checkMergeRefusal(
 // Preview — W4-02 through W4-08's comparison and "what will move"
 // ---------------------------------------------------------------------------
 
-export interface MergeFieldComparison {
+interface MergeFieldComparison {
   field: MergePersonField;
   label: string;
   survivorValue: string | null;
@@ -320,7 +320,7 @@ export interface MergeFieldComparison {
   needsChoice: boolean;
 }
 
-export interface MergeContactComparison {
+interface MergeContactComparison {
   kind: MergeContactKind;
   label: string;
   survivor: { id: string; rawValue: string } | null;
@@ -330,7 +330,7 @@ export interface MergeContactComparison {
   needsChoice: boolean;
 }
 
-export interface MergeAliasComparison {
+interface MergeAliasComparison {
   survivorAliases: string[];
   loserAliases: string[];
   /**
@@ -344,7 +344,7 @@ export interface MergeAliasComparison {
   differs: boolean;
 }
 
-export interface MergeProspectCombination {
+interface MergeProspectCombination {
   seasonId: string;
   seasonLabel: string;
   survivorStatus: string;
@@ -356,7 +356,7 @@ export interface MergeProspectCombination {
   combinedFirstContact: string | null;
 }
 
-export interface MergeMovementLine {
+interface MergeMovementLine {
   label: string;
   count: number;
 }
@@ -523,7 +523,7 @@ async function readProspectCombinations(
 // when the operator makes no explicit choice — nothing is imposed.
 // ---------------------------------------------------------------------------
 
-export interface MergeConsentCombination {
+interface MergeConsentCombination {
   seasonId: string;
   seasonLabel: string;
   survivorState: string;

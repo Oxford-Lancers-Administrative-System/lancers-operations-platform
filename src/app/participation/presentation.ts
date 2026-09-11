@@ -185,13 +185,11 @@ export const DISCREPANCY_MARK = "≠";
  * anybody. "Said yes, marked absent" is what the two records say; "did not
  * bother to turn up" is what it must never say.
  */
-export const DISCREPANCY_LABELS: Readonly<Record<ParticipationDiscrepancy, string>> = Object.freeze(
-  {
-    said_yes_marked_absent: "Said yes, marked absent",
-    said_no_but_attended: "Said no, attended",
-    never_answered_attended: "Never answered, attended",
-  },
-);
+const DISCREPANCY_LABELS: Readonly<Record<ParticipationDiscrepancy, string>> = Object.freeze({
+  said_yes_marked_absent: "Said yes, marked absent",
+  said_no_but_attended: "Said no, attended",
+  never_answered_attended: "Never answered, attended",
+});
 
 export function discrepancyLabel(discrepancy: ParticipationDiscrepancy | null): string | null {
   return discrepancy === null ? null : DISCREPANCY_LABELS[discrepancy];
@@ -226,7 +224,6 @@ export const FILTER_ANSWER_LABEL = "Answer";
 export const FILTER_ATTENDANCE_LABEL = "Attendance";
 export const FILTER_DELIVERY_LABEL = "Delivery";
 export const FILTER_ALL = "All";
-export const FILTERS_COMBINE = "Applied as you type — combines";
 export const CLEAR_FILTERS = "Clear filters";
 
 /** `slice-ux.md` § 9: a filtered-empty table must not read like an empty one. */
@@ -261,8 +258,6 @@ export const COPY_LINK_DONE = "Copied";
 export const ISSUE_LINK = "Create the link";
 export const CLOSE = "Close";
 
-/** The club-link page's own heading strip. */
-export const CLUB_LINK_BRAND = "Oxford Lancers";
 export const CLUB_LINK_SUBTITLE = "Shared link";
 
 /**
@@ -332,8 +327,6 @@ export const REASON_PRIVACY_NOTE =
   "player's own reason would be.";
 
 export const EVENT_QUESTIONS_HEADING = "This event's questions";
-export const EVENT_QUESTIONS_HELPER =
-  "Fill in whatever they told you. Partial answers are fine — the rest stays outstanding.";
 export const QUESTION_OPTIONAL = "Optional";
 
 /**

@@ -44,7 +44,7 @@ import { todayInClubZone } from "@/lib/club-time";
 import { isRegisterAvailable } from "@/lib/services/attendance-window";
 import type { EventListEntry } from "@/lib/services/events";
 
-export type CoachEventBucketKey = "upcoming" | "earlier";
+type CoachEventBucketKey = "upcoming" | "earlier";
 
 export interface CoachEventBucket {
   key: CoachEventBucketKey;
@@ -54,10 +54,10 @@ export interface CoachEventBucket {
   events: EventListEntry[];
 }
 
-export const UPCOMING_LABEL = "Upcoming";
-export const UPCOMING_DETAIL = "Today first, then what is coming up";
-export const EARLIER_LABEL = "Earlier";
-export const EARLIER_DETAIL = "Before today, most recent first";
+const UPCOMING_LABEL = "Upcoming";
+const UPCOMING_DETAIL = "Today first, then what is coming up";
+const EARLIER_LABEL = "Earlier";
+const EARLIER_DETAIL = "Before today, most recent first";
 
 /**
  * The statuses a coach sees at all.

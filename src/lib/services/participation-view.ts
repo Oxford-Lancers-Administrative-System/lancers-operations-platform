@@ -178,7 +178,7 @@ export interface ParticipationQuestion {
 }
 
 /** One line of the collapsed Questions section — D68. */
-export interface QuestionTally {
+interface QuestionTally {
   readonly label: string;
   readonly count: number;
 }
@@ -332,7 +332,7 @@ export interface EventFactsBase {
  */
 export type ClubLinkEvent = EventFactsBase;
 
-export interface OperatorEvent extends EventFactsBase {
+interface OperatorEvent extends EventFactsBase {
   readonly joiningUrl: string | null;
 }
 
@@ -436,7 +436,7 @@ export const EMPTY_FILTERS: ParticipationFilters = Object.freeze({
 });
 
 /** The fixed columns every tier sorts by. Question columns add `q:<id>`. */
-export const PARTICIPATION_SORT_COLUMNS = Object.freeze([
+const PARTICIPATION_SORT_COLUMNS = Object.freeze([
   "name",
   "capacity",
   "invited",

@@ -55,9 +55,6 @@ import type { EventChangeKind } from "@/lib/services/event-amendment";
 
 export const AMEND_HEADLINE_PREFIX = "Editing";
 
-/** W5-02, cut to the consequence: nothing leaves this screen until you save. */
-export const AMEND_STAYS_APPROVED = "Nothing is saved or sent until you save.";
-
 export const ALREADY_SENT_HEADING = "Already sent about this event";
 
 export const ALREADY_SENT_DETAIL = "Anything already sent cannot be recalled.";
@@ -415,7 +412,7 @@ export function formatRecordedMoment(at: Date | string): string {
 }
 
 /** The same moment without the clock, for a sentence that only needs the day. */
-export function formatRecordedDay(at: Date | string): string {
+function formatRecordedDay(at: Date | string): string {
   const instant = at instanceof Date ? at : new Date(at);
   if (Number.isNaN(instant.getTime())) return UNREADABLE_DATE;
 

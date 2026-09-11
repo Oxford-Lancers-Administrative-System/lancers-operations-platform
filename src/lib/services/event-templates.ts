@@ -96,18 +96,9 @@ import {
 
 export {
   DEFAULT_TEMPLATE_CLASS,
-  DEFAULT_TEMPLATE_COLOUR_KEY,
-  describeDuration,
-  endTimeFromStart,
-  TEMPLATE_COLOUR_PALETTE,
-  templateColourFor,
   validateEventTemplate,
   type EventTemplateInput,
   type EventTypeFormDefaults,
-  type EventTemplateValidation,
-  type RawEventTemplate,
-  type TemplateColourSwatch,
-  type TemplateFieldIssue,
 } from "./event-template-input";
 
 // ---------------------------------------------------------------------------
@@ -174,7 +165,7 @@ export interface EventTemplateSummary {
  * resolves to what an event with nobody's opinion on it would have been — in
  * person, and attendance not expected.
  */
-export interface TemplateDefaults {
+interface TemplateDefaults {
   deliveryMode: EventDeliveryMode;
   venue: string | null;
   description: string | null;
@@ -183,7 +174,7 @@ export interface TemplateDefaults {
   durationMinutes: number | null;
 }
 
-export function templateDefaults(template: {
+function templateDefaults(template: {
   defaultVenue: string | null;
   defaultDeliveryMode: EventDeliveryMode | null;
   defaultDescription: string | null;
@@ -201,10 +192,10 @@ export function templateDefaults(template: {
   };
 }
 
-export const TEMPLATE_NOT_FOUND_MESSAGE =
+const TEMPLATE_NOT_FOUND_MESSAGE =
   "That template no longer exists. It may have been deleted while this page was open.";
 
-export const TEMPLATE_TYPE_RULE = "event_template_unknown";
+const TEMPLATE_TYPE_RULE = "event_template_unknown";
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -338,7 +329,7 @@ export async function readEventTemplate(templateId: string): Promise<EventTempla
   return withTransaction(async (tx) => readEventTemplateIn(tx, templateId));
 }
 
-export async function readEventTemplateIn(tx: Tx, templateId: string): Promise<EventTemplate> {
+async function readEventTemplateIn(tx: Tx, templateId: string): Promise<EventTemplate> {
   // Checked before the parameter reaches PostgreSQL. `template_id` is a `uuid`,
   // and a hand-typed route segment that is not one raises an invalid-input error
   // rather than returning no rows — which would surface as "the database could
@@ -534,7 +525,7 @@ export function templateAudienceKeys(
 // ---------------------------------------------------------------------------
 
 /** One field the operator changed, in the words the confirmation uses. */
-export interface TemplateFieldChange {
+interface TemplateFieldChange {
   field: string;
   label: string;
   from: string;
@@ -542,13 +533,13 @@ export interface TemplateFieldChange {
 }
 
 /** One question the operator added, removed or altered. */
-export interface TemplateQuestionChange {
+interface TemplateQuestionChange {
   kind: "added" | "removed" | "changed";
   prompt: string;
 }
 
 /** One draft the change will reach, and the fields it will take. */
-export interface DraftTakingChange {
+interface DraftTakingChange {
   id: string;
   name: string;
   scheduledOn: string | null;
@@ -560,7 +551,7 @@ export interface DraftTakingChange {
 }
 
 /** One draft the change will not reach, and why — W8-03's second panel. */
-export interface DraftHoldingItsOwn {
+interface DraftHoldingItsOwn {
   id: string;
   name: string;
   scheduledOn: string | null;
@@ -1068,7 +1059,7 @@ function labelsFor(eventType: string, keys: readonly AudienceGroupKey[]): string
  *
  * A question the operator wrote on the event is never touched by any of it.
  */
-export function planDraftQuestions(
+function planDraftQuestions(
   held: readonly EventQuestion[],
   templateBefore: readonly {
     prompt: string;
@@ -1214,24 +1205,11 @@ export async function planEventTemplateChange(
   });
 }
 
-export const TEMPLATE_SAVED_ACTION = "event_template.updated";
-export const TEMPLATE_CREATED_ACTION = "event_template.created";
-export const TEMPLATE_DELETED_ACTION = "event_template.deleted";
+const TEMPLATE_SAVED_ACTION = "event_template.updated";
+const TEMPLATE_CREATED_ACTION = "event_template.created";
+const TEMPLATE_DELETED_ACTION = "event_template.deleted";
 
-export const TEMPLATE_IN_USE_RULE = "event_template_in_use";
-
-/**
- * A name two templates cannot share is refused by the database, not here.
- *
- * `event_templates_name_unique` is a case-insensitive unique index, and
- * `src/lib/db/errors.ts` turns it into the club's own sentence, as it does for
- * every other named constraint — that module's own note is explicit that no
- * other layer should be reading constraint names. A pre-check here would be a
- * second opinion that is sometimes wrong: two operators can each be holding a
- * form that says "Kicking Clinic", and the index is the only place that is
- * decided.
- */
-export const TEMPLATE_NAME_TAKEN_RULE = "event_templates_name_unique";
+const TEMPLATE_IN_USE_RULE = "event_template_in_use";
 
 /**
  * Saves the template and updates every draft the rule reaches, in one
@@ -1414,7 +1392,7 @@ async function createEventTypeSettingsIn(
   );
 }
 
-export const TEMPLATE_DELETE_REFUSAL =
+const TEMPLATE_DELETE_REFUSAL =
   "Events have already been created from this template, so it cannot be deleted. " +
   "Rename it instead — the new name reaches every one of them.";
 

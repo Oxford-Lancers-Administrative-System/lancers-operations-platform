@@ -29,22 +29,18 @@ import { signOut } from "../login/actions";
  * Sign out is the only action, exactly as both wireframes show.
  */
 
-export const UNLINKED_HEADING = "Operator profile not connected";
+const UNLINKED_HEADING = "Operator profile not connected";
 
-export const UNLINKED_MESSAGE =
+const UNLINKED_MESSAGE =
   "You’re signed in, but this account is not connected to a Lancers operator " +
   "profile. Contact the club administrator and provide the email address you used " +
   "to sign in.";
 
-export const INACTIVE_HEADING = "Operator access inactive";
+const INACTIVE_HEADING = "Operator access inactive";
 
-export const INACTIVE_MESSAGE =
+const INACTIVE_MESSAGE =
   "Your Lancers operator access is inactive. Contact the club administrator if you " +
   "believe access should be restored.";
-
-/** The note both wireframes carry, stating the boundary rather than implying it. */
-export const NO_DATA_NOTE =
-  "No operator data, navigation, roles or actions are exposed in this state.";
 
 const COPY = {
   unlinked: { heading: UNLINKED_HEADING, message: UNLINKED_MESSAGE },

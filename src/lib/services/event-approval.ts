@@ -180,7 +180,7 @@ export interface ApprovalOutcome {
   plan?: MessagingPlan | null;
 }
 
-export const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event";
+const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event";
 
 /**
  * The fields an event must have before it can be approved — D16, the
@@ -244,15 +244,15 @@ export function describeMissingForApproval(missing: readonly string[]): string {
     : `This event has no ${list} yet. Add them and approve when you are ready.`;
 }
 
-export const APPROVAL_REQUIRES_DRAFT_MESSAGE = "Only a draft can be approved.";
-export const APPROVAL_REQUIRES_DRAFT_RULE = "event_approval_requires_draft";
-export const AUDIENCE_EDIT_REQUIRES_DRAFT_MESSAGE =
+const APPROVAL_REQUIRES_DRAFT_MESSAGE = "Only a draft can be approved.";
+const APPROVAL_REQUIRES_DRAFT_RULE = "event_approval_requires_draft";
+const AUDIENCE_EDIT_REQUIRES_DRAFT_MESSAGE =
   "Only a draft's audience can be changed. Once an event is approved its audience is fixed.";
-export const AUDIENCE_EDIT_REQUIRES_DRAFT_RULE = "event_audience_requires_draft";
+const AUDIENCE_EDIT_REQUIRES_DRAFT_RULE = "event_audience_requires_draft";
 
-export const WRONG_SEASON_RULE = "event_outside_operating_season";
+const WRONG_SEASON_RULE = "event_outside_operating_season";
 
-export const WRONG_SEASON_MESSAGE =
+const WRONG_SEASON_MESSAGE =
   "This event belongs to a season the club is no longer operating, so it cannot be " +
   "approved. Approving it would invite that season's members and queue messages to them.";
 

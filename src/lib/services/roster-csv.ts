@@ -62,7 +62,7 @@ import { isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
 // ---------------------------------------------------------------------------
 
 /** The columns this importer reads, in the order the template writes them. */
-export const IMPORT_COLUMNS = [
+const IMPORT_COLUMNS = [
   "first_name",
   "last_name",
   "mobile",
@@ -80,7 +80,7 @@ export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
  * same "an absent column means nobody has that fact" reasoning
  * `./event-csv.ts` uses for its own optional columns.
  */
-export const REQUIRED_HEADER_COLUMNS: readonly ImportColumn[] = Object.freeze([
+const REQUIRED_HEADER_COLUMNS: readonly ImportColumn[] = Object.freeze([
   "first_name",
   "last_name",
   "mobile",
@@ -93,7 +93,7 @@ export const REQUIRED_HEADER_COLUMNS: readonly ImportColumn[] = Object.freeze([
  * limits.
  */
 export const MAX_IMPORT_BYTES = 1_048_576;
-export const MAX_IMPORT_ROWS = 500;
+const MAX_IMPORT_ROWS = 500;
 
 /** The empty club's download: the header row and nothing else. */
 export function importTemplateCsv(): string {
@@ -109,7 +109,7 @@ function said(cell: string): boolean {
   return cell.trim() !== "";
 }
 
-export function trimmedOrNull(value: string): string | null {
+function trimmedOrNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
 }
@@ -288,7 +288,7 @@ function withinFileDuplicates(rows: readonly ParsedRosterRow[]): ReadonlyMap<num
 // Reading the whole file
 // ---------------------------------------------------------------------------
 
-export interface RosterImportRead {
+interface RosterImportRead {
   fileName: string | null;
   rows: readonly ParsedRosterRow[];
 }
@@ -376,7 +376,7 @@ export function refuseOversizedRosterFile(csvText: string): string | null {
 // local copy of `roster.ts`'s `CandidateMatch` union, which is `server-only`
 // too even though the four-string type itself carries no behaviour.
 
-export type RosterCandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
+type RosterCandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
 
 export type RosterRowOutcome = "new" | "carried_forward" | "unchanged" | "refused";
 
