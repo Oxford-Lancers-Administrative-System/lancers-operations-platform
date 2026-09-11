@@ -208,3 +208,41 @@ showing the correct heading, body and privacy line), recorded here rather
 than left implicit. All of the above at desktop (1440px) and a
 Playwright-measured 375px. See the package receipt for the exact routes and
 the evidence path.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/me/[token]/details/step-shell.tsx — `itemStepWord`
+
+> The navigator drew its chip from the item's stored status and its label
+> from a separate `=== "claimed"` test, so a BUCS Play item the club had
+> _confirmed_ — a resolved state, and the one beyond claimed — sat under a
+> chip coloured complete with the word "Outstanding" beside it. Two signals
+> about one row, contradicting each other, which is the defect LAN-216 asks
+> this navigator not to have: "the navigator's label and its chip state
+> agree; a resolved item reads as resolved."
+>
+> So both now come from the status, here, once. `claimed` keeps its own word
+> — the player has said they are done and the club has not confirmed it, and
+> that is genuinely not the same as confirmed — and every state that needs
+> nothing further from anybody (`RESOLVED_ITEM_STATUSES`) reads as resolved.
+> `invited` stays "Outstanding" on purpose: an invitation the player has not
+> taken up is exactly the thing this sequence is asking them to do.
+>
+> The words are the player's, not the operator record's. `itemStateLabel`
+> answers the same question for an administrator ("Not invited", "Confirmed")
+> and cannot be borrowed: it throws on a state its item's own list does not
+> carry, and `waived` is not on either trust item's list even though the
+> schema lets a membership sit in it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/me/[token]/details/step-shell.tsx — `QuestionnaireStatus`
+
+> F3 (LAN-230): the two-column status box `W4-07-proposed` (Done) and
+> `W4-05-proposed` (BUCS Play) each show above their steps — one `dl` grid
+> shared by both rather than two copies of the same layout. `positive`
+> colours a row's value the same way this route already colours an `Alert`
+> (`success.main`/`warning.main`), matching the mockups' green/amber without
+> a new colour convention.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

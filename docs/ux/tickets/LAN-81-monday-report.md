@@ -89,3 +89,33 @@ no longer the specification for this route.
 - Keyboard focus, labels, status meaning, error association, and touch targets are accessible.
 - No inaccessible data is present in the DOM or response payload for an unauthorized role.
 - The implementation review shows no unrecorded deviation from [`../slice-ux.md`](../slice-ux.md).
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/report/page.tsx — `ReportPage` (module header)
+
+> ## The order, and whose order it is
+>
+> Brian's, from the 15 August 2026 review, in his words: last week's events
+> with their RSVP numbers and attendance percentage at the very top; then the
+> people who need chasing, as a grid; then availability; then the week ahead;
+> then walk-ups, recruitment and onboarding.
+>
+> Every heading names a thing the club already has a word for. There is no
+> "Fix these things" — his objection to it was exact: those items "all look
+> like events", so they are properties of an event's row, not a bucket of
+> their own. A register nobody took is a missing percentage on that event. A
+> person approved and never invited is a flag on that event.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/report/page.tsx — `ReportPage` (module header)
+
+> ## It still reads a stored snapshot
+>
+> `readReportForDate` returns the snapshot filed for this date today, filing
+> one first if today has not produced one. So the screen renders stored content
+> and never a live recompute — invariant M5's whole point. The reader is never
+> told any of that; one line at the bottom says the report is kept as it was.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

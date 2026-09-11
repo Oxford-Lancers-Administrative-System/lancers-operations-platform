@@ -176,3 +176,30 @@ Restated from `acceptance/W1.md` and `acceptance/W7.md` as what was built to sat
   The second fix instead read the actual component: `../roles/page.tsx` and
   `../operators/page.tsx` both draw their per-card entity-name heading as `subtitle2`/700, and the
   shipped heading now matches that.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/admin/messaging/use-result-cleared-by-editing.ts — `useResultClearedByEditing`
+
+> A saved result describes the values that produced it, so editing one of
+> them makes it stale — LAN-250.
+>
+> `docs/ux/standards.md` rule 1 already says a result never outlives the
+> thing it describes, and every panel here claims the outcome slot on
+> `onSubmit` so the previous result disappears when the next action starts.
+> The gap that finding walked into is a submit that never starts: these
+> fields carry `min`/`max`, so typing `999999` into "RSVP by" and pressing
+> Save makes the browser's own constraint check block the submit. No
+> request fires, `onSubmit` never runs, and the server's previous sentence —
+> "Practice: player rsvp by cannot be left blank." — stays on screen
+> describing a field that is no longer blank and a value the operator can
+> see is not empty. The message is then worse than no message: it names the
+> wrong fault.
+>
+> So the trigger is the edit, not the submit. A `change` from any field in
+> the form marks the result the operator was reading as belonging to the
+> previous values; the next result the action returns is a new object, so it
+> is not stale and draws again. Nothing here suppresses a real refusal — it
+> only stops one outliving the values it was about.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

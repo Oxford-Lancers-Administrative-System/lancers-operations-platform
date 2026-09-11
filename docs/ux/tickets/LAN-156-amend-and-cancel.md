@@ -287,3 +287,35 @@ cancelled event's register is still closed to new writes. The first is the check
 constraint, unchanged in that half; the second is `closedReasonFor` in
 `src/lib/services/attendance.ts`, which is where the "may the register be
 opened?" question was already answered and remains answered once.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/[id]/amend/amend-form.tsx — `AmendForm` (module header)
+
+> ## The fields are not unmounted between panels
+>
+> They are hidden. A `<form>` posts the inputs it contains, so unmounting the
+> editor to show the review would post an empty amendment — and re-mounting it
+> afterwards would lose what was typed. `hidden` on the container keeps them in
+> the document, keeps them out of the accessibility tree, and keeps them in the
+> submission.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/amend/amend-form.tsx — `AmendForm` (module header)
+
+> ## The review reads the form, not a copy of it
+>
+> `readDraft()` builds the diff from `new FormData(formRef.current)` at the
+> moment the operator presses **Save changes…**, so what the review panel shows
+> is what the submit will send. `VenueField` became a controlled combobox
+> under LAN-154 — every consumer now owns a `value`/`onValueChange` pair
+> rather than an uncontrolled `defaultValue` — but `venue` state here is not a
+> private copy in the sense this note used to warn about: React keeps the
+> field's own DOM input in sync with that state on every render, so
+> `readDraft()`'s `FormData` read and what the field visibly shows can never
+> disagree. A review built from a private copy is the shape that produces a
+> screen agreeing with itself and disagreeing with the database; a controlled
+> field's state is not that copy, because nothing else can hold the truth.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

@@ -199,3 +199,16 @@ this package touches performs a real send (LAN-86, LAN-101).
 The twelve numbered criteria in `WP-chase-and-queue`'s brief, and the
 acceptance evidence sections of `acceptance/W8.md`, `W9.md` and `W11.md`, are
 binding verbatim. This document does not restate them.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/admin/messaging/schedule-form.tsx — `OnboardingChaseRow`
+
+> The Onboarding section's one row — LAN-218, `W11-01`. Cloned in idiom, not
+> in code, from {@link CycleStepRow}: one Paper, one form, three narrow
+> fields and one SAVE — "how many times, how often, and the first delay" and
+> nothing else. No give-up value, no quiet hours, no per-item owner, no
+> escalation-office field — `OD7-cadence-is-the-config`'s own boundary;
+> there is nothing here to draw for any of them.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

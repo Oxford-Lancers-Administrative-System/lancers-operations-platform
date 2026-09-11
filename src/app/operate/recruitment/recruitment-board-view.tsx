@@ -3,15 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
 import Link from "@mui/material/Link";
-import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
-import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -22,20 +17,15 @@ import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { PinnedSelect } from "@/components/pinned-select";
 import type { RecruitmentBoardRow, RecruitmentEventColumn } from "@/lib/services/recruitment-board";
-import {
-  ATTENDANCE_LABEL,
-  CONSENT_LABELS,
-  PROSPECT_STATUS_LABELS,
-  RSVP_LABEL,
-} from "@/lib/services/recruitment-vocabulary";
+import { CONSENT_LABELS, PROSPECT_STATUS_LABELS } from "@/lib/services/recruitment-vocabulary";
 import type { Season } from "@/lib/services/seasons";
 import {
   bandBoundaryKeys,
   ColumnFilterMenu,
   FilterButton,
   groupRuns,
-  StatusPill,
 } from "../board-filter-controls";
 import {
   BAND_LABEL_INSET_PX,
@@ -45,19 +35,16 @@ import {
   RECRUIT_COLUMN_WIDTH,
   RECRUITMENT_COLUMNS,
   eventColumns,
-  rawValue,
   type ColumnDef,
 } from "./board-columns";
 import {
   applyBoard,
-  displayOf,
   filterOptions,
-  NOT_RECORDED,
   optionListLabel,
   type BoardFilters,
   type BoardSort,
 } from "./board-data";
-import StatusCell from "./status-cell";
+import { filterChipLabel, labelForKey, RecruitCard, RecruitCell } from "./recruitment-board-cells";
 
 function buildUrl(base: string, params: URLSearchParams): string {
   const query = params.toString();
@@ -181,6 +168,7 @@ export default function RecruitmentBoardView({
         }
         onChange={(value) => setFilter("status", value)}
         testId="recruitment-filter-status"
+        minWidth={160}
       />
       <PinnedSelect
         label="WhatsApp consent"
@@ -198,6 +186,7 @@ export default function RecruitmentBoardView({
         optionLabel={(value) => (value === "yes" ? "Sent" : "Not sent")}
         onChange={(value) => setFilter("personalSent", value)}
         testId="recruitment-filter-personal-sent"
+        minWidth={160}
       />
       <PinnedSelect
         label="Recruitment sent"
@@ -206,6 +195,7 @@ export default function RecruitmentBoardView({
         optionLabel={(value) => (value === "yes" ? "Sent" : "Not sent")}
         onChange={(value) => setFilter("recruitmentSent", value)}
         testId="recruitment-filter-recruitment-sent"
+        minWidth={160}
       />
       <PinnedSelect
         label="Attended an event"
@@ -596,249 +586,6 @@ export default function RecruitmentBoardView({
         optionLabel={(column, option) => optionListLabel(column, option)}
         onSelect={setFilter}
         onClose={() => setMenu(null)}
-      />
-    </Box>
-  );
-}
-
-function labelForKey(key: string, columns: readonly ColumnDef[]): string {
-  if (key === "attendedAnyEvent") return "Attended an event";
-  return columns.find((column) => column.key === key)?.label ?? key;
-}
-
-function filterChipLabel(key: string, value: string, columns: readonly ColumnDef[]): string {
-  if (key === "attendedAnyEvent") return value === "yes" ? "Attended" : "Never attended";
-  const column = columns.find((c) => c.key === key);
-  return column ? optionListLabel(column, value) : value;
-}
-
-function PinnedSelect({
-  label,
-  value,
-  options,
-  optionLabel,
-  onChange,
-  minWidth,
-  testId,
-}: {
-  label: string;
-  value: string;
-  options: readonly string[];
-  optionLabel?: (value: string) => string;
-  onChange: (value: string) => void;
-  minWidth?: number;
-  testId?: string;
-}) {
-  return (
-    <FormControl size="small" sx={{ minWidth: minWidth ?? 160 }}>
-      <InputLabel>{label}</InputLabel>
-      <Select
-        label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        data-testid={testId}
-      >
-        <MenuItem value="">
-          <em>All</em>
-        </MenuItem>
-        {options.map((option) => (
-          <MenuItem key={option} value={option}>
-            {optionLabel ? optionLabel(option) : option}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  );
-}
-
-/** One cell — plain text, a record link, or (status only) the click-to-edit pill. */
-function RecruitCell({
-  row,
-  column,
-  bandEnd,
-  seasonLabel,
-}: {
-  row: RecruitmentBoardRow;
-  column: ColumnDef;
-  /** Whether this column is the last in its band's run — see `bandBoundaryKeys`. */
-  bandEnd: boolean;
-  seasonLabel: string;
-}) {
-  const colours = bandColour(column.band);
-  const shell = {
-    bgcolor: colours.tint,
-    minWidth: column.width,
-    width: column.width,
-    whiteSpace: "nowrap" as const,
-    borderRight: bandEnd ? 2 : 0,
-    borderRightColor: "background.paper",
-  };
-
-  if (column.key === "status") {
-    return (
-      <TableCell sx={shell}>
-        <StatusCell
-          prospectId={row.prospectId}
-          status={row.status}
-          displayName={row.displayName}
-          seasonLabel={seasonLabel}
-        />
-      </TableCell>
-    );
-  }
-
-  if (column.edit === "record") {
-    // `W1`: "routes to the person record on click, exactly as the roster
-    // board's person columns do" — and the roster board's own person-fact
-    // cells route to that row's own record page, not to a bare
-    // `/operate/people/[personId]`, so this does too.
-    const value = displayOf(rawValue(row, column.key));
-    return (
-      <TableCell sx={shell}>
-        <Link
-          href={`/operate/recruitment/${row.prospectId}`}
-          underline="hover"
-          color={value === NOT_RECORDED ? "text.disabled" : "text.primary"}
-        >
-          {value}
-        </Link>
-      </TableCell>
-    );
-  }
-
-  return (
-    <TableCell sx={shell}>
-      <Typography
-        variant="body2"
-        color={displayText(row, column) === NOT_RECORDED ? "text.disabled" : "text.primary"}
-      >
-        {displayText(row, column)}
-      </Typography>
-    </TableCell>
-  );
-}
-
-/**
- * Walk correction (W-2): the RSVP/Attendance and yes/no answer columns were
- * rendering their raw database enum (`present`, `yes`) through the generic
- * `displayOf`'s bare `String(value)`, while `NOT_RECORDED` alongside them
- * read correctly capitalised — the inconsistency the walk caught side by
- * side. The record page (`record-view.tsx`) already renders these same
- * values through `RSVP_LABEL`/`ATTENDANCE_LABEL`; this reuses that mapping
- * rather than writing a third one. Rendering only — `rawValue` and the
- * column definitions are unchanged.
- */
-function displayText(row: RecruitmentBoardRow, column: ColumnDef): string {
-  if (column.key === "consent") return CONSENT_LABELS[row.consent];
-  if (column.key === "playedBefore") {
-    return row.playedBefore ? RSVP_LABEL[row.playedBefore] : NOT_RECORDED;
-  }
-  if (column.key === "watchedBefore") {
-    return row.watchedBefore ? RSVP_LABEL[row.watchedBefore] : NOT_RECORDED;
-  }
-  if (column.key.startsWith("event:")) {
-    const [, eventId, cell] = column.key.split(":");
-    const eventCell = row.events[eventId];
-    if (eventCell) {
-      if (cell === "rsvp") return eventCell.rsvp ? RSVP_LABEL[eventCell.rsvp] : NOT_RECORDED;
-      if (cell === "attendance") {
-        return eventCell.attendance ? ATTENDANCE_LABEL[eventCell.attendance] : NOT_RECORDED;
-      }
-    }
-  }
-  return displayOf(rawValue(row, column.key));
-}
-
-/**
- * The phone card — `W1-01`'s own approved mockup, and `../roster/roster-board.tsx`'s
- * `PlayerCard` (LAN-186, item 15) it is modelled on: the whole card is one
- * tap target opening the record, a static status pill (never an in-cell
- * edit — that is desktop work), and voice call as its own separate control.
- * The call button is a sibling of the card-opening anchor, never nested
- * inside it — two anchors cannot nest, and stacking this one on top by
- * position rather than by DOM order is what keeps both tap targets
- * independently real, with `stopPropagation` on both so a call can never
- * fire from a tap meant for the card and a card navigation can never fire
- * from a tap meant for the call.
- */
-function RecruitCard({ row }: { row: RecruitmentBoardRow }) {
-  return (
-    <Card
-      variant="outlined"
-      sx={{ position: "relative", p: 0 }}
-      data-testid={`recruitment-card-${row.prospectId}`}
-    >
-      <Box
-        component="a"
-        href={`/operate/recruitment/${row.prospectId}`}
-        data-testid="recruitment-card-open"
-        sx={{
-          display: "block",
-          p: 2,
-          pr: 8,
-          minHeight: 44,
-          textDecoration: "none",
-          color: "inherit",
-          borderRadius: 1,
-          "&:hover": { bgcolor: "action.hover" },
-          "&:focus-visible": {
-            outline: "2px solid",
-            outlineColor: "primary.main",
-            outlineOffset: -2,
-          },
-        }}
-      >
-        <Stack spacing={1}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            {row.displayName}
-          </Typography>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            <StatusPill
-              domain="recruitment"
-              status={row.status}
-              label={PROSPECT_STATUS_LABELS[row.status]}
-            />
-          </Stack>
-          <Typography variant="body2" color="text.secondary">
-            {row.college ?? NOT_RECORDED} · {CONSENT_LABELS[row.consent]}
-          </Typography>
-        </Stack>
-      </Box>
-
-      <Box
-        sx={{ position: "absolute", top: 8, right: 8 }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <Button
-          variant="contained"
-          component="a"
-          href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
-          disabled={!row.phoneForCall}
-          aria-label="Call"
-          onClick={(event) => event.stopPropagation()}
-          sx={{
-            minHeight: 44,
-            minWidth: 44,
-            width: 44,
-            height: 44,
-            p: 0,
-            borderRadius: "50%",
-          }}
-        >
-          <PhoneIcon />
-        </Button>
-      </Box>
-    </Card>
-  );
-}
-
-/** Drawn inline, the same reason `../roster/roster-board.tsx`'s own `PhoneIcon` is: no icon package in this dependency tree. */
-function PhoneIcon() {
-  return (
-    <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 18, height: 18 }}>
-      <path
-        fill="currentColor"
-        d="M6.6 10.8c1.4 2.7 3.6 4.9 6.3 6.3l2.1-2.1c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.5.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.4 21 3 13.6 3 4.5c0-.6.4-1 1-1h3.6c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.5.1.4 0 .8-.2 1L6.6 10.8z"
       />
     </Box>
   );

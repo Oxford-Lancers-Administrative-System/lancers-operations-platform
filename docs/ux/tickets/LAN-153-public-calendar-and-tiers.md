@@ -284,3 +284,53 @@ Oxford-domain approval — and the application cannot verify that a given meetin
 has one. That is accepted knowingly; the event editor warns the operator, and the
 control is operator discipline. A passworded calendar was proposed on the same
 call and is **not** in this release.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/page.tsx — `EventsPage` (module header)
+
+> ## It opens on what is upcoming, and it groups
+>
+> D84 and Brian, 20 August 2026. The list no longer renders the whole season in
+> one flat run: it opens on **This month**, breaks what is in view into discrete
+> tables by period, and offers **All events** as the widest bucket with every
+> sort and every filter working there. Past events stay reachable and are never
+> the default. `@/lib/services/event-periods` owns the buckets, and the public
+> list is grouped by the same ones.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/page.tsx — `EventsPage` (module header)
+
+> ## Season-scoped, and no way to leave it
+>
+> The line under the heading names the season the club is operating, and there
+> is no season selector — `REQ-one-open-season`, and Brian, 21 August 2026: "we
+> know what calendar we're looking at." Which season that is comes from
+> `readCurrentSeason()`, and a club with none gets a refusal rather than last
+> year's events.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/page.tsx — `EventsPage` (module header)
+
+> ## Term and week comes from the calendar, not from the row
+>
+> `REQ-three-arrangements` requires the list and the Oxford View to agree about
+> when an event is, so both read one built academic year (`@/app/calendar/year`).
+> Reading `events.week_number` here instead would say "Outside term" for a
+> vacation event the calendar happily calls "Christmas Vacation 2" — the stored
+> column is constrained to −1..8 and cannot hold the second.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/page.tsx — `EventsPage` (module header)
+
+> ## Authorisation is in the service layer
+>
+> `listEventsForOperator` guards itself (`@/lib/auth/event-tier`). The gate below
+> and the layout's own check remain, and this is the third of three independent
+> refusals rather than a replacement for either — which is what `slice-ux.md`
+> § 4's "routes do not authorize" has to mean now that a public calendar exists.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

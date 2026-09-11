@@ -184,3 +184,17 @@ rendered for one and `removeAttendanceAction` guards on
 - Keyboard focus, labels, status meaning, error association, and touch targets are accessible.
 - No inaccessible data is present in the DOM or response payload for an unauthorized role.
 - The implementation review shows no unrecorded deviation from [`../slice-ux.md`](../slice-ux.md).
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/[id]/attendance/page.tsx — `AttendancePage` (module header)
+
+> ## What this page never puts in the payload
+>
+> A reason behind a "no", a contact detail, an availability or injury note, a
+> delivery diagnostic, or anything about the roster beyond a name. Not filtered
+> out here — never selected. `slice-ux.md` § 3 forbids every one of them on this
+> surface for a coach, and there is no second version of this payload for
+> anybody else, so the rule cannot be true on one path and false on another.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

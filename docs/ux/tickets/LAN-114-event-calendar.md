@@ -200,3 +200,29 @@ Drag-and-drop rescheduling; creating an event from a calendar cell; recurrence;
 calendar subscriptions or external feeds; templates and bulk changes; RSVP
 monitoring; reproducing the spreadsheets' branding; and a production term
 administration UI.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/calendar/page.tsx — `EventCalendarPage` (module header)
+
+> ## The same events as the list, rearranged
+>
+> This page reads `listEventsForOperator()` with no filter, which is the same
+> call `/operate/events` makes, so the three arrangements cannot show different
+> sets of events or different dates for one event: they are one query and three
+> arrangements of its result (`REQ-three-arrangements`). Every tile links to
+> `/operate/events/<id>`, the same destination the list rows open.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/calendar/page.tsx — `EventCalendarPage` (module header)
+
+> ## It reads, and only reads
+>
+> There is no server action on this page and no form that posts anywhere.
+> Opening the calendar, changing month and switching mode all resolve to `GET`s
+> that call one read. The requirement that no audience, invitation, RSVP,
+> attendance or automation record is created merely by viewing or navigating is
+> therefore a property of the module's imports rather than a promise.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

@@ -49,6 +49,8 @@ define at the bottom is a sibling or a kit member.
 | `public-shell.tsx`       | `PublicShell`                                                                               | Every page reached without a session                                     |
 | `brand-mark.tsx`         | `BrandMark`                                                                                 | The crest and the club's name                                            |
 | `link-opened-beacon.tsx` | `LinkOpenedBeacon`                                                                          | Records that a shared link was opened (LAN-277)                          |
+| `pinned-select.tsx`      | `PinnedSelect`                                                                              | A labelled filter select pinned in a board's own filter row (LAN-300)    |
+| `phone-icon.tsx`         | `PhoneIcon`                                                                                 | The call icon on a board's phone card (LAN-300)                          |
 
 Each member has a colocated `*.test.tsx`. A change to a member is a change to
 every page that renders it, so its test is the contract and the visual review

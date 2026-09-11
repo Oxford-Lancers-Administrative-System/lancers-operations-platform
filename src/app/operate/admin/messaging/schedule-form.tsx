@@ -1,9 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+/**
+ * The whole editable messaging schedule form — the recruitment cycle and
+ * onboarding chase rows live here; the per-event-type rows split into
+ * `schedule-row.tsx` (LAN-300) to keep this file under the line budget.
+ */
+import { useActionState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Collapse from "@mui/material/Collapse";
 import InputAdornment from "@mui/material/InputAdornment";
 import { Section } from "@/components/section";
 import { ActionBar } from "@/components/action-bar";
@@ -12,35 +16,27 @@ import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import type { RecruitmentCycleStep } from "@/lib/services/recruitment-cycle";
 import type { OnboardingChaseSettings } from "@/lib/services/onboarding-chase";
-import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../action-state";
+import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
 import {
   Outcome as AdminOutcome,
   OutcomeSlotProvider,
   useOutcomeSlot,
 } from "@/components/outcome-slot";
-import {
-  updateOneMessagingScheduleAction,
-  updateOnboardingChaseSettingsAction,
-  updateRecruitmentCycleStepsAction,
-} from "./actions";
+import { updateOnboardingChaseSettingsAction, updateRecruitmentCycleStepsAction } from "./actions";
 import { CYCLE_STEP_FIELDS, CYCLE_STEP_LABELS } from "./cycle-validation";
 import { ONBOARDING_CHASE_FIELDS } from "./onboarding-chase-validation";
 import {
   CYCLE_STEP_TIMING_UNIT,
   EVENT_MESSAGING_SECTION_HEADING,
-  HIDE_EXAMPLE,
   MESSAGING_SCHEDULE_FOOTER,
   ONBOARDING_CHASE_ROW_LABEL,
   ONBOARDING_CHASE_SAVE_LABEL,
   ONBOARDING_SECTION_HEADING,
   RECRUITMENT_SECTION_HEADING,
-  RECRUITS_GROUP_HEADING,
-  REGULAR_PLAYERS_GROUP_HEADING,
-  saveRowButtonLabel,
-  SHOW_EXAMPLE,
   type SchedulePreview,
 } from "./presentation";
-import { RECRUIT_SCHEDULE_FIELDS, SCHEDULE_FIELDS, type FieldBoundsShape } from "./validation";
+import { RecruitmentScheduleRow, ScheduleRow } from "./schedule-row";
+import { useResultClearedByEditing } from "./use-result-cleared-by-editing";
 
 /** One event type's row: its current values and its already-resolved preview. */
 export interface ScheduleRowData {
@@ -61,65 +57,13 @@ export interface ScheduleRowData {
 }
 
 /**
- * The two field groups Brian's own round-2 mockup draws for one row:
+ * The whole editable schedule, in three sections in this order: Recruitment
+ * (the cycle that fires on capture), Onboarding (the two person-lifecycle
+ * chases), then Event messaging (one row per event type, the Recruitment row
+ * split into its two audiences). No QR code here — it lives on the recruit
+ * board and its own page.
  *
- * ```
- *   RSVP by      First inv.   Cadence
- *   [ 2 ] days   [ 5 ] days   [ 24 ] h
- *
- *   WhatsApp     Email        President
- *   [ 2 ]        [ 1 ]        [ 12 ] h
- * ```
- *
- * `SCHEDULE_FIELDS` is already declared in exactly this order, so the groups
- * are a slice rather than a second list that could drift from it.
- */
-const TIMING_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(0, 3);
-const LADDER_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(3, 6);
-
-/**
- * A saved result describes the values that produced it, so editing one of
- * them makes it stale — LAN-250.
- *
- * `docs/ux/standards.md` rule 1 already says a result never outlives the
- * thing it describes, and every panel here claims the outcome slot on
- * `onSubmit` so the previous result disappears when the next action starts.
- * The gap that finding walked into is a submit that never starts: these
- * fields carry `min`/`max`, so typing `999999` into "RSVP by" and pressing
- * Save makes the browser's own constraint check block the submit. No request
- * fires, `onSubmit` never runs, and the server's previous sentence —
- * "Practice: player rsvp by cannot be left blank." — stays on screen
- * describing a field that is no longer blank and a value the operator can
- * see is not empty. The message is then worse than no message: it names the
- * wrong fault.
- *
- * So the trigger is the edit, not the submit. A `change` from any field in
- * the form marks the result the operator was reading as belonging to the
- * previous values; the next result the action returns is a new object, so it
- * is not stale and draws again. Nothing here suppresses a real refusal — it
- * only stops one outliving the values it was about.
- */
-function useResultClearedByEditing(state: AdminActionState): {
-  showing: boolean;
-  onChange: () => void;
-} {
-  const [staleFor, setStaleFor] = useState<AdminActionState | null>(null);
-  return { showing: staleFor !== state, onChange: () => setStaleFor(state) };
-}
-
-/**
- * The whole editable schedule — three sections (W10, Brian 2026-08-31):
- * **Recruitment**, the cycle that fires on capture; **Event messaging**, the
- * seven event types this page has always carried, with the Recruitment
- * row's own body now split into its two audiences
- * (`DEC-split-on-the-schedule`); and **Onboarding**, a heading with nothing
- * built behind it yet, so the page already has the shape Mission 7 needs.
- *
- * Recruitment sits first — "what fires when somebody is captured" is a
- * different question from "what an event sends", and it is the question W10
- * puts first. The QR code is deliberately not here at all: it lives on the
- * recruit board (W1) and its own page (W1-04) — "This workflow is the cycle
- * and nothing else."
+ * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */
 export default function MessagingScheduleForm({
   rows,
@@ -195,16 +139,13 @@ export default function MessagingScheduleForm({
 
 /**
  * One recruitment cycle row — always two `recruitment_cycle_steps` rows, one
- * form, one SAVE: Welcome covers `welcome` and its own `details_reminder`
- * ("the top two bars here should be made as one", Brian, 2026-09-01);
+ * form, one SAVE: Welcome covers `welcome` and its own `details_reminder`;
  * Recruitment questionnaire covers `interest_ask` and its own
- * `interest_reminder`, unchanged. Two offset fields, two rows, one save —
- * never two cards, never two saves.
+ * `interest_reminder`. Two offset fields, two rows, one save — never two
+ * cards, never two saves. No per-step on/off control: `enabled` still exists
+ * on the row (no migration), this page just never draws or submits it.
  *
- * No per-step on/off control — Brian, 2026-09-01: "the toggles were
- * completely invented… Remove the toggles." `recruitment_cycle_steps.enabled`
- * still exists in the database (no migration); this page simply no longer
- * draws or submits it, so every step now sends on its own offset alone.
+ * Decision history: docs/ux/tickets/LAN-203-recruit-ladders-and-cycle.md.
  */
 function CycleStepRow({
   steps,
@@ -285,12 +226,12 @@ function CycleStepRow({
 }
 
 /**
- * The Onboarding section's one row — LAN-218, `W11-01`. Cloned in idiom, not
- * in code, from {@link CycleStepRow}: one Paper, one form, three narrow
- * fields and one SAVE — "how many times, how often, and the first delay" and
- * nothing else. No give-up value, no quiet hours, no per-item owner, no
- * escalation-office field — `OD7-cadence-is-the-config`'s own boundary; there
- * is nothing here to draw for any of them.
+ * The Onboarding section's one row: one form, three narrow fields and one
+ * SAVE — how many times, how often, and the first delay, and nothing else.
+ * No give-up value, no quiet hours, no per-item owner, no escalation-office
+ * field: `OD7-cadence-is-the-config`'s own boundary, nothing here draws them.
+ *
+ * Decision history: docs/ux/tickets/LAN-218-chase-and-queue.md.
  */
 function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings }) {
   const [state, formAction, pending] = useActionState(
@@ -350,323 +291,6 @@ function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings })
           />
 
           <AdminOutcome state={state} showing={slot.showing && edited.showing} />
-        </Stack>
-      </Section>
-    </Box>
-  );
-}
-
-/** One field: its label, its narrow input, and its unit — the event page's own field idiom. */
-function ScheduleField({
-  fieldPrefix,
-  field,
-  defaultValue,
-}: {
-  /** The row's template id, which makes every control's `id` unique on the page. */
-  fieldPrefix: string;
-  field: FieldBoundsShape;
-  defaultValue: number;
-}) {
-  return (
-    <Box data-field={field.key} sx={{ minWidth: 0 }}>
-      <Field
-        name={field.key}
-        id={`${fieldPrefix}.${field.key}`}
-        label={field.label}
-        type="number"
-        defaultValue={defaultValue}
-        helperText={field.helperText}
-        slotProps={{
-          htmlInput: { min: field.min, max: field.max, step: 1 },
-          input: field.unit
-            ? { endAdornment: <InputAdornment position="end">{field.unit}</InputAdornment> }
-            : undefined,
-        }}
-      />
-    </Box>
-  );
-}
-
-/**
- * One event type — its own form, its six editable fields, and its own save.
- *
- * The worked example always starts closed (OWNER-LAN171-09) — there is no
- * `defaultOpen` prop to override that, on any row.
- */
-function ScheduleRow({ row }: { row: ScheduleRowData }) {
-  const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState(
-    updateOneMessagingScheduleAction,
-    EMPTY_ADMIN_ACTION_STATE,
-  );
-
-  const slot = useOutcomeSlot(`event-${row.templateId}`);
-  const edited = useResultClearedByEditing(state);
-
-  return (
-    <Box
-      component="form"
-      action={formAction}
-      onSubmit={slot.claim}
-      onChange={edited.onChange}
-      data-testid="schedule-row"
-    >
-      <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
-        <input type="hidden" name="templateId" value={row.templateId} />
-
-        {/*
-        Q-23: the row heading is a style question, not structure — the
-        mockup's own rendering does not govern it, the shipped application
-        does. `../roles/page.tsx` and `../operators/page.tsx` both draw
-        their per-card entity-name heading as `subtitle2`/700, not the
-        all-caps `overline` this card carried before that check (chosen on
-        the strength of the dispatch's own capitalised ASCII art) nor the
-        `subtitle1` a first pass at fixing it picked by eye from a mockup
-        screenshot rather than the real component.
-      */}
-
-        <Stack spacing={2} sx={{ mt: 0.5 }}>
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-            }}
-          >
-            {TIMING_FIELDS.map((field) => (
-              <ScheduleField
-                key={field.key}
-                fieldPrefix={row.templateId}
-                field={field}
-                defaultValue={row.values[field.key]}
-              />
-            ))}
-          </Box>
-
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-            }}
-          >
-            {LADDER_FIELDS.map((field) => (
-              <ScheduleField
-                key={field.key}
-                fieldPrefix={row.templateId}
-                field={field}
-                defaultValue={row.values[field.key]}
-              />
-            ))}
-          </Box>
-
-          <ActionBar
-            sticky={false}
-            primary={
-              <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-                {saveRowButtonLabel(row.label)}
-              </Button>
-            }
-          />
-
-          <AdminOutcome state={state} showing={slot.showing && edited.showing} />
-
-          <Box>
-            <Button
-              variant="text"
-              onClick={() => setOpen((current) => !current)}
-              aria-expanded={open}
-              sx={{ textTransform: "none", px: 0, minHeight: 36 }}
-              data-testid="schedule-row-toggle"
-            >
-              {open ? HIDE_EXAMPLE : SHOW_EXAMPLE}
-            </Button>
-          </Box>
-
-          <Collapse in={open} unmountOnExit mountOnEnter>
-            <Box data-testid="schedule-row-preview">
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {`Example — ${row.preview.introDetail}`}
-              </Typography>
-              <Stack component="ol" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }}>
-                {row.preview.steps.map((step) => (
-                  <Box component="li" key={step.label}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {step.label}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {step.note ? `${step.when} · ${step.note}` : step.when}
-                    </Typography>
-                  </Box>
-                ))}
-              </Stack>
-              {/*
-              OWNER-LAN171-07, round 3: the gap-before-the-deadline callout is
-              deliberately not rendered here. Brian: "get rid of this
-              callout. The last reminder lands 1 day before the deadline it
-              is chasing. Nobody is contacted in the 1 day that actually
-              matter. I don't know why that's there. That's confusing." Under
-              the corrected ladder arithmetic (Q-19) it fires on the shipped
-              defaults, so a warning that should flag a misconfigured
-              schedule instead fires on the normal case and trains an
-              operator to ignore it. `row.preview.warning` itself is still
-              computed by `buildSchedulePreview` and still proved by
-              `presentation.test.ts` and R3-B1 in
-              `messaging-schedule.test.ts` — only this surface stopped
-              drawing it.
-            */}
-            </Box>
-          </Collapse>
-        </Stack>
-      </Section>
-    </Box>
-  );
-}
-
-/**
- * The Recruitment event row, split into its two audiences —
- * `DEC-split-on-the-schedule`, LAN-203. The row keeps its identity: one row
- * per `event_type`, one SAVE per row, both laws of this page — the six
- * fields above stay Regular players' own, unchanged, and the two Recruits
- * fields are appended into the same form and the same submit.
- *
- * Brian, 2026-08-31: "on the recruit event, instead, you're going to have
- * two sections: one for regular players, one for recruits." No President
- * field for Recruits — there is no escalation to configure, because
- * recruits are never escalated (`REQ-two-ladders`, `REQ-never-harsh`).
- */
-function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
-  const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState(
-    updateOneMessagingScheduleAction,
-    EMPTY_ADMIN_ACTION_STATE,
-  );
-
-  const slot = useOutcomeSlot(`event-${row.templateId}`);
-  const edited = useResultClearedByEditing(state);
-
-  return (
-    <Box
-      component="form"
-      action={formAction}
-      onSubmit={slot.claim}
-      onChange={edited.onChange}
-      data-testid="schedule-row"
-    >
-      <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
-        <input type="hidden" name="templateId" value={row.templateId} />
-
-        <Stack spacing={2} sx={{ mt: 0.5 }}>
-          <Typography
-            variant="caption"
-            sx={{ fontWeight: 700, color: "text.secondary" }}
-            data-testid="audience-group-heading"
-          >
-            {REGULAR_PLAYERS_GROUP_HEADING}
-          </Typography>
-
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-            }}
-          >
-            {TIMING_FIELDS.map((field) => (
-              <ScheduleField
-                key={field.key}
-                fieldPrefix={row.templateId}
-                field={field}
-                defaultValue={row.values[field.key]}
-              />
-            ))}
-          </Box>
-
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-            }}
-          >
-            {LADDER_FIELDS.map((field) => (
-              <ScheduleField
-                key={field.key}
-                fieldPrefix={row.templateId}
-                field={field}
-                defaultValue={row.values[field.key]}
-              />
-            ))}
-          </Box>
-
-          <Typography
-            variant="caption"
-            sx={{ fontWeight: 700, color: "text.secondary" }}
-            data-testid="audience-group-heading"
-          >
-            {RECRUITS_GROUP_HEADING}
-          </Typography>
-
-          <Box
-            sx={{
-              display: "flex",
-              gap: 2,
-              flexWrap: "wrap",
-            }}
-          >
-            {RECRUIT_SCHEDULE_FIELDS.map((field) => (
-              <Box key={field.key} sx={{ minWidth: 200, flex: "0 1 240px" }}>
-                <ScheduleField
-                  fieldPrefix={row.templateId}
-                  field={field}
-                  defaultValue={row.recruitValues?.[field.key] ?? 0}
-                />
-              </Box>
-            ))}
-          </Box>
-
-          <ActionBar
-            sticky={false}
-            primary={
-              <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-                {saveRowButtonLabel(row.label)}
-              </Button>
-            }
-          />
-
-          <AdminOutcome state={state} showing={slot.showing && edited.showing} />
-
-          <Box>
-            <Button
-              variant="text"
-              onClick={() => setOpen((current) => !current)}
-              aria-expanded={open}
-              sx={{ textTransform: "none", px: 0, minHeight: 36 }}
-              data-testid="schedule-row-toggle"
-            >
-              {open ? HIDE_EXAMPLE : SHOW_EXAMPLE}
-            </Button>
-          </Box>
-
-          <Collapse in={open} unmountOnExit mountOnEnter>
-            <Box data-testid="schedule-row-preview">
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {`Example — ${row.preview.introDetail}`}
-              </Typography>
-              <Stack component="ol" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }}>
-                {row.preview.steps.map((step) => (
-                  <Box component="li" key={step.label}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {step.label}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {step.note ? `${step.when} · ${step.note}` : step.when}
-                    </Typography>
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-          </Collapse>
         </Stack>
       </Section>
     </Box>

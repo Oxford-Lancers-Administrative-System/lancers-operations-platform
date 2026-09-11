@@ -1,106 +1,41 @@
-import { Notice } from "@/components/notice";
-import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
-import {
-  buildMonthGrid,
-  defaultMonth,
-  monthGridEvents,
-  monthOf,
-  parseMonth,
-  shiftMonth,
-  type CalendarEvent,
-} from "@/lib/services/calendar";
-import { academicYearEvents } from "@/lib/services/oxford-year";
+import { defaultMonth, parseMonth } from "@/lib/services/calendar";
 import { listEventsForOperator, type EventList } from "@/lib/services/events";
-import { GregorianControls, YearJumpControl } from "@/app/calendar/calendar-controls";
-import GregorianMonth from "@/app/calendar/gregorian-month";
-import {
-  MONTH_EMPTY,
-  NO_TERMS_CONFIGURED,
-  OUTSIDE_THE_YEAR_DETAIL,
-  OUTSIDE_THE_YEAR_HEADLINE,
-  UNDATED_DETAIL,
-  UNDATED_HEADLINE,
-} from "@/app/calendar/presentation";
 import { first } from "@/app/calendar/query";
 import {
-  operatorEventHref,
   OPERATOR_CALENDAR_PATH,
+  operatorEventHref,
   OPERATOR_EVENTS_PATH,
 } from "@/app/calendar/routes";
 import SubscribeToCalendarButton from "@/app/calendar/subscribe-dialog";
-import { operatorTileStatus, type TileStatus } from "@/app/calendar/tile-status";
-import TypeLegend from "@/app/calendar/type-legend";
+import { operatorTileStatus } from "@/app/calendar/tile-status";
 import ViewSwitch from "@/app/calendar/view-switch";
-import YearColumn from "@/app/calendar/year-column";
 import { readEventYear } from "@/app/calendar/year";
 import { gateShellPage } from "../../gate";
-
-/**
- * The Events calendar — Calendar View, and the Oxford View. LAN-114, remade by
- * LAN-153.
- *
- * ## The same events as the list, rearranged
- *
- * This page reads `listEventsForOperator()` with no filter, which is the same
- * call `/operate/events` makes, so the three arrangements cannot show different
- * sets of events or different dates for one event: they are one query and three
- * arrangements of its result (`REQ-three-arrangements`). Every tile links to
- * `/operate/events/<id>`, the same destination the list rows open.
- *
- * ## Calendar View is unchanged
- *
- * Brian, 20 August 2026: "The Gregorian calendar is fine as it is."
- *
- * ## Oxford View is a continuous academic year
- *
- * Not three term cards behind two selectors — the exact thing Stewart Humble
- * asked to replace on 17 August 2026, recorded as D85. One column runs Long
- * Vacation into Michaelmas into Christmas Vacation into Hilary into Easter
- * Vacation into Trinity into the next Long Vacation, with a jump control instead
- * of a calendar switch, vacation weeks numbered forward from 1, and a vacation
- * belonging to neither adjacent term.
- *
- * The academic-year and Oxford-term selectors are gone, and so is any way to
- * reach another season: one season is open and the mission knows no other
- * (`REQ-one-open-season`). The page header says which one.
- *
- * ## It reads, and only reads
- *
- * There is no server action on this page and no form that posts anywhere.
- * Opening the calendar, changing month and switching mode all resolve to `GET`s
- * that call one read. The requirement that no audience, invitation, RSVP,
- * attendance or automation record is created merely by viewing or navigating is
- * therefore a property of the module's imports rather than a promise.
- *
- * ## Which day is today
- *
- * From `@/lib/club-time`, in the club's zone, and passed down as a plain
- * `YYYY-MM-DD`. The grids never ask a clock anything themselves — a component
- * that read `new Date()` would be the second timezone rule the issue forbids,
- * and would highlight the wrong cell for an hour every summer night.
- */
+import { GregorianView, gregorianHref, OxfordView, type Tile } from "./calendar-views";
 
 type CalendarMode = "gregorian" | "oxford";
-
-type Tile = (eventId: string) => { href: string; status: TileStatus };
 
 function modeOf(value: string): CalendarMode {
   return value === "oxford" ? "oxford" : "gregorian";
 }
 
-function gregorianHref(month: string): string {
-  return `${OPERATOR_CALENDAR_PATH}?mode=gregorian&month=${month}`;
-}
-
+/**
+ * The Events calendar — Calendar View, and the Oxford View. LAN-114, remade by
+ * LAN-153. Reads `listEventsForOperator()` with no filter — the same call and
+ * result the list at `/operate/events` uses, so the two arrangements never
+ * disagree (`REQ-three-arrangements`). Read-only: no server action, no form,
+ * every navigation a `GET`. Today comes once from `@/lib/club-time`, passed
+ * down as `YYYY-MM-DD` — no grid calls `new Date()` itself.
+ *
+ * Decision history: docs/ux/tickets/LAN-114-event-calendar.md.
+ */
 export default async function EventCalendarPage({
   searchParams,
 }: PageProps<"/operate/events/calendar">) {
@@ -209,154 +144,5 @@ export default async function EventCalendarPage({
         <OxfordView year={year} tile={tile} />
       )}
     </Stack>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Calendar View
-// ---------------------------------------------------------------------------
-
-function GregorianView({
-  events,
-  params,
-  today,
-  tile,
-}: {
-  events: readonly CalendarEvent[];
-  params: Record<string, string | string[] | undefined>;
-  today: string;
-  tile: Tile;
-}) {
-  // An unreadable `month` falls back rather than failing: the parameter arrives
-  // from a URL anybody can edit, and a calendar that throws on `?month=banana`
-  // is a worse answer than one that opens where it would have opened anyway.
-  const month = parseMonth(first(params.month)) ?? defaultMonth(events, today);
-  const grid = buildMonthGrid(month, events, today);
-  const todayMonth = monthOf(today) ?? month;
-
-  return (
-    <Stack spacing={2} data-testid="gregorian-view">
-      <GregorianControls
-        month={month}
-        previousHref={gregorianHref(shiftMonth(month, -1))}
-        nextHref={gregorianHref(shiftMonth(month, 1))}
-        todayHref={gregorianHref(todayMonth)}
-        basePath={OPERATOR_CALENDAR_PATH}
-      />
-
-      {grid.placedCount === 0 ? (
-        <EmptyState
-          testId="month-empty"
-          title={MONTH_EMPTY}
-          action={{ href: "/operate/events?period=all", label: "All events" }}
-        />
-      ) : null}
-
-      <TypeLegend events={monthGridEvents(grid)} />
-      <GregorianMonth grid={grid} tile={tile} />
-
-      <LeftOver
-        events={grid.undated}
-        testId="undated-events"
-        headline={UNDATED_HEADLINE}
-        detail={UNDATED_DETAIL}
-        tile={tile}
-      />
-    </Stack>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Oxford View
-// ---------------------------------------------------------------------------
-
-function OxfordView({
-  year,
-  tile,
-}: {
-  year: Awaited<ReturnType<typeof readEventYear>>;
-  tile: Tile;
-}) {
-  if (year === null || year.column.segments.length === 0) {
-    return (
-      <Stack spacing={2} data-testid="oxford-view">
-        <Notice severity="warning" testId="no-terms-configured">
-          {NO_TERMS_CONFIGURED}
-        </Notice>
-      </Stack>
-    );
-  }
-
-  return (
-    <Stack spacing={2} data-testid="oxford-view">
-      <YearJumpControl segments={year.segments} current={year.currentSegmentKey} />
-      <TypeLegend events={academicYearEvents(year.column)} />
-      <YearColumn column={year.column} tile={tile} />
-
-      <LeftOver
-        events={year.column.outsideTheYear}
-        testId="outside-the-year"
-        headline={OUTSIDE_THE_YEAR_HEADLINE}
-        detail={OUTSIDE_THE_YEAR_DETAIL}
-        tile={tile}
-      />
-
-      <LeftOver
-        events={year.column.undated}
-        testId="undated-events"
-        headline={UNDATED_HEADLINE}
-        detail={UNDATED_DETAIL}
-        tile={tile}
-      />
-    </Stack>
-  );
-}
-
-/**
- * The events no cell can hold — undated ones, and the rare dated one outside the
- * year this column covers.
- *
- * Deliberately understated: a bordered block rather than a panel. It exists so
- * nothing is omitted silently, and on a normal season it renders nothing at all.
- * The term card's old "too far from any term" list is gone with the card — a
- * continuous year has a home for every date in it.
- */
-function LeftOver({
-  events,
-  testId,
-  headline,
-  detail,
-  tile,
-}: {
-  events: readonly CalendarEvent[];
-  testId: string;
-  headline: string;
-  detail: string;
-  tile: Tile;
-}) {
-  if (events.length === 0) return null;
-
-  return (
-    <Box sx={{ borderLeft: 2, borderColor: "divider", pl: 1.5 }} data-testid={testId}>
-      <Typography variant="caption" component="h2" sx={{ fontWeight: 700, display: "block" }}>
-        {headline}
-      </Typography>
-      <Typography variant="caption" color="text.secondary" component="p">
-        {detail}
-      </Typography>
-      <Stack spacing={0.5} sx={{ mt: 1 }}>
-        {events.map((event) => (
-          <Typography
-            key={event.id}
-            component="a"
-            href={tile(event.id).href}
-            variant="body2"
-            sx={{ color: "text.primary" }}
-          >
-            {event.name}
-          </Typography>
-        ))}
-      </Stack>
-    </Box>
   );
 }

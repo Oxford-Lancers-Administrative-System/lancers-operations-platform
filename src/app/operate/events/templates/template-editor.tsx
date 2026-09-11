@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
-import { Field, SelectField } from "@/components/field";
+import { Field } from "@/components/field";
 import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -27,14 +27,11 @@ import {
   previewEventTemplateAction,
   saveEventTemplateAction,
 } from "./actions";
-import { EMPTY_TEMPLATE_FORM_STATE, type TemplateFormState } from "./form-state";
+import { EMPTY_TEMPLATE_FORM_STATE } from "./form-state";
+import { ChangePlan } from "./template-change-plan";
+import { issueFor, TemplateEventFields } from "./template-form-fields";
 import {
-  changeTouchesNothing,
   confirmSaveAction,
-  describeDuration,
-  draftsHolding,
-  draftsTaking,
-  draftTakes,
   TEMPLATE_AUDIENCE_HEADLINE,
   TEMPLATE_COLOUR_HEADLINE,
   TEMPLATE_COLOUR_HELP,
@@ -44,46 +41,23 @@ import {
   TEMPLATE_DELETE_ACTION,
   TEMPLATE_DELETE_TITLE,
   TEMPLATE_DISCARD_ACTION,
-  TEMPLATE_DURATION_LABEL,
   TEMPLATE_DURATION_OPTIONS,
-  TEMPLATE_EVENT_HEADLINE,
   TEMPLATE_NAME_HEADLINE,
   TEMPLATE_NAME_HELP,
   TEMPLATE_QUESTIONS_HEADLINE,
   TEMPLATE_SAVE_ACTION,
-  TEMPLATE_UNTOUCHED_HEADLINE,
   templateDeleteQuestion,
-  untouchedApproved,
-  untouchedPast,
 } from "./presentation";
 
 /**
- * W8-02 and W8-03 — one template, and what changing it will touch.
+ * W8-02 and W8-03 — one template, and what changing it will touch. **Save…**
+ * previews the blast radius (`previewEventTemplateAction`, no write); the
+ * dialog re-posts the same fields as hidden inputs to `saveEventTemplateAction`,
+ * which recomputes and applies under its own locks — never a plan carried
+ * forward by the browser. The button names the drafts it will touch before
+ * it touches them.
  *
- * ## Two submissions of one form
- *
- * **Save…** posts to `previewEventTemplateAction`, which writes nothing and
- * returns the blast radius. The dialog then posts the *same fields* to
- * `saveEventTemplateAction`, which recomputes that blast radius under its own
- * locks and applies it. The operator is never shown one plan and given another,
- * and the browser is never trusted to carry a plan forward — it carries the
- * form, and the server decides again.
- *
- * That is why the dialog re-renders every field as a hidden input rather than
- * posting an identifier for something the server stashed. There is no server-side
- * draft to go stale, and no session state to disagree with the form.
- *
- * ## The screen's whole job
- *
- * W8: "An operator who has never used this should be able to tell, from the
- * screen, that editing a template is safe." So the confirmation names the drafts
- * that will take the change, names the ones that will not **and why**, and states
- * what will not move at all — approved events and past events, which are never
- * touched by anything here.
- *
- * The button says what it will do. "Save and update 3 drafts" is a different
- * promise from "Save", and the operator should not have to infer which one they
- * are making.
+ * Decision history: missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/decision-history.md.
  */
 
 export interface TemplateEditorProps {
@@ -110,10 +84,6 @@ export interface TemplateEditorProps {
    * the control is absent for that reason instead.
    */
   eventCount: number;
-}
-
-function issueFor(state: TemplateFormState, field: keyof RawEventTemplate): string | undefined {
-  return state.issues.find((issue) => issue.field === field)?.message;
 }
 
 export default function TemplateEditor({
@@ -375,118 +345,23 @@ export default function TemplateEditor({
             </Stack>
           </Section>
 
-          <Section title={TEMPLATE_EVENT_HEADLINE}>
-            <Stack spacing={3}>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <SelectField
-                  label="Where"
-                  name="defaultDeliveryMode"
-                  data-field="defaultDeliveryMode"
-                  value={deliveryMode}
-                  onChange={(event) => setDeliveryMode(event.target.value)}
-                  error={Boolean(issueFor(state, "defaultDeliveryMode"))}
-                  helperText={issueFor(state, "defaultDeliveryMode")}
-                  disabled={busy}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  options={[
-                    { value: "unset", label: "Not set" },
-                    { value: "in_person", label: "In person" },
-                    { value: "online", label: "Online" },
-                  ]}
-                />
-
-                <Field
-                  label="Venue"
-                  name="defaultVenue"
-                  data-field="defaultVenue"
-                  value={venue}
-                  onChange={(event) => setVenue(event.target.value)}
-                  error={Boolean(issueFor(state, "defaultVenue"))}
-                  helperText={issueFor(state, "defaultVenue")}
-                  disabled={busy}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                />
-              </Stack>
-
-              {/*
-                D78. A duration, not a start time — "the name is always going to
-                be unique ... Usual time doesn't make any sense to me" (Brian,
-                2026-08-21). A type recurs; a particular Wednesday does not.
-
-                C6. Brian: "In the template, the default times should be done
-                in 30-minute increments between 30 minutes and 4 hours ... It
-                shouldn't be freeform text." Eight options, each labelled by
-                the same `describeDuration` the template list and the
-                confirmation dialog already use — see `offGridDuration` above
-                for the one existing-template case a fixed grid has to answer.
-              */}
-              <SelectField
-                label={TEMPLATE_DURATION_LABEL}
-                name="defaultDurationMinutes"
-                data-field="defaultDurationMinutes"
-                value={duration}
-                onChange={(event) => setDuration(event.target.value)}
-                error={Boolean(issueFor(state, "defaultDurationMinutes"))}
-                helperText={issueFor(state, "defaultDurationMinutes")}
-                disabled={busy}
-                slotProps={{ inputLabel: { shrink: true } }}
-                options={[
-                  { value: "", label: "Not set" },
-                  ...(offGridDuration !== null
-                    ? [{ value: String(offGridDuration), label: describeDuration(offGridDuration) }]
-                    : []),
-                  ...TEMPLATE_DURATION_OPTIONS.map((minutes) => ({
-                    value: String(minutes),
-                    label: describeDuration(minutes),
-                  })),
-                ]}
-              />
-
-              {/* LAN-264. Free text that behaves exactly like Description below. */}
-              <Field
-                label="Required equipment"
-                name="defaultRequiredEquipment"
-                data-field="defaultRequiredEquipment"
-                value={equipment}
-                onChange={(event) => setEquipment(event.target.value)}
-                error={Boolean(issueFor(state, "defaultRequiredEquipment"))}
-                helperText={issueFor(state, "defaultRequiredEquipment")}
-                disabled={busy}
-                multiline
-                minRows={3}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-
-              <Field
-                label="Description"
-                name="defaultDescription"
-                data-field="defaultDescription"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                error={Boolean(issueFor(state, "defaultDescription"))}
-                helperText={issueFor(state, "defaultDescription")}
-                disabled={busy}
-                multiline
-                minRows={3}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-
-              <SelectField
-                label="Attendance"
-                name="defaultAttendance"
-                data-field="defaultAttendance"
-                value={attendance}
-                onChange={(event) => setAttendance(event.target.value)}
-                disabled={busy}
-                slotProps={{ inputLabel: { shrink: true } }}
-                options={[
-                  { value: "unset", label: "Not set" },
-                  { value: "mandatory", label: "Mandatory" },
-                  { value: "optional", label: "Optional" },
-                ]}
-              />
-            </Stack>
-          </Section>
+          <TemplateEventFields
+            state={state}
+            busy={busy}
+            deliveryMode={deliveryMode}
+            onDeliveryModeChange={setDeliveryMode}
+            venue={venue}
+            onVenueChange={setVenue}
+            duration={duration}
+            onDurationChange={setDuration}
+            offGridDuration={offGridDuration}
+            equipment={equipment}
+            onEquipmentChange={setEquipment}
+            description={description}
+            onDescriptionChange={setDescription}
+            attendance={attendance}
+            onAttendanceChange={setAttendance}
+          />
 
           {/*
             D42. The questions every event of this type arrives with. The same
@@ -642,112 +517,6 @@ export default function TemplateEditor({
           </Box>
         </DialogActions>
       </Dialog>
-    </Stack>
-  );
-}
-
-/** W8-03's three panels: what moves, what does not, and what never does. */
-function ChangePlan({
-  plan,
-  eventTypeLabel,
-}: {
-  plan: TemplateChangePlan;
-  eventTypeLabel: string;
-}) {
-  const approved = untouchedApproved(plan.untouched.approved, eventTypeLabel);
-  const past = untouchedPast(plan.untouched.past, eventTypeLabel);
-
-  return (
-    <Stack spacing={2}>
-      {plan.fieldChanges.length > 0 || plan.questionChanges.length > 0 ? (
-        <Box data-testid="plan-changes">
-          {plan.fieldChanges.map((change) => (
-            <Typography variant="body2" key={change.field}>
-              {`${change.label}: `}
-              <Box
-                component="span"
-                sx={{ textDecoration: "line-through", color: "text.secondary" }}
-              >
-                {change.from}
-              </Box>
-              {" → "}
-              <strong>{change.to}</strong>
-            </Typography>
-          ))}
-          {plan.questionChanges.map((change) => (
-            <Typography variant="body2" key={`${change.kind}:${change.prompt}`}>
-              {`Question ${change.kind}: `}
-              <strong>{change.prompt}</strong>
-            </Typography>
-          ))}
-        </Box>
-      ) : null}
-
-      {plan.audienceBefore.join(", ") !== plan.audienceAfter.join(", ") ? (
-        <Typography variant="body2" data-testid="plan-audience-change">
-          {`Invites by default: `}
-          <Box component="span" sx={{ textDecoration: "line-through", color: "text.secondary" }}>
-            {plan.audienceBefore.join(", ") || "Not set"}
-          </Box>
-          {" → "}
-          <strong>{plan.audienceAfter.join(", ") || "Not set"}</strong>
-        </Typography>
-      ) : null}
-
-      {plan.taking.length > 0 ? (
-        <Section title={draftsTaking(plan.taking.length)} testId="plan-taking">
-          {plan.taking.map((draft) => (
-            <Box key={draft.id} sx={{ mb: 1 }}>
-              <Typography variant="body2">
-                {draft.name}
-                {draft.scheduledOn ? ` · ${draft.scheduledOn}` : ""}
-              </Typography>
-              {draftTakes(draft).map((takes) => (
-                <Typography variant="body2" color="text.secondary" key={takes}>
-                  {takes}
-                </Typography>
-              ))}
-            </Box>
-          ))}
-        </Section>
-      ) : (
-        <Notice severity="info" testId="plan-touches-nothing">
-          {changeTouchesNothing(eventTypeLabel)}
-        </Notice>
-      )}
-
-      {plan.holding.length > 0 ? (
-        <Section title={draftsHolding(plan.holding.length)} testId="plan-holding">
-          {plan.holding.map((draft) => (
-            <Box key={draft.id} sx={{ mb: 1 }}>
-              <Typography variant="body2">
-                {draft.name}
-                {draft.scheduledOn ? ` · ${draft.scheduledOn}` : ""}
-              </Typography>
-              {draft.reasons.map((reason) => (
-                <Typography variant="body2" color="text.secondary" key={reason}>
-                  {reason}
-                </Typography>
-              ))}
-            </Box>
-          ))}
-        </Section>
-      ) : null}
-
-      {approved || past ? (
-        <Section title={TEMPLATE_UNTOUCHED_HEADLINE} testId="plan-untouched">
-          {approved ? (
-            <Typography variant="body2" color="text.secondary">
-              {approved}
-            </Typography>
-          ) : null}
-          {past ? (
-            <Typography variant="body2" color="text.secondary">
-              {past}
-            </Typography>
-          ) : null}
-        </Section>
-      ) : null}
     </Stack>
   );
 }

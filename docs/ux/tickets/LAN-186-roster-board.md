@@ -238,3 +238,41 @@ dropped again.
 
 The twenty checkboxes under **Acceptance** on the live LAN-186 issue are
 binding verbatim. This document does not restate them.
+
+## Decision history relocated from source (LAN-300)
+
+### src/components/pinned-select.tsx — `PinnedSelect` (moved from roster-board.tsx's local `PinnedSelect`)
+
+> One pinned filter. LAN-259: the `<InputLabel>` carries an `id` and the
+> `<Select>` points at it with `labelId`, which is what gives the rendered
+> combobox an accessible name — MUI derives `aria-labelledby` from `labelId`
+> and from nothing else. Without the pair the three filters reported
+> `aria-labelledby: null` and read to a screen reader as three unnamed
+> comboboxes, even though `label` was set: `label` only reserves the notch in
+> the outline. The id comes from `useId()` so that two boards on one page —
+> or a label whose text repeats — still name their own control.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/roster-board-card.tsx — `PlayerCard` (moved from roster-board.tsx's local `PlayerCard`)
+
+> The phone card — LAN-186's owner walkthrough, item 15.
+>
+> Not a miniature board. Brian, 2026-08-29: "the mobile view is horrendous.
+> Most of the time, the operators aren't going to be using this as a mobile
+> view anyway, so it should just be a way to click in." So the card carries
+> exactly three things — the player's name, their status, and the missing-data
+> flag when it is set — and nothing else from the twenty columns. There is no
+> in-cell editing at 375px; editing is desktop work, and the phone is for
+> finding somebody and opening them.
+>
+> The whole card is the tap target, not a chevron or a "View" link in a
+> corner — the anchor wraps the name and the chips. The call button is the one
+> deliberate exception: its own control, its own tap target, `stopPropagation`
+> on both so a call can never fire from a tap meant for the card and a card
+> navigation can never fire from a tap meant for the call. W5 locks voice call
+> as the mobile quick action and nothing else — a one-tap WhatsApp link would
+> be manual sending outside the pipeline's consent checks, which R12 and R15
+> prohibit.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

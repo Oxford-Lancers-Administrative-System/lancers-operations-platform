@@ -59,3 +59,28 @@ The current live LAN-78 issue, comments, relationships and recorded owner decisi
 - Keyboard focus, labels, status meaning, error association, and touch targets are accessible.
 - No inaccessible data is present in the DOM or response payload for an unauthorized role.
 - The implementation review shows no unrecorded deviation from [`../slice-ux.md`](../slice-ux.md).
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/[id]/delivery/page.tsx — `DeliveryPage` (module header)
+
+> ## Why three screens are one route
+>
+> `docs/ux/slice-ux.md`'s registry gives all three
+> `/operate/events/[id]/delivery`, which is not an oversight: they are one
+> record at three depths. `?view=diagnostics` opens the per-invitee table and
+> `?invitation=` opens one invitee's repair panel. The same device LAN-76 used
+> for UX-33 and LAN-77 for UX-40 to UX-43.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/delivery/page.tsx — `DeliveryPage` (module header)
+
+> ## What is deliberately not in the payload
+>
+> No phone number, no RSVP link, no token, no provider credential and no raw
+> provider body. The failure text an operator reads has already been mapped to
+> a safe sentence and digit-redacted by the adapter. A screen that showed the
+> link would be the manual-send path readmitted through the back door.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

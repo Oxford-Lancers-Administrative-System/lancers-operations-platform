@@ -362,3 +362,146 @@ ticket's own standing rule. Only the alert's text changed.
 
 The fifteen checkboxes under **Acceptance** on the live LAN-187 issue are
 binding verbatim. This document does not restate them.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/roster/[membershipId]/attendance-section.tsx — `AttendanceSection` (file header)
+
+> `WP-player-record`'s Attendance band — `Q15-attendance`, corrected at W1/W2
+> (Brian's walkthrough, `Q-19`). Brian ruled the prose stands over the
+> approved photographs' silence: this season's RSVP and attendance history
+> renders here, read-only, from Mission 2's own tables. The design is a
+> running mockup Brian saw and approved (`chore/roster-fidelity-attendance`'s
+> `attendance-section.tsx`), not a description — this component follows its
+> behaviour, restyled for the real violet band rather than copied wholesale.
+>
+> ## Rows
+>
+> Every event this membership had an invitation **sent** for, this season —
+> `readAttendanceHistoryIn()` already filtered out `pending`, so every row
+> here really was asked. That includes events that have not happened yet;
+> the **Event status** column and its filter (W1) are what let an operator
+> tell those apart from what already occurred, on a table defaulted to
+> showing only the latter.
+>
+> ## What counts toward the score
+>
+> `present` and `late` both count as attended (`isShowedPresence`, unmodified
+> from `attendance.ts`'s own board); `absent` and `excused` do not. The
+> denominator is **mandatory events that carry an attendance record** — not
+> every mandatory invitation. An upcoming event and a cancelled invitation
+> both hold no record yet and are excluded from the score the same way, for
+> different reasons: one rule, reading attendance rather than the calendar or
+> the invitation status, covers both without a special case for "upcoming".
+>
+> A third figure (W2) counts **occurred mandatory events with no attendance
+> record** — the ones Brian's walkthrough found sitting in the table, unequal
+> to the score above it, that neither attended nor missed anything. It reads
+> "N attendants not recorded" and is absent, not zero, when there are none.
+>
+> ## The score follows the filter
+>
+> Mandatory, RSVP, Attendance and Event status each filter the section — the
+> board's own funnel-in-a-bordered-button interaction, restyled here rather
+> than imported, because `roster-board.tsx` is LAN-186's and this package
+> does not edit it. The score always reads the same set the table or the
+> cards are currently showing, with a `Filtered` chip and a "Filtered by …
+> Clear all" row saying which set that is, in labels and values — Event
+> status defaults to `Occurred` (W1) and shows in that row exactly like any
+> other active filter, so the default is visible and reversible rather than
+> hidden.
+>
+> ## Two shapes, one dataset
+>
+> A table with sortable, filterable header cells at and above the board's own
+> breakpoint; a stack of labelled blocks below it, each event its own card,
+> with the same four filters as compact selects and a sort field-plus-
+> direction control, because a six-column row and a header funnel both have
+> nowhere to go at 375px.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/[membershipId]/onboarding-row.tsx — Orphaned file-level comment above `PlayerRecordView` (record-view.tsx, before the split)
+
+> This row's own state list is `allowedItemStates(item.code)`, and its own
+> words are `itemStateLabel(item.code, status)` — D-002 (correction round 6,
+> `WP-operator-record`, LAN-217): one list, both what the closed cell shows
+> and what the open control offers, so the two cannot say something
+> different again. There is no separate resolution vocabulary and no
+> `reopen` — an operator corrects a mistake by choosing a different one of
+> the item's own states directly, the service refusing anything outside that
+> item's own list. A derived item (`isDerivedItem`) offers no control at all.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/[membershipId]/onboarding-row.tsx — `OnboardingRow` (docstring)
+
+> One onboarding item — provenance shown, edited the same way as every other
+> season value. `REQ-player-detail`: "no Resolve/SAVE pair anywhere."
+>
+> Every state commits the moment it is chosen, exactly like every other
+> in-place edit — Waived (Subscription paid only) included.
+> `WP-operator-record` (LAN-217) retired the reason field this row used to
+> open on Waived: `REQ-reason-free-waive` supersedes the schema's old
+> `onboarding_items_waiver_is_justified` constraint (unwound by the
+> substrate, LAN-214), the author stays mandatory and is supplied by the
+> verified operator this gate resolves, and `W6-02`'s approved screen shows
+> no reason field to keep.
+>
+> D-002 (correction round 6): there is no separate `Reopen` option any more
+> — an operator corrects a mistake by choosing a different one of the
+> item's own states directly, from any current state. A derived item
+> (`isDerivedItem`) renders with no control at all: nothing to open, and the
+> service itself refuses any attempt to set one directly.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/[membershipId]/onboarding-row.tsx — `provenanceNote` (docstring)
+
+> Who, and when — the row's own provenance slot, `REQ-item-history` and
+> `REQ-item-states`'s player-claimed provenance. `WP-operator-record`
+> (LAN-217) rebuilds this from the item's own append-only history
+> (`onboarding-item-history.ts`) rather than the current row alone, which is
+> what lets it say **who** for every state rather than only "Completed
+> &lt;day&gt;", and what lets a resolved item still carry a trace of a player's
+> earlier trust-class claim once an operator confirms it.
+>
+> Narrative text does not belong here (`W6`'s own acceptance correction,
+> "nothing here blocks anything, ever" struck before approval) — every clause
+> this builds is an actor and a date, or a state word and a date, never a
+> sentence about what the state means.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/[membershipId]/record-view.tsx — `PlayerRecordView` (file header)
+
+> `/operate/roster/[membershipId]` — W6, rebuilt. LAN-187.
+>
+> The client half of the redesigned record: every season fact edits in
+> place, exactly as the board's own cells do — one click, a dropdown only
+> where the value set is fixed, commits on its own, audited, no reason
+> asked. Person facts render and route to the person record. Onboarding
+> items are the same edit as every other value, which retires the shipped
+> page's per-item `Resolve … ▾` / `SAVE` pair.
+>
+> A departed or archived membership renders complete and read-only, with the
+> Status field's editor **absent** rather than disabled — nothing about a
+> past season is editable from here, and there is nothing to explain about
+> why, because there is no control inviting the question.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/roster/[membershipId]/activity-log.tsx — `ActivityLog` (docstring)
+
+> The sectioned activity log — `REQ-activity-log`, `OD7-log-by-section`.
+> Brian, 2026-09-02, on the first draft's one-line-per-section count: "that
+> is just not useful… I want to see the individual items that come
+> underneath, when it was asked versus when it was received." So this is
+> `StatusHistory`'s own markup above — a bordered entry, a bold label, a line
+> saying what happened, a caption of when and who — with one entry per ask
+> and per answer instead of a membership status transition. No new component:
+> the bold label is the section name, repeated on every entry in it, exactly
+> the way the mockup's own `replaceHistory` helper renders a (heading, what,
+> when) triple.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

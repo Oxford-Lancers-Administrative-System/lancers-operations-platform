@@ -222,3 +222,63 @@ Restated from the LAN-203 issue's own "Done when" as what was built to satisfy t
   it should look like" — so there is no mockup rendering to diverge from; a plain `Switch` beside
   each step's timing field was judged the smallest addition consistent with the row's existing
   density.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/a/[token]/terminal-panels.tsx — `RecruitAlreadyRecorded`
+
+> LAN-203. The recruit journey's actual saved page: "Your response is
+> saved", the answer and the event on one line — the same shape the
+> mockup's illustration draws — reached because `submitAnswer` sends a
+> recruit back to this exact route rather than to `/me/[token]`. No "your
+> own page" note, because there is no such page for them.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/messaging/schedule-form.tsx — `MessagingScheduleForm`
+
+> The whole editable schedule — three sections (W10, Brian 2026-08-31):
+> **Recruitment**, the cycle that fires on capture; **Event messaging**, the
+> seven event types this page has always carried, with the Recruitment
+> row's own body now split into its two audiences
+> (`DEC-split-on-the-schedule`); and **Onboarding**, a heading with nothing
+> built behind it yet, so the page already has the shape Mission 7 needs.
+>
+> Recruitment sits first — "what fires when somebody is captured" is a
+> different question from "what an event sends", and it is the question W10
+> puts first. The QR code is deliberately not here at all: it lives on the
+> recruit board (W1) and its own page (W1-04) — "This workflow is the cycle
+> and nothing else."
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/messaging/schedule-form.tsx — `CycleStepRow`
+
+> One recruitment cycle row — always two `recruitment_cycle_steps` rows, one
+> form, one SAVE: Welcome covers `welcome` and its own `details_reminder`
+> ("the top two bars here should be made as one", Brian, 2026-09-01);
+> Recruitment questionnaire covers `interest_ask` and its own
+> `interest_reminder`, unchanged. Two offset fields, two rows, one save —
+> never two cards, never two saves.
+>
+> No per-step on/off control — Brian, 2026-09-01: "the toggles were
+> completely invented… Remove the toggles." `recruitment_cycle_steps.enabled`
+> still exists in the database (no migration); this page simply no longer
+> draws or submits it, so every step now sends on its own offset alone.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/messaging/schedule-row.tsx — `RecruitmentScheduleRow`
+
+> The Recruitment event row, split into its two audiences —
+> `DEC-split-on-the-schedule`, LAN-203. The row keeps its identity: one row
+> per `event_type`, one SAVE per row, both laws of this page — the six
+> fields above stay Regular players' own, unchanged, and the two Recruits
+> fields are appended into the same form and the same submit.
+>
+> Brian, 2026-08-31: "on the recruit event, instead, you're going to have
+> two sections: one for regular players, one for recruits." No President
+> field for Recruits — there is no escalation to configure, because
+> recruits are never escalated (`REQ-two-ladders`, `REQ-never-harsh`).
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

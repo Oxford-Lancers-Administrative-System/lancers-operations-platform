@@ -74,3 +74,35 @@ UX-73 is the operator walk-up surface. UX-97 is the capability-constrained coach
 - Keyboard focus, labels, status meaning, error association, and touch targets are accessible.
 - No inaccessible data is present in the DOM or response payload for an unauthorized role.
 - The implementation review shows no unrecorded deviation from [`../slice-ux.md`](../slice-ux.md).
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/[id]/attendance/page.tsx — `AttendancePage` (module header)
+
+> ## One route, four screens, and the gate between them
+>
+> The screen registry gives all four `/operate/events/[id]/attendance`, and
+> that is not an oversight: they are states of one thing. The event's status
+> chooses between UX-71 and UX-72, `?add=walk-up` opens UX-73, and UX-74's
+> correction happens in place on the row it belongs to — see
+> `./attendance-row.tsx` for why that is not a fifth screen.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/attendance/page.tsx — `AttendancePage` (module header)
+
+> ## Authorization, and the two things it is not
+>
+> The page gates on `attendance_recording` — the four calendar roles and the
+> three coaching seats. See `./actions.ts` for why it is that union, and for
+> the reading of § 8 this replaced: an ordinary-operator floor admitted an
+> ordinary player who happened to hold an operator account, which is the thing
+> LAN-80's own criterion says must be refused.
+>
+> That is not the boundary, and neither is this route. Every write re-resolves
+> the operator from the verified session inside its own server action, and the
+> service refuses any event that is not `occurred` after taking a row lock on
+> it. A page rendered a minute ago against an occurred event whose assertion has
+> since been corrected produces a refusal, not a write.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

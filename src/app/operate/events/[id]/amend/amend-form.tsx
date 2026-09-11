@@ -2,7 +2,6 @@
 
 import { Section } from "@/components/section";
 import { Notice } from "@/components/notice";
-import { Field, SelectField, ChoiceField, DateField, TimeField } from "@/components/field";
 import { ActionBar } from "@/components/action-bar";
 import { Metric, MetricRow } from "@/components/metric";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
@@ -26,14 +25,10 @@ import {
   type AmendableEvent,
   type AmendmentChange,
 } from "@/lib/services/event-amendment-rules";
-import VenueField from "../../venue-field";
 import { EMPTY_FORM_STATE } from "../../form-state";
-import {
-  CLUB_TIME_ZONE_NOTE,
-  describeTermCoordinate,
-  JOINING_URL_IS_PUBLIC_WARNING,
-} from "../../presentation";
+import { describeTermCoordinate } from "../../presentation";
 import { amendEventAction } from "../change-actions";
+import { AmendEventFields } from "./amend-event-fields";
 import {
   ALREADY_SENT_DETAIL,
   ALREADY_SENT_HEADING,
@@ -58,45 +53,13 @@ import {
 } from "../change-presentation";
 
 /**
- * W5's amendment, as one form with three panels — LAN-156.
+ * W5's amendment, as one form with three panels — LAN-156. Nothing is held
+ * outside this `<form>`: the edit fields stay mounted but `hidden` under the
+ * review and silence panels, so a submit always posts what was typed and
+ * discarding is closing the tab. `readDraft()` diffs `FormData(formRef)` at
+ * submit time, so the review always shows exactly what will be sent.
  *
- * ## Why one form and not three routes
- *
- * REQ-amend-in-place says changes are held until saved and that discarding
- * leaves no trace. The strongest way to satisfy that is for there to be nowhere
- * to hold a change: the fields stay in this one `<form>`, the review panel
- * reads them, and the single submit is the only write. There is no pending
- * amendment row, no draft store and no server round trip between typing and
- * saving — so abandoning is closing the tab, and it writes nothing because
- * nothing was ever sent anywhere.
- *
- * The mockup annotates the review step with `?step=review`, and this build does
- * not change the address bar. That is the one deliberate departure from W5's
- * screens: putting the step in the URL would mean a server round trip, which
- * would mean the typed-but-unsaved values had to live somewhere between the two
- * renders. The screens themselves are the mockup's.
- *
- * ## The fields are not unmounted between panels
- *
- * They are hidden. A `<form>` posts the inputs it contains, so unmounting the
- * editor to show the review would post an empty amendment — and re-mounting it
- * afterwards would lose what was typed. `hidden` on the container keeps them in
- * the document, keeps them out of the accessibility tree, and keeps them in the
- * submission.
- *
- * ## The review reads the form, not a copy of it
- *
- * `readDraft()` builds the diff from `new FormData(formRef.current)` at the
- * moment the operator presses **Save changes…**, so what the review panel shows
- * is what the submit will send. `VenueField` became a controlled combobox
- * under LAN-154 — every consumer now owns a `value`/`onValueChange` pair
- * rather than an uncontrolled `defaultValue` — but `venue` state here is not a
- * private copy in the sense this note used to warn about: React keeps the
- * field's own DOM input in sync with that state on every render, so
- * `readDraft()`'s `FormData` read and what the field visibly shows can never
- * disagree. A review built from a private copy is the shape that produces a
- * screen agreeing with itself and disagreeing with the database; a controlled
- * field's state is not that copy, because nothing else can hold the truth.
+ * Decision history: docs/ux/tickets/LAN-156-amend-and-cancel.md
  */
 
 type Step = "edit" | "review" | "silence";
@@ -106,10 +69,6 @@ export interface AmendAudience {
   saidYes: number;
   saidNo: number;
   noAnswer: number;
-}
-
-function issueFor(issues: readonly FieldIssue[], field: keyof RawEventDraft): string | undefined {
-  return issues.find((issue) => issue.field === field)?.message;
 }
 
 export default function AmendForm({
@@ -341,125 +300,26 @@ export default function AmendForm({
               </Notice>
             ) : null}
 
-            <Section title="Event">
-              <Stack spacing={3}>
-                <Field
-                  name="name"
-                  label="Name"
-                  defaultValue={value("name")}
-                  error={Boolean(issueFor(issues, "name"))}
-                  helperText={issueFor(issues, "name")}
-                />
-
-                {/*
-                  LAN-265, Brian 2026-09-09: "Amend does not change template."
-                  The control that used to sit here is gone rather than
-                  disabled — a greyed-out select on the one screen whose job is
-                  changing things reads as a fault. What kind of event this is
-                  is stated on the event page above; changing it means
-                  cancelling this event and creating the other one, because the
-                  audience, the questions and the cadence forty people were
-                  messaged on all came from the template.
-                */}
-                <input type="hidden" name="templateId" value={value("templateId")} />
-
-                <DateField
-                  name="scheduledOn"
-                  label="Date"
-                  value={scheduledOn}
-                  dateValue={scheduledDate}
-                  onDateChange={setScheduledDate}
-                  onChange={setScheduledOn}
-                  error={Boolean(issueFor(issues, "scheduledOn"))}
-                  helperText={issueFor(issues, "scheduledOn") || undefined}
-                />
-                <Typography variant="caption" color="text.secondary" aria-live="polite">
-                  {termLine}
-                </Typography>
-
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                  <TimeField
-                    name="startsAt"
-                    label="Start"
-                    value={startsAt}
-                    onChange={setStartsAt}
-                    error={Boolean(issueFor(issues, "startsAt"))}
-                    helperText={issueFor(issues, "startsAt") ?? CLUB_TIME_ZONE_NOTE}
-                  />
-                  <TimeField
-                    name="endsAt"
-                    label="End"
-                    value={endsAt}
-                    onChange={setEndsAt}
-                    error={Boolean(issueFor(issues, "endsAt"))}
-                    helperText={issueFor(issues, "endsAt")}
-                  />
-                </Stack>
-
-                <ChoiceField
-                  name="deliveryMode"
-                  label="Where it happens"
-                  value={deliveryMode}
-                  onChange={setDeliveryMode}
-                  row
-                  options={[
-                    { value: "in_person", label: "In person" },
-                    { value: "online", label: "Online" },
-                  ]}
-                />
-
-                <VenueField
-                  name="venue"
-                  value={venue}
-                  onValueChange={setVenue}
-                  errorMessage={issueFor(issues, "venue")}
-                />
-
-                {deliveryMode === "online" ? (
-                  <Field
-                    name="joiningUrl"
-                    label="Joining link"
-                    defaultValue={value("joiningUrl")}
-                    error={Boolean(issueFor(issues, "joiningUrl"))}
-                    helperText={issueFor(issues, "joiningUrl") ?? JOINING_URL_IS_PUBLIC_WARNING}
-                  />
-                ) : (
-                  <input type="hidden" name="joiningUrl" value="" />
-                )}
-
-                <Field
-                  name="description"
-                  label="Description"
-                  defaultValue={value("description")}
-                  multiline
-                  minRows={2}
-                />
-
-                {/* LAN-264. Free text that behaves exactly like Description. */}
-                <Field
-                  name="requiredEquipment"
-                  label="Required equipment"
-                  defaultValue={value("requiredEquipment")}
-                  helperText="What to bring. Leave empty if nothing."
-                  multiline
-                  minRows={3}
-                />
-
-                <ChoiceField
-                  name="attendance"
-                  label="Attendance"
-                  value={attendance}
-                  onChange={setAttendance}
-                  row
-                  error={Boolean(issueFor(issues, "attendance"))}
-                  helperText={issueFor(issues, "attendance")}
-                  options={[
-                    { value: "mandatory", label: "Mandatory" },
-                    { value: "optional", label: "Optional" },
-                  ]}
-                />
-              </Stack>
-            </Section>
+            <AmendEventFields
+              issues={issues}
+              value={value}
+              templateId={value("templateId")}
+              scheduledOn={scheduledOn}
+              scheduledDate={scheduledDate}
+              onScheduledDateChange={setScheduledDate}
+              onScheduledOnChange={setScheduledOn}
+              termLine={termLine}
+              startsAt={startsAt}
+              onStartsAtChange={setStartsAt}
+              endsAt={endsAt}
+              onEndsAtChange={setEndsAt}
+              deliveryMode={deliveryMode}
+              onDeliveryModeChange={setDeliveryMode}
+              venue={venue}
+              onVenueChange={setVenue}
+              attendance={attendance}
+              onAttendanceChange={setAttendance}
+            />
 
             <ActionBar
               primary={

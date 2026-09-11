@@ -109,3 +109,132 @@ was demonstrated. In summary:
   distinguishable, on both the People list and the queue.
 - The implementation review shows no unrecorded deviation from
   [`../slice-ux.md`](../slice-ux.md) or this contract.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/people/page.tsx — `PeoplePage` (file header)
+
+> `W1-01` … `W1-04` — the People list, its search, its two empty states and
+> the widened (outside-season) view. LAN-184, `REQ-person-record`.
+>
+> The list scopes to the season in view (`DEC-w1-01`): a season membership in
+> any status, a prospect record, a season-scoped role assignment, or a
+> committee-year role paired with that season by its shared label. Widening is
+> deliberate and reversible, per Brian's own ruling that the surface should
+> not sit in the wide view as a mode — it is `?scope=outside`, one link away
+> from the default in both directions.
+>
+> The desktop table and the phone cards render from the same `entries`, the
+> same idiom `roster/page.tsx` already uses, so the two can never drift apart.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/missing/page.tsx — `MissingDataPage` (file header)
+
+> `W7-01` … `W7-05`, `W7-07` — the missing-data queue. LAN-184,
+> `REQ-missing-queue`. Extended by `W8`/`W9`/`W11` (LAN-218) with two columns
+> — when each person was last contacted and what kind it was, and when the
+> machine will next write, or that it will not — and one action: select one
+> person or several, and nudge.
+>
+> Every person tied to the season in view (or, widened, outside it) with at
+> least one required fact absent, naming which facts per row and never a
+> value. `DEC-w7-07`, drawn deliberately rather than hidden: there is no
+> `refused` or `not applicable` state here, so a departed alumnus with no
+> personal email — `W7-07` — sits in this queue indefinitely until Mission 7
+> builds the state that would retire the row.
+>
+> `W8`'s own locked recommendation: this page defaults to onboarding players
+> only, with Mission 5's full shipped scope one click away
+> (`?players=all`) — a second, independent widen from the existing
+> in-season/outside-season one, because "everybody with missing data" and
+> "everybody, including people outside this season" answer different
+> questions.
+>
+> Correction round 1, `C-2` (Brian, 2026-09-03 walkthrough): no reachable
+> mobile number ranks first, above every other ordering this page applies —
+> see the comment beside the reachability sort below.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/missing/page.tsx — Inline: reachability sort (`MissingDataPage` body)
+
+> Correction round 1, `C-2` (Brian, 2026-09-03 walkthrough): "a missing
+> number, an incorrect number, or a number we can't contact means they're
+> out of the loop. That's a terrible problem" — a class-1 issue, because
+> everything runs on WhatsApp, and one the plain "how much is missing"
+> count already buries no higher than a missing degree subject. Applied
+> last, after every other ordering above (the operator's own explicit
+> Name/Missing sort, or the onboarding-only default), as a stable
+> partition — nobody with no reachable number's relative order among
+> themselves, or a fully-reachable person's, ever changes; only the two
+> groups swap which comes first. `Array.prototype.sort` has been a stable
+> sort since ES2019, so this is safe without a second key.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/page.tsx — `PersonRecordPage` (file header)
+
+> `W1-05` … `W1-12` — the person record, its restricted section, its
+> merged-away redirect and its history section. LAN-184, `REQ-person-record`,
+> `REQ-history-on-record`, `REQ-restricted-fields`.
+>
+> ## What is not on this page, and why
+>
+> `person-record.ts`'s `PersonRecord` — the frozen LAN-183 shape this package
+> calls rather than extends — carries `source` for a contact point and for an
+> alias, and for nothing else: `people.given_name`, `family_name`, `college`,
+> `matriculation_year`, `expected_graduation_year`, `degree_field` and
+> `date_of_birth` have no provenance column on `main`, and
+> `person_emergency_contacts.recorded_by_person_id` exists in the schema but
+> is not part of what `readPersonRecord()` returns.
+>
+> `Q-13` (Brian's walkthrough of this page at 2934b787, 2026-08-29): for
+> those same seven fields, `readPersonRecord()` now derives "who supplied it"
+> from `audit_events` instead of a stored column — the most recent
+> `person_<field>_updated` row `person-write.ts`'s `updatePersonField` wrote
+> naming this person. `DerivedBy` below renders that name where one was
+> found, and reads "not recorded" — plainly, not silently — where it was
+> not: a value that arrived by seed or import and was never edited through
+> the application has no such row. Almost nothing has been changed through
+> the application yet, so this renders sparsely today and becomes truthful as
+> the club uses it; that is the intended shape, not a gap. Inventing a
+> caption the data cannot back is still the false statement amendment
+> `W1-A2` struck the `Verified` mark for being — reading one back out of the
+> record's own history is not that. The emergency contact keeps carrying no
+> caption at all: its `recorded_by_person_id` column is real but still not
+> part of what this package reads, and stays a later package's decision.
+>
+> ## Redaction, applied even though nothing here can exercise it today
+>
+> `redactPersonRecord()` runs on every load. `person_record_authority` is
+> currently all-or-nothing — every category reads the same capability — so
+> `visible` equals `record` for every operator who reaches this page at all.
+> It runs anyway because `REQ-authority`'s "column visibility is a function
+> of category grants" is a property of this page's _code_, not of today's
+> capability map, and the day a coaching seat is granted `"contact"` this is
+> the line that has to already be here.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/page.tsx — Element: unclassified email row (now `identity-contact-sections.tsx`, `ContactSection`)
+
+> LAN-257 — `contact_points.scope` is null for an email nobody has
+> yet said is personal or college, which is exactly what
+> `/operate/roster/new` writes for a person it mints: its one field
+> is "Email", and guessing the scope from the domain would be
+> inventing data about a real person. Null is the truth, and the
+> missing-data queue is what fills it in — but until this row
+> existed the address the club held was on no screen at all, which
+> is the same invisible write LAN-257 is about. Rendered only when
+> there is one, so a classified record is unchanged.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/people/[personId]/page.tsx — Element: student number / BAFA rows (now `academic-restricted-sections.tsx`, `AcademicSection`)
+
+> LAN-267. Two personal facts under the same handling as the rest
+> of this section — shown here to an authorised operator, never on
+> a list, board or queue, and named in the privacy notice.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

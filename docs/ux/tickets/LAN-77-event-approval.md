@@ -138,3 +138,39 @@ ticket and are not the post-MVP configuration administration in LAN-106 either.
 | Audience proposed on the draft, frozen at approval     | [`../../adr/0022-audience-proposed-then-frozen.md`](../../adr/0022-audience-proposed-then-frozen.md)     |
 | The audience must be non-empty (E1b), and who enforces | [`../../adr/0012-explicit-event-audience.md`](../../adr/0012-explicit-event-audience.md)                 |
 | Who may approve                                        | `src/lib/auth/capabilities.ts` — one file, no inline role lists                                          |
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/[id]/page.tsx — `EventDetailPage` (module header)
+
+> ## Why they are all one route
+>
+> The screen registry gives every one of them `/operate/events/[id]`, and that
+> is not an oversight in the contract: they are states of one record. `?step=`
+> selects between the audience builder and the confirmation; `?approved=1`
+> reports the transition that just happened. The same device LAN-76 used for
+> UX-33.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/page.tsx — `EventDetailPage` (module header)
+
+> ## After Brian's LAN-76 clarification
+>
+> Draft actions are gated on `event_calendar_management` and approval on
+> `event_approval`. Any other linked operator can open this page and read the
+> event, and is offered nothing to press; the actions guard themselves
+> server-side regardless, so the hiding is a courtesy rather than the boundary.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/events/[id]/page.tsx — `EventDetailPage` (module header)
+
+> ## What this screen deliberately does not show
+>
+> Neither who entered the event nor where its schedule comes from. Brian read
+> both on the real screen and they answered questions nobody was asking. Both
+> are still recorded — `events.owner_person_id`, `events.origin`, and every
+> transition's actor in `audit_events`. What went is the display, not the record.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

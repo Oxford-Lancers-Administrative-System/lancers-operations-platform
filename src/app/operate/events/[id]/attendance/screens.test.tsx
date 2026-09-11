@@ -103,7 +103,8 @@ import {
   describeCoachLock,
   REGISTER_NOT_YET_HEADLINE,
 } from "./presentation";
-import AttendancePage, { filterParticipants } from "./page";
+import AttendancePage from "./page";
+import { filterParticipants } from "./attendance-filter-logic";
 import { AttendanceRow } from "./attendance-row";
 import EventDetailPage from "../page";
 

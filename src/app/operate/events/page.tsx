@@ -1,6 +1,5 @@
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
@@ -9,10 +8,8 @@ import {
   derivedEventState,
   EVENT_SORT_COLUMNS,
   EVENT_STATUS_FILTERS,
-  listCurrentSeasonEvents,
   listEventsForOperator,
   type EventList,
-  type EventListEntry,
 } from "@/lib/services/events";
 import { bucketedCount, bucketEventsByPeriod, PERIOD_LABELS } from "@/lib/services/event-periods";
 import { listEventTemplateOptions, type EventTemplateOption } from "@/lib/services/event-templates";
@@ -20,130 +17,26 @@ import { todayInClubZone } from "@/lib/club-time";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import PeriodSwitch from "@/app/calendar/period-switch";
 import { first, readListQuery, sortLinkFactory } from "@/app/calendar/query";
-import {
-  OPERATOR_CALENDAR_PATH,
-  OPERATOR_EVENT_TEMPLATES_PATH,
-  OPERATOR_EVENTS_PATH,
-} from "@/app/calendar/routes";
+import { OPERATOR_CALENDAR_PATH, OPERATOR_EVENTS_PATH } from "@/app/calendar/routes";
 import SubscribeToCalendarButton from "@/app/calendar/subscribe-dialog";
 import ViewSwitch from "@/app/calendar/view-switch";
 import { readEventYear } from "@/app/calendar/year";
 import { gateShellPage } from "../gate";
-import { CoachEligibleEvents } from "./coach-eligible-events";
 import CreateEventMenu from "./create-menu";
-import {
-  bucketCoachEvents,
-  isOpenForAttendance,
-  isToday,
-  londonToday,
-} from "./coach-event-buckets";
 import EventFilters from "./event-filters";
 import OperatorList from "./operator-list";
-import { DERIVED_STATE_LABELS, formatListWhen, labelFor, STATUS_LABELS } from "./presentation";
+import { EditTemplatesButton } from "./edit-templates-button";
+import { coachEventList } from "./coach-event-list";
+import { emptyMessage, emptyTestId, SORT_OPTIONS, statusLabel } from "./events-list-support";
 
 /**
  * UX-30 — the open season's events, as the operator reads them. LAN-153.
+ * Opens on **This month**, grouped into period tables (D84); season-scoped
+ * with no season selector; term/week reads the built academic year, never
+ * `events.week_number`, so it agrees with the public Oxford View.
  *
- * ## It opens on what is upcoming, and it groups
- *
- * D84 and Brian, 20 August 2026. The list no longer renders the whole season in
- * one flat run: it opens on **This month**, breaks what is in view into discrete
- * tables by period, and offers **All events** as the widest bucket with every
- * sort and every filter working there. Past events stay reachable and are never
- * the default. `@/lib/services/event-periods` owns the buckets, and the public
- * list is grouped by the same ones.
- *
- * ## Season-scoped, and no way to leave it
- *
- * The line under the heading names the season the club is operating, and there
- * is no season selector — `REQ-one-open-season`, and Brian, 21 August 2026: "we
- * know what calendar we're looking at." Which season that is comes from
- * `readCurrentSeason()`, and a club with none gets a refusal rather than last
- * year's events.
- *
- * ## Term and week comes from the calendar, not from the row
- *
- * `REQ-three-arrangements` requires the list and the Oxford View to agree about
- * when an event is, so both read one built academic year (`@/app/calendar/year`).
- * Reading `events.week_number` here instead would say "Outside term" for a
- * vacation event the calendar happily calls "Christmas Vacation 2" — the stored
- * column is constrained to −1..8 and cannot hold the second.
- *
- * ## Authorisation is in the service layer
- *
- * `listEventsForOperator` guards itself (`@/lib/auth/event-tier`). The gate below
- * and the layout's own check remain, and this is the third of three independent
- * refusals rather than a replacement for either — which is what `slice-ux.md`
- * § 4's "routes do not authorize" has to mean now that a public calendar exists.
- *
- * ## Three empty states, not one
- *
- * Filter-empty, period-empty and season-empty need different recovery, so they
- * say different things. `totalInSeason` is counted in the same transaction as
- * the list, so the two cannot disagree.
+ * Decision history: docs/ux/tickets/LAN-153-public-calendar-and-tiers.md.
  */
-
-/**
- * What the Status filter offers, and what each row's Status column says — Q-6.
- *
- * Brian, at the visual gate: "I want to be able to see the status on the status
- * filter, and I want to see the events that occurred, to easily be able to tell
- * which ones happened versus not." So **Occurred** is a fourth choice beside the
- * three stored states, and a past approved event reads `Occurred` in the column
- * rather than `Approved`.
- *
- * It stays derived. Nothing stores it, nobody asserts it, and the enum is still
- * three values (D30) — `EVENT_STATUS_FILTERS` lives beside `derivedEventState` in
- * the service layer for exactly that reason, so a reader who follows the word
- * arrives at the rule rather than at a column.
- */
-function statusLabel(event: EventListEntry, today: string): string {
-  const derived = derivedEventState(event, today);
-  return event.status === "approved" && derived === "occurred"
-    ? labelFor(DERIVED_STATE_LABELS, derived)
-    : labelFor(STATUS_LABELS, event.status);
-}
-
-/**
- * Colour is never the only carrier — every chip states its status in words.
- *
- * Keyed on the word the chip actually shows rather than on the stored status, so
- * an `Occurred` chip cannot be shaded as though it read `Approved`.
- */
-
-/**
- * A stopgap for one problem, and only that one — LAN-165.
- *
- * The mission's final workflow walk over `main` found that
- * `/operate/events/templates` works correctly — per-field inheritance, its
- * save preview, all seven types — and is reachable by nobody who does not
- * already know the address: nothing in the application links to it. Brian,
- * on being shown the screen: put a button here "for the time being."
- *
- * This is deliberately that and nothing more. It is not a considered
- * navigation decision — where template management belongs long-term (its own
- * area? folded into Administration?) is unexamined, and this button should
- * not be read as having settled it. It exists so the seven templates stop
- * being invisible today.
- *
- * Same outlined, small variant as `SubscribeToCalendarButton` immediately to
- * its right, so the row of three reads as one set rather than one control
- * styled apart from the other two — Brian's "white" described that existing
- * outlined button's treatment, not a request for a new style.
- */
-function EditTemplatesButton() {
-  return (
-    <Button
-      href={OPERATOR_EVENT_TEMPLATES_PATH}
-      variant="outlined"
-      size="small"
-      sx={{ minHeight: 44 }}
-      data-testid="edit-templates"
-    >
-      Edit templates
-    </Button>
-  );
-}
 
 export default async function EventsPage({ searchParams }: PageProps<"/operate/events">) {
   // LAN-110. The coach shell's one destination is this route, so it opts in —
@@ -299,115 +192,3 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
     </Stack>
   );
 }
-
-/**
- * Three empty states, distinguished, because the recovery differs.
- *
- * `slice-ux.md` § 9, and `W1`'s exception table: "nothing this week" is not
- * "nothing all season", which is not "nothing matching your filter". Each says
- * what is true and offers the smallest recovery the reader is authorized to
- * take — and none of them explains a rule.
- */
-function emptyTestId(list: EventList, filtered: boolean): string {
-  if (list.totalInSeason === 0) return "events-empty";
-  return filtered ? "events-filter-empty" : "events-period-empty";
-}
-
-function emptyMessage(
-  list: EventList,
-  filtered: boolean,
-  mayManage: boolean,
-  periodLabel: string,
-): string {
-  if (list.totalInSeason === 0) {
-    return mayManage
-      ? "This season has no events yet. Create the first one."
-      : "This season has no events yet.";
-  }
-  if (filtered) {
-    return "No event in this season matches those filters. Clear them to see the season’s events.";
-  }
-  return `Nothing in ${periodLabel.toLowerCase()}. Try a wider period.`;
-}
-
-/**
- * The coaching assignment's event list. LAN-110.
- *
- * It reads through `listCurrentSeasonEvents` — the same service, the same season
- * resolution, the same query — rather than through a second reader of its own,
- * and filters the statuses in `./coach-event-buckets.ts`. LAN-110's own criterion
- * is that "no code path duplicates LAN-80's attendance model", and a private
- * events query for coaches would be the first step towards two answers to "which
- * events are there".
- *
- * It reads the unguarded service call rather than `listEventsForOperator`, and
- * that is not a gap: the page's own gate has already resolved this coach as a
- * linked, active operator, and calling the guard again would resolve the same
- * session a second time to reach the same answer. What the coach may *see* is
- * narrowed below and in `./coach-event-buckets.ts`, which is where LAN-110 put
- * it — approved and occurred, no status from the query string, and none of the
- * counts.
- *
- * A function the page awaits rather than a component it returns. An async
- * component element returned from another async component is resolved by the
- * framework but not by a direct `render(await Page())`, so writing it that way
- * would have made the coach's list untestable at exactly the level the rest of
- * this screen is tested at.
- */
-async function coachEventList(search: string) {
-  let list: EventList;
-  try {
-    list = await listCurrentSeasonEvents({ search, sort: "date", direction: "desc" });
-  } catch (error) {
-    if (!isServiceError(error)) throw error;
-    return (
-      <UnavailableScreen title="Attendance" message={error.message} testId="events-unavailable" />
-    );
-  }
-
-  const today = londonToday();
-  // The card's open/not-open line is about an instant, not a day — W-F1. The
-  // sections are still bucketed by date; only the register's own question needs
-  // the clock.
-  const now = new Date();
-
-  return (
-    <CoachEligibleEvents
-      search={search}
-      filtered={search !== ""}
-      sections={bucketCoachEvents(list.events, today).map((bucket) => ({
-        key: bucket.key,
-        label: bucket.label,
-        detail: bucket.detail,
-        events: bucket.events.map((event) => ({
-          id: event.id,
-          name: event.name,
-          when: formatListWhen(event),
-          venue: event.venue,
-          isToday: isToday(event, today),
-          isOpen: isOpenForAttendance(event, now),
-        })),
-      }))}
-    />
-  );
-}
-
-/**
- * The sort choices, as the phone control needs them.
- *
- * Every column in the table, so the phone has the sorts the desktop headers
- * have — `REQ-list-shape`: "Every column sorts". **Term and week** is here and
- * resolves to the same SQL as Date, which is the requirement rather than a
- * shortcut.
- */
-const SORT_OPTIONS: readonly { value: string; label: string }[] = Object.freeze([
-  { value: "date", label: "Date" },
-  { value: "term", label: "Term and week" },
-  { value: "name", label: "Event name" },
-  { value: "type", label: "Type" },
-  { value: "venue", label: "Where" },
-  { value: "status", label: "Status" },
-  { value: "invited", label: "Invited" },
-  { value: "said_yes", label: "Said yes" },
-  { value: "showed", label: "Showed" },
-]);

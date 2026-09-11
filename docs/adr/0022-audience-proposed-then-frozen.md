@@ -88,3 +88,17 @@ enforce this: a player row's `person_id` is null and a committee row's
 - **Open:** amending an approved event's date does not recompute its invitations'
   deadlines, and adding a late invitee remains unbuilt. Both belong to the
   amendment workflow, which no issue owns yet — see LAN-77's owner clarification.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/events/[id]/page.tsx — `EventDetailPage` (module header)
+
+> ## Every step renders from stored rows
+>
+> The audience is saved against the draft before the confirmation is shown, so
+> the confirmation reads it back out of the database rather than receiving it
+> from the browser. That is what makes it survive **Edit draft**, a refresh, a
+> closed tab and a second operator — and it is why the only client component
+> here is the tick list itself.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

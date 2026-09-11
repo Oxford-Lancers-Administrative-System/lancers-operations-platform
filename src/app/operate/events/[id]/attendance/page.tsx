@@ -1,7 +1,5 @@
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { Refusal } from "@/components/refusal";
-import { Metric, MetricRow } from "@/components/metric";
 import { ArrivalNotice, OutcomeSlotProvider } from "@/components/outcome-slot";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -11,65 +9,41 @@ import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
-import {
-  readAttendanceBoard,
-  type AttendanceBoard,
-  type AttendanceParticipant,
-} from "@/lib/services/attendance";
+import { readAttendanceBoard, type AttendanceBoard } from "@/lib/services/attendance";
 import { gateShellPage } from "../../../gate";
 import { formatDetailWhen, labelFor, STATUS_LABELS } from "../../presentation";
 import { AttendanceFilters } from "./attendance-filters";
 import { AttendanceGroups } from "./attendance-groups";
 import { WalkUpForm } from "./walk-up-form";
+import { filterParticipants } from "./attendance-filter-logic";
+import {
+  AttendanceLocked,
+  CoachAttendanceLocked,
+  Counts,
+  RegisterNotOpenYet,
+} from "./attendance-locked-screens";
 import {
   ADD_WALK_UP,
   ATTENDANCE_HEADLINE_PREFIX,
-  ATTENDANCE_LOCKED_HEADLINE,
   COACH_BOARD_SUBTITLE,
-  COACH_LOCKED_HEADLINE,
-  describeCoachLock,
-  describeOperatorLock,
   COACH_RETURN_TO_ELIGIBLE,
   COMPLETE_ATTENDANCE,
-  describeRegisterOpensAt,
   NOBODY_INVITED,
   NO_MATCHING_PARTICIPANTS,
-  REGISTER_NOT_YET_HEADLINE,
   WALK_UP_ADDED,
 } from "./presentation";
 
 /**
- * The attendance surface — UX-71, UX-72, UX-73 and UX-74. LAN-80.
+ * The attendance surface — UX-71, UX-72, UX-73 and UX-74. LAN-80. One route,
+ * four states: the event's status chooses UX-71/UX-72, `?add=walk-up` opens
+ * UX-73, UX-74 corrects in place on its row. Gated on `attendance_recording`
+ * (four calendar roles, three coaching seats); every write re-resolves the
+ * operator and row-locks the event, so this gate is a courtesy, not the
+ * boundary. The payload never carries a decline reason, a contact detail, an
+ * availability/injury note, or a delivery diagnostic — not filtered, never
+ * selected, for either reader.
  *
- * ## One route, four screens, and the gate between them
- *
- * The screen registry gives all four `/operate/events/[id]/attendance`, and
- * that is not an oversight: they are states of one thing. The event's status
- * chooses between UX-71 and UX-72, `?add=walk-up` opens UX-73, and UX-74's
- * correction happens in place on the row it belongs to — see
- * `./attendance-row.tsx` for why that is not a fifth screen.
- *
- * ## Authorization, and the two things it is not
- *
- * The page gates on `attendance_recording` — the four calendar roles and the
- * three coaching seats. See `./actions.ts` for why it is that union, and for
- * the reading of § 8 this replaced: an ordinary-operator floor admitted an
- * ordinary player who happened to hold an operator account, which is the thing
- * LAN-80's own criterion says must be refused.
- *
- * That is not the boundary, and neither is this route. Every write re-resolves
- * the operator from the verified session inside its own server action, and the
- * service refuses any event that is not `occurred` after taking a row lock on
- * it. A page rendered a minute ago against an occurred event whose assertion has
- * since been corrected produces a refusal, not a write.
- *
- * ## What this page never puts in the payload
- *
- * A reason behind a "no", a contact detail, an availability or injury note, a
- * delivery diagnostic, or anything about the roster beyond a name. Not filtered
- * out here — never selected. `slice-ux.md` § 3 forbids every one of them on this
- * surface for a coach, and there is no second version of this payload for
- * anybody else, so the rule cannot be true on one path and false on another.
+ * Decision history: docs/ux/tickets/LAN-80-attendance.md · LAN-110-coach-attendance.md
  */
 export default async function AttendancePage({
   params,
@@ -272,118 +246,4 @@ export default async function AttendancePage({
       </Stack>
     </OutcomeSlotProvider>
   );
-}
-
-/**
- * The register's buffer, before it lifts — D71 and D72. LAN-152.
- *
- * One screen for both readers, unlike the two above. The reason those differ is
- * authority: an operator can go and assert occurrence and a coach cannot, so
- * the sentence has to change with who is reading it. Nobody can hurry a clock,
- * so this one says the same thing to everybody, and only the way back out
- * differs — a coach's route is their eligible events, not event administration
- * that would refuse them.
- */
-function RegisterNotOpenYet({
-  eventId,
-  status,
-  opensAt,
-  isCoachView,
-}: {
-  eventId: string;
-  status: string;
-  opensAt: string | null;
-  isCoachView: boolean;
-}) {
-  return (
-    <Box data-testid="register-not-open-yet" data-status={status}>
-      <Refusal
-        title={REGISTER_NOT_YET_HEADLINE}
-        message={describeRegisterOpensAt(opensAt)}
-        action={{
-          href: isCoachView ? "/operate/events" : `/operate/events/${eventId}`,
-          label: isCoachView ? COACH_RETURN_TO_ELIGIBLE : "Return to event",
-        }}
-      />
-    </Box>
-  );
-}
-
-/** UX-90 — the lock, told to somebody who cannot lift it. */
-function CoachAttendanceLocked({ status }: { status: string }) {
-  return (
-    <Box data-testid="coach-attendance-locked" data-status={status}>
-      <Refusal
-        title={COACH_LOCKED_HEADLINE}
-        message={describeCoachLock(status)}
-        action={{ href: "/operate/events", label: COACH_RETURN_TO_ELIGIBLE }}
-      />
-    </Box>
-  );
-}
-
-/** UX-71, and the state UX-75 leaves an event in permanently. */
-function AttendanceLocked({ eventId, status }: { eventId: string; status: string }) {
-  return (
-    <Box data-testid="attendance-locked" data-status={status}>
-      <Refusal
-        title={ATTENDANCE_LOCKED_HEADLINE}
-        message={describeOperatorLock(status)}
-        action={{ href: `/operate/events/${eventId}`, label: "Return to event" }}
-      />
-    </Box>
-  );
-}
-
-/** The four numbers a recorder actually wants: how many left, and what is odd. */
-function Counts({ board }: { board: AttendanceBoard }) {
-  const entries = [
-    { label: "Invited", value: board.invitedCount, testId: "count-invited" },
-    { label: "Recorded", value: board.recordedCount, testId: "count-recorded" },
-    { label: "Walk-ups", value: board.walkUpCount, testId: "count-walk-ups" },
-    { label: "Mismatches", value: board.mismatchCount, testId: "count-mismatches" },
-  ];
-
-  return (
-    <MetricRow columns={4}>
-      {entries.map((entry) => (
-        <Metric key={entry.label} value={entry.value} label={entry.label} testId={entry.testId} />
-      ))}
-    </MetricRow>
-  );
-}
-
-/**
- * The board's filters, applied in memory.
- *
- * In memory rather than in SQL because the list is one event's audience — tens
- * of people, already read in full to compute the counts above — and a recorder
- * switching filters mid-evening should not re-run a `full outer join` for it.
- * The counts deliberately describe the **whole** event rather than the filtered
- * view, so a filter never makes the club look like it invited fewer people.
- */
-export function filterParticipants(
-  participants: AttendanceParticipant[],
-  filters: { search: string; rsvp: string; attendance: string },
-): AttendanceParticipant[] {
-  const needle = filters.search.trim().toLowerCase();
-
-  return participants.filter((participant) => {
-    if (needle !== "" && !participant.displayName.toLowerCase().includes(needle)) return false;
-
-    if (filters.rsvp === "yes" && participant.rsvp !== "yes") return false;
-    if (filters.rsvp === "no" && participant.rsvp !== "no") return false;
-    if (filters.rsvp === "none" && participant.rsvp !== null) return false;
-
-    if (filters.attendance === "unmarked" && participant.presence !== null) return false;
-    if (
-      filters.attendance !== "" &&
-      filters.attendance !== "unmarked" &&
-      participant.presence !== filters.attendance
-    ) {
-      return false;
-    }
-
-    return true;
-  });
 }

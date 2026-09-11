@@ -730,3 +730,35 @@ carries the same `revoke all ... grant select, insert, update to service_role`
 posture LAN-169 shipped. Unknown, revoked, event-started and (for the durable
 credential) season-closed tokens remain publicly indistinguishable. Local
 Supabase only. No real message to any real person. Draft PR only.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/me/[token]/focused-panel.tsx — `FocusedPanel`
+
+> The one answer surface Q-21 requires, entered with the answer already
+> taken — restored to the full W2-03/W2-04 richness (Q-22): the event's own
+> facts, live social proof, the other-invitations notice, then the follow-up
+> a Yes or a No still owes.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/a/[token]/page.tsx — file header
+
+> The WhatsApp/email answer link — LAN-172, W2-01 through W2-04, Q-11's
+> release gate.
+>
+> ## This GET writes nothing at all
+>
+> Not even a use counter. `REQ-no-false-rsvp` requires the GET to be
+> entirely side-effect-free, which is stricter than LAN-79's own page (that
+> one bumps `rsvp_access_tokens.use_count` on every valid read) —
+> deliberately, because this is the one URL Meta's own click-tracking hop, a
+> corporate scanner and a link preview are all guaranteed to fetch before
+> any human does.
+>
+> The cookie that gates the POST is set by `src/proxy.ts`, not here — a
+> Server Component's render may not set cookies in this framework, and
+> routing that concern through the proxy is what keeps this file a pure
+> read.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

@@ -256,3 +256,59 @@ from` and `Events to`, over the same event date the When select narrows.** That 
   **Retryable**). No seed script, migration, or committed data changed — only a local database row
   on the throwaway preflight stack — and `delivery.test.ts` proves the corrected write path
   directly against a fresh dispatch.
+
+## Decision history relocated from source (LAN-300)
+
+### src/app/operate/admin/follow-ups/page.tsx — `FollowUpsPage` (file header)
+
+> The Follow-ups queue — W5, under Administration.
+>
+> ## One flat table, sorted soonest event first
+>
+> The approved mockup (W5-01) draws one continuous table — Person, Event,
+> When, Deadline, Where the chase has got to, Status — with the event name
+> repeated down the rows rather than a heading per event. "Grouped by event,
+> soonest first" (W5's own words) is the _sort_, not a second visual language:
+> `readFollowUpsQueue` already groups internally so a caller cannot read one
+> event's people out of order, and this page flattens that back to rows for
+> the one table W5-01 shows.
+>
+> ## Nobody compiles a list
+>
+> `T03-nonresponse-queue` is the whole of this page: `readFollowUpsQueue`
+> reads `nonresponse_queue`, a view that already exists, and shows it. There
+> is no button that builds this list and no action that refreshes it — it is
+> a reading of state, exactly as the participation table's Delivery column is.
+>
+> ## Any operator, not a further capability
+>
+> `gateShellPage` is called with no capability, matching `readFollowUpsQueue`'s
+> own floor (`requireGeneralOperator`) — the workflow names its primary actor
+> as "the President, and any operator working follow-ups", not a privileged
+> subset the way Operators and Roles are. Placement under Administration is
+> `DEC-administration-navigation`'s steer on where a low-frequency surface
+> belongs, not a narrower authority.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/follow-ups/page.tsx — Inline: period query-param default (`FollowUpsPage` body)
+
+> OWNER-LAN173-05. Unlike the Events list, an unrecognised or absent period
+> resolves to **All events** — this queue's own existing default — never to
+> "This month": defaulting a cross-event queue to a narrower window than it
+> has always shown would be changing what it selects, which the finding is
+> explicit this correction must not do.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/app/operate/admin/follow-ups/page.tsx — Inline: `from`/`to` range query params (`FollowUpsPage` body)
+
+> LAN-281. Clint asked for one date range over this list, keeping the
+> by-player organisation he said he likes — forward-looking as much as back
+> ("who's not responding to the stuff that we need them to respond to next
+> week?"). Anything that is not a calendar day is no boundary at all rather
+> than an error: a hand-edited URL narrows nothing instead of emptying the
+> queue with no way to see why. The two sides are independent, so one alone
+> is a perfectly good open-ended range.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
