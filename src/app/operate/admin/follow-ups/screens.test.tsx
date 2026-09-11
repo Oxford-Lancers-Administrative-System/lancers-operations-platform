@@ -283,7 +283,7 @@ describe("the queue itself", () => {
  * OWNER-LAN173-05: "at the very least, these columns should be sortable" —
  * reusing the participation table's own link-and-arrow mechanism
  * (`@/lib/services/participation-view`'s `sortColumnHref`/`sortColumnState`,
- * `SortableColumnHeading`) rather than a second one.
+ * `SortableHeader`) rather than a second one.
  */
 /**
  * The Person cell, by name rather than by position: LAN-322 put a selection

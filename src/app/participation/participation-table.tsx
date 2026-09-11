@@ -186,9 +186,6 @@ function DiscrepancyMark({ person }: { person: ParticipationPerson }) {
   );
 }
 
-// Kept as an export for the follow-ups queue; the kit owns the markup.
-export { SortableHeader as SortableColumnHeading } from "@/components/sortable-header";
-
 function SortableHeading({
   basePath,
   filters,

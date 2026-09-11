@@ -9,9 +9,10 @@ import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import { StatusChip } from "@/components/status-chip";
 import { DesktopOnly } from "@/components/row-card";
-// `SortableHeader` directly, not participation-table's `SortableColumnHeading`
-// alias for it: this table is inside a client component now, and that module
-// would pull the whole record-an-answer dialog into this page's bundle.
+// The kit's own heading, not the alias the participation table used to
+// re-export: this table is inside a client component now, and importing it
+// through that module would pull the whole record-an-answer dialog into this
+// page's bundle.
 import { SortableHeader, TableFrame } from "@/components/sortable-header";
 import { formatDeadline } from "@/app/operate/events/presentation";
 import { formatLongDate } from "@/lib/services/event-vocabulary";

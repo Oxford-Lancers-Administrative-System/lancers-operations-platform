@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { sendEventChases } from "@/lib/services/messaging-scheduler";
+import { CHASE_NOBODY_SELECTED } from "./presentation";
 
 /**
  * The Follow-ups queue's own action — LAN-322, built on
@@ -38,7 +39,7 @@ export async function chaseSelectedAction(
 
   const ids = Array.from(new Set(invitationIds.filter((id) => id.trim() !== "")));
   if (ids.length === 0) {
-    return { ...EMPTY, error: "Select at least one person to chase." };
+    return { ...EMPTY, error: CHASE_NOBODY_SELECTED };
   }
 
   try {
