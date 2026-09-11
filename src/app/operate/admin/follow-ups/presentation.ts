@@ -59,6 +59,21 @@ export function chaseProblemNotice(refused: number): string {
 
 export const CHASE_NOBODY_SELECTED = "Select at least one person to chase.";
 
+/**
+ * How many refused people a notice names before it counts the rest.
+ *
+ * Measured at 375px against the seeded queue: a select-all over 559
+ * outstanding people refused every one of them (nothing is configured to send
+ * locally) and the notice became a wall of names nobody could read. The count
+ * is already in the sentence above them, so the names are there to start the
+ * operator somewhere, not to be the list.
+ */
+export const REFUSALS_NAMED = 5;
+
+export function andMore(remaining: number): string {
+  return remaining === 1 ? "and 1 more" : `and ${remaining} more`;
+}
+
 /** `REQ-never-harsh`: a recruit gets one invitation and at most one follow-up, so the queue offers no chase against one. */
 export const NOT_CHASEABLE = "Recruit — not chased from here";
 

@@ -1,7 +1,6 @@
 import Checkbox from "@mui/material/Checkbox";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -10,10 +9,12 @@ import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import { StatusChip } from "@/components/status-chip";
 import { DesktopOnly } from "@/components/row-card";
-import { TableFrame } from "@/components/sortable-header";
+// `SortableHeader` directly, not participation-table's `SortableColumnHeading`
+// alias for it: this table is inside a client component now, and that module
+// would pull the whole record-an-answer dialog into this page's bundle.
+import { SortableHeader, TableFrame } from "@/components/sortable-header";
 import { formatDeadline } from "@/app/operate/events/presentation";
 import { formatLongDate } from "@/lib/services/event-vocabulary";
-import { SortableColumnHeading } from "@/app/participation/participation-table";
 import {
   followUpsSortHref,
   followUpsSortState,
@@ -48,7 +49,7 @@ function FollowUpsHeading({
 }) {
   const { active, direction } = followUpsSortState(filters, column);
   return (
-    <SortableColumnHeading
+    <SortableHeader
       column={column}
       label={label}
       href={followUpsSortHref(filters, column)}
@@ -118,7 +119,7 @@ export default function FollowUpsTable({
                 ) : null}
                 <TableCell data-cell="person" sx={{ fontWeight: 600 }}>
                   {selection.mayOpenPerson ? (
-                    <Link href={personHref(row)} underline="hover" color="inherit">
+                    <Link href={personHref(row)} underline="hover">
                       {row.personName}
                     </Link>
                   ) : (
@@ -126,7 +127,7 @@ export default function FollowUpsTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  <Link href={eventHref(row)} underline="hover" color="inherit">
+                  <Link href={eventHref(row)} underline="hover">
                     {row.eventName}
                   </Link>
                 </TableCell>
@@ -152,17 +153,15 @@ export default function FollowUpsTable({
                 {selection.mayChase ? (
                   <TableCell>
                     {row.chaseable ? (
-                      <Stack direction="row" spacing={1}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          disabled={selection.pending}
-                          onClick={() => selection.chase([row.invitationId])}
-                          sx={{ minHeight: 44 }}
-                        >
-                          Chase
-                        </Button>
-                      </Stack>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={selection.pending}
+                        onClick={() => selection.chase([row.invitationId])}
+                        sx={{ minHeight: 44 }}
+                      >
+                        Chase
+                      </Button>
                     ) : (
                       <Typography variant="body2" color="text.secondary">
                         {NOT_CHASEABLE}

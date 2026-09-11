@@ -9,7 +9,13 @@ import FollowUpsCards from "./follow-ups-cards";
 import FollowUpsTable from "./follow-ups-table";
 import type { FollowUpsFilters, QueueRow } from "./queue-filters";
 import type { QueueSelection } from "./row-links";
-import { chaseButtonLabel, chaseProblemNotice, chaseSentNotice } from "./presentation";
+import {
+  andMore,
+  chaseButtonLabel,
+  chaseProblemNotice,
+  chaseSentNotice,
+  REFUSALS_NAMED,
+} from "./presentation";
 
 /**
  * The queue's board — LAN-329 and LAN-322, on `/operate/people/missing`'s own
@@ -77,11 +83,13 @@ export default function FollowUpsBoard({
     chase,
   };
 
-  const namesFor = (ids: readonly string[]) =>
-    rows
-      .filter((row) => ids.includes(row.invitationId))
-      .map((row) => row.personName)
-      .join(", ");
+  const namesFor = (ids: readonly string[]) => {
+    const named = rows.filter((row) => ids.includes(row.invitationId)).map((row) => row.personName);
+    const shown = named.slice(0, REFUSALS_NAMED);
+    return named.length > shown.length
+      ? `${shown.join(", ")} ${andMore(named.length - shown.length)}`
+      : shown.join(", ");
+  };
 
   return (
     <Stack spacing={2}>

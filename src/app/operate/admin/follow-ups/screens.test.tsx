@@ -614,6 +614,35 @@ describe("chasing several people from the queue — LAN-322", () => {
     );
   });
 
+  it("counts the rest rather than printing every name, when a whole queue is refused", async () => {
+    // Measured at 375px against the seeded database: a select-all refused 559
+    // people and the notice became an unreadable wall of names.
+    const many = Array.from({ length: 12 }, (_, index) => ({
+      ...HAWKS.people[0],
+      invitationId: `invitation-many-${index}`,
+      personId: `person-many-${index}`,
+      personName: `Refused Person ${index}`,
+    }));
+    vi.mocked(readFollowUpsQueue).mockResolvedValue([{ ...HAWKS, people: many }]);
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 0,
+      refusedInvitationIds: many.map((person) => person.invitationId),
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(screen.getAllByLabelText("Select Refused Person 0")[0]);
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() => expect(screen.getByTestId("chase-refused")).not.toBeNull());
+    const notice = screen.getByTestId("chase-refused").textContent ?? "";
+    expect(notice).toContain("12 people could not be chased");
+    // Five names, in the order the queue itself lists them, then the count.
+    expect(notice).toContain("Refused Person 0");
+    expect(notice).toContain("and 7 more");
+    expect(notice).not.toContain("Refused Person 9");
+  });
+
   it("carries the same selection and chase on the phone card, not only the desktop table", async () => {
     await renderPage();
     const card = screen.getAllByTestId("follow-ups-card")[0];

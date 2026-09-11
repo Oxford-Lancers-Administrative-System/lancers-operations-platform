@@ -40,7 +40,7 @@ export default function FollowUpsCards({
           testId="follow-ups-card"
           title={
             selection.mayOpenPerson ? (
-              <Link href={personHref(row)} underline="hover" color="inherit">
+              <Link href={personHref(row)} underline="hover">
                 {row.personName}
               </Link>
             ) : (
@@ -66,7 +66,7 @@ export default function FollowUpsCards({
             />
           }
           sublines={[
-            <Link key="event" href={eventHref(row)} underline="hover" color="inherit">
+            <Link key="event" href={eventHref(row)} underline="hover">
               {row.eventName}
             </Link>,
             <FactGrid key="facts" columns={2}>
