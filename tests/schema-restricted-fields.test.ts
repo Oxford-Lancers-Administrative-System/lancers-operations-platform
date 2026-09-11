@@ -27,7 +27,7 @@
  * has never read the packet. A later change that joins the table into an
  * audience query fails a test rather than shipping.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -43,35 +43,51 @@ const servicesDir = path.join(repoRoot, "src", "lib", "services");
  * mention a new one is a smaller risk than it silently covering nothing.
  */
 const REACHES_PEOPLE = [
-  "audience-selection.ts",
-  "event-audience.ts",
-  "event-approval.ts",
-  "delivery.ts",
-  "messaging-schedule.ts",
-  "messaging-scheduler.ts",
-  "follow-ups.ts",
-  "weekly-report.ts",
-  "administration-directory.ts",
-  "roster.ts",
-  "membership.ts",
-  "rsvp.ts",
-  "rsvp-tokens.ts",
-  "player-home.ts",
+  "audience-selection",
+  "event-audience",
+  "event-approval",
+  "delivery",
+  "messaging-schedule",
+  "messaging-scheduler",
+  "follow-ups",
+  "weekly-report",
+  "administration-directory",
+  "roster",
+  "membership",
+  "rsvp",
+  "rsvp-tokens",
+  "player-home",
 ];
 
 const RESTRICTED = ["person_emergency_contacts", "date_of_birth"];
 
+/**
+ * A service is one file (`name.ts`) or, since LAN-300 split the large ones,
+ * a directory of siblings behind a barrel (`name/index.ts`). Either way the
+ * whole module's source is what must stay clear of the restricted fields.
+ */
+function moduleSource(service: string): string {
+  const single = path.join(servicesDir, `${service}.ts`);
+  if (existsSync(single)) return readFileSync(single, "utf8");
+  const dir = path.join(servicesDir, service);
+  return readdirSync(dir)
+    .filter((entry) => entry.endsWith(".ts") && !entry.endsWith(".test.ts"))
+    .sort()
+    .map((entry) => readFileSync(path.join(dir, entry), "utf8"))
+    .join("\n");
+}
+
 describe("the restricted person fields are locked down structurally", () => {
   it("names modules that actually exist, so this list cannot rot into a no-op", () => {
-    const present = new Set(readdirSync(servicesDir));
-    for (const file of REACHES_PEOPLE) {
-      expect(present.has(file), `${file} is named here but not in the repository`).toBe(true);
+    const present = new Set(readdirSync(servicesDir).map((entry) => entry.replace(/\.ts$/, "")));
+    for (const service of REACHES_PEOPLE) {
+      expect(present.has(service), `${service} is named here but not in the repository`).toBe(true);
     }
   });
 
   for (const file of REACHES_PEOPLE) {
     it(`${file} reaches no restricted field`, () => {
-      const source = readFileSync(path.join(servicesDir, file), "utf8");
+      const source = moduleSource(file);
       // Comments stripped: a module is allowed to explain why it does not read
       // these, and an explanation must not read as a violation.
       const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");

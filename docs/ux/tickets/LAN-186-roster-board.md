@@ -276,3 +276,140 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > prohibit.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/roster-board.ts — module header
+
+> ## Why this is a new module rather than an addition to `membership.ts`
+>
+> The mission's collision plan runs this package beside `WP-people-read`
+> (LAN-184) on disjoint files, and both packages call the substrate LAN-183
+> built rather than editing it. This module adds nothing to `membership.ts`,
+> `person-record.ts` or any other existing service file — it is a new file
+> that _reads_ `listCurrentSeasonRoster()` for the base roster and adds the
+> seven columns Task 08 §5 puts on the board and LAN-186 takes as scope:
+> positions, jersey numbers, coach group, formalwear, Blues, eligibility and
+> availability. All seven have storage on `main` already (LAN-182); nothing
+> here is a migration.
+>
+> ## The three decisions this module encodes, verbatim from the issue
+>
+> 1. **Positions are three single-select columns, not one multi-select one.**
+>    `Q-9`, 2026-08-28: "Doesn't need to be multi-tick, but we do need one
+>    offense, one defense, and one special teams in the columns as is."
+>    Offence and defence map directly onto `position_slot`'s `offence` and
+>    `defence` values — S1 already permits at most one current assignment per
+>    slot, so nothing about the constraint changes. **Special teams is the one
+>    genuine application decision this package takes**: the schema gives
+>    special-teams positions four independent slots (`kickoff`, `kick_return`,
+>    `punt`, `field_goal`), each individually one-current-per-slot under S1,
+>    but Brian asked for _one_ Special-teams value in _one_ column. This module
+>    therefore treats "this membership's special-teams assignment" as a single
+>    board-level concept: setting a new value closes every currently-open
+>    special-teams row for that membership (whichever of the four slots it
+>    was in) and opens one new row in the slot the chosen position implies.
+>    That is an application-level narrowing of what the schema would allow,
+>    not a database change, and it is the reading the issue's own words call
+>    for ("one special teams in the columns as is").
+>
+> 2. **The vocabulary is read from the season, never hardcoded.** Invariant
+>    S3: a position's vocabulary is a foreign key to the season's own. Every
+>    option this module offers comes from `readPositionOptions()`, which joins
+>    `positions` to `seasons.position_vocabulary_id`.
+>
+> 3. **Every change supersedes by effective dating (S4); nothing is deleted.**
+>    Positions and eligibility close the current row's `effective_to` before
+>    opening a new one, inside the same transaction as the insert. Jersey
+>    numbers do the same per number: unticking closes a row, it is never
+>    dropped. Availability is append-only by the schema's own design (A1), so
+>    a change is always a new row and never an update.
+>
+> ## What this module does not decide
+>
+> `is_predominant` (jersey), the football meaning of a coach group, and what a
+> position _means_ on the field are Mission 9's. Where a value needs a
+> sensible default with no UI of its own — `is_predominant` is one — this
+> module keeps the schema honest (at most one predominant row per kit, per
+> `jersey_assignments_one_predominant_per_kit`) by promoting the lowest
+> current number automatically; it never asks the operator to choose one, and
+> the README on `chore/roster-fidelity-mockup` is explicit that choosing it
+> belongs on player detail's fuller editor.
+>
+> `Eligibility` is rendered against the `club_play` competition specifically —
+> a documented reading of a column the mockup and photographs never populate,
+> chosen because it is the one competition scope every player needs regardless
+> of which representative sides they may also qualify for. Widening the column
+> to show every competition is a later, deliberate UI decision, not a service
+> limitation.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/membership.ts — module header
+
+> ## Why this is a separate module from `roster.ts`
+>
+> `roster.ts` is intake: one operator entering one returning player, and the
+> dedupe decision that precedes it. This is what happens to a membership
+> afterwards — reading the season's roster, resolving onboarding, and declaring
+> a player operationally ready. Two different questions, two different sets of
+> rules, and only one of them is privileged.
+>
+> ## The transitions — a free ladder, LAN-186's owner walkthrough
+>
+> There is no transition table any more. `MEMBERSHIP_TRANSITIONS` and
+> `transitionIsLegal` were removed on Brian's explicit decision at the
+> walkthrough of `feat/lan-186-roster-board`, recorded verbatim as `Q-12` in
+> the `M-PEOPLE-AND-ROSTER` mission journal: "Okay, then we just remove it. We
+> can flip to whatever status we want to go in." Any of the five statuses may
+> become any other, `archived` included — a status a membership could
+> previously never reach by any built path. Nothing asks a reason and nothing
+> confirms first (a warn-only confirmation on `onboarding → active` was
+> proposed and then withdrawn in the same walkthrough, journal event 132's
+> correction).
+>
+> What still governs a flip is not legality but two dated-field checks the
+> database itself enforces and this module honours rather than renegotiates —
+> see `setMembershipStatus()`. `season_membership_status_events` stays the
+> complete, append-only record of every flip regardless of the sequence, which
+> is what Brian's own test for the decision asked for: "We can still get an
+> audit history to know what happened, right?"
+>
+> ## The one interpretation this module makes, and why
+>
+> The approved wireframes decide where onboarding items come into existence.
+> UX-20 lists two memberships whose status reads **Confirmed** and whose
+> onboarding column reads "2 outstanding" and "3 outstanding"; UX-21 shows a
+> **Confirmed** membership with four of five items resolved and
+> "Activate membership" as its primary action. So in the approved interface a
+> membership carries its items while it is still `confirmed`, and activation
+> starts from there.
+>
+> That is what is built:
+>
+> 1. **Items are generated at confirmation**, from the season's configured
+>    types — `generateOnboardingItems()`, called inside the intake
+>    transaction in `roster.ts`. LAN-75's first acceptance criterion is
+>    "confirming a membership generates its onboarding items ... once,
+>    idempotently", and this is that sentence, literally.
+> 2. **The status stays `confirmed`** until somebody activates, which is what
+>    the wireframes show and what LAN-74's already-accepted intake produces.
+> 3. **Activation from `confirmed` writes both transitions** — the system's
+>    `confirmed → onboarding` and then the operator's `onboarding → active`.
+>    No state is skipped, so the status history reads exactly as §2.1's
+>    machine says it must, and a membership already sitting in `onboarding`
+>    (the seed has two) activates through the same call with one row instead
+>    of two.
+>
+> The alternative — moving a membership to `onboarding` the instant it is
+> confirmed — would have contradicted the approved screens and changed the
+> terminal status LAN-74 shipped and had accepted. This reading satisfies both.
+>
+> ## Subscriptions are never a gate
+>
+> Register D10, and the frozen model's own emphasis: "subs are structurally
+> _not_ a gate (invoices go out in second term; special arrangements exist)".
+> `outstandingRequiredItems()` therefore excludes any item type flagged
+> `is_subscription`, whatever its status and whatever `is_required` says about
+> it. There is deliberately no configuration that could turn that back on, and
+> a test proves an unpaid subscription does not appear in the outstanding set.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

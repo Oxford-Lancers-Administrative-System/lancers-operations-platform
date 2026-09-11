@@ -158,3 +158,60 @@ that address appeared on no screen at all. The record now carries an
 - Keyboard focus, labels, status meaning, error association, and touch targets are accessible.
 - No inaccessible data is present in the DOM or response payload for an unauthorized role.
 - The implementation review shows no unrecorded deviation from [`../slice-ux.md`](../slice-ux.md).
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/services/roster.ts — module header
+
+> ## What this module is for
+>
+> One authorized operator enters a returning player, by hand, on a phone, and
+> the application mints the durable and seasonal identifiers together: a
+> `people` row (or a person the operator explicitly picked), its contact
+> points, and one `season_memberships` row in the open season carrying
+> `entry = 'returning'`.
+>
+> ## The two rules that shape every function here
+>
+> **1. Nothing is written until a human has decided who this is.** Requirement
+> 2 asks for a verified path that dedupes against existing Persons _before_
+> creating anything, and the reason is in the source data: 26% of the current
+> squad is recorded by first name only, and there is no stable join key
+> anywhere in the club's files. So `findPersonCandidates()` is a separate,
+> read-only call, and `enterReturningPlayer()` refuses to guess — it takes an
+> explicit `decision` naming either an existing person or a deliberate new one.
+> There is no code path through this module that creates a person because
+> nothing matched. "Nothing matched" is still an operator's call to make.
+>
+> **2. Contact detail is stored exactly as it was typed.**
+> `docs/architecture/data-model.md` is explicit — "Raw intake is stored
+> unvalidated by design; normalisation is separate and reversible" — and the
+> schema comment on `contact_points.raw_value` says the same. A reversed TLD, a
+> trailing space and a missing leading zero are all real defects in the club's
+> files, and rejecting or silently repairing them loses the contact entirely.
+> So `raw_value` receives the operator's string byte-for-byte. Trimming and
+> case-folding happen **only** to compare, never to store.
+>
+> The one deliberate exception is the name fields, which the database itself
+> constrains to be non-blank and which are identity rather than contact detail;
+> those are trimmed. That asymmetry is intentional and is stated here so it is
+> not "fixed" later.
+>
+> ## Where the transition record lives
+>
+> The membership transition — `null → onboarding`, and since LAN-182 that is
+> the only one an intake writes — is written to
+> `season_membership_status_events`, which is the typed first-class home the
+> frozen model gives it, and it carries the acting operator as
+> `actor_person_id`. It is deliberately **not** duplicated into
+> `audit_events`: register D9 refuses that, the `audit_events` table comment
+> says so, and `recordAudit`'s own documentation repeats it.
+>
+> `audit_events` receives the two facts that have no typed home — that this
+> operator minted a durable identity, and that this operator completed a
+> returner intake and confirmed the membership. Neither carries `from_state` or
+> `to_state`, so neither restates a transition the typed table already owns.
+> `public.transition_ledger` reads both streams as one. This reconciliation is
+> recorded in the pull request; see LAN-74's acceptance criteria.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

@@ -334,3 +334,75 @@ head, and additionally rendered `/operate/roster` and
 `/operate/roster/[membershipId]` unchanged — the shared `record-shell.tsx` is
 what the record's own fix runs through, and the roster is Brian's live
 working surface, so both were re-confirmed rather than assumed.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/services/recruitment-prospect.ts — module header
+
+> ## Where the send machinery lives
+>
+> {@link sendRecruitmentQuestionnaireIn} is a thin wrapper around
+> `declareRecruitmentCycleJobsIn` (LAN-203) — the amendment of 2026-09-01 is
+> explicit that this package calls that function rather than writing a
+> second one. LAN-237 makes an operator request track-selective and due
+> immediately. The automatic ask/reminder slots stay idempotent; an operator
+> resend reuses the ask slot without accelerating its scheduled reminder.
+> The existing delivery attempt ceiling, consent and completion gates remain.
+>
+> ## What "sent" and "last sent" mean here
+>
+> Never `recruitment_prospects`' own optimistic field — there is none —
+> and never `notification_jobs.status` alone, which this package was told
+> not to read the completion semantics of. `delivery_attempts.accepted_at`
+> is the one fact that means a message actually reached the provider: it is
+> set only from `dispatchRecruitmentCycleJob`'s own accepted branch, after
+> the sweep has claimed the job and the local sink (or Meta) has returned
+> success. Reading it here, rather than `notification_jobs` alone, is what
+> satisfies the amendment's "must reflect real sends… read from the job or
+> delivery record."
+>
+> ## LAN-215, `W3` — the far side of the flip (from `flipRecruitmentProspectToJoinedIn`'s own doc comment)
+>
+> Four more things happen here, inside this same transaction, none of them
+> drawing a new surface (`acceptance/W3.md`, "this workflow draws no new
+> surface and no new card"):
+>
+> - **Availability is set to Green** — B-008, Brian this session: "When a
+>   player gets added into the board, their availability should be flipped
+>   to green by default." Via `commitAvailability`, never a hand-written
+>   insert; the operator performing the flip is recorded as both reporter
+>   and confirmer, `availability_statuses_green_records_its_confirmer`'s
+>   unconditional requirement. `effectiveFrom` is `committedOn`, not
+>   necessarily today — a prospect's `committed_on` can predate the flip
+>   itself, and the availability row has to carry the same joining date the
+>   membership does.
+> - **The recruit's open link is superseded, audited** — `S13`,
+>   `T11-supersede-on-conversion`, and the one-open-ask-per-person
+>   invariant. Whatever durable, non-purposed `person_access_tokens` row
+>   was live for this person and season (their sign-up-form link) is
+>   revoked; a live row and a count of zero are both legitimate — a
+>   recruit whose link had already gone dead, or was never issued, is
+>   still audited as "nothing to supersede" rather than skipped silently.
+>   The onboarding link itself is minted later, at the welcome's own
+>   dispatch (`dispatchOnboardingWelcomeJob`), on exactly the pattern
+>   `dispatchRecruitmentCycleJob` already uses for the recruit's own
+>   doors — never here, because a plaintext token cannot be recovered
+>   once minted and this transaction has no message to put it in yet.
+> - **The welcome is queued** — `emitOnboardingOpenedWelcomeIn`, the same
+>   emitter W1 and W2 call, on the same idempotency key shape
+>   (`onboarding-welcome:<membershipId>`). One template, door-independent
+>   (`REQ-one-welcome`). This _is_ "fires `onboarding-opened`": the welcome
+>   is the trigger, not a separate event the emitter's own doc comment
+>   names as belonging to none of W1/W2/W3.
+> - **Consent is touched by nothing here** — `season_messaging_consents`
+>   is unique per `(person_id, season_id)`, so the row the recruit granted
+>   at the door already _is_ their consent for this season. This function
+>   reads it nowhere and writes it nowhere; there is nothing to copy and
+>   nothing to re-ask.
+>
+> A failure in either of the first two rolls the whole flip back — a
+> membership that exists with no checklist, or a live recruit link beside a
+> live onboarding one, is the failure this exists to avoid (`W3`'s own
+> exceptions table).
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

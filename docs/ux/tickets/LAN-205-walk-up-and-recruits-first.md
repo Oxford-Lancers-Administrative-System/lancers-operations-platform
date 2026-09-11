@@ -167,3 +167,94 @@ Re-proved, at the head carrying the OWNER-WALKUP-GROUP-ORDER correction,
 against the same seeded event with a real recruit and a real walk-up both
 present, confirming Recruits, then Walk-ups, then Attending, at both
 viewports.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/services/attendance.ts — `RECRUIT_ROSTER_QUERY`
+
+> Every recruit on the board this season, for a recruitment event's sheet
+> only — Brian, 2026-09-01, on the running fidelity mockup (LAN-200):
+> "if a recruit is already in our system and we're at a recruitment event,
+> all recruits should already be on the page for the event. If they happen
+> to show up, I'll mark them as present, even if they didn't RSVP." — W12's
+> own "recruits first" is therefore not an invitation filter the way a
+> player's row is; a recruit belongs on the sheet by virtue of being an open
+> or recently-exited prospect for this season, invited to this particular
+> event or not.
+>
+> `joined` is excluded — a converted prospect is a player now, tracked by
+> their season membership like anybody else, and would otherwise show twice.
+> `void` is excluded on the schema's own steer (`prospect_status`'s comment:
+> "whether a void record shows on the board is a display rule … decided by a
+> later package" — this one): a void row says the record itself is wrong,
+> never a fact about the person, so it names nobody to put on a sheet.
+> Every other status stays, `declined` and `disengaged` included — "an exit
+> status is not a gate on the door: somebody who declined can still turn up,
+> and the club records that they did."
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/attendance.ts — `recordWalkUpAttendance`
+
+> ## What changed, and who decided it
+>
+> Brian, 14 August 2026, reviewing the built screen. The first version captured
+> a single name and an optional contact and wrote nothing but a `people` row,
+> on his 12 August decision that the recruitment workflow must not be launched
+> at the side of a pitch. Looking at it, he changed his mind about where the
+> person lands: "add walk-on attendance should go in like a new person is being
+> added, not in the roster, not in the season roster, but in the person in the
+> recruitment… they're not on the team yet. That's how they're a walk-on."
+>
+> LAN-85 still owns everything after this point — following the prospect up,
+> converting them, and what the club does with them across future events. What
+> this owes that work is a person with a number and a record saying where they
+> came from, which is what it now leaves behind.
+>
+> ## Which capacity, and why it moved
+>
+> `recruit`, anchored to the person. It used to be `guest`, and the reason
+> given was that "`recruit` asserts the club is recruiting them, which is a
+> judgement nobody made at the moment somebody wrote a name on a phone". That
+> judgement is now exactly what the form makes: the same act creates the
+> prospect record. `guest` would leave the attendance row disagreeing with the
+> recruitment row about what this person is.
+>
+> There is no longer a roster-match path. It offered to anchor the row to an
+> existing membership at `player` capacity, and Brian removed it — "they know
+> who's on their roster, there are only 40 people". A walk-on is now always a
+> new person; a duplicate is reconciliation's problem, which is what the
+> prospect record exists for.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/attendance.ts — `authoriseWalkUpMessagingIn`
+
+> Two acts, both inside the walk-up's own transaction so the recruit,
+> their consent and the cycle's jobs are one atomic write:
+>
+> 1. **Records the opt-in.** The verbal read-back at the touchline is this
+>    door's whole consent model — `messaging-consent.ts`'s own module note
+>    names `walk_up_read_back` as a source that module deliberately never
+>    writes, "a different package's own write". This is that write: granted,
+>    dated now, attributed to the operator who took the read-back.
+> 2. **Declares the cycle's jobs.** `declareRecruitmentCycleJobsIn`
+>    (LAN-203) turns the now-granted consent into `notification_jobs` rows
+>    for whichever tracks are still incomplete — never a second template
+>    registry, never a second send loop, per the amendment's own words. A
+>    brand new walk-up recruit has just been granted consent via
+>    `walk_up_read_back`, so `readRecruitmentCycleCompletionIn`'s
+>    `welcomeStepComplete` reads false for them (LAN-205's own fix to that
+>    function) and the welcome track is declared — the one template this
+>    door's read-back authorises. Nothing else is ever declared here: a
+>    recruit already through the sign-up form is not created by this
+>    function, and the questionnaire track waits on Questionnaire B, which
+>    this door does not ask.
+>
+> Nothing here calls a provider, so a walk-up capture never blocks on a
+> network round trip, and a recruit whose number cannot be delivered to is
+> still fully captured — the job simply fails at dispatch time, terminally,
+> exactly as `dispatchRecruitmentCycleJob` already handles for every other
+> unreachable recipient.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

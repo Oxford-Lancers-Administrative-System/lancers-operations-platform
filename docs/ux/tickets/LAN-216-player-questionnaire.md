@@ -246,3 +246,61 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > a new colour convention.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/player-questionnaire.ts — module header (top of file)
+
+> /**
+>
+> - The player-facing questionnaire's own domain logic — `WP-player-questionnaire`,
+> - LAN-216, W4 and W5. Everything `/me/[token]/details` reads and writes lives
+> - here, so the route itself stays a thin resolve-throttle-render/redirect
+> - shell, matching `src/lib/services/README.md` rule 1: business rules live in
+> - a service, never in a route handler.
+> -
+> - ## What this module does not rebuild
+> -
+> - Every read and write below composes substrate this mission's earlier
+> - packages already shipped — `person-record.ts`, `person-write.ts`,
+> - `person-fact-dispute.ts`, `messaging-consent.ts`, `onboarding-ask.ts`,
+> - `onboarding-agreements.ts`, `membership.ts`'s `claimOnboardingItem`, and
+> - `onboarding-item-history.ts`/`onboarding-activity-log.ts`. This module adds
+> - exactly two things neither of them exposes:
+> -
+> - 1.  **The provenance-aware write** for the seven `people` columns
+> -      `person_fact_disputes` used to scope its now-removed dispute mechanism
+> -      to (B-002, correction round 2, Q-9) — direct write in every case: when
+> -      the prior value is empty, unattributed, the player's own earlier
+> -      self-service submission, or somebody else's — last write wins,
+> -      whoever gave it, with `updatePersonField`'s own audit row carrying who
+> -      and when. `readPersonRecordIn`'s `<field>Source` already answers "who,
+> -      by name" (`Q-13`); this module adds the one comparison neither
+> -      `PersonRecord` nor `person-fact-dispute.ts` exposes — "was that name
+> -      *this same person*" — by reading the same `audit_events` action's
+> -      `actor_person_id` directly, once per changed field.
+> - 2.  **Completing the four onboarding items whose "who" is the player or is
+> -      derived from what the player just gave** — `code_of_conduct`,
+> -      `photo_release`, `contact_academic_details`, `season_welcome_consent`.
+> -      `membership.ts`'s own two mutators do not fit: `claimOnboardingItem`
+> -      only ever accepts a `trust`-class item (BUCS Play and Hudl, reused here
+> -      unchanged), and `resolveOnboardingItem` always records `actorKind:
+> -      "operator"`, which would misattribute the player's own confirmation or
+> -      a derived completion. Reusing either for these four items is not
+> -      possible without misrecording who acted, so this module's own small
+> -      writer records `actorKind: "player"` for the two documents and
+> -      `actorKind: "system"` for the two derived items instead.
+> -
+> - ## Emergency contact fields are overwritten in place, not disputed
+> -
+> - `docs/architecture/data-model.md` and `person-fact-dispute.ts`'s own module
+> - note both scope the disputed-fact mechanism to exactly the seven `people`
+> - columns `updatePersonField` can silently overwrite. `person_emergency_contacts`
+> - is documented as "overwritten in place" — third-party data about somebody
+> - who never agreed to be in this system, structurally isolated, with no
+> - provenance-ranking mechanism built for it. This module follows that shipped
+> - design rather than inventing a second dispute shape the schema does not
+> - carry: a player's own correction to an emergency contact field always
+> - writes directly, through `updateEmergencyContactField`, exactly as the
+> - operator edit surface already does.
+>   */
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

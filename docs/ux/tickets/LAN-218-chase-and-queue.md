@@ -212,3 +212,24 @@ binding verbatim. This document does not restate them.
 > there is nothing here to draw for any of them.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/onboarding-chase.ts — module header (OnboardingChaseSettings)
+
+> ## The escalation office is read, never configured
+>
+> `W9`/`W11`'s own locked decision: "The office is read from the club's
+> roles, never configured… `roles` ships the presiding office as a
+> constitutional seat with `role_assignments` naming its holder. Nothing to
+> set." (The seat's own code is `LEADERSHIP_TIER_SEATS.presiding` in
+> `src/lib/auth/capabilities.ts` — the one module that names it, per
+> `tests/capability-map-single-source.test.ts`; it is deliberately not
+> repeated here as a literal.)
+> `messaging-scheduler.ts` already built exactly that read —
+> {@link currentPresidentIn} — for the identical office, by the identical
+> mechanism (`public.roles` / `public.role_assignments`, keyed through
+> `LEADERSHIP_TIER_SEATS` so the role code has one source across the whole
+> codebase). This module re-exports it rather than reimplementing it: a
+> second resolver of the same office is exactly the kind of duplication that
+> could disagree with the first one.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

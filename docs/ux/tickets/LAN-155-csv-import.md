@@ -170,3 +170,89 @@ I'm not even sure if we're going to support that." This ticket settles only
 that no deletion reaches the system through a CSV — `REQ-upsert-only` holds
 structurally, not by intention. The conflict itself is carried to `W4`, which
 already owns deleting a draft one at a time under inventory amendment 1.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/services/event-csv.ts — module header (now event-csv/shared.ts)
+
+> The club's CSV: what a column means, what a row does, and what the file is
+> refused for. LAN-155, work package `WP-csv-import`, workflow `W3`.
+>
+> ## The shape Brian settled on, 2026-08-21
+>
+> There is **no term-card parser and no AI inside the system**. The club's term
+> card is a different shape every season, so the application does not read it:
+> the conversion happens outside, in whatever tool the club already uses, guided
+> by `IMPORT_PROMPT` below, and the application accepts one finished CSV.
+>
+> Four rules govern every row, and none of them is an implementation choice:
+>
+> - **`REQ-upsert-only`.** An `id` updates, a blank `id` creates, an unmatched
+>   `id` refuses that row and lets every other row proceed. **Nothing is ever
+>   deleted by an import** — an event in the season and absent from the file
+>   is left exactly as it was, which is what makes it safe to export one term,
+>   edit it, and import it back without taking the rest of the season with it.
+> - **`REQ-import-drafts-only`.** An import may not _change_ an approved or
+>   cancelled event. The refusal is narrow on purpose: an unchanged row is a
+>   no-op whatever the status, so a clean export and re-import does nothing at
+>   all rather than producing a screen of refusals.
+> - **A blank or whitespace-only cell changes nothing.** Brian: "If it's blank
+>   or has white space, it means no change. Only if it has non-white space
+>   does it then change." There is therefore deliberately no way to _clear_ a
+>   field by import — a spreadsheet round trip drops trailing values far more
+>   often than anybody deliberately empties one, and clearing a field on the
+>   event itself takes one edit.
+> - **`REQ-import-confirmation`.** Nothing here writes anything. This module
+>   produces a _proposal_; `./event-import.ts` applies one, in one
+>   transaction, only after the operator has confirmed it.
+>
+> ## Why it is pure, and has no database
+>
+> Two reasons, and the second is the one that matters. The confirmation table is
+> a client component, so anything it renders has to be reachable without `pg` —
+> the same split `./event-input.ts` documents. And the copyable prompt's worked
+> example is **asserted by test to import cleanly**: a prompt that produces a
+> file the importer rejects is worse than no prompt, because it fails in
+> somebody else's tool where nobody can see it. That assertion is a unit test
+> against this module precisely because this module needs no server.
+>
+> ## The columns, and the ones deliberately absent
+>
+> The column set is the event record and nothing else. **Audience** is not a
+> column (D48) — it is confirmed one event at a time at approval. **Status** is
+> not, because an import makes drafts and may not change an approved event, so
+> there is nothing to set. **Term and week** are not, because they are derived
+> from the date (D9, D85). **Questions and RSVP timing** are not, because they
+> arrive from the type's template (D42). The **joining URL** is not, which is
+> `REQ-no-joining-url` holding: a bulk file never carries an online event's
+> link, and no row here can write one.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-csv.ts — `planImport` (now event-csv/plan.ts)
+
+> The whole file, read against the season, as a proposal.
+>
+> Nothing here writes. The two shapes of failure are kept apart exactly as the
+> workflow's exception table asks: a file that is not a CSV or has no header
+> this importer recognises is refused **whole, before any row is read**, and
+> everything else is a per-row refusal that leaves every other row proceeding —
+> "never a silent partial success".
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-csv.ts — `TYPE_TOKEN_LIST` (now event-csv/shared.ts)
+
+> The seven shipped tokens, as the refusal sentence and the prompt list them.
+>
+> Still the seven, and still static, after LAN-265 — and that is a deliberately
+> narrow claim. The `type` column accepts **any template's name** as well
+> (`resolveTemplate`), which is what makes "Kicking Clinic" importable at all;
+> what this list is for is telling an outside tool converting a fixture list
+> what the club's standing vocabulary looks like, and telling an operator whose
+> cell matched nothing what a recognised one reads like. A list of the club's
+> current template names would be the better sentence, and it is not written
+> here because `IMPORT_PROMPT` is a static versioned block an operator keeps a
+> copy of.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

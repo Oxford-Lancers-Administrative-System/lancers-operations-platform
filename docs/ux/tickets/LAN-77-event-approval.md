@@ -174,3 +174,101 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > transition's actor in `audit_events`. What went is the display, not the record.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-approval.ts — module header, part 2 of 2 (the transaction and its order)
+
+> ## What "one transaction" still has to mean
+>
+> Approval is four writes that are only ever correct together: the event's
+> status and approval columns, one invitation per audience member, one
+> notification job per invitation, and the audit rows. Every partial state is a
+> specific operational failure — approval without invitations is exactly the
+> defect `uninvited_audience_members` exists to report, and jobs without
+> invitations is undeliverable work in the queue forever. `withTransaction`
+> offers no savepoint, so there is no way to half-recover.
+>
+> ## Order, and why it is this order
+>
+> 1. **The guarded status update first.** `where id = $1 and status = 'draft'`
+>    is the concurrency control, not a preceding read: it takes the row lock, so
+>    a second approval arriving at the same instant blocks, then finds the event
+>    is no longer a draft and is refused.
+> 2. **Invitations from the audience rows themselves**, by selecting from the
+>    table. One invitation per audience row is then a property of the statement
+>    instead of a loop that could drift.
+> 3. **Jobs from the invitations**, for the same reason.
+> 4. **Audit last**, once the facts it describes are true.
+>
+> ## What this module does not do
+>
+> It delivers nothing. Jobs are created `pending` on a provider-neutral channel
+> and left there; LAN-78 dispatches them through whatever LAN-92 selects.
+>
+> It also provides no way back. The audience is editable while the event is a
+> draft and frozen the moment it is approved — no late additions, no removals,
+> no resend. Both write paths guard on `status = 'draft'`, so the freeze is
+> structural rather than a control that happens not to be rendered.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-approval.ts — `missingForApproval`
+
+> ## Which fields, and why the list is this short
+>
+> The date and the start time, and that is all that can be missing. `name`
+> and `event_type` are `not null` and are the minimum to save a draft at all
+> (D15), so an event that exists has both; everything else on the record is
+> legitimately absent on an approved event:
+>
+> - **Venue** — `TBD` is what the club writes on its own term card for a
+>   fixture whose ground is not settled, and W4 says so in as many words: "TBD
+>   stays a legitimate value on a draft — for venue, for time". Requiring one
+>   would refuse an event the club really does approve.
+> - **Description and required equipment** — W8 makes every template field
+>   optional, and a meeting that needs no equipment has nothing to say here.
+>
+> **Start time is the one exception to "TBD stays legitimate", and it is
+> deliberate.** F-C1, owner decision Q-31 (Brian, 2026-08-27): the dispatch
+> path had nowhere honest to put a TBD kickoff — `coalesce(starts_at,
+'00:00'::time)` rendered it as a fact, and 31 people were told an event
+> started at midnight because nobody had set a time. Chosen over rendering
+> "time to be confirmed" and over warning-but-allowing: this narrows W4's own
+> words to a _draft_, and removes the TBD-approval workflow for a start time
+> specifically. This guard is forward-only — it cannot reach a row that was
+> already approved with a null `starts_at` before it existed; the dispatch
+> path's own guard (`EVENT_HAS_NO_START_TIME_REASON`, `./delivery.ts` and
+> `./messaging-scheduler.ts`) is what stops one of those from still
+> fabricating a time.
+>
+> ## Where it is enforced
+>
+> Here, above the database, in the service layer — so it holds when the screen
+> is bypassed and `approveEvent` is called directly. Invariant E1a
+> (`events_approval_requires_date_and_audience`) is the database's own
+> backstop for the date; it was **not** extended to the start time, because
+> that would need a migration and this correction adds none. The service
+> layer is documented as the primary authorization boundary and the database
+> as the backstop (`AGENTS.md`) — this guard is narrower than that principle
+> ordinarily allows, and is recorded here rather than left implicit.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/event-approval.ts — `assertOperatingSeason`
+
+> `readEventIn` reads by id alone — deliberately, and documented as such, so
+> that any event resolves for display. That is right for a screen and wrong for
+> a write: a draft left behind in a closed season was approvable, and approving
+> it would have resolved an audience from that season's memberships and queued
+> real messages to a roster the club has moved on from.
+>
+> No such draft exists today, which is why this was latent rather than broken.
+> Brian's decision, 14 August 2026: refuse it. The safe direction, and it
+> matches how every other read in the application already treats "the current
+> season".
+>
+> `readCurrentSeasonIn` is the same resolution the rest of the service layer
+> uses — `open`, `active` or `closing`, newest first — so a club that has opened
+> next season before closing this one still operates the newer of the two, and
+> an event in either is fine.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

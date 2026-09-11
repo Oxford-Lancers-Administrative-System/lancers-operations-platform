@@ -238,3 +238,49 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > a list, board or queue, and named in the privacy notice.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/people-directory.ts — module header
+
+> ## Why this module exists rather than extending `person-record.ts`
+>
+> LAN-183's `searchPeople()` finds a person by name or alias with no season
+> scoping at all — the person record is season-agnostic by design
+> (`DEC-w1-01`) and nothing about _finding_ one person needed a season. This
+> mission's two new surfaces need the opposite question answered: which
+> _people_ have a tie to the season in view. That tie is this package's own
+> business rule — `W1`'s specification names four kinds of tie a person may
+> hold, and nothing on `main` before this package computed any of them — so it
+> lives here rather than bent onto a module whose whole job is the single-person
+> read. `readPersonRecord()` and `missingRequiredFields()` are still the ones
+> this module calls for what they already answer.
+>
+> ## The four kinds of tie, and the committee-year pairing rule
+>
+> `W1`'s specification: "a season membership in any status, a prospect record,
+> a season-scoped role assignment, or a committee-year role in the committee
+> year paired with that season." The pairing is Brian's own ruling, 2026-08-26:
+> a committee year ties to the season sharing its label, and nothing else —
+> dates never enter into it, and there is no foreign key pairing the two
+> cycles in the schema. This module derives the pairing from the shared label
+> exactly as the specification requires and adds none of its own.
+>
+> ## Fetch wide, filter and sort in JavaScript
+>
+> `DEC-w1-12` and its `W7` counterpart delegate query shape, indexing and
+> pagination to the Mission Lead, "the club holds hundreds of people, not
+> millions." So the query below applies only the tie condition; every filter
+> — search, status, which fact is missing — and every sort are applied here in
+> JavaScript, once, over a list that is never going to be the reason a page is
+> slow. That also keeps one alias-matching rule in one place rather than a
+> second copy of `searchPeople()`'s `like` pattern living beside it.
+>
+> ## Presence, not value — `REQ-restricted-fields`
+>
+> The query below reads _whether_ college, matriculation year, date of birth
+> and the emergency contact are recorded, never what they are. A boolean is
+> not the disclosure `REQ-restricted-fields` forbids; the fact that Bertram is
+> missing eight things is exactly what the People list's Missing column and
+> the whole of the missing-data queue exist to say, and neither ever renders a
+> value to say it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

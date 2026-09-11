@@ -383,3 +383,98 @@ colliding season whose two states already agree needs no answer.
 The twenty-two checkboxes under **Acceptance** on the LAN-185 Linear issue are
 the criteria verbatim; see `receipt.json`'s `acceptance_criteria` for how
 each was demonstrated.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/services/person-merge.ts — module header (top of file)
+
+> /**
+>
+> - W4 — merge two records for the same human. LAN-185, `REQ-merge`, invariant
+> - I6, and `Q-5` (Brian, checkpoint 2026-08-29 — the exact shape this module
+> - builds):
+> -
+> - > Merge refuses on an active operator seat on the losing record, refuses on
+> - > two memberships in one season, requires a reason, shows exactly what will
+> - > move before it moves, and offers no undo afterwards. The losing row is
+> - > kept, dated and re-pointed at the survivor so a manual repair stays
+> - > possible, and the confirmation says plainly that there is no undo.
+> -
+> - `Q-16` (Brian, correction round 2 — `evaluateSeasonOverlap()` below builds
+> - this) narrows `Q-5`'s season-overlap refusal from a dead end into a real
+> - path forward: the refusal names the season, links to the loser's own
+> - membership, and clears once that membership is archived — at which point
+> - the merge proceeds and that one membership, alone, stays on the loser.
+> -
+> - ## Field application reuses the ordinary correction path
+> -
+> - The workflow's own words: "Chosen field values are written onto the
+> - survivor, each one an ordinary audited correction so the change history
+> - reads honestly." `withTransaction` joins a nested call to the _same_
+> - transaction rather than opening a second one (`transaction.ts`'s own
+> - guarantee), so this module calls `person-write.ts`'s
+> - `updatePersonField()`/`updateEmergencyContactField()`/
+> - `supersedeContactPoint()` directly for every field the operator chose to
+> - take from the losing record — they run inside the merge's own transaction,
+> - write the same `person_<field>_updated` / `person_contact_superseded`
+> - audit rows an ordinary edit would, and roll back with everything else if
+> - anything downstream refuses. Nothing here re-implements field validation or
+> - the reason rule a second time.
+> -
+> - ## Which references are re-pointed
+> -
+> - "Mechanical; the set is every foreign key to `people`" (delegated to the
+> - Mission Lead). `PERSON_REFERENCE_COLUMNS` below is that set, minus three
+> - kinds of exception, each named where it is excluded or special-cased:
+> - `people.merged_*_person_id` (the merge event's own columns),
+> - `operator_accounts.person_id` (a login/seat — Mission 1's, and the reason
+> - the active-seat refusal exists at all), and the tables whose _shape_ the
+> - merge changes rather than a plain re-point: `contact_points`,
+> - `person_aliases`, `person_emergency_contacts`, `recruitment_prospects`,
+> - `season_memberships` — the last since `Q-16` (correction round 2), which
+> - excludes one specific membership (the overlap season the operator archived
+> - to clear the refusal) rather than every row on the loser — and three
+> - tables `WP-operator-record` (LAN-217, mission owner-question Q-3/Q-4/Q-5)
+> - closed a documented gap on: `season_messaging_consents`, keyed
+> - `(person_id, season_id)`, combined per season with the operator's own
+> - choice governing (`repointConsents`, B-003 — correction round 2, Q-10);
+> - `onboarding_agreements`, keyed `(person_id, season_id, agreement_type)`,
+> - combined with the earlier `agreed_at` winning (`repointAgreements`); and
+> - `person_fact_disputes`, at most one OPEN row per `(person_id, field)`,
+> - combined with the more recently raised open dispute surviving
+> - (`repointDisputes`) — none of the three is a silent re-point, and none is
+> - a known limitation any more.
+> - `tests/person-merge-reference-catalogue.test.ts` asks `pg_constraint` for
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/person-write.ts — module header
+
+> ## The two shapes of write, and why they differ
+>
+> `REQ-supersede`: "Contact values supersede rather than overwrite,
+> preserving dated history and one preferred value per kind. Every other
+> field overwrites, and its previous value survives in the person's history."
+> `supersedeContactPoint` dates the row it replaces and inserts a new one;
+> `updatePersonField` and `updateEmergencyContactField` write the new value in
+> place, with `recordAudit`'s `fromState`/`toState` carrying the previous
+> value into `audit_events` — which is where "the person's history" already
+> lives for every field the schema does not give a typed history table of its
+> own, the same posture `membership.ts`'s README note documents for this
+> package's own field set.
+>
+> ## `REQ-audit`'s reason rule, enforced once
+>
+> "A reason is required to change an existing person value and never to fill
+> an empty one." `requireReasonForChange` below is the one place that rule is
+> checked, for both write shapes.
+>
+> ## Validation happens here, not only on the client
+>
+> `DEC-w2-09`: "phone and email are validated before the save is offered."
+> `person-validation.ts` is what a form calls before offering the save; this
+> module calls the same functions again before committing it, because a
+> service that trusted its caller's validation would accept whatever a script,
+> a retried request, or a future caller sent it.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

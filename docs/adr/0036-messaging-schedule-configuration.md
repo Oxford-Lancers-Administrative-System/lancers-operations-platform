@@ -136,3 +136,67 @@ runs.
   remain the record of why the deadlines are what they are. Only its
   configuration-surface prohibition and its fixed 18:00 anchor are superseded
   here.
+
+## Decision history relocated from source (LAN-300)
+
+### src/lib/services/messaging-schedule/index.ts — module header
+
+> ## What this module owns, and what it deliberately does not
+>
+> It owns the **arithmetic**: given an event and a moment, when does the
+> invitation go, when does each reminder follow it, when is the RSVP deadline,
+> and when — if ever — is the President told. It owns nothing about sending. A
+> plan is a projection, and reading one sends nothing and creates no job, which
+> is W1's explicit safety rule for the approval panel.
+>
+> The **order** of the ladder is not here and is not configurable: WhatsApp,
+> WhatsApp again, email, then the President (`REQ-ladder-order`). That sequence
+> is expressed as code in {@link buildLadder} rather than as rows, because rows
+> would make it look tunable. Only the spacing and the counts are policy, and
+> those live in `public.messaging_schedules`.
+>
+> ## Why the values moved out of TypeScript
+>
+> ADR 0021 put the response deadlines in `response-deadline.ts` as a frozen
+> table and said Release One would have no configuration-administration
+> surface. Brian reversed that on 2026-08-25 and the reversal is recorded in
+> `docs/adr/0036-messaging-schedule-configuration.md`. The values now live in
+> `public.messaging_schedules` so the settings page W7 describes — built by
+> LAN-171, not here — reads and writes the same rows the scheduler obeys.
+> W7 is explicit that they must be "read from the same source, never
+> transcribed", so there is no second copy of any of these numbers anywhere in
+> this repository.
+>
+> Three of ADR 0021's rules survive verbatim, and each has a home here:
+>
+> - **The table is complete and there is no default arm.** An event type with
+>   no row is {@link SCHEDULE_NOT_CONFIGURED_RULE}, a refusal that names
+>   itself, never an inherited two days.
+> - **A past deadline is clamped to the approval moment** and the approver is
+>   shown "Due immediately". Approval is never refused for being late.
+> - **There is no per-event override.** Nothing in this module takes a
+>   per-event value; every number arrives from the type's row.
+>
+> ## The one value ADR 0021 recorded that this changes
+>
+> The anchor. ADR 0021 fixed every deadline at 18:00 Europe/London wall clock.
+> `REQ-deadline-from-event-start` keeps the day counts and measures them from
+> the event's own start instead: a 20:00 practice answers by 20:00 two days
+> before, and a 14:00 game by 14:00 seven days before. Brian, 2026-08-25:
+> "'by 18:00' is a little bit confusing. It should just be '2 days before the
+> start of the event' because the event is going to be different."
+>
+> The British Summer Time requirement does not go away with the fixed clock —
+> "two days before this event's start" still has to be resolved in the club's
+> zone — so every instant below is still computed by PostgreSQL rather than in
+> JavaScript. See {@link resolveMessagingPlanIn}.
+>
+> ## There are no quiet hours
+>
+> `REQ-no-quiet-hours` is absolute and it constrains this file more than any
+> other: nothing here inspects the hour of day, and no rung is ever moved,
+> delayed or dropped because of when it lands. An early-morning event produces
+> an early-morning deadline and an early-morning reminder, and that is the
+> intended behaviour rather than a defect to be smoothed over later.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.

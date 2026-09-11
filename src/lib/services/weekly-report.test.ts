@@ -721,8 +721,9 @@ describe("the attendance grid", () => {
    * into the other one and passes trivially.
    */
   it("orders the query behind the grid, so a snapshot is reproducible", async () => {
+    // LAN-300 moved the query composition into `./weekly-report/compute.ts`.
     const { readFileSync } = await import("node:fs");
-    const source = readFileSync(new URL("./weekly-report.ts", import.meta.url), "utf8");
+    const source = readFileSync(new URL("./weekly-report/compute.ts", import.meta.url), "utf8");
     const query = source.slice(source.indexOf("const said = await tx.query"));
 
     expect(query.slice(0, query.indexOf("`,"))).toMatch(/order by i\.event_id, i\.id/);
@@ -1308,8 +1309,16 @@ describe("invariant M5 — a published report is immutable", () => {
     // because it contains no statement that could. A future edit that added one
     // fails here rather than in production, where the evidence would already be
     // gone.
+    //
+    // LAN-300 split the module into a directory of siblings, so every one of
+    // them is scanned rather than one file.
     const { readFileSync } = await import("node:fs");
-    const source = readFileSync(new URL("./weekly-report.ts", import.meta.url), "utf8");
+    const siblings = ["shared.ts", "compute.ts", "write.ts", "read.ts"];
+    const source = siblings
+      .map((sibling) =>
+        readFileSync(new URL(`./weekly-report/${sibling}`, import.meta.url), "utf8"),
+      )
+      .join("\n");
     expect(source).not.toMatch(/update\s+public\.weekly_reports/i);
     expect(source).not.toMatch(/delete\s+from\s+public\.weekly_reports/i);
   });

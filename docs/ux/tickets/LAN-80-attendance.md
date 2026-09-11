@@ -106,3 +106,134 @@ Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
 > since been corrected produces a refusal, not a write.
 
 Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/attendance.ts — module header
+
+> Attendance — locked Requirement 7, invariants P5, P6 and P8. LAN-80.
+>
+> ## The one rule the whole module exists to hold
+>
+> **A Yes never becomes a Present.** RSVP is intent and attendance is
+> observation, and they are two authoritative records with no path between
+> them. There is deliberately no function here that reads `rsvp_responses` or
+> `current_rsvp` and writes `attendance_records`; the board below reads the
+> standing answer only so a recorder can see it beside the person's name, and
+> `tests/…/attendance.test.ts` asserts that a `yes` with nothing recorded stays
+> absent from `attendance_records` entirely.
+>
+> The database agrees structurally: `attendance_records` has no foreign key to
+> an invitation or a response, which is what makes invariant P6's walk-up — a
+> person who was never invited and never answered — an ordinary row rather than
+> an exception.
+>
+> ## What is enforced where
+>
+> Nothing in this file re-implements a rule the schema already carries, and the
+> two that matter are worth naming:
+>
+> - **Invariant P5** — attendance belongs to an event that is really going
+>   to have happened, and since LAN-151 occurrence is derived rather than
+>   asserted (D30). The rule is in two halves, deliberately. The database
+>   holds the part no legitimate write can produce: a cascading composite
+>   foreign key plus
+>   `check (event_status in ('approved', 'cancelled'))`, so no row in the
+>   table has ever belonged to a draft, including rows written by a script
+>   that never called this module. `cancelled` is inside that check since
+>   LAN-156 because cancelling an event cascades its status onto the
+>   register and W6 says those rows survive it — the event was approved when
+>   the register was taken, and calling it off does not unmake that.
+>
+>   What the database therefore does _not_ hold is "attendance is only ever
+>   created against an approved event". That is this module's, in
+>   `closedReasonFor`, which every write path asks. A cancelled event's
+>   register is closed.
+>
+>   The other half is the **clock**, which a check constraint cannot read, so
+>   it is enforced here: the register opens on D71's buffer before the event
+>   starts and never closes (D72), which `./attendance-window.ts` decides.
+>   Note that this is deliberately _not_ "the date has passed" — a coach
+>   standing at the pitch as people arrive is the person this surface exists
+>   for, and refusing them until the evening is over would be a rule nobody
+>   asked for. That half is a genuine service-layer guarantee rather than a
+>   courtesy, which is why `requireOpenRegister` takes the row lock before
+>   asking.
+>
+> - **Invariant P8** — player capacity anchors to the season membership;
+>   coach, committee, guest and recruit anchor to the durable person. Held by
+>   `attendance_records_anchor_matches_capacity`. This module never lets a
+>   caller choose both: a target resolves to exactly one anchor, from rows
+>   that already exist for the event.
+>
+> ## What a caller may name
+>
+> A recorder posts a **participant key**, and the key is resolved against the
+> event's own invitations and its own attendance rows. It is not a pair of
+> columns the browser fills in. That matters because the alternative — trusting
+> a posted capacity and anchor id — would let anybody with a session record
+> attendance for an arbitrary membership at an arbitrary event, which is a
+> write against a person who was never involved. Adding somebody who genuinely
+> was not invited is a separate, deliberate action: `recordWalkUpAttendance`.
+>
+> ## Mismatches are shown and never resolved
+>
+> `public.rsvp_attendance_mismatches` computes them and this module reads it.
+> Nothing here writes, hides, suppresses or "reconciles" one — the frozen model
+> says mismatches are "computed, surfaced as exceptions, and never silently
+> reconciled", and a said-no-but-showed-up is a fact about the evening rather
+> than a data-entry error to clean up.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
+
+### src/lib/services/attendance.ts — `readAttendanceBoard`'s mismatch filter
+
+> D74, and the defect it exists to prevent — LAN-152, corrected by LAN-165.
+>
+> The board on `main` once reported **zero recorded and thirty mismatches
+> at the same time**, on every occurred event whose register nobody had
+> opened. It is a counting fault rather than a display one, and it lives in
+> one classification: `said_yes_no_attendance_recorded` fires per person,
+> so a session nobody assessed came back as thirty separate accusations
+> that thirty people had let the club down. An unrecorded event read as a
+> bad one, which is the exact reading D74's two-state axis forbids.
+>
+> A mismatch is a **disagreement between two records**. Where the second
+> record does not exist there is no disagreement — there is an absence,
+> and the club already has a word for it: _not recorded_. That is true of
+> every yes with nothing recorded, not only while the whole register is
+> untouched: LAN-152's first fix suppressed the classification only when
+> _nothing at all_ had been saved against the event, so the moment one
+> person was recorded, every other unrecorded yes flipped back into a
+> "mismatch" — a 47-invited, 29-yes event recording one matching Present
+> moved Mismatches from a would-be 29 to 28, not to 0. `said_yes_marked_
+absent`, `said_no_but_attended` and `attended_without_invitation` all
+> require an attendance row to exist at all, so `said_yes_no_attendance_
+recorded` is the only classification this view can emit for a person
+> with nothing recorded — dropping it, per person, is both necessary and
+> sufficient: it reads zero mismatches while the sheet is untouched (no
+> other classification can fire yet) and it stops flagging an unrecorded
+> yes the instant somebody else on the same sheet is saved.
+>
+> Filtered **here** rather than in `public.rsvp_attendance_mismatches`
+> deliberately. The view is the durable home for this rule and it should
+> carry it, but the view is schema, and this mission's schema belongs to
+> the status-and-occurrence migration package; two packages writing
+> migrations at once is what the collision rules exist to prevent.
+>
+> Nothing else over-counts in the meantime, and the reason is now narrower
+> than it was: **this function is the view's only reader.** `weekly-report.ts`
+> was the other one, and LAN-151 stopped it reading the view entirely,
+> because the view derives occurrence against `now()` and a report about
+> last March must not depend on today's date — it counts walk-ups straight
+> off `attendance_records`.
+>
+> So the rule is applied wherever the view is read today, and what this
+> filter protects against is a **future** reader: one written after this
+> package, going to the view directly, and not looking here.
+>
+> That makes moving the rule into the view a real follow-up rather than a
+> tidy-up: a direct reader of `rsvp_attendance_mismatches` written after
+> this package, and not looking here, would over-count every unrecorded
+> yes on a sheet somebody has started. It is recorded in the residual-risk
+> section of the pull request that merges LAN-165.
+
+Relocated from a source comment by LAN-300; the source keeps a one-line pointer.
