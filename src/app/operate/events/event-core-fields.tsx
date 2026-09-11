@@ -1,7 +1,14 @@
 "use client";
 
 import { Section } from "@/components/section";
-import { Field, SelectField, ChoiceField, DateField, TimeField } from "@/components/field";
+import {
+  Field,
+  SelectField,
+  ChoiceField,
+  DateField,
+  TimeField,
+  NO_AUTOFILL,
+} from "@/components/field";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -84,6 +91,8 @@ export function EventCoreFields({
           label="Name"
           name="name"
           data-field="name"
+          // LAN-324: this is the event's name, never the operator's.
+          autoComplete={NO_AUTOFILL}
           defaultValue={value("name")}
           error={Boolean(issueFor(state, "name"))}
           helperText={
@@ -108,7 +117,7 @@ export function EventCoreFields({
           }))}
         />
 
-        {/* C1/C2: MUI X DatePicker/TimePicker replace native locale-dependent controls (W154C-F1 crash). D2 (Q-27): 12-hour clock with AM/PM, `format="hh:mm a"`. Stored value still plain HH:mm through the hidden input. */}
+        {/* C1/C2: MUI X DatePicker/TimePicker replace native locale-dependent controls (W154C-F1 crash). D2 (Q-27) drew a 12-hour AM/PM face; LAN-326 reverses it (Brian, 2026-09-11) — 24-hour, `format="HH:mm"`, matching every place the app already *displays* a time. Still drawn the same way on every machine, and the stored value is unchanged plain HH:mm through the hidden input. */}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <DateField
@@ -132,7 +141,7 @@ export function EventCoreFields({
               onChange={onStartChange}
               error={Boolean(issueFor(state, "startsAt"))}
               helperText={
-                issueFor(state, "startsAt") ?? "12-hour clock, five-minute steps, e.g. 08:00 PM."
+                issueFor(state, "startsAt") ?? "24-hour clock, five-minute steps, e.g. 20:00."
               }
             />
           </Box>
@@ -199,6 +208,7 @@ export function EventCoreFields({
             label="Destination"
             name="venue"
             data-field="venue"
+            autoComplete={NO_AUTOFILL}
             value={venue}
             onChange={(event) => onVenueChange(event.target.value)}
             error={Boolean(issueFor(state, "venue"))}
@@ -219,6 +229,7 @@ export function EventCoreFields({
             label="Joining link"
             name="joiningUrl"
             data-field="joiningUrl"
+            autoComplete={NO_AUTOFILL}
             defaultValue={value("joiningUrl")}
             error={Boolean(issueFor(state, "joiningUrl"))}
             helperText={issueFor(state, "joiningUrl") ?? JOINING_URL_IS_PUBLIC_WARNING}

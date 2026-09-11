@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, Ref } from "react";
+import type { KeyboardEvent, ReactNode, Ref } from "react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -26,6 +26,46 @@ export type FieldProps = Omit<TextFieldProps, "variant" | "size" | "fullWidth"> 
   /** Which `data-field` the form's focus-first-issue logic looks for. */
   field?: string;
 };
+
+/**
+ * What `autoComplete` says on a field an operator fills in about something —
+ * or somebody — that is not themselves: an event's name, a player's surname,
+ * a venue. LAN-324: Chrome put the operator's own name into "Event name".
+ *
+ * `"off"` is not the answer. Chrome deliberately ignores `autocomplete="off"`
+ * on a field its heuristics read as a person's name or an address, which is
+ * exactly the field this is for. An *unrecognised* token is honoured instead:
+ * Chrome finds an attribute it cannot map and leaves the field alone rather
+ * than guessing from the saved profile. The value is never shown or posted,
+ * so what it reads as matters only to whoever next opens the file.
+ */
+export const NO_AUTOFILL = "off-not-about-me";
+
+/**
+ * Enter in a field must not submit the form around it — LAN-313. An authoring
+ * form is long and its submit both saves and navigates away, so the browser's
+ * implicit submission turns "I have finished typing this line" into "save and
+ * leave", mid-task. Hung on the `<form>` rather than on each field, so a field
+ * added later is covered without being remembered.
+ *
+ * Three keystrokes are left alone, because Enter genuinely means something
+ * there: a newline in a multi-line field, the click of a focused button, and
+ * a modified Enter. A control that handles Enter itself (a select opening, an
+ * autocomplete taking the highlighted option) has already acted by the time
+ * this runs on the bubble.
+ */
+export function preventImplicitSubmit(event: KeyboardEvent<HTMLElement>): void {
+  if (event.key !== "Enter") return;
+  if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target instanceof HTMLTextAreaElement) return;
+  if (target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) return;
+  if (target.getAttribute("role") === "button") return;
+
+  event.preventDefault();
+}
 
 export function Field({ field, ...props }: FieldProps) {
   return <TextField variant="outlined" fullWidth data-field={field} {...props} />;
@@ -177,7 +217,7 @@ export function CheckField({
 }
 
 const DATE_FORMAT_HINT = "Day, month, year — e.g. 24/08/2026.";
-const TIME_FORMAT_HINT = "12-hour clock, e.g. 08:00 PM.";
+const TIME_FORMAT_HINT = "24-hour clock, e.g. 20:00.";
 
 export function DateField({
   label,
@@ -270,8 +310,12 @@ export function TimeField({
             onDateChange?.(next);
             onChange?.(timeFromDate(next));
           }}
-          ampm
-          format="hh:mm a"
+          // LAN-326, Brian 2026-09-11, reversing Q-27: the one clock face the
+          // app draws is the 24-hour one it already displays times in. Still
+          // written out rather than left to the machine's own locale, which is
+          // what C1/C2 won and neither reversal gives back.
+          ampm={false}
+          format="HH:mm"
           minutesStep={5}
           timeSteps={{ minutes: 5 }}
           slotProps={{ textField: { fullWidth: true, error, helperText } }}

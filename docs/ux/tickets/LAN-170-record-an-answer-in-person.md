@@ -260,8 +260,9 @@ anything a stale render passed it.
    what changed and why.
 3. **"When did they tell you?" is two pickers, not one combined field.** The
    approved mockup shows a single field; this ticket reuses the event form's
-   own `DatePicker` + `TimePicker` pair (`dd/MM/yyyy`, 12-hour clock, 5-minute
-   steps) rather than introducing a second date-time control, because that
+   own `DatePicker` + `TimePicker` pair (`dd/MM/yyyy`, 24-hour clock since
+   LAN-326, 5-minute steps) rather than introducing a second date-time
+   control, because that
    pair already carries fixes for locale-independence defects
    (`W154C-C1`/`C2`) a new combined picker would have to rediscover.
 4. **The future/before-invitation bounds are enforced only in the service

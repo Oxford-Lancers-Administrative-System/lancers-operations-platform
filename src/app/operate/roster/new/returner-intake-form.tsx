@@ -16,7 +16,7 @@ import { Surface } from "@/components/surface";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
-import { Field as InputField } from "@/components/field";
+import { Field as InputField, NO_AUTOFILL } from "@/components/field";
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
@@ -105,9 +105,10 @@ function DetailsStep({
 
       {/* Four fields, in this order, no others — Brian's departures from the wireframe, 12 August 2026. */}
       <Stack spacing={2.5}>
-        {field("givenName", "First name", { autoComplete: "off" })}
-        {field("familyName", "Last name", { autoComplete: "off" })}
-        {field("email", "Email", { type: "email", autoComplete: "off" })}
+        {/* LAN-324: the player's details, not the operator's own — and `"off"` is the value Chrome ignores. */}
+        {field("givenName", "First name", { autoComplete: NO_AUTOFILL })}
+        {field("familyName", "Last name", { autoComplete: NO_AUTOFILL })}
+        {field("email", "Email", { type: "email", autoComplete: NO_AUTOFILL })}
         {phoneField("phone", "Phone")}
       </Stack>
 

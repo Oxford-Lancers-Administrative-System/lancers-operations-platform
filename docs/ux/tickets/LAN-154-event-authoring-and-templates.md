@@ -4,7 +4,10 @@ Status: implemented under mission `M-EVENTS-CALENDAR-TARGET-STATE`, work package
 `WP-authoring`. Packet approved by Brian Schuster on 2026-08-21; amendment W4-A1
 approved the same day; the duplicate decision settled 2026-08-22. Owner
 correction round 2, 2026-08-25: Q-27 reverses the clock to 12-hour AM/PM, and
-Q-28 settles C8 for the event detail page — both recorded below.
+Q-28 settles C8 for the event detail page — both recorded below. Tester week,
+LAN-326, 2026-09-11: Brian reverses Q-27 in turn — the clock is 24-hour.
+LAN-318, the same day: an approved event's questions are editable, and a
+question may no longer be removed once the event has left draft.
 
 > **Synthetic scenario data:** All displayed people, contact details, statuses,
 > responses and attendance records are synthetic and do not correspond to real
@@ -110,10 +113,13 @@ Everything else in both tickets stands, including the empty-audience refusal
 - **Times are five-minute increments, in Europe/London, with the zone stated**
   (D78, D86). Entering a start fills the end from the type's default length; an
   end the operator sets is left alone. The control is a deliberately-drawn
-  **12-hour clock with AM/PM** (Q-27, round 2), on every machine regardless of
-  its own locale — the same locale-independence C1/C2 won in the first place,
-  which is not given back by which clock face is drawn. The stored value is
-  unaffected: `startsAt`/`endsAt` are still plain 24-hour `HH:mm`.
+  **24-hour clock, no AM/PM** (LAN-326, Brian 2026-09-11, reversing Q-27 of
+  round 2), on every machine regardless of its own locale — the same
+  locale-independence C1/C2 won in the first place, which is not given back by
+  which clock face is drawn. It is now the only clock face in the application:
+  every screen that _displays_ a time already reads 24-hour, and the editor was
+  the one place that asked for one in a different notation. The stored value is
+  unaffected either way: `startsAt`/`endsAt` are still plain `HH:mm`.
 - **`Response requested` appears nowhere** (D23).
 - **Questions are written here** (W4-A1), below the event's own facts: add,
   remove, reorder, choose one of three answer types, and mark each independently
@@ -284,7 +290,7 @@ not and why**, and what will not move at all. The button says what it will do.
 | Online or in person is a property; venue follows it                                  | D20, D21                                     |
 | `Response requested` is removed                                                      | D23                                          |
 | Five-minute increments; end follows start; Europe/London stated                      | D78, D86                                     |
-| **The clock is 12-hour with AM/PM, deliberately drawn on every machine**             | Q-27, round 2                                |
+| **The clock is 24-hour, deliberately drawn on every machine**                        | LAN-326, Brian 2026-09-11, reversing Q-27    |
 | **The event detail page names the audience by its groups too, before its people**    | Q-28, round 2                                |
 | Template values flow per field into unapproved drafts; approval freezes them         | D41, refined 2026-08-21                      |
 | No approved event and no past event ever changes                                     | W8                                           |
@@ -374,7 +380,7 @@ the change and says so on the confirmation before anything is saved.
 | `Response requested` appears nowhere                                        | `screens.test.tsx`, `labels.test.ts`                        |
 | Description and required equipment round-trip separately                    | `events.test.ts`                                            |
 | Times save and display in Europe/London, five-minute steps, end after start | `event-input.test.ts`, `screens.test.tsx`                   |
-| The clock is 12-hour AM/PM on every machine, regardless of locale           | `screens.test.tsx`                                          |
+| The clock is 24-hour on every machine, regardless of locale                 | `screens.test.tsx`                                          |
 | A draft is deleted after a confirmation naming it                           | `event-questions.test.ts`, `screens.test.tsx`               |
 | An approved or cancelled event cannot be deleted at all                     | `event-questions.test.ts`, `screens.test.tsx`               |
 | Questions: three types, independently required, reorderable, removable      | `event-questions-input.test.ts`, `question-editor.test.tsx` |

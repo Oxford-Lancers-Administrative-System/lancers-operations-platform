@@ -6,7 +6,7 @@ import { Section } from "@/components/section";
 import IconButton from "@mui/material/IconButton";
 import { FieldGroup } from "@/components/section";
 import Stack from "@mui/material/Stack";
-import { Field, SelectField } from "@/components/field";
+import { Field, NO_AUTOFILL, SelectField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import {
   QUESTION_ANSWER_TYPE_LABELS,
@@ -144,6 +144,7 @@ export default function QuestionEditor({
 
                     <Field
                       label="Question"
+                      autoComplete={NO_AUTOFILL}
                       value={question.prompt ?? ""}
                       onChange={(event) => update(index, { prompt: event.target.value })}
                       error={Boolean(issue)}
@@ -179,6 +180,7 @@ export default function QuestionEditor({
                     {answerType === "choice" ? (
                       <Field
                         label="Options"
+                        autoComplete={NO_AUTOFILL}
                         value={question.choices ?? ""}
                         onChange={(event) => update(index, { choices: event.target.value })}
                         disabled={disabled}
