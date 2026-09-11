@@ -52,7 +52,10 @@
     "visual:disposition": "node scripts/visual-environment.mjs disposition",
     "visual:release": "node scripts/visual-environment.mjs release",
     "mission:finish": "node scripts/mission/finish-mission.mjs",
-    "knip": "knip --no-config-hints"
+    "knip": "knip --no-config-hints",
+    "measure": "node scripts/measure.mjs",
+    "duplication": "jscpd",
+    "dead-exports": "node scripts/dead-exports.mjs"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",
@@ -85,6 +88,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "eslint-config-prettier": "^10.1.8",
+    "jscpd": "^5.2.0",
     "jsdom": "^27.0.1",
     "knip": "^6.35.1",
     "prettier": "^3.9.6",
