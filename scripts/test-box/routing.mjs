@@ -61,7 +61,7 @@ export function assertProviderRequest(url, form) {
     !(alphanumeric || /^\+\d{7,15}$/.test(from)) ||
     !String(form?.Body ?? "").trim() ||
     !callback ||
-    callback.protocol !== "https:"
+    !["http:", "https:"].includes(callback.protocol)
   )
     throw new Error("Actual test delivery requires a complete Twilio message form.");
   return target;

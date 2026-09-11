@@ -296,7 +296,7 @@ export default function SignupForm({
           <PageHeader title="Join the Oxford Lancers" />
           <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
             {mode === "anonymous"
-              ? "Leave your name and a way to reach you. We will send you a WhatsApp message about the next session."
+              ? "Leave your name and a way to reach you. We will text you about the next session."
               : "We already have most of this. Check it, change anything that is wrong, and tell us how we may contact you."}
           </Typography>
           <Typography sx={{ fontSize: 15, fontWeight: 600, mt: 1.5 }}>
@@ -356,7 +356,7 @@ export default function SignupForm({
           label={
             <Box>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                The Oxford Lancers may message me on WhatsApp about this season.
+                The Oxford Lancers may text me about this season.
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Session invitations and the odd polite reminder. Never more than one reminder, never
