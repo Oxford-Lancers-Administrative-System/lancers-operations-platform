@@ -774,6 +774,30 @@ describe("readSignedRsvpPageIn", () => {
     expect(page.currentResponse).toBeNull();
   });
 
+  // LAN-323. The page carried the equipment since LAN-264 and never what the
+  // operator wrote about the event, so a player deciding here could not read
+  // it. Two separate columns, read as two separate fields — the fold into one
+  // string belongs to the calendar feed alone.
+  it("returns the description and the required equipment as two separate fields", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    await observer.query(
+      `update public.events set description = $2, required_equipment = $3 where id = $1`,
+      [eventId, "Full pads.\nMeet at the clubhouse.", "Gumshield\nStuds"],
+    );
+
+    const page = await withTransaction((tx) => readSignedRsvpPageIn(tx, invitationId));
+
+    expect(page.description).toBe("Full pads.\nMeet at the clubhouse.");
+    expect(page.requiredEquipment).toBe("Gumshield\nStuds");
+  });
+
+  it("reports both as null when the operator left them empty, never as a joined string", async () => {
+    const { invitationId } = await fixture(48);
+    const page = await withTransaction((tx) => readSignedRsvpPageIn(tx, invitationId));
+    expect(page.description).toBeNull();
+    expect(page.requiredEquipment).toBeNull();
+  });
+
   it("shows one invitee nothing about another on the same event", async () => {
     // Two invitations on ONE event, both answered, which is the shape the
     // privacy rule is about: peer data exists and must not surface.
