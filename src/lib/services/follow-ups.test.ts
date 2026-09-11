@@ -38,9 +38,11 @@ const MARKER = "LAN173FollowUpsSuite";
 
 const CONFIGURED_WITH_EMAIL = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "5550001",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
   DELIVERY_RECIPIENT_ALLOWLIST: "07700 900321",
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
@@ -57,7 +59,7 @@ function refusesWhatsAppAcceptsEmail() {
         headers: { "content-type": "application/json" },
       });
     }
-    return new Response(JSON.stringify({ error: { code: 131026, fbtrace_id: "trace" } }), {
+    return new Response(JSON.stringify({ code: 21211, message: "refused", status: 400 }), {
       status: 400,
       headers: { "content-type": "application/json" },
     });
@@ -258,7 +260,7 @@ async function fixture(
     const job = await observer.query<{ id: string }>(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
-       values ($1, 'invitation', 'pending', $2, $3, $4, 'whatsapp')
+       values ($1, 'invitation', 'pending', $2, $3, $4, 'sms')
        returning id`,
       [`${MARKER}:${eventId}:invitation`, invitationId, eventId, personId],
     );
@@ -352,7 +354,7 @@ describe("the queue itself", () => {
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel,
           created_at, scheduled_for, ladder_rung, attempt_count, last_error)
-       values ($1, 'reminder', 'failed', $2, $3, $4, 'whatsapp',
+       values ($1, 'reminder', 'failed', $2, $3, $4, 'sms',
                $5::timestamptz, $6::timestamptz, 1, $7, $8)`,
       [
         `${MARKER}:${target.eventId}:reminder:1`,
@@ -387,7 +389,7 @@ async function raiseEscalationWithJobStatus(
     `insert into public.notification_jobs
        (idempotency_key, job_type, status, event_id, person_id, channel,
         attempt_count, last_error, next_attempt_at)
-     values ($1, 'escalation', $2::public.notification_job_status, $3, $4, 'whatsapp', 1,
+     values ($1, 'escalation', $2::public.notification_job_status, $3, $4, 'sms', 1,
              case when $2::text = 'failed' then $5 else null end, null)
      returning id`,
     [

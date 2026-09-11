@@ -397,7 +397,7 @@ export async function declareRecruitmentCycleJobsIn(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, person_id, channel, scheduled_for,
           template_variables)
-       values ($1, 'other', 'pending', $2::uuid, 'whatsapp', $3::timestamptz, '{}'::jsonb)
+       values ($1, 'other', 'pending', $2::uuid, 'sms', $3::timestamptz, '{}'::jsonb)
        on conflict (idempotency_key) do nothing
        returning id`,
       [idempotencyKey, personId, scheduledFor],

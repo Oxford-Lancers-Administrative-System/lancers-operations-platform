@@ -4,7 +4,7 @@ export function plannedRungs(invitation) {
   const anchor = recruit ? invitation.recruit_invitation_at : invitation.invitation_at;
   if (!anchor) return [];
   const rows = [
-    { kind: "invitation", rung: 0, at: new Date(anchor).toISOString(), channel: "whatsapp" },
+    { kind: "invitation", rung: 0, at: new Date(anchor).toISOString(), channel: "sms" },
   ];
   if (recruit) {
     if (invitation.recruit_follow_up_at)
@@ -12,7 +12,7 @@ export function plannedRungs(invitation) {
         kind: "recruit_event_follow_up",
         rung: 1,
         at: new Date(invitation.recruit_follow_up_at).toISOString(),
-        channel: "whatsapp",
+        channel: "sms",
       });
   } else {
     const count = invitation.whatsapp_reminders_scheduled + invitation.email_reminders_scheduled;
@@ -23,7 +23,7 @@ export function plannedRungs(invitation) {
         at: new Date(
           Date.parse(anchor) + rung * invitation.reminder_cadence_hours * 3600000,
         ).toISOString(),
-        channel: rung <= invitation.whatsapp_reminders_scheduled ? "whatsapp" : "email",
+        channel: rung <= invitation.whatsapp_reminders_scheduled ? "sms" : "email",
       });
   }
   return rows;

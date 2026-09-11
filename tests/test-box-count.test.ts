@@ -13,7 +13,7 @@ const record = (id: string, at: string, extra = {}) => ({
   providerMessageId: id,
   at,
   recipient: "447700900901",
-  channel: "whatsapp",
+  channel: "sms",
   kind: "reminder",
   payload: { private: "never-display-this-token" },
   ...extra,
@@ -30,7 +30,7 @@ describe("LAN-222 local sink counts", () => {
     expect(groups).toHaveLength(3);
     expect(groups.find((g: { count: number }) => g.count === 2)).toEqual({
       recipient: "447700900901",
-      channel: "whatsapp",
+      channel: "sms",
       kind: "reminder",
       count: 2,
       first: "2026-09-09T12:00:00.000Z",

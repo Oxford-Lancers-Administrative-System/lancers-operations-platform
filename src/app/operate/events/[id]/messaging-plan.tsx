@@ -73,10 +73,10 @@ interface DisplayPlan {
 
 function recruitRungs(ladder: RecruitMessagingLadder | FrozenRecruitLadder): LadderRung[] {
   const rungs: LadderRung[] = [
-    { rung: 0, kind: "invitation", channel: "whatsapp", at: ladder.invitationAt },
+    { rung: 0, kind: "invitation", channel: "sms", at: ladder.invitationAt },
   ];
   if (ladder.followUpAt) {
-    rungs.push({ rung: 1, kind: "reminder", channel: "whatsapp", at: ladder.followUpAt });
+    rungs.push({ rung: 1, kind: "reminder", channel: "sms", at: ladder.followUpAt });
   }
   return rungs;
 }
@@ -118,7 +118,7 @@ export function frozenPlanForDisplay(frozen: FrozenMessagingPlan): DisplayPlan {
   };
 }
 
-/** One rung, described for rendering: "WhatsApp message 2", not "rung 1". */
+/** One rung, described for rendering: "Text message 2", not "rung 1". */
 interface DescribedRung {
   readonly rung: LadderRung;
   readonly title: string;
@@ -140,13 +140,13 @@ function describeRungs(rungs: readonly LadderRung[], audienceSize: number): Desc
   let reminderIndex = 0;
 
   return rungs.map((rung) => {
-    if (rung.channel === "whatsapp") whatsappCount += 1;
+    if (rung.channel === "sms") whatsappCount += 1;
     else emailCount += 1;
 
     if (rung.kind === "invitation") {
       return {
         rung,
-        title: "WhatsApp message 1",
+        title: "Text message 1",
         note: `Automated 1:1 message to all ${people}.`,
         side: people,
       };
@@ -161,8 +161,8 @@ function describeRungs(rungs: readonly LadderRung[], audienceSize: number): Desc
         : "Only to people who still have not answered.";
     const side = reminderIndex === 0 ? "Unanswered" : "Still unanswered";
     const title =
-      rung.channel === "whatsapp"
-        ? `WhatsApp message ${whatsappCount}`
+      rung.channel === "sms"
+        ? `Text message ${whatsappCount}`
         : totalEmail > 1
           ? `Email ${emailCount}`
           : "Email";
@@ -288,7 +288,7 @@ function RecruitPlanRows({
               {formatPlanWhen(rung.at)}
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {rung.kind === "invitation" ? "WhatsApp message 1" : "WhatsApp message 2"}
+              {rung.kind === "invitation" ? "Text message 1" : "Text message 2"}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {rung.kind === "invitation"

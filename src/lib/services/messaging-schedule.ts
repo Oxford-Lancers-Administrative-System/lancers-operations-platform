@@ -340,7 +340,7 @@ export interface LadderRung {
   /** 0 is the invitation. Reminders follow in order. */
   readonly rung: number;
   readonly kind: "invitation" | "reminder";
-  readonly channel: "whatsapp" | "email";
+  readonly channel: "sms" | "email";
   readonly at: Date;
 }
 
@@ -458,7 +458,7 @@ export function buildLadder(
     // "at least one WhatsApp always goes out, however short the runway". No
     // approved event is ever silent, and the guarantee costs no arithmetic
     // because the invitation is not part of the runway calculation at all.
-    { rung: 0, kind: "invitation", channel: "whatsapp", at: invitationAt },
+    { rung: 0, kind: "invitation", channel: "sms", at: invitationAt },
   ];
 
   const scheduled = Math.max(0, Math.min(whatsappReminders + emailReminders, available));
@@ -470,7 +470,7 @@ export function buildLadder(
       // The order is fixed: every WhatsApp reminder precedes the email. A
       // shortened ladder therefore loses the email first, which is what
       // `REQ-late-approval`'s "WhatsApp only" describes from the other end.
-      channel: step <= whatsappReminders ? "whatsapp" : "email",
+      channel: step <= whatsappReminders ? "sms" : "email",
       at: new Date(invitationAt.getTime() + step * cadenceHours * HOUR_MS),
     });
   }
@@ -686,7 +686,7 @@ export interface FrozenMessagingPlan {
   readonly recruitLadder: FrozenRecruitLadder | null;
 }
 
-function countReminders(plan: MessagingPlan, channel: "whatsapp" | "email"): number {
+function countReminders(plan: MessagingPlan, channel: "sms" | "email"): number {
   return plan.rungs.filter((rung) => rung.kind === "reminder" && rung.channel === channel).length;
 }
 
@@ -753,7 +753,7 @@ export async function freezeMessagingPlanIn(
       plan.escalationAt,
       plan.dispatchesImmediately,
       plan.lateApproval,
-      countReminders(plan, "whatsapp"),
+      countReminders(plan, "sms"),
       countReminders(plan, "email"),
       actorPersonId,
       plan.recruitLadder ? plan.schedule.recruitInvitationLeadDays : null,

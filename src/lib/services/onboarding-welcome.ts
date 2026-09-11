@@ -51,7 +51,7 @@ export type OnboardingWelcomeResult =
   { queued: true; jobId: string } | { queued: false; reason: "already_queued" };
 
 const WELCOME_SECTION = "welcome";
-const WELCOME_CHANNEL = "whatsapp";
+const WELCOME_CHANNEL = "sms";
 
 function welcomeIdempotencyKey(membershipId: string): string {
   return `onboarding-welcome:${membershipId}`;

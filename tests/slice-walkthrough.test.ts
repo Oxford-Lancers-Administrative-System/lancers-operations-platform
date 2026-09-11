@@ -94,7 +94,8 @@ import {
 } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
+import { TWILIO_SMS_PROVIDER } from "@/lib/delivery/sms-twilio";
+import { answerTokens, parseTransportBody } from "./helpers/sms-transport";
 import type { Transport } from "@/lib/delivery/provider";
 import { enterReturningPlayer } from "@/lib/services/roster";
 import { setMembershipStatus } from "@/lib/services/membership";
@@ -219,9 +220,11 @@ const LOGINS = [OPERATOR_EMAIL, COACH_EMAIL, PLAYER_EMAIL, FORMER_COACH_EMAIL];
  */
 const PROVIDER_ENVIRONMENT: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "5550082",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
   // LAN-124 made the recipient allowlist a required outbound setting: unset,
   // the whole sending path reports itself unconfigured and dispatches nothing.
   // These are the three numbers this walk invites — the two players who answer
@@ -306,11 +309,11 @@ const capturingTransport: Transport = async (requestUrl, init) => {
     url: requestUrl,
     method: init.method,
     authorization: headers.get("authorization") ?? undefined,
-    body: JSON.parse(String(init.body)) as Record<string, unknown>,
+    body: parseTransportBody(requestUrl, init.body),
   });
 
   return new Response(
-    JSON.stringify({ messages: [{ id: `${PROVIDER_MESSAGE_PREFIX}${sent.length}` }] }),
+    JSON.stringify({ sid: `${PROVIDER_MESSAGE_PREFIX}${sent.length}`, status: "queued" }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
 };
@@ -961,34 +964,29 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     expect(summary).toMatchObject({ attempted: 2, accepted: 2, refused: 0, skipped: 0 });
     expect(sent).toHaveLength(2);
 
-    // The provider contract, as `whatsapp-cloud.test.ts` pins it: the Graph
-    // messages endpoint for the configured phone number, a bearer token, the
-    // approved template's three body parameters in order, and — LAN-172,
-    // Q-11 — two URL buttons carrying one-time Yes and No answer tokens
-    // rather than a raw link in body copy.
+    // The provider contract, as `sms-twilio.test.ts` pins it: the Messages
+    // endpoint for the configured account, basic auth on the API key pair,
+    // the alphanumeric sender for a UK destination, and — LAN-172, Q-11 —
+    // two one-time Yes and No answer links rather than a raw RSVP link.
+    const basic = Buffer.from(
+      `${PROVIDER_ENVIRONMENT.TWILIO_API_KEY_SID}:${PROVIDER_ENVIRONMENT.TWILIO_API_KEY_SECRET}`,
+    ).toString("base64");
     for (const request of sent) {
       expect(request.method).toBe("POST");
-      expect(request.url).toContain(`/${PROVIDER_ENVIRONMENT.WHATSAPP_PHONE_NUMBER_ID}/messages`);
-      expect(request.authorization).toBe(`Bearer ${PROVIDER_ENVIRONMENT.WHATSAPP_ACCESS_TOKEN}`);
-      expect(request.body).toMatchObject({ messaging_product: "whatsapp", type: "template" });
+      expect(request.url).toContain(
+        `/2010-04-01/Accounts/${PROVIDER_ENVIRONMENT.TWILIO_ACCOUNT_SID}/Messages.json`,
+      );
+      expect(request.authorization).toBe(`Basic ${basic}`);
+      expect(request.body.kind).toBe("invitation");
+      expect(request.body.From).toBe(PROVIDER_ENVIRONMENT.TWILIO_ALPHA_SENDER);
+      const body = String(request.body.Body);
+      expect(body).toContain(MARKER);
+      expect(body).not.toContain("/rsvp/");
 
-      const template = request.body.template as {
-        name: string;
-        components: { type: string; index?: string; parameters: { text: string }[] }[];
-      };
-      expect(template.name).toBe(PROVIDER_ENVIRONMENT.WHATSAPP_TEMPLATE_NAME);
-      const body = template.components.find((c) => c.type === "body");
-      const parameters = body!.parameters.map((entry) => entry.text);
-      expect(parameters).toHaveLength(3);
-      expect(parameters[1]).toContain(MARKER);
-      expect(parameters.join(" ")).not.toContain("/rsvp/");
-
-      const buttons = template.components.filter((c) => c.type === "button");
-      expect(buttons).toHaveLength(2);
-      const yesSuffix = buttons.find((b) => b.index === "0")!.parameters[0].text;
-      const noSuffix = buttons.find((b) => b.index === "1")!.parameters[0].text;
-      expect(yesSuffix).toMatch(/^y\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
-      expect(noSuffix).toMatch(/^n\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+      const tokens = answerTokens(body);
+      expect(tokens).toHaveLength(2);
+      expect(tokens[0]).toMatch(/^y\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+      expect(tokens[1]).toMatch(/^n\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
     }
 
     // Durable evidence: an attempt per invitation, each carrying the provider's
@@ -1012,7 +1010,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
 
     expect(attempts.rows).toHaveLength(2);
     for (const row of attempts.rows) {
-      expect(row.provider).toBe(WHATSAPP_CLOUD_PROVIDER);
+      expect(row.provider).toBe(TWILIO_SMS_PROVIDER);
       expect(row.provider_message_id).toContain(PROVIDER_MESSAGE_PREFIX);
       providerMessageIds.set(row.invitation_id, row.provider_message_id);
     }
@@ -1033,7 +1031,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
          from public.notification_jobs where event_id = $1 order by 1`,
       [eventId],
     );
-    expect(channels.rows.map((row) => row.channel)).toEqual(["email", "whatsapp"]);
+    expect(channels.rows.map((row) => row.channel)).toEqual(["email", "sms"]);
     expect(channels.rows.map((row) => row.channel)).not.toContain("manual");
   }, 120_000);
 
@@ -1048,13 +1046,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     // `person_access_tokens` would prove the test can query, and this proves
     // the buttons a player receives are the buttons this invitation minted.
     for (const request of sent) {
-      const template = request.body.template as {
-        components: { type: string; index?: string; parameters: { text: string }[] }[];
-      };
-      const yesToken = template.components.find((c) => c.type === "button" && c.index === "0")!
-        .parameters[0].text;
-      const noToken = template.components.find((c) => c.type === "button" && c.index === "1")!
-        .parameters[0].text;
+      const [yesToken, noToken] = answerTokens(String(request.body.Body));
 
       const resolution = await resolveAnswerToken(yesToken);
       expect(resolution.state).toBe("valid");
@@ -1093,7 +1085,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   it("records the provider's delivery callback against the attempt it names", async () => {
     for (const [invitationId, providerMessageId] of providerMessageIds) {
       const applied = await applyProviderCallback(
-        WHATSAPP_CLOUD_PROVIDER,
+        TWILIO_SMS_PROVIDER,
         {
           providerEventId: `${providerMessageId}.delivered`,
           providerMessageId,
@@ -1114,7 +1106,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     // An unverified callback is never stored, whatever it claims.
     const refusal = await refusalOf(() =>
       applyProviderCallback(
-        WHATSAPP_CLOUD_PROVIDER,
+        TWILIO_SMS_PROVIDER,
         {
           providerEventId: `${PROVIDER_MESSAGE_PREFIX}forged`,
           providerMessageId: null,

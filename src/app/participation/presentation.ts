@@ -165,7 +165,7 @@ export const DELIVERY_NOT_QUEUED = "Nothing queued";
  * the other channel and the failure is still worth seeing.
  */
 export const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
-export const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
+export const WHATSAPP_UNRESPONSIVE = "Text unresponsive";
 
 /** The Delivery filter's own entry for W4's acceptance #3, above the five states. */
 export const NEEDS_ATTENTION_FILTER_LABEL = "Needs attention";

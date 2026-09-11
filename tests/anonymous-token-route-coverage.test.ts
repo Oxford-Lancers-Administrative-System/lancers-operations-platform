@@ -13,13 +13,13 @@ function filesBelow(directory: string): string[] {
 }
 
 const TOKEN_ACCESS =
-  /searchParams\.get\("token_hash"\)|hub\.verify_token|resolveRsvpTokenIn|form\.get\("token"\)/;
+  /searchParams\.get\("token_hash"\)|x-twilio-signature|resolveRsvpTokenIn|form\.get\("token"\)/;
 
 const expected = [
   {
-    source: "src/app/api/webhooks/whatsapp/route.ts",
-    test: "src/app/api/webhooks/whatsapp/route.test.ts",
-    refusal: /the wrong token[\s\S]*no token[\s\S]*status\)\.toBe\(403\)/,
+    source: "src/app/api/webhooks/twilio/route.ts",
+    test: "src/app/api/webhooks/twilio/route.test.ts",
+    refusal: /no signature at all[\s\S]*the wrong auth token[\s\S]*status\)\.toBe\(403\)/,
   },
   {
     source: "src/app/auth/invitation/route.ts",

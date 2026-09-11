@@ -18,7 +18,7 @@ function setup(transport = "intercepted") {
     path.join(directory, "transport-evidence", "capture.json"),
     JSON.stringify({
       transport,
-      channel: "whatsapp",
+      channel: "sms",
       simulatedOutcome: "delivered",
       providerMessageId: "local-test-id",
       at: "2026-09-09T12:00:00Z",
@@ -27,9 +27,12 @@ function setup(transport = "intercepted") {
   );
   return directory;
 }
-const options = { baseUrl: "http://127.0.0.1:3101", env: { WHATSAPP_APP_SECRET: "test-only" } };
+const options = {
+  baseUrl: "http://127.0.0.1:3101",
+  env: { TWILIO_AUTH_TOKEN: "test-only", APP_BASE_URL: "https://tunnel.example" },
+};
 describe("LAN-222 simulated delivery evidence", () => {
-  it("does not confirm actual WhatsApp sends", async () => {
+  it("does not confirm actual SMS sends", async () => {
     const query = vi.fn();
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
@@ -68,7 +71,7 @@ describe("LAN-222 simulated delivery evidence", () => {
     vi.stubGlobal("fetch", fetch);
     expect(await confirmIntercepted({ query }, directory, options)).toBe(1);
     expect(fetch).toHaveBeenCalledWith(
-      options.baseUrl + "/api/webhooks/whatsapp",
+      options.baseUrl + "/api/webhooks/twilio",
       expect.objectContaining({ redirect: "error" }),
     );
     expect(await confirmIntercepted({ query }, directory, options)).toBe(0);

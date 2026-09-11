@@ -381,7 +381,7 @@ describe("consuming an answer token", () => {
     await observer.query(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, channel, scheduled_for)
-       values ($1, 'reminder', 'pending', $2, 'whatsapp', now() + interval '1 day')`,
+       values ($1, 'reminder', 'pending', $2, 'sms', now() + interval '1 day')`,
       [`${MARKER}-reminder`, invitationId],
     );
 

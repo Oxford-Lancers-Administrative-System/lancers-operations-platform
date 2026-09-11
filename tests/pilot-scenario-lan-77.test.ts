@@ -203,7 +203,7 @@ async function approveScenarioEvent(eventId: string): Promise<void> {
         channel, template_variables)
      select 'event:' || i.event_id::text || ':invitation:' || i.capacity::text
               || ':' || i.participant_id::text,
-            'invitation', 'pending', i.id, i.event_id, m.person_id, 'whatsapp', '{}'::jsonb
+            'invitation', 'pending', i.id, i.event_id, m.person_id, 'sms', '{}'::jsonb
        from public.invitations i
        join public.season_memberships m on m.id = i.season_membership_id
       where i.event_id = $1`,

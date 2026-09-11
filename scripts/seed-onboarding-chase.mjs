@@ -107,7 +107,7 @@ async function recordAttempt(client, jobId, attemptNumber, outcome, occurredAt, 
     `insert into public.delivery_attempts
        (notification_job_id, attempt_number, channel, provider, requested_at, accepted_at,
         concluded_at, provider_message_id, failure_reason)
-     values ($1, $2, 'whatsapp', 'meta_whatsapp_cloud', $3::timestamptz, $3::timestamptz,
+     values ($1, $2, 'sms', 'twilio_sms', $3::timestamptz, $3::timestamptz,
              $3::timestamptz, $4, $5)
      on conflict (notification_job_id, attempt_number) do nothing
      returning id`,
@@ -116,7 +116,7 @@ async function recordAttempt(client, jobId, attemptNumber, outcome, occurredAt, 
   await client.query(
     `insert into public.delivery_results
        (notification_job_id, attempt_number, outcome, channel, provider, detail, occurred_at)
-     values ($1, $2, $3::public.delivery_outcome, 'whatsapp', 'meta_whatsapp_cloud', $4, $5::timestamptz)
+     values ($1, $2, $3::public.delivery_outcome, 'sms', 'twilio_sms', $4, $5::timestamptz)
      on conflict (notification_job_id, attempt_number) do nothing`,
     [jobId, attemptNumber, outcome, detail, occurredAt],
   );
@@ -150,7 +150,7 @@ async function seedChase(
     `insert into public.notification_jobs
        (idempotency_key, job_type, status, person_id, channel, scheduled_for, attempt_count,
         template_variables, created_at, updated_at)
-     values ($1, 'other', $2::public.notification_job_status, $3::uuid, 'whatsapp', $4::timestamptz,
+     values ($1, 'other', $2::public.notification_job_status, $3::uuid, 'sms', $4::timestamptz,
              $5, '{}'::jsonb, $4::timestamptz, $4::timestamptz)
      on conflict (idempotency_key) do update set idempotency_key = excluded.idempotency_key
      returning id`,
@@ -221,7 +221,7 @@ try {
     seasonId: jorvik.season_id,
     key: `onboarding-welcome:${jorvik.membership_id}`,
     section: "welcome",
-    channel: "whatsapp",
+    channel: "sms",
     actorLabel: "the club",
     occurredAt: "2026-08-12T09:00:00Z",
     outcome: "delivered",
@@ -233,7 +233,7 @@ try {
     seasonId: jorvik.season_id,
     key: `onboarding-chase:${jorvik.membership_id}:1`,
     section: "chase",
-    channel: "whatsapp",
+    channel: "sms",
     actorLabel: "the club",
     occurredAt: "2026-09-01T09:00:00Z",
     outcome: "delivered",
@@ -249,7 +249,7 @@ try {
     seasonId: kenelm.season_id,
     key: `onboarding-welcome:${kenelm.membership_id}`,
     section: "welcome",
-    channel: "whatsapp",
+    channel: "sms",
     actorLabel: "the club",
     occurredAt: "2026-08-12T09:00:00Z",
     outcome: "delivered",
@@ -268,7 +268,7 @@ try {
       seasonId: kenelm.season_id,
       key: `onboarding-chase:${kenelm.membership_id}:${index + 1}`,
       section: "chase",
-      channel: "whatsapp",
+      channel: "sms",
       actorLabel: "the club",
       occurredAt,
       outcome: "delivered",
@@ -316,7 +316,7 @@ try {
     seasonId: lucian.season_id,
     key: `onboarding-welcome:${lucian.membership_id}`,
     section: "welcome",
-    channel: "whatsapp",
+    channel: "sms",
     actorLabel: "the club",
     occurredAt: "2026-08-12T09:00:00Z",
     outcome: "delivered",
@@ -335,7 +335,7 @@ try {
     seasonId: lucian.season_id,
     key: `onboarding-chase:${lucian.membership_id}:1`,
     section: "chase",
-    channel: "whatsapp",
+    channel: "sms",
     actorLabel: "the club",
     occurredAt: "2026-08-19T09:00:00Z",
     outcome: "rejected",
@@ -352,7 +352,7 @@ try {
     seasonId: merrick.season_id,
     key: `onboarding-welcome:${merrick.membership_id}`,
     section: "welcome",
-    channel: "whatsapp",
+    channel: "sms",
     actorLabel: "the club",
     occurredAt: "2026-08-12T09:00:00Z",
     outcome: "delivered",
@@ -364,7 +364,7 @@ try {
     seasonId: merrick.season_id,
     key: `onboarding-chase:${merrick.membership_id}:1`,
     section: "chase",
-    channel: "whatsapp",
+    channel: "sms",
     actorLabel: "the club",
     occurredAt: "2026-08-19T09:00:00Z",
     outcome: "delivered",

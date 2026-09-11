@@ -10,7 +10,7 @@ export function countRecords(records) {
   for (const record of records) {
     if (
       !record ||
-      !["whatsapp", "email"].includes(record.channel) ||
+      !["sms", "email"].includes(record.channel) ||
       typeof record.recipient !== "string" ||
       !record.recipient.trim() ||
       typeof record.kind !== "string" ||

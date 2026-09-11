@@ -779,7 +779,7 @@ async function scheduleWhatsAppFallbackIn(tx: Tx, jobId: string): Promise<string
             j.invitation_id, j.event_id, j.person_id,
             'email'::public.notification_channel, now(), j.ladder_rung, '{}'::jsonb
        from public.notification_jobs j
-      where j.id = $1 and j.invitation_id is not null and j.channel = 'whatsapp'
+      where j.id = $1 and j.invitation_id is not null and j.channel = 'sms'
      on conflict (idempotency_key) do nothing
      returning id`,
     [jobId],
@@ -839,7 +839,7 @@ export async function dispatchJob(
     ),
   );
 
-  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "sms";
 
   const resolution = resolveDeliveryProvider(
     options.source ?? process.env,
@@ -906,7 +906,7 @@ export async function dispatchJob(
       // A no-route refusal is terminal by construction — there is no ceiling
       // to exhaust and nothing to retry — so it is a fallback trigger on its
       // first and only failure, not merely on some later exhaustion.
-      if (channel === "whatsapp") fallbackId = await scheduleWhatsAppFallbackIn(tx, jobId);
+      if (channel === "sms") fallbackId = await scheduleWhatsAppFallbackIn(tx, jobId);
     } else if (!outcome.claimed && outcome.reason === "unschedulable") {
       // F-C1. Recorded the same visible, retryable way as "undeliverable" —
       // an operator fixes the event's start time, then presses Retry — but
@@ -1049,7 +1049,7 @@ export async function dispatchJob(
       },
     });
 
-    return terminal && channel === "whatsapp"
+    return terminal && channel === "sms"
       ? await scheduleWhatsAppFallbackIn(tx, claimedAttempt.jobId)
       : null;
   });
@@ -1814,7 +1814,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         jobId: row.job_id,
         invitationId: row.invitation_id,
         inviteeName: row.family_name ? `${first} ${row.family_name}` : first,
-        channel: row.channel ?? "whatsapp",
+        channel: row.channel ?? "sms",
         state: row.state,
         lastAttemptAt: row.last_attempt_at,
         nextAttemptAt: row.next_attempt_at,
@@ -1824,7 +1824,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         responseState: row.response_state ?? "not_solicited",
         noUsableRoute,
         whatsappUnresponsive:
-          row.channel === "whatsapp" &&
+          row.channel === "sms" &&
           row.state === "failed" &&
           row.fallback_status === "completed",
         seasonMembershipId: row.season_membership_id,

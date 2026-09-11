@@ -1,5 +1,5 @@
 /**
- * The local delivery sink — LAN-169.
+ * The local delivery sink — LAN-169, re-pointed at Twilio by LAN-330.
  *
  * ## The test this file exists for
  *
@@ -11,10 +11,9 @@
  * database policy: with a fully populated, deployed-looking environment, and by
  * asserting that **no** variable in it changes the answer.
  *
- * The rest of the file asserts the sink's other job — that it validates against
- * the declared template registry and rejects a mismatch the way Meta would,
- * rather than accepting anything and letting a parameter reordering reach the
- * club.
+ * The rest of the file asserts the sink's other job — that it validates a
+ * Twilio request the way Twilio would, rather than accepting anything and
+ * letting a sender chosen for the wrong country reach a real phone.
  */
 import { describe, expect, it, vi } from "vitest";
 
@@ -23,15 +22,14 @@ vi.mock("server-only", () => ({}));
 import { CLOUD_RUN_SERVICE } from "@/lib/db/runtime-target";
 
 import { createDeliverySink, selectDeliverySink, type SinkRecord } from "./local-sink";
-import { TEMPLATE_NAMES } from "./templates";
 
-const GRAPH = "https://graph.facebook.com/v26.0/1234567890/messages";
+const MESSAGES = "https://api.twilio.com/2010-04-01/Accounts/ACtest/Messages.json";
 const EMAILS = "https://api.resend.com/emails";
 
 /** A local environment with every sink affordance turned on. */
 const LOCAL = {
   APP_BASE_URL: "http://localhost:3000",
-  DELIVERY_SINK_FAILURES: "447700900999",
+  DELIVERY_SINK_FAILURES: "+447700900999",
 };
 
 /**
@@ -44,51 +42,17 @@ const DEPLOYED = {
   DELIVERY_SINK_FAILURES: "447700900999",
   DELIVERY_SINK: "on",
   NODE_ENV: "development",
-  WHATSAPP_MESSAGE_MODE: "text",
 };
 
-/** The two Yes/No button components `invitation` and `reminder` now declare. */
-function answerButtons(): Record<string, unknown>[] {
-  return [
-    {
-      type: "button",
-      sub_type: "url",
-      index: "0",
-      parameters: [{ type: "text", text: "y.token" }],
-    },
-    {
-      type: "button",
-      sub_type: "url",
-      index: "1",
-      parameters: [{ type: "text", text: "n.token" }],
-    },
-  ];
+function smsForm(overrides: Record<string, string> = {}): string {
+  return new URLSearchParams({
+    To: "+447700900001",
+    From: "OxfLancers",
+    Body: "Oxford Lancers: Jamie, practice Wed 14 Oct 20:00.\nYes: https://x/a/y.t\nNo: https://x/a/n.t",
+    StatusCallback: "http://localhost:3000/api/webhooks/twilio?kind=invitation",
+    ...overrides,
+  }).toString();
 }
-
-function templateBody(
-  name: string,
-  parameters: string[],
-  extraComponents: Record<string, unknown>[] = answerButtons(),
-): string {
-  return JSON.stringify({
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to: "447700900001",
-    type: "template",
-    template: {
-      name,
-      language: { code: "en_GB" },
-      components: [
-        { type: "body", parameters: parameters.map((text) => ({ type: "text", text })) },
-        ...extraComponents,
-      ],
-    },
-  });
-}
-
-// LAN-172: the invitation's body carries three parameters now — the link left
-// body copy entirely and travels on the two buttons `answerButtons()` adds.
-const THREE = ["Jamie", "Michaelmas week 3", "Wednesday 14 October, 20:00"];
 
 function collecting() {
   const written: SinkRecord[] = [];
@@ -104,14 +68,9 @@ describe("a deployed runtime cannot reach the sink", () => {
   });
 
   it("gets nothing however the environment is widened", () => {
-    // One variable at a time, so a future branch that honoured any of them
-    // fails here rather than in production. There is deliberately no third
-    // branch in `selectDeliverySink` for one of these to reach.
     for (const [name, value] of Object.entries({
       DELIVERY_SINK: "true",
       DELIVERY_SINK_ENABLED: "1",
-      WHATSAPP_ALLOW_FREE_FORM: "true",
-      WHATSAPP_TEST_RECIPIENT: "447700900001",
       EMAIL_TEST_RECIPIENT: "someone@example.com",
       NODE_ENV: "test",
     })) {
@@ -120,11 +79,7 @@ describe("a deployed runtime cannot reach the sink", () => {
   });
 
   it("gets nothing on a non-loopback base URL even outside Cloud Run", () => {
-    // The base URL is the address the application tells the world to visit, so
-    // a deployment that has one cannot also be a loopback deployment — whether
-    // or not `K_SERVICE` happens to be set.
     expect(selectDeliverySink({ APP_BASE_URL: "https://lancers.example" })).toBeNull();
-    // And the near-miss that a string match would have let through.
     expect(selectDeliverySink({ APP_BASE_URL: "https://localhost.example.com" })).toBeNull();
   });
 
@@ -134,143 +89,77 @@ describe("a deployed runtime cannot reach the sink", () => {
   });
 });
 
-describe("validating against the declared registry", () => {
-  it("accepts the real Graph payload and answers in Meta's shape", async () => {
+describe("validating a Twilio request", () => {
+  it("accepts the real form and answers in Twilio's shape", async () => {
     const { sink, written } = collecting();
 
-    const response = await sink(GRAPH, {
-      method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, THREE),
-    });
+    const response = await sink(MESSAGES, { method: "POST", body: smsForm() });
 
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as {
-      messaging_product: string;
-      messages: { id: string }[];
-    };
-    expect(body.messaging_product).toBe("whatsapp");
-    // A real `wamid.`, because `delivery_attempts` matches a callback on it and
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { sid: string; status: string };
+    expect(body.status).toBe("queued");
+    // A real `SM` SID, because `delivery_attempts` matches a callback on it and
     // a made-up shape would make local callback matching prove nothing.
-    expect(body.messages[0].id).toMatch(/^wamid\./);
+    expect(body.sid).toMatch(/^SM[0-9a-f]{32}$/);
 
     expect(written).toHaveLength(1);
-    expect(written[0]).toMatchObject({ channel: "whatsapp", kind: "invitation" });
+    expect(written[0]).toMatchObject({
+      channel: "sms",
+      kind: "invitation",
+      recipient: "+447700900001",
+    });
   });
 
-  it("refuses a parameter count the template does not declare, as Meta would", async () => {
-    const { sink } = collecting();
-
-    const response = await sink(GRAPH, {
+  it("records the kind from the callback URL and `unknown` when it names none", async () => {
+    const { sink, written } = collecting();
+    await sink(MESSAGES, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, THREE.slice(0, 2)),
+      body: smsForm({ StatusCallback: "http://localhost:3000/api/webhooks/twilio" }),
     });
-
-    expect(response.status).toBe(400);
-    const body = (await response.json()) as { error: { code: number; message: string } };
-    // Meta's own code for "the parameters do not match the template". A sink
-    // that accepted this would let a reordering pass every local test and fail
-    // for the first time in front of the club.
-    expect(body.error.code).toBe(132_000);
-    expect(body.error.message).toContain("3 body parameters");
+    await sink(MESSAGES, {
+      method: "POST",
+      body: smsForm({ StatusCallback: "http://localhost:3000/api/webhooks/twilio?kind=nonsense" }),
+    });
+    expect(written.map((record) => record.kind)).toEqual(["unknown", "unknown"]);
   });
 
-  it("refuses a template nobody has declared", async () => {
+  it("refuses an alphanumeric sender to a North American number, as Twilio does", async () => {
     const { sink } = collecting();
-    const response = await sink(GRAPH, {
+    const response = await sink(MESSAGES, {
       method: "POST",
-      body: templateBody("some_template_we_invented", THREE),
+      body: smsForm({ To: "+12025550123", From: "OxfLancers" }),
     });
     expect(response.status).toBe(400);
-    expect(((await response.json()) as { error: { code: number } }).error.code).toBe(132_001);
+    expect(((await response.json()) as { code: number }).code).toBe(21212);
   });
 
-  it("refuses a blank parameter", async () => {
-    const { sink } = collecting();
-    const response = await sink(GRAPH, {
+  it("accepts a toll-free sender to a North American number", async () => {
+    const { sink, written } = collecting();
+    const response = await sink(MESSAGES, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, ["Jamie", "", "when"]),
+      body: smsForm({ To: "+12025550123", From: "+18005550100" }),
     });
-    expect(response.status).toBe(400);
-    expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
-      "whenAndVenue",
+    expect(response.status).toBe(201);
+    expect(written[0].recipient).toBe("+12025550123");
+  });
+
+  it("refuses a recipient without its plus, or with spaces", async () => {
+    const { sink } = collecting();
+    for (const To of ["447700900001", "+44 7700 900001", ""]) {
+      const response = await sink(MESSAGES, { method: "POST", body: smsForm({ To }) });
+      expect(response.status, To).toBe(400);
+      expect(((await response.json()) as { code: number }).code).toBe(21211);
+    }
+  });
+
+  it("refuses an empty body and a missing callback", async () => {
+    const { sink } = collecting();
+    expect((await sink(MESSAGES, { method: "POST", body: smsForm({ Body: " " }) })).status).toBe(
+      400,
     );
-  });
-
-  it("refuses a button missing its dynamic URL suffix", async () => {
-    const { sink } = collecting();
-    const response = await sink(GRAPH, {
-      method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, THREE, [
-        {
-          type: "button",
-          sub_type: "url",
-          index: "0",
-          parameters: [{ type: "text", text: "y.token" }],
-        },
-        // Button 1 (No) is missing entirely — Meta would refuse this exactly
-        // as it refuses a missing body parameter.
-      ]),
-    });
-    expect(response.status).toBe(400);
-    const body = (await response.json()) as { error: { code: number; message: string } };
-    expect(body.error.code).toBe(132_000);
-    expect(body.error.message).toContain("exactly 2 URL buttons");
-  });
-
-  it("refuses a Quick Reply where a URL button was declared", async () => {
-    const { sink } = collecting();
-    const response = await sink(GRAPH, {
-      method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, THREE, [
-        {
-          type: "button",
-          sub_type: "quick_reply",
-          index: "0",
-          parameters: [{ type: "payload", payload: "yes" }],
-        },
-        {
-          type: "button",
-          sub_type: "url",
-          index: "1",
-          parameters: [{ type: "text", text: "n.token" }],
-        },
-      ]),
-    });
-    expect(response.status).toBe(400);
-    expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
-      "Quick Reply",
-    );
-  });
-
-  it("accepts the parameterless shape, which is the absent components key", async () => {
-    // `hello_world` and anything else declaring no body parameters. Meta wants
-    // the key absent rather than present and empty, and the sink recognises the
-    // same thing `buildMessageBody` builds.
-    const { sink } = collecting();
-    const response = await sink(GRAPH, {
-      method: "POST",
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: "447700900001",
-        type: "template",
-        template: { name: TEMPLATE_NAMES.invitation, language: { code: "en_GB" } },
-      }),
-    });
-    expect(response.status).toBe(200);
-  });
-
-  it("refuses a recipient that is not E.164 digits", async () => {
-    const { sink } = collecting();
-    const response = await sink(GRAPH, {
-      method: "POST",
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: "+44 7700 900001",
-        type: "template",
-        template: { name: TEMPLATE_NAMES.invitation, language: { code: "en_GB" } },
-      }),
-    });
-    expect(response.status).toBe(400);
+    expect(
+      (await sink(MESSAGES, { method: "POST", body: smsForm({ StatusCallback: "" }) })).status,
+    ).toBe(400);
   });
 });
 
@@ -304,31 +193,29 @@ describe("email payloads", () => {
 
 describe("failing on demand", () => {
   it("refuses a named recipient, so a delivery failure can be reviewed", async () => {
-    // W6 is unreviewable without this: "a genuine failure" and "a WhatsApp
-    // failure that email then carried" are both states somebody has to look at,
-    // and neither can be produced by a sink that always succeeds.
+    // W6 is unreviewable without this: "a genuine failure" and "a text failure
+    // that email then carried" are both states somebody has to look at, and
+    // neither can be produced by a sink that always succeeds.
     const { sink } = collecting();
-    const response = await sink(GRAPH, {
+    const response = await sink(MESSAGES, {
       method: "POST",
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: "447700900999",
-        type: "template",
-        template: { name: TEMPLATE_NAMES.invitation, language: { code: "en_GB" } },
-      }),
+      body: smsForm({ To: "+447700900999" }),
     });
     expect(response.status).toBe(400);
-    expect(((await response.json()) as { error: { code: number } }).error.code).toBe(131_047);
+    expect(((await response.json()) as { code: number }).code).toBe(21610);
   });
 });
 
 describe("anything the sink does not serve", () => {
   it("is refused rather than passed through to the network", async () => {
-    // A sink that forwarded what it did not understand would be a local
-    // environment that sometimes reaches the internet, which is the property it
-    // exists to remove.
     const { sink } = collecting();
     const response = await sink("https://example.com/anything", { method: "POST", body: "{}" });
     expect(response.status).toBe(404);
+    // Meta's old endpoint included: this branch has no WhatsApp path at all.
+    const graph = await sink("https://graph.facebook.com/v26.0/123/messages", {
+      method: "POST",
+      body: "{}",
+    });
+    expect(graph.status).toBe(404);
   });
 });

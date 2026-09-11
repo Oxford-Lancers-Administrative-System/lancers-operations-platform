@@ -23,7 +23,7 @@ export const MESSAGING_SCHEDULE_INTRO =
   "reaches the President.";
 
 export const MESSAGING_SCHEDULE_RULE_HEADLINE =
-  "The invitation goes first, then a reminder every cadence until they run out — WhatsApp, " +
+  "The invitation goes first, then a reminder every cadence until they run out — text, " +
   "then email last.";
 
 export const MESSAGING_SCHEDULE_RULE_DETAIL =
@@ -113,7 +113,7 @@ export function scheduleSavedNotice(label: string): string {
 export function summarizeScheduleValues(change: MessagingScheduleChange): string {
   return (
     `RSVP by ${change.rsvpByDays} days, first invitation ${change.invitationLeadDays} days, ` +
-    `cadence ${change.reminderCadenceHours} h, WhatsApp ${change.whatsappReminderCount}, ` +
+    `cadence ${change.reminderCadenceHours} h, text ${change.whatsappReminderCount}, ` +
     `email ${change.emailReminderCount}, President ${change.escalationHours} h`
   );
 }
@@ -196,7 +196,7 @@ export function buildSchedulePreview(
   plan.rungs.forEach((rung, index) => {
     if (rung.kind === "invitation") {
       steps.push({
-        label: "Invitation — WhatsApp",
+        label: "Invitation — text",
         when: formatScheduleWhen(rung.at),
         note: `${schedule.invitationLeadDays} days before the event`,
       });
@@ -204,7 +204,7 @@ export function buildSchedulePreview(
     }
 
     reminderNumber += 1;
-    const channelLabel = rung.channel === "whatsapp" ? "WhatsApp" : "email";
+    const channelLabel = rung.channel === "sms" ? "text" : "email";
     const isLastPlayerMessage = index === lastRungIndex;
     steps.push({
       label: `Reminder ${reminderNumber} — ${channelLabel}`,
@@ -235,7 +235,7 @@ export function buildSchedulePreview(
   if (plan.lateApproval) {
     warning =
       "This type's own invitation lead leaves no room for its reminder ladder — even an event " +
-      "four weeks away would be treated as a late approval: WhatsApp only, and the President is " +
+      "four weeks away would be treated as a late approval: text only, and the President is " +
       "never told.";
   } else {
     const lastRung = plan.rungs[lastRungIndex];

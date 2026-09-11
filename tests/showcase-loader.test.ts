@@ -252,7 +252,7 @@ describe("verification", () => {
     const invitation = idsOf(await plan(), "public.invitations")[0];
     await client.query(
       `insert into public.notification_jobs (idempotency_key, job_type, status, invitation_id, channel, scheduled_for)
-       values ('tester-week-test-live', 'reminder', 'pending', $1, 'whatsapp', now() - interval '1 hour')`,
+       values ('tester-week-test-live', 'reminder', 'pending', $1, 'sms', now() - interval '1 hour')`,
       [invitation],
     );
     const output = runExpectingFailure("verify");
@@ -478,12 +478,12 @@ describe("rollback", () => {
     const invitation = idsOf(await plan(), "public.invitations")[0];
     const job = await client.query<{ id: string }>(
       `insert into public.notification_jobs (idempotency_key, job_type, status, invitation_id, channel)
-       values ('tester-week-test-attached', 'invitation', 'completed', $1, 'whatsapp') returning id`,
+       values ('tester-week-test-attached', 'invitation', 'completed', $1, 'sms') returning id`,
       [invitation],
     );
     await client.query(
       `insert into public.delivery_attempts (notification_job_id, attempt_number, channel, provider)
-       values ($1, 1, 'whatsapp', 'whatsapp_cloud')`,
+       values ($1, 1, 'sms', 'whatsapp_cloud')`,
       [job.rows[0].id],
     );
     const refusal = runExpectingFailure("rollback");

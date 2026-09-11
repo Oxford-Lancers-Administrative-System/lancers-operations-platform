@@ -8,9 +8,7 @@ import { getPool } from "../../src/lib/db/connection";
 import { readPanelState } from "./panel-state.mjs";
 import { normalizeDestination, routeRecipient, assertProviderRequest } from "./routing.mjs";
 import { resolveLocalDatabaseUrl } from "../lib/local-db.mjs";
-
-import { MESSAGE_TEMPLATES } from "../../src/lib/delivery/templates";
-import { submittedPreview } from "./message-preview.mjs";
+import { TEST_HOST } from "./configure.mjs";
 import { clockSql } from "./sql-clock.mjs";
 
 const directory = path.resolve(".lancers-runtime");
@@ -68,22 +66,23 @@ function recordEvidence(entry) {
     flag: "wx",
   });
 }
+function parseForm(body) {
+  const form = {};
+  for (const [key, value] of new URLSearchParams(typeof body === "string" ? body : ""))
+    form[key] = value;
+  return form;
+}
 export function testTransport(source) {
   active();
   const sink = createDeliverySink(source);
   return async (url, init) => {
     const { state } = active();
     const target = new URL(url);
-    // This apparatus is for WhatsApp. Email remains intercepted; selecting a
-    // real phone is never implicit consent to actual email egress.
+    // This apparatus is for SMS. Email remains intercepted; selecting a real
+    // phone is never implicit consent to actual email egress.
     if (target.pathname.endsWith("/emails")) return sink(url, init);
-    let payload;
-    try {
-      payload = JSON.parse(init.body);
-    } catch {
-      throw new Error("The test router could not read the template payload.");
-    }
-    assertProviderRequest(url, payload);
+    const form = parseForm(init.body);
+    assertProviderRequest(url, form);
     const people = (
       await getPool().query(
         `select p.id,coalesce(c.normalised_value,c.raw_value) as phone from people p join contact_points c on c.person_id=p.id where p.merged_into_person_id is null and c.kind='phone' and c.valid_until is null`,
@@ -93,14 +92,14 @@ export function testTransport(source) {
     const matching = [
       ...new Map(
         people
-          .filter((p) => normalizeDestination(p.phone) === normalizeDestination(payload.to))
+          .filter((p) => normalizeDestination(p.phone) === normalizeDestination(form.To))
           .map((p) => [p.id, p]),
       ).values(),
     ];
-    const choice = routeRecipient(payload.to, matching, state.people);
+    const choice = routeRecipient(form.To, matching, state.people);
     if (choice.mode === "intercepted") {
       const capture = createDeliverySink(source, {
-        failFor: choice.outcome === "failed" ? [String(payload.to)] : [],
+        failFor: choice.outcome === "failed" ? [String(form.To)] : [],
         write: (record) => {
           recordEvidence({
             ...record,
@@ -115,28 +114,20 @@ export function testTransport(source) {
       });
       return capture(url, init);
     }
-    const submissionsFile = path.join(directory, "template-submissions.json");
-    if (!fs.existsSync(submissionsFile))
-      throw new Error("Load the approved test submission records before actual sending.");
-    const definition = JSON.parse(fs.readFileSync(submissionsFile, "utf8")).templates.find(
-      (t) => t.name === payload.template.name,
-    );
-    const contract = definition && MESSAGE_TEMPLATES[definition.kind];
-    const preview =
-      contract &&
-      submittedPreview(directory, { channel: "whatsapp", payload }, contract.parameterNames);
-    if (!preview || preview.warnings.length)
-      throw new Error(
-        "The test sender and submitted template do not match. Resolve the application prerequisite before actual delivery.",
-      );
     const privateSettings = parse(fs.readFileSync(".env.test-box.local"));
-    if (
-      !/^\d+$/.test(privateSettings.WHATSAPP_PHONE_NUMBER_ID ?? "") ||
-      !privateSettings.WHATSAPP_ACCESS_TOKEN
-    )
-      throw new Error("Private WhatsApp test credentials are not ready.");
-    if (source.APP_BASE_URL !== "https://marvel-indiscernible-daxton.ngrok-free.dev")
+    for (const key of ["TWILIO_ACCOUNT_SID", "TWILIO_API_KEY_SID", "TWILIO_API_KEY_SECRET"]) {
+      if (!privateSettings[key]?.trim())
+        throw new Error("Private Twilio test credentials are not ready.");
+    }
+    if (source.APP_BASE_URL !== TEST_HOST)
       throw new Error("Actual test messages require the configured test tunnel for their links.");
+    if (!form.StatusCallback.startsWith(TEST_HOST + "/"))
+      throw new Error("Actual test messages must report delivery to the configured test tunnel.");
+    // A real callback is verified against the real Auth Token, so the app must
+    // be running in `--sms` mode, not on the sink stub.
+    if (!source.TWILIO_AUTH_TOKEN || source.TWILIO_AUTH_TOKEN === "local-stub-not-a-secret")
+      throw new Error("Run configure.mjs --sms and restart before actual sending.");
+    const kind = new URL(form.StatusCallback).searchParams.get("kind") ?? "unknown";
     // Record intent before the network; inability to preserve evidence refuses
     // the send. Neither headers nor credential values enter the record.
     recordEvidence({
@@ -144,28 +135,35 @@ export function testTransport(source) {
       actualAt: new Date().toISOString(),
       transport: "real",
       personId: choice.personId,
-      channel: "whatsapp",
-      recipient: String(payload.to),
-      payload,
+      channel: "sms",
+      kind,
+      recipient: String(form.To),
+      payload: form,
       phase: "requested",
     });
-    const version = target.pathname.split("/")[1];
     const response = await fetch(
-      `https://graph.facebook.com/${version}/${privateSettings.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(privateSettings.TWILIO_ACCOUNT_SID.trim())}/Messages.json`,
       {
         method: "POST",
         headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${privateSettings.WHATSAPP_ACCESS_TOKEN}`,
+          "content-type": "application/x-www-form-urlencoded",
+          authorization:
+            "Basic " +
+            Buffer.from(
+              `${privateSettings.TWILIO_API_KEY_SID.trim()}:${privateSettings.TWILIO_API_KEY_SECRET.trim()}`,
+            ).toString("base64"),
         },
-        body: JSON.stringify(payload),
+        body: new URLSearchParams(form).toString(),
         redirect: "error",
         signal: AbortSignal.timeout(30000),
       },
     );
     let id = null;
+    let status = null;
     try {
-      id = (await response.clone().json()).messages?.[0]?.id ?? null;
+      const answered = await response.clone().json();
+      id = answered.sid ?? null;
+      status = answered.status ?? answered.code ?? null;
     } catch {
       /* The provider adapter interprets invalid responses. */
     }
@@ -175,11 +173,13 @@ export function testTransport(source) {
         actualAt: new Date().toISOString(),
         transport: "real",
         personId: choice.personId,
-        channel: "whatsapp",
-        recipient: String(payload.to),
-        payload,
+        channel: "sms",
+        kind,
+        recipient: String(form.To),
+        payload: form,
         phase: response.ok ? "accepted" : "refused",
         providerMessageId: id,
+        providerStatus: status,
         httpStatus: response.status,
       });
     } catch {

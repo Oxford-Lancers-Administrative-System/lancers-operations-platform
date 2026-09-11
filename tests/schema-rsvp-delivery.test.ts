@@ -56,7 +56,7 @@ async function insertJob(): Promise<string> {
     client,
     `insert into public.notification_jobs
        (idempotency_key, job_type, status, invitation_id, event_id, channel)
-     values ('schema-lan78-' || gen_random_uuid()::text, 'invitation', 'pending', $1, $2, 'whatsapp')
+     values ('schema-lan78-' || gen_random_uuid()::text, 'invitation', 'pending', $1, $2, 'sms')
      returning id`,
     [base.invitationId, base.approvedEventId],
   );
@@ -195,7 +195,7 @@ describe("delivery_attempts", () => {
       client,
       `insert into public.delivery_attempts
          (notification_job_id, attempt_number, channel, provider, accepted_at)
-       values ($1, 1, 'whatsapp', 'meta_whatsapp_cloud', now())`,
+       values ($1, 1, 'sms', 'twilio_sms', now())`,
       [jobId],
       "delivery_attempts_acceptance_names_its_message",
     );
@@ -208,7 +208,7 @@ describe("delivery_attempts", () => {
         client,
         `insert into public.delivery_attempts
            (notification_job_id, attempt_number, channel, provider, concluded_at, failure_reason)
-         values ($1, $2, 'whatsapp', 'meta_whatsapp_cloud', now(), 'refused')`,
+         values ($1, $2, 'sms', 'twilio_sms', now(), 'refused')`,
         [jobId, attempt],
       );
     }
@@ -220,14 +220,14 @@ describe("delivery_attempts", () => {
       client,
       `insert into public.delivery_attempts
          (notification_job_id, attempt_number, channel, provider, provider_message_id, accepted_at)
-       values ($1, 1, 'whatsapp', 'meta_whatsapp_cloud', 'wamid.SCHEMA', now())`,
+       values ($1, 1, 'sms', 'twilio_sms', 'wamid.SCHEMA', now())`,
       [jobId],
     );
     await expectRejected(
       client,
       `insert into public.delivery_attempts
          (notification_job_id, attempt_number, channel, provider, provider_message_id, accepted_at)
-       values ($1, 2, 'whatsapp', 'meta_whatsapp_cloud', 'wamid.SCHEMA', now())`,
+       values ($1, 2, 'sms', 'twilio_sms', 'wamid.SCHEMA', now())`,
       [jobId],
       "delivery_attempts_provider_message_unique",
     );
@@ -242,7 +242,7 @@ describe("delivery_callbacks", () => {
       client,
       `insert into public.delivery_callbacks
          (provider, provider_event_id, signature_verified, applied_at)
-       values ('meta_whatsapp_cloud', 'evt-1', false, now())`,
+       values ('twilio_sms', 'evt-1', false, now())`,
       [],
       "delivery_callbacks_are_verified_before_they_are_stored",
     );
@@ -253,13 +253,13 @@ describe("delivery_callbacks", () => {
       client,
       `insert into public.delivery_callbacks
          (provider, provider_event_id, signature_verified, applied_at)
-       values ('meta_whatsapp_cloud', 'evt-dup', true, now())`,
+       values ('twilio_sms', 'evt-dup', true, now())`,
     );
     await expectRejected(
       client,
       `insert into public.delivery_callbacks
          (provider, provider_event_id, signature_verified, applied_at)
-       values ('meta_whatsapp_cloud', 'evt-dup', true, now())`,
+       values ('twilio_sms', 'evt-dup', true, now())`,
       [],
       "delivery_callbacks_one_per_provider_event",
     );
@@ -270,7 +270,7 @@ describe("delivery_callbacks", () => {
       client,
       `insert into public.delivery_callbacks
          (provider, provider_event_id, signature_verified)
-       values ('meta_whatsapp_cloud', 'evt-silent', true)`,
+       values ('twilio_sms', 'evt-silent', true)`,
       [],
       "delivery_callbacks_unapplied_is_explained",
     );

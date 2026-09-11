@@ -268,7 +268,7 @@ async function pendingJob(invitationId: string, key: string): Promise<string> {
   const result = await observer.query<{ id: string }>(
     `insert into public.notification_jobs
        (idempotency_key, job_type, status, invitation_id, channel, scheduled_for)
-     values ($1, 'reminder', 'pending', $2, 'whatsapp', now() + interval '1 day')
+     values ($1, 'reminder', 'pending', $2, 'sms', now() + interval '1 day')
      returning id`,
     [`${MARKER}-${key}`, invitationId],
   );
@@ -526,7 +526,7 @@ describe("recordSignedLinkResponse", () => {
     await observer.query(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, channel, scheduled_for)
-       values ($1, 'reminder', 'pending', $2, 'whatsapp', now() + interval '1 day')`,
+       values ($1, 'reminder', 'pending', $2, 'sms', now() + interval '1 day')`,
       [`${MARKER}-rollback`, invitationId],
     );
 
@@ -635,7 +635,7 @@ describe("recordSignedLinkResponse", () => {
         `insert into public.notification_jobs
            (idempotency_key, job_type, status, invitation_id, channel, scheduled_for, attempt_count,
             claimed_at, claimed_by)
-         values ($1, 'reminder', $2::public.notification_job_status, $3, 'whatsapp',
+         values ($1, 'reminder', $2::public.notification_job_status, $3, 'sms',
                  now() + interval '1 day', 0,
                  case when $2 = 'processing' then now() end,
                  case when $2 = 'processing' then 'dispatcher' end)

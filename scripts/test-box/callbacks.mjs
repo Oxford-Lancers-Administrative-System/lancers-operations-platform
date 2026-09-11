@@ -2,10 +2,21 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
-/** Apply simulated receipt via the normal signed webhook, never by editing delivery rows. */
+/** Twilio's signature: the callback URL, then every parameter name+value in name order. */
+export function twilioSignature(url, params, authToken) {
+  const data =
+    url +
+    Object.keys(params)
+      .sort()
+      .map((key) => key + params[key])
+      .join("");
+  return crypto.createHmac("sha1", authToken).update(data, "utf8").digest("base64");
+}
+
+/** Apply simulated receipt via the normal signed callback, never by editing delivery rows. */
 export async function confirmIntercepted(db, directory, { baseUrl, env }) {
   const source = path.join(directory, "transport-evidence");
-  if (!fs.existsSync(source) || !env.WHATSAPP_APP_SECRET) return 0;
+  if (!fs.existsSync(source) || !env.TWILIO_AUTH_TOKEN || !env.APP_BASE_URL) return 0;
   const receipts = path.join(directory, "simulated-receipts");
   fs.mkdirSync(receipts, { recursive: true, mode: 0o700 });
   let count = 0;
@@ -13,7 +24,7 @@ export async function confirmIntercepted(db, directory, { baseUrl, env }) {
     const record = JSON.parse(fs.readFileSync(path.join(source, file), "utf8"));
     if (
       record.transport !== "intercepted" ||
-      record.channel !== "whatsapp" ||
+      record.channel !== "sms" ||
       record.simulatedOutcome !== "delivered" ||
       !record.providerMessageId
     )
@@ -28,43 +39,28 @@ export async function confirmIntercepted(db, directory, { baseUrl, env }) {
       [record.providerMessageId],
     );
     if (!match.rowCount) continue;
-    const payload = JSON.stringify({
-      object: "whatsapp_business_account",
-      entry: [
-        {
-          id: "local-test",
-          changes: [
-            {
-              field: "messages",
-              value: {
-                messaging_product: "whatsapp",
-                statuses: [
-                  {
-                    id: record.providerMessageId,
-                    status: "delivered",
-                    timestamp: String(Math.floor(Date.parse(record.testAt ?? record.at) / 1000)),
-                    recipient_id: record.recipient,
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      ],
-    });
-    const signature = crypto
-      .createHmac("sha256", env.WHATSAPP_APP_SECRET)
-      .update(payload)
-      .digest("hex");
-    const response = await fetch(baseUrl + "/api/webhooks/whatsapp", {
+    // The same query string the adapter put on its StatusCallback, so the
+    // signed URL matches what the route rebuilds from APP_BASE_URL.
+    const query = record.kind && record.kind !== "unknown" ? `?kind=${record.kind}` : "";
+    const params = {
+      MessageSid: record.providerMessageId,
+      MessageStatus: "delivered",
+      To: String(record.recipient),
+      From: String(record.payload?.From ?? ""),
+    };
+    const signedUrl = `${env.APP_BASE_URL.replace(/\/+$/, "")}/api/webhooks/twilio${query}`;
+    const response = await fetch(baseUrl + "/api/webhooks/twilio" + query, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-hub-signature-256": "sha256=" + signature },
-      body: payload,
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-twilio-signature": twilioSignature(signedUrl, params, env.TWILIO_AUTH_TOKEN),
+      },
+      body: new URLSearchParams(params).toString(),
       redirect: "error",
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok)
-      throw new Error("Simulated delivery confirmation was refused by the local webhook.");
+      throw new Error("Simulated delivery confirmation was refused by the local callback route.");
     // HTTP 200 also covers ignored and duplicate callbacks. Only persist a
     // simulated receipt once the application has recorded delivery evidence.
     const confirmed = await db.query(
@@ -72,7 +68,7 @@ export async function confirmIntercepted(db, directory, { baseUrl, env }) {
       [record.providerMessageId],
     );
     if (!confirmed.rowCount)
-      throw new Error("The local webhook has not recorded simulated delivery yet.");
+      throw new Error("The local callback route has not recorded simulated delivery yet.");
     fs.writeFileSync(
       receipt,
       JSON.stringify({

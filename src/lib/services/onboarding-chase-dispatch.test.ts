@@ -19,8 +19,8 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
-import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
+import { TWILIO_SMS_PROVIDER } from "@/lib/delivery/sms-twilio";
+import { linkToken, parseTransportBody } from "../../../tests/helpers/sms-transport";
 
 import { closePool, withTransaction } from "@/lib/db";
 import { applyProviderCallback, MAX_ATTEMPTS } from "./delivery";
@@ -69,9 +69,11 @@ function uniquePhone(): string {
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "5550001",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
   DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
@@ -86,7 +88,7 @@ const CONFIGURED: EnvironmentSource = {
 function acceptingTransport() {
   const sent: { url: string; body: Record<string, unknown> }[] = [];
   const transport = async (url: string, init: RequestInit) => {
-    const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
+    const body = parseTransportBody(url, init.body);
     sent.push({ url, body });
     const id = `wamid.${MARKER}.${crypto.randomUUID()}`;
     // The escalation's channel is resolved from the office holder's own
@@ -95,9 +97,7 @@ function acceptingTransport() {
     // fixture-shaped response, so an email send actually parses as accepted
     // rather than silently failing to match the WhatsApp response shape.
     return new Response(
-      JSON.stringify(
-        url.endsWith("/emails") ? { id } : { messaging_product: "whatsapp", messages: [{ id }] },
-      ),
+      JSON.stringify(url.endsWith("/emails") ? { id } : { sid: id, status: "queued" }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
   };
@@ -234,19 +234,14 @@ async function chaseJobId(membershipId: string, ordinal: number): Promise<string
  * not exist on an email payload at all).
  */
 function isOnboardingChaseEscalationSend(sent: { body: Record<string, unknown> }): boolean {
-  const templateName = (sent.body.template as { name?: string } | undefined)?.name;
-  if (templateName === TEMPLATE_NAMES.onboarding_chase_escalation) return true;
+  if (sent.body.kind === "onboarding_chase_escalation") return true;
   const subject = typeof sent.body.subject === "string" ? sent.body.subject : "";
   return /onboarding chases have run out/.test(subject);
 }
 
 function renderedTextOf(sent: { body: Record<string, unknown> }): string {
   if (typeof sent.body.text === "string") return sent.body.text;
-  const components = (
-    sent.body.template as { components?: { type: string; parameters?: { text?: string }[] }[] }
-  )?.components;
-  const params = components?.find((c) => c.type === "body")?.parameters ?? [];
-  return params.map((p) => p.text ?? "").join(" ");
+  return typeof sent.body.Body === "string" ? sent.body.Body : "";
 }
 
 async function makeUnder18(personId: string): Promise<void> {
@@ -267,11 +262,7 @@ describe("declareDueOnboardingChasesIn, via runMessagingSweep", () => {
 
     const jobId = await chaseJobId(membershipId, 1);
     expect(jobId).not.toBeNull();
-    expect(
-      sent.some(
-        (s) => (s.body.template as { name: string })?.name === TEMPLATE_NAMES.onboarding_chase,
-      ),
-    ).toBe(true);
+    expect(sent.some((s) => s.body.kind === "onboarding_chase")).toBe(true);
   });
 
   it("never fires before the configured delay, and never on a person without granted consent", async () => {
@@ -343,7 +334,7 @@ describe("REQ-cap-delivered — the count is spent only on delivered messages", 
     const realProviderMessageId = attempt.rows[0].provider_message_id;
 
     const applied = await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         providerEventId: `${MARKER}-delivered-real-${deliveredJobId}`,
         providerMessageId: realProviderMessageId,
@@ -375,7 +366,7 @@ describe("REQ-cap-delivered — the count is spent only on delivered messages", 
     );
 
     await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         providerEventId: `${MARKER}-failed-${failedJobId}`,
         providerMessageId: failedAttempt.rows[0].provider_message_id,
@@ -549,15 +540,7 @@ describe("REQ-operator-nudge — each selected person gets their own compiled as
     expect(results.every((r) => r.outcome === "accepted")).toBe(true);
     expect(sent).toHaveLength(2);
 
-    const buttons = sent.map(
-      (s) =>
-        (
-          s.body.template as {
-            components: { type: string; sub_type?: string; parameters?: { text?: string }[] }[];
-          }
-        ).components.find((c) => c.type === "button" && c.sub_type === "url")?.parameters?.[0]
-          ?.text,
-    );
+    const buttons = sent.map((s) => linkToken(String(s.body.Body ?? ""), "me"));
     // Two different people, two different durable links — never the same
     // token, and never a second live link issued to the same person twice
     // over (each carries its own freshly minted credential).
@@ -567,7 +550,7 @@ describe("REQ-operator-nudge — each selected person gets their own compiled as
 
     // Each recipient is that person's own allowlisted number, never the
     // other's — the isolation `T11-batch-nudge` asks a test to prove.
-    const recipients = sent.map((s) => s.body.to);
+    const recipients = sent.map((s) => s.body.To);
     expect(new Set(recipients).size).toBe(2);
   });
 
@@ -585,7 +568,7 @@ describe("REQ-operator-nudge — each selected person gets their own compiled as
       [chaseJob],
     );
     await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         providerEventId: `${MARKER}-exhaust-${chaseJob}`,
         providerMessageId: attempt.rows[0].provider_message_id,
@@ -664,7 +647,7 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
           [jobId],
         );
         await applyProviderCallback(
-          WHATSAPP_CLOUD_PROVIDER,
+          TWILIO_SMS_PROVIDER,
           {
             providerEventId: `${MARKER}-exhaust-cohort-${jobId}`,
             providerMessageId: attempt.rows[0].provider_message_id,
@@ -724,7 +707,7 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
         [jobId],
       );
       await applyProviderCallback(
-        WHATSAPP_CLOUD_PROVIDER,
+        TWILIO_SMS_PROVIDER,
         {
           providerEventId: `${MARKER}-single-${jobId}`,
           providerMessageId: attempt.rows[0].provider_message_id,
@@ -777,7 +760,7 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
         [jobId],
       );
       await applyProviderCallback(
-        WHATSAPP_CLOUD_PROVIDER,
+        TWILIO_SMS_PROVIDER,
         {
           providerEventId: `${MARKER}-vacant-${jobId}`,
           providerMessageId: attempt.rows[0].provider_message_id,

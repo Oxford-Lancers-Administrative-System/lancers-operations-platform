@@ -76,13 +76,13 @@ describe("recordOnboardingActivityIn", () => {
         seasonId,
         section: "welcome",
         kind: "ask",
-        channel: "whatsapp",
+        channel: "sms",
         actorLabel: "the club",
       }),
     );
     expect(entry.kind).toBe("ask");
     expect(entry.section).toBe("welcome");
-    expect(entry.channel).toBe("whatsapp");
+    expect(entry.channel).toBe("sms");
     expect(entry.occurredAt).toBeInstanceOf(Date);
 
     const rows = await withTransaction((tx) => readOnboardingActivityLogIn(tx, membershipId));
@@ -111,7 +111,7 @@ describe("recordOnboardingActivityIn", () => {
         seasonId,
         section: "code_of_conduct",
         kind: "ask",
-        channel: "whatsapp",
+        channel: "sms",
         actorLabel: "the club",
       }),
     );
@@ -137,7 +137,7 @@ describe("recordOnboardingActivityIn", () => {
         seasonId,
         section: "welcome",
         kind: "ask",
-        channel: "whatsapp",
+        channel: "sms",
         actorLabel: "the club",
       }),
     );
@@ -147,7 +147,7 @@ describe("recordOnboardingActivityIn", () => {
         seasonId,
         section: "photo_release",
         kind: "ask",
-        channel: "whatsapp",
+        channel: "sms",
         actorLabel: "the club",
       }),
     );

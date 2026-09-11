@@ -160,7 +160,7 @@ export function validatePhoneNumber(
       rule: "phone_country_code_required",
       message:
         `"${trimmed}" has no country code and no UK leading 0, so which country it is in cannot be told. ` +
-        'Write it with a "+" and the country code, or as a UK number starting with 0.',
+        'Write it with a "+" and the country code, for example +44 or +1, or as a UK number starting with 0.',
     };
   }
 

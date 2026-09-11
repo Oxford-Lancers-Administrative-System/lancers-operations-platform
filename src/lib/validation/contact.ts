@@ -52,8 +52,8 @@ import { toE164 } from "@/lib/delivery/phone-shape";
 
 /** Shown when a phone number cannot be converted to E.164 at all. */
 export const PHONE_SHAPE_MESSAGE =
-  "This does not look like a phone number. Enter it with its country code (or a UK number " +
-  "starting with 0), and check the digit count.";
+  "This does not look like a phone number. Enter it with its country code, for example +44 " +
+  "or +1, and check the digit count.";
 
 /** Shown when an email address has no `@`, or nothing on one side of it. */
 export const EMAIL_SHAPE_MESSAGE =

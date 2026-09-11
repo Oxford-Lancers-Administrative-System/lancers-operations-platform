@@ -317,7 +317,7 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
           invitation_id: null,
           event_id: null,
           person_id: personId,
-          channel: "whatsapp",
+          channel: "sms",
           scheduled_for: welcomeAt,
           claimed_at: welcomeAt,
           claimed_by: "system: automated delivery",
@@ -346,8 +346,8 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
           id: id("delivery_attempts", jobId, "1"),
           notification_job_id: jobId,
           attempt_number: 1,
-          channel: "whatsapp",
-          provider: "whatsapp-business",
+          channel: "sms",
+          provider: "twilio_sms",
           provider_message_id: messageId,
           requested_at: welcomeAt,
           accepted_at: welcomeAt,
@@ -365,8 +365,8 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
           notification_job_id: jobId,
           attempt_number: 1,
           outcome: "delivered",
-          channel: "whatsapp",
-          provider: "whatsapp-business",
+          channel: "sms",
+          provider: "twilio_sms",
           provider_message_id: messageId,
           actor_person_id: null,
           detail: null,
@@ -376,7 +376,7 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         { source: `onboarding welcome for ${key}` },
         ["delivery.delivered"],
       );
-      log(membershipId, "welcome", "ask", "whatsapp", { label: "the club" }, welcomeAt, key);
+      log(membershipId, "welcome", "ask", "sms", { label: "the club" }, welcomeAt, key);
     }
 
     if (!activated) {
@@ -432,7 +432,7 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         invitation_id: null,
         event_id: null,
         person_id: personId,
-        channel: "whatsapp",
+        channel: "sms",
         scheduled_for: when,
         claimed_at: when,
         claimed_by: "system: automated delivery",
@@ -465,8 +465,8 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         id: id("delivery_attempts", jobId, "1"),
         notification_job_id: jobId,
         attempt_number: 1,
-        channel: "whatsapp",
-        provider: "whatsapp-business",
+        channel: "sms",
+        provider: "twilio_sms",
         provider_message_id: messageId,
         requested_at: when,
         accepted_at: when,
@@ -484,8 +484,8 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         notification_job_id: jobId,
         attempt_number: 1,
         outcome: "delivered",
-        channel: "whatsapp",
-        provider: "whatsapp-business",
+        channel: "sms",
+        provider: "twilio_sms",
         provider_message_id: messageId,
         actor_person_id: null,
         detail: null,
@@ -516,7 +516,7 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
           : null,
       );
       deliveredAttempt(jobId, when);
-      log(membershipId, "chase", "ask", "whatsapp", { label: "the club" }, when, key);
+      log(membershipId, "chase", "ask", "sms", { label: "the club" }, when, key);
     }
 
     // The marker, so this membership reads as *already* escalated once, in the

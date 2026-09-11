@@ -7,7 +7,7 @@ import { runtime } from "./runtime.mjs";
 export function verificationEnvironment(shell, local) {
   const env = { ...shell, ...local };
   for (const key of Object.keys(env)) {
-    if (/^(APP_BASE_URL$|WHATSAPP_|EMAIL_|DELIVERY_|SCHEDULER_TRIGGER_TOKEN$)/.test(key)) {
+    if (/^(APP_BASE_URL$|TWILIO_|WHATSAPP_|EMAIL_|DELIVERY_|SCHEDULER_TRIGGER_TOKEN$)/.test(key)) {
       // Empty process entries prevent dotenv from importing configured runtime
       // values into tests whose fixtures deliberately supply their own values.
       env[key] = "";

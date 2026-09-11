@@ -1291,7 +1291,7 @@ describe("the delivery column's exceptions and chase position", () => {
     expect(row.querySelector('[data-testid="chase-position"]')).toBeNull();
   });
 
-  it("reads WhatsApp unresponsive for a WhatsApp failure the email fallback carried, and keeps counting it", () => {
+  it("reads Text unresponsive for a text failure the email fallback carried, and keeps counting it", () => {
     const withFallback = {
       ...OPERATOR,
       people: [
@@ -1310,7 +1310,7 @@ describe("the delivery column's exceptions and chase position", () => {
         filters={filters()}
       />,
     );
-    expect(container.textContent).toContain("WhatsApp unresponsive");
+    expect(container.textContent).toContain("Text unresponsive");
     // The chase ladder keeps reporting for a reached-by-fallback person —
     // only a genuine no-channel failure suppresses it.
     expect(container.textContent).toContain("Email sent · escalation Sat 12:00");

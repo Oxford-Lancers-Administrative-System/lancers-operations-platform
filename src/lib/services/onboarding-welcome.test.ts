@@ -104,7 +104,7 @@ describe("emitOnboardingOpenedWelcomeIn", () => {
     expect(job.rows[0]).toMatchObject({
       job_type: "other",
       status: "pending",
-      channel: "whatsapp",
+      channel: "sms",
     });
 
     const log = await withTransaction((tx) => readOnboardingActivityLogIn(tx, membershipId));

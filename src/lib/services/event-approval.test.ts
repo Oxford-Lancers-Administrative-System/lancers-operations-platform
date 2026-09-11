@@ -708,7 +708,7 @@ describe("a successful approval", () => {
     // therefore asserted per rung rather than uniformly — a ladder that sent
     // the email first would otherwise pass a test that only checked "never
     // manual".
-    expect(invitationJobs.every((job) => job.channel === "whatsapp")).toBe(true);
+    expect(invitationJobs.every((job) => job.channel === "sms")).toBe(true);
     const byRung = await observer.query<{ ladder_rung: number; channel: string }>(
       `select ladder_rung, channel::text as channel
          from public.notification_jobs
@@ -720,7 +720,7 @@ describe("a successful approval", () => {
     // (itself WhatsApp #1); rung 2 is the email (round 2, Q-19,
     // OWNER-LAN171-05).
     expect(byRung.rows).toEqual([
-      { ladder_rung: 1, channel: "whatsapp" },
+      { ladder_rung: 1, channel: "sms" },
       { ladder_rung: 2, channel: "email" },
     ]);
   });

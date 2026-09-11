@@ -21,7 +21,8 @@ import type { Client } from "pg";
 
 import { closePool, isServiceError, type ServiceError } from "@/lib/db";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
+import { TWILIO_SMS_PROVIDER } from "@/lib/delivery/sms-twilio";
+import { answerTokens, parseSmsForm } from "../../../tests/helpers/sms-transport";
 import {
   applyProviderCallback,
   JOB_HELD_MESSAGE,
@@ -69,9 +70,11 @@ const NOT_ALLOWLISTED = "07700 900555";
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "5550001",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
   DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED,
 };
 
@@ -304,7 +307,7 @@ async function fixture(
     const job = await observer.query<{ id: string }>(
       `insert into public.notification_jobs
        (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
-     values ($1, 'invitation', 'pending', $2, $3, $4, 'whatsapp') returning id`,
+     values ($1, 'invitation', 'pending', $2, $3, $4, 'sms') returning id`,
       [`${MARKER}:${eventId}`, invitation.rows[0].id, eventId, personId],
     );
 
@@ -380,7 +383,7 @@ async function addInvitee(tag: string, phone = "07700 900444") {
   await observer.query(
     `insert into public.notification_jobs
        (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
-     values ($1, 'invitation', 'pending', $2, $3, $4, 'whatsapp')`,
+     values ($1, 'invitation', 'pending', $2, $3, $4, 'sms')`,
     [`${MARKER}:${tag}:${event.rows[0].id}`, invitation.rows[0].id, event.rows[0].id, personId],
   );
 
@@ -391,7 +394,7 @@ function accepts(prefix = `${PROVIDER_MESSAGE_PREFIX}ACCEPTED`) {
   let serial = 0;
   return vi.fn(async () => {
     serial += 1;
-    return new Response(JSON.stringify({ messages: [{ id: `${prefix}.${serial}` }] }), {
+    return new Response(JSON.stringify({ sid: `${prefix}.${serial}`, status: "queued" }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -401,7 +404,7 @@ function accepts(prefix = `${PROVIDER_MESSAGE_PREFIX}ACCEPTED`) {
 function refuses(code: number, status = 400) {
   return vi.fn(
     async () =>
-      new Response(JSON.stringify({ error: { code, fbtrace_id: "trace" } }), {
+      new Response(JSON.stringify({ code, message: "refused", status }), {
         status,
         headers: { "content-type": "application/json" },
       }),
@@ -446,7 +449,7 @@ describe("dispatching after approval", () => {
       [eventId],
     );
     expect(attempt.rows).toHaveLength(1);
-    expect(attempt.rows[0].provider).toBe(WHATSAPP_CLOUD_PROVIDER);
+    expect(attempt.rows[0].provider).toBe(TWILIO_SMS_PROVIDER);
     expect(attempt.rows[0].provider_message_id).toBe(`${PROVIDER_MESSAGE_PREFIX}ONE.1`);
     expect(attempt.rows[0].accepted_at).not.toBeNull();
     expect(attempt.rows[0].attempt_number).toBe(1);
@@ -498,13 +501,9 @@ describe("dispatching after approval", () => {
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
 
     const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(init.body as string) as {
-      template: { components: { type: string; index?: string; parameters: { text: string }[] }[] };
-    };
-    const buttons = body.template.components.filter((c) => c.type === "button");
-    expect(buttons).toHaveLength(2);
-    const yesSuffix = buttons.find((b) => b.index === "0")?.parameters[0].text;
-    const noSuffix = buttons.find((b) => b.index === "1")?.parameters[0].text;
+    const tokens = answerTokens(parseSmsForm(init.body).Body);
+    expect(tokens).toHaveLength(2);
+    const [yesSuffix, noSuffix] = tokens;
     expect(yesSuffix).toMatch(/^y\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
     expect(noSuffix).toMatch(/^n\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
   });
@@ -515,11 +514,7 @@ describe("dispatching after approval", () => {
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
 
     const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(init.body as string) as {
-      template: { components: { type: string; index?: string; parameters: { text: string }[] }[] };
-    };
-    const token = body.template.components.find((c) => c.type === "button" && c.index === "0")
-      ?.parameters[0].text as string;
+    const token = answerTokens(parseSmsForm(init.body).Body)[0];
 
     for (const table of [
       "rsvp_access_tokens",
@@ -541,7 +536,7 @@ describe("dispatching after approval", () => {
     expect(transport).not.toHaveBeenCalled();
     const current = await row(eventId);
     expect(current.state).toBe("retryable");
-    expect(current.failureReason).toContain("WHATSAPP_ACCESS_TOKEN");
+    expect(current.failureReason).toContain("TWILIO_API_KEY_SECRET");
     // The names of the settings, never their values.
     expect(current.failureReason).not.toContain("not-a-real-token");
   });
@@ -674,10 +669,10 @@ describe("dispatching after approval", () => {
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
 
     expect(transport).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(
+    const body = parseSmsForm(
       (transport.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
     );
-    expect(body.to).toBe("447700900123");
+    expect(body.To).toBe("+447700900123");
 
     const tokens = await observer.query<{ count: string }>(
       "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
@@ -690,10 +685,10 @@ describe("dispatching after approval", () => {
 describe("failure and retry", () => {
   it("records a terminal refusal as Failed even with attempts remaining", async () => {
     const { eventId } = await fixture();
-    // 131026 — not a WhatsApp account. No number of retries fixes that.
+    // 21614 — not a mobile. No number of retries fixes that.
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: refuses(131026),
+      transport: refuses(21614),
     });
 
     const current = await row(eventId);
@@ -715,7 +710,7 @@ describe("failure and retry", () => {
     const { eventId } = await fixture();
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: refuses(130429, 429),
+      transport: refuses(20429, 429),
     });
 
     const current = await row(eventId);
@@ -726,7 +721,7 @@ describe("failure and retry", () => {
     const { eventId, jobId } = await fixture();
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: refuses(130429, 429),
+      transport: refuses(20429, 429),
     });
 
     await retryDelivery(await anyPerson(), jobId, {
@@ -754,7 +749,7 @@ describe("failure and retry", () => {
     const { eventId, jobId, invitationId } = await fixture();
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: refuses(130429, 429),
+      transport: refuses(20429, 429),
     });
     // Distinct prefixes because each `accepts()` counts from one of its own, and
     // two attempts may never share a provider message identifier.
@@ -783,7 +778,7 @@ describe("failure and retry", () => {
     const person = await anyPerson();
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-      await dispatchJob(jobId, { source: CONFIGURED, transport: refuses(130429, 429) });
+      await dispatchJob(jobId, { source: CONFIGURED, transport: refuses(20429, 429) });
     }
 
     const current = await row(eventId);
@@ -807,10 +802,13 @@ describe("provider message identifiers", () => {
     // otherwise make "delivered" ambiguous between two attempts.
     const reused = vi.fn(
       async () =>
-        new Response(JSON.stringify({ messages: [{ id: `${PROVIDER_MESSAGE_PREFIX}REUSED` }] }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({ sid: `${PROVIDER_MESSAGE_PREFIX}REUSED`, status: "queued" }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
     );
 
     await dispatchJob(jobId, { source: CONFIGURED, transport: reused });
@@ -888,7 +886,7 @@ describe("revoke and reissue", () => {
     // token before the provider is asked — see `claimJobIn`.
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: refuses(130429, 429),
+      transport: refuses(20429, 429),
     });
 
     const before = await observer.query<{ id: string }>(
@@ -982,7 +980,7 @@ describe("provider callbacks", () => {
     });
 
     const applied = await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         providerEventId: `${await attemptFor(eventId)}:delivered`,
         providerMessageId: await attemptFor(eventId),
@@ -1013,11 +1011,11 @@ describe("provider callbacks", () => {
     };
 
     expect(
-      await applyProviderCallback(WHATSAPP_CLOUD_PROVIDER, event, { signatureVerified: true }),
+      await applyProviderCallback(TWILIO_SMS_PROVIDER, event, { signatureVerified: true }),
     ).toBe("applied");
     // Providers retry. The second copy must change nothing at all.
     expect(
-      await applyProviderCallback(WHATSAPP_CLOUD_PROVIDER, event, { signatureVerified: true }),
+      await applyProviderCallback(TWILIO_SMS_PROVIDER, event, { signatureVerified: true }),
     ).toBe("duplicate");
 
     const results = await observer.query<{ count: string }>(
@@ -1038,7 +1036,7 @@ describe("provider callbacks", () => {
     const messageId = await attemptFor(eventId);
 
     const outcome = await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         providerEventId: `${messageId}:read`,
         providerMessageId: messageId,
@@ -1071,7 +1069,7 @@ describe("provider callbacks", () => {
     const providerEventId = `${PROVIDER_MESSAGE_PREFIX}unmatched:delivered`;
 
     const outcome = await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         providerEventId,
         providerMessageId: `${PROVIDER_MESSAGE_PREFIX}unknown`,
@@ -1133,7 +1131,7 @@ describe("provider callbacks", () => {
     // accepted and may still deliver. Moving it offered Retry on a live send —
     // one press away from a third invitation to the same person.
     const outcome = await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         providerEventId: `${firstMessage}:failed`,
         providerMessageId: firstMessage,
@@ -1153,7 +1151,7 @@ describe("provider callbacks", () => {
   it("refuses to record anything whose signature was not verified", async () => {
     const error = await caught(() =>
       applyProviderCallback(
-        WHATSAPP_CLOUD_PROVIDER,
+        TWILIO_SMS_PROVIDER,
         {
           providerEventId: `${MARKER}:unsigned`,
           providerMessageId: null,
@@ -1182,7 +1180,7 @@ describe("provider callbacks", () => {
     const messageId = await attemptFor(eventId);
 
     await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         providerEventId: `${messageId}:failed`,
         providerMessageId: messageId,
@@ -1207,9 +1205,9 @@ describe("what an operator is told after a repair", () => {
   it("stops showing the previous failure once a new attempt is accepted", async () => {
     const { eventId, jobId } = await fixture();
 
-    // 131026 — not a WhatsApp account. Terminal, and it sets `last_error`.
-    await dispatchJob(jobId, { source: CONFIGURED, transport: refuses(131026) });
-    expect((await row(eventId)).failureReason).toMatch(/not be a WhatsApp account/i);
+    // 21614 — not a mobile. Terminal, and it sets `last_error`.
+    await dispatchJob(jobId, { source: CONFIGURED, transport: refuses(21614) });
+    expect((await row(eventId)).failureReason).toMatch(/not a mobile/i);
 
     // The cause is fixed off-screen and the operator retries. The provider
     // accepts. The panel must not now render "Latest result: Attempted" above
@@ -1246,7 +1244,7 @@ describe("what an operator is told after a repair", () => {
 
     const current = await row(eventId);
     expect(current.attemptCount).toBe(0);
-    expect(current.failureReason).toContain("WHATSAPP_ACCESS_TOKEN");
+    expect(current.failureReason).toContain("TWILIO_API_KEY_SECRET");
     // Still repairable: setting the secrets and pressing Retry is a complete
     // fix, which it would not be if the ceiling had been consumed.
     expect(current.retryable).toBe(true);
@@ -1269,7 +1267,7 @@ describe("what an operator is told after a repair", () => {
     const base = { providerMessageId: messageId, detail: null } as const;
 
     await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         ...base,
         providerEventId: `${messageId}:failed`,
@@ -1285,7 +1283,7 @@ describe("what an operator is told after a repair", () => {
     // second is refused — and the job must not move either, or the screen
     // would read Delivered while the recorded outcome stayed `failed`.
     const outcome = await applyProviderCallback(
-      WHATSAPP_CLOUD_PROVIDER,
+      TWILIO_SMS_PROVIDER,
       {
         ...base,
         providerEventId: `${messageId}:delivered`,
@@ -1334,7 +1332,7 @@ describe("what the dispatcher refuses to do", () => {
     const reminder = await observer.query<{ id: string }>(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
-       values ($1, 'reminder', 'pending', $2, $3, $4, 'whatsapp') returning id`,
+       values ($1, 'reminder', 'pending', $2, $3, $4, 'sms') returning id`,
       [`${MARKER}:reminder:${eventId}`, invitationId, eventId, personId],
     );
 
@@ -1365,7 +1363,7 @@ describe("what the dispatcher refuses to do", () => {
     // Unordered, this was whatever PostgreSQL returned — sending to an
     // arbitrary one of somebody's two numbers is the kind of wrong that looks
     // like working software.
-    expect(JSON.parse(init.body as string).to).toBe("447700900222");
+    expect(parseSmsForm(init.body).To).toBe("+447700900222");
   });
 
   it("ignores a number that is not current yet", async () => {
@@ -1488,13 +1486,13 @@ describe("the late failure write does not stamp another worker's claim", () => {
     await observer.query(
       `insert into public.delivery_attempts
          (notification_job_id, attempt_number, channel, provider, provider_message_id, accepted_at)
-       values ($1, 1, 'whatsapp', $2, $3, now())`,
-      [otherJob.rows[0].id, WHATSAPP_CLOUD_PROVIDER, collidingId],
+       values ($1, 1, 'sms', $2, $3, now())`,
+      [otherJob.rows[0].id, TWILIO_SMS_PROVIDER, collidingId],
     );
 
     const reused = vi.fn(
       async () =>
-        new Response(JSON.stringify({ messages: [{ id: collidingId }] }), {
+        new Response(JSON.stringify({ sid: collidingId, status: "queued" }), {
           status: 200,
           headers: { "content-type": "application/json" },
         }),
@@ -1614,7 +1612,7 @@ function refusesWhatsAppAcceptsEmail() {
         headers: { "content-type": "application/json" },
       });
     }
-    return new Response(JSON.stringify({ error: { code: 131026, fbtrace_id: "trace" } }), {
+    return new Response(JSON.stringify({ code: 21614, message: "refused", status: 400 }), {
       status: 400,
       headers: { "content-type": "application/json" },
     });
@@ -1733,7 +1731,7 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
     });
     await retryDelivery(await anyPerson(), jobId, {
       source: CONFIGURED_WITH_EMAIL,
-      transport: refuses(131026),
+      transport: refuses(21614),
     });
 
     const fallbacks = await fallbackJobFor(eventId);
@@ -1810,7 +1808,7 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
     // The original WhatsApp attempt and the fallback's own email attempt --
     // exactly the two rows R15's evidence names, on two different channels.
     expect(attempts).toHaveLength(2);
-    expect(attempts.map((attempt) => attempt.channel).sort()).toEqual(["email", "whatsapp"]);
+    expect(attempts.map((attempt) => attempt.channel).sort()).toEqual(["email", "sms"]);
   });
 });
 
@@ -1874,7 +1872,7 @@ describe("the recruit consent gate — LAN-203", () => {
       const job = await observer.query<{ id: string }>(
         `insert into public.notification_jobs
            (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
-         values ($1, 'invitation', 'pending', $2, $3, $4, 'whatsapp') returning id`,
+         values ($1, 'invitation', 'pending', $2, $3, $4, 'sms') returning id`,
         [`${MARKER}:recruit:${eventId}`, invitation.rows[0].id, eventId, personId],
       );
 

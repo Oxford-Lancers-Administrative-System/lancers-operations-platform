@@ -192,7 +192,7 @@ describe("onboarding_activity_log", () => {
       client,
       `insert into public.onboarding_activity_log
          (season_membership_id, season_id, section, kind, channel, actor_label)
-       values ($1, $2, 'welcome', 'ask', 'whatsapp', 'the club')`,
+       values ($1, $2, 'welcome', 'ask', 'sms', 'the club')`,
       [base.membershipId, base.seasonId],
     );
     await expectAccepted(
@@ -220,7 +220,7 @@ describe("onboarding_activity_log", () => {
       client,
       `insert into public.onboarding_activity_log
          (season_membership_id, season_id, section, kind, channel, actor_label)
-       values ($1, $2, 'welcome', 'ask', 'whatsapp', 'the club') returning id`,
+       values ($1, $2, 'welcome', 'ask', 'sms', 'the club') returning id`,
       [base.membershipId, base.seasonId],
     );
 

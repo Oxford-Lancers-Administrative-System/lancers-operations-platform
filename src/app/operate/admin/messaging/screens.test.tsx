@@ -115,12 +115,12 @@ function plan(base: MessagingSchedule, overrides: Partial<MessagingPlan> = {}): 
   const whatsappRemindersAfterInvitation = Math.max(0, base.whatsappReminderCount - 1);
   const wanted = whatsappRemindersAfterInvitation + base.emailReminderCount;
   const rungs = [
-    { rung: 0, kind: "invitation" as const, channel: "whatsapp" as const, at: invitationAt },
+    { rung: 0, kind: "invitation" as const, channel: "sms" as const, at: invitationAt },
     ...Array.from({ length: wanted }, (_, index) => ({
       rung: index + 1,
       kind: "reminder" as const,
-      channel: (index < whatsappRemindersAfterInvitation ? "whatsapp" : "email") as
-        "whatsapp" | "email",
+      channel: (index < whatsappRemindersAfterInvitation ? "sms" : "email") as
+        "sms" | "email",
       at: new Date(invitationAt.getTime() + (index + 1) * base.reminderCadenceHours * HOUR_MS),
     })),
   ];
@@ -304,8 +304,8 @@ describe("the table", () => {
         invitationAt,
         responseDeadlineAt,
         rungs: [
-          { rung: 0, kind: "invitation", channel: "whatsapp", at: invitationAt },
-          { rung: 1, kind: "reminder", channel: "whatsapp", at: new Date("2026-09-02T19:00:00Z") },
+          { rung: 0, kind: "invitation", channel: "sms", at: invitationAt },
+          { rung: 1, kind: "reminder", channel: "sms", at: new Date("2026-09-02T19:00:00Z") },
         ],
       },
     };

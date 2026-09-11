@@ -135,7 +135,7 @@ async function seedDeliveredAsk(
     `insert into public.notification_jobs
        (idempotency_key, job_type, status, person_id, channel, scheduled_for, attempt_count,
         template_variables, created_at, updated_at)
-     values ($1, 'other', 'completed', $2::uuid, 'whatsapp', $3::timestamptz, 1,
+     values ($1, 'other', 'completed', $2::uuid, 'sms', $3::timestamptz, 1,
              '{}'::jsonb, $3::timestamptz, $3::timestamptz)
      on conflict (idempotency_key) do update set idempotency_key = excluded.idempotency_key
      returning id`,
@@ -147,7 +147,7 @@ async function seedDeliveredAsk(
     `insert into public.delivery_attempts
        (notification_job_id, attempt_number, channel, provider, requested_at, accepted_at,
         concluded_at, provider_message_id, failure_reason)
-     values ($1, 1, 'whatsapp', 'meta_whatsapp_cloud', $2::timestamptz, $2::timestamptz,
+     values ($1, 1, 'sms', 'twilio_sms', $2::timestamptz, $2::timestamptz,
              $2::timestamptz, $3, null)
      on conflict (notification_job_id, attempt_number) do nothing`,
     [jobId, occurredAt, `LAN229-seed-${jobId}`],
@@ -155,7 +155,7 @@ async function seedDeliveredAsk(
   await client.query(
     `insert into public.delivery_results
        (notification_job_id, attempt_number, outcome, channel, provider, detail, occurred_at)
-     values ($1, 1, 'delivered'::public.delivery_outcome, 'whatsapp', 'meta_whatsapp_cloud', null,
+     values ($1, 1, 'delivered'::public.delivery_outcome, 'sms', 'twilio_sms', null,
              $2::timestamptz)
      on conflict (notification_job_id, attempt_number) do nothing`,
     [jobId, occurredAt],
@@ -164,10 +164,10 @@ async function seedDeliveredAsk(
   await client.query(
     `insert into public.onboarding_activity_log
        (season_membership_id, season_id, section, kind, channel, actor_label, occurred_at)
-     select $1::uuid, $2::uuid, $3, 'ask', 'whatsapp', 'the club', $4::timestamptz
+     select $1::uuid, $2::uuid, $3, 'ask', 'sms', 'the club', $4::timestamptz
       where not exists (
         select 1 from public.onboarding_activity_log
-         where season_membership_id = $1::uuid and section = $3 and channel = 'whatsapp'
+         where season_membership_id = $1::uuid and section = $3 and channel = 'sms'
            and occurred_at = $4::timestamptz
       )`,
     [membershipId, seasonId, section, occurredAt],

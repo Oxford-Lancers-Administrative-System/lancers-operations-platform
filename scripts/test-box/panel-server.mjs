@@ -93,7 +93,7 @@ export async function startPanel() {
         );
         response.writeHead(200, { "content-type": "text/html;charset=utf-8" });
         response.end(
-          `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="test-panel" content="${csrf}"><title>Lancers · WhatsApp testing</title></head><body style="margin:0"><div id="root"></div><script src="/app.js" defer></script></body></html>`,
+          `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="test-panel" content="${csrf}"><title>Lancers · SMS testing</title></head><body style="margin:0"><div id="root"></div><script src="/app.js" defer></script></body></html>`,
         );
         return;
       }
@@ -114,11 +114,7 @@ export async function startPanel() {
         const data = await snapshot(db, directory, { personId, eventId });
         data.jobs = data.jobs.map((job) => ({
           ...job,
-          preview: submittedPreview(
-            directory,
-            job.capture,
-            domain.MESSAGE_TEMPLATES[job.kind]?.parameterNames ?? [],
-          ),
+          preview: submittedPreview(directory, job.capture),
         }));
         const checklist = await expectations(db, {
           personId,
@@ -139,7 +135,7 @@ export async function startPanel() {
           callbackError: runner.status().lastError,
           notes: [
             "Application job plans are shown here; independent workflow expectations are not connected yet.",
-            "Full WhatsApp body copy depends on LAN-286. Captured template parameters are shown without inventing text.",
+            "Each text is shown exactly as sent: the captured body is the message. Delivery evidence for real recipients comes from Twilio status callbacks only.",
           ],
         });
         return;
@@ -259,7 +255,7 @@ export async function startPanel() {
     }),
     { mode: 0o600 },
   );
-  console.log(`Local WhatsApp test panel: http://127.0.0.1:${port}`);
+  console.log(`Local SMS test panel: http://127.0.0.1:${port}`);
   const stop = () => {
     clearInterval(callbackTimer);
     server.close(() => db.end().finally(() => process.exit(0)));

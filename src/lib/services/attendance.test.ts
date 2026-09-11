@@ -49,7 +49,6 @@ import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/se
 import { readSeasonMessagingConsentIn } from "./messaging-consent";
 import { dispatchRecruitmentCycleJob } from "./messaging-scheduler";
 import { SINK_DIRECTORY, type SinkRecord } from "@/lib/delivery/local-sink";
-import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
 
 const NAME_MARKER = "LAN80AttendanceSuite";
 
@@ -1728,9 +1727,11 @@ describe("recruits on a recruitment event's sheet — W12, D11, LAN-205", () => 
 describe("the walk-up door's own send — LAN-205 amendment", () => {
   const CONFIGURED = {
     APP_BASE_URL: "http://localhost:3000",
-    WHATSAPP_PHONE_NUMBER_ID: "5550001",
-    WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-    WHATSAPP_TEMPLATE_NAME: "event_invitation",
+    TWILIO_ACCOUNT_SID: "ACtest",
+    TWILIO_API_KEY_SID: "SKtest",
+    TWILIO_API_KEY_SECRET: "not-a-real-secret",
+    TWILIO_ALPHA_SENDER: "OxfLancers",
+    TWILIO_FROM_TOLL_FREE: "+18005550100",
     EMAIL_API_KEY: "not-a-real-key",
     EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
     DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test",
@@ -1835,11 +1836,9 @@ describe("the walk-up door's own send — LAN-205 amendment", () => {
       fs.readFileSync(path.join(SINK_DIRECTORY, written as string), "utf8"),
     ) as SinkRecord;
     expect(record.kind).toBe("recruit_welcome");
-    expect(record.channel).toBe("whatsapp");
-    expect(record.recipient).toBe("447700900453");
-    expect((record.payload as { template: { name: string } }).template.name).toBe(
-      TEMPLATE_NAMES.recruit_welcome,
-    );
+    expect(record.channel).toBe("sms");
+    expect(record.recipient).toBe("+447700900453");
+    expect((record.payload as { To: string }).To).toBe("+447700900453");
 
     const dispatched = await observer.query<{ status: string }>(
       "select status::text as status from public.notification_jobs where id = $1",

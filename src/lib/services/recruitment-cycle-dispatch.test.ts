@@ -13,7 +13,7 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
+import { linkToken, parseTransportBody } from "../../../tests/helpers/sms-transport";
 
 import { closePool, withTransaction } from "@/lib/db";
 import { createDeliverySink, type SinkRecord } from "@/lib/delivery/local-sink";
@@ -62,9 +62,11 @@ function uniquePhone(): string {
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "5550001",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
   DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
@@ -74,10 +76,10 @@ const CONFIGURED: EnvironmentSource = {
 function acceptingTransport() {
   const sent: { url: string; body: Record<string, unknown> }[] = [];
   const transport = async (url: string, init: RequestInit) => {
-    const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
+    const body = parseTransportBody(url, init.body);
     sent.push({ url, body });
     const id = `wamid.${MARKER}.${crypto.randomUUID()}`;
-    return new Response(JSON.stringify({ messaging_product: "whatsapp", messages: [{ id }] }), {
+    return new Response(JSON.stringify({ sid: id, status: "queued" }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -494,7 +496,7 @@ describe("dispatchRecruitmentCycleJob", () => {
 
     expect(outcome).toBe("accepted");
     expect(sent).toHaveLength(1);
-    expect((sent[0].body.template as { name: string }).name).toBe(TEMPLATE_NAMES.recruit_welcome);
+    expect(sent[0].body.kind).toBe("recruit_welcome");
 
     const job = await withTransaction((tx) =>
       tx.query<{ status: string }>(
@@ -632,13 +634,13 @@ describe("dispatchRecruitmentCycleJob", () => {
     const secondSweep = await runMessagingSweep({ source: CONFIGURED, transport });
     expect(secondSweep.accepted).toBeGreaterThanOrEqual(2);
 
-    const names = sent.map((s) => (s.body.template as { name: string }).name);
+    const names = sent.map((s) => s.body.kind);
     expect(names).toEqual(
       expect.arrayContaining([
-        TEMPLATE_NAMES.recruit_welcome,
-        TEMPLATE_NAMES.recruit_details_reminder,
-        TEMPLATE_NAMES.recruit_interest_ask,
-        TEMPLATE_NAMES.recruit_interest_reminder,
+        "recruit_welcome",
+        "recruit_details_reminder",
+        "recruit_interest_ask",
+        "recruit_interest_reminder",
       ]),
     );
   });
@@ -689,10 +691,8 @@ describe("LAN-204 — the consent deadlock, and its fix", () => {
 
     expect(outcome).toBe("accepted");
     expect(sinkRecords).toHaveLength(1);
-    expect(sinkRecords[0].channel).toBe("whatsapp");
-    expect((sinkRecords[0].payload as { template: { name: string } }).template.name).toBe(
-      TEMPLATE_NAMES.recruit_welcome,
-    );
+    expect(sinkRecords[0].channel).toBe("sms");
+    expect(sinkRecords[0].kind).toBe("recruit_welcome");
 
     const job = await withTransaction((tx) =>
       tx.query<{ status: string }>(
@@ -816,11 +816,7 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
     const swept = await runMessagingSweep({ source: CONFIGURED, transport: sink });
 
     expect(swept.accepted).toBeGreaterThanOrEqual(1);
-    const welcome = sinkRecords.find(
-      (r) =>
-        (r.payload as { template: { name: string } }).template.name ===
-        TEMPLATE_NAMES.recruit_welcome,
-    );
+    const welcome = sinkRecords.find((r) => r.kind === "recruit_welcome");
     expect(welcome).toBeDefined();
 
     const attempt = await withTransaction((tx) =>
@@ -925,17 +921,8 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
 
     expect(outcome).toBe("accepted");
     expect(sinkRecords).toHaveLength(1);
-    const payload = sinkRecords[0].payload as {
-      template: {
-        name: string;
-        components: { type: string; index?: string; parameters: { text: string }[] }[];
-      };
-    };
-    expect(payload.template.name).toBe(TEMPLATE_NAMES.recruit_interest_ask);
-    const formButton = payload.template.components.find(
-      (c) => c.type === "button" && c.index === "0",
-    );
-    const token = formButton?.parameters[0]?.text;
+    expect(sinkRecords[0].kind).toBe("recruit_interest_ask");
+    const token = linkToken((sinkRecords[0].payload as { Body: string }).Body, "a");
     expect(token).toBeTruthy();
 
     // The whole point of the amendment: this is not a link to a page that
@@ -961,15 +948,8 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
       ),
     );
 
-    const tokenOf = (record: SinkRecord) => {
-      const payload = record.payload as {
-        template: {
-          components: { type: string; index?: string; parameters: { text: string }[] }[];
-        };
-      };
-      return payload.template.components.find((c) => c.type === "button" && c.index === "0")
-        ?.parameters[0]?.text as string;
-    };
+    const tokenOf = (record: SinkRecord) =>
+      linkToken((record.payload as { Body: string }).Body, "a") as string;
     const jobIdFor = async (step: string) =>
       (
         await withTransaction((tx) =>
@@ -997,12 +977,8 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
 
     expect(askOutcome).toBe("accepted");
     expect(reminderOutcome).toBe("accepted");
-    expect(askSink[0]?.payload).toMatchObject({
-      template: { name: TEMPLATE_NAMES.recruit_interest_ask },
-    });
-    expect(reminderSink[0]?.payload).toMatchObject({
-      template: { name: TEMPLATE_NAMES.recruit_interest_reminder },
-    });
+    expect(askSink[0]?.kind).toBe("recruit_interest_ask");
+    expect(reminderSink[0]?.kind).toBe("recruit_interest_reminder");
 
     const askResolution = await withTransaction((tx) =>
       resolveRecruitmentInterestTokenIn(tx, tokenOf(askSink[0])),

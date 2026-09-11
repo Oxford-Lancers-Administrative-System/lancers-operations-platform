@@ -463,7 +463,7 @@ async function readPeopleIn(
       (row.delivery_failure_reason === NO_USABLE_NUMBER_REASON ||
         row.delivery_failure_reason === NO_USABLE_EMAIL_REASON);
     const whatsappUnresponsive =
-      row.delivery_channel === "whatsapp" &&
+      row.delivery_channel === "sms" &&
       row.delivery_state === "failed" &&
       row.delivery_fallback_status === "completed";
 

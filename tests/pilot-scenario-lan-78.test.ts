@@ -185,7 +185,7 @@ async function simulateApplicationActivity(): Promise<void> {
     `insert into public.delivery_attempts
        (notification_job_id, attempt_number, channel, provider, provider_message_id,
         rsvp_access_token_id, accepted_at)
-     values ($1::uuid, 1, 'whatsapp', 'meta_whatsapp_cloud', 'wamid.SCENARIO', $2::uuid, now())
+     values ($1::uuid, 1, 'sms', 'twilio_sms', 'wamid.SCENARIO', $2::uuid, now())
      returning id`,
     [JOBS[0], token.id],
   );
@@ -194,7 +194,7 @@ async function simulateApplicationActivity(): Promise<void> {
     `insert into public.delivery_callbacks
        (provider, provider_event_id, provider_message_id, provider_status,
         delivery_attempt_id, signature_verified, applied_at)
-     values ('meta_whatsapp_cloud', 'wamid.SCENARIO:delivered', 'wamid.SCENARIO', 'delivered',
+     values ('twilio_sms', 'wamid.SCENARIO:delivered', 'wamid.SCENARIO', 'delivered',
              $1::uuid, true, now())`,
     [attempt.id],
   );
@@ -202,7 +202,7 @@ async function simulateApplicationActivity(): Promise<void> {
   await client.query(
     `insert into public.delivery_results
        (notification_job_id, attempt_number, outcome, channel, provider, provider_message_id)
-     values ($1::uuid, 1, 'delivered', 'whatsapp', 'meta_whatsapp_cloud', 'wamid.SCENARIO')`,
+     values ($1::uuid, 1, 'delivered', 'sms', 'twilio_sms', 'wamid.SCENARIO')`,
     [JOBS[0]],
   );
 

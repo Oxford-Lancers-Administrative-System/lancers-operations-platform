@@ -47,7 +47,7 @@ function planWithRecruitLadder(overrides: Partial<MessagingPlan> = {}): Messagin
     configuredInvitationAt: invitationAt,
     dispatchesImmediately: false,
     lateApproval: false,
-    rungs: [{ rung: 0, kind: "invitation", channel: "whatsapp", at: invitationAt }],
+    rungs: [{ rung: 0, kind: "invitation", channel: "sms", at: invitationAt }],
     escalationAt: new Date("2026-09-21T07:00:00Z"),
     recruitLadder: {
       invitationAt: recruitInvitationAt,

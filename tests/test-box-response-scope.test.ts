@@ -45,9 +45,7 @@ describe("LAN-297 manual forms and automatic event responses", () => {
           simulatedOutcome: "delivered",
           at: "2026-09-10T12:00:00Z",
           payload: {
-            template: {
-              components: [{ type: "button", index: 0, parameters: [{ text: "y.synthetic" }] }],
-            },
+            Body: "Oxford Lancers: test.\nYes: https://x/a/y.synthetic\nNo: https://x/a/n.synthetic",
           },
         };
         fs.writeFileSync(

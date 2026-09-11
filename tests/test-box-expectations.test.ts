@@ -11,9 +11,9 @@ describe("LAN-222 independent expectations", () => {
       email_reminders_scheduled: 1,
     });
     expect(expected.map((r) => [r.channel, r.at])).toEqual([
-      ["whatsapp", "2026-09-10T12:00:00.000Z"],
-      ["whatsapp", "2026-09-11T12:00:00.000Z"],
-      ["whatsapp", "2026-09-12T12:00:00.000Z"],
+      ["sms", "2026-09-10T12:00:00.000Z"],
+      ["sms", "2026-09-11T12:00:00.000Z"],
+      ["sms", "2026-09-12T12:00:00.000Z"],
       ["email", "2026-09-13T12:00:00.000Z"],
     ]);
     expect(compareExpectation(expected[0], null, Date.parse("2026-09-10T13:00:00Z"))).toBe(

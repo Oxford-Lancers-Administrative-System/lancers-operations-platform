@@ -109,7 +109,7 @@ function PersonCard({ person, capabilities, onSave }) {
             onChange={(v) => update("delivery", v)}
             options={[
               ["intercepted", "Intercept locally"],
-              ["real", "Actual WhatsApp"],
+              ["real", "Actual SMS"],
             ]}
           />
           <Picker
@@ -290,7 +290,7 @@ function App() {
             <Box>
               <Typography variant="overline">OXFORD LANCERS · LOCAL TESTING</Typography>
               <Typography variant="h4" component="h1">
-                WhatsApp control panel
+                SMS control panel
               </Typography>
             </Box>
             <Chip label="This Mac only" sx={{ bgcolor: "#e5eee7", color: "#163e2e" }} />
@@ -376,7 +376,7 @@ function App() {
                     {data.runner?.busy ? "Processing workflows and responses…" : "Ready"}
                   </Typography>
                   <Typography variant="body2">
-                    Actual WhatsApp recipients:{" "}
+                    Actual SMS recipients:{" "}
                     {data.people
                       .filter((p) => p.settings.delivery === "real")
                       .map((p) => `${p.name} (${p.phone})`)
@@ -644,7 +644,7 @@ function App() {
                 <Alert severity="info">
                   {message.capture
                     ? message.transport === "real"
-                      ? "Actual WhatsApp request. Delivery status comes from provider evidence."
+                      ? "Actual Twilio request. Delivery status comes from Twilio status callbacks."
                       : "Intercepted locally. Any delivery confirmation shown is simulated."
                     : "No captured payload is linked to this attempt. Transport was not recorded by this apparatus."}
                 </Alert>
@@ -663,7 +663,9 @@ function App() {
                       </Alert>
                     ))}
                     <Typography variant="h6">
-                      Submitted template with actual captured values
+                      {message.preview.sender
+                        ? `Text as sent from ${message.preview.sender}`
+                        : "Message as sent"}
                     </Typography>
                     <Typography
                       sx={{
@@ -674,7 +676,7 @@ function App() {
                         borderRadius: 2,
                       }}
                     >
-                      {message.preview.body ?? "Template wording is not available."}
+                      {message.preview.body ?? "No body captured."}
                     </Typography>
                     {message.preview.buttons.map((button, i) => (
                       <Box key={i}>
@@ -697,31 +699,10 @@ function App() {
                       </Box>
                     ))}
                     <Typography variant="caption">
-                      Based on your submission index. Meta approval has not been verified here. Any
-                      field or button mismatch above remains an application prerequisite.
+                      {typeof message.preview.characters === "number"
+                        ? `${message.preview.characters} characters. Links open the local app when the tunnel is not running.`
+                        : "Captured locally."}
                     </Typography>
-                  </>
-                )}
-                {message.capture?.payload?.template && (
-                  <>
-                    <Typography variant="subtitle1">
-                      Template: {message.capture.payload.template.name}
-                    </Typography>
-                    <Typography variant="body2">
-                      Raw captured fields for comparison with the submitted template.
-                    </Typography>
-                    {(message.capture.payload.template.components ?? []).map((c, i) => (
-                      <Box key={i} sx={{ p: 2, bgcolor: "#f2f4f1", overflowWrap: "anywhere" }}>
-                        <Typography variant="subtitle2">
-                          {c.type === "button" ? `Button ${Number(c.index) + 1}` : words(c.type)}
-                        </Typography>
-                        {(c.parameters ?? []).map((p, j) => (
-                          <Typography key={j} sx={{ whiteSpace: "pre-wrap" }}>
-                            Parameter {j + 1}: {p.text ?? "[non-text parameter]"}
-                          </Typography>
-                        ))}
-                      </Box>
-                    ))}
                   </>
                 )}
                 {message.capture?.channel === "email" && (

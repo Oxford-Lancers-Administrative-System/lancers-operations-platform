@@ -106,7 +106,7 @@ export type MessageKind =
  *
  * ## Why `recipient` is channel-shaped and the interface is not
  *
- * `recipient` is E.164 digits for WhatsApp and an email address for email, and
+ * `recipient` is E.164 digits for SMS and an email address for email, and
  * nothing above this line has to know which — the provider resolved for the
  * job is the thing that decides what a recipient is, and the dispatcher hands
  * it the one the job's channel selected. A `phoneNumber` and an `emailAddress`
@@ -129,7 +129,7 @@ export interface OutboundMessage {
    * cannot. Same reasoning `templateShape` records in `./config.ts`.
    */
   readonly kind?: MessageKind;
-  /** E.164 digits with no `+` for WhatsApp, or an email address for email. */
+  /** E.164 digits with no `+` for SMS, or an email address for email. */
   readonly recipient: string;
   /** How the club addresses this person — their known-as or given name. */
   readonly inviteeName: string;
@@ -194,7 +194,7 @@ export type SendOutcome =
  * A parsed inbound callback.
  *
  * `outcome` is `null` for a status this slice has no domain value for —
- * WhatsApp reports `sent` and `read`, and `delivery_outcome` has neither.
+ * Twilio reports `queued`, `sent` and `read`, and `delivery_outcome` has none of them.
  * Widening that enum would be a change to the frozen model, so such a callback
  * is stored as evidence, deduplicated like any other, and applied to nothing.
  */
@@ -213,12 +213,12 @@ export interface DeliveryProvider {
   /** Stored in `delivery_attempts.provider`. Stable; rows are keyed on it. */
   readonly name: string;
   /** The provider-neutral channel this provider delivers on. Never `manual`. */
-  readonly channel: "whatsapp" | "email" | "sms";
+  readonly channel: "sms" | "email";
   send(message: InvitationMessage): Promise<SendOutcome>;
 }
 
 /**
- * The `fetch`-shaped function the Cloud API adapter calls.
+ * The `fetch`-shaped function the provider adapters call.
  *
  * Injected rather than closed over so the adapter can be driven from a test
  * without a network, and so the live non-production test can use the real one

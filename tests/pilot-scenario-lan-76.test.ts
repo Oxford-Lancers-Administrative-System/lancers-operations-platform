@@ -666,7 +666,7 @@ const GUARD_CASES: readonly GuardCase[] = [
       await c.query(
         `insert into public.notification_jobs
            (idempotency_key, job_type, event_id, channel, scheduled_for)
-         values ($2, 'invitation', $1, 'whatsapp', now())`,
+         values ($2, 'invitation', $1, 'sms', now())`,
         [eventId, `lan-76-fixture-${eventId}`],
       );
     },

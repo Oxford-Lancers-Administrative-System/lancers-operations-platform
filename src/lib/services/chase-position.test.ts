@@ -19,7 +19,7 @@ describe("chasePositionLabel", () => {
   function job(overrides: Partial<ChaseJobFact>): ChaseJobFact {
     return {
       jobType: "reminder",
-      channel: "whatsapp",
+      channel: "sms",
       ladderRung: 1,
       status: "pending",
       scheduledFor: null,
@@ -153,7 +153,7 @@ describe("chasePositionLabel", () => {
     expect(label).toBe(ESCALATION_NOT_DELIVERED);
   });
 
-  it("shows the invitation sent and the first WhatsApp reminder due", () => {
+  it("shows the invitation sent and the first text reminder due", () => {
     const due = new Date("2026-09-10T17:00:00Z");
     const label = chasePositionLabel({
       responseState: "awaiting_response",
@@ -165,16 +165,16 @@ describe("chasePositionLabel", () => {
         job({
           jobType: "reminder",
           ladderRung: 1,
-          channel: "whatsapp",
+          channel: "sms",
           status: "pending",
           scheduledFor: due,
         }),
       ],
     });
-    expect(label).toBe(`Invitation delivered · WhatsApp 2 ${formatChaseDue(due)}`);
+    expect(label).toBe(`Invitation delivered · Text 2 ${formatChaseDue(due)}`);
   });
 
-  it("names the second WhatsApp reminder sent and the email rung due, lower-cased mid-sentence", () => {
+  it("names the second text reminder sent and the email rung due, lower-cased mid-sentence", () => {
     const due = new Date("2026-09-12T09:00:00Z");
     const label = chasePositionLabel({
       responseState: "awaiting_response",
@@ -183,7 +183,7 @@ describe("chasePositionLabel", () => {
       escalationJobStatus: null,
       jobs: [
         job({ jobType: "invitation", ladderRung: 0, status: "completed" }),
-        job({ jobType: "reminder", ladderRung: 1, channel: "whatsapp", status: "completed" }),
+        job({ jobType: "reminder", ladderRung: 1, channel: "sms", status: "completed" }),
         job({
           jobType: "reminder",
           ladderRung: 2,
@@ -193,7 +193,7 @@ describe("chasePositionLabel", () => {
         }),
       ],
     });
-    expect(label).toBe(`WhatsApp 2 sent · email ${formatChaseDue(due)}`);
+    expect(label).toBe(`Text 2 sent · email ${formatChaseDue(due)}`);
   });
 
   it("shows only the last rung sent when nothing further is scheduled", () => {
@@ -204,10 +204,10 @@ describe("chasePositionLabel", () => {
       escalationJobStatus: null,
       jobs: [
         job({ jobType: "invitation", ladderRung: 0, status: "completed" }),
-        job({ jobType: "reminder", ladderRung: 1, channel: "whatsapp", status: "completed" }),
+        job({ jobType: "reminder", ladderRung: 1, channel: "sms", status: "completed" }),
       ],
     });
-    expect(label).toBe("WhatsApp 2 sent");
+    expect(label).toBe("Text 2 sent");
   });
 
   it("formats the due time as weekday and 24-hour clock", () => {

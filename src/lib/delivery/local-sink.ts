@@ -8,24 +8,19 @@ import { isDeployedRuntime } from "@/lib/db/runtime-target";
 
 import { isLoopbackBaseUrl, type EnvironmentSource } from "./config";
 import type { MessageKind, Transport } from "./provider";
-import {
-  MESSAGE_KINDS,
-  MESSAGE_TEMPLATES,
-  templateNameVariable,
-  TEMPLATE_NAMES,
-} from "./templates";
+import { isAlphanumericSender } from "./config";
+import { MESSAGE_KINDS } from "./templates";
 
 /**
  * The local delivery sink. LAN-169.
  *
  * ## What it is
  *
- * A `fetch`-shaped stand-in for Meta's Graph API and Resend, used by a local
- * runtime and reachable from nowhere else. It accepts the **real** payloads —
- * not a simplified shape — validates each against the declared template
- * registry, rejects a mismatch the way Meta would, answers in Meta's own
- * response shape, fires the delivery webhook back a moment later, and writes
- * every rendered payload to disk so a developer can read what the club would
+ * A `fetch`-shaped stand-in for Twilio's Messages API and Resend, used by a
+ * local runtime and reachable from nowhere else. It accepts the **real**
+ * payloads — not a simplified shape — validates each the way the provider
+ * would, answers in the provider's own response shape, and writes every
+ * rendered payload to disk so a developer can read what the club would
  * actually have said.
  *
  * Without it the whole of this mission is unreviewable locally: the ladder, the
@@ -54,17 +49,15 @@ import {
  *
  * ## Why it validates rather than accepting anything
  *
- * Meta matches the parameters sent against the parameters the approved template
- * declares and answers `132000` when they disagree. A sink that accepted
- * anything would let a parameter reordering pass every local test and every
- * visual review, and fail for the first time in front of the club — or worse,
- * succeed, and deliver a correctly-formatted message with its sentences in the
- * wrong order. Validating against `./templates.ts` is what makes the local
- * environment tell the truth about a payload.
+ * Twilio refuses a malformed `To`, a sender that is not usable for the
+ * destination, and an empty body. A sink that accepted anything would let a
+ * `From` chosen for the wrong country pass every local test and fail for the
+ * first time in front of a real phone. Validating the form here is what makes
+ * the local environment tell the truth about a payload.
  */
 
-/** The provider message-id prefix Meta uses. Kept so callback matching is real. */
-const WAMID_PREFIX = "wamid.";
+/** The provider message-id prefix Twilio uses. Kept so callback matching is real. */
+const SMS_SID_PREFIX = "SM";
 
 /** Where the sink writes what it was asked to send. Ignored by git. */
 export const SINK_DIRECTORY = path.join(".lancers-runtime", "delivery-sink");
@@ -75,9 +68,9 @@ export const SINK_DIRECTORY = path.join(".lancers-runtime", "delivery-sink");
  * Read only inside the sink, which is already unreachable from a deployed
  * runtime — so this is a development affordance behind a runtime gate rather
  * than a flag that changes what a deployment does. W6 is unreviewable without
- * it: "a genuine failure" and "a WhatsApp failure that email then carried" are
+ * it: "a genuine failure" and "a text failure that email then carried" are
  * both states somebody has to be able to look at, and neither can be produced
- * by a sink that always succeeds.
+ * by a sink that always succeeds. Applies to the text channel and to email.
  */
 export const SINK_FAILURE_VARIABLE = "DELIVERY_SINK_FAILURES";
 
@@ -94,7 +87,12 @@ export interface SinkOptions {
 
 export interface SinkRecord {
   readonly at: string;
-  readonly channel: "whatsapp" | "email";
+  readonly channel: "sms" | "email";
+  /**
+   * For a text, read from the `kind` query parameter the adapter puts on its
+   * `StatusCallback` URL; `unknown` when it names no declared kind. Never
+   * guessed from the body.
+   */
   readonly kind: MessageKind | "unknown";
   readonly providerMessageId: string;
   readonly recipient: string;
@@ -103,182 +101,50 @@ export interface SinkRecord {
 
 /** The sink's verdict on one payload, before anything is written. */
 type Validation =
-  | { readonly ok: true; readonly kind: MessageKind; readonly recipient: string }
+  | { readonly ok: true; readonly kind: MessageKind | "unknown"; readonly recipient: string }
   | { readonly ok: false; readonly code: number; readonly detail: string };
 
 /**
- * Every template name this deployment could legitimately send, mapped to its kind.
+ * Twilio's form body, validated the way Twilio would validate it.
  *
- * Built from the registry and the deployment's own overrides rather than from
- * the canonical names alone, because a sandbox number carries different
- * approved templates and the sink must not reject a name the adapter was
- * correctly configured to send.
+ * `To` must be E.164 with its `+`. `From` must be either a `+`-prefixed number
+ * or an alphanumeric sender, and an alphanumeric sender is refused for a
+ * North American destination — code 21212, which is exactly what Twilio
+ * answers. `Body` must be present. `StatusCallback` must be an absolute URL,
+ * because a message sent without one can never be confirmed delivered.
  */
-function templateNameIndex(source: EnvironmentSource): ReadonlyMap<string, MessageKind> {
-  const index = new Map<string, MessageKind>();
-  for (const kind of MESSAGE_KINDS) {
-    index.set(TEMPLATE_NAMES[kind], kind);
-    const override = (source[templateNameVariable(kind)] ?? "").trim();
-    if (override !== "") index.set(override, kind);
+function validateSms(form: Readonly<Record<string, string>>): Validation {
+  const to = (form.To ?? "").trim();
+  if (!/^\+\d{7,15}$/.test(to)) {
+    return { ok: false, code: 21211, detail: "The 'To' number must be E.164 with a leading plus." };
   }
-  return index;
-}
-
-function validateWhatsApp(payload: unknown, source: EnvironmentSource): Validation {
-  const body = payload as {
-    messaging_product?: unknown;
-    to?: unknown;
-    type?: unknown;
-    template?: {
-      name?: unknown;
-      language?: { code?: unknown };
-      components?: {
-        type?: unknown;
-        sub_type?: unknown;
-        index?: unknown;
-        parameters?: unknown[];
-      }[];
-    };
-    text?: { body?: unknown };
-  } | null;
-
-  if (body?.messaging_product !== "whatsapp") {
-    return { ok: false, code: 100, detail: "messaging_product must be 'whatsapp'." };
+  const from = (form.From ?? "").trim();
+  const numericFrom = /^\+\d{7,15}$/.test(from);
+  if (!numericFrom && !isAlphanumericSender(from)) {
+    return { ok: false, code: 21606, detail: "The 'From' sender is not a usable number or name." };
   }
-  const recipient = typeof body.to === "string" ? body.to : "";
-  if (!/^\d{6,20}$/.test(recipient)) {
+  if (!numericFrom && /^\+1\d{10}$/.test(to)) {
     return {
       ok: false,
-      code: 131_026,
-      detail: "The recipient must be E.164 digits with no leading plus.",
+      code: 21212,
+      detail: "An alphanumeric sender cannot deliver to a North American destination.",
     };
   }
-
-  // LAN-124's free-form text mode. It carries no template and therefore has
-  // nothing to validate against the registry; it is accepted as an invitation
-  // because that is the only message that mode was ever built to prove.
-  if (body.type === "text") {
-    if (typeof body.text?.body !== "string" || body.text.body.trim() === "") {
-      return { ok: false, code: 100, detail: "A text message needs a body." };
-    }
-    return { ok: true, kind: "invitation", recipient };
+  if ((form.Body ?? "").trim() === "") {
+    return { ok: false, code: 21602, detail: "A message needs a body." };
   }
-
-  if (body.type !== "template") {
-    return { ok: false, code: 100, detail: "Only 'template' and 'text' messages are sent." };
+  let callback: URL;
+  try {
+    callback = new URL(form.StatusCallback ?? "");
+    if (!["http:", "https:"].includes(callback.protocol)) throw new Error();
+  } catch {
+    return { ok: false, code: 21609, detail: "StatusCallback must be an absolute URL." };
   }
-
-  const name = typeof body.template?.name === "string" ? body.template.name : "";
-  const kind = templateNameIndex(source).get(name);
-  if (!kind) {
-    return {
-      ok: false,
-      code: 132_001,
-      detail:
-        `Template "${name}" does not exist in this deployment's registry. ` +
-        "Declare it in src/lib/delivery/templates.ts before sending it.",
-    };
-  }
-
-  if (typeof body.template?.language?.code !== "string") {
-    return { ok: false, code: 132_000, detail: "A template message needs a language code." };
-  }
-
-  const declared = MESSAGE_TEMPLATES[kind].parameterNames;
-  const component = body.template.components?.find((entry) => entry.type === "body");
-  const sent = component?.parameters ?? [];
-
-  // The parameterless shape — `hello_world` and anything else that declares no
-  // body parameters — is legitimate and is recognised by the absence of the
-  // `components` key, exactly as `buildMessageBody` builds it.
-  if (body.template.components === undefined) {
-    return { ok: true, kind, recipient };
-  }
-
-  if (sent.length !== declared.length) {
-    return {
-      ok: false,
-      // Meta's own code for "the parameters do not match the template".
-      code: 132_000,
-      detail:
-        `Template "${name}" declares ${declared.length} body parameters ` +
-        `(${declared.join(", ")}) and this message carried ${sent.length}.`,
-    };
-  }
-
-  const blank = sent.findIndex(
-    (parameter) =>
-      typeof (parameter as { text?: unknown })?.text !== "string" ||
-      ((parameter as { text: string }).text ?? "").trim() === "",
-  );
-  if (blank !== -1) {
-    return {
-      ok: false,
-      code: 132_000,
-      detail: `Body parameter ${blank + 1} (${declared[blank]}) is blank.`,
-    };
-  }
-
-  // LAN-172, Q-11: `invitation` and `reminder` declare two URL buttons. The
-  // registry is the one place that says which kinds do — checking
-  // `buttonUrls` here rather than hard-coding the two names is what keeps this
-  // validator honest if a future kind gains buttons of its own.
-  {
-    const buttonError = validateAnswerButtons(
-      name,
-      body.template.components ?? [],
-      MESSAGE_TEMPLATES[kind].buttonCount ?? 0,
-    );
-    if (buttonError) return buttonError;
-  }
-
-  return { ok: true, kind, recipient };
-}
-
-function validateAnswerButtons(
-  templateName: string,
-  components: readonly {
-    type?: unknown;
-    sub_type?: unknown;
-    index?: unknown;
-    parameters?: unknown[];
-  }[],
-  count: number,
-): Validation | null {
-  if (components.filter((c) => c.type === "button").length !== count)
-    return {
-      ok: false,
-      code: 132_000,
-      detail: `Template "${templateName}" requires exactly ${count} URL buttons.`,
-    };
-  for (const expectedIndex of Array.from({ length: count }, (_, i) => String(i))) {
-    const component = components.find(
-      (entry) => entry.type === "button" && String(entry.index) === expectedIndex,
-    );
-    if (!component) {
-      return {
-        ok: false,
-        code: 132_000,
-        detail: `Template "${templateName}" declares ${count} URL buttons and button ${expectedIndex} was not sent.`,
-      };
-    }
-    if (component.sub_type !== "url") {
-      return {
-        ok: false,
-        code: 132_000,
-        detail: `Button ${expectedIndex} on "${templateName}" must be a URL button, not a Quick Reply.`,
-      };
-    }
-    const suffix = component.parameters?.[0] as { text?: unknown } | undefined;
-    if (typeof suffix?.text !== "string" || suffix.text.trim() === "") {
-      return {
-        ok: false,
-        code: 132_000,
-        detail: `Button ${expectedIndex} on "${templateName}" carries no dynamic URL suffix.`,
-      };
-    }
-  }
-  return null;
+  const declared = callback.searchParams.get("kind") ?? "";
+  const kind = (MESSAGE_KINDS as readonly string[]).includes(declared)
+    ? (declared as MessageKind)
+    : "unknown";
+  return { ok: true, kind, recipient: to };
 }
 
 function validateEmail(payload: unknown): Validation {
@@ -304,23 +170,19 @@ function validateEmail(payload: unknown): Validation {
   }
 
   // The kind is not recoverable from a rendered email — that is the honest
-  // answer rather than a guess parsed out of the subject line — so the record
-  // says so and the registry check that matters has already happened on the
-  // WhatsApp side of the same message.
+  // answer rather than a guess parsed out of the subject line.
   return { ok: true, kind: "invitation", recipient: to };
 }
 
-function metaError(code: number, detail: string): Response {
+function twilioError(code: number, detail: string): Response {
   return new Response(
     JSON.stringify({
-      error: {
-        message: detail,
-        type: "OAuthException",
-        code,
-        fbtrace_id: `sink-${crypto.randomUUID().slice(0, 12)}`,
-      },
+      code,
+      message: detail,
+      more_info: `https://www.twilio.com/docs/errors/${code}`,
+      status: 400,
     }),
-    { status: code === 132_000 || code === 132_001 ? 400 : 400, headers: jsonHeaders() },
+    { status: 400, headers: jsonHeaders() },
   );
 }
 
@@ -365,9 +227,9 @@ export function createDeliverySink(
   return async (url: string, init: RequestInit): Promise<Response> => {
     const target = new URL(url);
     const isEmail = target.pathname.endsWith("/emails");
-    const isWhatsApp = /\/v\d+\.\d+\/[^/]+\/messages$/.test(target.pathname);
+    const isSms = /^\/2010-04-01\/Accounts\/[^/]+\/Messages\.json$/.test(target.pathname);
 
-    if (!isEmail && !isWhatsApp) {
+    if (!isEmail && !isSms) {
       // Unrecognised, and refused rather than passed through to the network. A
       // sink that forwarded what it did not understand would be a local
       // environment that sometimes reaches the internet, which is the property
@@ -379,13 +241,25 @@ export function createDeliverySink(
     }
 
     let payload: unknown = null;
-    try {
-      payload = JSON.parse(typeof init.body === "string" ? init.body : "null");
-    } catch {
-      payload = null;
+    if (isEmail) {
+      try {
+        payload = JSON.parse(typeof init.body === "string" ? init.body : "null");
+      } catch {
+        payload = null;
+      }
+    } else {
+      const form: Record<string, string> = {};
+      for (const [key, value] of new URLSearchParams(
+        typeof init.body === "string" ? init.body : "",
+      )) {
+        form[key] = value;
+      }
+      payload = form;
     }
 
-    const verdict = isEmail ? validateEmail(payload) : validateWhatsApp(payload, source);
+    const verdict = isEmail
+      ? validateEmail(payload)
+      : validateSms(payload as Readonly<Record<string, string>>);
 
     if (!verdict.ok) {
       return isEmail
@@ -393,7 +267,7 @@ export function createDeliverySink(
             status: 422,
             headers: jsonHeaders(),
           })
-        : metaError(verdict.code, verdict.detail);
+        : twilioError(verdict.code, verdict.detail);
     }
 
     if (failFor.includes(verdict.recipient.toLowerCase())) {
@@ -402,16 +276,16 @@ export function createDeliverySink(
             JSON.stringify({ message: "The local sink was asked to fail for this recipient." }),
             { status: 502, headers: jsonHeaders() },
           )
-        : metaError(131_047, "The local sink was asked to fail for this recipient.");
+        : twilioError(21610, "The local sink was asked to fail for this recipient.");
     }
 
     const providerMessageId = isEmail
       ? crypto.randomUUID()
-      : `${WAMID_PREFIX}${crypto.randomBytes(16).toString("base64url")}`;
+      : `${SMS_SID_PREFIX}${crypto.randomBytes(16).toString("hex")}`;
 
     const record: SinkRecord = {
       at: new Date().toISOString(),
-      channel: isEmail ? "email" : "whatsapp",
+      channel: isEmail ? "email" : "sms",
       kind: verdict.kind,
       providerMessageId,
       recipient: verdict.recipient,
@@ -428,11 +302,14 @@ export function createDeliverySink(
         })
       : new Response(
           JSON.stringify({
-            messaging_product: "whatsapp",
-            contacts: [{ input: verdict.recipient, wa_id: verdict.recipient }],
-            messages: [{ id: providerMessageId, message_status: "accepted" }],
+            sid: providerMessageId,
+            status: "queued",
+            to: verdict.recipient,
+            from: (payload as Record<string, string>).From,
+            error_code: null,
+            error_message: null,
           }),
-          { status: 200, headers: jsonHeaders() },
+          { status: 201, headers: jsonHeaders() },
         );
   };
 }

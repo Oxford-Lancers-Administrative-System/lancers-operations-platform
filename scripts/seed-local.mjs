@@ -3277,7 +3277,7 @@ for (const event of jobEvents) {
       invitation_id: invitation.id,
       event_id: event.id,
       person_id: invitationPersonId(invitation),
-      channel: kind === "pending" ? null : "whatsapp",
+      channel: kind === "pending" ? null : "sms",
       scheduled_for: scheduledFor,
       claimed_at: kind === "completed" || kind === "failed" ? scheduledFor : null,
       claimed_by:
@@ -3316,8 +3316,8 @@ for (const event of jobEvents) {
         notification_job_id: job.id,
         attempt_number: 1,
         outcome: manual ? "manual" : "delivered",
-        channel: manual ? "manual" : "whatsapp",
-        provider: manual ? null : "whatsapp-business",
+        channel: manual ? "manual" : "sms",
+        provider: manual ? null : "twilio_sms",
         provider_message_id: manual ? null : `wamid.${uuid().replace(/-/g, "")}`,
         actor_person_id: manual ? people[2].id : null,
         detail: manual
@@ -3327,7 +3327,7 @@ for (const event of jobEvents) {
       });
       // LAN-181, F-B2. A manual send has no provider attempt to show — an
       // operator posted it by hand — so only the automated path gets one.
-      if (!manual) addDeliveredAttempt(job, { channel: "whatsapp", provider: "whatsapp-business" });
+      if (!manual) addDeliveredAttempt(job, { channel: "sms", provider: "twilio_sms" });
     }
 
     if (kind === "failed") {
@@ -3338,8 +3338,8 @@ for (const event of jobEvents) {
           notification_job_id: job.id,
           attempt_number: attempt,
           outcome: "failed",
-          channel: "whatsapp",
-          provider: "whatsapp-business",
+          channel: "sms",
+          provider: "twilio_sms",
           provider_message_id: null,
           actor_person_id: null,
           detail: `Attempt ${attempt}: provider returned 503`,
@@ -3349,8 +3349,8 @@ for (const event of jobEvents) {
       // LAN-181, F-B2. Per-attempt diagnostics for this job's own three
       // attempts, alongside the history `delivery_results` above already keeps.
       addFailedAttempts(job, {
-        channel: "whatsapp",
-        provider: "whatsapp-business",
+        channel: "sms",
+        provider: "twilio_sms",
         count: 3,
         reason: job.last_error,
       });
@@ -3537,7 +3537,7 @@ jobEvents.forEach((event, index) => {
       // rung 0 — no rung of this loop belongs to this invitee.
       if (story === "whatsapp_carried_by_email" && position === 0) continue;
 
-      const channel = rung <= 2 ? "whatsapp" : "email";
+      const channel = rung <= 2 ? "sms" : "email";
       const dueAt = shiftHours(invitationAt, rung * 24);
       const due = new Date(dueAt).getTime() <= NOW.getTime();
 
@@ -3691,7 +3691,7 @@ jobEvents.forEach((event, index) => {
       remindersSeeded += 1;
       if (heldAt) heldJobs += 1;
 
-      const provider = channel === "email" ? "resend" : "whatsapp-business";
+      const provider = channel === "email" ? "resend" : "twilio_sms";
 
       if (status === "completed") {
         add("delivery_results", {
@@ -3746,7 +3746,7 @@ jobEvents.forEach((event, index) => {
       );
       if (invitationJob) {
         invitationJob.status = "failed";
-        invitationJob.channel = "whatsapp";
+        invitationJob.channel = "sms";
         invitationJob.attempt_count = 1;
         invitationJob.automatic_attempts = 1;
         invitationJob.next_attempt_at = null;
@@ -3791,7 +3791,7 @@ jobEvents.forEach((event, index) => {
           attempt_number: invitationJob.attempt_count,
           outcome: "rejected",
           channel: invitationJob.channel,
-          provider: "whatsapp-business",
+          provider: "twilio_sms",
           provider_message_id: null,
           actor_person_id: null,
           detail: invitationJob.last_error,
@@ -3805,7 +3805,7 @@ jobEvents.forEach((event, index) => {
           notification_job_id: invitationJob.id,
           attempt_number: invitationJob.attempt_count,
           channel: invitationJob.channel,
-          provider: "whatsapp-business",
+          provider: "twilio_sms",
           provider_message_id: null,
           requested_at: invitationJob.scheduled_for,
           accepted_at: null,
@@ -3832,7 +3832,7 @@ jobEvents.forEach((event, index) => {
       );
       if (invitationJob) {
         invitationJob.status = "failed";
-        invitationJob.channel = "whatsapp";
+        invitationJob.channel = "sms";
         invitationJob.attempt_count = 5;
         invitationJob.automatic_attempts = 5;
         invitationJob.next_attempt_at = null;
@@ -3857,7 +3857,7 @@ jobEvents.forEach((event, index) => {
           attempt_number: invitationJob.attempt_count,
           outcome: "failed",
           channel: invitationJob.channel,
-          provider: "whatsapp-business",
+          provider: "twilio_sms",
           provider_message_id: null,
           actor_person_id: null,
           detail: invitationJob.last_error,
@@ -3865,7 +3865,7 @@ jobEvents.forEach((event, index) => {
         });
         addFailedAttempts(invitationJob, {
           channel: invitationJob.channel,
-          provider: "whatsapp-business",
+          provider: "twilio_sms",
           count: invitationJob.attempt_count,
           reason: invitationJob.last_error,
         });
@@ -3948,7 +3948,7 @@ jobEvents.forEach((event, index) => {
         invitation_id: null,
         event_id: event.id,
         person_id: escalationRecipient.id,
-        channel: "whatsapp",
+        channel: "sms",
         scheduled_for: escalationAt,
         claimed_at: escalationAt,
         claimed_by: "system: messaging scheduler",
@@ -3973,15 +3973,15 @@ jobEvents.forEach((event, index) => {
         notification_job_id: escalationJob.id,
         attempt_number: 1,
         outcome: "delivered",
-        channel: "whatsapp",
-        provider: "whatsapp-business",
+        channel: "sms",
+        provider: "twilio_sms",
         provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
         actor_person_id: null,
         detail: null,
         occurred_at: escalationAt,
       });
       // LAN-181, F-B2.
-      addDeliveredAttempt(escalationJob, { channel: "whatsapp", provider: "whatsapp-business" });
+      addDeliveredAttempt(escalationJob, { channel: "sms", provider: "twilio_sms" });
 
       unanswered.forEach((invitation, position) => {
         // One flag is already resolved, so the follow-up queue carries both an
@@ -4122,7 +4122,7 @@ for (const event of liveLadderEvents) {
       invitation_id: invitation.id,
       event_id: event.id,
       person_id: personId,
-      channel: "whatsapp",
+      channel: "sms",
       scheduled_for: invitationAt,
       claimed_at: null,
       claimed_by: null,
@@ -4151,7 +4151,7 @@ for (const event of liveLadderEvents) {
     // `REQ-count-forward` the crafted stories above follow.
     let firstReminderJob = null;
     for (const rung of [1, 2, 3]) {
-      const channel = rung <= 2 ? "whatsapp" : "email";
+      const channel = rung <= 2 ? "sms" : "email";
       const dueAt = shiftHours(invitationAt, rung * 24);
       if (new Date(dueAt).getTime() <= NOW.getTime()) dueJobsSeeded += 1;
       const reminderJob = add("notification_jobs", {
@@ -4209,14 +4209,14 @@ for (const event of liveLadderEvents) {
         notification_job_id: invitationJob.id,
         attempt_number: 1,
         outcome: "delivered",
-        channel: "whatsapp",
-        provider: "whatsapp-business",
+        channel: "sms",
+        provider: "twilio_sms",
         provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
         actor_person_id: null,
         detail: null,
         occurred_at: invitationAt,
       });
-      addDeliveredAttempt(invitationJob, { channel: "whatsapp", provider: "whatsapp-business" });
+      addDeliveredAttempt(invitationJob, { channel: "sms", provider: "twilio_sms" });
 
       firstReminderJob.status = "completed";
       firstReminderJob.claimed_at = firstReminderJob.scheduled_for;
@@ -4228,14 +4228,14 @@ for (const event of liveLadderEvents) {
         notification_job_id: firstReminderJob.id,
         attempt_number: 1,
         outcome: "delivered",
-        channel: "whatsapp",
-        provider: "whatsapp-business",
+        channel: "sms",
+        provider: "twilio_sms",
         provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
         actor_person_id: null,
         detail: null,
         occurred_at: firstReminderJob.scheduled_for,
       });
-      addDeliveredAttempt(firstReminderJob, { channel: "whatsapp", provider: "whatsapp-business" });
+      addDeliveredAttempt(firstReminderJob, { channel: "sms", provider: "twilio_sms" });
     }
   }
 }

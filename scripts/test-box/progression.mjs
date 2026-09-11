@@ -6,12 +6,10 @@ import { readPanelState, effectivePersonSettings } from "./panel-state.mjs";
 import { advanceChronologically } from "./clock.mjs";
 import { prepareDatabaseClock, setSharedTime } from "./database-clock.mjs";
 import { confirmIntercepted } from "./callbacks.mjs";
-import { templateNames } from "./configure.mjs";
 
 export function responsePlans(directory, people) {
   const state = readPanelState(directory);
   const folder = path.join(directory, "transport-evidence");
-  const names = templateNames(fs.readFileSync("src/lib/delivery/templates.ts", "utf8"));
   const records = fs.existsSync(folder)
     ? fs
         .readdirSync(folder)
@@ -41,19 +39,13 @@ export function responsePlans(directory, people) {
     // Only a simulated delivered message can initiate a simulated response.
     const hash = crypto.createHash("sha256").update(record.providerMessageId).digest("hex");
     if (!fs.existsSync(path.join(directory, "simulated-receipts", hash + ".json"))) continue;
-    const kind =
-      record.kind ??
-      Object.entries(names).find(([, v]) => record.payload?.template?.name === v + "_test")?.[0];
+    const kind = record.kind;
     if (!["invitation", "reminder", "recruit_event_follow_up"].includes(kind)) continue;
-    const buttons = record.payload?.template?.components?.filter((c) => c.type === "button") ?? [];
-    const token = buttons.find(
-      (b) =>
-        Number(b.index) ===
-        (profile.eventAnswer === "no" &&
-        ["invitation", "reminder", "recruit_event_follow_up"].includes(kind)
-          ? 1
-          : 0),
-    )?.parameters?.[0]?.text;
+    // LAN-330: the Yes and No answers are links in the text body. Their
+    // tokens start `y.` and `n.`, so the answer chooses the link.
+    const body = String(record.payload?.Body ?? "");
+    const wanted = profile.eventAnswer === "no" ? "n" : "y";
+    const token = body.match(new RegExp(`/a/(${wanted}\\.[^\\s/?#]+)`))?.[1];
     if (typeof token !== "string") continue;
     const file = path.join(results, hash + ".json");
     const result = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null;

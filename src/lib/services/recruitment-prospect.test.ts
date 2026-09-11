@@ -16,6 +16,8 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 import type { EnvironmentSource } from "@/lib/delivery/config";
 
+import { parseTransportBody } from "../../../tests/helpers/sms-transport";
+
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
 import {
@@ -59,9 +61,11 @@ function uniquePhone(): string {
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "5550001",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
   DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
@@ -71,10 +75,10 @@ const CONFIGURED: EnvironmentSource = {
 function acceptingTransport() {
   const sent: { url: string; body: Record<string, unknown> }[] = [];
   const transport = async (url: string, init: RequestInit) => {
-    const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
+    const body = parseTransportBody(url, init.body);
     sent.push({ url, body });
     const id = `wamid.${MARKER}.${crypto.randomUUID()}`;
-    return new Response(JSON.stringify({ messaging_product: "whatsapp", messages: [{ id }] }), {
+    return new Response(JSON.stringify({ sid: id, status: "queued" }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -879,19 +883,14 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       // on `CONFIGURED`'s allowlist), so nothing else in this run reaches
       // `sent` at all, but asserting on the one template this test can ever
       // cause is a direct claim rather than one resting on queue order.
-      const own = sent.find(
-        (message) =>
-          (message.body as { template?: { name?: string } }).template?.name ===
-          "recruit_welcome_v1",
-      );
+      const own = sent.find((message) => message.body.kind === "recruit_welcome");
       expect(own).toBeDefined();
-      const payload = own!.body as { to: string; template: { name: string } };
-      expect(payload.template.name).toBe("recruit_welcome_v1");
-      // The allowlisted number this test itself inserted, WhatsApp's own
-      // E.164-without-plus shape (`recipientPermitted`'s normalisation) —
-      // proof this message really is the one this test's own job caused,
-      // not merely a same-named template from an unrelated row.
-      expect(payload.to.endsWith(recruitPhone.replace(/\D/g, "").replace(/^0/, ""))).toBe(true);
+      const payload = own!.body as { To: string; kind: string };
+      expect(payload.kind).toBe("recruit_welcome");
+      // The allowlisted number this test itself inserted, in Twilio's own
+      // `+`-prefixed E.164 shape — proof this message really is the one this
+      // test's own job caused, not merely a same-kind text from an unrelated row.
+      expect(payload.To.endsWith(recruitPhone.replace(/\D/g, "").replace(/^0/, ""))).toBe(true);
 
       const sinkAttempts = await observer.query(
         "select accepted_at from public.delivery_attempts da join public.notification_jobs nj on nj.id = da.notification_job_id where nj.person_id = $1::uuid",

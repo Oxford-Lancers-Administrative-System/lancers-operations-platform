@@ -76,7 +76,7 @@ function row(overrides: Partial<DeliveryRow> = {}): DeliveryRow {
     jobId: "job-1",
     invitationId: "invitation-1",
     inviteeName: "Leo Hartwell",
-    channel: "whatsapp",
+    channel: "sms",
     state: "retryable",
     lastAttemptAt: new Date("2026-10-12T17:04:00Z"),
     nextAttemptAt: null,
@@ -275,7 +275,7 @@ describe("UX-51 — the diagnostics table", () => {
   const ATTEMPT: DiagnosticsAttempt = {
     attemptId: "attempt-1",
     inviteeName: "Zephyr",
-    channel: "whatsapp",
+    channel: "sms",
     attemptNumber: 1,
     requestedAt: new Date("2026-08-14T20:05:00Z"),
     outcome: "failed",
@@ -298,7 +298,7 @@ describe("UX-51 — the diagnostics table", () => {
 
     const dataRow = container.querySelector('[data-testid="attempt-log-row"]');
     expect(dataRow?.textContent).toContain("Zephyr");
-    expect(dataRow?.textContent).toContain("WhatsApp");
+    expect(dataRow?.textContent).toContain("SMS");
     expect(dataRow?.textContent).toContain("Failed");
     expect(dataRow?.textContent).toContain("wamid.HBgLNDQ");
   });
@@ -383,13 +383,13 @@ describe("W6 — Needs attention and the attempt log", () => {
     expect(openRecord.getAttribute("href")).toBe("/operate/roster/membership-9");
   });
 
-  it("reads WhatsApp unresponsive and offers no action", async () => {
+  it("reads Text unresponsive and offers no action", async () => {
     vi.mocked(readEventDelivery).mockResolvedValue(
       delivery({ rows: [row({ state: "failed", whatsappUnresponsive: true, retryable: false })] }),
     );
     const { container } = await renderPage();
     const attentionRow = container.querySelector('[data-testid="needs-attention-row"]')!;
-    expect(attentionRow.textContent).toContain("WhatsApp unresponsive");
+    expect(attentionRow.textContent).toContain("Text unresponsive");
     expect(attentionRow.textContent).toContain("No action needed");
     expect(within(attentionRow as HTMLElement).queryByRole("link")).toBeNull();
     expect(within(attentionRow as HTMLElement).queryByRole("button")).toBeNull();
@@ -440,7 +440,7 @@ describe("W6 — Needs attention and the attempt log", () => {
       {
         attemptId: "attempt-1",
         inviteeName: "Zephyr",
-        channel: "whatsapp",
+        channel: "sms",
         attemptNumber: 1,
         requestedAt: new Date("2026-08-14T20:05:00Z"),
         outcome: "failed",
@@ -459,7 +459,7 @@ describe("W6 — Needs attention and the attempt log", () => {
     const { container } = await renderPage({ view: "diagnostics" });
     const rows = container.querySelectorAll('[data-testid="attempt-log-row"]');
     expect(rows.length).toBe(2);
-    expect(rows[0].textContent).toContain("WhatsApp");
+    expect(rows[0].textContent).toContain("SMS");
     expect(rows[0].textContent).toContain("Failed");
     expect(rows[1].textContent).toContain("Email fallback");
     expect(rows[1].textContent).toContain("Delivered");
@@ -471,7 +471,7 @@ describe("W6 — Needs attention and the attempt log", () => {
       {
         attemptId: "attempt-1",
         inviteeName: "Zephyr",
-        channel: "whatsapp",
+        channel: "sms",
         attemptNumber: 1,
         requestedAt: new Date("2026-08-14T20:05:00Z"),
         outcome: "failed",
@@ -480,7 +480,7 @@ describe("W6 — Needs attention and the attempt log", () => {
       {
         attemptId: "attempt-2",
         inviteeName: "Rufus",
-        channel: "whatsapp",
+        channel: "sms",
         attemptNumber: 1,
         requestedAt: new Date("2026-08-14T20:05:00Z"),
         outcome: "delivered",
@@ -684,7 +684,7 @@ describe("every delivery view offers only the controls it is meant to", () => {
   const REPRESENTATIVE_ATTEMPT = {
     attemptId: "attempt-shape-1",
     inviteeName: "Leo Hartwell",
-    channel: "whatsapp",
+    channel: "sms",
     attemptNumber: 1,
     requestedAt: new Date("2026-10-12T17:04:00Z"),
     outcome: "failed",

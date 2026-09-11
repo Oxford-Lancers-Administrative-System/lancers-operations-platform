@@ -1,7 +1,6 @@
 // @vitest-environment node
 /**
- * Delivery configuration, and the guard that keeps the test affordances out of
- * production. LAN-78.
+ * Delivery configuration. LAN-78, re-pointed at Twilio SMS by LAN-330.
  *
  * Every test here passes its own environment object. None of them writes
  * `process.env`: Vitest shares a worker between suites, and a suite that
@@ -14,9 +13,10 @@ vi.mock("server-only", () => ({}));
 
 import {
   describeMissingConfiguration,
+  isAlphanumericSender,
   isLoopbackBaseUrl,
+  normaliseTollFreeNumber,
   OUTBOUND_ENVIRONMENT_VARIABLES,
-  resolveLocalTestOverrides,
   resolveOutboundConfig,
   resolveWebhookConfig,
   rsvpUrl,
@@ -26,9 +26,10 @@ import {
 
 const DEPLOYED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "1234567890",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
   // LAN-124. Ofcom's reserved drama range, which can never be dialled.
   DELIVERY_RECIPIENT_ALLOWLIST: "447700900001,447700900002",
 };
@@ -40,8 +41,9 @@ describe("outbound configuration", () => {
     if (!resolution.configured) return;
 
     expect(resolution.config.appBaseUrl).toBe("https://lancers.example.org");
-    expect(resolution.config.graphBaseUrl).toBe("https://graph.facebook.com");
-    expect(resolution.config.templateLanguage).toBe("en_GB");
+    expect(resolution.config.apiBaseUrl).toBe("https://api.twilio.com");
+    expect(resolution.config.alphaSender).toBe("OxfLancers");
+    expect(resolution.config.tollFreeNumber).toBeNull();
     expect(resolution.config.defaultCallingCode).toBe("44");
   });
 
@@ -53,44 +55,49 @@ describe("outbound configuration", () => {
   });
 
   it("treats whitespace as absence rather than as a value", () => {
-    const resolution = resolveOutboundConfig({ ...DEPLOYED, WHATSAPP_ACCESS_TOKEN: "   " });
+    const resolution = resolveOutboundConfig({ ...DEPLOYED, TWILIO_API_KEY_SECRET: "   " });
     expect(resolution.configured).toBe(false);
   });
 
-  describe("LAN-124 — the template parameter shape", () => {
-    it("defaults to the club's own invitation, which is the shape with the link", () => {
-      // The direction of this default is the point. An unset or misspelled
-      // value must resolve to the message that carries an RSVP link, never to
-      // the one that does not — invitations nobody can answer, all reported
-      // delivered, is the failure worth engineering against.
-      for (const raw of [undefined, "", "   ", "invitation", "INVITATION", "nonsense", "no"]) {
-        const resolution = resolveOutboundConfig({
-          ...DEPLOYED,
-          ...(raw === undefined ? {} : { WHATSAPP_TEMPLATE_PARAMETERS: raw }),
-        });
-        expect(resolution.configured).toBe(true);
-        if (!resolution.configured) return;
-        expect(resolution.config.templateParameters, JSON.stringify(raw)).toBe("invitation");
-      }
+  describe("LAN-330 — the two senders", () => {
+    it("is not required to have a toll-free number, so the UK leg starts before verification", () => {
+      expect(OUTBOUND_ENVIRONMENT_VARIABLES).not.toContain("TWILIO_FROM_TOLL_FREE");
     });
 
-    it("takes the parameterless shape only when asked for it exactly", () => {
-      // Trimmed and lowercased, so a value pasted with a trailing space still
-      // means what the person typing it meant.
-      for (const raw of ["none", "NONE", "None", " none ", "None "]) {
-        const resolution = resolveOutboundConfig({
-          ...DEPLOYED,
-          WHATSAPP_TEMPLATE_PARAMETERS: raw,
-        });
-        expect(resolution.configured).toBe(true);
-        if (!resolution.configured) return;
-        expect(resolution.config.templateParameters, raw).toBe("none");
-      }
+    it("carries the toll-free number in E.164 with its plus when one is set", () => {
+      const resolution = resolveOutboundConfig({
+        ...DEPLOYED,
+        TWILIO_FROM_TOLL_FREE: "+1 (800) 555-0100",
+      });
+      expect(resolution.configured).toBe(true);
+      if (!resolution.configured) return;
+      expect(resolution.config.tollFreeNumber).toBe("+18005550100");
     });
 
-    it("is not required, because it has a safe default", () => {
-      expect(OUTBOUND_ENVIRONMENT_VARIABLES).not.toContain("WHATSAPP_TEMPLATE_PARAMETERS");
-    });
+    it.each(["8005550100", "+448005550100", "+1800555", "+1", ""])(
+      "treats %s as no toll-free number rather than a wrong one",
+      (raw) => {
+        expect(normaliseTollFreeNumber(raw)).toBeNull();
+      },
+    );
+
+    it.each(["OxfLancers", "Lancers", "OULAFC 2026", "A"])(
+      "accepts %s as an alphanumeric sender",
+      (sender) => {
+        expect(isAlphanumericSender(sender)).toBe(true);
+      },
+    );
+
+    it.each(["OxfordLancers", "12345", "Oxf-Lancers", "", "Oxford_Lancers"])(
+      "refuses %s as an alphanumeric sender, and the outbound path with it",
+      (sender) => {
+        expect(isAlphanumericSender(sender)).toBe(false);
+        const resolution = resolveOutboundConfig({ ...DEPLOYED, TWILIO_ALPHA_SENDER: sender });
+        expect(resolution.configured).toBe(false);
+        if (resolution.configured) return;
+        expect(resolution.missing).toContain("TWILIO_ALPHA_SENDER");
+      },
+    );
   });
 
   describe("LAN-124 — the recipient allowlist is required, and its absence is a refusal", () => {
@@ -102,10 +109,6 @@ describe("outbound configuration", () => {
     });
 
     it("refuses the whole outbound path when the allowlist is absent", () => {
-      // Not "sends to everybody", which is what an allowlist bolted on as an
-      // optional filter would do. This is the single most important assertion
-      // in the file: it is the difference between an unconfigured deployment
-      // sending nothing and an unconfigured deployment messaging the roster.
       const resolution = resolveOutboundConfig({
         ...DEPLOYED,
         DELIVERY_RECIPIENT_ALLOWLIST: "",
@@ -116,9 +119,6 @@ describe("outbound configuration", () => {
     });
 
     it("refuses a value that is present but parses to nobody", () => {
-      // Present as a string, absent as a control. A deployment that reported
-      // itself configured here would refuse every recipient at send time, which
-      // looks like a provider fault rather than a missing setting.
       for (const raw of ["   ", ",", ",,;", "not-a-number"]) {
         const resolution = resolveOutboundConfig({
           ...DEPLOYED,
@@ -144,11 +144,11 @@ describe("outbound configuration", () => {
       const resolution = resolveOutboundConfig({
         ...DEPLOYED,
         DELIVERY_DEFAULT_CALLING_CODE: "1",
-        DELIVERY_RECIPIENT_ALLOWLIST: "05550100",
+        DELIVERY_RECIPIENT_ALLOWLIST: "02025550123",
       });
       expect(resolution.configured).toBe(true);
       if (!resolution.configured) return;
-      expect(resolution.config.recipientAllowlist).toEqual(["15550100"]);
+      expect(resolution.config.recipientAllowlist).toEqual(["12025550123"]);
     });
 
     it("never names a number in the sentence an operator reads", () => {
@@ -172,17 +172,17 @@ describe("outbound configuration", () => {
 
   it.each(WEBHOOK_ENVIRONMENT_VARIABLES)("refuses the webhook path when %s is absent", (name) => {
     const complete = {
-      WHATSAPP_APP_SECRET: "not-a-real-secret",
-      WHATSAPP_WEBHOOK_VERIFY_TOKEN: "not-a-real-verify-token",
+      APP_BASE_URL: "https://lancers.example.org/",
+      TWILIO_AUTH_TOKEN: "not-a-real-token",
     };
     expect(resolveWebhookConfig({ ...complete, [name]: "" }).configured).toBe(false);
-    expect(resolveWebhookConfig(complete).configured).toBe(true);
+    const resolved = resolveWebhookConfig(complete);
+    expect(resolved.configured).toBe(true);
+    if (!resolved.configured) return;
+    expect(resolved.config.appBaseUrl).toBe("https://lancers.example.org");
   });
 
-  it("resolves outbound without the webhook secrets, and the reverse", () => {
-    // The whole reason the two halves are separate: the non-production test
-    // path sends without receiving, because LAN-93 still owes a public
-    // endpoint. Demanding all six would make that configuration impossible.
+  it("resolves outbound without the webhook secret, and the reverse", () => {
     expect(resolveOutboundConfig(DEPLOYED).configured).toBe(true);
     expect(resolveWebhookConfig(DEPLOYED).configured).toBe(false);
   });
@@ -190,9 +190,9 @@ describe("outbound configuration", () => {
 
 describe("the missing-configuration sentence", () => {
   it("names the variables and never their values", () => {
-    const message = describeMissingConfiguration(["WHATSAPP_ACCESS_TOKEN"]);
-    expect(message).toContain("WHATSAPP_ACCESS_TOKEN");
-    expect(message).not.toContain(DEPLOYED.WHATSAPP_ACCESS_TOKEN as string);
+    const message = describeMissingConfiguration(["TWILIO_API_KEY_SECRET"]);
+    expect(message).toContain("TWILIO_API_KEY_SECRET");
+    expect(message).not.toContain(DEPLOYED.TWILIO_API_KEY_SECRET as string);
   });
 
   it("says whose problem it is, because an operator cannot fix one", () => {
@@ -219,116 +219,5 @@ describe("the loopback guard", () => {
     "",
   ])("does not mistake %s for loopback", (url) => {
     expect(isLoopbackBaseUrl(url)).toBe(false);
-  });
-});
-
-describe("the local test affordances", () => {
-  const WITH_OVERRIDES: EnvironmentSource = {
-    WHATSAPP_TEST_RECIPIENT: "447700900123",
-    WHATSAPP_MESSAGE_MODE: "text",
-  };
-
-  it("are honoured on a loopback deployment", () => {
-    const overrides = resolveLocalTestOverrides("http://localhost:3010", WITH_OVERRIDES);
-    expect(overrides.recipientOverride).toBe("447700900123");
-    expect(overrides.messageMode).toBe("text");
-  });
-
-  /**
-   * The test this whole guard exists for.
-   *
-   * A deployed environment that has somehow acquired both variables — copied
-   * from a developer's file, left in a Secret Manager entry, set by a script —
-   * must still send the approved template to the recorded contact point. If
-   * this ever fails, a production deployment can redirect every club invitation
-   * to one number.
-   */
-  it("are inert on a deployed one, however the environment is set", () => {
-    const overrides = resolveLocalTestOverrides("https://lancers.example.org", WITH_OVERRIDES);
-    expect(overrides.recipientOverride).toBeNull();
-    expect(overrides.messageMode).toBe("template");
-  });
-
-  it("are inert for a host that merely contains 'localhost'", () => {
-    const overrides = resolveLocalTestOverrides("https://localhost.example.com", WITH_OVERRIDES);
-    expect(overrides.recipientOverride).toBeNull();
-    expect(overrides.messageMode).toBe("template");
-  });
-
-  it("reach the resolved configuration, so no caller re-derives the guard", () => {
-    const deployed = resolveOutboundConfig({ ...DEPLOYED, ...WITH_OVERRIDES });
-    expect(deployed.configured).toBe(true);
-    if (!deployed.configured) return;
-    expect(deployed.config.localTest.recipientOverride).toBeNull();
-    expect(deployed.config.localTest.messageMode).toBe("template");
-
-    const local = resolveOutboundConfig({
-      ...DEPLOYED,
-      ...WITH_OVERRIDES,
-      APP_BASE_URL: "http://localhost:3010",
-    });
-    expect(local.configured).toBe(true);
-    if (!local.configured) return;
-    expect(local.config.localTest.recipientOverride).toBe("447700900123");
-  });
-
-  describe("LAN-124 — free-form text on a deployed revision, opt-in only", () => {
-    it("stays template-only when the mode is set but the flag is not", () => {
-      // Setting the mode alone must change nothing off loopback. This is the
-      // assertion that keeps the relaxation opt-in rather than accidental.
-      const overrides = resolveLocalTestOverrides("https://lancers.example.org", {
-        WHATSAPP_MESSAGE_MODE: "text",
-      });
-      expect(overrides.messageMode).toBe("template");
-      expect(overrides.recipientOverride).toBeNull();
-    });
-
-    it("stays template-only when the flag is set but the mode is not", () => {
-      const overrides = resolveLocalTestOverrides("https://lancers.example.org", {
-        WHATSAPP_ALLOW_FREE_FORM: "true",
-      });
-      expect(overrides.messageMode).toBe("template");
-    });
-
-    it("permits text only when both are set, and exactly `true`", () => {
-      const base = { WHATSAPP_MESSAGE_MODE: "text" };
-      for (const flag of ["yes", "1", "TRUE ", "", "false"]) {
-        expect(
-          resolveLocalTestOverrides("https://lancers.example.org", {
-            ...base,
-            WHATSAPP_ALLOW_FREE_FORM: flag,
-          }).messageMode,
-          JSON.stringify(flag),
-        ).toBe(flag.trim().toLowerCase() === "true" ? "text" : "template");
-      }
-    });
-
-    it("never redirects a deployed message to another handset, flag or no flag", () => {
-      // The recipient override stays loopback-only. Sending somebody else's
-      // message to a different number is a development affordance and has no
-      // deployed reading at all.
-      const overrides = resolveLocalTestOverrides("https://lancers.example.org", {
-        WHATSAPP_ALLOW_FREE_FORM: "true",
-        WHATSAPP_MESSAGE_MODE: "text",
-        WHATSAPP_TEST_RECIPIENT: "447700900999",
-      });
-      expect(overrides.recipientOverride).toBeNull();
-      expect(overrides.messageMode).toBe("text");
-    });
-
-    it("leaves loopback behaviour exactly as it was", () => {
-      const overrides = resolveLocalTestOverrides("http://localhost:3010", {
-        WHATSAPP_MESSAGE_MODE: "text",
-        WHATSAPP_TEST_RECIPIENT: "447700900123",
-      });
-      expect(overrides.messageMode).toBe("text");
-      expect(overrides.recipientOverride).toBe("447700900123");
-    });
-  });
-
-  it("default to template mode on loopback when no mode is set", () => {
-    const overrides = resolveLocalTestOverrides("http://localhost:3010", {});
-    expect(overrides.messageMode).toBe("template");
-    expect(overrides.recipientOverride).toBeNull();
   });
 });

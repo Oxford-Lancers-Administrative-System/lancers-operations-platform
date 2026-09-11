@@ -259,7 +259,7 @@ async function scenario(overrides: Partial<EventDraftInput> = {}): Promise<Scena
   await observer.query(
     `insert into public.notification_jobs
        (idempotency_key, job_type, status, invitation_id, event_id, channel)
-     values ($1, 'invitation', 'completed', $2, $3, 'whatsapp')`,
+     values ($1, 'invitation', 'completed', $2, $3, 'sms')`,
     [`${NAME_MARKER}:${rows[0].id}`, rows[0].id, event.id],
   );
 
@@ -397,7 +397,7 @@ describe("the participation table", () => {
     await observer.query(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, channel)
-       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp')`,
+       values ($1, 'invitation', 'failed', $2, $3, 'sms')`,
       [
         `${NAME_MARKER}:second:${staged.invitations[0].id}`,
         staged.invitations[0].id,
@@ -437,7 +437,7 @@ describe("the participation table", () => {
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, channel,
           created_at, scheduled_for, ladder_rung)
-       values ($1, 'invitation', 'completed', $2, $3, 'whatsapp',
+       values ($1, 'invitation', 'completed', $2, $3, 'sms',
                $4::timestamptz, $4::timestamptz, 0)`,
       [
         `${NAME_MARKER}:invitation:${staged.invitations[0].id}`,
@@ -454,7 +454,7 @@ describe("the participation table", () => {
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, channel,
           created_at, scheduled_for, ladder_rung, held_at, held_reason, held_by_person_id)
-       values ($1, 'reminder', 'pending', $2, $3, 'whatsapp',
+       values ($1, 'reminder', 'pending', $2, $3, 'sms',
                $4::timestamptz, $5::timestamptz, 1, $4::timestamptz,
                'The venue changed after this reminder was queued.', $6)`,
       [
@@ -537,13 +537,13 @@ describe("the automatic email fallback is excluded from the chase and delivery-e
     await observer.query(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, channel, ladder_rung)
-       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp', 0)`,
+       values ($1, 'invitation', 'failed', $2, $3, 'sms', 0)`,
       [`${NAME_MARKER}:${invitationId}:original`, invitationId, staged.eventId],
     );
     await observer.query(
       `insert into public.delivery_results
          (notification_job_id, attempt_number, outcome, channel, provider, detail)
-       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', 'not a WhatsApp account'
+       select id, 1, 'rejected', 'sms', 'twilio_sms', 'not a WhatsApp account'
          from public.notification_jobs where idempotency_key = $1`,
       [`${NAME_MARKER}:${invitationId}:original`],
     );
@@ -581,7 +581,7 @@ describe("the automatic email fallback is excluded from the chase and delivery-e
     await observer.query(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, channel, last_error)
-       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp', $4)`,
+       values ($1, 'invitation', 'failed', $2, $3, 'sms', $4)`,
       [
         `${NAME_MARKER}:${invitationId}:original`,
         invitationId,
@@ -592,7 +592,7 @@ describe("the automatic email fallback is excluded from the chase and delivery-e
     await observer.query(
       `insert into public.delivery_results
          (notification_job_id, attempt_number, outcome, channel, provider, detail)
-       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', $2
+       select id, 1, 'rejected', 'sms', 'twilio_sms', $2
          from public.notification_jobs where idempotency_key = $1`,
       [`${NAME_MARKER}:${invitationId}:original`, NO_USABLE_NUMBER_REASON],
     );
@@ -612,13 +612,13 @@ describe("the automatic email fallback is excluded from the chase and delivery-e
     await observer.query(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, channel)
-       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp')`,
+       values ($1, 'invitation', 'failed', $2, $3, 'sms')`,
       [`${NAME_MARKER}:${invitationId}:original`, invitationId, staged.eventId],
     );
     await observer.query(
       `insert into public.delivery_results
          (notification_job_id, attempt_number, outcome, channel, provider, detail)
-       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', 'not a WhatsApp account'
+       select id, 1, 'rejected', 'sms', 'twilio_sms', 'not a WhatsApp account'
          from public.notification_jobs where idempotency_key = $1`,
       [`${NAME_MARKER}:${invitationId}:original`],
     );

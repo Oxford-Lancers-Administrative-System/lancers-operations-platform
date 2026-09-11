@@ -94,23 +94,31 @@ describe("LAN-222 actual egress selection", () => {
       routeRecipient("447700900901", people, { a: { ...settings.a, responder: "prompt" } }),
     ).toThrow("confirm");
   });
-  it("refuses arbitrary endpoints and non-test template payloads before any network call", async () => {
+  it("refuses arbitrary endpoints and malformed Twilio forms before any network call", async () => {
     const { assertProviderRequest } = await import("../scripts/test-box/routing.mjs");
-    const payload = {
-      messaging_product: "whatsapp",
-      type: "template",
-      to: "447700900901",
-      template: { name: "invitation_test" },
+    const form = {
+      To: "+447700900901",
+      From: "OxfLancers",
+      Body: "Oxford Lancers: hello",
+      StatusCallback: "https://tunnel.example/api/webhooks/twilio?kind=invitation",
     };
     expect(
-      assertProviderRequest("https://graph.facebook.com/v24.0/local-stub/messages", payload)
+      assertProviderRequest("https://api.twilio.com/2010-04-01/Accounts/ACstub/Messages.json", form)
         .hostname,
-    ).toBe("graph.facebook.com");
-    expect(() => assertProviderRequest("https://example.com/v24.0/x/messages", payload)).toThrow();
+    ).toBe("api.twilio.com");
     expect(() =>
-      assertProviderRequest("https://graph.facebook.com/v24.0/x/messages", {
-        ...payload,
-        template: { name: "production_name" },
+      assertProviderRequest("https://example.com/2010-04-01/Accounts/x/Messages.json", form),
+    ).toThrow();
+    expect(() =>
+      assertProviderRequest("https://api.twilio.com/2010-04-01/Accounts/x/Messages.json", {
+        ...form,
+        To: "447700900901",
+      }),
+    ).toThrow();
+    expect(() =>
+      assertProviderRequest("https://api.twilio.com/2010-04-01/Accounts/x/Messages.json", {
+        ...form,
+        StatusCallback: "",
       }),
     ).toThrow();
   });

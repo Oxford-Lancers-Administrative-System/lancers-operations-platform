@@ -452,4 +452,4 @@ export function whatsAppErrorDisclosureLabel(count: number): string {
   return count === 1 ? "See 1 user with error" : `See ${count} users with error`;
 }
 
-export const WHATSAPP_ERROR_DETAIL = "WhatsApp error";
+export const WHATSAPP_ERROR_DETAIL = "Text message error";

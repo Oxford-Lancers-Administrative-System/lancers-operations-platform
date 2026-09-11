@@ -626,9 +626,11 @@ describe("saving an amendment holds the event's unsent messages, then resumes th
     const summary = await dispatchEventInvitations(fixture.eventId, {
       source: {
         APP_BASE_URL: "https://lancers.example.org",
-        WHATSAPP_PHONE_NUMBER_ID: "5550001",
-        WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-        WHATSAPP_TEMPLATE_NAME: "event_invitation",
+        TWILIO_ACCOUNT_SID: "ACtest",
+        TWILIO_API_KEY_SID: "SKtest",
+        TWILIO_API_KEY_SECRET: "not-a-real-secret",
+        TWILIO_ALPHA_SENDER: "OxfLancers",
+        TWILIO_FROM_TOLL_FREE: "+18005550100",
       },
       transport,
     });
@@ -1138,7 +1140,7 @@ describe("F-C3/F-A2 — an amendment gives a plan-less approved event a working 
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel,
           attempt_count)
-       values ($1, 'invitation', 'completed', $2, $3, null, 'whatsapp', 1)
+       values ($1, 'invitation', 'completed', $2, $3, null, 'sms', 1)
        returning id`,
       [`${NAME_MARKER}:legacy:${invitationId}`, invitationId, fixture.eventId],
     );

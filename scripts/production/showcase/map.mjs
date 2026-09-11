@@ -797,7 +797,7 @@ const STATE_ROWS = [
     "job.reminder",
     "A WhatsApp reminder sent",
     "public.notification_jobs",
-    "t.job_type = 'reminder' and t.channel = 'whatsapp' and t.status = 'completed'",
+    "t.job_type = 'reminder' and t.channel = 'sms' and t.status = 'completed'",
     100,
   ],
   [

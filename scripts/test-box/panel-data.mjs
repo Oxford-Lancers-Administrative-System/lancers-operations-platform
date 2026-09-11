@@ -2,7 +2,6 @@ import { readSinkRecords } from "./count.mjs";
 import { readPanelState, effectivePersonSettings } from "./panel-state.mjs";
 import path from "node:path";
 import fs from "node:fs";
-import { templateNames } from "./configure.mjs";
 
 export function jobKind(row) {
   const key = row.idempotency_key ?? "";
@@ -59,7 +58,6 @@ export async function snapshot(
   );
   const records = readSinkRecords(path.join(directory, "delivery-sink"));
   const evidenceDir = path.join(directory, "transport-evidence");
-  const names = templateNames(fs.readFileSync("src/lib/delivery/templates.ts", "utf8"));
   const evidence = fs.existsSync(evidenceDir)
     ? fs
         .readdirSync(evidenceDir)
@@ -69,14 +67,7 @@ export async function snapshot(
   const captures = new Map(
     [...records, ...evidence.filter((r) => r.providerMessageId)].map((r) => [
       r.providerMessageId,
-      {
-        ...r,
-        kind:
-          r.kind ??
-          Object.entries(names).find(
-            ([, name]) => r.payload?.template?.name === name + "_test",
-          )?.[0],
-      },
+      { ...r, kind: r.kind && r.kind !== "unknown" ? r.kind : undefined },
     ]),
   );
   const jobs = result.rows.map((job) => {
@@ -88,6 +79,7 @@ export async function snapshot(
       kind: capture?.kind ?? jobKind(job),
       person: person?.name ?? "Person not linked",
       destination: capture?.recipient ?? person?.phone ?? null,
+      sender: capture?.payload?.From ?? null,
       identity:
         capture?.identity ??
         effectivePersonSettings(state.people[job.person_id], person ?? { phone: null }).identity,

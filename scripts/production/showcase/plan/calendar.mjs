@@ -728,7 +728,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
   };
 
   const delivered = (theJob, channel, at_, attempt = 1, { manual = false } = {}) => {
-    const provider = channel === "email" ? "resend" : "whatsapp-business";
+    const provider = channel === "email" ? "resend" : "twilio_sms";
     const messageId =
       channel === "email"
         ? id("provider-message", theJob.id, String(attempt))
@@ -776,7 +776,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
   };
 
   const failed = (theJob, channel, from, count, reason, { rejected = false } = {}) => {
-    const provider = channel === "email" ? "resend" : "whatsapp-business";
+    const provider = channel === "email" ? "resend" : "twilio_sms";
     for (let n = 1; n <= count; n += 1) {
       const when = addMinutes(from, BACKOFF_OFFSETS_MINUTES[n - 1] ?? 320);
       add(
@@ -891,7 +891,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
         invitation_id: invitationId,
         event_id: eventId,
         person_id: member.personId,
-        channel: "whatsapp",
+        channel: "sms",
         scheduled_for: invitationAt,
         ladder_rung: 0,
         created_at: approvedAt,
@@ -916,7 +916,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           ["job.failed.terminal"],
           "job.failed.terminal",
         );
-        failed(j, "whatsapp", invitationAt, 5, j.last_error);
+        failed(j, "sms", invitationAt, 5, j.last_error);
         return;
       }
       if (story === "genuine_failure" && !member.hasPhone) {
@@ -934,7 +934,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           ["job.failed.no-route"],
           "job.failed.no-route",
         );
-        failed(j, "whatsapp", invitationAt, 1, NO_USABLE_NUMBER_REASON, { rejected: true });
+        failed(j, "sms", invitationAt, 1, NO_USABLE_NUMBER_REASON, { rejected: true });
         return;
       }
       if (story === "whatsapp_carried_by_email" && position === 0) {
@@ -952,7 +952,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           ["job.failed.whatsapp"],
           "job.failed.whatsapp",
         );
-        failed(j, "whatsapp", invitationAt, 5, j.last_error);
+        failed(j, "sms", invitationAt, 5, j.last_error);
         const fallbackAt = addMinutes(invitationAt, 320);
         const fallback = job(
           {
@@ -992,7 +992,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           ["job.failed.no-consent"],
           "job.failed.no-consent",
         );
-        failed(j, "whatsapp", invitationAt, 1, j.last_error, { rejected: true });
+        failed(j, "sms", invitationAt, 1, j.last_error, { rejected: true });
         return;
       }
 
@@ -1010,7 +1010,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
         },
         ["job.completed", "job.invitation"],
       );
-      delivered(rung0Job, "whatsapp", invitationAt, 1, { manual });
+      delivered(rung0Job, "sms", invitationAt, 1, { manual });
 
       if (spec.ladder === "invitation-only" || member.capacity === "recruit") {
         if (member.capacity === "recruit" && !late) {
@@ -1037,7 +1037,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
             },
             ["job.recruit-follow-up"],
           );
-          if (!answer) delivered(fj, "whatsapp", followAt);
+          if (!answer) delivered(fj, "sms", followAt);
         }
         return;
       }
@@ -1045,7 +1045,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       const rungs = [
         ...Array.from({ length: whatsappScheduled }, (_, n) => ({
           rung: n + 1,
-          channel: "whatsapp",
+          channel: "sms",
         })),
         ...Array.from({ length: emailScheduled }, (_, n) => ({
           rung: whatsappScheduled + n + 1,
@@ -1151,7 +1151,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
             invitation_id: invitationId,
             event_id: eventId,
             person_id: member.personId,
-            channel: "whatsapp",
+            channel: "sms",
             scheduled_for: spec.cancelledAt,
             status: "completed",
             claimed_at: spec.cancelledAt,
@@ -1164,7 +1164,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           },
           ["job.cancellation-notice"],
         );
-        delivered(j, "whatsapp", spec.cancelledAt);
+        delivered(j, "sms", spec.cancelledAt);
       });
     }
 
@@ -1182,7 +1182,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
             invitation_id: invitationId,
             event_id: eventId,
             person_id: member.personId,
-            channel: "whatsapp",
+            channel: "sms",
             scheduled_for: spec.amendment.at,
             status: "completed",
             claimed_at: spec.amendment.at,
@@ -1195,7 +1195,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           },
           ["job.schedule-change-notice"],
         );
-        delivered(j, "whatsapp", spec.amendment.at);
+        delivered(j, "sms", spec.amendment.at);
       });
     }
 
@@ -1214,7 +1214,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
             invitation_id: null,
             event_id: eventId,
             person_id: presidentId,
-            channel: "whatsapp",
+            channel: "sms",
             scheduled_for: escalationAt,
             status: "completed",
             claimed_at: escalationAt,
@@ -1229,7 +1229,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           ["job.escalation"],
           !ctx.examples.has("job.escalation") ? "job.escalation" : null,
         );
-        delivered(escalation, "whatsapp", escalationAt);
+        delivered(escalation, "sms", escalationAt);
         unanswered.forEach((entry, position) => {
           const resolved = position % 3 === 0;
           add(

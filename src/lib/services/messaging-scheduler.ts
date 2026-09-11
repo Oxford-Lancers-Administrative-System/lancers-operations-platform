@@ -282,7 +282,7 @@ export async function scheduleEventLadderIn(
             channel, scheduled_for, ladder_rung, template_variables)
          values ('event:' || $1::uuid::text || ':reminder:recruit:' || $2::uuid::text || ':1',
                  'reminder', 'pending', $2::uuid, $1::uuid, $3::uuid,
-                 'whatsapp'::public.notification_channel, $4::timestamptz, 1, '{}'::jsonb)
+                 'sms'::public.notification_channel, $4::timestamptz, 1, '{}'::jsonb)
          on conflict (idempotency_key) do nothing`,
         [eventId, invitee.invitation_id, invitee.person_id, plan.recruitLadder.followUpAt],
       );
@@ -351,7 +351,7 @@ export async function currentPresidentIn(tx: Tx): Promise<string | null> {
 async function presidentEscalationChannelIn(
   tx: Tx,
   presidentPersonId: string,
-): Promise<"whatsapp" | "email"> {
+): Promise<"sms" | "email"> {
   const result = await tx.query<{ has_phone: boolean }>(
     `select exists (
        select 1 from public.contact_points
@@ -362,7 +362,7 @@ async function presidentEscalationChannelIn(
      ) as has_phone`,
     [presidentPersonId],
   );
-  return result.rows[0]?.has_phone ? "whatsapp" : "email";
+  return result.rows[0]?.has_phone ? "sms" : "email";
 }
 
 /**
@@ -430,7 +430,7 @@ async function raiseDueEscalations(): Promise<{
     // WhatsApp-to-email fallback (mirroring `scheduleWhatsAppFallbackIn`) is
     // what recovers from that, exactly as a player-facing job already does.
     const escalationChannel =
-      president === null ? "whatsapp" : await presidentEscalationChannelIn(tx, president);
+      president === null ? "sms" : await presidentEscalationChannelIn(tx, president);
 
     for (const { event_id: eventId } of due.rows) {
       // `nonresponse_queue` is the shipped view and it is the definition of who
@@ -820,7 +820,7 @@ export async function dispatchEscalationJob(
       [jobId],
     ),
   );
-  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "sms";
 
   const resolution = resolveDeliveryProvider(
     options.source ?? process.env,
@@ -979,7 +979,7 @@ export async function dispatchEscalationJob(
           context.provider.name,
         );
         const fallbackId =
-          channel === "whatsapp" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
+          channel === "sms" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
         return { outcome: { kind: "no-send" }, fallbackId };
       }
 
@@ -998,7 +998,7 @@ export async function dispatchEscalationJob(
           context.provider.name,
         );
         const fallbackId =
-          channel === "whatsapp" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
+          channel === "sms" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
         return { outcome: { kind: "no-send" }, fallbackId };
       }
 
@@ -1110,7 +1110,7 @@ export async function dispatchEscalationJob(
     // that reached the ceiling — mirroring `dispatchJob`'s identical
     // condition for a player-facing job.
     const terminal = !outcome.retryable || claimed.attemptNumber >= MAX_ATTEMPTS;
-    return terminal && channel === "whatsapp"
+    return terminal && channel === "sms"
       ? await scheduleEscalationFallbackIn(tx, jobId)
       : null;
   });
@@ -1139,7 +1139,7 @@ async function scheduleEscalationFallbackIn(tx: Tx, jobId: string): Promise<stri
             j.event_id, j.person_id,
             'email'::public.notification_channel, now(), j.template_variables
        from public.notification_jobs j
-      where j.id = $1 and j.job_type = 'escalation' and j.channel = 'whatsapp'
+      where j.id = $1 and j.job_type = 'escalation' and j.channel = 'sms'
         and j.event_id is not null and j.person_id is not null
      on conflict (idempotency_key) do nothing
      returning id`,
@@ -1307,7 +1307,7 @@ export async function dispatchRecruitmentCycleJob(
       [jobId],
     ),
   );
-  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "sms";
 
   const resolution = resolveDeliveryProvider(
     options.source ?? process.env,
@@ -1661,7 +1661,7 @@ export async function dispatchOnboardingWelcomeJob(
       [jobId],
     ),
   );
-  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "sms";
 
   const resolution = resolveDeliveryProvider(
     options.source ?? process.env,
@@ -1966,7 +1966,7 @@ async function declareDueOnboardingChasesIn(): Promise<{ declared: number }> {
       const inserted = await tx.query<{ id: string }>(
         `insert into public.notification_jobs
            (idempotency_key, job_type, status, person_id, channel, scheduled_for, template_variables)
-         values ($1, 'other', 'pending', $2::uuid, 'whatsapp', now(), '{}'::jsonb)
+         values ($1, 'other', 'pending', $2::uuid, 'sms', now(), '{}'::jsonb)
          on conflict (idempotency_key) do nothing
          returning id`,
         [idempotencyKey, candidate.personId],
@@ -1983,7 +1983,7 @@ async function declareDueOnboardingChasesIn(): Promise<{ declared: number }> {
         seasonId: candidate.seasonId,
         section: "chase",
         kind: "ask",
-        channel: "whatsapp",
+        channel: "sms",
         actorLabel: "the club",
       });
     }
@@ -2118,7 +2118,7 @@ export async function dispatchOnboardingChaseEscalationJob(
     ),
   );
   const row = routed.rows[0];
-  const channel = row?.channel === "email" ? "email" : "whatsapp";
+  const channel = row?.channel === "email" ? "email" : "sms";
   const outstandingCount = row?.template_variables?.outstandingCount ?? 0;
 
   const resolution = resolveDeliveryProvider(
@@ -2362,7 +2362,7 @@ export async function dispatchOnboardingChaseJob(
       [jobId],
     ),
   );
-  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "sms";
 
   const resolution = resolveDeliveryProvider(
     options.source ?? process.env,
@@ -2647,7 +2647,7 @@ export async function sendOnboardingNudges(
       const job = await tx.query<{ id: string }>(
         `insert into public.notification_jobs
            (idempotency_key, job_type, status, person_id, channel, scheduled_for, template_variables)
-         values ($1, 'other', 'pending', $2::uuid, 'whatsapp', now(), '{}'::jsonb)
+         values ($1, 'other', 'pending', $2::uuid, 'sms', now(), '{}'::jsonb)
          returning id`,
         [idempotencyKey, found.person_id],
       );

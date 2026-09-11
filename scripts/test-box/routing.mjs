@@ -34,25 +34,35 @@ export function routeRecipient(recipient, people, settings) {
     );
   return { mode: "real", personId: person.id, outcome: null };
 }
-export function assertProviderRequest(url, payload) {
+/** LAN-330: the request must be a Twilio Messages form addressed to Twilio's own host. */
+export function assertProviderRequest(url, form) {
   const target = new URL(url);
   if (
     target.protocol !== "https:" ||
-    target.hostname !== "graph.facebook.com" ||
+    target.hostname !== "api.twilio.com" ||
     target.port ||
     target.username ||
     target.password ||
     target.search ||
     target.hash ||
-    !/^\/v\d+\.\d+\/[^/]+\/messages$/.test(target.pathname)
+    !/^\/2010-04-01\/Accounts\/[^/]+\/Messages\.json$/.test(target.pathname)
   )
     throw new Error("The test router refused an unexpected provider endpoint.");
+  const from = String(form?.From ?? "");
+  const alphanumeric = /^[A-Za-z0-9 ]{1,11}$/.test(from) && /[A-Za-z]/.test(from);
+  let callback = null;
+  try {
+    callback = new URL(form?.StatusCallback ?? "");
+  } catch {
+    callback = null;
+  }
   if (
-    payload?.messaging_product !== "whatsapp" ||
-    payload.type !== "template" ||
-    !payload.to ||
-    !payload.template?.name?.endsWith("_test")
+    !/^\+\d{7,15}$/.test(form?.To ?? "") ||
+    !(alphanumeric || /^\+\d{7,15}$/.test(from)) ||
+    !String(form?.Body ?? "").trim() ||
+    !callback ||
+    callback.protocol !== "https:"
   )
-    throw new Error("Actual test delivery requires an existing _test WhatsApp template.");
+    throw new Error("Actual test delivery requires a complete Twilio message form.");
   return target;
 }

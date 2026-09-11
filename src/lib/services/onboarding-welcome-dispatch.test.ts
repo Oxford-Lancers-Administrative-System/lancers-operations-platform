@@ -24,7 +24,7 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
+import { linkToken, parseTransportBody } from "../../../tests/helpers/sms-transport";
 
 import { closePool, withTransaction } from "@/lib/db";
 import { withdrawSeasonMessagingConsentIn } from "./messaging-consent";
@@ -55,9 +55,11 @@ function uniquePhone(): string {
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "5550001",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
   DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
@@ -67,10 +69,10 @@ const CONFIGURED: EnvironmentSource = {
 function acceptingTransport() {
   const sent: { url: string; body: Record<string, unknown> }[] = [];
   const transport = async (url: string, init: RequestInit) => {
-    const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
+    const body = parseTransportBody(url, init.body);
     sent.push({ url, body });
     const id = `wamid.${MARKER}.${crypto.randomUUID()}`;
-    return new Response(JSON.stringify({ messaging_product: "whatsapp", messages: [{ id }] }), {
+    return new Response(JSON.stringify({ sid: id, status: "queued" }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -175,9 +177,7 @@ describe("dispatchOnboardingWelcomeJob", () => {
 
     expect(outcome).toBe("accepted");
     expect(sent).toHaveLength(1);
-    expect((sent[0].body.template as { name: string }).name).toBe(
-      TEMPLATE_NAMES.onboarding_welcome,
-    );
+    expect(sent[0].body.kind).toBe("onboarding_welcome");
 
     const attempt = await observer.query<{ accepted_at: Date | null }>(
       "select accepted_at from public.delivery_attempts where notification_job_id = $1",
@@ -215,20 +215,11 @@ describe("dispatchOnboardingWelcomeJob", () => {
     const { sent, transport } = acceptingTransport();
     await dispatchOnboardingWelcomeJob(jobId, { source: CONFIGURED, transport });
 
-    // Meta's button component carries only the URL's dynamic suffix — the
-    // token itself — never the full link (`whatsapp-cloud.ts`'s own
-    // `suffixOf`), so this proves one URL button with a non-empty token.
-    const buttons = sent[0].body.template as {
-      components: { type: string; sub_type?: string; parameters?: { text?: string }[] }[];
-    };
-    const urlButtons = buttons.components.filter(
-      (c) => c.type === "button" && c.sub_type === "url",
-    );
-    expect(urlButtons).toHaveLength(1);
-    for (const button of urlButtons) {
-      expect(button.parameters?.[0]?.text).toBeTruthy();
-    }
-    expect(urlButtons[0].parameters?.[0]?.text).toBeTruthy();
+    // The text carries exactly one personal-page link with a non-empty token
+    // (LAN-263: the onboarding welcome has no Stop link).
+    const body = String(sent[0].body.Body ?? "");
+    expect(body.match(/\/me\//g)).toHaveLength(1);
+    expect(linkToken(body, "me")).toBeTruthy();
   });
 
   it("refuses at claim time when consent was withdrawn after the job was declared", async () => {
@@ -265,10 +256,6 @@ describe("dispatchOnboardingWelcomeJob", () => {
     const { sent, transport } = acceptingTransport();
     const summary = await runMessagingSweep({ source: CONFIGURED, transport });
     expect(summary.accepted).toBeGreaterThanOrEqual(1);
-    expect(
-      sent.some(
-        (s) => (s.body.template as { name: string }).name === TEMPLATE_NAMES.onboarding_welcome,
-      ),
-    ).toBe(true);
+    expect(sent.some((s) => s.body.kind === "onboarding_welcome")).toBe(true);
   });
 });

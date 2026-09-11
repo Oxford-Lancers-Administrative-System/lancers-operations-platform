@@ -4,78 +4,64 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "dotenv";
-import ts from "typescript";
 import { connectLocal } from "../lib/local-db.mjs";
 import { runtime } from "./runtime.mjs";
 
 export const TEST_HOST = "https://marvel-indiscernible-daxton.ngrok-free.dev";
 
-/** Read names as data, without importing server code or evaluating the registry. */
-export function templateNames(text) {
-  const source = ts.createSourceFile("templates.ts", text, ts.ScriptTarget.Latest, true);
-  let names;
-  function visit(node) {
-    if (ts.isVariableDeclaration(node) && node.name.getText(source) === "TEMPLATE_NAMES") {
-      const object = node.initializer?.arguments?.[0];
-      if (!object || !ts.isObjectLiteralExpression(object))
-        throw new Error("Template registry shape changed.");
-      names = Object.fromEntries(
-        object.properties.map((property) => {
-          if (!ts.isPropertyAssignment(property) || !ts.isStringLiteral(property.initializer)) {
-            throw new Error("Template names must remain literal registry data.");
-          }
-          return [property.name.getText(source).replace(/['"]/g, ""), property.initializer.text];
-        }),
-      );
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(source);
-  if (!names || !names.invitation) throw new Error("Template registry was not found.");
-  return names;
-}
+/** The private settings `--sms` mode requires before actual sending or real callbacks. */
+export const PRIVATE_SMS_SETTINGS = Object.freeze([
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_API_KEY_SID",
+  "TWILIO_API_KEY_SECRET",
+  "TWILIO_AUTH_TOKEN",
+  "TWILIO_ALPHA_SENDER",
+]);
 
-export function settingsFor(mode, current, privateSettings, baseUrl, names, contacts) {
-  if (!["sink", "whatsapp"].includes(mode)) throw new Error("Choose --sink or --whatsapp.");
-  if (mode === "whatsapp") {
-    for (const key of [
-      "WHATSAPP_PHONE_NUMBER_ID",
-      "WHATSAPP_ACCESS_TOKEN",
-      "WHATSAPP_APP_SECRET",
-    ]) {
+/** Sink-mode stubs. None is a credential; the toll-free stub lets +1 testers be intercepted. */
+const SINK_STUBS = Object.freeze({
+  TWILIO_ACCOUNT_SID: "ACstub",
+  TWILIO_API_KEY_SID: "SKstub",
+  TWILIO_API_KEY_SECRET: "local-stub-not-a-secret",
+  TWILIO_AUTH_TOKEN: "local-stub-not-a-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
+});
+
+export function settingsFor(mode, current, privateSettings, baseUrl, contacts) {
+  if (!["sink", "sms"].includes(mode)) throw new Error("Choose --sink or --sms.");
+  if (mode === "sms") {
+    for (const key of PRIVATE_SMS_SETTINGS) {
       if (!privateSettings[key]?.trim())
         throw new Error(`Private test configuration is missing ${key}.`);
     }
   }
   const values = { ...current };
-  // Clear optional transport modes and host overrides so saved development
-  // experiments cannot turn this template test into a different type of send.
+  // Clear provider, email and delivery settings so saved development
+  // experiments cannot turn this test into a different type of send.
   for (const key of Object.keys(values)) {
-    if (key.startsWith("WHATSAPP_") || key.startsWith("EMAIL_") || key.startsWith("DELIVERY_"))
-      delete values[key];
+    if (/^(TWILIO_|WHATSAPP_|EMAIL_|DELIVERY_)/.test(key)) delete values[key];
   }
   Object.assign(values, {
     // Keep the owner-provisioned public form origin during local contact refreshes.
     APP_BASE_URL: mode === "sink" && current.APP_BASE_URL !== TEST_HOST ? baseUrl : TEST_HOST,
     SCHEDULER_TRIGGER_TOKEN:
       current.SCHEDULER_TRIGGER_TOKEN || crypto.randomBytes(32).toString("hex"),
-    WHATSAPP_TEMPLATE_LANGUAGE: "en",
-    WHATSAPP_PHONE_NUMBER_ID:
-      mode === "sink" ? "local-stub" : privateSettings.WHATSAPP_PHONE_NUMBER_ID,
-    WHATSAPP_ACCESS_TOKEN:
-      mode === "sink" ? "local-stub-not-a-secret" : privateSettings.WHATSAPP_ACCESS_TOKEN,
-    WHATSAPP_APP_SECRET:
-      mode === "sink" ? "local-stub-not-a-secret" : privateSettings.WHATSAPP_APP_SECRET,
-    WHATSAPP_WEBHOOK_VERIFY_TOKEN:
-      privateSettings.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
-      current.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
-      crypto.randomBytes(32).toString("hex"),
     DELIVERY_RECIPIENT_ALLOWLIST:
       mode === "sink"
         ? contacts.phones.join(",")
         : privateSettings.DELIVERY_RECIPIENT_ALLOWLIST || current.DELIVERY_RECIPIENT_ALLOWLIST,
   });
-  // This panel intercepts every email even when selected phones use Meta.
+  if (mode === "sink") {
+    Object.assign(values, SINK_STUBS);
+  } else {
+    for (const key of PRIVATE_SMS_SETTINGS) values[key] = privateSettings[key].trim();
+    // Optional until toll-free verification clears; +1 destinations are
+    // refused with a reason while it is empty.
+    const tollFree = (privateSettings.TWILIO_FROM_TOLL_FREE ?? "").trim();
+    if (tollFree) values.TWILIO_FROM_TOLL_FREE = tollFree;
+  }
+  // This panel intercepts every email even when selected phones use Twilio.
   // Keep that test transport configured without loading real email credentials.
   Object.assign(values, {
     EMAIL_API_KEY: "local-stub-not-a-secret",
@@ -83,20 +69,14 @@ export function settingsFor(mode, current, privateSettings, baseUrl, names, cont
     DELIVERY_EMAIL_ALLOWLIST:
       contacts.emails.join(",") || current.DELIVERY_EMAIL_ALLOWLIST || "nobody@example.test",
   });
-  for (const [kind, name] of Object.entries(names)) {
-    const key =
-      kind === "invitation" ? "WHATSAPP_TEMPLATE_NAME" : `WHATSAPP_TEMPLATE_${kind.toUpperCase()}`;
-    values[key] = `${name}_test`;
-  }
   return values;
 }
 
 export async function main(args = process.argv.slice(2)) {
-  if (args.length !== 1 || !["--sink", "--whatsapp"].includes(args[0]))
-    throw new Error("Usage: configure.mjs --sink|--whatsapp");
+  if (args.length !== 1 || !["--sink", "--sms"].includes(args[0]))
+    throw new Error("Usage: configure.mjs --sink|--sms");
   const mode = args[0].slice(2);
   const { env, baseUrl, databaseUrl } = await runtime();
-  const names = templateNames(fs.readFileSync("src/lib/delivery/templates.ts", "utf8"));
   const privateFile = ".env.test-box.local";
   const privateSettings = fs.existsSync(privateFile) ? parse(fs.readFileSync(privateFile)) : {};
   const contacts = { phones: [], emails: [] };
@@ -115,7 +95,7 @@ export async function main(args = process.argv.slice(2)) {
     }
     if (!contacts.phones.length) throw new Error("Seed the local test database first.");
   }
-  const values = settingsFor(mode, env, privateSettings, baseUrl, names, contacts);
+  const values = settingsFor(mode, env, privateSettings, baseUrl, contacts);
   const text =
     Object.entries(values)
       .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
@@ -128,7 +108,7 @@ export async function main(args = process.argv.slice(2)) {
     if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
   }
   console.log(
-    `Configured ${mode} mode with ${Object.keys(names).length} test template names. Restart the app. No messages sent and no credentials displayed.`,
+    `Configured ${mode} mode for Twilio SMS. Restart the app. No messages sent and no credentials displayed.`,
   );
 }
 

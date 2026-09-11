@@ -30,9 +30,9 @@ function planForSchedule(overrides: Partial<MessagingPlan> = {}): MessagingPlan 
     dispatchesImmediately: false,
     lateApproval: false,
     rungs: [
-      { rung: 0, kind: "invitation", channel: "whatsapp", at: invitationAt },
-      { rung: 1, kind: "reminder", channel: "whatsapp", at: new Date("2026-09-16T19:00:00Z") },
-      { rung: 2, kind: "reminder", channel: "whatsapp", at: new Date("2026-09-17T19:00:00Z") },
+      { rung: 0, kind: "invitation", channel: "sms", at: invitationAt },
+      { rung: 1, kind: "reminder", channel: "sms", at: new Date("2026-09-16T19:00:00Z") },
+      { rung: 2, kind: "reminder", channel: "sms", at: new Date("2026-09-17T19:00:00Z") },
       { rung: 3, kind: "reminder", channel: "email", at: new Date("2026-09-18T19:00:00Z") },
     ],
     escalationAt: new Date("2026-09-21T07:00:00Z"),
@@ -53,9 +53,9 @@ describe("buildSchedulePreview", () => {
     const preview = buildSchedulePreview(planForSchedule(), SCHEDULE);
 
     expect(preview.steps.map((step) => step.label)).toEqual([
-      "Invitation — WhatsApp",
-      "Reminder 1 — WhatsApp",
-      "Reminder 2 — WhatsApp",
+      "Invitation — text",
+      "Reminder 1 — text",
+      "Reminder 2 — text",
       "Reminder 3 — email",
       "Player RSVP deadline",
       "President is told",
@@ -75,7 +75,7 @@ describe("buildSchedulePreview", () => {
   it("names the day counts against the deadline and the invitation", () => {
     const preview = buildSchedulePreview(planForSchedule(), SCHEDULE);
 
-    const invitation = preview.steps.find((step) => step.label === "Invitation — WhatsApp")!;
+    const invitation = preview.steps.find((step) => step.label === "Invitation — text")!;
     expect(invitation.note).toBe("5 days before the event");
     const deadline = preview.steps.find((step) => step.label === "Player RSVP deadline")!;
     expect(deadline.note).toBe("2 days before the event");
@@ -90,19 +90,19 @@ describe("buildSchedulePreview", () => {
           {
             rung: 0,
             kind: "invitation",
-            channel: "whatsapp",
+            channel: "sms",
             at: new Date("2026-09-17T19:00:00Z"),
           },
           {
             rung: 1,
             kind: "reminder",
-            channel: "whatsapp",
+            channel: "sms",
             at: new Date("2026-09-18T19:00:00Z"),
           },
           {
             rung: 2,
             kind: "reminder",
-            channel: "whatsapp",
+            channel: "sms",
             at: new Date("2026-09-19T19:00:00Z"),
           },
           { rung: 3, kind: "reminder", channel: "email", at: new Date("2026-09-20T19:00:00Z") },
@@ -122,10 +122,10 @@ describe("buildSchedulePreview", () => {
           {
             rung: 0,
             kind: "invitation",
-            channel: "whatsapp",
+            channel: "sms",
             at: new Date("2026-09-01T19:00:00Z"),
           },
-          { rung: 1, kind: "reminder", channel: "whatsapp", at: new Date("2026-09-02T19:00:00Z") },
+          { rung: 1, kind: "reminder", channel: "sms", at: new Date("2026-09-02T19:00:00Z") },
         ],
       }),
       SCHEDULE,

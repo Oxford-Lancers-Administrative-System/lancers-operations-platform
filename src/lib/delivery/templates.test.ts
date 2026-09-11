@@ -29,12 +29,9 @@ import {
   RECRUIT_NO_LABEL,
   RECRUIT_STOP_MESSAGES_LABEL,
   RECRUIT_YES_LABEL,
-  TEMPLATE_NAMES,
   YES_BUTTON_LABEL,
   escalationCarriesNoPersonalData,
   templateFor,
-  templateNameFor,
-  templateNameVariable,
 } from "./templates";
 
 /**
@@ -78,14 +75,13 @@ describe("every declared template", () => {
     }
   });
 
-  it("covers all fourteen kinds and gives each one a distinct canonical name", () => {
+  it("covers all fourteen kinds", () => {
     // Six from LAN-169, plus LAN-203's five recruit kinds — see
     // `recruit_event_followup` and the four capture-cycle templates below —
     // plus LAN-215's one door-independent onboarding welcome, plus LAN-218's
     // chase and its own escalation.
     expect(MESSAGE_KINDS).toHaveLength(14);
     expect(Object.keys(MESSAGE_TEMPLATES).sort()).toEqual([...MESSAGE_KINDS].sort());
-    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(14);
   });
 
   it("renders a subject and a non-empty body for each", () => {
@@ -296,30 +292,6 @@ describe("the onboarding chase escalation", () => {
   });
 });
 
-describe("choosing a template name", () => {
-  const config = { templateName: "club_invitation_v3" } as Parameters<typeof templateNameFor>[1];
-
-  it("uses the invitation name a configured deployment already has", () => {
-    // `WHATSAPP_TEMPLATE_NAME` is required by `config.ts` and set on every
-    // configured deployment, so LAN-124's live-provider path keeps sending
-    // exactly what it sends today and this registry adds no new required
-    // configuration at all.
-    expect(templateNameVariable("invitation")).toBe("WHATSAPP_TEMPLATE_NAME");
-    expect(templateNameFor("invitation", config, {})).toBe("club_invitation_v3");
-  });
-
-  it("falls back to the club's canonical name for every other kind", () => {
-    expect(templateNameFor("reminder", config, {})).toBe(TEMPLATE_NAMES.reminder);
-    expect(templateNameFor("escalation", config, {})).toBe(TEMPLATE_NAMES.escalation);
-  });
-
-  it("honours a per-kind override, because a sandbox number carries other templates", () => {
-    expect(
-      templateNameFor("reminder", config, { WHATSAPP_TEMPLATE_REMINDER: "sandbox_reminder" }),
-    ).toBe("sandbox_reminder");
-  });
-});
-
 // ---------------------------------------------------------------------------
 // LAN-199, LAN-203 — the five recruit templates
 // ---------------------------------------------------------------------------
@@ -455,16 +427,6 @@ describe("the recruit button labels", () => {
   });
 });
 
-describe("the five recruit template names", () => {
-  it("match LAN-199's own manifest exactly, including the _v1 suffix", () => {
-    expect(TEMPLATE_NAMES.recruit_welcome).toBe("recruit_welcome_v1");
-    expect(TEMPLATE_NAMES.recruit_details_reminder).toBe("recruit_details_reminder_v1");
-    expect(TEMPLATE_NAMES.recruit_interest_ask).toBe("recruit_interest_ask_v1");
-    expect(TEMPLATE_NAMES.recruit_event_followup).toBe("recruit_event_followup_v1");
-    expect(TEMPLATE_NAMES.recruit_interest_reminder).toBe("recruit_interest_reminder_v1");
-  });
-});
-
 describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
   it("is the same one template regardless of which door queued it", () => {
     // There is exactly one declaration for `onboarding_welcome` — the whole
@@ -492,9 +454,5 @@ describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
         message({ kind: "onboarding_welcome", formUrl: null }),
       ),
     ).toThrowError(/link/);
-  });
-
-  it("carries a canonical, unapproved-so-far template name", () => {
-    expect(TEMPLATE_NAMES.onboarding_welcome).toBe("onboarding_welcome_v1");
   });
 });

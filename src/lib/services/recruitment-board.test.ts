@@ -149,7 +149,7 @@ describe("listRecruitmentBoard", () => {
       tx.query<{ id: string }>(
         `insert into public.notification_jobs
            (idempotency_key, job_type, status, person_id, channel, scheduled_for, template_variables)
-         values ($1, 'other', 'pending', $2::uuid, 'whatsapp', now(), '{}'::jsonb)
+         values ($1, 'other', 'pending', $2::uuid, 'sms', now(), '{}'::jsonb)
          returning id`,
         [`recruit-cycle:welcome:${personId}:${seasonId}`, personId],
       ),
@@ -162,7 +162,7 @@ describe("listRecruitmentBoard", () => {
       tx.query(
         `insert into public.delivery_attempts
            (notification_job_id, attempt_number, channel, provider, accepted_at, provider_message_id)
-         values ($1::uuid, 1, 'whatsapp', 'meta', now(), $2)`,
+         values ($1::uuid, 1, 'sms', 'meta', now(), $2)`,
         [job.rows[0].id, `wamid.${MARKER}`],
       ),
     );

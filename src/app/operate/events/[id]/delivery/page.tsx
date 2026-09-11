@@ -306,7 +306,7 @@ function NeedsAttention({ delivery }: { delivery: EventDelivery }) {
                   {row.noUsableRoute
                     ? "No usable contact detail on their record — nothing to retry, nothing to fall back to"
                     : row.whatsappUnresponsive
-                      ? "WhatsApp did not deliver · reached by email instead"
+                      ? "Text did not deliver · reached by email instead"
                       : row.nextAttemptAt
                         ? `Attempt ${row.attemptCount} of ${MAX_ATTEMPTS} · next attempt ${formatAttemptTime(
                             row.nextAttemptAt,
@@ -569,10 +569,9 @@ function RepairPanel({
   );
 }
 
-/** The wireframe's "WhatsApp" and "Email fallback", from the neutral channel. */
+/** The wireframe's "WhatsApp" and "Email fallback", from the neutral channel; SMS on LAN-330. */
 function describeChannel(channel: string): string {
-  if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "sms") return "SMS";
   if (channel === "email") return "Email fallback";
-  if (channel === "sms") return "SMS fallback";
   return channel;
 }

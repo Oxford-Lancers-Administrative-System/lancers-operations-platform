@@ -1,6 +1,5 @@
 import "server-only";
 
-import type { EnvironmentSource, OutboundConfig } from "./config";
 import type { MessageKind, OutboundMessage } from "./provider";
 
 /**
@@ -54,56 +53,6 @@ import type { MessageKind, OutboundMessage } from "./provider";
  * test asserts against the rendered output rather than against intent.
  */
 
-/**
- * The club's canonical template names.
- *
- * These are the names LAN-168 registers with Meta and generates its manifest
- * from. A deployment may override any of them — a sandbox number carries
- * different approved templates than the club's own — but the *default* is the
- * club's name rather than a guess assembled from a prefix, because a name
- * assembled at runtime is a name nobody ever approved.
- */
-export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.freeze({
-  invitation: "lancers_event_invitation",
-  reminder: "lancers_event_reminder",
-  nudge: "lancers_event_nudge",
-  change_notice: "lancers_event_change_notice",
-  cancellation: "lancers_event_cancellation",
-  escalation: "lancers_nonresponse_escalation",
-  // LAN-199's own manifest names these four (plus the fifth, off-by-default
-  // one) exactly, with the `_v1` suffix — the club's real submission to Meta,
-  // not a name this module assembles. Unlike the six above, there is no
-  // club-prefixed default to fall back to if the override is unset: LAN-199's
-  // names ARE the default.
-  recruit_event_followup: "recruit_event_followup_v1",
-  recruit_welcome: "recruit_welcome_v1",
-  recruit_details_reminder: "recruit_details_reminder_v1",
-  recruit_interest_ask: "recruit_interest_ask_v1",
-  recruit_interest_reminder: "recruit_interest_reminder_v1",
-  // LAN-215. Not yet Meta-approved — the same "declared and dispatchable
-  // locally, submitted to Meta separately" posture LAN-199's five recruit
-  // templates already carry.
-  onboarding_welcome: "onboarding_welcome_v1",
-  // LAN-218. Same posture again: declared and dispatchable locally, and not
-  // yet Meta-approved — see LAN-220.
-  onboarding_chase: "onboarding_chase_v1",
-  onboarding_chase_escalation: "onboarding_chase_escalation_v1",
-});
-
-/**
- * The environment variable that overrides one kind's template name.
- *
- * `invitation` deliberately reads `WHATSAPP_TEMPLATE_NAME`, which is already
- * required by `config.ts` and already set on every configured deployment. That
- * keeps LAN-124's live-provider path working unchanged and means this registry
- * adds no new *required* configuration at all — only five optional overrides.
- */
-export function templateNameVariable(kind: MessageKind): string {
-  return kind === "invitation"
-    ? "WHATSAPP_TEMPLATE_NAME"
-    : `WHATSAPP_TEMPLATE_${kind.toUpperCase()}`;
-}
-
 /** Brian's amended button labels. Alphanumerics and spaces only — no em dashes. */
 export const YES_BUTTON_LABEL = "Yes view details";
 export const NO_BUTTON_LABEL = "No give reason";
@@ -121,7 +70,7 @@ export const RECRUIT_ANSWER_QUESTIONS_LABEL = "Answer a few questions";
 export const RECRUIT_YES_LABEL = "Yes I can come";
 export const RECRUIT_NO_LABEL = "No thanks";
 
-/** One kind's declaration: what WhatsApp sends, and what the email says. */
+/** One kind's declaration: what the text says, and what the email says. */
 export interface MessageTemplate {
   readonly kind: MessageKind;
   /**
@@ -135,6 +84,12 @@ export interface MessageTemplate {
   subject(message: OutboundMessage): string;
   /** The email body, as plain text. Rendered to HTML by the transport. */
   body(message: OutboundMessage): readonly string[];
+  /**
+   * The text message for this kind — LAN-330. One string, GSM-7 only, sender
+   * name first, links on their own lines. Until a kind declares its own, the
+   * email body joined by line breaks is sent, which is honest but long.
+   */
+  sms?(message: OutboundMessage): string;
   /** Actual indexed URL-button count in the approved template. */
   readonly buttonCount?: 1 | 2;
   buttonUrls?(message: OutboundMessage): readonly string[] | null;
@@ -549,7 +504,7 @@ export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> =
   onboarding_chase_escalation: ONBOARDING_CHASE_ESCALATION,
 });
 
-/** Every kind, in ladder order. The manifest LAN-168 generates walks this. */
+/** Every kind, in ladder order. */
 export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
   "invitation",
   "reminder",
@@ -577,23 +532,6 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
  */
 export function templateFor(message: OutboundMessage): MessageTemplate {
   return MESSAGE_TEMPLATES[message.kind ?? "invitation"];
-}
-
-/**
- * The approved template name this deployment sends one kind through.
- *
- * Reads the override first, then the club's canonical name. `config` carries the
- * invitation's name already, so an existing configured deployment keeps sending
- * exactly what it sends today.
- */
-export function templateNameFor(
-  kind: MessageKind,
-  config: OutboundConfig,
-  source: EnvironmentSource = process.env,
-): string {
-  if (kind === "invitation") return config.templateName;
-  const override = (source[templateNameVariable(kind)] ?? "").trim();
-  return override === "" ? TEMPLATE_NAMES[kind] : override;
 }
 
 /**

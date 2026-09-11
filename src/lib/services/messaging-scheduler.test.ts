@@ -20,6 +20,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 vi.mock("server-only", () => ({}));
 
 import crypto from "node:crypto";
+
+import { parseTransportBody } from "../../../tests/helpers/sms-transport";
 import type { Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
@@ -76,9 +78,11 @@ function fixtureTag(): string {
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
-  WHATSAPP_PHONE_NUMBER_ID: "5550001",
-  WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
-  WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  TWILIO_ACCOUNT_SID: "ACtest",
+  TWILIO_API_KEY_SID: "SKtest",
+  TWILIO_API_KEY_SECRET: "not-a-real-secret",
+  TWILIO_ALPHA_SENDER: "OxfLancers",
+  TWILIO_FROM_TOLL_FREE: "+18005550100",
   DELIVERY_RECIPIENT_ALLOWLIST: PHONE,
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
@@ -148,13 +152,11 @@ let anchorPersonId: string;
 function acceptingTransport() {
   const sent: { url: string; body: Record<string, unknown> }[] = [];
   const transport = async (url: string, init: RequestInit) => {
-    const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
+    const body = parseTransportBody(url, init.body);
     sent.push({ url, body });
     const id = `wamid.${MARKER}.${crypto.randomUUID()}`;
     return new Response(
-      JSON.stringify(
-        url.endsWith("/emails") ? { id } : { messaging_product: "whatsapp", messages: [{ id }] },
-      ),
+      JSON.stringify(url.endsWith("/emails") ? { id } : { sid: id, status: "queued" }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
   };
@@ -412,7 +414,7 @@ async function fixture(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, person_id,
           channel, scheduled_for, ladder_rung)
-       values ($1, 'invitation', 'pending', $2, $3, $4, 'whatsapp',
+       values ($1, 'invitation', 'pending', $2, $3, $4, 'sms',
                now() + ($5 || ' hours')::interval, 0)
        returning id`,
       [
@@ -426,8 +428,8 @@ async function fixture(
 
     // Rungs 1 and 2 on WhatsApp, rung 3 on email — the fixed order.
     for (const [rung, channel] of [
-      [1, "whatsapp"],
-      [2, "whatsapp"],
+      [1, "sms"],
+      [2, "sms"],
       [3, "email"],
     ] as const) {
       await observer.query(
@@ -895,11 +897,7 @@ describe("crossing the escalation threshold", () => {
     expect(sent).toHaveLength(1);
     const escalation = sent[0];
 
-    const parameters = (
-      (escalation.body.template as { components?: { parameters?: { text: string }[] }[] })
-        .components ?? []
-    ).flatMap((component) => component.parameters ?? []);
-    const text = parameters.map((parameter) => parameter.text).join(" ");
+    const text = String(escalation.body.Body ?? escalation.body.text ?? "");
 
     // The invitee's name and their telephone number must both be absent. The
     // club login is the boundary that decides who reads a roster, and an
@@ -910,7 +908,9 @@ describe("crossing the escalation threshold", () => {
     expect(text).not.toContain(EMAIL);
     // And the same property the template suite asserts, applied to what this
     // sweep actually put on the wire rather than to a fixture.
-    expect(escalationCarriesNoPersonalData([text])).toBe(true);
+    // The queue link is the one thing the body must carry; its event id is a
+    // UUID, not a person, so it is stripped before the digit check.
+    expect(escalationCarriesNoPersonalData([text.replace(/https?:\/\/\S+/g, "")])).toBe(true);
 
     // The half the loop missed: `raiseDueEscalations` above may have raised
     // ambient flags too, each naming a `notification_jobs` row addressed to
@@ -1071,8 +1071,8 @@ describe("F-B1, mechanism 1 — the escalation resolves a channel the recipient 
       [target.eventId],
     );
     expect(escalation.rows).toHaveLength(1);
-    // Defect restored (hard-coding 'whatsapp' in `raiseDueEscalations`'
-    // insert) reads: expected 'email', received 'whatsapp'. AssertionError.
+    // Defect restored (hard-coding 'sms' in `raiseDueEscalations`'
+    // insert) reads: expected 'email', received 'sms'. AssertionError.
     expect(escalation.rows[0].channel).toBe("email");
   });
 

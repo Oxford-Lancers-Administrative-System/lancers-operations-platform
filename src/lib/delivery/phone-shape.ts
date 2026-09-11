@@ -103,13 +103,22 @@ export function toE164(raw: string, defaultCallingCode: string): string | null {
  * Deliberately tiny. It is not a general phone-number library and must not grow
  * into one — the alternative to a short list of known lengths is guessing, and
  * this whole function exists because a guess sends a working RSVP link to a
- * stranger.
+ * stranger. Longer codes are listed first so `findCallingCode` never matches
+ * `1` against a number that starts with a longer code beginning in 1 — there
+ * are none in E.164 today, but the order costs nothing.
  */
 const NATIONAL_SIGNIFICANT_LENGTHS: Readonly<Record<string, number>> = Object.freeze({
   "44": 10,
+  // LAN-330: the North American plan, for the US testers and the club's own
+  // members who keep a US number. Ten national digits after the `1`.
+  "1": 10,
 });
 
 /** The known calling code this number starts with, or `""` for none. */
 function findCallingCode(digits: string): string {
-  return Object.keys(NATIONAL_SIGNIFICANT_LENGTHS).find((code) => digits.startsWith(code)) ?? "";
+  return (
+    Object.keys(NATIONAL_SIGNIFICANT_LENGTHS)
+      .sort((a, b) => b.length - a.length)
+      .find((code) => digits.startsWith(code)) ?? ""
+  );
 }

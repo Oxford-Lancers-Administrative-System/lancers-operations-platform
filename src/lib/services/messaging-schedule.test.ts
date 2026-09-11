@@ -139,8 +139,8 @@ describe("the ladder", () => {
 
     expect(plan.lateApproval).toBe(false);
     expect(plan.rungs.map((rung) => [rung.rung, rung.channel, rung.at.toISOString()])).toEqual([
-      [0, "whatsapp", "2026-10-13T19:00:00.000Z"],
-      [1, "whatsapp", "2026-10-14T19:00:00.000Z"],
+      [0, "sms", "2026-10-13T19:00:00.000Z"],
+      [1, "sms", "2026-10-14T19:00:00.000Z"],
       [2, "email", "2026-10-15T19:00:00.000Z"],
     ]);
   });
@@ -165,7 +165,7 @@ describe("the ladder", () => {
     // Invitation (WhatsApp #1) + one further WhatsApp reminder + one email
     // reminder (Q-19, OWNER-LAN171-05).
     const plan = await planFor(GAME, "2026-10-01T09:00:00Z");
-    expect(plan.rungs.map((rung) => rung.channel)).toEqual(["whatsapp", "whatsapp", "email"]);
+    expect(plan.rungs.map((rung) => rung.channel)).toEqual(["sms", "sms", "email"]);
   });
 
   it("schedules no rung after the deadline it is chasing", async () => {
@@ -193,7 +193,7 @@ describe("a late approval", () => {
     expect(plan.escalationAt).toBeNull();
 
     const reminders = plan.rungs.filter((rung) => rung.kind === "reminder");
-    expect(reminders.map((rung) => rung.channel)).toEqual(["whatsapp"]);
+    expect(reminders.map((rung) => rung.channel)).toEqual(["sms"]);
     expect(reminders.some((rung) => rung.channel === "email")).toBe(false);
   });
 
@@ -206,7 +206,7 @@ describe("a late approval", () => {
 
     expect(plan.lateApproval).toBe(true);
     expect(plan.rungs).toHaveLength(1);
-    expect(plan.rungs[0]).toMatchObject({ rung: 0, kind: "invitation", channel: "whatsapp" });
+    expect(plan.rungs[0]).toMatchObject({ rung: 0, kind: "invitation", channel: "sms" });
     expect(plan.escalationAt).toBeNull();
   });
 
@@ -505,7 +505,7 @@ describe("buildLadder, exported for replay against a frozen plan", () => {
     const rungs = buildLadder(invitationAt, 24, 2, 1, 0);
 
     expect(rungs).toHaveLength(1);
-    expect(rungs[0]).toMatchObject({ rung: 0, kind: "invitation", channel: "whatsapp" });
+    expect(rungs[0]).toMatchObject({ rung: 0, kind: "invitation", channel: "sms" });
   });
 });
 
@@ -523,8 +523,8 @@ describe("the ladder counts the invitation as WhatsApp #1 (Q-19, OWNER-LAN171-05
     expect(plan.lateApproval).toBe(false);
     expect(plan.rungs).toHaveLength(3);
     expect(plan.rungs.map((rung) => [rung.kind, rung.channel])).toEqual([
-      ["invitation", "whatsapp"],
-      ["reminder", "whatsapp"],
+      ["invitation", "sms"],
+      ["reminder", "sms"],
       ["reminder", "email"],
     ]);
     expect(plan.escalationAt).not.toBeNull();

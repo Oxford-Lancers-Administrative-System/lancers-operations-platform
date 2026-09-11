@@ -326,7 +326,7 @@ describe.runIf(seeded)("correction round 3: the delivery states an operator can 
         [invitationId],
       );
       if (
-        selected.channel === "whatsapp" &&
+        selected.channel === "sms" &&
         selected.state === "failed" &&
         fallback.status === "completed"
       ) {

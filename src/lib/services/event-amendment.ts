@@ -1050,7 +1050,7 @@ async function backfillInvitationJobsIn(tx: Tx, eventId: string): Promise<number
               || ':' || i.participant_id::text,
             'invitation', 'pending', i.id, i.event_id,
             coalesce(i.person_id, m.person_id),
-            'whatsapp', '{}'::jsonb
+            'sms', '{}'::jsonb
        from public.invitations i
        left join public.season_memberships m on m.id = i.season_membership_id
       where i.event_id = $1

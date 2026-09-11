@@ -74,7 +74,7 @@ export const DELIVERY_STATE_COLOURS: Readonly<
  * 7 asks the two surfaces to agree, not to share one module).
  */
 export const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
-export const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
+export const WHATSAPP_UNRESPONSIVE = "Text unresponsive";
 
 export const NEEDS_ATTENTION_HEADING = "Needs attention";
 export const NEEDS_ATTENTION_NOTE =
@@ -115,7 +115,7 @@ export const TOKEN_LABELS: Readonly<Record<string, string>> = Object.freeze({
 
 // --- UX-50 -----------------------------------------------------------------
 
-export const OVERVIEW_SUBTITLE = "Official 1:1 WhatsApp delivery";
+export const OVERVIEW_SUBTITLE = "Official 1:1 SMS delivery";
 
 /**
  * The sentence the wireframe puts at the top of every delivery screen, and the
@@ -132,7 +132,7 @@ export const OVERVIEW_FACTS: readonly { label: string; value: string; note: stri
   Object.freeze([
     Object.freeze({
       label: "Channel",
-      value: "Official WhatsApp Business Platform",
+      value: "Twilio SMS (test)",
       note: "1:1 per invitation",
     }),
     Object.freeze({

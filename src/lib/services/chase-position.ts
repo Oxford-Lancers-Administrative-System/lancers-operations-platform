@@ -85,7 +85,7 @@ const ANSWERED_STATES: ReadonlySet<string> = new Set(["responded_yes", "responde
  */
 function rungName(job: ChaseJobFact, atSentenceStart: boolean): string {
   if (job.jobType === "invitation") return "Invitation";
-  if (job.channel === "whatsapp") return `WhatsApp ${(job.ladderRung ?? 0) + 1}`;
+  if (job.channel === "sms") return `Text ${(job.ladderRung ?? 0) + 1}`;
   const word = job.jobType === "escalation" ? "escalation" : "email";
   return atSentenceStart ? word[0].toUpperCase() + word.slice(1) : word;
 }
