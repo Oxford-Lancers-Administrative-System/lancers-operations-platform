@@ -20,19 +20,20 @@ identities and synthetic scenarios under `docs/pilot-data-runbook.md`.
 
 ## Sources of truth
 
-| Need                        | Read                              |
-| --------------------------- | --------------------------------- |
-| Running behavior            | `docs/operating-the-slice.md`     |
-| Architecture and security   | `docs/architecture.md`            |
-| Tables and invariants       | `docs/architecture/data-model.md` |
-| Local setup and commands    | `docs/local-development.md`       |
-| Schema release and recovery | `docs/migration-runbook.md`       |
-| Hosted pilot procedure      | `docs/pilot-data-runbook.md`      |
-| Hosted non-schema manifest  | `docs/pilot-data-manifest.md`     |
-| Deploy and rollback         | `docs/deployment.md`              |
-| Mission operation           | `docs/mission-harness.md`         |
-| Agent session telemetry     | `docs/agent-telemetry.md`         |
-| Decisions                   | `docs/adr/README.md`              |
+| Need                         | Read                                   |
+| ---------------------------- | -------------------------------------- |
+| Running behavior             | `docs/operating-the-slice.md`          |
+| Architecture and security    | `docs/architecture.md`                 |
+| Tables and invariants        | `docs/architecture/data-model.md`      |
+| Local setup and commands     | `docs/local-development.md`            |
+| Schema release and recovery  | `docs/migration-runbook.md`            |
+| Hosted pilot procedure       | `docs/pilot-data-runbook.md`           |
+| Hosted non-schema manifest   | `docs/pilot-data-manifest.md`          |
+| Deploy and rollback          | `docs/deployment.md`                   |
+| WhatsApp template categories | `docs/whatsapp-template-categories.md` |
+| Mission operation            | `docs/mission-harness.md`              |
+| Agent session telemetry      | `docs/agent-telemetry.md`              |
+| Decisions                    | `docs/adr/README.md`                   |
 
 The more specific document wins; correct this file when it drifts.
 
