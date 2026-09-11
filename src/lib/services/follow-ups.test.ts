@@ -32,6 +32,7 @@ import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 import { ESCALATED_TO_PRESIDENT, ESCALATION_NOT_DELIVERED } from "./chase-position";
 import { dispatchJob, EMAIL_FALLBACK_SUFFIX, MAX_ATTEMPTS } from "./delivery";
 import { readFollowUpsQueue, countPeople } from "./follow-ups";
+import { sendEventChases } from "./messaging-scheduler";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN173FollowUpsSuite";
@@ -59,6 +60,18 @@ function refusesWhatsAppAcceptsEmail() {
     }
     return new Response(JSON.stringify({ error: { code: 131026, fbtrace_id: "trace" } }), {
       status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  });
+}
+
+/** Everything accepted, WhatsApp included — the ordinary send, for LAN-322's own chase. */
+function acceptsEverything() {
+  let serial = 0;
+  return vi.fn(async () => {
+    serial += 1;
+    return new Response(JSON.stringify({ messages: [{ id: `wamid.${MARKER}.chase.${serial}` }] }), {
+      status: 200,
       headers: { "content-type": "application/json" },
     });
   });
@@ -127,11 +140,26 @@ afterEach(async () => {
     `delete from public.nonresponse_flags where invitation_id in ${invitations}`,
     [scope],
   );
+  // Before the jobs themselves: this names them by their own ids, so deleting
+  // the jobs first leaves every audit row about them behind. LAN-322's chase
+  // writes one per press, under the anchor person rather than a MARKER person,
+  // so nothing else here would collect it.
+  await observer.query(
+    `delete from public.audit_events
+      where entity_table = 'notification_jobs'
+        and entity_id in (select id from public.notification_jobs where event_id in ${events})`,
+    [scope],
+  );
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
   await observer.query(
     `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
     [scope],
   );
+  // LAN-322's "already answered" case writes one, and `invitations` is
+  // `on delete restrict` from it, so it goes before them.
+  await observer.query(`delete from public.rsvp_responses where invitation_id in ${invitations}`, [
+    scope,
+  ]);
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
     scope,
@@ -513,5 +541,129 @@ describe("the automatic email fallback is excluded from the queue's own reads", 
     // than throwing or double-counting because two jobs (the original and
     // its fallback) exist for the same invitation.
     expect(row?.status).toBe("chasing");
+  });
+});
+
+/**
+ * The queue's own chase — LAN-322.
+ *
+ * Against the real database, because what is load-bearing is the row it
+ * writes: a `reminder` job on this invitation's own ladder, one rung above
+ * what the ladder has already reached, with no new job type and no new table.
+ * A mock of `notification_jobs` could not show that.
+ */
+describe("chasing from the queue — LAN-322", () => {
+  it("adds one reminder rung above the ladder and sends it", async () => {
+    const target = await fixture();
+
+    const results = await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    expect(results).toEqual([{ invitationId: target.invitationId, outcome: "accepted" }]);
+
+    const jobs = await observer.query<{
+      job_type: string;
+      ladder_rung: number | null;
+      channel: string;
+    }>(
+      `select job_type::text as job_type, ladder_rung, channel::text as channel
+         from public.notification_jobs
+        where invitation_id = $1 and job_type = 'reminder'`,
+      [target.invitationId],
+    );
+    expect(jobs.rows).toHaveLength(1);
+    expect(jobs.rows[0].channel).toBe("whatsapp");
+    // The fixture's invitation job carries no rung, so the first chase is 1.
+    expect(jobs.rows[0].ladder_rung).toBe(1);
+
+    const audit = await observer.query<{ actor_person_id: string | null }>(
+      `select actor_person_id
+         from public.audit_events
+        where entity_table = 'notification_jobs'
+          and action = 'delivery.chase_requested'
+          and entity_id in (select id from public.notification_jobs where invitation_id = $1)`,
+      [target.invitationId],
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].actor_person_id).toBe(anchorPersonId);
+  });
+
+  it("shows on the queue afterwards, so a second operator sees a chase has gone", async () => {
+    const target = await fixture();
+    await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    const row = personRow(await readFollowUpsQueue(), "Invitee");
+    // Meta accepting is not Meta delivering, so the job stays `processing` and
+    // the row reads **Attempted** — `DELIVERY_STATE_EXPRESSION`'s own word.
+    expect(row?.lastDelivery?.state).toBe("attempted");
+    expect(row?.lastDelivery?.channel).toBe("whatsapp");
+    expect(row?.lastDelivery?.at).not.toBeNull();
+  });
+
+  it("refuses a person with no reachable channel rather than skipping them silently", async () => {
+    const target = await fixture({ phone: null, email: null });
+
+    const results = await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    expect(results).toEqual([{ invitationId: target.invitationId, outcome: "refused" }]);
+  });
+
+  it("chases the reachable people in a mixed selection, and refuses the rest", async () => {
+    const reachable = await fixture();
+    const unreachable = await fixture({ phone: null, email: null });
+
+    const results = await sendEventChases(
+      anchorPersonId,
+      [reachable.invitationId, unreachable.invitationId],
+      { source: CONFIGURED_WITH_EMAIL, transport: acceptsEverything() },
+    );
+
+    expect(results).toEqual([
+      { invitationId: reachable.invitationId, outcome: "accepted" },
+      { invitationId: unreachable.invitationId, outcome: "refused" },
+    ]);
+  });
+
+  it("enqueues nothing for an invitation that is no longer outstanding", async () => {
+    const target = await fixture();
+    // Answered between the page being drawn and the button being pressed: the
+    // row has left `nonresponse_queue`, which is the club's own definition of
+    // who has not answered.
+    await observer.query(
+      `insert into public.rsvp_responses (invitation_id, response, responded_at, source)
+       values ($1, 'yes', now(), 'operator')`,
+      [target.invitationId],
+    );
+
+    const results = await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    expect(results).toEqual([{ invitationId: target.invitationId, outcome: "not_outstanding" }]);
+    const jobs = await observer.query(
+      "select id from public.notification_jobs where invitation_id = $1 and job_type = 'reminder'",
+      [target.invitationId],
+    );
+    expect(jobs.rows).toHaveLength(0);
+  });
+
+  it("enqueues nothing at all when nobody is named", async () => {
+    const before = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.notification_jobs",
+    );
+    await expect(sendEventChases(anchorPersonId, [])).resolves.toEqual([]);
+    const after = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.notification_jobs",
+    );
+    expect(after.rows[0].count).toBe(before.rows[0].count);
   });
 });

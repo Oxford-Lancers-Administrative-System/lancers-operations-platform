@@ -92,6 +92,42 @@ Four workflows, none of which share files with each other:
   a deliberate scope trim from the mockup's three-control filter bar, recorded under Known
   deviations below.
 
+#### The queue became a worklist — LAN-329 and LAN-322 (Clint and Brian, 2026-09-11)
+
+Clint, testing week one: _"I CANT ACTUALLY INTERACT ON THE FOLLOW-UPS LIST, IS THAT INTENDED?"_
+Nothing in a row was clickable, so a screen that named six overdue people offered no way to reach
+any of them. Both halves of the repair ship together, on Brian's decision, and both work on the
+desktop table and on the phone card:
+
+- **The person's name links to their record** (`/operate/people/[personId]`), where the phone
+  number is. `person_record_authority` gates that page, so a seat without it sees the name as
+  plain text rather than a link into a refusal — the one place this screen's own floor
+  (`capability: null`) and a destination's disagree.
+- **The event's name links to the event** (`/operate/events/[eventId]`), where the answer can be
+  recorded for a silent person. That page is open to every seated operator, so the link always
+  stands. Coming back from either is the browser's own Back: both are ordinary links off a URL
+  that already carries the search, the filters, the range and the sort.
+- **Several rows can be selected and chased in one action**, following
+  `/operate/people/missing`'s existing selection-and-nudge shape rather than a second one —
+  accepted and refused counted, refusals named on the row, and nothing sent without the
+  operator's own press.
+- A chase is **another `reminder` rung on that invitation's own ladder**, one rung above what the
+  ladder has reached, dispatched through the same path every automated rung takes
+  (`sendEventChases`, `messaging-scheduler.ts`). No new job type, no new table, and therefore the
+  same fallback, allowlist, consent refusal and recorded result.
+- **Chasing is gated on `delivery_administration`**, not on the page's own floor: reading who is
+  silent harms nobody, but this sends real messages about a real event, which is the act
+  `retryDeliveryAction` and `revokeAndReissueAction` already require that capability for. The
+  checkboxes are hidden from a seat without it; the action itself is what refuses.
+- **A recruit is never chased from here** (`REQ-never-harsh`, `REQ-two-ladders`): the recruitment
+  ladder sends one invitation and at most one follow-up, and an operator batch is not a door
+  around it. The row says so and `sendEventChases` refuses it, named rather than skipped.
+- **An invitation that has left `nonresponse_queue`** — answered, or its event stood down, between
+  the page being drawn and the button being pressed — is refused for that reason and named.
+- A **Last message** column (the desktop table) and fact (the card) read the latest delivery this
+  query already joined, in the delivery screen's own vocabulary, so a second operator can see a
+  chase has already gone.
+
 ### W6 — repair affordances become real, and diagnostics is a page
 
 - **Needs attention**, a new section on the delivery Overview, lists every failed/retryable person
@@ -193,6 +229,11 @@ Restated from `acceptance/W4.md`, `W5.md`, `W6.md` and `W8.md` as what was built
   neither field.
 - The Follow-ups queue lists every unanswered and undeliverable person across approved events,
   under one status vocabulary, reachable by any seated operator and by nobody else.
+- From a queue row, the overdue person's record and the event they are silent about are each one
+  click away, on desktop and at 375px, and no row renders a link into a refusal (LAN-329).
+- Several people can be selected and chased in one action from either rendering; a person with no
+  reachable channel, a recruit, and somebody who has answered since the page was drawn are each
+  refused by name rather than silently skipped; and nothing is sent without the press (LAN-322).
 - The delivery page's counts are real; retries and the email fallback offer no operator action;
   only **Not dispatched — no channel** requires a person, and what it requires is a roster fix
   (linked) — retry stays available for exactly the reason `delivery.test.ts` already settled.

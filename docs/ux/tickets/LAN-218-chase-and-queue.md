@@ -60,6 +60,15 @@ automated chase` (when `chase_count` is zero). A checkbox column and a
 selected) let an operator select one person or several and send each their
 own compiled ask on their own link in one action.
 
+This queue's selection shape is now shared. LAN-322 gave the Follow-ups queue
+(`/operate/admin/follow-ups`, `LAN-173-operator-chase.md`) the same checkbox
+column, the same "N people" bar, the same per-row action beside it and the
+same named-refusal reporting, rather than designing a second one — the two
+screens chase two different things (a missing fact, a missing answer) but an
+operator works them the same way. What differs there is the capability
+(`delivery_administration` rather than `person_record_authority`, because the
+message is about an event) and what a refusal can mean.
+
 Status as originally shipped, superseded twice since — as-built now reads:
 
 - `Unmessageable · no consent` never ships (correction round 1, `C-4`,

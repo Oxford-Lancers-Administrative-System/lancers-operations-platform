@@ -34,6 +34,34 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
 export const DEADLINE_UNSET = "No deadline recorded";
 export const CHASE_NONE = "not recorded";
 
+// LAN-322: what the club last sent this person, so a second operator does not
+// chase somebody who has just been chased.
+export const TABLE_LAST_MESSAGE = "Last message";
+export const LAST_MESSAGE_NONE = "Nothing sent yet";
+
+export const CHANNEL_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  whatsapp: "WhatsApp",
+  email: "Email",
+});
+
+/** The queue's own action — LAN-322, `/operate/people/missing`'s own wording one workflow over. */
+export function chaseButtonLabel(selected: number): string {
+  return selected === 1 ? "Chase 1 person" : `Chase ${selected} people`;
+}
+
+export function chaseSentNotice(accepted: number): string {
+  return accepted === 1 ? "Chased 1 person." : `Chased ${accepted} people.`;
+}
+
+export function chaseProblemNotice(refused: number): string {
+  return refused === 1 ? "1 person could not be chased:" : `${refused} people could not be chased:`;
+}
+
+export const CHASE_NOBODY_SELECTED = "Select at least one person to chase.";
+
+/** `REQ-never-harsh`: a recruit gets one invitation and at most one follow-up, so the queue offers no chase against one. */
+export const NOT_CHASEABLE = "Recruit — not chased from here";
+
 /** W5-01/OWNER-LAN173-01's vocabulary; the mockup's "Entry" dropdown is dropped, undefined. */
 export const STATUS_FILTER_OPTIONS: readonly { value: string; label: string }[] = Object.freeze([
   Object.freeze({ value: "", label: "All" }),

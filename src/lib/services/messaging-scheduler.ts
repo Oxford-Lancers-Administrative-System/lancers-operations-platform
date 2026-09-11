@@ -2694,6 +2694,140 @@ export async function sendOnboardingNudges(
 }
 
 // ---------------------------------------------------------------------------
+// The Follow-ups queue's own chase — LAN-322
+// ---------------------------------------------------------------------------
+
+export type EventChaseOutcome =
+  | "accepted"
+  | "refused"
+  | "not_outstanding"
+  /** Recruit capacity: `REQ-never-harsh` allows one invitation and one follow-up, and no more. */
+  | "not_chaseable";
+
+export interface EventChaseResult {
+  readonly invitationId: string;
+  readonly outcome: EventChaseOutcome;
+}
+
+/** This chase's own job, one per press, so two operators produce two rows rather than colliding on one key (invariant M1 keys on facts that do not change; the nonce is this press). */
+function operatorChaseIdempotencyKey(eventId: string, invitationId: string, nonce: string): string {
+  return `event:${eventId}:chase:${invitationId}:${nonce}`;
+}
+
+/**
+ * Chases one or several silent invitees on an operator's own instruction —
+ * `LAN-322`, the Follow-ups queue's only action.
+ *
+ * It invents no job type and no table: a chase is another `reminder` rung on
+ * the invitation's own ladder, one rung above whatever the ladder has already
+ * reached, dispatched through the same `dispatchJob` every automated rung and
+ * every operator Retry already takes. So the WhatsApp-to-email fallback, the
+ * allowlist, the consent refusal, the attempt ceiling and the recorded
+ * delivery result are all exactly what they are for an automatic rung.
+ *
+ * Each invitation runs in its own transaction, then dispatches, for
+ * `sendOnboardingNudges`'s reason: one person's unreachable number must not
+ * roll back another's send.
+ *
+ * Three refusals, all of them named rather than silent (`LAN-322`: "a person
+ * with no reachable channel is not silently skipped"):
+ *
+ *   * `not_outstanding` — the invitation has left `nonresponse_queue` since
+ *     the page was drawn. Somebody answered, or the event was cancelled, and
+ *     chasing them now would be the club's own list being out of date.
+ *   * `not_chaseable` — recruit capacity. `scheduleEventLadderIn` gives a
+ *     recruit one invitation and at most one follow-up on purpose
+ *     (`REQ-never-harsh`, `REQ-two-ladders`), and an operator batch is not a
+ *     door around a decided rule.
+ *   * `refused` — everything `dispatchJob` refuses: no usable number or
+ *     address, an unpermitted recipient, no consent, a provider that declined.
+ *     The reason is on the job row, where the delivery screens read it.
+ */
+export async function sendEventChases(
+  actorPersonId: string,
+  invitationIds: readonly string[],
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<readonly EventChaseResult[]> {
+  const results: EventChaseResult[] = [];
+
+  for (const invitationId of invitationIds) {
+    const prepared = await withTransaction(async (tx) => {
+      // `nonresponse_queue` is the club's own definition of "has not
+      // answered" — the same view the queue screen reads — so "still
+      // outstanding" is not a second opinion written here.
+      const outstanding = await tx.query<{
+        event_id: string;
+        capacity: string;
+        person_id: string;
+        top_rung: number;
+      }>(
+        `select q.event_id, q.capacity::text as capacity,
+                coalesce(i.person_id, m.person_id) as person_id,
+                coalesce((select max(j.ladder_rung)
+                            from public.notification_jobs j
+                           where j.invitation_id = i.id
+                             and j.job_type in ('invitation', 'reminder')), 0) as top_rung
+           from public.nonresponse_queue q
+           join public.invitations i on i.id = q.invitation_id
+           left join public.season_memberships m on m.id = i.season_membership_id
+          where q.invitation_id = $1::uuid`,
+        [invitationId],
+      );
+
+      const row = outstanding.rows[0];
+      if (!row) return { outcome: "not_outstanding" as const };
+      if (row.capacity === "recruit") return { outcome: "not_chaseable" as const };
+
+      const rung = row.top_rung + 1;
+      const job = await tx.query<{ id: string }>(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+            channel, scheduled_for, ladder_rung, template_variables)
+         values ($1, 'reminder', 'pending', $2::uuid, $3::uuid, $4::uuid,
+                 'whatsapp'::public.notification_channel, now(), $5::smallint, '{}'::jsonb)
+         returning id`,
+        [
+          operatorChaseIdempotencyKey(row.event_id, invitationId, crypto.randomUUID()),
+          invitationId,
+          row.event_id,
+          row.person_id,
+          rung,
+        ],
+      );
+
+      await recordAudit(tx, {
+        actorPersonId,
+        action: "delivery.chase_requested",
+        entityTable: "notification_jobs",
+        entityId: job.rows[0].id,
+        context: { invitationId, ladderRung: rung, source: "follow-ups queue" },
+      });
+
+      return { outcome: "prepared" as const, jobId: job.rows[0].id };
+    });
+
+    if (prepared.outcome !== "prepared") {
+      results.push({ invitationId, outcome: prepared.outcome });
+      continue;
+    }
+
+    // `dispatchJob` records its own failures and rarely throws, but
+    // `issueTokenIn` refuses an event that has started or been cancelled and
+    // that refusal travels out through the claim transaction — one such
+    // invitation must be one refusal, not the end of the batch.
+    let outcome: "accepted" | "refused" | "skipped";
+    try {
+      outcome = await dispatchJob(prepared.jobId, options);
+    } catch {
+      outcome = "refused";
+    }
+    results.push({ invitationId, outcome: outcome === "accepted" ? "accepted" : "refused" });
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // The cancellation notice's own dispatch — OWNER-LAN173-03
 // ---------------------------------------------------------------------------
 
