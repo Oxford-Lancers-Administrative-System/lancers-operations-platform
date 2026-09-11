@@ -96,6 +96,9 @@ export interface MessageTemplate {
   buttonParameter?(url: string): string;
 }
 
+/** A kind's email declaration, before its text is attached by `withSms`. */
+type BaseTemplate = Omit<MessageTemplate, "sms">;
+
 function required(value: string | null | undefined, name: string): string {
   const text = (value ?? "").trim();
   if (text === "") {
@@ -144,7 +147,7 @@ function answerButtonUrls(message: OutboundMessage): readonly [string, string] {
   return [required(message.yesUrl, "Yes link"), required(message.noUrl, "No link")];
 }
 
-const INVITATION: MessageTemplate = {
+const INVITATION: BaseTemplate = {
   kind: "invitation",
   // Three body parameters. `rsvpUrl` left this list with LAN-172: the approved
   // W2-01 shape carries no raw URL in body copy at all — the two answers are
@@ -174,7 +177,7 @@ const INVITATION: MessageTemplate = {
   buttonUrls: answerButtonUrls,
 };
 
-const REMINDER: MessageTemplate = {
+const REMINDER: BaseTemplate = {
   kind: "reminder",
   parameterNames: ["eventName", "attendingSentence"],
   parameters: (message) => [
@@ -197,7 +200,7 @@ const REMINDER: MessageTemplate = {
   buttonUrls: answerButtonUrls,
 };
 
-const NUDGE: MessageTemplate = {
+const NUDGE: BaseTemplate = {
   kind: "nudge",
   parameterNames: ["eventName"],
   parameters: (message) => [required(message.eventName, "event name")],
@@ -212,7 +215,7 @@ const NUDGE: MessageTemplate = {
   buttonUrls: (message) => [required(message.rsvpUrl, "link")],
 };
 
-const CHANGE_NOTICE: MessageTemplate = {
+const CHANGE_NOTICE: BaseTemplate = {
   kind: "change_notice",
   parameterNames: ["eventName", "changeSummary", "whenAndVenue"],
   parameters: (message) => [
@@ -238,7 +241,7 @@ const CHANGE_NOTICE: MessageTemplate = {
   buttonUrls: (message) => [required(message.rsvpUrl, "link")],
 };
 
-const CANCELLATION: MessageTemplate = {
+const CANCELLATION: BaseTemplate = {
   kind: "cancellation",
   parameterNames: ["eventName", "whenLabel"],
   parameters: (message) => [
@@ -265,7 +268,7 @@ const CANCELLATION: MessageTemplate = {
  * including the recipient's own. A template with a name slot is a template
  * something can later put a player's name into.
  */
-const ESCALATION: MessageTemplate = {
+const ESCALATION: BaseTemplate = {
   kind: "escalation",
   parameterNames: ["outstandingClause", "eventName", "whenLabel", "deadlineLabel"],
   parameters: (message) => [
@@ -313,7 +316,7 @@ function recruitEventVenueLine(message: OutboundMessage): string {
   return venue === "" ? required(message.whenLabel, "date and time") : venue;
 }
 
-const RECRUIT_EVENT_FOLLOWUP: MessageTemplate = {
+const RECRUIT_EVENT_FOLLOWUP: BaseTemplate = {
   kind: "recruit_event_followup",
   parameterNames: ["eventName", "whenLabel", "venue"],
   parameters: (message) => [
@@ -349,7 +352,7 @@ function recruitFormButtonUrls(message: OutboundMessage): readonly [string, stri
  * operator add, never to a QR arrival, who has already filled the form in
  * (W10's own door table).
  */
-const RECRUIT_WELCOME: MessageTemplate = {
+const RECRUIT_WELCOME: BaseTemplate = {
   kind: "recruit_welcome",
   parameterNames: ["inviteeName"],
   parameters: (message) => [required(message.inviteeName, "name")],
@@ -365,7 +368,7 @@ const RECRUIT_WELCOME: MessageTemplate = {
 };
 
 /** LAN-199. One nudge to finish the sign-up form. Sent once, ever. No variables. */
-const RECRUIT_DETAILS_REMINDER: MessageTemplate = {
+const RECRUIT_DETAILS_REMINDER: BaseTemplate = {
   kind: "recruit_details_reminder",
   parameterNames: [],
   parameters: () => [],
@@ -380,7 +383,7 @@ const RECRUIT_DETAILS_REMINDER: MessageTemplate = {
 };
 
 /** LAN-199. The football-background questionnaire. Sent only where consent is granted. */
-const RECRUIT_INTEREST_ASK: MessageTemplate = {
+const RECRUIT_INTEREST_ASK: BaseTemplate = {
   kind: "recruit_interest_ask",
   parameterNames: ["inviteeName"],
   parameters: (message) => [required(message.inviteeName, "name")],
@@ -396,7 +399,7 @@ const RECRUIT_INTEREST_ASK: MessageTemplate = {
 };
 
 /** LAN-199. Off by default (`recruitment_cycle_steps`). Submitted anyway per LAN-199. */
-const RECRUIT_INTEREST_REMINDER: MessageTemplate = {
+const RECRUIT_INTEREST_REMINDER: BaseTemplate = {
   kind: "recruit_interest_reminder",
   parameterNames: ["inviteeName"],
   parameters: (message) => [required(message.inviteeName, "name")],
@@ -429,7 +432,7 @@ function onboardingWelcomeButtonUrls(message: OutboundMessage): readonly string[
  * nothing here is club policy, and the words drop in later without changing
  * the message's kind, its parameters, or any acceptance criterion.
  */
-const ONBOARDING_WELCOME: MessageTemplate = {
+const ONBOARDING_WELCOME: BaseTemplate = {
   kind: "onboarding_welcome",
   parameterNames: ["inviteeName"],
   parameters: (message) => [required(message.inviteeName, "name")],
@@ -443,7 +446,7 @@ const ONBOARDING_WELCOME: MessageTemplate = {
   buttonUrls: onboardingWelcomeButtonUrls,
 };
 
-const ONBOARDING_CHASE: MessageTemplate = {
+const ONBOARDING_CHASE: BaseTemplate = {
   kind: "onboarding_chase",
   parameterNames: ["inviteeName"],
   parameters: (message) => [required(message.inviteeName, "name")],
@@ -471,7 +474,7 @@ const ONBOARDING_CHASE: MessageTemplate = {
  * `escalationCarriesNoPersonalData` (below) is asserted against this body
  * too, in `templates.test.ts`.
  */
-const ONBOARDING_CHASE_ESCALATION: MessageTemplate = {
+const ONBOARDING_CHASE_ESCALATION: BaseTemplate = {
   kind: "onboarding_chase_escalation",
   parameterNames: ["outstandingCount", "queueUrl"],
   parameters: (message) => [
@@ -582,7 +585,7 @@ const SMS_BODIES: Readonly<Record<MessageKind, (message: OutboundMessage) => str
       `with onboarding details outstanding.\n${required(m.queueUrl, "link to the missing-data queue")}`,
   });
 
-function withSms(template: MessageTemplate): MessageTemplate {
+function withSms(template: BaseTemplate): MessageTemplate {
   return { ...template, sms: SMS_BODIES[template.kind] };
 }
 
