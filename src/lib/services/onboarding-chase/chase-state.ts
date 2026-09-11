@@ -85,9 +85,14 @@ export async function readOnboardingChaseProgressIn(
        limit 1
     ) latest on true`;
 
-  const [delivered, latest] = await Promise.all([
-    tx.query<{ membership_id: string; delivered_count: number; last_delivered_at: Date | null }>(
-      `select
+  // Sequential, not `Promise.all` (LAN-301): one transaction client, which `pg`
+  // serialises anyway — loudly, since pg@8.
+  const delivered = await tx.query<{
+    membership_id: string;
+    delivered_count: number;
+    last_delivered_at: Date | null;
+  }>(
+    `select
           substring(j.idempotency_key from '${askIdPattern}') as membership_id,
           count(*) filter (where latest.outcome = 'delivered')::int as delivered_count,
           max(latest.occurred_at) filter (where latest.outcome = 'delivered') as last_delivered_at
@@ -97,17 +102,17 @@ export async function readOnboardingChaseProgressIn(
               or j.idempotency_key like '${ONBOARDING_NUDGE_KEY_PREFIX}%')
          and substring(j.idempotency_key from '${askIdPattern}') = any($1::text[])
        group by 1`,
-      [membershipIds],
-    ),
-    tx.query<{
-      membership_id: string;
-      status: string;
-      attempt_count: number;
-      outcome: string | null;
-      detail: string | null;
-      ordinal: number;
-    }>(
-      `select distinct on (membership_id)
+    [membershipIds],
+  );
+  const latest = await tx.query<{
+    membership_id: string;
+    status: string;
+    attempt_count: number;
+    outcome: string | null;
+    detail: string | null;
+    ordinal: number;
+  }>(
+    `select distinct on (membership_id)
           substring(j.idempotency_key from '${membershipIdPattern}') as membership_id,
           j.status::text as status,
           j.attempt_count,
@@ -120,9 +125,8 @@ export async function readOnboardingChaseProgressIn(
          and substring(j.idempotency_key from '${membershipIdPattern}') = any($1::text[])
        order by membership_id,
                 (substring(j.idempotency_key from ':(\\d+)$'))::int desc`,
-      [membershipIds],
-    ),
-  ]);
+    [membershipIds],
+  );
 
   const terminallyFailed = new Set<string>();
   const terminalFailureReasons = new Map<string, string | null>();
@@ -250,24 +254,22 @@ async function buildCandidatesIn(
 ): Promise<OnboardingChaseCandidate[]> {
   if (memberships.length === 0) return [];
 
-  const [progress, reachable] = await Promise.all([
-    readOnboardingChaseProgressIn(
-      tx,
-      memberships.map((row) => row.id),
-    ),
-    readReachablePersonIdsIn(
-      tx,
-      memberships.map((row) => row.person_id),
-    ),
-  ]);
+  // Sequential, not `Promise.all` (LAN-301): one transaction client, which `pg`
+  // serialises anyway — loudly, since pg@8.
+  const progress = await readOnboardingChaseProgressIn(
+    tx,
+    memberships.map((row) => row.id),
+  );
+  const reachable = await readReachablePersonIdsIn(
+    tx,
+    memberships.map((row) => row.person_id),
+  );
 
   const candidates: OnboardingChaseCandidate[] = [];
   for (const row of memberships) {
-    const [ask, hasConsent, isUnder18] = await Promise.all([
-      readCompiledOutstandingAskIn(tx, row.person_id, row.season_id),
-      hasGrantedSeasonMessagingConsentIn(tx, row.person_id, row.season_id),
-      isPersonUnder18In(tx, row.person_id),
-    ]);
+    const ask = await readCompiledOutstandingAskIn(tx, row.person_id, row.season_id);
+    const hasConsent = await hasGrantedSeasonMessagingConsentIn(tx, row.person_id, row.season_id);
+    const isUnder18 = await isPersonUnder18In(tx, row.person_id);
     const hasOutstanding =
       ask !== null && (ask.missingRequiredFields.length > 0 || ask.outstandingItems.length > 0);
     const hasReachableNumber = reachable.has(row.person_id);
@@ -450,10 +452,8 @@ export async function readOnboardingChaseQueueInfoIn(
   const info = new Map<string, OnboardingChaseQueueInfo>();
   if (membershipIds.length === 0) return info;
 
-  const [settings, candidates] = await Promise.all([
-    readOnboardingChaseSettingsIn(tx),
-    readOnboardingChaseCandidatesForMembershipsIn(tx, membershipIds),
-  ]);
+  const settings = await readOnboardingChaseSettingsIn(tx);
+  const candidates = await readOnboardingChaseCandidatesForMembershipsIn(tx, membershipIds);
 
   for (const membershipId of membershipIds) {
     const candidate = candidates.get(membershipId);

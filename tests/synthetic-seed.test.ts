@@ -19,6 +19,8 @@ import {
   EMAIL_FALLBACK_SUFFIX,
   NOTIFICATION_JOB_RECENCY_ORDER,
 } from "@/lib/services/delivery";
+import type { OnboardingItemStatus } from "@/lib/services/membership";
+import { allowedItemStates, itemStateLabel } from "@/lib/services/onboarding-item-shapes";
 import { one, openLocalClient, type Client } from "./helpers/domain-fixture";
 
 const client: Client = await openLocalClient();
@@ -537,5 +539,63 @@ describe.runIf(seeded)("fixture repair: a live ladder exists to dispatch", () =>
       "an unanswered invitee with at least one completed rung and at least one still-pending " +
         "rung, on a future approved event with no open escalation flag",
     ).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * LAN-301. `itemStateLabel` throws on a state its item cannot occupy, and a
+ * seed that wrote `hudl_access = complete` took out the roster board and every
+ * player record at once — Brian could not open the roster at all. Nothing
+ * between the seed scripts and the screen checked the pair, so this does, over
+ * every row actually in the database rather than over any one script's stated
+ * intentions. A seed, a showcase load or a hand-written fixture that invents an
+ * illegal combination now fails here, in the hot lane, on the next ordinary run.
+ */
+describe.runIf(seeded)("every seeded onboarding item occupies a state its own item allows", () => {
+  it("holds no (item, status) pair outside the canonical list", async () => {
+    const rows = (
+      await client.query<{ code: string; status: OnboardingItemStatus; count: string }>(
+        `select t.code, i.status::text as status, count(*)::text as count
+           from public.onboarding_items i
+           join public.onboarding_item_types t on t.id = i.item_type_id
+          group by t.code, i.status
+          order by t.code, i.status`,
+      )
+    ).rows;
+
+    // Named pairs, never a bare count: the failure has to say which item and
+    // which state, or repairing the seed that wrote it is a hunt.
+    const illegal = rows
+      .filter((row) => !allowedItemStates(row.code).includes(row.status))
+      .map((row) => `${row.code} = ${row.status} (${row.count} rows)`);
+
+    expect(illegal, "each of these renders as a thrown error, not a cell").toEqual([]);
+    expect(rows.length, "no onboarding items at all were seeded").toBeGreaterThan(0);
+  });
+
+  it("labels every state each seeded item type allows — the call the board and the record make", async () => {
+    // Not the same assertion as the one above: `allowedItemStates` is the
+    // list, `itemStateLabel` is what the screens call, and a list carrying a
+    // state with no label would satisfy the first and still throw on the page.
+    const codes = (
+      await client.query<{ code: string }>(
+        `select distinct t.code
+           from public.onboarding_items i
+           join public.onboarding_item_types t on t.id = i.item_type_id
+          order by t.code`,
+      )
+    ).rows.map((row) => row.code);
+
+    const unlabelled: string[] = [];
+    for (const code of codes) {
+      for (const status of allowedItemStates(code)) {
+        try {
+          itemStateLabel(code, status);
+        } catch {
+          unlabelled.push(`${code} = ${status}`);
+        }
+      }
+    }
+    expect(unlabelled).toEqual([]);
   });
 });

@@ -339,12 +339,14 @@ function presenceFrom(
 /** Transaction-scoped read, exported so `person-write.ts` can read back a record it just changed inside the same transaction. */
 export async function readPersonRecordIn(tx: Tx, personId: string): Promise<PersonRecord> {
   const row = await readPersonRowIn(tx, personId);
-  const [aliases, contacts, emergencyContact, fieldProvenance] = await Promise.all([
-    readAliasesIn(tx, personId),
-    readContactsIn(tx, personId),
-    readEmergencyContactIn(tx, personId),
-    readFieldProvenanceIn(tx, personId),
-  ]);
+  // Sequential, not `Promise.all` (LAN-301): these four share one transaction
+  // client, and `pg` serialises concurrent `client.query` calls on one client
+  // anyway — under a deprecation warning that reached Brian's console on the
+  // person page. Nothing is lost by awaiting them in turn.
+  const aliases = await readAliasesIn(tx, personId);
+  const contacts = await readContactsIn(tx, personId);
+  const emergencyContact = await readEmergencyContactIn(tx, personId);
+  const fieldProvenance = await readFieldProvenanceIn(tx, personId);
 
   const presence = presenceFrom(row, contacts, emergencyContact);
 

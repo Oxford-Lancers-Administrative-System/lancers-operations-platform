@@ -251,50 +251,49 @@ async function readSeasonFactsIn(
   membershipId: string,
   seasonId: string,
 ): Promise<PlayerSeasonFacts> {
-  const [positions, jersey, coachGroup, formalwear, blues, eligibility, availability] =
-    await Promise.all([
-      tx.query<{ side: string; code: string }>(
-        `select pa.side::text as side, pos.code
-           from public.position_assignments pa
-           join public.positions pos on pos.id = pa.position_id
-          where pa.season_membership_id = $1::uuid and pa.effective_to is null`,
-        [membershipId],
-      ),
-      tx.query<{ kit: string; number: number }>(
-        `select kit::text as kit, number
-           from public.jersey_assignments
-          where season_membership_id = $1::uuid and effective_to is null
-          order by number`,
-        [membershipId],
-      ),
-      tx.query<{ coach_group: string }>(
-        `select coach_group from public.coach_group_assignments where season_membership_id = $1::uuid`,
-        [membershipId],
-      ),
-      tx.query<{ item: string; ownership: string }>(
-        `select item::text as item, ownership
-           from public.formalwear_records
-          where season_membership_id = $1::uuid`,
-        [membershipId],
-      ),
-      tx.query<{ half_blue_awarded: boolean; full_blue_awarded: boolean }>(
-        `select half_blue_awarded, full_blue_awarded
-           from public.blues_awards
-          where season_membership_id = $1::uuid`,
-        [membershipId],
-      ),
-      tx.query<{ status: string }>(
-        `select status::text as status
-           from public.eligibility_records
-          where season_membership_id = $1::uuid and competition = $2::public.competition_scope
-            and effective_to is null`,
-        [membershipId, BOARD_ELIGIBILITY_COMPETITION],
-      ),
-      tx.query<{ level: string }>(
-        `select level::text as level from public.current_availability where season_membership_id = $1::uuid`,
-        [membershipId],
-      ),
-    ]);
+  // Sequential, not `Promise.all` (LAN-301): all seven run on one transaction
+  // client, which `pg` serialises anyway — loudly, since pg@8.
+  const positions = await tx.query<{ side: string; code: string }>(
+    `select pa.side::text as side, pos.code
+       from public.position_assignments pa
+       join public.positions pos on pos.id = pa.position_id
+      where pa.season_membership_id = $1::uuid and pa.effective_to is null`,
+    [membershipId],
+  );
+  const jersey = await tx.query<{ kit: string; number: number }>(
+    `select kit::text as kit, number
+       from public.jersey_assignments
+      where season_membership_id = $1::uuid and effective_to is null
+      order by number`,
+    [membershipId],
+  );
+  const coachGroup = await tx.query<{ coach_group: string }>(
+    `select coach_group from public.coach_group_assignments where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  const formalwear = await tx.query<{ item: string; ownership: string }>(
+    `select item::text as item, ownership
+       from public.formalwear_records
+      where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  const blues = await tx.query<{ half_blue_awarded: boolean; full_blue_awarded: boolean }>(
+    `select half_blue_awarded, full_blue_awarded
+       from public.blues_awards
+      where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  const eligibility = await tx.query<{ status: string }>(
+    `select status::text as status
+       from public.eligibility_records
+      where season_membership_id = $1::uuid and competition = $2::public.competition_scope
+        and effective_to is null`,
+    [membershipId, BOARD_ELIGIBILITY_COMPETITION],
+  );
+  const availability = await tx.query<{ level: string }>(
+    `select level::text as level from public.current_availability where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
 
   let offencePosition: string | null = null;
   let defencePosition: string | null = null;
@@ -558,20 +557,38 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     itemHistoryByItem,
     activityLog,
     send,
-  ] = await withTransaction(async (tx) =>
-    Promise.all([
-      readSeasonFactsIn(tx, membershipId, membership.seasonId),
-      readJerseyHoldersIn(tx, membership.seasonId),
-      readPositionOptions(membership.seasonId),
-      readConstitutionalMembershipIn(tx, membershipId),
-      readOtherSeasonsIn(tx, membership.personId, membershipId),
-      readMilestonesIn(tx, membershipId),
-      readAttendanceHistoryIn(tx, membershipId, membership.seasonId),
-      readOnboardingItemHistoryDisplayIn(tx, membership.onboardingItems),
-      readOnboardingActivityLogDisplayIn(tx, membershipId),
-      readOnboardingSendStatusIn(tx, membershipId),
-    ]),
-  );
+  ] = await withTransaction(async (tx) => {
+    // Sequential, not `Promise.all` (LAN-301). Every one of these ten reads
+    // borrows the same transaction client — `readPositionOptions` opens its
+    // own `withTransaction`, which joins this one rather than taking a second
+    // connection — so running them together only queued them inside `pg`,
+    // under a deprecation warning, and never overlapped a single round trip.
+    const seasonFacts = await readSeasonFactsIn(tx, membershipId, membership.seasonId);
+    const jerseyHolders = await readJerseyHoldersIn(tx, membership.seasonId);
+    const positionOptions = await readPositionOptions(membership.seasonId);
+    const isConstitutionalMember = await readConstitutionalMembershipIn(tx, membershipId);
+    const otherSeasons = await readOtherSeasonsIn(tx, membership.personId, membershipId);
+    const milestones = await readMilestonesIn(tx, membershipId);
+    const attendance = await readAttendanceHistoryIn(tx, membershipId, membership.seasonId);
+    const itemHistoryByItem = await readOnboardingItemHistoryDisplayIn(
+      tx,
+      membership.onboardingItems,
+    );
+    const activityLog = await readOnboardingActivityLogDisplayIn(tx, membershipId);
+    const send = await readOnboardingSendStatusIn(tx, membershipId);
+    return [
+      seasonFacts,
+      jerseyHolders,
+      positionOptions,
+      isConstitutionalMember,
+      otherSeasons,
+      milestones,
+      attendance,
+      itemHistoryByItem,
+      activityLog,
+      send,
+    ] as const;
+  });
 
   const onboardingItems: OnboardingItemDisplay[] = membership.onboardingItems.map((item) => ({
     ...item,

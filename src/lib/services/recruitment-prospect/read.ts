@@ -156,7 +156,7 @@ async function readSendStateIn(
   };
 }
 
-/** `null` when no such prospect exists. The seven reads run under one `Promise.all` on one pooled client (LAN-227's `pg`-serialised shape, not fixed here). */
+/** `null` when no such prospect exists. The seven detail reads run one at a time: they share one transaction client, which `pg` serialises anyway (LAN-227's shape, made explicit by LAN-301). */
 export async function readRecruitmentProspectIn(
   tx: Tx,
   prospectId: string,
@@ -185,31 +185,30 @@ export async function readRecruitmentProspectIn(
   const row = prospect.rows[0];
   if (!row) return null;
 
-  const [seasonLabel, consent, sendState, answers, events, notes, history] = await Promise.all([
-    readSeasonLabelIn(tx, row.season_id),
-    readSeasonMessagingConsentIn(tx, row.person_id, row.season_id),
-    readSendStateIn(tx, row.person_id, row.season_id),
-    tx.query<{
-      question_code: string;
-      answer_text: string | null;
-      answer_choice: string | null;
-      answer_boolean: boolean | null;
-    }>(
-      `select question_code, answer_text, answer_choice, answer_boolean
+  const seasonLabel = await readSeasonLabelIn(tx, row.season_id);
+  const consent = await readSeasonMessagingConsentIn(tx, row.person_id, row.season_id);
+  const sendState = await readSendStateIn(tx, row.person_id, row.season_id);
+  const answers = await tx.query<{
+    question_code: string;
+    answer_text: string | null;
+    answer_choice: string | null;
+    answer_boolean: boolean | null;
+  }>(
+    `select question_code, answer_text, answer_choice, answer_boolean
          from public.recruitment_questionnaire_responses
         where prospect_id = $1::uuid and questionnaire = 'football_background'
           and superseded_at is null`,
-      [prospectId],
-    ),
-    tx.query<{
-      event_id: string;
-      name: string;
-      date: string | null;
-      rsvp: string | null;
-      presence: string | null;
-      status: string;
-    }>(
-      `select i.event_id, e.name, to_char(e.scheduled_on, 'YYYY-MM-DD') as date,
+    [prospectId],
+  );
+  const events = await tx.query<{
+    event_id: string;
+    name: string;
+    date: string | null;
+    rsvp: string | null;
+    presence: string | null;
+    status: string;
+  }>(
+    `select i.event_id, e.name, to_char(e.scheduled_on, 'YYYY-MM-DD') as date,
               cr.response::text as rsvp, ar.presence::text as presence, e.status::text as status
          from public.invitations i
          join public.events e on e.id = i.event_id
@@ -218,44 +217,43 @@ export async function readRecruitmentProspectIn(
            on ar.event_id = i.event_id and ar.person_id = i.person_id
         where i.person_id = $1::uuid and i.capacity = 'recruit' and i.season_id = $2::uuid
         order by e.scheduled_on asc nulls last, e.name`,
-      [row.person_id, row.season_id],
-    ),
-    tx.query<{
-      id: string;
-      note: string;
-      author_label: string | null;
-      author_person_id: string | null;
-      created_at: Date;
-      given_name: string | null;
-      family_name: string | null;
-    }>(
-      `select n.id, n.note, n.author_label, n.author_person_id, n.created_at, p.given_name, p.family_name
+    [row.person_id, row.season_id],
+  );
+  const notes = await tx.query<{
+    id: string;
+    note: string;
+    author_label: string | null;
+    author_person_id: string | null;
+    created_at: Date;
+    given_name: string | null;
+    family_name: string | null;
+  }>(
+    `select n.id, n.note, n.author_label, n.author_person_id, n.created_at, p.given_name, p.family_name
          from public.recruitment_prospect_notes n
          left join public.people p on p.id = n.author_person_id
         where n.prospect_id = $1::uuid
         order by n.created_at desc`,
-      [prospectId],
-    ),
-    tx.query<{
-      id: string;
-      from_status: string | null;
-      to_status: string;
-      occurred_at: Date;
-      actor_label: string | null;
-      actor_person_id: string | null;
-      reason: string | null;
-      given_name: string | null;
-      family_name: string | null;
-    }>(
-      `select e.id, e.from_status::text as from_status, e.to_status::text as to_status,
+    [prospectId],
+  );
+  const history = await tx.query<{
+    id: string;
+    from_status: string | null;
+    to_status: string;
+    occurred_at: Date;
+    actor_label: string | null;
+    actor_person_id: string | null;
+    reason: string | null;
+    given_name: string | null;
+    family_name: string | null;
+  }>(
+    `select e.id, e.from_status::text as from_status, e.to_status::text as to_status,
               e.occurred_at, e.actor_label, e.actor_person_id, e.reason, p.given_name, p.family_name
          from public.recruitment_prospect_status_events e
          left join public.people p on p.id = e.actor_person_id
         where e.prospect_id = $1::uuid
         order by e.occurred_at desc`,
-      [prospectId],
-    ),
-  ]);
+    [prospectId],
+  );
 
   const answerFor = (code: string) => {
     const answer = answers.rows.find((a) => a.question_code === code);

@@ -1606,6 +1606,49 @@ describe("listCurrentSeasonRoster", () => {
   });
 
   /**
+   * Invariant I6 on the roster, and not a theoretical row: `Q-16` deliberately
+   * leaves an archived overlap season on the merged-away record rather than
+   * re-pointing it onto the survivor, so a merge put the same person on the
+   * board twice. The people directory and the recruitment board already
+   * excluded them; this list did not (LAN-301).
+   */
+  it("never lists a person who was merged away, and does not count them in the season either", async () => {
+    const membershipId = await givenMembership("active");
+    const survivor = await observer.query<{ id: string }>(
+      "insert into public.people (given_name, family_name) values ($1, 'Survivor') returning id",
+      [unique("Survivor")],
+    );
+
+    const before = await listCurrentSeasonRoster({ search: MARKER });
+    expect(before.entries.map((entry) => entry.membershipId)).toContain(membershipId);
+
+    // `people_merge_is_fully_audited`: the pointer, the timestamp, the actor
+    // and a reason are one fact, and the schema refuses any part of it alone.
+    await observer.query(
+      `update public.people
+          set merged_into_person_id = $2::uuid, merged_at = now(),
+              merged_by_person_id = $3::uuid, merge_reason = 'LAN-301 fixture'
+        where id = (select person_id from public.season_memberships where id = $1::uuid)`,
+      [membershipId, survivor.rows[0].id, actorPersonId],
+    );
+
+    const after = await listCurrentSeasonRoster({ search: MARKER });
+    expect(after.entries.map((entry) => entry.membershipId)).not.toContain(membershipId);
+    expect(after.totalInSeason).toBe(before.totalInSeason - 1);
+
+    // Released here, not left to the marker sweep: the sweep deletes both of
+    // these people in one statement, and the pointer this test just wrote
+    // would refuse whichever of the two it reaches first.
+    await observer.query(
+      `update public.people
+          set merged_into_person_id = null, merged_at = null,
+              merged_by_person_id = null, merge_reason = null
+        where id = (select person_id from public.season_memberships where id = $1::uuid)`,
+      [membershipId],
+    );
+  });
+
+  /**
    * Register D10 on the roster list, which is a **second** copy of the rule —
    * `GATING_ITEM_PREDICATE` in SQL, `outstandingFrom()` in TypeScript.
    *

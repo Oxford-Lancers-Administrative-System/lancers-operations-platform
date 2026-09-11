@@ -238,6 +238,12 @@ export async function listCurrentSeasonRoster(filters: RosterFilters = {}): Prom
          from public.season_memberships m
          join public.people p on p.id = m.person_id
         where m.season_id = $1
+          -- Invariant I6, and not a theoretical row: Q-16 deliberately leaves
+          -- an archived overlap season on the merged-away record rather than
+          -- re-pointing it onto the survivor, so a merge puts a duplicate on
+          -- the roster unless this says otherwise. The people directory and
+          -- the recruitment board already draw the same line.
+          and p.merged_into_person_id is null
           and ($2::text is null
                or p.given_name ilike '%' || $2 || '%'
                or coalesce(p.family_name, '') ilike '%' || $2 || '%'
@@ -253,8 +259,13 @@ export async function listCurrentSeasonRoster(filters: RosterFilters = {}): Prom
       [season.id, search, status, entry],
     );
 
+    // The same merged-away exclusion: this count is "the season before any
+    // filter", and a row the list can never show is not part of that season.
     const total = await tx.query<{ count: string }>(
-      "select count(*)::text as count from public.season_memberships where season_id = $1",
+      `select count(*)::text as count
+         from public.season_memberships m
+         join public.people p on p.id = m.person_id
+        where m.season_id = $1 and p.merged_into_person_id is null`,
       [season.id],
     );
 
