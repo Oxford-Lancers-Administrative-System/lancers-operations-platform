@@ -1,9 +1,73 @@
-# Local WhatsApp test panel — LAN-222
+# Local messaging test panel — LAN-222, SMS on LAN-330
 
 Use the normal local app to create people, events and recruitment/onboarding
 work. Open the separate testing panel to see what sends, to whom, at what time,
 and whether it was intercepted or actually sent. This panel never runs in the
 production application. LAN-263/286/287/288 remain separate application work.
+
+## SMS on Twilio — LAN-330
+
+This branch carries every message as a text through Twilio. There is no
+WhatsApp code path on it. The panel, shared clock, per-person routing,
+simulated receipts and manual audit index are LAN-222's, unchanged in shape;
+the channel column reads `sms`, and the message dialog shows the exact text
+sent, its sender and its character count.
+
+### Private settings
+
+Brian puts the Twilio values in `.env.test-box.local` in this worktree, by
+hand, never in chat, a commit or an issue:
+
+```
+TWILIO_ACCOUNT_SID=
+TWILIO_API_KEY_SID=
+TWILIO_API_KEY_SECRET=
+TWILIO_AUTH_TOKEN=            # callback signature validation only
+TWILIO_ALPHA_SENDER=OxfLancers
+TWILIO_FROM_TOLL_FREE=        # +1..., leave empty until toll-free verification clears
+```
+
+`configure.mjs --sink` writes stubs for all six into `.env.local` (the sink
+never reaches Twilio; the stub toll-free number lets a +1 tester be intercepted
+before verification clears). `configure.mjs --sms` copies the private values in
+and points `APP_BASE_URL` at the tunnel; run it and restart the app before any
+real send, because a real status callback is verified against the real Auth
+Token. While `TWILIO_FROM_TOLL_FREE` is empty, a +1 destination is refused with
+"US sender not verified yet", never sent from the alphanumeric sender.
+
+### Senders and callbacks
+
+`From` is chosen by destination: the toll-free number for +1, `OxfLancers` for
+everything else. Every message carries `StatusCallback` =
+`APP_BASE_URL/api/webhooks/twilio?kind=<message kind>`. The route verifies
+`X-Twilio-Signature` over that exact URL, so `APP_BASE_URL` must be the tunnel
+origin whenever real messages are sent; the loopback host the app itself sees
+is never used for the signature. `queued` and `sent` are stored as evidence;
+`delivered` becomes Delivered and `undelivered`/`failed` become Failed with
+Twilio's error code in the reason. Simulated receipts for intercepted people
+post the same signed form to the same route.
+
+### Start
+
+```bash
+npm ci
+npm run db:start -- --test-box
+node scripts/test-box/configure.mjs --sink
+node scripts/test-box/app.mjs
+node scripts/test-box/panel-server.mjs
+.lancers-runtime/bin/ngrok http http://127.0.0.1:<leased port> --url=https://marvel-indiscernible-daxton.ngrok-free.dev --inspect=false
+```
+
+The tunnel now forwards to this worktree's leased port, not LAN-222's 3101.
+
+### Texts
+
+All fourteen kinds are rendered by `SMS_BODIES` in `src/lib/delivery/templates.ts`
+and measured by `sms-budget.test.ts`, which fails on any non-GSM-7 character or
+a third segment. A Yes or No answer link is 114 characters on the production
+host, so invitation, reminder and the recruit follow-up carry 240 characters of
+links and about 66 of copy; the deadline and the attending count are on the
+page each link opens rather than in the text.
 
 ## Owner walkthrough
 
