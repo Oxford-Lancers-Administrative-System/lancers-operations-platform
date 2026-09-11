@@ -53,6 +53,7 @@ const MESSAGE: InvitationMessage = {
   inviteeName: "Alex",
   eventName: "Team Practice",
   whenLabel: "Wednesday 19 November, 19:00",
+  deadlineLabel: "Tuesday 18 November, 19:00",
   rsvpUrl: "https://lancers.example.org/rsvp/abc123",
   yesUrl: "https://lancers.example.org/a/y.11111111-1111-1111-1111-111111111111.abc",
   noUrl: "https://lancers.example.org/a/n.11111111-1111-1111-1111-111111111111.xyz",
@@ -91,9 +92,9 @@ describe("the request body", () => {
     // link left the body entirely — it is carried by the two buttons below.
     const body_component = template.components.find((c) => c.type === "body");
     expect(body_component?.parameters.map((parameter) => parameter.text)).toEqual([
-      "Alex",
       "Team Practice",
       "Wednesday 19 November, 19:00",
+      "Tuesday 18 November, 19:00",
     ]);
   });
 
@@ -133,11 +134,11 @@ describe("the request body", () => {
     expect(serialised).not.toContain("https://lancers.example.org/a/");
   });
 
-  it("sends no buttons for a kind that carries a single link, not two answers", () => {
+  it("sends one button for the outstanding-question nudge", () => {
     const body = buildMessageBody(config(), { ...MESSAGE, kind: "nudge" }) as {
       template: { components: { type: string }[] };
     };
-    expect(body.template.components.some((c) => c.type === "button")).toBe(false);
+    expect(body.template.components.filter((c) => c.type === "button")).toHaveLength(1);
   });
 
   it("sends free-form text carrying the Yes link, only in the loopback test mode", () => {
@@ -270,9 +271,9 @@ describe("LAN-124 — a template that takes no parameters", () => {
 
     const bodyComponent = body.template.components.find((c) => c.type === "body");
     expect(bodyComponent?.parameters.map((p) => p.text)).toEqual([
-      "Alex",
       "Team Practice",
       "Wednesday 19 November, 19:00",
+      "Tuesday 18 November, 19:00",
     ]);
     expect(body.template.components.filter((c) => c.type === "button")).toHaveLength(2);
   });

@@ -208,7 +208,7 @@ describe("dispatchOnboardingWelcomeJob", () => {
     expect(after.rows[0].revoked_at).toBeNull();
   });
 
-  it("carries the durable page and its own opt-out as the message's two URL buttons", async () => {
+  it("carries only the durable personal-page URL button", async () => {
     const { membershipId } = await createArrival();
     const jobId = await jobIdFor(membershipId);
 
@@ -217,23 +217,18 @@ describe("dispatchOnboardingWelcomeJob", () => {
 
     // Meta's button component carries only the URL's dynamic suffix — the
     // token itself — never the full link (`whatsapp-cloud.ts`'s own
-    // `suffixOf`), so this proves the mechanism (two url buttons, each a
-    // non-empty token) rather than the literal path.
+    // `suffixOf`), so this proves one URL button with a non-empty token.
     const buttons = sent[0].body.template as {
       components: { type: string; sub_type?: string; parameters?: { text?: string }[] }[];
     };
     const urlButtons = buttons.components.filter(
       (c) => c.type === "button" && c.sub_type === "url",
     );
-    expect(urlButtons).toHaveLength(2);
+    expect(urlButtons).toHaveLength(1);
     for (const button of urlButtons) {
       expect(button.parameters?.[0]?.text).toBeTruthy();
     }
-    // The two tokens are different credentials' suffixes... actually the
-    // same durable token, on two different destination paths — so the two
-    // button parameters are equal (`suffixOf` reads only the last path
-    // segment, which both `/me/<token>` and `/me/stop/<token>` share).
-    expect(urlButtons[0].parameters?.[0]?.text).toBe(urlButtons[1].parameters?.[0]?.text);
+    expect(urlButtons[0].parameters?.[0]?.text).toBeTruthy();
   });
 
   it("refuses at claim time when consent was withdrawn after the job was declared", async () => {

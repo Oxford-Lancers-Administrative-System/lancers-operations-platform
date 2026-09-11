@@ -1,3 +1,4 @@
+import { applicationNow } from "../test-runtime";
 import "server-only";
 
 import crypto from "node:crypto";
@@ -142,7 +143,7 @@ export const BACKOFF_MINUTES: readonly number[] = Object.freeze([5, 15, 60, 240,
  * while `MAX_ATTEMPTS` is five but stops a future ceiling change turning this
  * into an `undefined` that schedules a retry for the epoch.
  */
-export function backoffFrom(attemptNumber: number, from: Date = new Date()): Date {
+export function backoffFrom(attemptNumber: number, from: Date = applicationNow()): Date {
   const index = Math.max(0, Math.min(attemptNumber - 1, BACKOFF_MINUTES.length - 1));
   return new Date(from.getTime() + BACKOFF_MINUTES[index] * 60_000);
 }
@@ -1455,7 +1456,7 @@ export async function applyProviderCallback(
         event.providerMessageId,
         event.providerStatus,
         matched?.id ?? null,
-        application === "applied" ? new Date() : null,
+        application === "applied" ? applicationNow() : null,
         ignoredReason,
       ],
     );

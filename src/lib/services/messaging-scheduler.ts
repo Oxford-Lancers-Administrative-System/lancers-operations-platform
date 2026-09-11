@@ -1,3 +1,4 @@
+import { applicationNow } from "../test-runtime";
 import "server-only";
 
 import { LEADERSHIP_TIER_SEATS } from "@/lib/auth/capabilities";
@@ -1028,7 +1029,7 @@ export async function dispatchEscalationJob(
             outstandingCount: detail.outstanding,
             // The queue, not the names. The club login is the boundary that decides
             // who reads a roster, and this message travels outside it.
-            queueUrl: `${context.appBaseUrl}/operate/follow-ups`,
+            queueUrl: `${context.appBaseUrl}/operate/admin/follow-ups?event=${job.event_id}`,
             // Empty, and not a URL. An escalation is a message *about* players, to
             // a committee officer; there is nothing here for anybody to answer, and
             // the escalation template declares no link parameter. Building a
@@ -1804,7 +1805,6 @@ export async function dispatchOnboardingWelcomeJob(
     // declaration, is the correct order).
     const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, { actorPersonId: null });
     const formUrl = `${context.appBaseUrl}/me/${issued.token}`;
-    const stopUrl = `${context.appBaseUrl}/me/stop/${issued.token}`;
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
@@ -1828,7 +1828,6 @@ export async function dispatchOnboardingWelcomeJob(
         whenLabel: "",
         rsvpUrl: "",
         formUrl,
-        stopUrl,
       },
     };
   });
@@ -1943,7 +1942,7 @@ async function declareDueOnboardingChasesIn(): Promise<{ declared: number }> {
     if (settings.chaseCount === 0) return { declared: 0 };
 
     const candidates = await listOnboardingChaseCandidatesIn(tx);
-    const now = Date.now();
+    const now = applicationNow().getTime();
     let declared = 0;
 
     for (const candidate of candidates) {
@@ -2526,7 +2525,6 @@ export async function dispatchOnboardingChaseJob(
     // welcome's own dispatcher already carries.
     const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, { actorPersonId: null });
     const formUrl = `${context.appBaseUrl}/me/${issued.token}`;
-    const stopUrl = `${context.appBaseUrl}/me/stop/${issued.token}`;
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
@@ -2548,7 +2546,6 @@ export async function dispatchOnboardingChaseJob(
         whenLabel: "",
         rsvpUrl: "",
         formUrl,
-        stopUrl,
       },
     };
   });

@@ -183,39 +183,24 @@ export function buildMessageBody(
   // worse, arriving at a player as a correctly-delivered message with its
   // sentences swapped.
   const template = templateFor(message);
-  const components: Record<string, unknown>[] = [
-    {
+  const parameters = template.parameters(message);
+  const components: Record<string, unknown>[] = [];
+  if (parameters.length)
+    components.push({
       type: "body",
-      parameters: template.parameters(message).map((text) => ({ type: "text", text })),
-    },
-  ];
-
-  // LAN-172, Q-11: `invitation` and `reminder` carry two URL buttons rather
-  // than a link in body text. Meta's button component takes only the URL's
-  // *dynamic suffix* — the approved template supplies the fixed prefix — so
-  // the token, and nothing else, is what gets sent as each button's parameter.
-  // Index order (`"0"`, `"1"`) is Yes then No, matching the two approved
-  // actions and matching what `escalationCarriesNoPersonalData`'s sibling
-  // reasoning would call the same contract: the order is declared, not
-  // implied, and is asserted on by `local-sink.ts`.
-  const buttons = template.buttonUrls?.(message);
-  if (buttons) {
-    const [yesUrl, noUrl] = buttons;
-    components.push(
-      {
-        type: "button",
-        sub_type: "url",
-        index: "0",
-        parameters: [{ type: "text", text: suffixOf(yesUrl) }],
-      },
-      {
-        type: "button",
-        sub_type: "url",
-        index: "1",
-        parameters: [{ type: "text", text: suffixOf(noUrl) }],
-      },
-    );
-  }
+      parameters: parameters.map((text) => ({ type: "text", text })),
+    });
+  const buttons = template.buttonUrls?.(message) ?? [];
+  if (buttons.length !== (template.buttonCount ?? 0))
+    throw new Error("The declared template button count does not match its URLs.");
+  buttons.forEach((url, index) =>
+    components.push({
+      type: "button",
+      sub_type: "url",
+      index: String(index),
+      parameters: [{ type: "text", text: template.buttonParameter?.(url) ?? suffixOf(url) }],
+    }),
+  );
 
   return {
     messaging_product: "whatsapp",

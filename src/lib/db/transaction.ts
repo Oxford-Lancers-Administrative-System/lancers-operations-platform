@@ -3,6 +3,8 @@ import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { PoolClient, QueryResult, QueryResultRow } from "pg";
 
+import { applicationSql, testTransaction } from "../test-runtime";
+
 import { getPool } from "./connection";
 import { mapDatabaseError, UnexpectedDatabaseError } from "./errors";
 
@@ -70,7 +72,7 @@ function makeTx(client: PoolClient): Tx {
       params?: readonly unknown[],
     ): Promise<QueryResult<R>> {
       try {
-        return await client.query<R>(sql, params as unknown[] | undefined);
+        return await client.query<R>(applicationSql(sql), params as unknown[] | undefined);
       } catch (error) {
         throw mapDatabaseError(error);
       }
@@ -118,6 +120,7 @@ export async function withTransaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>
   }
 
   try {
+    await testTransaction(client);
     const result = await currentTransaction.run(tx, () => fn(tx));
 
     try {

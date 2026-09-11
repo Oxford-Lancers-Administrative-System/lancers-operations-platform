@@ -101,10 +101,8 @@ describe("every declared template", () => {
     // is the honest answer: the job records a failure a human can read rather
     // than the club sending nonsense.
     expect(() =>
-      MESSAGE_TEMPLATES.cancellation.parameters(
-        message({ kind: "cancellation", cancellationReason: null }),
-      ),
-    ).toThrowError(/reason/);
+      MESSAGE_TEMPLATES.cancellation.parameters(message({ kind: "cancellation", eventName: "" })),
+    ).toThrowError(/event name/);
   });
 });
 
@@ -114,14 +112,14 @@ describe("the invitation", () => {
     // all. The two answers are WhatsApp URL buttons, declared through
     // `buttonUrls`, not template body parameters.
     expect(MESSAGE_TEMPLATES.invitation.parameterNames).toEqual([
-      "inviteeName",
       "eventName",
-      "whenLabel",
+      "whenAndVenue",
+      "deadlineLabel",
     ]);
     expect(MESSAGE_TEMPLATES.invitation.parameters(message({ kind: "invitation" }))).toEqual([
-      "Jamie",
       "Michaelmas week 3",
-      "Wednesday 14 October, 20:00",
+      "Wednesday 14 October, 20:00 · Iffley Road Sports Centre",
+      "Tuesday 13 October, 20:00",
     ]);
   });
 
@@ -202,11 +200,10 @@ describe("the escalation", () => {
     // is a template something can later put a player's name into, so the slot
     // itself is what must not exist.
     expect(MESSAGE_TEMPLATES.escalation.parameterNames).toEqual([
-      "outstandingCount",
+      "outstandingClause",
       "eventName",
       "whenLabel",
       "deadlineLabel",
-      "queueUrl",
     ]);
     expect(MESSAGE_TEMPLATES.escalation.parameterNames).not.toContain("inviteeName");
   });
@@ -258,14 +255,11 @@ describe("the onboarding chase", () => {
     expect(body).not.toMatch(/college|matriculation|degree|emergency contact/i);
   });
 
-  it("carries the link and its own opt-out as the message's two URL buttons", () => {
+  it("carries only its personal-page button", () => {
     const buttons = MESSAGE_TEMPLATES.onboarding_chase.buttonUrls?.(
       message({ kind: "onboarding_chase" }),
     );
-    expect(buttons).toEqual([
-      "https://lancers.example/me/abc",
-      "https://lancers.example/me/abc/stop",
-    ]);
+    expect(buttons).toEqual(["https://lancers.example/me/abc"]);
   });
 });
 
@@ -481,7 +475,7 @@ describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
     expect(template.parameterNames).toEqual(["inviteeName"]);
   });
 
-  it("carries the durable link and its own opt-out as its two URL buttons", () => {
+  it("carries only its durable personal-page button", () => {
     const rendered = MESSAGE_TEMPLATES.onboarding_welcome.buttonUrls?.(
       message({
         kind: "onboarding_welcome",
@@ -489,10 +483,7 @@ describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
         stopUrl: "https://lancers.example/me/stop/abc",
       }),
     );
-    expect(rendered).toEqual([
-      "https://lancers.example/me/abc",
-      "https://lancers.example/me/stop/abc",
-    ]);
+    expect(rendered).toEqual(["https://lancers.example/me/abc"]);
   });
 
   it("refuses to render without the durable link", () => {

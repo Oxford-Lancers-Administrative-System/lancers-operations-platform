@@ -1,4 +1,5 @@
 import "server-only";
+import { testRecipientsUnrestricted } from "../test-runtime";
 
 import type { EmailConfig } from "./config";
 import type { DeliveryProvider, OutboundMessage, SendOutcome, Transport } from "./provider";
@@ -108,7 +109,7 @@ export const EMAIL_NOT_PERMITTED_REASON =
 /** Is this address on the deployment's allowlist? Empty permits nobody. */
 export function emailPermitted(recipient: string, allowlist: readonly string[]): boolean {
   if (allowlist.length === 0) return false;
-  return allowlist.includes(recipient.trim().toLowerCase());
+  return testRecipientsUnrestricted() || allowlist.includes(recipient.trim().toLowerCase());
 }
 
 /**

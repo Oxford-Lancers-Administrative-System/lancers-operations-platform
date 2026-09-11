@@ -314,31 +314,17 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
   }
 
   return withTransaction(async (tx) => {
-    const [
-      people,
-      aliasRows,
-      emergencyContacts,
-      positionRows,
-      jerseyRows,
-      coachGroupRows,
-      formalwearRows,
-      bluesRows,
-      eligibilityRows,
-      availabilityRows,
-      bpsRows,
-      onboardingItemRows,
-      positionOptions,
-    ] = await Promise.all([
-      tx.query<{
-        id: string;
-        college: string | null;
-        matriculation_year: number | null;
-        expected_graduation_year: number | null;
-        degree_field: string | null;
-        date_of_birth: string | null;
-        has_personal_email: boolean;
-      }>(
-        `select id, college, matriculation_year, expected_graduation_year, degree_field,
+    // One transaction owns one pg client; finish each query before issuing the next.
+    const people = await tx.query<{
+      id: string;
+      college: string | null;
+      matriculation_year: number | null;
+      expected_graduation_year: number | null;
+      degree_field: string | null;
+      date_of_birth: string | null;
+      has_personal_email: boolean;
+    }>(
+      `select id, college, matriculation_year, expected_graduation_year, degree_field,
                 to_char(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
                 exists (
                   select 1 from public.contact_points c
@@ -347,72 +333,86 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
                 ) as has_personal_email
            from public.people people
           where id = any($1::uuid[])`,
-        [personIds],
-      ),
-      tx.query<{ person_id: string; alias: string }>(
-        `select person_id, alias from public.person_aliases where person_id = any($1::uuid[])`,
-        [personIds],
-      ),
-      tx.query<{ person_id: string }>(
-        `select person_id from public.person_emergency_contacts where person_id = any($1::uuid[])`,
-        [personIds],
-      ),
-      tx.query<{ season_membership_id: string; side: string; code: string; created_at: Date }>(
-        `select pa.season_membership_id, pa.side::text as side, pos.code, pa.created_at
+      [personIds],
+    );
+    const aliasRows = await tx.query<{ person_id: string; alias: string }>(
+      `select person_id, alias from public.person_aliases where person_id = any($1::uuid[])`,
+      [personIds],
+    );
+    const emergencyContacts = await tx.query<{ person_id: string }>(
+      `select person_id from public.person_emergency_contacts where person_id = any($1::uuid[])`,
+      [personIds],
+    );
+    const positionRows = await tx.query<{
+      season_membership_id: string;
+      side: string;
+      code: string;
+      created_at: Date;
+    }>(
+      `select pa.season_membership_id, pa.side::text as side, pos.code, pa.created_at
            from public.position_assignments pa
            join public.positions pos on pos.id = pa.position_id
           where pa.season_id = $1::uuid and pa.effective_to is null`,
-        [roster.season.id],
-      ),
-      tx.query<{ season_membership_id: string; kit: string; number: number }>(
-        `select season_membership_id, kit::text as kit, number
+      [roster.season.id],
+    );
+    const jerseyRows = await tx.query<{
+      season_membership_id: string;
+      kit: string;
+      number: number;
+    }>(
+      `select season_membership_id, kit::text as kit, number
            from public.jersey_assignments
           where season_id = $1::uuid and effective_to is null
           order by number`,
-        [roster.season.id],
-      ),
-      tx.query<{ season_membership_id: string; coach_group: string }>(
-        `select season_membership_id, coach_group
+      [roster.season.id],
+    );
+    const coachGroupRows = await tx.query<{ season_membership_id: string; coach_group: string }>(
+      `select season_membership_id, coach_group
            from public.coach_group_assignments
           where season_id = $1::uuid`,
-        [roster.season.id],
-      ),
-      tx.query<{ season_membership_id: string; item: string; ownership: string }>(
-        `select season_membership_id, item::text as item, ownership
+      [roster.season.id],
+    );
+    const formalwearRows = await tx.query<{
+      season_membership_id: string;
+      item: string;
+      ownership: string;
+    }>(
+      `select season_membership_id, item::text as item, ownership
            from public.formalwear_records
           where season_id = $1::uuid`,
-        [roster.season.id],
-      ),
-      tx.query<{
-        season_membership_id: string;
-        half_blue_awarded: boolean;
-        full_blue_awarded: boolean;
-      }>(
-        `select season_membership_id, half_blue_awarded, full_blue_awarded
+      [roster.season.id],
+    );
+    const bluesRows = await tx.query<{
+      season_membership_id: string;
+      half_blue_awarded: boolean;
+      full_blue_awarded: boolean;
+    }>(
+      `select season_membership_id, half_blue_awarded, full_blue_awarded
            from public.blues_awards
           where season_id = $1::uuid`,
-        [roster.season.id],
-      ),
-      tx.query<{ season_membership_id: string; status: string }>(
-        `select season_membership_id, status::text as status
+      [roster.season.id],
+    );
+    const eligibilityRows = await tx.query<{ season_membership_id: string; status: string }>(
+      `select season_membership_id, status::text as status
            from public.eligibility_records
           where season_id = $1::uuid and competition = $2::public.competition_scope
             and effective_to is null`,
-        [roster.season.id, BOARD_ELIGIBILITY_COMPETITION],
-      ),
-      tx.query<{ season_membership_id: string; level: string }>(
-        `select season_membership_id, level::text as level
+      [roster.season.id, BOARD_ELIGIBILITY_COMPETITION],
+    );
+    const availabilityRows = await tx.query<{ season_membership_id: string; level: string }>(
+      `select season_membership_id, level::text as level
            from public.current_availability
           where season_id = $1::uuid`,
-        [roster.season.id],
-      ),
-      tx.query<{ season_membership_id: string; is_selected: boolean }>(
-        `select season_membership_id, is_selected
+      [roster.season.id],
+    );
+    const bpsRows = await tx.query<{ season_membership_id: string; is_selected: boolean }>(
+      `select season_membership_id, is_selected
            from public.bps_selections
           where season_id = $1::uuid`,
-        [roster.season.id],
-      ),
-      // Correction round 2, item 5: the onboarding items as board columns.
+      [roster.season.id],
+    );
+    const onboardingItemRows =
+      await // Correction round 2, item 5: the onboarding items as board columns.
       // Every item this season carries, not only the operator-editable
       // seven — the derived two are filtered out in TypeScript below, the
       // same way `board-columns.ts` already keeps its own column list as
@@ -423,9 +423,8 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
            join public.onboarding_item_types t on t.id = i.item_type_id
           where i.season_membership_id = any($1::uuid[])`,
         [membershipIds],
-      ),
-      readPositionOptionsIn(tx, roster.season.id),
-    ]);
+      );
+    const positionOptions = await readPositionOptionsIn(tx, roster.season.id);
 
     const personById = new Map(people.rows.map((row) => [row.id, row]));
     const hasEmergencyContact = new Set(emergencyContacts.rows.map((row) => row.person_id));

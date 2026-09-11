@@ -135,15 +135,11 @@ export interface MessageTemplate {
   subject(message: OutboundMessage): string;
   /** The email body, as plain text. Rendered to HTML by the transport. */
   body(message: OutboundMessage): readonly string[];
-  /**
-   * The two WhatsApp URL buttons this kind carries — LAN-172, Q-11. `[yes, no]`
-   * order, matching the two approved actions. `undefined` for every kind
-   * besides `invitation` and `reminder`, which still carry `rsvpUrl` as body
-   * copy or a single CTA. Declared on the template registry, not read off
-   * `message.kind` a second time somewhere else, for the same reason
-   * `parameterNames` is declared here rather than implied.
-   */
-  buttonUrls?(message: OutboundMessage): readonly [string, string] | null;
+  /** Actual indexed URL-button count in the approved template. */
+  readonly buttonCount?: 1 | 2;
+  buttonUrls?(message: OutboundMessage): readonly string[] | null;
+  /** Override for a dynamic query value rather than a final path token. */
+  buttonParameter?(url: string): string;
 }
 
 function required(value: string | null | undefined, name: string): string {
@@ -199,11 +195,13 @@ const INVITATION: MessageTemplate = {
   // Three body parameters. `rsvpUrl` left this list with LAN-172: the approved
   // W2-01 shape carries no raw URL in body copy at all — the two answers are
   // WhatsApp URL buttons, declared below in `buttonUrls`, not text.
-  parameterNames: ["inviteeName", "eventName", "whenLabel"],
+  parameterNames: ["eventName", "whenAndVenue", "deadlineLabel"],
   parameters: (message) => [
-    required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
-    required(message.whenLabel, "date and time"),
+    [required(message.whenLabel, "date and time"), message.venue?.trim()]
+      .filter(Boolean)
+      .join(" · "),
+    required(message.deadlineLabel, "deadline"),
   ],
   subject: (message) => `You are invited: ${message.eventName}`,
   body: (message) => [
@@ -218,19 +216,17 @@ const INVITATION: MessageTemplate = {
     `${YES_BUTTON_LABEL}: ${message.yesUrl}`,
     `${NO_BUTTON_LABEL}: ${message.noUrl}`,
   ],
+  buttonCount: 2,
   buttonUrls: answerButtonUrls,
 };
 
 const REMINDER: MessageTemplate = {
   kind: "reminder",
-  parameterNames: ["inviteeName", "eventName", "whenLabel"],
+  parameterNames: ["eventName", "attendingSentence"],
   parameters: (message) => [
-    required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
-    required(message.whenLabel, "date and time"),
+    attendingSentence(message) ?? "Your answer helps the coaches plan.",
   ],
-  // The approved W2-02 wording: the chase gets stronger rather than repeating
-  // itself, and it states plainly what the club is waiting for.
   subject: (message) => `Action required: RSVP for ${message.eventName}`,
   body: (message) => {
     const attending = attendingSentence(message);
@@ -243,21 +239,14 @@ const REMINDER: MessageTemplate = {
       `${NO_BUTTON_LABEL}: ${message.noUrl}`,
     ];
   },
+  buttonCount: 2,
   buttonUrls: answerButtonUrls,
 };
 
 const NUDGE: MessageTemplate = {
   kind: "nudge",
-  parameterNames: ["inviteeName", "eventName", "rsvpUrl"],
-  parameters: (message) => [
-    required(message.inviteeName, "name"),
-    required(message.eventName, "event name"),
-    required(message.rsvpUrl, "link"),
-  ],
-  // W2's single nudge, and it is deliberately not a chase. The player has
-  // already said yes; what is outstanding is the event's own questions, and W5
-  // is explicit that "a Yes with unanswered questions is answered" and never
-  // reaches the nonresponse queue.
+  parameterNames: ["eventName"],
+  parameters: (message) => [required(message.eventName, "event name")],
   subject: (message) => `One thing left for ${message.eventName}`,
   body: (message) => [
     `${message.inviteeName}, thank you for answering ${message.eventName}.`,
@@ -265,17 +254,19 @@ const NUDGE: MessageTemplate = {
     "Finish here:",
     message.rsvpUrl,
   ],
+  buttonCount: 1,
+  buttonUrls: (message) => [required(message.rsvpUrl, "link")],
 };
 
 const CHANGE_NOTICE: MessageTemplate = {
   kind: "change_notice",
-  parameterNames: ["inviteeName", "eventName", "changeSummary", "whenLabel", "rsvpUrl"],
+  parameterNames: ["eventName", "changeSummary", "whenAndVenue"],
   parameters: (message) => [
-    required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
     required(message.changeSummary, "summary of what changed"),
-    required(message.whenLabel, "date and time"),
-    required(message.rsvpUrl, "link"),
+    [required(message.whenLabel, "date and time"), message.venue?.trim()]
+      .filter(Boolean)
+      .join(" · "),
   ],
   subject: (message) => `Changed: ${message.eventName}`,
   body: (message) => [
@@ -289,16 +280,16 @@ const CHANGE_NOTICE: MessageTemplate = {
     "Your answer still stands. Change it here if the new details do not work for you:",
     message.rsvpUrl,
   ],
+  buttonCount: 1,
+  buttonUrls: (message) => [required(message.rsvpUrl, "link")],
 };
 
 const CANCELLATION: MessageTemplate = {
   kind: "cancellation",
-  parameterNames: ["inviteeName", "eventName", "whenLabel", "cancellationReason"],
+  parameterNames: ["eventName", "whenLabel"],
   parameters: (message) => [
-    required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
     required(message.whenLabel, "date and time"),
-    required(message.cancellationReason, "reason"),
   ],
   subject: (message) => `Cancelled: ${message.eventName}`,
   body: (message) => [
@@ -322,13 +313,12 @@ const CANCELLATION: MessageTemplate = {
  */
 const ESCALATION: MessageTemplate = {
   kind: "escalation",
-  parameterNames: ["outstandingCount", "eventName", "whenLabel", "deadlineLabel", "queueUrl"],
+  parameterNames: ["outstandingClause", "eventName", "whenLabel", "deadlineLabel"],
   parameters: (message) => [
-    String(message.outstandingCount ?? 0),
+    `${message.outstandingCount ?? 0} ${(message.outstandingCount ?? 0) === 1 ? "person has" : "people have"} not responded`,
     required(message.eventName, "event name"),
     required(message.whenLabel, "date and time"),
     required(message.deadlineLabel, "deadline"),
-    required(message.queueUrl, "link to the follow-up queue"),
   ],
   subject: (message) => `${message.outstandingCount ?? 0} unanswered for ${message.eventName}`,
   body: (message) => {
@@ -342,6 +332,9 @@ const ESCALATION: MessageTemplate = {
       required(message.queueUrl, "link to the follow-up queue"),
     ];
   },
+  buttonCount: 1,
+  buttonUrls: (message) => [required(message.queueUrl, "follow-up queue link")],
+  buttonParameter: (url) => required(new URL(url).searchParams.get("event"), "event filter"),
 };
 
 /**
@@ -383,6 +376,7 @@ const RECRUIT_EVENT_FOLLOWUP: MessageTemplate = {
     `${RECRUIT_YES_LABEL}: ${message.yesUrl}`,
     `${RECRUIT_NO_LABEL}: ${message.noUrl}`,
   ],
+  buttonCount: 2,
   buttonUrls: answerButtonUrls,
 };
 
@@ -412,6 +406,7 @@ const RECRUIT_WELCOME: MessageTemplate = {
     "When you have a moment, fill in a few details. It takes a minute, and almost all of it is optional.",
     `${RECRUIT_FILL_IN_DETAILS_LABEL}: ${required(message.formUrl, "form link")}`,
   ],
+  buttonCount: 2,
   buttonUrls: recruitFormButtonUrls,
 };
 
@@ -426,6 +421,7 @@ const RECRUIT_DETAILS_REMINDER: MessageTemplate = {
     "You have not filled in your details yet. It takes a minute, and you can leave anything blank.",
     `${RECRUIT_FILL_IN_DETAILS_LABEL}: ${required(message.formUrl, "form link")}`,
   ],
+  buttonCount: 2,
   buttonUrls: recruitFormButtonUrls,
 };
 
@@ -441,6 +437,7 @@ const RECRUIT_INTEREST_ASK: MessageTemplate = {
       "There are no wrong answers, and you can skip anything.",
     `${RECRUIT_ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "form link")}`,
   ],
+  buttonCount: 2,
   buttonUrls: recruitFormButtonUrls,
 };
 
@@ -455,18 +452,13 @@ const RECRUIT_INTEREST_REMINDER: MessageTemplate = {
     "We still have a few questions about your football background, whenever you have a moment.",
     `${RECRUIT_ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "form link")}`,
   ],
+  buttonCount: 2,
   buttonUrls: recruitFormButtonUrls,
 };
 
-/**
- * LAN-215, `REQ-one-welcome`. The two URL buttons this template carries — the
- * durable per-person page, and its own opt-out, on the same
- * "at most two URL buttons" limit the recruit templates already spend.
- * Both resolve the same durable credential `issuePersonTokenIn` mints —
- * `/me/<token>` for the page itself, `/me/stop/<token>` to withdraw.
- */
-function onboardingWelcomeButtonUrls(message: OutboundMessage): readonly [string, string] {
-  return [required(message.formUrl, "link"), required(message.stopUrl, "opt-out link")];
+/** LAN-263: onboarding carries only its personal-page button; recruits retain Stop messages. */
+function onboardingWelcomeButtonUrls(message: OutboundMessage): readonly string[] {
+  return [required(message.formUrl, "link")];
 }
 
 /**
@@ -493,6 +485,7 @@ const ONBOARDING_WELCOME: MessageTemplate = {
     "There are a few quick things to complete before the season gets going — it takes a few minutes.",
     `Get started: ${required(message.formUrl, "link")}`,
   ],
+  buttonCount: 1,
   buttonUrls: onboardingWelcomeButtonUrls,
 };
 
@@ -510,6 +503,7 @@ const ONBOARDING_CHASE: MessageTemplate = {
     `${message.inviteeName}, there are still a few things to complete before the season gets going.`,
     `Finish here: ${required(message.formUrl, "link")}`,
   ],
+  buttonCount: 1,
   buttonUrls: onboardingWelcomeButtonUrls,
 };
 

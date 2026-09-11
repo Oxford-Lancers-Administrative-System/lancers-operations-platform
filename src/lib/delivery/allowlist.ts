@@ -1,4 +1,5 @@
 import "server-only";
+import { testRecipientsUnrestricted } from "../test-runtime";
 
 import { toE164 } from "./phone";
 
@@ -148,7 +149,7 @@ export function recipientPermitted(
     (recipient.trim().startsWith("+") ? null : toE164(`+${recipient.trim()}`, defaultCallingCode));
   if (normalised === null) return false;
 
-  return allowlist.includes(normalised);
+  return testRecipientsUnrestricted() || allowlist.includes(normalised);
 }
 
 /**

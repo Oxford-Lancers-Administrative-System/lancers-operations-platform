@@ -1,4 +1,5 @@
 import "server-only";
+import { testTransport, testSource } from "@/lib/test-runtime";
 
 import {
   describeMissingConfiguration,
@@ -73,7 +74,8 @@ export function resolveDeliveryProvider(
   // Explicit first, runtime-selected second, `fetch` last. The order is the
   // whole of the sink's safety: it can only ever be reached when nobody named a
   // transport and the runtime is local.
-  const wire = transport ?? selectDeliverySink(source) ?? undefined;
+  source = testSource(source);
+  const wire = transport ?? testTransport(source) ?? selectDeliverySink(source) ?? undefined;
 
   if (channel === "email") {
     const email = resolveEmailConfig(source);

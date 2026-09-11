@@ -192,7 +192,7 @@ describe("validating against the declared registry", () => {
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
-      "eventName",
+      "whenAndVenue",
     );
   });
 
@@ -214,7 +214,7 @@ describe("validating against the declared registry", () => {
     expect(response.status).toBe(400);
     const body = (await response.json()) as { error: { code: number; message: string } };
     expect(body.error.code).toBe(132_000);
-    expect(body.error.message).toContain("button 1");
+    expect(body.error.message).toContain("exactly 2 URL buttons");
   });
 
   it("refuses a Quick Reply where a URL button was declared", async () => {

@@ -72,8 +72,22 @@ describe("LAN-222 private test configuration", () => {
       contacts,
     );
     expect(result.APP_BASE_URL).toBe(TEST_HOST);
-    expect(result.EMAIL_API_KEY).toBeUndefined();
+    expect(result.EMAIL_API_KEY).toBe("local-stub-not-a-secret");
     expect(result.WHATSAPP_ACCESS_TOKEN).toBe("test-only");
+  });
+  it("preserves the provisioned public form URL without enabling actual sends", () => {
+    const result = settingsFor(
+      "sink",
+      { ...current, APP_BASE_URL: TEST_HOST },
+      {},
+      "http://127.0.0.1:3101",
+      names,
+      contacts,
+    );
+    expect(result.APP_BASE_URL).toBe(TEST_HOST);
+    expect(result.WHATSAPP_ACCESS_TOKEN).toBe("local-stub-not-a-secret");
+    expect(result.EMAIL_API_KEY).toBe("local-stub-not-a-secret");
+    expect(result.DELIVERY_RECIPIENT_ALLOWLIST).toBe(contacts.phones.join(","));
   });
   it("refuses a registry it cannot read as literal data", () => {
     expect(() =>

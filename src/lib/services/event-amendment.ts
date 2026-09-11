@@ -1,3 +1,4 @@
+import { applicationNow } from "../test-runtime";
 import "server-only";
 
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
@@ -1068,7 +1069,7 @@ async function recomputeScheduleOnRescheduleIn(
   const plan = await resolveMessagingPlanIn(
     tx,
     { eventType: input.eventType, scheduledOn: input.scheduledOn, startsAt: input.startsAt },
-    new Date(),
+    applicationNow(),
   );
 
   await tx.query(

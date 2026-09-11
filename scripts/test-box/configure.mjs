@@ -42,7 +42,6 @@ export function settingsFor(mode, current, privateSettings, baseUrl, names, cont
       "WHATSAPP_PHONE_NUMBER_ID",
       "WHATSAPP_ACCESS_TOKEN",
       "WHATSAPP_APP_SECRET",
-      "DELIVERY_RECIPIENT_ALLOWLIST",
     ]) {
       if (!privateSettings[key]?.trim())
         throw new Error(`Private test configuration is missing ${key}.`);
@@ -56,10 +55,11 @@ export function settingsFor(mode, current, privateSettings, baseUrl, names, cont
       delete values[key];
   }
   Object.assign(values, {
-    APP_BASE_URL: mode === "sink" ? baseUrl : TEST_HOST,
+    // Keep the owner-provisioned public form origin during local contact refreshes.
+    APP_BASE_URL: mode === "sink" && current.APP_BASE_URL !== TEST_HOST ? baseUrl : TEST_HOST,
     SCHEDULER_TRIGGER_TOKEN:
       current.SCHEDULER_TRIGGER_TOKEN || crypto.randomBytes(32).toString("hex"),
-    WHATSAPP_TEMPLATE_LANGUAGE: "en_GB",
+    WHATSAPP_TEMPLATE_LANGUAGE: "en",
     WHATSAPP_PHONE_NUMBER_ID:
       mode === "sink" ? "local-stub" : privateSettings.WHATSAPP_PHONE_NUMBER_ID,
     WHATSAPP_ACCESS_TOKEN:
@@ -71,22 +71,18 @@ export function settingsFor(mode, current, privateSettings, baseUrl, names, cont
       current.WHATSAPP_WEBHOOK_VERIFY_TOKEN ||
       crypto.randomBytes(32).toString("hex"),
     DELIVERY_RECIPIENT_ALLOWLIST:
-      mode === "sink" ? contacts.phones.join(",") : privateSettings.DELIVERY_RECIPIENT_ALLOWLIST,
+      mode === "sink"
+        ? contacts.phones.join(",")
+        : privateSettings.DELIVERY_RECIPIENT_ALLOWLIST || current.DELIVERY_RECIPIENT_ALLOWLIST,
   });
-  if (mode === "sink") {
-    Object.assign(values, {
-      EMAIL_API_KEY: "local-stub-not-a-secret",
-      EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-      DELIVERY_EMAIL_ALLOWLIST: contacts.emails.join(",") || "nobody@example.test",
-    });
-  } else if (privateSettings.EMAIL_API_KEY?.trim()) {
-    for (const key of ["EMAIL_FROM_ADDRESS", "DELIVERY_EMAIL_ALLOWLIST"]) {
-      if (!privateSettings[key]?.trim())
-        throw new Error(`Private test configuration is missing ${key}.`);
-    }
-    for (const key of ["EMAIL_API_KEY", "EMAIL_FROM_ADDRESS", "DELIVERY_EMAIL_ALLOWLIST"])
-      values[key] = privateSettings[key];
-  }
+  // This panel intercepts every email even when selected phones use Meta.
+  // Keep that test transport configured without loading real email credentials.
+  Object.assign(values, {
+    EMAIL_API_KEY: "local-stub-not-a-secret",
+    EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
+    DELIVERY_EMAIL_ALLOWLIST:
+      contacts.emails.join(",") || current.DELIVERY_EMAIL_ALLOWLIST || "nobody@example.test",
+  });
   for (const [kind, name] of Object.entries(names)) {
     const key =
       kind === "invitation" ? "WHATSAPP_TEMPLATE_NAME" : `WHATSAPP_TEMPLATE_${kind.toUpperCase()}`;

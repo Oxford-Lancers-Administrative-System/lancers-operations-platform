@@ -223,8 +223,12 @@ function validateWhatsApp(payload: unknown, source: EnvironmentSource): Validati
   // registry is the one place that says which kinds do — checking
   // `buttonUrls` here rather than hard-coding the two names is what keeps this
   // validator honest if a future kind gains buttons of its own.
-  if (typeof MESSAGE_TEMPLATES[kind].buttonUrls === "function") {
-    const buttonError = validateAnswerButtons(name, body.template.components ?? []);
+  {
+    const buttonError = validateAnswerButtons(
+      name,
+      body.template.components ?? [],
+      MESSAGE_TEMPLATES[kind].buttonCount ?? 0,
+    );
     if (buttonError) return buttonError;
   }
 
@@ -239,8 +243,15 @@ function validateAnswerButtons(
     index?: unknown;
     parameters?: unknown[];
   }[],
+  count: number,
 ): Validation | null {
-  for (const expectedIndex of ["0", "1"] as const) {
+  if (components.filter((c) => c.type === "button").length !== count)
+    return {
+      ok: false,
+      code: 132_000,
+      detail: `Template "${templateName}" requires exactly ${count} URL buttons.`,
+    };
+  for (const expectedIndex of Array.from({ length: count }, (_, i) => String(i))) {
     const component = components.find(
       (entry) => entry.type === "button" && String(entry.index) === expectedIndex,
     );
@@ -248,7 +259,7 @@ function validateAnswerButtons(
       return {
         ok: false,
         code: 132_000,
-        detail: `Template "${templateName}" declares two URL buttons and button ${expectedIndex} was not sent.`,
+        detail: `Template "${templateName}" declares ${count} URL buttons and button ${expectedIndex} was not sent.`,
       };
     }
     if (component.sub_type !== "url") {
