@@ -38,6 +38,12 @@ export interface QuestionEditorProps {
   issues: readonly QuestionIssue[];
   disabled?: boolean;
   /**
+   * Whether a question may be taken away. False on an approved event
+   * (LAN-318): an answer already given points at the question row, so the
+   * control is absent there rather than present and refused.
+   */
+  removable?: boolean;
+  /**
    * The heading — same component serves the event and template editors,
    * since a template's questions become an event's questions unchanged.
    */
@@ -47,6 +53,7 @@ export interface QuestionEditorProps {
 
 function blankQuestion(): RawEventQuestion {
   return {
+    id: null,
     prompt: "",
     answerType: "boolean",
     required: "optional",
@@ -61,6 +68,7 @@ export default function QuestionEditor({
   eventTypeLabel,
   issues,
   disabled = false,
+  removable = true,
   headline = QUESTIONS_HEADLINE,
   detail = QUESTIONS_FORM_DETAIL,
 }: QuestionEditorProps) {
@@ -130,16 +138,18 @@ export default function QuestionEditor({
                       >
                         ↓
                       </IconButton>
-                      <Button
-                        size="small"
-                        color="error"
-                        disabled={disabled}
-                        onClick={() => remove(index)}
-                        data-testid="remove-question"
-                        sx={{ minHeight: 44 }}
-                      >
-                        Remove
-                      </Button>
+                      {removable ? (
+                        <Button
+                          size="small"
+                          color="error"
+                          disabled={disabled}
+                          onClick={() => remove(index)}
+                          data-testid="remove-question"
+                          sx={{ minHeight: 44 }}
+                        >
+                          Remove
+                        </Button>
+                      ) : null}
                     </Stack>
 
                     <Field
@@ -191,6 +201,8 @@ export default function QuestionEditor({
                     ) : null}
                   </Stack>
 
+                  {/* LAN-318: which stored question this card is, so an approved event's set is updated rather than rewritten. Empty for one just written. */}
+                  <input type="hidden" name="questionId" value={question.id ?? ""} />
                   <input type="hidden" name="questionPrompt" value={question.prompt ?? ""} />
                   <input type="hidden" name="questionAnswerType" value={answerType} />
                   <input

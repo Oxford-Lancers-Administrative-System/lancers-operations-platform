@@ -125,7 +125,35 @@ Everything else in both tickets stands, including the empty-audience refusal
   remove, reorder, choose one of three answer types, and mark each independently
   required or optional. A question the template supplied is marked as such and
   may be removed for this event alone (D42).
+- **Enter in a question field does nothing** (LAN-313, Brian 2026-09-11). The
+  editor is one form with a submit button, so the browser's implicit submission
+  used to read a finished question as "Save draft" and take the operator off
+  the screen mid-task. There is no "add the next option" behaviour in its
+  place; Enter simply does not submit from a single-line field on any of the
+  long operator forms.
 - Two submit buttons: **Save draft**, and **Save and choose audience**.
+
+**Once the event is approved, the questions are still editable** (LAN-318,
+Brian 2026-09-11, amending D41). Approval used to freeze them and the edit
+route refused an approved event outright; it now answers **Edit questions** on
+the event's own page with the same question editor, alone — the event's facts
+still change only through the amend path (W5), which tells people.
+
+What changes there: a question may be added, reworded, retyped, given
+different options, made required or optional, and put in a different order.
+What does not: **a question cannot be removed**, and the Remove control is
+absent rather than present and refused, because an answer already given points
+at the question it answered. Nothing is sent — no notification, no queue entry,
+no delivery — and nobody is re-asked. Whoever answers next meets the questions
+as they now stand; answers already given are left exactly as they were,
+including a choice answer that is no longer among the options. A cancelled
+event is still refused: it is asking nobody anything.
+
+The participation table shows the questions as they now stand, not as they
+stood when each person answered. `question_responses` stores the answer and a
+reference to the live question row, and no snapshot of the wording, so what was
+on screen at the time is not recoverable. Recording it would need a schema
+change and an owner decision; neither is in this change.
 
 ### `W4-02` — the audience
 
@@ -293,6 +321,8 @@ not and why**, and what will not move at all. The button says what it will do.
 | **The clock is 24-hour, deliberately drawn on every machine**                        | LAN-326, Brian 2026-09-11, reversing Q-27    |
 | **The event detail page names the audience by its groups too, before its people**    | Q-28, round 2                                |
 | Template values flow per field into unapproved drafts; approval freezes them         | D41, refined 2026-08-21                      |
+| **Approval no longer freezes the questions; they stay editable, silently**           | LAN-318, Brian 2026-09-11, amending D41      |
+| **A question cannot be removed once the event has left draft**                       | LAN-318, Brian 2026-09-11                    |
 | No approved event and no past event ever changes                                     | W8                                           |
 | An abandoned draft is deleted, permanently, after a confirmation naming it           | D29                                          |
 | Only a draft may be deleted; an approved event is cancelled                          | D29, W6                                      |
@@ -387,6 +417,11 @@ the change and says so on the confirmation before anything is saved.
 | The review names the audience by groups first, and shows the questions      | `audience-selection.test.ts`, `screens.test.tsx`            |
 | The event detail page names the audience by groups first too                | `screens.test.tsx`                                          |
 | The confirmation names what will and will not move                          | `event-templates.test.ts`, `templates/screens.test.tsx`     |
+| Enter in a question field submits nothing, and Save draft still does        | `screens.test.tsx`                                          |
+| No field in the editor is offered the operator's own saved details          | `screens.test.tsx`                                          |
+| An approved event's questions change in place and send nothing              | `event-questions.test.ts`, `actions.test.ts`                |
+| A question cannot be removed once the event has left draft                  | `event-questions.test.ts`, `screens.test.tsx`               |
+| An answer already given survives the question being reworded or re-optioned | `event-questions.test.ts`                                   |
 
 ## Where the rules live
 

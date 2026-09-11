@@ -236,6 +236,7 @@ function templateInput(overrides: Partial<EventTemplateInput> = {}): EventTempla
 
 function question(overrides: Partial<EventQuestionInput> = {}): EventQuestionInput {
   return {
+    id: null,
     prompt: "Can you get yourself to the ground?",
     answerType: "boolean",
     isRequired: false,

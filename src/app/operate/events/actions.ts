@@ -8,6 +8,7 @@ import {
   createEventDraft,
   deleteEventDraft,
   updateEventDraft,
+  updateEventQuestions,
   validateEventDraft,
   validateEventQuestions,
 } from "@/lib/services/events";
@@ -56,6 +57,7 @@ function readQuestions(formData: FormData): RawEventQuestion[] | null {
   const strings = (field: string) =>
     formData.getAll(field).map((value) => (typeof value === "string" ? value : ""));
 
+  const ids = strings("questionId");
   const prompts = strings("questionPrompt");
   const answerTypes = strings("questionAnswerType");
   const required = strings("questionRequired");
@@ -63,6 +65,7 @@ function readQuestions(formData: FormData): RawEventQuestion[] | null {
   const fromTemplate = strings("questionFromTemplate");
 
   return prompts.map((prompt, index) => ({
+    id: ids[index] ?? "",
     prompt,
     answerType: answerTypes[index] ?? "",
     required: required[index] ?? "",
@@ -162,6 +165,46 @@ export async function updateEventDraftAction(
   revalidatePath("/operate/events");
   revalidatePath(`/operate/events/${eventId}`);
   redirect(destinationAfterSave(formData, eventId));
+}
+
+/**
+ * Changes what an approved event asks — LAN-318, amending D41. The same question editor the draft
+ * uses, on its own, with nothing else on the form and no Remove control. Nothing is sent: this
+ * action queues no notification and touches no delivery.
+ */
+export async function updateEventQuestionsAction(
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const operator = await requireCapability("event_calendar_management");
+  const eventId = text(formData, "eventId");
+  const rawQuestions = readQuestions(formData);
+
+  const questions = validateEventQuestions(rawQuestions ?? []);
+  if (!questions.ok) {
+    return {
+      issues: [],
+      questionIssues: questions.issues,
+      error: null,
+      values: null,
+      questions: rawQuestions,
+    };
+  }
+
+  try {
+    await updateEventQuestions(operator.personId, eventId, questions.value as EventQuestionInput[]);
+  } catch (error) {
+    return {
+      issues: [],
+      questionIssues: [],
+      error: messageFor(error),
+      values: null,
+      questions: rawQuestions,
+    };
+  }
+
+  revalidatePath(`/operate/events/${eventId}`);
+  redirect(`/operate/events/${eventId}`);
 }
 
 /** Deletes a draft, permanently — `REQ-delete-draft`, D29. */

@@ -1503,6 +1503,39 @@ describe("an approved event, which this screen never edits", () => {
     expect(screen.queryByRole("link", { name: /choose audience/i })).toBeNull();
   });
 
+  it("offers Edit questions, which is the one thing it does now edit (LAN-318)", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    const edit = screen.getByTestId("edit-questions");
+    expect(edit).toBeVisible();
+    expect(edit).toHaveAttribute("href", `/operate/events/${EVENT_ID}/edit`);
+  });
+
+  it("offers it on nothing else — not a draft, not a cancelled event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    const draft = render(await EventDetailPage(detailProps()));
+    expect(draft.queryByTestId("edit-questions")).toBeNull();
+    draft.unmount();
+
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
+    render(await EventDetailPage(detailProps()));
+    expect(screen.queryByTestId("edit-questions")).toBeNull();
+  });
+
+  it("offers it to nobody who cannot manage the calendar", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("edit-questions")).toBeNull();
+  });
+
   it("drops the no-invitations statement once the event is approved", async () => {
     // It used to be kept for `pending_approval` too. LAN-151 removed that
     // status from the enum, so `draft` is the only state the rule applies to —
@@ -1621,15 +1654,86 @@ describe("the edit view — UX-31 against an existing draft", () => {
     );
   });
 
-  it("refuses to open an editor for an event that is not a draft", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+  it("refuses to open an editor for a cancelled event", async () => {
+    // LAN-318 opened this route to an approved event's questions; a cancelled
+    // event is asking nobody anything, so it is still refused outright.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
 
     render(await EditEventPage(editProps()));
 
     expect(flatten(screen.getByTestId("edit-refused").textContent)).toContain(
-      "Only a draft can be edited. This event is approved.",
+      "Only a draft can be edited. This event is cancelled.",
     );
     expect(screen.queryByTestId("event-form")).toBeNull();
+    expect(screen.queryByTestId("event-questions-form")).toBeNull();
+  });
+});
+
+describe("LAN-318 — an approved event's questions are edited, and nothing else is", () => {
+  /**
+   * Brian, 2026-09-11, amending D41: approval used to freeze the questions, so
+   * this route refused an approved event outright. It now answers with the
+   * question editor alone — the event's own facts still change only through
+   * the amend path, which tells people, and this one tells nobody.
+   */
+  beforeEach(() => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+    vi.mocked(readEventQuestions).mockResolvedValue([
+      {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        prompt: "Are you fit?",
+        answerType: "boolean",
+        choices: null,
+        isRequired: false,
+        sortOrder: 0,
+        fromTemplate: false,
+      },
+    ]);
+  });
+
+  it("opens the question editor rather than refusing", async () => {
+    render(await EditEventPage(editProps()));
+
+    expect(screen.queryByTestId("edit-refused")).toBeNull();
+    expect(screen.getByTestId("event-questions-form")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Edit questions" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save questions" })).toBeVisible();
+  });
+
+  it("carries each stored question's id, so the set is updated and not rewritten", async () => {
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(container.querySelector<HTMLInputElement>('input[name="questionId"]')?.value).toBe(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
+    expect(container.querySelector<HTMLInputElement>('input[name="eventId"]')?.value).toBe(
+      EVENT_ID,
+    );
+  });
+
+  it("offers no Remove, because an answer already given points at the question", async () => {
+    render(await EditEventPage(editProps()));
+
+    expect(screen.queryByTestId("remove-question")).toBeNull();
+    // Everything else about a question is still editable, and one can be added.
+    expect(screen.getByTestId("add-question")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: /^Question$/ })).toHaveValue("Are you fit?");
+  });
+
+  it("edits nothing but the questions — no name, no date, no audience", async () => {
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(container.querySelector('input[name="name"]')).toBeNull();
+    expect(container.querySelector('input[name="scheduledOn"]')).toBeNull();
+    expect(container.querySelector('input[name="venue"]')).toBeNull();
+  });
+
+  it("still offers Remove on a draft, where nobody has been asked anything", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EditEventPage(editProps()));
+
+    expect(screen.getByTestId("remove-question")).toBeVisible();
   });
 });
 
