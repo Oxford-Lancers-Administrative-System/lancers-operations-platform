@@ -119,8 +119,7 @@ function plan(base: MessagingSchedule, overrides: Partial<MessagingPlan> = {}): 
     ...Array.from({ length: wanted }, (_, index) => ({
       rung: index + 1,
       kind: "reminder" as const,
-      channel: (index < whatsappRemindersAfterInvitation ? "sms" : "email") as
-        "sms" | "email",
+      channel: (index < whatsappRemindersAfterInvitation ? "sms" : "email") as "sms" | "email",
       at: new Date(invitationAt.getTime() + (index + 1) * base.reminderCadenceHours * HOUR_MS),
     })),
   ];

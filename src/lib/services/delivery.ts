@@ -1824,9 +1824,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         responseState: row.response_state ?? "not_solicited",
         noUsableRoute,
         whatsappUnresponsive:
-          row.channel === "sms" &&
-          row.state === "failed" &&
-          row.fallback_status === "completed",
+          row.channel === "sms" && row.state === "failed" && row.fallback_status === "completed",
         seasonMembershipId: row.season_membership_id,
         // Independent of `state`, and deliberately so: UX-51 shows Result and
         // Retry as separate columns because a **Failed** delivery whose cause a

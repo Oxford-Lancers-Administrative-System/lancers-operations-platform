@@ -978,8 +978,7 @@ export async function dispatchEscalationJob(
           context.channel,
           context.provider.name,
         );
-        const fallbackId =
-          channel === "sms" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
+        const fallbackId = channel === "sms" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
         return { outcome: { kind: "no-send" }, fallbackId };
       }
 
@@ -997,8 +996,7 @@ export async function dispatchEscalationJob(
           context.channel,
           context.provider.name,
         );
-        const fallbackId =
-          channel === "sms" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
+        const fallbackId = channel === "sms" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
         return { outcome: { kind: "no-send" }, fallbackId };
       }
 
@@ -1110,9 +1108,7 @@ export async function dispatchEscalationJob(
     // that reached the ceiling — mirroring `dispatchJob`'s identical
     // condition for a player-facing job.
     const terminal = !outcome.retryable || claimed.attemptNumber >= MAX_ATTEMPTS;
-    return terminal && channel === "sms"
-      ? await scheduleEscalationFallbackIn(tx, jobId)
-      : null;
+    return terminal && channel === "sms" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
   });
 
   if (secondFallbackId) await dispatchEscalationFallbackBestEffort(secondFallbackId, options);
