@@ -61,6 +61,32 @@ export const INVITATION_LINK_TYPE = "invite";
 export const INVITATION_DESTINATION_PATH = RESET_PASSWORD_PATH;
 
 /**
+ * Where an invitation that could **not** be exchanged lands — LAN-311.
+ *
+ * Until this existed, both outcomes went to `/reset-password`, and a failed
+ * invitation was therefore told "This password-reset link is no longer valid …
+ * request a new one". The invitee has never had a password and never asked for
+ * a reset, and the remedy they were pointed at — `/forgot-password` — cannot
+ * work for them. Clint followed exactly that loop and reported "REQUESTING LINK
+ * GIVES SAME ERROR".
+ *
+ * A second destination is not a second message about *why* the token failed.
+ * Expired, spent and wrong-type all arrive here and read the same sentence, so
+ * the no-oracle property `/auth/recovery` established is unchanged: an
+ * unauthenticated visitor learns nothing about any account from this screen. It
+ * is the *journey* that is distinguished, not the failure — and the journey is
+ * something the visitor already knows, because they are holding the invitation
+ * email that sent them.
+ */
+export const INVITATION_UNUSABLE_PATH = "/invitation-link";
+
+/** Shown when the invitation context is missing, spent, expired or the wrong type. LAN-311. */
+export const INVALID_INVITATION_LINK_MESSAGE =
+  "This invitation link cannot be used. An invitation link works once and expires after a short " +
+  "time. Ask whoever set up your account to send the invitation again, then follow the link in " +
+  "the most recent email.";
+
+/**
  * A shape check on the emailed token hash, before any network call.
  *
  * GoTrue issues one token-hash form for every email link type it sends, so this
