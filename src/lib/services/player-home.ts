@@ -9,20 +9,10 @@ import { personDisplayAliasSql } from "./sql-text";
 /**
  * Reads and writes for the two pages LAN-172 adds beyond the answer link
  * itself: the answer-specific landing content, and the player's own durable
- * page. LAN-79's `readSignedRsvpPageIn` already owns "one invitation, one
- * player, one standing answer" — this module adds what that page never
- * needed: an aggregate count across the whole event, the event's own
- * questions, and a second person's-eye-view across every invitation they
- * hold.
- *
- * ## The privacy contract, restated for this module specifically
- *
- * Every query here is scoped by a `personId` or an `invitationId` that the
- * caller has already resolved from a live, verified credential — never from a
- * request parameter taken on trust. `readPlayerHomeIn` in particular is the
- * one place in the codebase that returns *more than one invitation* to an
- * unauthenticated caller, and its whole safety rests on `personId` coming from
- * `resolvePersonTokenIn`, never from the browser.
+ * page. Every query is scoped by a `personId`/`invitationId` the caller has
+ * already resolved from a live, verified credential, never a request
+ * parameter taken on trust; `readPlayerHomeIn`'s safety rests entirely on
+ * `personId` coming from `resolvePersonTokenIn`.
  */
 
 /** The event's start instant, aliased to whichever table alias a query uses. */
@@ -32,35 +22,15 @@ function eventStartExpression(alias: string): string {
 
 const EVENT_START_EXPRESSION = eventStartExpression("e");
 
-/**
- * Q-20's ruling: the main sections show only events within this many days;
- * everything beyond sits in one separate section the player can open.
- * `REQ-approved-means-visible` is unaffected — nothing is hidden, only moved
- * further down the same page. A single named constant, not a setting: Brian,
- * 2026-08-26, "I'd rather get this out and see what the functionality looks
- * like rather than change it."
- */
-export const PLAYER_HOME_HORIZON_DAYS = 21;
+/** Main sections show only events within this many days (Q-20); everything beyond sits in one separate section. */
+const PLAYER_HOME_HORIZON_DAYS = 21;
 
-/**
- * Owner correction round 5 (OWNER-LAN172-15): the one shared definition of
- * "within Q-26's horizon", so every count that claims to agree with the
- * horizon-scoped heading (`outstandingCount` in `readPlayerHomeIn`,
- * `otherOutstandingCount` in `readPlayerAnswerLandingIn`) reads it from here
- * rather than each restating its own `make_interval`. Brian's own report was
- * exactly this disagreement: a heading that said nothing was outstanding
- * beside a sentence that said three invitations were still waiting — two
- * windows, each individually correct, disagreeing on the same page.
- */
+/** The one shared "within horizon" definition, so `outstandingCount` and `otherOutstandingCount` cannot drift (OWNER-LAN172-15). */
 function eventWithinHorizonExpression(alias: string): string {
   return `${eventStartExpression(alias)} <= now() + make_interval(days => ${PLAYER_HOME_HORIZON_DAYS})`;
 }
 
-// ---------------------------------------------------------------------------
-// The answer-specific landing content
-// ---------------------------------------------------------------------------
-
-export interface EventQuestionAnswer {
+interface EventQuestionAnswer {
   readonly text: string | null;
   readonly boolean: boolean | null;
   readonly choice: string | null;
@@ -82,17 +52,7 @@ export interface PlayerAnswerLanding {
   readonly outstandingRequiredQuestions: number;
 }
 
-/**
- * Everything `readSignedRsvpPageIn` does not already return for one
- * invitation: the live Yes count for its event, how many *other* invitations
- * this same player still needs to answer, and the event's own questions with
- * whatever this invitation has already answered.
- *
- * A zero Yes count is returned as `0`, not omitted — omission is a
- * message-copy rule (`attendingSentence` in `templates.ts`), not a page rule;
- * the page always has room to say "Nobody has said yes yet" or nothing, and
- * that choice belongs to the component, not the read.
- */
+/** Everything `readSignedRsvpPageIn` does not return: live Yes count, other outstanding invitations, and the event's questions. Zero Yes is `0`, not omitted. */
 export async function readPlayerAnswerLandingIn(
   tx: Tx,
   invitationId: string,
@@ -123,10 +83,7 @@ export async function readPlayerAnswerLandingIn(
     [row.event_id],
   );
 
-  // Owner correction round 5 (OWNER-LAN172-15): scoped to the same 21-day
-  // horizon `outstandingCount` uses (Q-26), via the one shared expression, so
-  // the two numbers can no longer drift — Brian's report was this exact
-  // sentence disagreeing with an already horizon-scoped heading.
+  // OWNER-LAN172-15: same horizon as outstandingCount (Q-26), via the shared expression.
   const outstanding = row.person_id
     ? await tx.query<{ count: string }>(
         `select count(*) as count
@@ -187,7 +144,7 @@ export async function readPlayerAnswerLandingIn(
   };
 }
 
-export const QUESTION_ANSWER_REQUIRES_A_VALUE_RULE = "event_question_answer_requires_a_value";
+const QUESTION_ANSWER_REQUIRES_A_VALUE_RULE = "event_question_answer_requires_a_value";
 
 /** What the form posts for one question. Exactly one of the three is set. */
 export interface QuestionAnswerSubmission {
@@ -197,13 +154,7 @@ export interface QuestionAnswerSubmission {
   readonly choice?: string | null;
 }
 
-/**
- * Reads every `q_<questionId>` / `qkind_<questionId>` pair a `QuestionField`
- * put on a form — shared between `/a/[token]`'s own landing-page form (owner
- * correction round 5, OWNER-LAN172-12) and `/me/[token]`'s focused panel, so
- * the two surfaces that ask an event's questions parse the same submitted
- * shape identically rather than each hand-rolling the same loop.
- */
+/** Reads every `q_<questionId>`/`qkind_<questionId>` pair a `QuestionField` put on a form — shared by `/a/[token]` and `/me/[token]`. */
 export function parseQuestionSubmissions(form: FormData): QuestionAnswerSubmission[] {
   const submissions: QuestionAnswerSubmission[] = [];
   for (const [key, value] of form.entries()) {
@@ -223,20 +174,7 @@ export function parseQuestionSubmissions(form: FormData): QuestionAnswerSubmissi
   return submissions;
 }
 
-/**
- * Saves the questions a Yes still owes the event, or refuses.
- *
- * Refuses the whole batch rather than saving some and refusing others — a
- * forced failure must leave no partial completed answer, per LAN-172's
- * acceptance list. Everything commits together because the caller wraps this
- * in the same transaction as everything else on the request.
- *
- * `personId` must come from a resolved, verified credential — never from the
- * request — and is re-proved against the invitation here, the same way
- * `recordPlayerHomeAnswerIn` proves it for the standing-answer write. Without
- * this, `invitationId` alone is enough to overwrite anyone's answers, because
- * an invitation's existence says nothing about who is submitting the form.
- */
+/** Saves the questions a Yes still owes, or refuses the whole batch (no partial save, LAN-172). `personId` re-proved against the invitation. */
 export async function answerEventQuestionsIn(
   tx: Tx,
   personId: string,
@@ -301,10 +239,6 @@ export async function answerEventQuestionsIn(
   }
 }
 
-// ---------------------------------------------------------------------------
-// The durable, season-scoped player page
-// ---------------------------------------------------------------------------
-
 export interface PlayerHomeInvitation {
   readonly invitationId: string;
   readonly eventId: string;
@@ -320,7 +254,7 @@ export interface PlayerHomeInvitation {
   readonly responseDeadline: Date | null;
   /** The live Yes count for this event — the same aggregate the answer link shows. */
   readonly attendingCount: number;
-  /** Whether the club has already chased this invitation with a reminder rung — see `PlayerHome`'s own doc comment. */
+  /** Whether the club has already chased this invitation with a reminder rung. */
   readonly reminderSent: boolean;
   readonly standingAnswer: "yes" | "no" | null;
   /** The No's reason, verbatim — the default or whatever real reason replaced it. */
@@ -330,41 +264,15 @@ export interface PlayerHomeInvitation {
 }
 
 /**
- * Owner correction round 2 (LAN-172, Q-22/Q-23): the approved W2-05 mockup
- * draws four sections, not two — `New invitations`, `Still need your
- * answer`, `Follow-up needed`, `Your answers — still to come`
- * (`W2-answer-an-invitation.md:201-210`). The first ticket collapsed this to
- * two sections on the reasoning that "new" versus "still need an answer"
- * needs an opened/unopened column no table carries. That reasoning was never
- * put to Brian, and LAN-169 has since shipped the messaging ladder: whether
- * this player has already been *chased* — a WhatsApp reminder or the email
- * rung has actually gone out — is now a real, derivable fact
- * (`notification_jobs.job_type = 'reminder'`, the same predicate
- * `stopChasingIn` already uses for Q-12's cancellation scope). An invitation
- * still on its first contact is `New`; one the club has already chased once
- * moves to `Still need your answer`. This is not literal "the player opened
- * the link" — Q-11 keeps the answer link's GET side-effect-free, so that
- * literal fact can never be tracked without violating the release gate — but
- * it is a genuine structural distinction the data supports, not an invented
- * one.
+ * Four sections (W2-05 mockup): `New` vs `Still need your answer` is whether
+ * the club has already chased this invitation, not whether the player opened
+ * the link (Q-11 keeps the GET side-effect-free).
  */
 export interface PlayerHome {
   readonly playerName: string;
-  /**
-   * Owner correction round 3 (LAN-172, Q-26): scoped to approved and within
-   * the horizon — the same set the near-term sections render, never
-   * further-out unanswered work. Brian's ruling overrides the count's
-   * original horizon-independent definition: "The six outstanding should
-   * just be the ones within the 21-day time horizon." A player whose only
-   * outstanding work sits beyond the horizon sees zero here and their work
-   * in `furtherOut` — that is intended, not a bug.
-   */
+  /** Scoped to approved and within the horizon (Q-26) — never further-out unanswered work. */
   readonly outstandingCount: number;
-  /**
-   * The single soonest unanswered invitation across `newInvitations` and
-   * `stillNeedAnswer` combined — "the next invitation is visually dominant"
-   * (`W2-answer-an-invitation.md:204`). Null when nothing needs an answer.
-   */
+  /** The single soonest unanswered invitation across `newInvitations` and `stillNeedAnswer`. Null when nothing needs an answer. */
   readonly nextInvitationId: string | null;
   readonly newInvitations: readonly PlayerHomeInvitation[];
   readonly stillNeedAnswer: readonly PlayerHomeInvitation[];
@@ -374,11 +282,7 @@ export interface PlayerHome {
   readonly furtherOut: readonly PlayerHomeInvitation[];
 }
 
-/**
- * A standing No still carrying the honest default, or a Yes still owing
- * questions. Exported so the page can classify a mixed `furtherOut` entry the
- * same way the four near-term sections already were.
- */
+/** A standing No still carrying the honest default, or a Yes still owing questions. */
 export function needsFollowUp(
   entry: Pick<
     PlayerHomeInvitation,
@@ -391,15 +295,7 @@ export function needsFollowUp(
   );
 }
 
-/**
- * Everything this person's own page shows — their own work, and nothing that
- * belongs to anybody else. Scoped entirely by `personId`, which the caller
- * must already have resolved from a live durable token.
- *
- * `REQ-approved-means-visible`: the `where e.status = 'approved'` predicate
- * has no dispatch condition beside it, so an invitation is here from the
- * moment its event is approved — whether or not any message has gone out yet.
- */
+/** Everything this person's own page shows, scoped by `personId` (a resolved, durable token). No dispatch gate — visible once the event is approved. */
 export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<PlayerHome> {
   const person = await tx.query<{ player_name: string }>(
     `select concat_ws(' ',
@@ -534,18 +430,9 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
 }
 
 export const INVITATION_NOT_OWNED_RULE = "player_home_invitation_not_owned";
-export const INVITATION_WRITE_WINDOW_CLOSED_RULE = "player_home_write_window_closed";
+const INVITATION_WRITE_WINDOW_CLOSED_RULE = "player_home_write_window_closed";
 
-/**
- * Records a Yes/No change made from the player's own page, or refuses.
- *
- * The durable token proves *who this is*, never *which invitation* — so every
- * write here re-proves ownership inside the same transaction that does the
- * writing, exactly the discipline `recordSignedLinkResponse` already applies
- * to the per-invitation link. An invitation belonging to somebody else is
- * refused identically to one that does not exist: `REQ-cross-person-isolation`
- * extends to the durable page's own writes, not only its reads.
- */
+/** Records a Yes/No change from the player's own page, or refuses; ownership is re-proved here, inside the transaction. */
 export async function recordPlayerHomeAnswerIn(
   tx: Tx,
   personId: string,

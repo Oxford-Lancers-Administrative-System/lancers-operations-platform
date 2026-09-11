@@ -9,21 +9,12 @@ import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
 import type { RecordAnswerState } from "./record-answer-state";
 
 /**
- * Records what an operator was told in person — W3, LAN-170.
- *
- * The floor is `requireGeneralOperator()`, matching `readOperatorParticipation`
- * exactly: the workflow's own "which operator roles may record" question is
- * still open for Brian (recorded in the packet as "Open — needs Brian"), and
- * its recommended default — "any authorized operator who can already see the
- * participation table" — is the boundary the read side already draws. This
- * action asks for nothing narrower, so it is never the reason a role that can
- * see the row cannot use the control on it.
- *
- * `RecordAnswerControl` is rendered only against a row with no answer at all —
- * see `participation-table.tsx` — but that is the courtesy the surface offers,
- * never the boundary. `recordOperatorRsvpResponse` re-resolves the invitation
- * inside its own transaction and does not trust anything this action read
- * off a stale render.
+ * Records what an operator was told in person — W3, LAN-170. Floor is
+ * `requireGeneralOperator()`, matching `readOperatorParticipation` — "which
+ * operator roles may record" is still open for Brian. `RecordAnswerControl`
+ * is rendered only against a row with no answer at all, but that is the
+ * surface's courtesy, not the boundary: `recordOperatorRsvpResponse`
+ * re-resolves the invitation inside its own transaction.
  */
 
 function text(formData: FormData, field: string): string {
@@ -40,13 +31,7 @@ function messageFor(error: unknown): string {
 
 const QUESTION_FIELD_PREFIX = "question:";
 
-/**
- * Every `question:<id>` field the dialog posted, keyed back to the bare
- * question id `recordOperatorRsvpResponse` expects. A field the operator left
- * blank still arrives (an empty string), and stays blank all the way down —
- * `recordOperatorRsvpResponse` treats that as "left outstanding", never as "no
- * answer" the way a stored response would.
- */
+/** Every `question:<id>` field the dialog posted, keyed to the bare question id. A blank field stays blank — treated as "left outstanding", not "no answer". */
 function questionAnswersFrom(formData: FormData): Record<string, string> {
   const answers: Record<string, string> = {};
   for (const [key, value] of formData.entries()) {
@@ -81,10 +66,7 @@ export async function recordOperatorAnswerAction(
     return { error: messageFor(error), success: false };
   }
 
-  // No redirect: the dialog closes itself on `success`, and the table
-  // underneath refreshes from the same revalidation — the operator keeps
-  // their place in the list, the way every other row action in this
-  // application already does.
+  // No redirect: the dialog closes on `success`, table refreshes from revalidation.
   revalidatePath(`/operate/events/${eventId}`);
   return { error: null, success: true };
 }

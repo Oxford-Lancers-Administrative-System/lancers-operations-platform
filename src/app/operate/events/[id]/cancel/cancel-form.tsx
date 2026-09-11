@@ -33,27 +33,12 @@ import {
 } from "../change-presentation";
 
 /**
- * W6 — the most consequential single click in the mission.
- *
- * It is irreversible, it messages the whole audience by default, and one person
- * can do it alone at seven in the morning while looking at a waterlogged pitch.
- * That is deliberate — a flooded pitch does not wait for a quorum — so the
- * confirmation carries the weight instead, and the weight is carried by leading
- * with the number of people expecting to be there rather than with the event's
- * name.
- *
- * ## The tick, and the screen behind it
- *
- * The default follows the event's date, not the operator's habit: on for a
- * future event, off for a past one, because the silent path exists for tidying
- * up a session weeks gone that was never held. Turning it off on a **future**
- * event opens the confirmation, which names the people affected — the same rule
- * `W5` uses, for the same reason.
- *
- * `silenceConfirmed` is a hidden field rather than a decision this component
- * keeps to itself, because the service checks it too: a browser can post
- * straight to the action, and the acceptance evidence is about what cannot be
- * done rather than about what the screen offers.
+ * W6 — the most consequential single click in the mission. Irreversible,
+ * messages the whole audience by default, doable alone. The notify tick
+ * defaults on the event's date (D58, D31): on for future, off for past;
+ * turning it off on a future event opens confirmation (same rule as W5).
+ * `silenceConfirmed` travels as a hidden field because the service checks
+ * it too — a browser can post straight to the action.
  */
 export default function CancelForm({
   eventId,
@@ -138,11 +123,7 @@ export default function CancelForm({
                   label={CANCEL_TELL_EVERYONE_LABEL}
                 />
               </Box>
-              {/*
-                Only where moving the tick will stop and ask. A past event has
-                nothing to warn about, so it says nothing rather than
-                explaining why the tick starts where it does.
-              */}
+              {/* Only where moving the tick will stop and ask — a past event has nothing to warn about. */}
               {cancelNotifyDefaultDetail(isFuture) ? (
                 <Typography
                   variant="body2"

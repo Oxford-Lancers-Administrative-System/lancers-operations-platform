@@ -7,14 +7,7 @@ import { gateShellPage } from "@/app/operate/gate";
 import { pickPlayerMembershipId } from "../../picks";
 import PlayerRecordPreview from "./player-record-preview";
 
-/**
- * S2 — the player record, on the kit. LAN-225.
- *
- * `/operate/roster/[membershipId]` for one seeded active player, read through
- * the same gate and the same service, redacted for the reader's role exactly
- * as the real page redacts it. Content unchanged; in-place editing is drawn as
- * values, not wired.
- */
+/** S2 — the player record, on the kit (LAN-225). Same gate/service/redaction as `/operate/roster/[membershipId]`. In-place editing drawn as values, not wired. */
 export default async function PlayerPreviewPage() {
   const gate = await gateShellPage("/design-preview/player", "person_record_authority");
   if ("screen" in gate) return gate.screen;

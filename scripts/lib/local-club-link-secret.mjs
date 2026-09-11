@@ -23,7 +23,7 @@ import { coordinatorPaths } from "./local-supabase-coordinator.mjs";
  * **It is not the production key and has no hosted counterpart.** The hosted
  * value lives in Secret Manager and is Brian's to set.
  */
-export function clubLinkSecretPath(repoPath, env = process.env) {
+function clubLinkSecretPath(repoPath, env = process.env) {
   return path.join(coordinatorPaths(repoPath, env).root, "club-link-secret.json");
 }
 

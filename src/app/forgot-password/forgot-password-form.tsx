@@ -12,21 +12,11 @@ import { requestPasswordReset, type ForgotPasswordState } from "./actions";
 const initialState: ForgotPasswordState = { status: "idle" };
 
 /**
- * The recovery request form.
- *
- * The confirmation replaces the form rather than sitting under it. That is a
- * usability choice — the next action is in the inbox, not on this page — and it
- * also removes the resend button, which is the control that would otherwise
- * make the per-address frequency limit easy to probe. Someone who genuinely
- * needs a second email reloads the page, which is one deliberate step.
- *
- * The two states name their secondary action differently, on purpose. While the
- * form is on screen the pair is **Reset password** and **Cancel** — Brian's
- * wording, approved on 15 August 2026 — because there is something in progress
- * to abandon. Once the request has been answered there is not: the only thing
- * left is to go back, so the confirmation says **Back to sign in**. Offering to
- * cancel something that has already happened would be a lie about what the
- * button does.
+ * The recovery request form. The confirmation replaces the form, not sits
+ * under it — no resend button, which would make the frequency limit easy to
+ * probe. "Reset password" and "Cancel" while the form is on screen (Brian,
+ * approved 15 August 2026); "Back to sign in" once answered — nothing left
+ * in progress to cancel.
  */
 export default function ForgotPasswordForm({ signInHref }: { signInHref: string }) {
   const [state, formAction, pending] = useActionState(requestPasswordReset, initialState);

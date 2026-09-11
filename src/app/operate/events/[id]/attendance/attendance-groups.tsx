@@ -9,70 +9,16 @@ import type { AttendanceParticipant } from "@/lib/services/attendance-vocabulary
 import { AttendanceRow } from "./attendance-row";
 import { groupParticipants, type ParticipantGroupKey } from "./presentation";
 
-/**
- * The board's three groups, and the disclosure over them — Brian, 14 August
- * 2026. Which people are in which group, and why there are three, is in
- * `groupParticipants` in `./presentation.ts`; this is only about opening and
- * closing them.
- *
- * ## What is open when
- *
- * **Attending** is open, **Everyone else** is closed, **Walk-ups** is open, and
- * the recorder can change any of them. That is the register's own shape: the
- * people who said they were coming are the list you work through, the rest is a
- * place to go when somebody turns up who should not have, and the walk-ups are
- * the receipt for what you just did.
- *
- * ## Searching opens all of them, and closing the search puts them back
- *
- * A search that only looked inside the section you happened to have open would
- * be a search that lies — the recorder types a name, sees nothing, and concludes
- * the person is not on the event. So while a search is active every group is
- * open regardless of what it was.
- *
- * And when the search is cleared they return to **what they were before it**,
- * not to the default. That is the difference between a disclosure the recorder
- * controls and one that resets itself under them: somebody who deliberately
- * opened Everyone else, searched for a name and cleared the search would
- * otherwise find it shut again.
- *
- * The reconciliation happens during render rather than in an effect, so the
- * groups are already open in the render that first shows the results — see the
- * note beside it.
- *
- * ## Why the groups are computed here and not on the server
- *
- * They are computed in `presentation.ts`, which both sides import; this
- * component calls it. The reason it is called *here* rather than in the page is
- * the search: the page already filters, and grouping the filtered list in one
- * place means the counts beside each heading always describe the rows actually
- * under it. A count computed server-side before filtering would say 14 above a
- * section showing one.
- */
+// The board's three groups, and the disclosure over them — Brian, 14 August 2026.
 
 type GroupOpenState = Record<ParticipantGroupKey, boolean>;
 
 interface OpenState extends GroupOpenState {
-  /** What to go back to when the search clears. `null` when not searching. */
   saved: GroupOpenState | null;
-  /** The search state this was last reconciled against. */
   searching: boolean;
 }
 
-/**
- * Recruits open, Attending open, Everyone else closed — and **Walk-ups open**.
- *
- * Recruits is open for the same reason Attending is — Brian, on the fidelity
- * mockup: "recruits open because they are the point of a recruitment event."
- *
- * Walk-ups is not an inconsistency with Everyone else being closed. A walk-up
- * group is empty at almost every event, and an empty group is not drawn at
- * all, so the open state costs nothing until there is something in it. When
- * there is, it is because the recorder just added somebody thirty seconds ago
- * and was returned to this board to see it: closing the only confirmation
- * that the walk-up was recorded would be the one place a disclosure actively
- * hides what the operator did.
- */
+// Recruits/Attending/Walk-ups open, Everyone else closed — Brian, fidelity mockup.
 const DEFAULT_OPEN: OpenState = {
   recruits: true,
   attending: true,
@@ -91,11 +37,8 @@ export function AttendanceGroups({
   mayRemove,
 }: {
   eventId: string;
-  /** Whether to draw the Recruits group at all — `groupParticipants` reads it too. */
   eventType: string;
-  /** Already filtered by the page. Grouped and sorted here. */
   participants: AttendanceParticipant[];
-  /** The current search text, from the query string. */
   search: string;
   showMismatch: boolean;
   mayRemove: boolean;
@@ -103,12 +46,8 @@ export function AttendanceGroups({
   const [open, setOpen] = useState<OpenState>(DEFAULT_OPEN);
   const searching = search.trim() !== "";
 
-  // Adjusted during render rather than in an effect. React documents this as
-  // the way to reconcile state with a changed prop, and it is the right shape
-  // here for a reason beyond the lint rule: the groups must already be open in
-  // the render that first shows the search results, not opened a frame later.
-  // The updater is pure and returns `prev` when nothing applies, so it settles
-  // in one pass and is safe under development's double invocation.
+  // Adjusted during render, not an effect — groups must already be open in
+  // the render that first shows the search results.
   if (open.searching !== searching) {
     setOpen((prev) => {
       if (searching) {
@@ -137,10 +76,6 @@ export function AttendanceGroups({
   return (
     <Stack spacing={2} data-testid="attendance-groups">
       {groups.map((group) => {
-        // A group with nobody in it is not rendered at all. Under a filter that
-        // is the honest answer — an empty "Attending (0)" heading reads as a
-        // team that nobody said yes to — and the page's own filter-empty notice
-        // covers the case where both are empty.
         if (group.participants.length === 0) return null;
 
         const isOpen = open[group.key];
@@ -176,14 +111,7 @@ export function AttendanceGroups({
   );
 }
 
-/**
- * Toggles one group.
- *
- * It also clears `saved`, which matters: once the recorder has deliberately
- * opened or closed a section *during* a search, that is the state they want
- * kept, and restoring an older one when the search clears would undo a choice
- * they just made.
- */
+/** Clears `saved` too — a deliberate open/close during a search is the state to keep. */
 function toggle(
   setOpen: (update: (prev: OpenState) => OpenState) => void,
   key: ParticipantGroupKey,

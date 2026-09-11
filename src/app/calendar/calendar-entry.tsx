@@ -5,64 +5,23 @@ import { labelFor } from "@/lib/services/event-vocabulary";
 import { formatCellDate, templateColour } from "./presentation";
 
 /**
- * One event, inside a calendar cell. LAN-114.
- *
- * ## Colour is the template; words are status
- *
- * Brian's reviews on 14 August 2026 settled both halves, and they fit together
- * because they answer different questions. LAN-276 correction round 1 moved
- * which fact the colour half reads: a template's own colour rather than its
- * behavioural class, so an operator-created template no longer shows
- * Practice's blue by accident.
- *
- * **The template has the colour.** The club's term cards colour by what the
- * event is, and ours rendered everything grey — "every event is grey versus by
- * type". So the tile is tinted and edged by the template's own colour, and
- * nothing else on it is distinguished by hue. The template's name is also
- * printed in words, so a reader who cannot separate two hues loses nothing.
- *
- * **Status has the words, when it has anything** — and *which* words is the
- * caller's decision since LAN-153, because a status is a tiered fact. The two
- * predicates below are still here, and `./tile-status.ts` is where each tier
- * turns them into the word this component prints.
- *
- * The states that mean the event **did not or will not happen** get the one
- * non-colour treatment on the tile: the name is struck through. That reads at a
- * glance without competing with the type palette, and it survives being printed
- * in black and white.
- *
- * The **accessible name always carries everything** — date, time, status, type,
- * venue — including the status the tile stays quiet about. Quieting a tile is a
- * presentation choice; hiding it from a screen reader would be a loss.
- *
- * ## A link, to the one detail record
- *
- * The destination arrives as `href`, and each tier passes the same one its list
- * rows use — `/operate/events/<id>` or `/calendar/<id>`. That is what makes
- * `REQ-three-arrangements`'s "every tile and row leads to the same event page"
- * true by construction rather than by three routes that happen to agree.
+ * One event, inside a calendar cell. LAN-114. Colour is the template (its own
+ * colour, not behavioural class, since LAN-276 r1); words are status, and
+ * which words is the caller's decision since LAN-153, via `./tile-status.ts`.
+ * A did-not/will-not-happen event gets struck through. The accessible name
+ * always carries everything, including what the tile stays quiet about. The
+ * destination arrives as `href` — each tier passes the same one its list rows
+ * use, making `REQ-three-arrangements` true by construction.
  */
 
-/**
- * The statuses a tile stays quiet about: the event is proceeding normally, and
- * the date already says whether that is ahead of us or behind us.
- *
- * One, since LAN-151 — and the date saying it is now the whole mechanism,
- * because `occurred` is derived from exactly that rather than stored (D30).
- */
+/** The statuses a tile stays quiet about. One, since LAN-151 — `occurred` is derived from the date rather than stored (D30). */
 const QUIET_STATUSES: readonly string[] = Object.freeze(["approved"]);
 
 export function isQuietStatus(status: string): boolean {
   return QUIET_STATUSES.includes(status);
 }
 
-/**
- * The statuses that mean the event did not, or will not, take place.
- *
- * One, and terminal. D57: a cancelled event stays on the calendar marked
- * cancelled and is never removed — an event that silently disappears reads as a
- * sync failure.
- */
+/** The statuses that mean the event did not, or will not, take place. D57: stays on the calendar marked cancelled, never removed. */
 const STRUCK_STATUSES: readonly string[] = Object.freeze(["cancelled"]);
 
 export function isStruckStatus(status: string): boolean {
@@ -78,27 +37,11 @@ export default function CalendarEntry({
   showDate = false,
 }: {
   event: CalendarEvent;
-  /**
-   * Where the tile goes. Supplied by the caller because the two tiers have two
-   * event pages — `/operate/events/<id>` and `/calendar/<id>` — and a tile that
-   * chose for itself would send a public reader to a route they cannot open.
-   */
+  /** Where the tile goes. Caller-supplied: the two tiers have two event pages, and a tile that chose for itself could send a public reader to a route they cannot open. */
   href: string;
-  /**
-   * The word to print, or `null` to say nothing.
-   *
-   * A prop rather than a lookup on the event, because a status is a tiered fact
-   * (`REQ-three-tiers`) and this component serves both tiers. `./tile-status.ts`
-   * is where each tier decides: the operator tier prints everything but
-   * "Approved", and the public tier prints "Cancelled" and nothing else, because
-   * a public reader learns that an event is off (D57) and not that it is a draft.
-   */
+  /** The word to print, or `null`. A prop, not a lookup — status is a tiered fact (`REQ-three-tiers`); `./tile-status.ts` decides per tier. */
   statusWord?: string | null;
-  /**
-   * The word the accessible name carries, including the quiet one. Defaults to
-   * `statusWord`, so a caller that has only one word does not have to say it
-   * twice.
-   */
+  /** The word the accessible name carries, including the quiet one. Defaults to `statusWord`. */
   announcedStatus?: string | null;
   /** True for an event that did not, or will not, take place. */
   struck?: boolean;

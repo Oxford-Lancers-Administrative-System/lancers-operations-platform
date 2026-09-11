@@ -10,23 +10,10 @@ import {
 import { resolveRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
 import type { DuplicateCheckResult, SignupFieldValues, SignupOutcome } from "./signup-form";
 
-/**
- * The QR door's two server actions — LAN-202. Both are plain async functions a
- * Client Component calls directly (never through `<form action>`, because the
- * QR door's own branching — ask "have you signed up before?" only when it has
- * something to ask — needs a result back before deciding what to render next).
+/** The QR door's two server actions — LAN-202. Plain async functions a Client Component calls directly, not through `<form action>`, since branching needs a result back before deciding what to render.
  */
 
-/**
- * `W7`'s duplicate probe. Read-only; returns a bare boolean, never a
- * candidate's own details or a database identifier (LAN-208).
- *
- * Gated by `code` resolving to a live, non-deactivated season — the same
- * check {@link submitQrSignup} makes before its own write. Codes are printed
- * on posters and this is otherwise callable by anyone who has ever loaded any
- * `/join/[code]` page; a deactivated or unknown code refuses the probe rather
- * than leaving it reachable indefinitely.
- */
+/** `W7`'s duplicate probe. Read-only, returns a bare boolean, never details or a database id (LAN-208). Gated by `code` resolving to a live season — codes are printed on posters. */
 export async function checkForExistingQrRecruit(
   code: string,
   givenName: string,
@@ -54,19 +41,12 @@ function toSubmission(values: SignupFieldValues & { consent: boolean }): SignupS
 }
 
 /**
- * The QR door's one write. `code` is bound by the page (`submitQrSignup.bind(null, code)`)
- * before this reaches the client, so the client never carries the code as
- * form data of its own — it is the credential the URL already supplied.
- *
- * `confirmedExistingMatch` is a bare boolean — "the recruit pressed 'Yes,
- * that's me' on the probe's own question" — never a person id (LAN-208): the
- * probe that asked the question never handed one back, so there is nothing
- * for the client to echo. When true, this re-runs the *exact same* strict
- * given-name-and-phone match {@link probeExistingRecruitForQrSignup} used,
- * against `values.givenName`/`values.mobile` as the recruit has them typed
- * right now, and links to whatever that resolves to — `signUpAnonymouslyIn`
- * falls back to creating a new person if it resolves to nothing or to a
- * merged-away row, exactly as it already does for a stale id.
+ * The QR door's one write. `code` is bound by the page before this reaches
+ * the client — it never carries the code as its own form data.
+ * `confirmedExistingMatch` is a bare boolean, never a person id (LAN-208):
+ * when true, re-runs the same strict name-and-phone match the probe used,
+ * against the values as typed now, falling back to a new person if it
+ * resolves to nothing.
  */
 export async function submitQrSignup(
   code: string,

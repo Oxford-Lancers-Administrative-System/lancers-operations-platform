@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
-import { Field, SelectField } from "@/components/field";
+import { Field } from "@/components/field";
 import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -27,14 +27,11 @@ import {
   previewEventTemplateAction,
   saveEventTemplateAction,
 } from "./actions";
-import { EMPTY_TEMPLATE_FORM_STATE, type TemplateFormState } from "./form-state";
+import { EMPTY_TEMPLATE_FORM_STATE } from "./form-state";
+import { ChangePlan } from "./template-change-plan";
+import { issueFor, TemplateEventFields } from "./template-form-fields";
 import {
-  changeTouchesNothing,
   confirmSaveAction,
-  describeDuration,
-  draftsHolding,
-  draftsTaking,
-  draftTakes,
   TEMPLATE_AUDIENCE_HEADLINE,
   TEMPLATE_COLOUR_HEADLINE,
   TEMPLATE_COLOUR_HELP,
@@ -44,76 +41,27 @@ import {
   TEMPLATE_DELETE_ACTION,
   TEMPLATE_DELETE_TITLE,
   TEMPLATE_DISCARD_ACTION,
-  TEMPLATE_DURATION_LABEL,
   TEMPLATE_DURATION_OPTIONS,
-  TEMPLATE_EVENT_HEADLINE,
   TEMPLATE_NAME_HEADLINE,
   TEMPLATE_NAME_HELP,
   TEMPLATE_QUESTIONS_HEADLINE,
   TEMPLATE_SAVE_ACTION,
-  TEMPLATE_UNTOUCHED_HEADLINE,
   templateDeleteQuestion,
-  untouchedApproved,
-  untouchedPast,
 } from "./presentation";
 
-/**
- * W8-02 and W8-03 — one template, and what changing it will touch.
- *
- * ## Two submissions of one form
- *
- * **Save…** posts to `previewEventTemplateAction`, which writes nothing and
- * returns the blast radius. The dialog then posts the *same fields* to
- * `saveEventTemplateAction`, which recomputes that blast radius under its own
- * locks and applies it. The operator is never shown one plan and given another,
- * and the browser is never trusted to carry a plan forward — it carries the
- * form, and the server decides again.
- *
- * That is why the dialog re-renders every field as a hidden input rather than
- * posting an identifier for something the server stashed. There is no server-side
- * draft to go stale, and no session state to disagree with the form.
- *
- * ## The screen's whole job
- *
- * W8: "An operator who has never used this should be able to tell, from the
- * screen, that editing a template is safe." So the confirmation names the drafts
- * that will take the change, names the ones that will not **and why**, and states
- * what will not move at all — approved events and past events, which are never
- * touched by anything here.
- *
- * The button says what it will do. "Save and update 3 drafts" is a different
- * promise from "Save", and the operator should not have to infer which one they
- * are making.
- */
+// W8-02 and W8-03 — one template, and what changing it will touch. Save…
+// previews (no write); the dialog re-posts to saveEventTemplateAction, which
+// recomputes under its own locks.
 
 export interface TemplateEditorProps {
-  /**
-   * The template being edited, or `null` when this is **New template**.
-   *
-   * One component for both, on the same reasoning `EventForm` gives for create
-   * and edit: they are the same screen with the same rules, and the differences
-   * are the action it posts to, the heading above it and whether the fields
-   * start empty. LAN-265.
-   */
+  /** One component for create and edit — same screen, same rules (LAN-265). */
   templateId: string | null;
-  /** What the club calls it. The heading, and the word every event of it reads. */
   eventTypeLabel: string;
   initial: RawEventTemplate;
   initialQuestions: RawEventQuestion[];
-  /** The groups this template may carry — recruits on Recruitment alone (D46). */
   groups: readonly AudienceGroup[];
-  /**
-   * How many events were created from this template — LAN-265.
-   *
-   * Decides whether **Delete** is offered at all. Zero on a template nobody has
-   * used, and on the new-template form, where there is nothing to delete yet and
-   * the control is absent for that reason instead.
-   */
+  /** Decides whether Delete is offered — zero on an unused or new template. */
   eventCount: number;
-}
-
-function issueFor(state: TemplateFormState, field: keyof RawEventTemplate): string | undefined {
-  return state.issues.find((issue) => issue.field === field)?.message;
 }
 
 export default function TemplateEditor({
@@ -132,10 +80,6 @@ export default function TemplateEditor({
     saveEventTemplateAction,
     EMPTY_TEMPLATE_FORM_STATE,
   );
-  // Its own slot rather than a share of `saveState`: a delete that is refused
-  // ("events have already been created from this") is not a failed save, and
-  // showing it through the save form's state would leave the change plan and
-  // the refusal fighting over the same banner. LAN-265.
   const [deleteState, deleteAction, deletingNow] = useActionState(
     deleteEventTemplateAction,
     EMPTY_TEMPLATE_FORM_STATE,
@@ -145,27 +89,15 @@ export default function TemplateEditor({
     EMPTY_TEMPLATE_FORM_STATE,
   );
 
-  /**
-   * Creating skips the preview, and the form posts straight to the write.
-   *
-   * `previewEventTemplateAction` exists because saving an existing template can
-   * reach drafts the operator was not thinking about. A template that does not
-   * exist yet has no drafts, so the dialog would be asking somebody to approve
-   * nothing happening to anybody — see `createEventTemplateAction`.
-   */
+  // Creating skips the preview and posts straight to the write — nothing exists yet to have a blast radius.
   const creatingNew = templateId === null;
 
-  // The later of the two outcomes wins. A save that has produced anything is
-  // the current answer about this template; before that, the preview is.
   const state = creatingNew
     ? createState
     : saveState.phase === "editing" && saveState.error === null
       ? previewState
       : saveState;
 
-  // Every field is controlled from here, so a refused submission keeps what the
-  // operator typed without the action having to hand it back — and so the
-  // dialog can re-post exactly what the form holds.
   const text = (field: keyof RawEventTemplate): string => {
     const raw = initial[field];
     return typeof raw === "string" ? raw : "";
@@ -177,7 +109,6 @@ export default function TemplateEditor({
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [...initialQuestions]);
   const [name, setName] = useState(text("name"));
   const [colourKey, setColourKey] = useState(text("colourKey"));
-  /** Whether the delete confirmation is open. Nothing is written until it is. */
   const [deleting, setDeleting] = useState(false);
   const [venue, setVenue] = useState(text("defaultVenue"));
   const [deliveryMode, setDeliveryMode] = useState(text("defaultDeliveryMode") || "unset");
@@ -186,27 +117,15 @@ export default function TemplateEditor({
   const [equipment, setEquipment] = useState(text("defaultRequiredEquipment"));
   const [attendance, setAttendance] = useState(text("defaultAttendance") || "unset");
 
-  /**
-   * The plan the operator has already dismissed with **Back**.
-   *
-   * Compared by identity rather than by a boolean, so a *new* preview reopens the
-   * dialog without anything having to reset a flag. Nothing was written, so
-   * dismissing is genuinely free — there is no draft on the server to discard.
-   */
+  // Compared by identity, not a boolean, so a new preview reopens the dialog without resetting a flag.
   const [dismissed, setDismissed] = useState<TemplateChangePlan | null>(null);
 
   const confirming =
     !creatingNew && state.phase === "confirming" && state.plan !== null && state.plan !== dismissed;
   const busy = previewing || saving || deletingNow || creating;
 
-  /**
-   * C6's off-grid case: a template saved before the eight-option grid existed
-   * can hold a duration that is not one of them. A `select` refuses to show a
-   * value that is not one of its own options, and snapping it to the nearest
-   * one would silently change what the template means, so this becomes a
-   * ninth `MenuItem`, truthfully labelled, only while it is what is selected
-   * — choosing any of the eight makes it disappear.
-   */
+  // C6's off-grid case: a duration saved before the eight-option grid existed
+  // becomes a truthful ninth MenuItem, only while selected.
   const offGridDuration =
     duration !== "" && !TEMPLATE_DURATION_OPTIONS.includes(Number(duration))
       ? Number(duration)
@@ -218,7 +137,6 @@ export default function TemplateEditor({
     );
   }
 
-  /** Every field, as the dialog has to re-post it. One place, so they agree. */
   const hiddenFields = (
     <>
       {templateId === null ? null : <input type="hidden" name="templateId" value={templateId} />}
@@ -270,13 +188,6 @@ export default function TemplateEditor({
         {templateId === null ? null : <input type="hidden" name="templateId" value={templateId} />}
 
         <Stack spacing={3}>
-          {/*
-            LAN-265. The one field a template cannot leave undecided, and the
-            first one on the screen because it is the only thing an operator
-            ever sees of a template anywhere else in the application. The helper
-            text states the consequence of a rename rather than leaving somebody
-            to discover it: Brian, 2026-09-09, asked for it out loud.
-          */}
           <Section title={TEMPLATE_NAME_HEADLINE}>
             <Field
               label="Name"
@@ -291,14 +202,6 @@ export default function TemplateEditor({
             />
           </Section>
 
-          {/*
-            LAN-276 correction round 1. Brian, walking the review environment,
-            2026-09-10: "In the template, swatch color should be something
-            that gets chosen, so it gets added as part of the template." A
-            fixed palette of swatches, never a free hex value — the same
-            pattern the audience-group buttons below use, so a value is
-            posted only once it has genuinely been chosen.
-          */}
           <Section title={TEMPLATE_COLOUR_HEADLINE}>
             <Stack spacing={1.5}>
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
@@ -346,7 +249,6 @@ export default function TemplateEditor({
             </Stack>
           </Section>
 
-          {/* D47 — the default audience, as groups and never as people. */}
           <Section title={TEMPLATE_AUDIENCE_HEADLINE}>
             <Stack spacing={2}>
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
@@ -375,124 +277,24 @@ export default function TemplateEditor({
             </Stack>
           </Section>
 
-          <Section title={TEMPLATE_EVENT_HEADLINE}>
-            <Stack spacing={3}>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <SelectField
-                  label="Where"
-                  name="defaultDeliveryMode"
-                  data-field="defaultDeliveryMode"
-                  value={deliveryMode}
-                  onChange={(event) => setDeliveryMode(event.target.value)}
-                  error={Boolean(issueFor(state, "defaultDeliveryMode"))}
-                  helperText={issueFor(state, "defaultDeliveryMode")}
-                  disabled={busy}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  options={[
-                    { value: "unset", label: "Not set" },
-                    { value: "in_person", label: "In person" },
-                    { value: "online", label: "Online" },
-                  ]}
-                />
+          <TemplateEventFields
+            state={state}
+            busy={busy}
+            deliveryMode={deliveryMode}
+            onDeliveryModeChange={setDeliveryMode}
+            venue={venue}
+            onVenueChange={setVenue}
+            duration={duration}
+            onDurationChange={setDuration}
+            offGridDuration={offGridDuration}
+            equipment={equipment}
+            onEquipmentChange={setEquipment}
+            description={description}
+            onDescriptionChange={setDescription}
+            attendance={attendance}
+            onAttendanceChange={setAttendance}
+          />
 
-                <Field
-                  label="Venue"
-                  name="defaultVenue"
-                  data-field="defaultVenue"
-                  value={venue}
-                  onChange={(event) => setVenue(event.target.value)}
-                  error={Boolean(issueFor(state, "defaultVenue"))}
-                  helperText={issueFor(state, "defaultVenue")}
-                  disabled={busy}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                />
-              </Stack>
-
-              {/*
-                D78. A duration, not a start time — "the name is always going to
-                be unique ... Usual time doesn't make any sense to me" (Brian,
-                2026-08-21). A type recurs; a particular Wednesday does not.
-
-                C6. Brian: "In the template, the default times should be done
-                in 30-minute increments between 30 minutes and 4 hours ... It
-                shouldn't be freeform text." Eight options, each labelled by
-                the same `describeDuration` the template list and the
-                confirmation dialog already use — see `offGridDuration` above
-                for the one existing-template case a fixed grid has to answer.
-              */}
-              <SelectField
-                label={TEMPLATE_DURATION_LABEL}
-                name="defaultDurationMinutes"
-                data-field="defaultDurationMinutes"
-                value={duration}
-                onChange={(event) => setDuration(event.target.value)}
-                error={Boolean(issueFor(state, "defaultDurationMinutes"))}
-                helperText={issueFor(state, "defaultDurationMinutes")}
-                disabled={busy}
-                slotProps={{ inputLabel: { shrink: true } }}
-                options={[
-                  { value: "", label: "Not set" },
-                  ...(offGridDuration !== null
-                    ? [{ value: String(offGridDuration), label: describeDuration(offGridDuration) }]
-                    : []),
-                  ...TEMPLATE_DURATION_OPTIONS.map((minutes) => ({
-                    value: String(minutes),
-                    label: describeDuration(minutes),
-                  })),
-                ]}
-              />
-
-              {/* LAN-264. Free text that behaves exactly like Description below. */}
-              <Field
-                label="Required equipment"
-                name="defaultRequiredEquipment"
-                data-field="defaultRequiredEquipment"
-                value={equipment}
-                onChange={(event) => setEquipment(event.target.value)}
-                error={Boolean(issueFor(state, "defaultRequiredEquipment"))}
-                helperText={issueFor(state, "defaultRequiredEquipment")}
-                disabled={busy}
-                multiline
-                minRows={3}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-
-              <Field
-                label="Description"
-                name="defaultDescription"
-                data-field="defaultDescription"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                error={Boolean(issueFor(state, "defaultDescription"))}
-                helperText={issueFor(state, "defaultDescription")}
-                disabled={busy}
-                multiline
-                minRows={3}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-
-              <SelectField
-                label="Attendance"
-                name="defaultAttendance"
-                data-field="defaultAttendance"
-                value={attendance}
-                onChange={(event) => setAttendance(event.target.value)}
-                disabled={busy}
-                slotProps={{ inputLabel: { shrink: true } }}
-                options={[
-                  { value: "unset", label: "Not set" },
-                  { value: "mandatory", label: "Mandatory" },
-                  { value: "optional", label: "Optional" },
-                ]}
-              />
-            </Stack>
-          </Section>
-
-          {/*
-            D42. The questions every event of this type arrives with. The same
-            editor the event form uses, because they are the same thing — one
-            marked as coming from the template when it lands on an event.
-          */}
           <QuestionEditor
             questions={questions}
             onChange={setQuestions}
@@ -521,14 +323,8 @@ export default function TemplateEditor({
                     : TEMPLATE_SAVE_ACTION}
               </Button>
             }
-            /*
-              LAN-265, "delete when unused". Absent rather than disabled on a
-              template the club has used: a control that is always there and
-              usually refuses teaches an operator to ignore it, and the sentence
-              under the list already says why this one is missing. The service
-              refuses regardless — `events_template_fkey` is `on delete
-              restrict` — so this is a courtesy and never the boundary.
-            */
+            // LAN-265: absent, not disabled, on a used template — the service
+            // refuses regardless (events_template_fkey ON DELETE RESTRICT).
             secondary={
               templateId !== null && eventCount === 0 ? (
                 <Button
@@ -570,11 +366,6 @@ export default function TemplateEditor({
           {state.plan ? <ChangePlan plan={state.plan} eventTypeLabel={eventTypeLabel} /> : null}
         </DialogContent>
         <DialogActions>
-          {/*
-            Back closes the dialog and leaves the form exactly as it was. It
-            posts nothing, because nothing was written to undo — the preview
-            took locks, read rows and released them.
-          */}
           <Button
             onClick={() => setDismissed(state.plan)}
             disabled={busy}
@@ -598,14 +389,7 @@ export default function TemplateEditor({
         </DialogActions>
       </Dialog>
 
-      {/*
-        LAN-265 — deleting a template, confirmed by name.
-        The same shape D29 gives a draft's own delete: one dialog, naming the
-        thing, and the destructive button saying what it destroys. It is offered
-        only where nothing was ever created from this template, so there is no
-        blast radius to preview — which is exactly why this is a sentence and not
-        the change plan the save path shows.
-      */}
+      {/* LAN-265 — deleting a template, confirmed by name, same shape as D29's draft delete. */}
       <Dialog
         open={deleting}
         onClose={() => (busy ? undefined : setDeleting(false))}
@@ -642,112 +426,6 @@ export default function TemplateEditor({
           </Box>
         </DialogActions>
       </Dialog>
-    </Stack>
-  );
-}
-
-/** W8-03's three panels: what moves, what does not, and what never does. */
-function ChangePlan({
-  plan,
-  eventTypeLabel,
-}: {
-  plan: TemplateChangePlan;
-  eventTypeLabel: string;
-}) {
-  const approved = untouchedApproved(plan.untouched.approved, eventTypeLabel);
-  const past = untouchedPast(plan.untouched.past, eventTypeLabel);
-
-  return (
-    <Stack spacing={2}>
-      {plan.fieldChanges.length > 0 || plan.questionChanges.length > 0 ? (
-        <Box data-testid="plan-changes">
-          {plan.fieldChanges.map((change) => (
-            <Typography variant="body2" key={change.field}>
-              {`${change.label}: `}
-              <Box
-                component="span"
-                sx={{ textDecoration: "line-through", color: "text.secondary" }}
-              >
-                {change.from}
-              </Box>
-              {" → "}
-              <strong>{change.to}</strong>
-            </Typography>
-          ))}
-          {plan.questionChanges.map((change) => (
-            <Typography variant="body2" key={`${change.kind}:${change.prompt}`}>
-              {`Question ${change.kind}: `}
-              <strong>{change.prompt}</strong>
-            </Typography>
-          ))}
-        </Box>
-      ) : null}
-
-      {plan.audienceBefore.join(", ") !== plan.audienceAfter.join(", ") ? (
-        <Typography variant="body2" data-testid="plan-audience-change">
-          {`Invites by default: `}
-          <Box component="span" sx={{ textDecoration: "line-through", color: "text.secondary" }}>
-            {plan.audienceBefore.join(", ") || "Not set"}
-          </Box>
-          {" → "}
-          <strong>{plan.audienceAfter.join(", ") || "Not set"}</strong>
-        </Typography>
-      ) : null}
-
-      {plan.taking.length > 0 ? (
-        <Section title={draftsTaking(plan.taking.length)} testId="plan-taking">
-          {plan.taking.map((draft) => (
-            <Box key={draft.id} sx={{ mb: 1 }}>
-              <Typography variant="body2">
-                {draft.name}
-                {draft.scheduledOn ? ` · ${draft.scheduledOn}` : ""}
-              </Typography>
-              {draftTakes(draft).map((takes) => (
-                <Typography variant="body2" color="text.secondary" key={takes}>
-                  {takes}
-                </Typography>
-              ))}
-            </Box>
-          ))}
-        </Section>
-      ) : (
-        <Notice severity="info" testId="plan-touches-nothing">
-          {changeTouchesNothing(eventTypeLabel)}
-        </Notice>
-      )}
-
-      {plan.holding.length > 0 ? (
-        <Section title={draftsHolding(plan.holding.length)} testId="plan-holding">
-          {plan.holding.map((draft) => (
-            <Box key={draft.id} sx={{ mb: 1 }}>
-              <Typography variant="body2">
-                {draft.name}
-                {draft.scheduledOn ? ` · ${draft.scheduledOn}` : ""}
-              </Typography>
-              {draft.reasons.map((reason) => (
-                <Typography variant="body2" color="text.secondary" key={reason}>
-                  {reason}
-                </Typography>
-              ))}
-            </Box>
-          ))}
-        </Section>
-      ) : null}
-
-      {approved || past ? (
-        <Section title={TEMPLATE_UNTOUCHED_HEADLINE} testId="plan-untouched">
-          {approved ? (
-            <Typography variant="body2" color="text.secondary">
-              {approved}
-            </Typography>
-          ) : null}
-          {past ? (
-            <Typography variant="body2" color="text.secondary">
-              {past}
-            </Typography>
-          ) : null}
-        </Section>
-      ) : null}
     </Stack>
   );
 }

@@ -5,30 +5,15 @@ import type {
   MessagingScheduleChange,
 } from "@/lib/services/messaging-schedule";
 
-/**
- * The messaging schedule page's own words — W7, LAN-171.
- *
- * Presentation only: every function here is pure and decides nothing. The
- * worked-example arithmetic itself lives in `messaging-schedule.ts` and is
- * read through `resolveMessagingPlanIn`, exactly as W7's acceptance evidence
- * requires — "the values shown are the ones the scheduler actually uses —
- * read from the same source, never transcribed". What is here is only how
- * that already-resolved plan becomes the rows a reader sees.
- */
+// The messaging schedule page's own words — W7, LAN-171. Presentation only,
+// pure — the worked-example arithmetic lives in messaging-schedule.ts and is
+// read, never transcribed (W7's acceptance evidence).
 
 export const MESSAGING_SCHEDULE_TITLE = "Messaging schedule";
 
 export const MESSAGING_SCHEDULE_INTRO =
   "When the club messages people about each kind of event, and when an unanswered invitation " +
   "reaches the President.";
-
-export const MESSAGING_SCHEDULE_RULE_HEADLINE =
-  "The invitation goes first, then a reminder every cadence until they run out — WhatsApp, " +
-  "then email last.";
-
-export const MESSAGING_SCHEDULE_RULE_DETAIL =
-  "Days are counted before the event starts. Open any row for a worked example. There are no " +
-  "quiet hours.";
 
 export const MESSAGING_SCHEDULE_FOOTER =
   "Changes take effect for events approved afterwards. Events already approved keep the " +
@@ -38,29 +23,14 @@ export const SHOW_EXAMPLE = "Show an example";
 export const HIDE_EXAMPLE = "Hide an example";
 export const NO_SCHEDULE_CHANGES_NOTICE = "Nothing had changed, so there was nothing to save.";
 
-// ---------------------------------------------------------------------------
-// LAN-203 — the page's three sections (W10, Brian 2026-08-31)
-// ---------------------------------------------------------------------------
-
 export const RECRUITMENT_SECTION_HEADING = "Recruitment";
-export const RECRUITMENT_SECTION_INTRO = "What the club sends after somebody is captured.";
 
 export const EVENT_MESSAGING_SECTION_HEADING = "Event messaging";
-export const EVENT_MESSAGING_SECTION_INTRO =
-  "What an event sends, and how it chases, by event type.";
 
 export const ONBOARDING_SECTION_HEADING = "Onboarding";
-export const ONBOARDING_SECTION_NOTE = "Not built yet.";
-
-// ---------------------------------------------------------------------------
-// LAN-218 — the Onboarding section itself, `W11`
-// ---------------------------------------------------------------------------
 
 export const ONBOARDING_CHASE_ROW_LABEL = "Onboarding checklist";
 export const ONBOARDING_CHASE_SAVE_LABEL = "SAVE ONBOARDING";
-export const ONBOARDING_CHASE_SECTION_NOTE =
-  "One packet, chased on one link. When the count runs out the chase is exhausted and a person " +
-  "takes over.";
 
 export function onboardingChaseSavedNotice(): string {
   return "Onboarding's chase was updated.";
@@ -89,14 +59,7 @@ export function cycleStepSaveFailedNotice(label: string): string {
 export const REGULAR_PLAYERS_GROUP_HEADING = "Regular players";
 export const RECRUITS_GROUP_HEADING = "Recruits";
 
-/**
- * One save button per event type (OWNER-LAN171-04) — Brian: "I think there
- * should be a save button per event. Having one group save at the top
- * doesn't really make a lot of sense." `label` is `TYPE_LABELS`' own
- * capitalised form ("Practice"); this lowercases only its first letter, so
- * the button reads "Save practice" rather than restating the row's own
- * heading in full capitals.
- */
+/** One save button per event type — OWNER-LAN171-04, Brian. */
 export function saveRowButtonLabel(label: string): string {
   return `Save ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
 }
@@ -105,12 +68,7 @@ export function scheduleSavedNotice(label: string): string {
   return `${label}'s schedule was updated.`;
 }
 
-/**
- * The values one row's form actually submitted, in the club's units — for
- * {@link scheduleSaveFailedNotice}, which names them rather than making the
- * operator guess what was lost.
- */
-export function summarizeScheduleValues(change: MessagingScheduleChange): string {
+function summarizeScheduleValues(change: MessagingScheduleChange): string {
   return (
     `RSVP by ${change.rsvpByDays} days, first invitation ${change.invitationLeadDays} days, ` +
     `cadence ${change.reminderCadenceHours} h, WhatsApp ${change.whatsappReminderCount}, ` +
@@ -118,15 +76,8 @@ export function summarizeScheduleValues(change: MessagingScheduleChange): string
   );
 }
 
-/**
- * A write that genuinely failed — OWNER-LAN171-02. The generic
- * `UnexpectedDatabaseError` sentence ("The database could not complete this
- * change... Please try again") is deliberately vague everywhere else in this
- * codebase, because most callers have no safe, non-PII detail to add. This
- * screen does: which row, and which values it tried to save. Retrying without
- * changing anything cannot help a deterministic rejection, so this never
- * suggests it.
- */
+// OWNER-LAN171-02: names the row and the values, unlike the generic
+// UnexpectedDatabaseError sentence elsewhere.
 export function scheduleSaveFailedNotice(label: string, change: MessagingScheduleChange): string {
   return (
     `${label}'s schedule could not be saved as submitted (${summarizeScheduleValues(change)}). ` +
@@ -134,15 +85,8 @@ export function scheduleSaveFailedNotice(label: string, change: MessagingSchedul
   );
 }
 
-/**
- * A plan instant, in the club's own zone — "Tue 15 Sep, 20:00".
- *
- * A comma rather than the event page's middle dot, matching the approved
- * `W7-02` mockup's own punctuation for this surface. The month comes from
- * `shortMonthOf`'s fixed table rather than a second `Intl` call — recent ICU
- * data renders `{ month: "short" }` for September as "Sept" in `en-GB`, and
- * this club abbreviates every month to three letters everywhere else.
- */
+// A plan instant — comma, not the event page's middle dot (approved W7-02
+// mockup); month from shortMonthOf's fixed table, not a second Intl call.
 export function formatScheduleWhen(at: Date): string {
   const part = (options: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "Europe/London" }).format(at);
@@ -159,32 +103,23 @@ export function formatScheduleWhen(at: Date): string {
   return `${weekday} ${day} ${month}, ${time}`;
 }
 
-/** One line of the worked example — a step, its date, and why. */
-export interface PreviewStep {
+interface PreviewStep {
   readonly label: string;
   readonly when: string;
   readonly note: string;
 }
 
 export interface SchedulePreview {
-  /** "the event takes place Tue 22 Sep, 20:00, four weeks from today, and is approved today." */
   readonly introDetail: string;
   readonly steps: readonly PreviewStep[];
-  /** The gap sentence, or `null` where the last reminder lands at or after the deadline. */
   readonly warning: string | null;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
 
-/**
- * Turns one already-resolved worked-example plan into the rows a row's
- * disclosure draws.
- *
- * `plan` is resolved against a synthetic event four weeks from today, at
- * 20:00 — the page's own worked example, built the same way for every type so
- * the seven rows are comparable. The arithmetic is `resolveMessagingPlanIn`'s;
- * this only narrates it.
- */
+// Turns one already-resolved worked-example plan (a synthetic event four
+// weeks out, 20:00, the same for every type) into the rows a disclosure
+// draws — resolveMessagingPlanIn's arithmetic, narrated here.
 export function buildSchedulePreview(
   plan: MessagingPlan,
   schedule: MessagingSchedule,

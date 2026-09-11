@@ -3,12 +3,10 @@ import { parseEventPeriod, type EventPeriod } from "@/lib/services/event-periods
 import type { SortLink } from "./sortable-header";
 
 /**
- * Reading the query string an event list arrives with. LAN-153.
- *
- * Shared by the public list and the operator's, because they carry the same
- * parameters and a second reader of the same URL is a second set of defaults
- * waiting to disagree. Nothing here decides what a reader may *see* — that is
- * `@/lib/auth/event-tier` — only what they asked for.
+ * Reading the query string an event list arrives with. LAN-153. Shared by
+ * the public list and the operator's, so a second reader of the same URL is
+ * not a second set of defaults waiting to disagree. Decides only what a
+ * reader asked for, never what they may see (`@/lib/auth/event-tier`).
  */
 
 export type QueryParams = Record<string, string | string[] | undefined>;
@@ -30,14 +28,7 @@ export interface ListQuery {
   filtered: boolean;
 }
 
-/**
- * What the list was asked for.
- *
- * `allowedSorts` is the tier's whitelist: an unrecognised column falls back to
- * the default rather than erroring, and the public tier's list simply does not
- * include the operator's count columns — so `?sort=said_yes` on the public
- * calendar sorts by date and says nothing about a column that exists elsewhere.
- */
+/** What the list was asked for. `allowedSorts` is the tier's whitelist — an unrecognised column falls back to the default rather than erroring. */
 export function readListQuery(params: QueryParams, allowedSorts: readonly string[]): ListQuery {
   const requested = first(params.sort);
   const sort = allowedSorts.includes(requested) ? requested : DEFAULT_EVENT_SORT;
@@ -62,13 +53,7 @@ export function readListQuery(params: QueryParams, allowedSorts: readonly string
   };
 }
 
-/**
- * The href a column header links to, carrying every other parameter.
- *
- * Clicking the active column flips its direction; clicking another takes that
- * column's own default. The period travels too, so sorting does not quietly
- * widen or narrow what is in view.
- */
+/** The href a column header links to, carrying every other parameter, so sorting doesn't quietly widen or narrow what's in view. */
 export function sortLinkFactory({
   basePath,
   query,

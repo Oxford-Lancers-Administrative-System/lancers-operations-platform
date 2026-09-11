@@ -13,20 +13,11 @@ import { createClient } from "@/lib/supabase/server";
 import ResetPasswordForm from "./reset-password-form";
 
 /**
- * `/reset-password` — LAN-125.
- *
- * Reached only from `/auth/recovery`, which has already exchanged the emailed
- * token for a session and stripped it from the URL. This page never sees a
- * token, and there is nothing in its address bar worth protecting; the headers
- * are still set, in `src/proxy.ts`, because it is the page a new password is
- * typed into.
- *
- * The only question it asks is whether the current session came from a recovery
- * link. A missing, malformed, expired, spent or wrong-type link all arrive here
- * the same way — with no recovery session — and all get the same screen, which
- * is why `/auth/recovery` needs no error codes. An **ordinary** signed-in
- * session gets that screen too: being signed in is not permission to change the
- * password without knowing it.
+ * `/reset-password` — LAN-125. Reached only from `/auth/recovery`, which has
+ * already exchanged the emailed token for a session and stripped it from the
+ * URL. Asks only whether the current session came from a recovery link —
+ * missing/malformed/expired/spent/wrong-type/ordinary-signed-in all arrive
+ * with no recovery session and get the same screen.
  */
 export const metadata: Metadata = {
   title: "Choose a new password — Lancers Operations",

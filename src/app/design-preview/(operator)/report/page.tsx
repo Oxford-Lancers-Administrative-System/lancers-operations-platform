@@ -9,13 +9,7 @@ import { gateShellPage } from "@/app/operate/gate";
 import { isGridSort, todayInClubZone } from "@/app/operate/report/presentation";
 import ReportPreview from "./report-preview";
 
-/**
- * S6 — the Monday report, on the kit. LAN-225.
- *
- * `/operate/report` for today, read through the same gate and the same
- * service (`fileNew` is never passed, so the preview files nothing the real
- * page would not file on arrival). Content and order unchanged.
- */
+/** S6 — the Monday report, on the kit (LAN-225). Same gate/service as `/operate/report`; `fileNew` never passed. Content unchanged. */
 export default async function ReportPreviewPage({
   searchParams,
 }: PageProps<"/design-preview/report">) {

@@ -35,39 +35,13 @@ export interface AssignableRole {
 const CREATE_NEW = "";
 
 /**
- * The guided invitation — `REQ-invite-existing-person`, LAN-133.
- *
- * ## The duplicate check comes first, and it is the point
- *
- * `DEC-minimal-person-creation`: "operator invitation includes duplicate-checked
- * create-or-link Person". The club's whole identity model rests on one durable
- * Person per human (`DEC-person-account-role-separation`), and the single most
- * likely way to break it is to invite somebody who is already a player by
- * typing their name into a blank form. So the same four fields feed the search
- * and the invitation: the administrator types who they mean once, is shown
- * everybody it might be, and either links one of them or says plainly that this
- * is somebody new.
- *
- * A candidate who already has an operator login is shown with the state of that
- * login. `inviteOperator` refuses them — one person has one login, however many
- * roles they hold — and saying so here means the refusal is understood before
- * it happens rather than after.
- *
- * ## The operating year is not a field
- *
- * `DEC-active-operating-year`: "Forms do not ask for or repeat the year." The
- * active context is inherited by the service and there is no control here that
- * could name another, which is also what makes a past year read-only — there is
- * no code path by which an assignment can be created in one.
- *
- * ## The fourth step is the operator's own record
- *
- * The reviewed prototype ends on a "Sent" panel. This ends by going to the
- * account that was just created, which is where the delivery result, the resend
- * control and the audit history already live — the same information, on the
- * page the administrator would have to open next anyway. A delivery failure
- * lands there too, with the reason, rather than on a confirmation screen that
- * would have to be a second place to recover from one.
+ * The guided invitation — `REQ-invite-existing-person`, LAN-133. Duplicate
+ * check comes first (`DEC-minimal-person-creation`): the same four fields
+ * feed both search and invitation, before creating a second Person for an
+ * existing player. The operating year is inherited, never a field
+ * (`DEC-active-operating-year`). Ends on the created operator's own record
+ * (delivery result, resend, audit history) rather than a separate "Sent"
+ * panel.
  */
 export default function InviteOperatorForm({ roles }: { roles: readonly AssignableRole[] }) {
   return (

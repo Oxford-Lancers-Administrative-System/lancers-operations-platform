@@ -1,43 +1,9 @@
-/**
- * The event vocabulary and the rules one submitted form has to satisfy.
- *
- * Split out of `events.ts` for one structural reason: this module is imported
- * by the **client** component that renders the form, and `events.ts` imports
- * the PostgreSQL connection. A client component that reached `events.ts` would
- * drag `pg` into the browser bundle, which does not build — and would not be
- * something to fix with a bundler exclusion if it did.
- *
- * So the division is not stylistic. Everything here is pure: no database, no
- * `server-only`, no framework. Everything that touches a row lives in
- * `events.ts`, which re-exports this module so a server caller has one import
- * and does not have to know the split exists.
- *
- * The rules themselves stay in the service layer rather than moving into the
- * component, for the reason `README.md` gives: "a practice needs a name", "the
- * end cannot precede the start" and "week 9 is not an Oxford week" are club
- * rules, and a rule that lives in a component is a rule the next screen
- * re-invents differently.
- */
+// The event vocabulary and the rules one submitted form has to satisfy. Split out of events.ts,
+// imported by the client form component; pure (no database, no server-only, no framework).
 
 import { isSafeUri } from "./safe-uri";
 
-// ---------------------------------------------------------------------------
-// Vocabulary
-// ---------------------------------------------------------------------------
-
-/**
- * `public.event_type`, in full — the approved seven-type model (D12).
- *
- * LAN-151 narrowed the enum from ten values to these seven: `camp` became a
- * practice, `fixture` and `varsity` became `game`, and `other` became
- * `meeting`. There is no longer a subset that a draft may be created as,
- * because there is no longer a type whose defining fields the form cannot
- * record — the opponent went with `fixture` (D14: the name carries it) and the
- * side went with it.
- *
- * Adding an eighth is a change to the approved domain model and Brian's
- * decision, not a code change.
- */
+// public.event_type, in full — the approved seven-type model (D12, LAN-151). See relocations.md.
 export const EVENT_TYPES: readonly string[] = Object.freeze([
   "practice",
   "strength_and_conditioning",
@@ -48,51 +14,9 @@ export const EVENT_TYPES: readonly string[] = Object.freeze([
   "meeting",
 ]);
 
-/**
- * The types a draft may be created as. Every one of the seven, now that the
- * types the form could not honestly describe are gone — so this is `EVENT_TYPES`
- * and stays a separate name only because callers already import it.
- */
-export const DRAFTABLE_EVENT_TYPES: readonly string[] = EVENT_TYPES;
+export const OPERATOR_CREATED_ORIGIN = "club_controlled"; // an operator typing into the club's own calendar controls the event
 
-/**
- * `public.event_origin`, in full. Source Data Analysis §5.6 — not every event's
- * schedule is the club's to set.
- *
- * The column stays, and so does every value in it: a BUCS game really is
- * externally assigned, and that provenance is load-bearing. What went away in
- * Brian's LAN-76 clarification is the *choice* — an operator creating an event
- * on the club's own calendar was being asked to classify its provenance from
- * four unexplained words. An event this form creates is by definition one the
- * club scheduled, so the value is derived rather than asked for, and an event
- * that came from elsewhere keeps whatever provenance it already had.
- */
-export const EVENT_ORIGINS: readonly string[] = Object.freeze([
-  "club_controlled",
-  "externally_assigned",
-  "externally_scheduled",
-  "negotiated",
-]);
-
-/**
- * The origin of an event created through this form.
- *
- * An operator sitting in the club's own calendar, typing in a practice, is
- * recording an event the club controls.
- */
-export const OPERATOR_CREATED_ORIGIN = "club_controlled";
-
-/**
- * The three stored statuses, and no others (D12, D30).
- *
- * LAN-151 narrowed `public.event_status` from eight values to these three, and
- * what went is worth naming because each was a thing the club turned out not to
- * do. `pending_approval` modelled a proposer asking a gatekeeper, and Brian
- * removed the Submit step on 12 August 2026. `rejected` and `withdrawn` were
- * two flavours of "it never became an event", which is a draft. `occurred` and
- * `not_held` were assertions somebody typed, and `derivedEventState` below now
- * answers that from the date instead.
- */
+// The three stored statuses, and no others (D12, D30, LAN-151). See relocations.md.
 export type EventStatus = "draft" | "approved" | "cancelled";
 
 export const EVENT_STATUSES: readonly EventStatus[] = Object.freeze([
@@ -101,11 +25,7 @@ export const EVENT_STATUSES: readonly EventStatus[] = Object.freeze([
   "cancelled",
 ]);
 
-/**
- * `public.event_delivery_mode` (D20). In person or online, as a property of the
- * event rather than something guessed from what somebody typed in the venue.
- * The venue field then holds an address or a destination accordingly (D21).
- */
+// public.event_delivery_mode (D20): a property of the event, not guessed from the venue text (D21).
 export type EventDeliveryMode = "in_person" | "online";
 
 export const EVENT_DELIVERY_MODES: readonly EventDeliveryMode[] = Object.freeze([
@@ -113,28 +33,8 @@ export const EVENT_DELIVERY_MODES: readonly EventDeliveryMode[] = Object.freeze(
   "online",
 ]);
 
-// ---------------------------------------------------------------------------
-// Occurrence, derived rather than asserted
-// ---------------------------------------------------------------------------
-
-/**
- * What an event looks like now, as distinct from what is stored about it.
- *
- * D30, and the reason this function exists at all: **nothing asserts that an
- * event occurred**. There is no *Mark occurred*, no *Mark not held*, no
- * *Confirm what happened* and no *Correct this to not held*, and no code path
- * anywhere writes an occurrence. An event has occurred when its date has passed
- * and it was not cancelled — that is the whole definition, and it is the same
- * one `public.rsvp_attendance_mismatches` uses in SQL.
- *
- * What replaced the assertion is not another flag but the register itself: its
- * saved-versus-untouched state is the record of whether the session was
- * assessed (D71-D74), and a sheet saved with everybody absent is a real zero
- * rather than a sheet nobody opened.
- *
- * Pure, and takes today as an argument, so the clock stays the caller's problem
- * and the rule can be checked at any date.
- */
+// D30: nothing asserts that an event occurred — occurred when its date has passed and it was not
+// cancelled, same rule rsvp_attendance_mismatches uses in SQL. See relocations.md.
 export type DerivedEventState = "upcoming" | "occurred" | "cancelled";
 
 export function derivedEventState(
@@ -142,31 +42,14 @@ export function derivedEventState(
   today: string,
 ): DerivedEventState {
   if (event.status === "cancelled") return "cancelled";
-  // A draft with no date has not happened, and neither has one dated tomorrow.
-  if (event.scheduledOn === null) return "upcoming";
+  if (event.scheduledOn === null) return "upcoming"; // a draft with no date has not happened
   return event.scheduledOn < today ? "occurred" : "upcoming";
 }
 
-/**
- * The value the events list's Status filter uses for the derived state — Q-6.
- *
- * Brian asked to "see the events that occurred, to easily be able to tell which
- * ones happened versus not", and this is the fourth thing that filter offers.
- * It is deliberately **not** a fourth `event_status`: nothing stores it and
- * nobody asserts it (D30), so it lives here beside the derivation rather than
- * in the enum, and a reader who follows it arrives at `derivedEventState`
- * rather than at a column.
- */
+// The Status filter's fourth value (Q-6) — not a fourth event_status; nothing stores it (D30).
 export const OCCURRED_FILTER: DerivedEventState = "occurred";
 
-/**
- * What the Status filter offers, in the order an operator reads a season in.
- *
- * The three stored states with the derived one in its place in time: a draft
- * becomes approved, the evening happens, and a cancellation is the thing that
- * stops it. `EVENT_STATUSES` stays the stored vocabulary and nothing here
- * widens it — `src/app/operate/labels.test.ts` holds those two apart.
- */
+// The three stored states with the derived one in its place in time.
 export const EVENT_STATUS_FILTERS: readonly string[] = Object.freeze([
   "draft",
   "approved",
@@ -174,56 +57,24 @@ export const EVENT_STATUS_FILTERS: readonly string[] = Object.freeze([
   "cancelled",
 ]);
 
-// ---------------------------------------------------------------------------
-// Input, and the rules it has to satisfy
-// ---------------------------------------------------------------------------
-
-/**
- * What an operator typed, before any of it has been believed.
- *
- * Three fields the first implementation had are deliberately absent, per
- * Brian's LAN-76 clarification:
- *
- *   * `origin` — derived, never asked (see `OPERATOR_CREATED_ORIGIN`);
- *   * `termId` and `weekNumber` — **derived from the date**. The event's real
- *     date and times are the operator-entered source of truth, and the Oxford
- *     term and week are a coordinate computed from it. Letting all three be
- *     typed independently let an operator record a date in Michaelmas and
- *     label it Hilary week 4, and nothing would have disagreed with them.
- */
+// What an operator typed, before any of it has been believed. origin/termId/weekNumber absent (LAN-76; see relocations.md).
 export interface RawEventDraft {
   name?: string | null;
-  /**
-   * The template this event is created from — LAN-265, replacing `eventType`.
-   *
-   * The form posts an identifier and never a class: an operator picks "Kicking
-   * Clinic" from a list of the club's own templates, and what class of event
-   * that is underneath is the template's answer, read server-side inside the
-   * transaction that writes the row.
-   */
-  templateId?: string | null;
+  templateId?: string | null; // LAN-265: the template this event is created from, replacing eventType — see relocations.md
   scheduledOn?: string | null;
   startsAt?: string | null;
   endsAt?: string | null;
-  /** `"in_person"` or `"online"` (D20). Absent means in person. */
-  deliveryMode?: string | null;
-  /** An address when in person, a destination when online (D21). */
-  venue?: string | null;
-  /** D18: free text, absorbing anything without a home of its own. */
-  description?: string | null;
-  /** D17: its own field, separate from the description. */
-  requiredEquipment?: string | null;
-  /** The online event's link. Published on the public calendar (LAN-284). */
-  joiningUrl?: string | null;
-  /** `"mandatory"` or `"optional"`. Absent is unanswered, never a default. */
-  attendance?: string | null;
+  deliveryMode?: string | null; // "in_person" or "online" (D20); absent means in person
+  venue?: string | null; // address in person, destination online (D21)
+  description?: string | null; // D18: free text
+  requiredEquipment?: string | null; // D17: its own field, separate from description
+  joiningUrl?: string | null; // the online event's link; published on the public calendar (LAN-284)
+  attendance?: string | null; // "mandatory" or "optional"; absent is unanswered, never a default
 }
 
-/** The same values, checked. Term, week and origin are not among them. */
 export interface EventDraftInput {
   name: string;
-  /** LAN-265. The class the event ends up with is this template's, not a field. */
-  templateId: string;
+  templateId: string; // LAN-265: the class the event ends up with is this template's, not a field
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -235,7 +86,6 @@ export interface EventDraftInput {
   isMandatory: boolean;
 }
 
-/** One field, one correction — the shape the shared state contract asks for. */
 export interface FieldIssue {
   field: keyof RawEventDraft;
   message: string;
@@ -246,37 +96,9 @@ export type EventDraftValidation =
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^\d{2}:\d{2}(:\d{2})?$/;
-/** Shared with `events.ts`, so "that is not an identifier" is one rule. */
-export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; // shared with events.ts
 
-/**
- * Pure validation of one submitted form.
- *
- * Pure, and in the service layer rather than in the route, for the reason the
- * service README gives: it is a club rule ("a practice needs a name", "the end
- * cannot precede the start", "week 9 is not an Oxford week"), and a rule that
- * lives in a component is a rule the next screen re-invents differently.
- *
- * It collects **every** issue rather than stopping at the first, because the
- * shared state contract requires the form to identify the field and state the
- * correction — for all of them, not for whichever one happened to be checked
- * first.
- *
- * Mandatory-or-optional had no default at all under LAN-76, so a draft could not
- * be saved without answering it. D15 and W8 changed what is right: name, type
- * and date are the minimum to save, and the type's template says whether this
- * kind of event expects attendance. An unanswered one is therefore accepted and
- * stored as **optional** — which claims nothing, and is the direction the
- * original rule was protecting. `Response requested` used to sit beside it and
- * D23 removed it: mandatory or optional already carries that, and everyone sent
- * an event is expected to answer.
- *
- * D78 and D86: times are entered in five-minute increments, in Europe/London,
- * with the zone stated on the form. The increment is an entry rule and is
- * checked here rather than in the database, because the club's own historical
- * records contain times that are not multiples of five and a check constraint
- * would refuse the club's real data at migration time.
- */
+// Collects **every** issue, not just the first (shared state contract). See relocations.md.
 export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
   const issues: FieldIssue[] = [];
 
@@ -285,11 +107,7 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     issues.push({ field: "name", message: "Give the event a name." });
   }
 
-  // LAN-265. Shape only: whether this identifier is a template the club still
-  // has is `readTemplateInheritanceIn`'s question, asked inside the writing
-  // transaction, because a template deleted between the form loading and the
-  // save is a real race and a list checked here would be a stale copy of it.
-  // What this function can honestly refuse is "nothing was chosen".
+  // LAN-265: shape only — whether the id still names a template is readTemplateInheritanceIn's question.
   const templateId = trimmed(raw.templateId);
   if (!UUID_PATTERN.test(templateId)) {
     issues.push({ field: "templateId", message: "Choose the kind of event this is." });
@@ -325,18 +143,10 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     }
   }
 
-  // `events_times_ordered` says the same thing in the database. Saying it here
-  // too is what turns an integrity error into a sentence beside the field.
   if (startsAt !== null && endsAt !== null && endsAt <= startsAt) {
-    issues.push({ field: "endsAt", message: "The event has to end after it starts." });
+    issues.push({ field: "endsAt", message: "The event has to end after it starts." }); // events_times_ordered, said as a sentence
   }
 
-  // D15: name, type and date are the minimum to save a draft, so an unanswered
-  // attendance saves rather than refusing. It saves as *optional*, which is the
-  // direction the LAN-76 rule cared about — "an event never quietly claims
-  // attendance is expected when nobody said so" — and the form shows the
-  // template's answer selected, so nothing is hidden. Anything that is neither
-  // word is still a correction: it means the control was tampered with.
   const attendance = trimmed(raw.attendance);
   if (attendance !== "" && attendance !== "mandatory" && attendance !== "optional") {
     issues.push({
@@ -345,36 +155,21 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     });
   }
 
-  // D20. Absent means in person: that is what the club runs, and it is the only
-  // default in this function that is a fact rather than an assumption about
-  // what somebody meant.
   const deliveryModeRaw = trimmed(raw.deliveryMode);
-  const deliveryMode: EventDeliveryMode = deliveryModeRaw === "online" ? "online" : "in_person";
+  const deliveryMode: EventDeliveryMode = deliveryModeRaw === "online" ? "online" : "in_person"; // D20: absent means in person
   if (deliveryModeRaw !== "" && !EVENT_DELIVERY_MODES.includes(deliveryModeRaw as never)) {
     issues.push({ field: "deliveryMode", message: "Say whether this is in person or online." });
   }
 
-  // REQ-no-joining-url: an in-person event has no joining link, and offering to
-  // store one would put a URL on an event nobody will ever join online.
   const joiningUrl = optional(raw.joiningUrl);
   if (joiningUrl !== null && deliveryMode !== "online") {
     issues.push({
       field: "joiningUrl",
       message: "A joining link belongs to an online event. Change this to online, or clear it.",
-    });
+    }); // REQ-no-joining-url
   }
 
-  // LAN-284 made this field public, on the event page as an `href` and in the
-  // subscription feed as a raw `URL` property. Finding F1 of the LAN-272 review
-  // is what makes the check live *here* rather than only at those two readers:
-  // a `javascript:` value typed into this box became an anchor on an
-  // unauthenticated page that ran script in the application's own origin. The
-  // readers guard themselves as well, but a value that can never be published
-  // should not be stored, and refusing it at the form is the only place the
-  // operator finds out — a reader's guard is silent by design.
-  //
-  // Same rule as the feed's, one function: absolute, `http` or `https`, no
-  // control character or line break.
+  // LAN-284 made this field public; LAN-272 finding F1: a javascript: value here ran on an unauthenticated page. See relocations.md.
   if (joiningUrl !== null && !isSafeUri(joiningUrl)) {
     issues.push({ field: "joiningUrl", message: JOINING_URL_MESSAGE });
   }
@@ -399,24 +194,8 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
   };
 }
 
-/**
- * D78. The club enters times in five-minute increments, so 19:32 is a typo
- * rather than a schedule.
- *
- * Deliberately not a database check constraint. The club's own historical
- * records carry minute-level drift — the seeded dataset reproduces it, because
- * the real term card does — and a constraint would refuse that data when the
- * migration ran. The rule is about *entry*, which is where it is applied.
- */
-export const FIVE_MINUTE_INCREMENT_MESSAGE = "Enter the time in five-minute steps.";
+const FIVE_MINUTE_INCREMENT_MESSAGE = "Enter the time in five-minute steps."; // D78: an entry rule, not a check constraint (see relocations.md)
 
-/**
- * What the operator is told when the joining link is not a web address.
- *
- * Names the rule rather than the refusal: "invalid URL" leaves them guessing
- * which part, and the two things they actually have to get right are that it is
- * a whole address and that it starts with a web scheme.
- */
 export const JOINING_URL_MESSAGE = "Enter a full web address starting with https://";
 
 export function isFiveMinuteIncrement(time: string): boolean {
@@ -424,21 +203,13 @@ export function isFiveMinuteIncrement(time: string): boolean {
   return Number.isInteger(minutes) && minutes % 5 === 0;
 }
 
-// ---------------------------------------------------------------------------
-// The term coordinate, derived from the date
-// ---------------------------------------------------------------------------
-
-/** The shape `deriveTermCoordinate` needs of a term. */
 export interface TermWindow {
   id: string;
   name: string;
   academicYear: string;
-  /** `YYYY-MM-DD`. The first day of `firstWeek`. */
-  startsOn: string;
-  /** `YYYY-MM-DD`. Falls inside `lastWeek`. */
-  endsOn: string;
-  /** −1 for Michaelmas, 0 for Hilary and Trinity. */
-  firstWeek: number;
+  startsOn: string; // YYYY-MM-DD, the first day of firstWeek
+  endsOn: string; // YYYY-MM-DD, falls inside lastWeek
+  firstWeek: number; // -1 for Michaelmas, 0 for Hilary and Trinity
   lastWeek: number;
 }
 
@@ -450,37 +221,14 @@ export interface TermCoordinate {
 
 const MS_PER_DAY = 86_400_000;
 
-/** Midnight UTC for a `YYYY-MM-DD`, or `null` if it will not parse. */
 function dayMs(day: string): number | null {
   if (!DATE_PATTERN.test(day)) return null;
   const parsed = Date.parse(`${day}T00:00:00Z`);
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-/**
- * The Oxford term and week a date falls in.
- *
- * Brian's LAN-76 clarification: the event's real date is the source of truth,
- * and the term coordinate is computed from it rather than typed beside it.
- *
- * The arithmetic follows from what `public.terms` actually stores, and it is
- * worth writing down because it is not obvious from the column names.
- * `starts_on` is the **first day of `first_week`**, not of week 1 — Michaelmas
- * begins in week −1, Hilary and Trinity in 0th week. Weeks are seven days
- * (Sunday to Saturday, Source Data Analysis §5.4), and the terms in the seeded
- * dataset agree with this to the day: Michaelmas 2026-27 runs 27 September to
- * 5 December, which is `−1 + floor(69 / 7) = 8`, exactly its `last_week`.
- *
- * So: `week = first_week + floor((date − starts_on) / 7 days)`.
- *
- * A date outside every term is a legitimate answer, not an error — a summer
- * camp or a pre-season meeting has no Oxford week, and `events.term_id` and
- * `events.week_number` are both nullable precisely for that case.
- *
- * Pure, and takes the terms as an argument, so the rule can be checked against
- * a hand-built calendar with no database — and so the same function can run in
- * the browser to show an operator the coordinate as they pick a date.
- */
+// week = first_week + floor((date - starts_on) / 7 days); starts_on is the first day of first_week,
+// not of week 1 (Michaelmas begins at -1). Outside every term is legitimate, not an error.
 export function deriveTermCoordinate(
   scheduledOn: string | null,
   terms: readonly TermWindow[],
@@ -498,10 +246,7 @@ export function deriveTermCoordinate(
 
     const week = term.firstWeek + Math.floor((dateMs - startMs) / (7 * MS_PER_DAY));
 
-    // The schema permits −1 to 8 and nothing else. A term whose dates and week
-    // bounds disagree would otherwise produce a week the database refuses, and
-    // an event that cannot be saved is a worse answer than one outside term.
-    if (week < -1 || week > 8 || week > term.lastWeek) continue;
+    if (week < -1 || week > 8 || week > term.lastWeek) continue; // schema permits -1..8 only — see relocations.md
 
     return { termId: term.id, weekNumber: week };
   }
@@ -509,25 +254,7 @@ export function deriveTermCoordinate(
   return { termId: null, weekNumber: null };
 }
 
-// ---------------------------------------------------------------------------
-// Shared string handling
-// ---------------------------------------------------------------------------
-
-/**
- * Trimmed, with line endings normalised to `\n` — LAN-264.
- *
- * The normalisation is not tidiness. HTML says a `<textarea>` submits its value
- * with every newline as CRLF, whatever was typed and whatever was rendered into
- * it, so the moment description and required equipment became multi-line the
- * stored `\n` came back as `\r\n` on the very next save. Nothing had changed and
- * `diffAmendment` compares the normalised value, so every amendment to an event
- * with a kit list recorded a second, invented change — "Required equipment:
- * <three lines> → <the same three lines>" — and rewrote the column to CRLF.
- *
- * Normalising here fixes both halves at once, because this is the function the
- * write path and the diff both go through: what is stored is always `\n`, and a
- * value that merely round-tripped through a form is equal to itself.
- */
+// Trimmed, line endings normalised to \n (LAN-264; see relocations.md).
 export function trimmed(value: string | null | undefined): string {
   return typeof value === "string" ? value.replace(/\r\n|\r/g, "\n").trim() : "";
 }

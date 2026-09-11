@@ -3,25 +3,10 @@
 import ListFilters from "@/app/operate/list-filters";
 
 /**
- * Search and type, on the public list. LAN-153, `REQ-list-shape`.
- *
- * ## Two controls, not three
- *
- * The operator's bar carries Status as well. The public tier has no status to
- * filter by — `W1`'s tier table keeps the status column on the operator's side —
- * so offering the control would offer a narrowing that has nothing to narrow.
- * The service refuses an unknown sort or filter the same way it always has,
- * quietly and by falling back, so a hand-typed `?status=draft` neither works nor
- * announces that it might have.
- *
- * ## Applied as you type, and combining
- *
- * §4.4, and Brian's own words at the mockup review: there is **no Apply button**.
- * The shared bar this is built on already behaves that way — the search box
- * debounces and pushes, the selects navigate from the change event, and each
- * control patches one query key and carries the rest — so this is the events
- * list's vocabulary over the roster's control rather than a second
- * implementation of the same interaction.
+ * Search and type, on the public list. LAN-153, `REQ-list-shape`. Two
+ * controls, not three: no Status, since the public tier has none to filter
+ * by (`W1`'s tier table). No Apply button (§4.4) — the shared bar already
+ * debounces and navigates from the change event.
  */
 export default function PublicFilters({
   templates,

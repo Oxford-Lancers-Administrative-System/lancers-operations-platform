@@ -2,15 +2,7 @@ import { PublicShell } from "@/components/public-shell";
 import { PageHeader } from "@/components/page-header";
 import Typography from "@mui/material/Typography";
 
-/**
- * One response for every unresolvable durable link. LAN-172.
- *
- * An unknown token, a revoked one, and one whose season has closed all render
- * here identically — `resolvePersonTokenIn` already collapses the three to
- * `unknown` before this file is ever reached, so there is no state here to
- * keep separate. Same reasoning as `src/app/a/[token]/not-found.tsx` and
- * `src/app/rsvp/[token]/not-found.tsx`.
- */
+/** One response for every unresolvable durable link (LAN-172) — `resolvePersonTokenIn` collapses unknown/revoked/closed-season to `unknown` before this file is reached. */
 export default function PlayerHomeUnusable() {
   return (
     <PublicShell>

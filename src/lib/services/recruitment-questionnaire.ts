@@ -1,53 +1,22 @@
 import "server-only";
 
-import { NotFound, withTransaction, type Tx } from "@/lib/db";
+import { NotFound, type Tx } from "@/lib/db";
 import { QUESTIONNAIRE_B_CODE, joinMultiAnswer } from "./recruitment-vocabulary";
 
 /**
- * Questionnaire B's one write — LAN-206, `/a/[token]`'s own recruit-facing
- * form. `recruitment-prospect.ts`'s `readRecruitmentProspectIn` already reads
- * the current answers (the `answers` field on `RecruitmentProspectRecord`);
- * this module is the write half, and it is the only writer of
- * `recruitment_questionnaire_responses` — no operator surface edits these
- * cells directly (`board-columns.ts` marks every recruitment-answer column
- * `edit: "none"`).
- *
- * ## Superseding, never overwriting
- *
- * `recruitment_questionnaire_responses_one_current_per_question`'s own
- * partial-unique shape is "the current answer is the one row with
- * `superseded_at is null`" — W4's own exception, "the recruit answers twice,
- * the later answer supersedes, the earlier is kept." Every write here closes
- * whatever was current for that question code and inserts a fresh row, never
- * an `update` in place, so the whole history survives.
- *
- * ## Blank never erases
- *
- * A field submitted blank is left untouched rather than superseding a real
- * answer with nothing — `REQ-missing-never-blocks`'s own "missing
- * information never blocks a capture" reads naturally as "a recruit who
- * leaves a question blank this time has not unanswered it", not as a
- * deletion. A recruit who wants to withdraw an answer types over it with
- * something else; this form gives them no way to blank a field that already
- * has an answer showing.
+ * Questionnaire B's one write — LAN-206, `/a/[token]`'s form; the only
+ * writer of `recruitment_questionnaire_responses`. Every write closes the
+ * current row and inserts a fresh one, never an `update` in place. A blank
+ * field is left untouched, never superseding a real answer.
  */
 
 export interface QuestionnaireBSubmission {
   readonly playedBefore?: "yes" | "no" | null;
   readonly watchedBefore?: "yes" | "no" | null;
-  /**
-   * `W4`'s "Which positions interest you?" — correction round 1, F-206-02:
-   * genuine multi-select over `POSITION_GROUPS`' own `CODE · Label` values,
-   * joined and stored in the one `answer_choice` column the schema already
-   * gives one answer, per `recruitment_questionnaire_responses`' own
-   * "exactly one answer" constraint — no migration, since the column stores
-   * a string either way.
-   */
+  /** `W4`'s multi-select over `POSITION_GROUPS`, joined into the one `answer_choice` column. */
   readonly positionInterest?: readonly string[] | null;
-  /** `W4`'s "What playing gear do you already have?" — same multi-select shape, over `GEAR_ITEMS`. */
   readonly gearOwned?: readonly string[] | null;
   readonly howTheyHeard?: string | null;
-  /** Free text, 500 chars — `question-field.tsx`'s own text control's limit. */
   readonly anythingElse?: string | null;
 }
 
@@ -72,15 +41,7 @@ async function supersedeAndInsertIn(
   );
 }
 
-/**
- * `identified → engaged` where the recruit is not already there — W4's own
- * state transition, "Answering is an interaction." No-op for a recruit
- * already past `identified` (`engaged`, `committed`, `joined`, or one of the
- * three exits, none of which this unauthenticated form may move). Attributed
- * to the mechanism rather than to an operator who was never there — the same
- * posture `recruitment-signup.ts`'s own module note takes for every write on
- * this unauthenticated, credential-is-the-authorization path.
- */
+/** `identified → engaged` where not already there (W4: "Answering is an interaction"). No-op past `identified`. Attributed to the mechanism, no operator. */
 async function engageOnAnswerIn(tx: Tx, prospectId: string): Promise<void> {
   const updated = await tx.query<{ id: string }>(
     `update public.recruitment_prospects set status = 'engaged', updated_at = now()
@@ -152,11 +113,4 @@ export async function submitQuestionnaireBAnswersIn(
   }
 
   if (answeredSomething) await engageOnAnswerIn(tx, prospectId);
-}
-
-export async function submitQuestionnaireBAnswers(
-  prospectId: string,
-  submission: QuestionnaireBSubmission,
-): Promise<void> {
-  return withTransaction((tx) => submitQuestionnaireBAnswersIn(tx, prospectId, submission));
 }

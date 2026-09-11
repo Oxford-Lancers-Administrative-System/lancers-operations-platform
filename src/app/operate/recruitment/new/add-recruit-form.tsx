@@ -39,40 +39,17 @@ const MIN_TOUCH_TARGET = 44;
 
 /**
  * `W6` — add a recruit by hand, with `W8`'s duplicate check inside it.
- * LAN-206. `/operate/people/new/create-person-form.tsx`, for its four fields
- * and its duplicate check (`findPersonDuplicates`, called and never
- * duplicated), plus the Academic section `W6-01` adds. The check's own
- * answer renders above the form, never below it — "the duplicate check if
- * it finds something needs to go at the top, not the bottom" (Brian,
- * 2026-09-01).
- *
- * Correction round 1, F-206-02 (Brian: "Mock up wins" on structure and copy
- * where the runnable fidelity mockup and the approved screens disagree):
- * this door's own structure now follows
- * `src/app/recruitment-preview/add-recruit.tsx` — the header carries only
- * `Cancel`/`Check for duplicates`, never a button whose own label morphs;
- * the fields below stay visible throughout; and a match, once found, offers
- * its own two controls — "This is somebody new" (create) and "Go back and
- * change the details" (dismiss the panel, touching nothing) — inside the
- * candidates panel itself, exactly as the mockup shows.
- *
- * Correction round 2 widens this considerably — see each finding's own
- * comment below (V-1, V-2, V-3/V-4, V-10) for what changed and why.
+ * LAN-206. Reuses `/operate/people/new/create-person-form.tsx`'s duplicate
+ * check (`findPersonDuplicates`) plus the Academic section `W6-01` adds.
+ * Corrections round 1 (F-206-02) and round 2 (V-1..V-10) changed structure
+ * and validation — see each finding's own comment below.
  */
 export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string }) {
   const [state, formAction, pending] = useActionState(submitAddRecruit, INITIAL_ADD_RECRUIT_STATE);
   const { values, errors, candidates, exactMatch, alreadyMember } = state;
 
-  // V-1, correction round 2 (blocking, Brian's own words: "a hard
-  // requirement") — inline, on-field validation for phone and email, using
-  // the shared validators the application already has
-  // (`person-validation.ts`) rather than a third copy, in the same idiom
-  // `signup-form.tsx` already established for the identical two fields:
-  // local state so a format error renders the moment it is typeable, not
-  // only after CHECK FOR DUPLICATES / a submit round-trip. `errors.mobile`
-  // (the server's own "Required" refusal for a blank field) and this
-  // client-only format check compose — a required-but-blank field shows the
-  // server's message; a filled-but-malformed one shows this one.
+  // V-1, correction round 2: inline client-side validation for phone/email,
+  // composing with the server's required-field check.
   const [dateOfBirth, setDateOfBirth] = useState(values.dateOfBirth);
   const [mobile, setMobile] = useState(values.mobile);
   const [collegeEmail, setCollegeEmail] = useState(values.collegeEmail);
@@ -128,12 +105,8 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
   const formatInvalid = Boolean(
     mobileFormatError ||
-    // LAN-275 correction round 1, F1. The college email is validated inline
-    // like every other field on this form, so it has to gate the two submit
-    // controls like every other field too — V-1 is "a malformed value shows
-    // its own message inline **and disables Check for duplicates / Create**",
-    // and leaving this one term out let a non-Oxford address round-trip to a
-    // server that was only ever going to refuse it.
+    // LAN-275 correction round 1, F1: college email gates the submit
+    // controls too, same as every other inline-validated field.
     collegeEmailFormatError ||
     emailFormatError ||
     matricFormatError ||
@@ -147,12 +120,8 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
     ? "Create anyway"
     : `Create ${values.givenName || "recruit"}${values.familyName ? ` ${values.familyName}` : ""}`;
 
-  // V-3 / V-4, correction round 2 — "This is them" on a current player
-  // resolves to this one clean confirmation screen, replacing the whole
-  // form rather than stacking a refusal onto it. Brian: "If I say 'This is
-  // them,' it should basically close… That's not an error state. That's
-  // just a normal thing… say, 'Okay, they're fine, no changes will be
-  // made,' and then go back to the recruits."
+  // V-3/V-4, correction round 2: "This is them" on a current player resolves
+  // to a clean confirmation screen instead of stacking a refusal.
   if (alreadyMember) {
     return <AlreadyMemberScreen alreadyMember={alreadyMember} />;
   }
@@ -291,9 +260,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
               helperText={errors.mobile ?? mobileFormatError ?? undefined}
               testId="mobile-field"
             />
-            {/* LAN-268: required at this door too — the operator adding
-                somebody by hand records the same fact about the same person
-                the recruit's own door records. */}
+            {/* LAN-268: required here too — same fact the recruit's own door records. */}
             <Field
               name="collegeEmail"
               label="College email"
@@ -329,12 +296,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
           </Stack>
         </Section>
 
-        {/* V-2, correction round 2 — Brian: "The add-to form seems narrow…
-            We can use the forms from before to see which fields we're
-            asking for there." The shipped intake forms' own field set
-            (`signup-form.tsx`, `edit-person-form.tsx`), not one invented
-            here. Every field below is optional — `REQ-missing-never-blocks`
-            still names only first name, last name and mobile. */}
+        {/* V-2, correction round 2: Academic fields follow the shipped intake forms' own set; every field here stays optional (REQ-missing-never-blocks). */}
         <Section title="Academic">
           <Stack spacing={2}>
             <Field name="college" label="College" defaultValue={values.college} />
@@ -358,10 +320,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
           </Stack>
         </Section>
 
-        {/* `edit-person-form.tsx`'s own "Restricted" grouping —
-            `REQ-restricted-fields`: date of birth and the emergency contact
-            are third-party / sensitive personal data, kept visually apart
-            from the ordinary academic facts above. */}
+        {/* REQ-restricted-fields: date of birth and emergency contact are sensitive, grouped apart from academic facts. */}
         <Section title="Restricted">
           <Stack spacing={2}>
             <DateField
@@ -409,9 +368,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
         </Section>
 
         <Section title="How we may contact them">
-          {/* V-10, correction round 2 — Brian's own authorised, scoped
-              exception to the no-narrative-text rule: this surface, and
-              only this surface, explains itself. */}
+          {/* V-10, correction round 2: Brian's authorised, scoped exception to the no-narrative-text rule. */}
           <Typography
             variant="body2"
             color="text.secondary"
@@ -460,9 +417,8 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 }
 
 /**
- * V-3 / V-4, correction round 2 — the one screen "This is them" resolves to
- * for a current player: plain confirmation, no warning styling, a single
- * way back. Nothing here is a form; nothing here can write anything.
+ * V-3/V-4: the confirmation screen for "This is them" on a current player.
+ * No form, no write.
  */
 function AlreadyMemberScreen({
   alreadyMember,

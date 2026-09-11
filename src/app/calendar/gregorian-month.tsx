@@ -9,44 +9,19 @@ import { formatCellDate, formatDayNumber, formatMonthLabel } from "./presentatio
 import type { TileStatus } from "./tile-status";
 
 /**
- * The conventional Gregorian month. LAN-114.
- *
- * ## One month, two shapes, no hidden days
- *
- * At desktop width this is the familiar seven-column grid. Below `md` seven
- * columns cannot hold a legible event tile at 375px, so the same days become a
- * vertical agenda — **every** day the grid contains, in order, whether or not
- * it has events. That is a reflow, not a filter: the issue requires the view to
- * "remain operable on a narrow viewport without silently hiding dates or
- * events", and the two layouts render the identical set of days and the
- * identical set of events.
- *
- * Days borrowed from the months either side are dimmed rather than blanked, and
- * they carry their events. A practice on Sunday 27 September is real, it sits
- * in October's first row on any paper calendar, and blanking that cell would
- * hide a real event in a week the page appears to be showing.
- *
- * ## The grid is a table
- *
- * A month is tabular — day of the week against week of the month — so it is a
- * `table` with a header row of weekday names. Assistive technology can then
- * read a cell in its column; a `div` grid would have to re-implement what the
- * element already provides. Each cell states its full date to a screen reader
- * and its day number to the eye, because "14" alone is not navigable.
+ * The conventional Gregorian month. LAN-114. Desktop: seven-column grid.
+ * Below `md`: the same days as a vertical agenda, every day in order whether
+ * or not it has events — a reflow, not a filter. Days borrowed from adjacent
+ * months are dimmed, not blanked, and carry their events. A `table`, not a
+ * `div` grid, since a month is tabular and assistive technology reads a cell
+ * in its column for free.
  */
 export default function GregorianMonth({
   grid,
   tile,
 }: {
   grid: MonthGrid;
-  /**
-   * Where one event's tile goes, and what word it carries — LAN-153.
-   *
-   * Supplied by the page because both are tier decisions: the two tiers have two
-   * event pages, and the status column is the operator's. A component that chose
-   * for itself would send a public reader to a route they cannot open, or print
-   * "Draft" on a public calendar.
-   */
+  /** Where one event's tile goes and what word it carries (LAN-153) — a page-supplied tier decision, never chosen by this component. */
   tile: (eventId: string) => { href: string; status: TileStatus };
 }) {
   const monthLabel = formatMonthLabel(grid.month);

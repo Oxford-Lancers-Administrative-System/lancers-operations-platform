@@ -1,37 +1,9 @@
-/**
- * What a question on an event *is*, and the rules one submitted question has to
- * satisfy. LAN-154, amendment W4-A1.
- *
- * Pure, for the same structural reason `event-input.ts` is pure and is
- * documented as such: the create-and-edit form is a Client Component, and the
- * module that reaches the database drags `pg` into the browser bundle. So the
- * vocabulary and the rules live here and `event-questions.ts` re-exports them.
- *
- * ## Questions have no screen of their own, and that is a decision
- *
- * Brian, 2026-08-21: "This is part of the create event workflow. It's not a
- * separate screen that needs its own thing ... it's ingrained in the process."
- * Writing an event and deciding what to ask the people invited to it are one
- * act. Everything here therefore serves the event form, the approval review and
- * the template — three surfaces, one vocabulary.
- *
- * ## Three answer types, and each question decides for itself
- *
- * D66 fixes the three: free text, yes/no, pick from a list. D67 gives each
- * question its own required flag, so "are you coming" being required says
- * nothing about "which shirt size do you need".
- */
+// What a question on an event *is*, and the rules one submitted question has to satisfy — LAN-154,
+// W4-A1. Pure, like event-input.ts; re-exported by event-questions.ts. D66/D67: three answer types.
 
-import { optional, trimmed } from "./event-input";
+import { trimmed } from "./event-input";
 
-/**
- * `public.question_answer_type`, in full.
- *
- * The stored values are the database's (`text`, `boolean`, `choice`); the words
- * the club uses for them are `QUESTION_ANSWER_TYPE_LABELS`. Nothing outside
- * this module writes either list.
- */
-export type QuestionAnswerType = "text" | "boolean" | "choice";
+export type QuestionAnswerType = "text" | "boolean" | "choice"; // public.question_answer_type, in full
 
 export const QUESTION_ANSWER_TYPES: readonly QuestionAnswerType[] = Object.freeze([
   "text",
@@ -39,71 +11,42 @@ export const QUESTION_ANSWER_TYPES: readonly QuestionAnswerType[] = Object.freez
   "choice",
 ]);
 
-/**
- * D66, in the club's words rather than the schema's.
- *
- * C5, Brian on the screenshot: "the 'no' and 'yes' or 'no' need to be
- * capitalized." "Yes / No" reads as one label with two options, each
- * capitalised the same way "Free text" and "Pick from a list" already are.
- */
+// D66, in the club's words — C5: "Yes"/"No" capitalised the same way as the other two labels.
 export const QUESTION_ANSWER_TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   text: "Free text",
   boolean: "Yes / No",
   choice: "Pick from a list",
 });
 
-/**
- * The most options a single question may offer.
- *
- * A bound rather than a product rule: a list nobody can read on a phone is a
- * question nobody answers, and an unbounded array is an unbounded row. Twenty
- * is far above anything the club has ever asked and far below a paste accident.
- */
-export const MAX_QUESTION_CHOICES = 20;
+export const MAX_QUESTION_CHOICES = 20; // a bound, not a product rule — far above anything asked, far below a paste accident
 
-/** The longest a prompt may be. Same reasoning: a bound, not a rule. */
-export const MAX_QUESTION_PROMPT_LENGTH = 200;
+export const MAX_QUESTION_PROMPT_LENGTH = 200; // same reasoning: a bound, not a rule
 
-/** One question as the form posted it — every field a string. */
 export interface RawEventQuestion {
   prompt?: string | null;
   answerType?: string | null;
-  /** `"required"` or anything else, which is optional. */
-  required?: string | null;
-  /** Comma-separated, for `choice` only. */
-  choices?: string | null;
-  /** `"true"` when this question arrived from the type's template (D42). */
-  fromTemplate?: string | null;
+  required?: string | null; // "required" or anything else, which is optional
+  choices?: string | null; // comma-separated, for `choice` only
+  fromTemplate?: string | null; // "true" when this question arrived from the type's template (D42)
 }
 
-/** The same question, checked, in the shape a row needs. */
 export interface EventQuestionInput {
   prompt: string;
   answerType: QuestionAnswerType;
   isRequired: boolean;
-  /** Non-null for `choice`, null for everything else — the schema requires it. */
-  choices: string[] | null;
-  /** D42. Marked on screen, and removable per event regardless. */
-  fromTemplate: boolean;
+  choices: string[] | null; // non-null for choice, null otherwise — the schema requires it
+  fromTemplate: boolean; // D42: marked on screen, removable per event regardless
 }
 
-/** One question's correction, addressed to the question rather than to a field. */
 export interface QuestionIssue {
-  /** The question's position in the submitted list, so the form can point at it. */
-  index: number;
+  index: number; // the question's position in the submitted list, so the form can point at it
   message: string;
 }
 
 export type EventQuestionsValidation =
   { ok: true; value: EventQuestionInput[] } | { ok: false; issues: QuestionIssue[] };
 
-/**
- * Splits a written list of options into the array `choices` stores.
- *
- * Commas, because that is how somebody writes "S, M, L, XL" without being
- * taught a syntax. Blank entries are dropped rather than refused: a trailing
- * comma is a typing artefact, not an intention to offer an empty answer.
- */
+// Blank entries dropped, not refused — a trailing comma is a typing artefact.
 export function splitQuestionChoices(written: string | null | undefined): string[] {
   const seen = new Set<string>();
   const choices: string[] = [];
@@ -121,19 +64,8 @@ export function joinQuestionChoices(choices: readonly string[] | null | undefine
   return (choices ?? []).join(", ");
 }
 
-/**
- * Validates the whole submitted list at once.
- *
- * The whole list rather than one question, because two of the three rules are
- * about the list: a duplicate prompt is a property of the pair, and the order is
- * the order a player is asked. Collecting every issue rather than stopping at
- * the first is the shared state contract's requirement, applied to a repeating
- * group.
- *
- * `event_questions_unique_per_event` says the same thing about duplicates in the
- * database. Saying it here is what turns an integrity error into a sentence
- * beside the question that repeats.
- */
+// The whole list at once, not one question — a duplicate prompt is a property of the pair, and
+// order is the order a player is asked. Collects every issue (shared state contract).
 export function validateEventQuestions(raw: readonly RawEventQuestion[]): EventQuestionsValidation {
   const issues: QuestionIssue[] = [];
   const value: EventQuestionInput[] = [];
@@ -192,14 +124,8 @@ export function validateEventQuestions(raw: readonly RawEventQuestion[]): EventQ
   return issues.length > 0 ? { ok: false, issues } : { ok: true, value };
 }
 
-/**
- * How a question reads to the person being asked it — the approval review's
- * second line, and the template list's summary.
- *
- * One function rather than two so that `docs/ux/standards.md` rule 7 holds: the
- * approval review and the template screen answer "what does this question
- * offer?" identically, because they call this.
- */
+// One function, not two — docs/ux/standards.md rule 7: the approval review and the template screen
+// both answer "what does this question offer?" identically.
 export function describeQuestionAnswer(question: {
   answerType: QuestionAnswerType;
   choices: readonly string[] | null;
@@ -215,6 +141,3 @@ export function describeQuestionCount(count: number): string {
   if (count === 0) return "None";
   return count === 1 ? "1 question" : `${count} questions`;
 }
-
-/** Re-exported so a caller working with questions has one import. */
-export { optional, trimmed };

@@ -47,29 +47,11 @@ import { RecordAnswerControl } from "./record-answer";
 
 /**
  * The participation table, at whichever tier is reading — W7's centre.
- *
- * ## One component, two tiers
- *
- * `participation.tier` decides whether the **Delivery** column exists, and
- * that is the only difference between the two renderings (D3). It is read from
- * the payload rather than passed as a prop, so a caller cannot ask for the
- * operator's table while holding the club-link tier's data — the club-link
- * rows have no `delivery` field for it to print.
- *
- * ## Two presentations, one payload
- *
- * The wide table scrolls inside its own container; below `md` it is replaced by
- * one card per person. Both are rendered from the same filtered, sorted list —
- * the phone is not a subset of the desktop with rows removed, which is what
- * `docs/ux/slice-ux.md` means by responsive reflow never removing required
- * information.
- *
- * ## Sorting is a link
- *
- * Every heading is an anchor carrying every current filter, so the table works
- * with scripting disabled, the back button undoes a sort, and a sorted view is
- * something an operator can send to somebody. `participationSortHref` builds
- * it; `participation-view.test.ts` proves it keeps the filters.
+ * `participation.tier` decides whether Delivery exists (D3), read from the
+ * payload, not a prop — a caller cannot ask for the operator's table while
+ * holding club-link data. Desktop table and phone cards render from the same
+ * filtered, sorted list. Every heading is a link carrying every filter, so
+ * sorting works with scripting disabled.
  */
 function formatWhen(value: string | null): string {
   if (value === null) return NOTHING;
@@ -98,21 +80,10 @@ function AnswerChip({ person }: { person: ParticipationPerson }) {
 }
 
 /**
- * The Answer cell's whole story — W3, LAN-170.
- *
- * OWNER-LAN170-05 (correction round 3): `RecordAnswerControl` replaces the
- * chip entirely on a row it offers itself against — it never stacks beside
- * it. Brian: stacking a "No answer" chip above a control in one narrow cell
- * "tries to fit the button there in some way," and the absence of an answer
- * chip is itself the signal that there is no answer, so every cell in this
- * column holds exactly one element. A row the control is not offered against
- * — because it already carries an answer, is a walk-up, or the reader is not
- * an operator — is unaffected and still renders the chip exactly as before.
- * It renders only for an operator, only against a real invitation (never a
- * walk-up, who was never asked), and only where `answer` is `null` — a row
- * that already carries an answer never gets it, which is the whole of
- * "superseding is out of scope" enforced at the surface that offers the
- * control at all.
+ * The Answer cell — W3, LAN-170. OWNER-LAN170-05: `RecordAnswerControl`
+ * replaces the chip entirely, never stacks beside it (Brian: a chip above a
+ * control "tries to fit the button there in some way"). Only for an
+ * operator, only a real invitation, only where `answer` is `null`.
  */
 function AnswerCell({
   operator,
@@ -155,14 +126,7 @@ function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
   return <StatusChip domain="attendance" status={presence} label={presenceLabel(presence)} />;
 }
 
-/**
- * The Delivery cell's own label and colour, once W6's two named exceptions to
- * the plain five-state vocabulary are applied — `REQ-no-channel-backstop` and
- * `REQ-whatsapp-outage-visible`. Both replace what would otherwise read as an
- * undifferentiated **Failed** chip; neither changes `person.delivery` itself,
- * which stays the provider-neutral state `docs/ux/standards.md` rule 7 shares
- * with the delivery screen.
- */
+/** The Delivery cell's label, once W6's two exceptions (`REQ-no-channel-backstop`, `REQ-whatsapp-outage-visible`) replace an undifferentiated Failed. */
 function deliveryChipLabel(person: OperatorParticipationPerson, state: string): string {
   if (person.noUsableRoute) return NOT_DISPATCHED_NO_CHANNEL;
   if (person.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
@@ -177,10 +141,7 @@ function DeliveryCell({
   isWalkUp: boolean;
 }) {
   const state = person.delivery ?? null;
-  // W157-F7. "Nothing queued" is a statement about delivering an invitation,
-  // and a walk-up was never invited — there is no invitation whose delivery
-  // could be queued or not. Every other empty cell in a walk-up's row reads
-  // "—", and the approved mockup gives this one "—" too.
+  // W157-F7: a walk-up was never invited, so "Nothing queued" doesn't apply — reads "—" like the row's other empty cells.
   if (isWalkUp) {
     return (
       <Typography component="span" variant="body2" color="text.secondary">
@@ -198,11 +159,7 @@ function DeliveryCell({
   return (
     <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
       <StatusChip domain="delivery" status={state} label={deliveryChipLabel(person, state)} />
-      {/*
-        W4's chase position — the rung already sent and the next one due, or
-        Chase stopped / Escalated to the President. `null` for an answered row,
-        a walk-up, or anybody `noUsableRoute` already explains.
-      */}
+      {/* W4's chase position — null for an answered row, walk-up, or anybody `noUsableRoute` already explains. */}
       {person.chasePosition ? (
         <Typography variant="caption" color="text.secondary" data-testid="chase-position">
           {person.chasePosition}
@@ -273,10 +230,7 @@ export function ParticipationTable({
   const { questions } = participation;
   const people = applyParticipationView(participation.people, filters, questions);
   const total = participation.people.length;
-  // Common to both tiers' event-facts shape (`EventFactsBase`) — LAN-170's
-  // recording dialog needs the event's identity (OWNER-LAN170-09: `id`, and
-  // now `name`/`scheduledOn`/`startsAt`/`endsAt` for its subtitle) and the
-  // table otherwise never reads any of it.
+  // `EventFactsBase`: LAN-170's recording dialog needs the event's identity (OWNER-LAN170-09), otherwise unread here.
   const event = participation.event;
 
   return (

@@ -10,33 +10,12 @@ import { formatCellDate, formatDayNumber, formatWeekRange } from "./presentation
 import type { TileStatus } from "./tile-status";
 
 /**
- * The Oxford View — one continuous academic year. LAN-153.
- *
- * ## One table, not seven
- *
- * Long Vacation, Michaelmas, Christmas Vacation, Hilary, Easter Vacation,
- * Trinity, Long Vacation, in one scroll. The segments are headings *inside* the
- * grid rather than separate tables, because the whole point is that the year is
- * continuous: seven tables would be seven calendars again, which is what D85
- * retired. Each heading carries an `id`, and the jump control scrolls to it.
- *
- * A vacation row is tinted so the eye can find the boundaries while scrolling,
- * and it also states its name in every row label ("Christmas Vacation 2"), so a
- * reader who cannot separate the tint from the ground loses nothing — the same
- * rule the type colours follow.
- *
- * ## Both tiers, one component
- *
- * `href` and `status` are computed per event by the page, which knows the tier.
- * Nothing here reads a status off an event or builds a destination, so the
- * public column and the operator's are the same grid with different tiles.
- *
- * ## Phone
- *
- * Below `md` the grid becomes stacked week cards, which is the shape the term
- * card already used below its own breakpoint. Every week the desktop grid holds
- * is present, empty ones included, so `slice-ux.md` § 7's rule against dropping
- * data on reflow holds: a week with nothing in it is a fact about the week.
+ * The Oxford View — one continuous academic year. LAN-153. One table, not
+ * seven: segments are headings inside the grid, since seven tables would be
+ * seven calendars again (D85 retired that). `href`/`status` are computed per
+ * event by the page, so the public and operator columns are the same grid
+ * with different tiles. Below `md`, stacked week cards; every week present,
+ * empty ones included (`slice-ux.md` § 7).
  */
 
 export interface YearColumnProps {
@@ -142,13 +121,7 @@ function WeekEvents({ week, tile }: { week: YearWeek; tile: YearColumnProps["til
   );
 }
 
-/**
- * One segment's heading row and its weeks.
- *
- * The heading is a full-width row inside the table rather than a caption above
- * a new one, so the year stays a single scroll and a week row never loses its
- * columns to a heading.
- */
+/** One segment's heading row and its weeks — a full-width row inside the table, so the year stays one scroll. */
 function SegmentRows({ segment, tile }: { segment: YearSegment; tile: YearColumnProps["tile"] }) {
   return (
     <>

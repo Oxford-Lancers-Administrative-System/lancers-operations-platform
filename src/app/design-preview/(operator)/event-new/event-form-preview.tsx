@@ -4,11 +4,7 @@ import { useMemo, useState } from "react";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import {
-  deriveTermCoordinate,
-  DRAFTABLE_EVENT_TYPES,
-  type TermWindow,
-} from "@/lib/services/event-input";
+import { deriveTermCoordinate, EVENT_TYPES, type TermWindow } from "@/lib/services/event-input";
 import type { EventTypeFormDefaults } from "@/lib/services/event-template-input";
 import { ActionBar } from "@/components/action-bar";
 import { Fact, FactList } from "@/components/fact";
@@ -99,7 +95,7 @@ export default function EventFormPreview({
             field="eventType"
             value={eventType}
             onChange={(event) => changeType(event.target.value)}
-            options={DRAFTABLE_EVENT_TYPES.map((type) => ({
+            options={EVENT_TYPES.map((type) => ({
               value: type,
               label: labelFor(TYPE_LABELS, type),
             }))}

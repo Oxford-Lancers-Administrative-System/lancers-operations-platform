@@ -16,20 +16,7 @@ import { completePasswordReset, type ResetPasswordState } from "./actions";
 
 const initialState: ResetPasswordState = { error: null };
 
-/**
- * The new-password form.
- *
- * `minLength` gives the browser's own immediate feedback, and the server action
- * applies the identical rule again from `validateNewPassword` — the attribute
- * is a courtesy that any client can drop, and only the second check is a
- * control. Supabase applies `minimum_password_length` a third time.
- *
- * Nothing echoes a password: the fields are uncontrolled, so a rejected attempt
- * clears them rather than round-tripping the value through the server and back
- * into the markup. The rest of the form state — the destination, the heading,
- * the message — survives, which is what "without losing safe form state" can
- * honestly mean for a field whose contents must not be safe to keep.
- */
+/** The new-password form. `minLength` is a courtesy only — `validateNewPassword` is the control, Supabase applies its own rule a third time. Fields are uncontrolled: nothing echoes a password back. */
 export default function ResetPasswordForm({ redirectTo }: { redirectTo: string }) {
   const [state, formAction, pending] = useActionState(completePasswordReset, initialState);
 

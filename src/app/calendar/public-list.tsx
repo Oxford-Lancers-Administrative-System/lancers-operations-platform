@@ -20,32 +20,12 @@ import { publicEventHref } from "./routes";
 import SortableHeader, { type SortLink } from "./sortable-header";
 
 /**
- * The public list — four columns, and nothing about people. LAN-153.
- *
- * ## The columns, and the ones that are missing on purpose
- *
- * Name, type, when (with its Oxford coordinate), and where. `W1`'s tier table:
- * no status column, no invited count, no said-yes count, no attendance, and
- * **never** the joining URL of an online event. None of that is hidden here —
- * `PublicEventListEntry` has no field for any of it, and the query never read
- * one — so this component could not render it if it tried.
- *
- * An online event says **Online** and stops there. Brian, 21 August 2026: "When
- * it says online, you do not need to show no link shown. That's not important."
- *
- * ## Except a cancellation
- *
- * A cancelled event stays on the list, marked cancelled — correction C1 to `W1`,
- * from D57 and from `W2` keeping it in the subscription feed. Hiding it here
- * would make two public surfaces disagree about what is on, and an event that
- * silently vanishes from a calendar somebody subscribed to reads as a sync
- * failure. It is a chip beside the name, not a Status column: the reader learns
- * the event is off, and nothing about drafts.
- *
- * ## Phone
- *
- * One condensed card per event, carrying the same four facts. Brian, 21 August
- * 2026, wanted the events to start within a screen of the top on a phone.
+ * The public list — four columns, nothing about people. LAN-153. `W1`'s tier
+ * table: no status, invited count, said-yes count or attendance, and never
+ * the joining URL — `PublicEventListEntry` has no field for any of it. A
+ * cancelled event stays on the list, marked cancelled (C1 to `W1`, D57), as a
+ * chip beside the name, not a Status column. One condensed card per event on
+ * a phone (Brian, 21 August 2026: events should start within a screen).
  */
 export default function PublicList({
   buckets,
@@ -166,16 +146,7 @@ export default function PublicList({
   );
 }
 
-/**
- * Where the event is, at the public tier.
- *
- * An in-person event states its address. An online one states that it is online
- * and stops — the destination it is *called* is `venue` (D21). The link to join
- * it is published, but on the event's own page (LAN-284): a list row says what
- * and where, and a page of thirty join links is not a calendar.
- * `PublicEventListEntry` has no field for one, so this component has no access
- * to one either way.
- */
+/** Where the event is, at the public tier (D21). The joining link is on the event's own page (LAN-284) — `PublicEventListEntry` has no field for one here. */
 function whereItIs(event: PublicEventListEntry): string {
   if (event.deliveryMode === "online") {
     return event.venue ?? labelFor(DELIVERY_MODE_LABELS, "online");

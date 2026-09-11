@@ -6,17 +6,7 @@ import Typography from "@mui/material/Typography";
 
 import { CLOSE, TERMINAL_BODY, TERMINAL_HEADING, TERMINAL_PRIVACY_NOTE } from "./presentation";
 
-/**
- * One response for every unusable answer link. LAN-172, following LAN-79's
- * `src/app/rsvp/[token]/not-found.tsx` exactly.
- *
- * `unknown`, `revoked` and `event_started` all render here, at `404`, with
- * identical copy, presentation and headers — `REQ-no-false-rsvp`'s sibling
- * requirement that these stay publicly indistinguishable. `page.tsx` is the
- * only caller that may reach this file, by calling `notFound()`; there is no
- * prop, search parameter or variant here that could let the three states
- * diverge.
- */
+/** One response for every unusable answer link (LAN-172, following `rsvp/[token]/not-found.tsx`) — `unknown`/`revoked`/`event_started` render identically, publicly indistinguishable (`REQ-no-false-rsvp`). */
 export default function AnswerLinkUnusable() {
   return (
     <PublicShell>

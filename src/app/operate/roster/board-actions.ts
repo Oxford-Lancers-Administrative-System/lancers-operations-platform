@@ -25,25 +25,12 @@ import { resolveOnboardingItem, type OnboardingItemStatus } from "@/lib/services
 import type { BoardActionState } from "./board-action-state";
 
 /**
- * The board's own server actions — LAN-186. Every one of them:
- *
- *   * opens with `requireCapability("person_record_authority")`, resolving the
- *     actor from the verified session — `REQ-authority`'s "four-role only, for
- *     the grid and every column on it" enforced here and not only by the page
- *     that renders the controls;
- *   * commits on its own, no confirmation step, and writes an audit event with
- *     no reason asked — these are all season facts;
- *   * revalidates the roster path so the refreshed server render carries the
- *     new value straight back into the cell that changed.
- *
- * The status change is deliberately **not** here, even though it is now a
- * free `select` column like every other one above. `./actions.ts` carries
- * `setMembershipStatusAction`, gated on this same `person_record_authority` —
- * not a second, looser path to the same column, and not (after RVW-186-001)
- * `membership_activation`, whose role list includes the Treasurer and stopped
- * being bounded to three narrow transitions the moment the legal-transition
- * table was removed. The board's Status cell calls that action directly
- * rather than reimplementing this boundary a second time.
+ * The board's own server actions — LAN-186. Each opens with
+ * `requireCapability("person_record_authority")` (`REQ-authority`),
+ * commits with no confirmation, and revalidates the roster path. Status
+ * change is deliberately not here — `./actions.ts`'s `setMembershipStatusAction`
+ * (same capability) owns that column instead, not `membership_activation`
+ * (RVW-186-001).
  */
 
 function refresh(): void {
@@ -181,11 +168,8 @@ export async function commitAvailabilityAction(params: {
 }
 
 /**
- * Correction round 2, item 5 (`WP-operator-record`, LAN-217): the board's
- * own onboarding-item columns commit through `resolveOnboardingItem` in
- * `membership.ts` — the same service call the record page's own row already
- * makes — never a direct write of item state from the board, so history and
- * the activity log keep recording exactly as they do from the record page.
+ * Correction round 2, item 5 (LAN-217): commits through `resolveOnboardingItem`
+ * — same call the record page's row makes, so history/activity log stay consistent.
  */
 export async function commitOnboardingItemAction(params: {
   membershipId: string;

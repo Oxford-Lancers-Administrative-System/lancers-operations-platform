@@ -675,10 +675,6 @@ Genuinely absent from the slice today:
   behind it.
 - **Turnout is wrong on any event with a walk-up** — see § 11. Reported, not
   corrected here.
-- **The Monday report grid logs a hydration mismatch** in the browser console
-  when an RSVP reason tooltip is rendered (`src/app/operate/report/page.tsx`,
-  `CellValue`). The page renders and behaves correctly; the console error is
-  visible in development. Reported, not corrected here.
 
 **Automated WhatsApp delivery is not on this list.** It is built, it runs, and an
 operator copying, sending, posting or marking a link as sent is not an accepted

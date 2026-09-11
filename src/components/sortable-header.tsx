@@ -6,12 +6,9 @@ import TableSortLabel from "@mui/material/TableSortLabel";
 
 /**
  * A column heading that is also the control for ordering by it — LAN-225,
- * brief §2. Replaces four implementations (audit inventory) with the one the
- * participation table settled: an href, so sorting works with scripting
- * disabled and the back button undoes it; `scroll={false}`, so re-ordering a
- * table the reader is part-way down does not bounce them to the top;
- * `component="span"`, because a button inside an anchor is invalid HTML.
- * Behaviour unchanged; only the markup is shared.
+ * brief §2. An href, so sorting works with scripting disabled; `scroll={false}`
+ * so re-ordering doesn't bounce the reader to the top; `component="span"`
+ * since a button inside an anchor is invalid HTML.
  */
 export function SortableHeader({
   column,

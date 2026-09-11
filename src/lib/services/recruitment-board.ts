@@ -11,43 +11,20 @@ import {
 } from "./recruitment-vocabulary";
 
 /**
- * `/operate/recruitment` — `W1`, LAN-204. The board's own read: one line per
- * recruit in the open season, banded Person · Recruitment · one pair per
- * recruitment event, on the same "read everything, filter in the browser"
- * shape `roster-board.ts` already uses (`DEC-w1-12`: the season holds dozens
- * of rows, not thousands).
- *
- * The status ladder, its labels, the consent vocabulary, the RSVP/attendance
- * labels and the Questionnaire B codebook all live in
- * `./recruitment-vocabulary.ts` — a plain module with no `"server-only"` tag
- * — because client components under `../../app/operate/recruitment/**` need
- * the same words this file's queries use, and a module tagged `"server-only"`
- * cannot be imported by value from one (see that file's own comment).
- *
- * Re-exported here so a caller already importing this file for
- * `RecruitmentBoardRow` finds the whole board vocabulary in one place too —
- * every re-export below is either a **type** (erased at compile time, so it
- * carries none of the `"server-only"` restriction across) or reads through to
- * the same shared module a client component would import directly.
+ * `/operate/recruitment` — `W1`, LAN-204. The board's read: one line per
+ * recruit in the open season, "read everything, filter in the browser"
+ * (`DEC-w1-12`). Vocabulary lives in `./recruitment-vocabulary.ts` (no
+ * `"server-only"` tag, since client components need the same words); the
+ * types re-exported here are erased at compile time, so they carry none of
+ * that restriction across.
  */
-export type { ProspectStatus, RsvpValue, AttendanceValue } from "./recruitment-vocabulary";
-export {
-  PROSPECT_STATUS_ORDER,
-  PROSPECT_STATUS_LABELS,
-  EXIT_STATUSES,
-  CONSENT_LABELS,
-  RSVP_LABEL,
-  ATTENDANCE_LABEL,
-  QUESTIONNAIRE_B_CODE,
-} from "./recruitment-vocabulary";
-
 export interface RecruitmentEventColumn {
   readonly eventId: string;
   readonly name: string;
   readonly date: string | null;
 }
 
-export interface RecruitmentEventCell {
+interface RecruitmentEventCell {
   readonly rsvp: RsvpValue | null;
   readonly attendance: AttendanceValue | null;
 }
@@ -65,13 +42,7 @@ export interface RecruitmentBoardRow {
   readonly degreeField: string | null;
   readonly hasMobile: boolean;
   readonly hasEmail: boolean;
-  /**
-   * The raw mobile number, carried only to compose the phone condensed
-   * view's `tel:` link — the roster board's own one permitted mobile-card
-   * action (`../roster/roster-board.ts`'s `phoneForCall`), reused here for
-   * the same reason: voice call is a channel with no consent gate and no
-   * pipeline to bypass, unlike a WhatsApp send.
-   */
+  /** Raw mobile, carried only for the `tel:` link — voice call has no consent gate to bypass, unlike WhatsApp. */
   readonly phoneForCall: string | null;
 
   // Recruitment.

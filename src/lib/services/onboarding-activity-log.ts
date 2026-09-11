@@ -1,33 +1,13 @@
 import "server-only";
 
-import { ConstraintViolated, type Tx, withTransaction } from "@/lib/db";
+import { ConstraintViolated, type Tx } from "@/lib/db";
 
-/**
- * The sectioned per-player activity log — LAN-214, `REQ-activity-log`.
- *
- * `OD7-log-by-section` (Brian, 2026-09-01) and its 2026-09-02 correction of
- * the first counted draft: "I want to see the individual items that come
- * underneath, when it was asked versus when it was received." One row per
- * ask, one row per answer — never a count — grouped by section, each
- * carrying when, how and who.
- *
- * ## Append-only
- *
- * `public.onboarding_activity_log`'s grant is `select, insert` — no `update`,
- * no `delete`. This module exposes no way to change or remove a row once
- * written; there is nothing to call. `onboarding-activity-log.test.ts` proves
- * the database itself refuses both.
- *
- * ## Who writes here
- *
- * `onboarding-welcome.ts`'s welcome emitter writes the mission's first entry
- * — one `ask` per membership. The four later, visual packages write every
- * other ask (a follow-up, an operator nudge, a targeted ask) and every answer
- * (a form step saved, a claim, a document agreed) through
- * {@link recordOnboardingActivityIn}, so every one of them counts against the
- * same table and the same section vocabulary rather than each inventing its
- * own.
- */
+// The sectioned per-player activity log — LAN-214, REQ-activity-log. OD7-log-by-section (Brian,
+// 2026-09-01/02): one row per ask, one row per answer, never a count, grouped by section.
+// Append-only — onboarding_activity_log's grant is select/insert only, no update/delete; this
+// module exposes no way to change a row. onboarding-welcome.ts writes the mission's first entry
+// (one ask per membership); recordOnboardingActivityIn is the one write every later package uses,
+// so all count against the same table and section vocabulary. See relocations.md.
 
 export type OnboardingActivityKind = "ask" | "answer";
 
@@ -37,11 +17,9 @@ export interface OnboardingActivityEntry {
   seasonId: string;
   section: string;
   kind: OnboardingActivityKind;
-  /** How — free text ("whatsapp", "email", "operator nudge", "link", "in person"). Never blank. */
-  channel: string;
+  channel: string; // how — free text ("whatsapp", "email", "operator nudge"...); never blank
   actorPersonId: string | null;
-  /** Who, in words, when there is no person id — an automated chase has nobody behind it. */
-  actorLabel: string | null;
+  actorLabel: string | null; // who, in words, when there is no person id (an automated chase has nobody behind it)
   occurredAt: Date;
 }
 
@@ -77,13 +55,8 @@ function optional(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/**
- * Appends one entry. `kind: "answer"` needs a name for who answered —
- * `actorPersonId` where the player's identity is known, `actorLabel`
- * otherwise — and the database's own `onboarding_activity_log_answer_names_someone`
- * check refuses a nameless one; this function refuses it first, with the
- * club's sentence rather than an integrity error.
- */
+// kind: "answer" needs actorPersonId or actorLabel — refused here first, with a sentence, ahead of
+// the database's own onboarding_activity_log_answer_names_someone check.
 export async function recordOnboardingActivityIn(
   tx: Tx,
   params: {
@@ -140,19 +113,7 @@ export async function recordOnboardingActivityIn(
   return toEntry(result.rows[0] as unknown as ActivityRow);
 }
 
-/** Convenience wrapper for a caller with no open transaction. */
-export async function recordOnboardingActivity(
-  params: Parameters<typeof recordOnboardingActivityIn>[1],
-): Promise<OnboardingActivityEntry> {
-  return withTransaction((tx) => recordOnboardingActivityIn(tx, params));
-}
-
-/**
- * One membership's whole log, oldest first within each section — the shape
- * `readOnboardingActivityLogBySectionIn` groups for the record; this is the
- * flat read underneath it, for a caller that wants the entries themselves
- * (a test, an export) rather than the grouping.
- */
+// The flat read underneath readOnboardingActivityLogBySectionIn's grouping — for a caller that wants entries themselves.
 export async function readOnboardingActivityLogIn(
   tx: Tx,
   membershipId: string,

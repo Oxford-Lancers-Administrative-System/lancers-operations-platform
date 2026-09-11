@@ -12,15 +12,10 @@ import { submitTokenSignup } from "./actions";
 
 /**
  * `W7`'s tokenised, prefilled door — for somebody the club already has.
- * LAN-202 amendment 2: lives under the existing `/me/` prefix so the proxy's
- * early return (`path.startsWith("/me/")`) already sets `no-store`,
- * `no-referrer` and `noindex` before any Supabase work — no edit to
- * `src/proxy.ts` needed. The credential is the same durable, season-scoped
- * `person_access_tokens` row `/me/[token]` (the player's own home) already
- * reads — reused here under its own sub-route rather than a second shape.
- *
- * There is no duplicate question on this door: the credential already names
- * exactly one person, so "have you signed up before?" has nothing to ask.
+ * LAN-202 amendment 2: lives under `/me/` so the proxy's early return already
+ * sets `no-store`/`no-referrer`/`noindex` — no edit to `src/proxy.ts`. Same
+ * `person_access_tokens` row `/me/[token]` reads, reused under its own
+ * sub-route. No duplicate question: the credential already names one person.
  */
 export const metadata: Metadata = {
   title: "Join the Oxford Lancers",

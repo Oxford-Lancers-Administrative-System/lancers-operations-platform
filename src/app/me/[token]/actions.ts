@@ -19,16 +19,11 @@ import {
 import { NO_REASON_GIVEN_DEFAULT, resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 
 /**
- * Writes made from the durable page. LAN-172.
- *
- * Every action re-resolves the durable token inside its own transaction and
- * passes the resolved `personId` — never the form's own values — into the
- * service call that re-proves the target invitation belongs to that person.
- * `recordPlayerHomeAnswerIn` and `answerEventQuestionsIn` each do this proof
- * themselves, so an invitation id taken from a request that does not belong
- * to the token holder is refused identically to one that does not exist at
- * all. Correction LAN-172-c1: `answerEventQuestionsIn` previously took no
- * `personId` and skipped this proof entirely.
+ * Writes made from the durable page. LAN-172. Every action re-resolves the
+ * token inside its own transaction and passes the resolved `personId`, never
+ * the form's values, so an invitation id that does not belong to the token
+ * holder is refused identically to one that does not exist (LAN-172-c1 fixed
+ * `answerEventQuestionsIn` skipping this proof).
  */
 
 function str(form: FormData, field: string): string {
@@ -59,38 +54,12 @@ function homeUrl(token: string, invitationId: string): string {
   return `/me/${encodeURIComponent(token)}?open=${encodeURIComponent(invitationId)}`;
 }
 
-/**
- * Owner correction round 5 (OWNER-LAN172-16). Brian: "Once I click Save, the
- * box should go away, and I should just go back to the normal page." A
- * successful save is a completed interaction, not an invitation to keep the
- * panel open — the plain page, with the result already reflected in its
- * list, is the confirmation. Only the panel's own dedicated Save actions
- * (the reason form, the questions form) ever redirect here.
- *
- * Owner correction round 6 (OWNER-LAN172-19) narrows this doc comment's own
- * earlier claim: round 5 also had `changeToYes` accept a `close` flag for a
- * *revising* Change to Yes, reasoning "that should be at the end of it." It
- * was not — Brian's "one interaction" model treats changing an answer
- * exactly like a first answer: it records immediately and opens *that*
- * answer's own follow-up, never closing by itself. `changeToYes` no longer
- * reads any such flag; see it below.
- */
+/** Owner correction round 5 (OWNER-LAN172-16). Brian: "Once I click Save, the box should go away, and I should just go back to the normal page." */
 function plainHomeUrl(token: string): string {
   return `/me/${encodeURIComponent(token)}`;
 }
 
-/**
- * The one-click "Yes, I'm attending" / "Change to Yes" control.
- *
- * Owner correction round 6 (OWNER-LAN172-19): never closes the panel. A
- * fresh Yes (`MiniYesNo`) always opened it to ask any outstanding questions;
- * round 5 wrongly special-cased a *revising* Change to Yes to close instead
- * (`ChangeToYesButton`, and the panel's own Change-to-Yes button both sent
- * `close=1`) — which recorded the Yes and then hid the very questions it had
- * just made outstanding again. Changing to Yes is not a Save; only the
- * panel's own dedicated Save actions (`submitNo`'s reason form,
- * `submitQuestions`) close it.
- */
+/** "Yes"/"Change to Yes" (OWNER-LAN172-19): never closes the panel — round 5 wrongly closed a revising Change to Yes. Only `submitNo`'s reason form and `submitQuestions` close it. */
 export async function changeToYes(form: FormData): Promise<void> {
   const startedAt = startUniformClock();
   const token = tokenFrom(form);
@@ -116,23 +85,7 @@ export async function changeToYes(form: FormData): Promise<void> {
   redirect(homeUrl(token, invitationId));
 }
 
-/**
- * "No, I'm not attending" / "Change to No" / "Give a reason and continue" —
- * one action, because all three are the same write: record No with whatever
- * reason the form carries.
- *
- * Correction LAN-172-c2 (Q-22, `REQ-no-reason-given`): the click itself must
- * be enough for a **player's** own No, exactly as it already is on the
- * WhatsApp answer link — a page with a text field in front of the player is
- * not a reason to demand one before the answer stands. `defaultOk` is set by
- * the two side-by-side row controls and by "Plans changed?", which submit no
- * `reason` at all; a blank reason there is filled with the same
- * `NO_REASON_GIVEN_DEFAULT` the WhatsApp path already records, never refused.
- * The *separate* "Give a reason and continue" form — replacing an already-
- * standing default with the player's real explanation — sends no `defaultOk`
- * and keeps the original refusal: nothing meaningful was submitted, so the
- * player sees the same recoverable error LAN-79 already used.
- */
+/** "No"/"Change to No"/"Give a reason" — one write (LAN-172-c2, Q-22). `defaultOk` fills a blank reason with `NO_REASON_GIVEN_DEFAULT`; "Give a reason" sends none and keeps the refusal. */
 export async function submitNo(form: FormData): Promise<void> {
   const startedAt = startUniformClock();
   const token = tokenFrom(form);
@@ -157,11 +110,7 @@ export async function submitNo(form: FormData): Promise<void> {
       });
     });
   } catch {
-    // A blank reason is exactly as recoverable as LAN-79's own decline step,
-    // so it returns to the same focused panel rather than the uniform
-    // refusal — the player is mid-answer and should not lose their place.
-    // Owner correction round 5 (OWNER-LAN172-16): never closed on a failed
-    // save, `close` or not — the panel stays open to show the error.
+    // As recoverable as LAN-79's decline step: returns to the focused panel, not the uniform refusal. Never closes on a failed save (OWNER-LAN172-16).
     redirect(`${homeUrl(token, invitationId)}&reasonError=1`);
   }
 
@@ -191,8 +140,6 @@ export async function submitQuestions(form: FormData): Promise<void> {
     await refuse(`/me/${encodedToken}`, startedAt);
   }
 
-  // Owner correction round 5 (OWNER-LAN172-16): a successful save always
-  // closes the panel — the only caller of this action is the panel's own
-  // questions form, so there is no "fresh answer" case to preserve here.
+  // OWNER-LAN172-16: a successful save always closes the panel.
   redirect(plainHomeUrl(token));
 }

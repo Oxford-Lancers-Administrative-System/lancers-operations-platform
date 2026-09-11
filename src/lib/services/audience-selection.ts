@@ -1,105 +1,33 @@
-/**
- * What an audience selection *means* — the vocabulary, the derived groups and
- * the resolution rules. LAN-77.
- *
- * Split out of `event-audience.ts` for the same structural reason
- * `event-input.ts` is split out of `events.ts`, and the header there explains
- * it: this module is imported by the **client** component that renders the
- * audience builder, and `event-audience.ts` reaches the database. A client
- * component importing that would drag `pg` into the browser bundle, which does
- * not build.
- *
- * So everything here is pure — no database, no `server-only`, no framework — and
- * `event-audience.ts` re-exports it so a server caller has one import and does
- * not have to know the split exists.
- *
- * The rules living here rather than in the component is the point. The screen
- * has to show the approver **exactly** the list that approval will write, names
- * and count and capacity, because the confirmed list is the approval subject
- * rather than the group labels that produced it. A component that re-implemented
- * de-duplication would eventually disagree with the transaction by one person,
- * and the operator would never know which of the two was lying.
- */
+// Audience selection vocabulary, derived groups and resolution rules (LAN-77). Pure — split out of
+// event-audience.ts for the client builder component. See relocations.md.
 
-/**
- * The capacities an audience can be built from.
- *
- * `recruit` joined the other three with D46, and only ever appears on a
- * Recruitment event — see `AUDIENCE_GROUPS`. It anchors to the durable Person
- * like coach and committee do, because a prospect is deliberately not a
- * membership: `public.recruitment_prospects` exists so that the roster keeps
- * meaning "people on the team".
- */
+// The capacities an audience can be built from; `recruit` (D46) anchors to the Person, not a membership.
 export type AudienceCapacity = "player" | "coach" | "committee" | "recruit";
 
-/**
- * The one behavioural class recruits belong to — `public.event_type`'s
- * `recruitment` — named once so D46 is stated in exactly one place.
- *
- * It is the **class**, never a template name. After LAN-265 an operator names
- * templates freely and everything they create is `practice` class, so a rule
- * that keyed on a name would be one rename away from inviting six prospects to a
- * Wednesday practice.
- */
-export const RECRUITMENT_EVENT_TYPE = "recruitment";
+export const RECRUITMENT_EVENT_TYPE = "recruitment"; // public.event_type class, never a template name (LAN-265)
 
-/**
- * Which capacity wins when one person qualifies under several.
- *
- * Player first because the overwhelmingly common collision is a committee
- * member or a coach who also plays, and the event being approved is a playing
- * event. The resolved capacity is shown on screen, so a wrong guess is visible
- * and correctable before approval rather than discovered afterwards.
- */
-export const CAPACITY_PRECEDENCE: readonly AudienceCapacity[] = Object.freeze([
+// Which capacity wins when one person qualifies under several — player first, the common collision.
+const CAPACITY_PRECEDENCE: readonly AudienceCapacity[] = Object.freeze([
   "player",
   "coach",
   "committee",
-  // Last, and it costs nothing: a prospect who is also a member is not a
-  // prospect any more — `recruitment_prospects.status` is `joined` and the
-  // catalogue stops offering them. The rank exists so the ordering is total.
-  "recruit",
+  "recruit", // last, and costs nothing — a prospect who joins stops being offered by the catalogue at all
 ]);
 
 /** One selectable person, in one capacity, with everything UX-40 lists. */
 export interface AudienceCandidate {
-  /** `capacity:anchorId` — the only token that crosses the network. */
-  key: string;
+  key: string; // capacity:anchorId — the only token that crosses the network
   capacity: AudienceCapacity;
-  /** `season_memberships.id` for a player; `people.id` otherwise. Invariant P8. */
-  anchorId: string;
+  anchorId: string; // season_memberships.id for a player, people.id otherwise — invariant P8
   personId: string;
-  /** The name as the roster shows it. */
-  displayName: string;
-  /** UX-40's Membership column: the membership status, or the seats held. */
-  standing: string;
-  /** UX-40's Unit column. Playing unit for a player; null for everyone else. */
-  unit: string | null;
-  /** UX-40's Contact column: phone where there is one, else email. */
-  contact: string | null;
-  /**
-   * `WP-operator-record` (LAN-217) correction round 2, item 7 — the BPS
-   * audience group. `bps_selections.is_selected` for this season, `false`
-   * for every non-player candidate. Not a fifth `AudienceCapacity`: the BPS
-   * group is still a `player`-capacity row (the same
-   * `event_audience_members.capacity` value every other player already
-   * writes), narrowed by this one extra flag instead — nothing about BPS
-   * gates anything else, so it must not touch the closed capacity
-   * vocabulary a real approved event already persists. Optional — every
-   * existing caller building a candidate for a non-BPS purpose leaves it
-   * undeclared, which reads as `false`.
-   */
-  isBps?: boolean;
+  displayName: string; // the name as the roster shows it
+  standing: string; // UX-40 Membership column: status, or seats held
+  unit: string | null; // UX-40 Unit column: playing unit for a player, null otherwise
+  contact: string | null; // UX-40 Contact column: phone where there is one, else email
+  isBps?: boolean; // WP-operator-record (LAN-217) R2#7 — narrows a player row; see relocations.md
 }
 
-/**
- * `public.audience_group`, in full — the closed vocabulary a template's default
- * audience is stored in (D43, D46).
- *
- * Closed because D43 is explicit that there is no further roster-derived group
- * and no saved custom group, and D44 that there are no unit or kit groups: the
- * unit control on the builder filters who is on screen and creates nothing.
- */
+// public.audience_group, in full — the closed vocabulary a template's default audience is stored in (D43, D46).
 export type AudienceGroupKey =
   "everyone_active" | "active_players" | "active_coaches" | "active_committee" | "recruits" | "bps";
 
@@ -108,52 +36,15 @@ export interface AudienceGroup {
   key: AudienceGroupKey;
   label: string;
   capacities: readonly AudienceCapacity[];
-  /**
-   * The event types this group is offered on. Absent means every type.
-   *
-   * D46 puts the recruits group on Recruitment alone, and
-   * `event_template_audience_groups_recruits_are_recruitment_only` says the same
-   * thing in the database. This field is what stops the builder and the template
-   * editor each inventing their own copy of that rule.
-   */
-  eventTypes?: readonly string[];
-  /** Correction round 2, item 7: narrows this group to candidates with `isBps`, on top of `capacities`. */
-  requiresBps?: boolean;
-  /**
-   * `false` excludes this group from a template's own default-audience
-   * picker (`templateGroupsForEventType`) even though the single-event
-   * builder still offers it (`groupsForEventType`). Absent means eligible —
-   * every existing group's own behaviour, unchanged.
-   *
-   * D-003 (correction round 3, Q-14, `WP-operator-record`, LAN-217): BPS was
-   * the one exception, excluded because `public.audience_group` — the closed
-   * enum a template default actually persists to — carried no `bps` value.
-   * Brian: the BPS audience appears in an event's own picker but not in
-   * event templates, so it cannot be pre-chosen. That migration is now
-   * authorised (`supabase/migrations/20260904120000_bps_event_template_audience.sql`),
-   * so BPS is template-eligible like every other group below it — see the
-   * `bps` entry in `AUDIENCE_GROUPS`.
-   */
-  templateEligible?: boolean;
+  eventTypes?: readonly string[]; // absent means every type; D46 puts recruits on Recruitment alone
+  requiresBps?: boolean; // correction round 2 item 7: narrows to isBps candidates, on top of capacities
+  templateEligible?: boolean; // false excludes from a template's default-audience picker; see relocations.md
 }
 
-/**
- * The system-derived groups the club has, and no others.
- *
- * Every one is backed by current authoritative domain data. There is no saved
- * custom group here and no seam for one: D43 is explicit that there is no
- * further roster-derived group, and D44 that there are no unit or kit groups —
- * the unit control on the builder filters who is on screen and creates nothing.
- *
- * The list is also the vocabulary a template's default audience is stored in
- * (D47), which is why the keys match `public.audience_group` exactly.
- */
+// The system-derived groups the club has, and no others (D43, D44, D47) — keys match public.audience_group exactly.
 export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
-  // Everyone first, on Brian's instruction: it is the common case, and the
-  // narrower groups then read as refinements of it rather than as a list you
-  // have to assemble. The order here is the order on screen.
   Object.freeze({
-    key: "everyone_active" as const,
+    key: "everyone_active" as const, // first (Brian): the common case
     label: "Everyone active",
     capacities: Object.freeze(["player" as const, "coach" as const, "committee" as const]),
   }),
@@ -172,38 +63,14 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
     label: "All active committee",
     capacities: Object.freeze(["committee" as const]),
   }),
-  // D46. A recruitment event is the one occasion the club invites people who
-  // are not on the roster, so this is the one type the group appears on.
-  //
-  // LAN-295: this used to be the *only* place the rule was stated, which made it
-  // a rule about a button rather than about who may be invited — the recruits
-  // themselves stayed in the catalogue on every event type, tickable one by one.
-  // `listAudienceCatalogueIn` now keeps them out of the catalogue entirely
-  // unless the event is `recruitment` class, and this entry is what stops the
-  // group appearing on the two screens that would otherwise offer an empty one.
+  // D46/LAN-295: recruits are kept out of the catalogue entirely off Recruitment events — see relocations.md.
   Object.freeze({
     key: "recruits" as const,
     label: "Recruits",
     capacities: Object.freeze(["recruit" as const]),
     eventTypes: Object.freeze([RECRUITMENT_EVENT_TYPE]),
   }),
-  // Correction round 2, item 7 (`WP-operator-record`, LAN-217): the roster's
-  // own BPS column, offered here too. Every event type, like every group
-  // above except Recruits. Includes onboarding memberships, not only active
-  // ones — `REQ-nothing-gates` in the packet states that onboarding
-  // memberships count as players for event audiences from the moment they
-  // are on the team, even though "active players" and "everyone active"
-  // above stay active-only.
-  //
-  // D-004 (correction round 3, Q-14): the label reads "All Active BPS", not
-  // "BPS" — Brian's exact words. D-003, same round: now template-eligible
-  // (`supabase/migrations/20260904120000_bps_event_template_audience.sql`
-  // adds `bps` to `public.audience_group`), so it is pre-choosable on an
-  // event template exactly as it already is on the event's own picker, and
-  // carries through to events created from that template the same way every
-  // other group already does — `readTemplateInheritanceIn` and
-  // `templateAudienceKeys` in `event-templates.ts` resolve any stored group
-  // generically, with no group-specific code of their own.
+  // Correction round 2 item 7 (WP-operator-record, LAN-217); D-003/D-004 round 3 — see relocations.md.
   Object.freeze({
     key: "bps" as const,
     label: "All Active BPS",
@@ -212,27 +79,14 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
   }),
 ]);
 
-/**
- * The groups offered for one event type.
- *
- * The builder, the template editor and the approval review all ask this rather
- * than filtering for themselves, so "which groups does a Social have?" has one
- * answer — `docs/ux/standards.md` rule 7 over three surfaces.
- */
+// The groups offered for one event type — one answer across builder, template editor and approval review (docs/ux/standards.md rule 7).
 export function groupsForEventType(eventType: string): readonly AudienceGroup[] {
   return AUDIENCE_GROUPS.filter(
     (group) => group.eventTypes === undefined || group.eventTypes.includes(eventType),
   );
 }
 
-/**
- * The groups a template's own default-audience picker may offer — the same
- * as {@link groupsForEventType}, minus any group `templateEligible: false`
- * excludes. No group excludes itself today: D-003 (correction round 3,
- * Q-14) closed the one gap — BPS was offered on the single-event builder but
- * never here, because `public.audience_group`, the closed enum a template
- * default actually persists to, had no `bps` value. It now does.
- */
+// The groups a template's default-audience picker may offer — groupsForEventType minus templateEligible: false.
 export function templateGroupsForEventType(eventType: string): readonly AudienceGroup[] {
   return groupsForEventType(eventType).filter((group) => group.templateEligible !== false);
 }
@@ -240,74 +94,31 @@ export function templateGroupsForEventType(eventType: string): readonly Audience
 /** The full selectable catalogue for one event. */
 export interface AudienceCatalogue {
   candidates: AudienceCandidate[];
-  /** Counts per capacity, so a group button can say how many it offers. */
-  counts: Record<AudienceCapacity, number>;
+  counts: Record<AudienceCapacity, number>; // per capacity, so a group button can say how many it offers
 }
 
 export function selectionKey(capacity: AudienceCapacity, anchorId: string): string {
   return `${capacity}:${anchorId}`;
 }
 
-/**
- * One selectable **human** — the row the picker actually offers. LAN-294.
- *
- * ## Why this sits beside `AudienceCandidate` rather than replacing it
- *
- * The catalogue is one row per *capacity*, on purpose: the derived groups are
- * defined by capacity, so collapsing at that level would hide a coach from the
- * coaching group and would make `toggleGroup`'s careful key-wise removal
- * inexpressible. The capacity rows therefore stay, and this is the view over
- * them.
- *
- * Brian, 2026-09-10, opening the picker on a practice event and finding Bertram
- * and Caspian listed twice each: a person who is a player, a coach and a
- * committee member appears **once**, and "it can be one thing; it can be
- * subdivided, doesn't really matter" — the row's second line may combine the
- * roles. One invitation per person per event.
- *
- * The row therefore carries *every* key the human holds, not only the winning
- * one, and ticking it means all of them. That is what keeps the group buttons
- * honest: press **All active committee** and Bertram's committee key is in the
- * selection, so pressing it again removes exactly that key and leaves him in as
- * a player — precisely as it did when he was two rows.
- */
+// One selectable **human** (LAN-294) — a view over AudienceCandidate's per-capacity rows (see relocations.md).
 export interface AudiencePerson {
-  /** `people.id`. The row is the person; the memberships hang off it. */
-  personId: string;
-  /** Every selection key this human holds, in `CAPACITY_PRECEDENCE` order. */
-  keys: string[];
-  /** The capacity a write resolves them to — the first of `capacities`. */
-  capacity: AudienceCapacity;
-  /** Every capacity they qualify under, in `CAPACITY_PRECEDENCE` order. */
-  capacities: AudienceCapacity[];
-  /** Their standing in each of `capacities`, in the same order. */
-  standings: string[];
+  personId: string; // people.id — the row is the person; the memberships hang off it
+  keys: string[]; // every selection key this human holds, in CAPACITY_PRECEDENCE order
+  capacity: AudienceCapacity; // the capacity a write resolves them to — the first of capacities
+  capacities: AudienceCapacity[]; // every capacity they qualify under, in CAPACITY_PRECEDENCE order
+  standings: string[]; // their standing in each of capacities, same order
   displayName: string;
-  /** Their playing unit, where they have one. */
   unit: string | null;
   contact: string | null;
   isBps: boolean;
 }
 
-/**
- * The catalogue as people rather than as capacities — one row per human,
- * alphabetically, each carrying every capacity they hold.
- *
- * Deliberately the same collapse `resolveSelection` performs, by the same rule
- * (`CAPACITY_PRECEDENCE`), so the row an operator ticks and the row the
- * transaction writes cannot disagree about the capacity a person is invited
- * under. That is why it lives here rather than in the component: a screen that
- * re-implemented the collapse would eventually differ from the write by one
- * person, and nobody would know which of the two was lying.
- */
+// The catalogue as people rather than capacities — the same collapse resolveSelection performs, so the ticked and written rows never disagree.
 export function audiencePeople(candidates: readonly AudienceCandidate[]): AudiencePerson[] {
   const rank = (capacity: AudienceCapacity) => CAPACITY_PRECEDENCE.indexOf(capacity);
   const byPerson = new Map<string, AudiencePerson>();
 
-  // Sorted rather than scanned twice, so the first candidate seen for a person
-  // is the one that wins and `capacities` comes out in precedence order without
-  // a second pass. `Array.prototype.sort` is stable, so two candidates of equal
-  // rank keep the catalogue's own order.
   for (const candidate of [...candidates].sort((a, b) => rank(a.capacity) - rank(b.capacity))) {
     const held = byPerson.get(candidate.personId);
 
@@ -327,10 +138,7 @@ export function audiencePeople(candidates: readonly AudienceCandidate[]): Audien
     }
 
     held.keys.push(candidate.key);
-    // The catalogue already joins several seats held in one capacity into one
-    // line. This is that same join one level up, and it is here so that a second
-    // row within a capacity can never silently become a second person.
-    const at = held.capacities.indexOf(candidate.capacity);
+    const at = held.capacities.indexOf(candidate.capacity); // one level up from the catalogue's own seat-join
     if (at === -1) {
       held.capacities.push(candidate.capacity);
       held.standings.push(candidate.standing);
@@ -345,11 +153,9 @@ export function audiencePeople(candidates: readonly AudienceCandidate[]): Audien
   return [...byPerson.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-/** One resolved audience member — exactly what a row and an invitation need. */
-export interface ResolvedAudienceMember {
+interface ResolvedAudienceMember {
   capacity: AudienceCapacity;
-  /** `season_memberships.id` for a player, `people.id` otherwise. Invariant P8. */
-  anchorId: string;
+  anchorId: string; // season_memberships.id for a player, people.id otherwise — invariant P8
   personId: string;
   displayName: string;
   standing: string;
@@ -357,14 +163,7 @@ export interface ResolvedAudienceMember {
 
 export const EMPTY_AUDIENCE_RULE = "event_audience_is_non_empty";
 
-/**
- * Invariant E1b, in the club's language.
- *
- * `docs/architecture/data-model.md` records that the database *accepts* an empty
- * audience and that refusing one is the service layer's job — and a test in
- * `tests/schema-event-audience.test.ts` asserts that acceptance so the boundary
- * cannot be misread. This sentence is the refusal that boundary is waiting for.
- */
+// Invariant E1b in the club's language — the database accepts an empty audience; this is the service-layer refusal.
 export const EMPTY_AUDIENCE_MESSAGE =
   "Choose who this event is for before approving it. An approved event with nobody " +
   "in its audience would send no invitations and would look approved to everyone " +
@@ -372,39 +171,19 @@ export const EMPTY_AUDIENCE_MESSAGE =
 
 export const UNKNOWN_SELECTION_RULE = "event_audience_selection_unknown";
 
-export const UNKNOWN_SELECTION_MESSAGE =
+const UNKNOWN_SELECTION_MESSAGE =
   "Some of the people chosen are no longer selectable for this event — a membership " +
   "or a role may have changed while the audience was being built. Rebuild the " +
   "audience and try again.";
 
 /** Why a selection did not resolve. Two causes, two different recoveries. */
-export type SelectionFailure = "empty" | "unknown";
+type SelectionFailure = "empty" | "unknown";
 
 export type SelectionResolution =
   | { ok: true; members: ResolvedAudienceMember[] }
   | { ok: false; failure: SelectionFailure; message: string; rule: string };
 
-/**
- * Turns a set of selection keys into the audience that will be written.
- *
- * Returns a result rather than throwing, because it runs in the browser as well
- * as on the server and the browser has no `ServiceError` to catch — the same
- * reason `validateEventDraft` returns one. `requireSelection` in
- * `event-audience.ts` is the server-side wrapper that turns a failure into the
- * refusal a service caller expects.
- *
- * Three properties, each of which the screen and the transaction both depend on:
- *
- *   * **The capacity and the anchor are looked up, never accepted.** A key is
- *     only a lookup token into the catalogue. A forged `player:<person-id>`
- *     matches no candidate and fails to resolve, which is why invariant P8
- *     cannot be violated through this path at all.
- *   * **Duplicates collapse**, both the same key twice and the same person under
- *     two capacities — one human receives one invitation.
- *   * **An unknown key is a failure, not something to skip.** A selection that
- *     silently shrank between the confirmation screen and the write would mean
- *     the approver confirmed a list the club never invited.
- */
+// Turns selection keys into the audience that will be written; a result, not a throw (runs in the browser too).
 export function resolveSelection(
   candidates: readonly AudienceCandidate[],
   keys: readonly string[],
@@ -453,13 +232,7 @@ export function resolveSelection(
   return { ok: true, members };
 }
 
-/**
- * The selection keys a derived group expands to.
- *
- * Called only when an operator presses the group's button. Nothing calls it to
- * establish a default, and there is no code path on which an unpressed group
- * contributes anybody — which is the whole of "selection begins empty".
- */
+// The selection keys a derived group expands to; called only when an operator presses the group's button.
 export function groupSelectionKeys(
   candidates: readonly AudienceCandidate[],
   groupKey: string,
@@ -474,17 +247,7 @@ export function groupSelectionKeys(
     .map((candidate) => candidate.key);
 }
 
-/**
- * How many **people** a group invites — not how many rows it selects.
- *
- * "Everyone active" spans three capacities, and the club's coaches and committee
- * are mostly also players, so the row count and the human count differ by a
- * dozen. The first version showed the row count and explained the discrepancy in
- * a sentence under the button. Brian's response was that the club knows what
- * "everyone active" means and should not be taught arithmetic about its own
- * roster — so the button now says what it will actually do, and there is nothing
- * left to explain.
- */
+// How many **people** a group invites, not how many rows it selects (see relocations.md).
 export function groupSize(candidates: readonly AudienceCandidate[], groupKey: string): number {
   const resolution = resolveSelection(candidates, groupSelectionKeys(candidates, groupKey));
   return resolution.ok ? resolution.members.length : 0;
@@ -499,20 +262,8 @@ function peopleIn(
   return new Set(resolution.ok ? resolution.members.map((member) => member.personId) : []);
 }
 
-/**
- * Is everybody this group would invite already invited?
- *
- * Drives the lit state of the group button, and therefore what pressing it does:
- * a lit group clears, an unlit one adds. Computed from the selection rather than
- * remembered as "which buttons were pressed", because the two disagree the
- * moment somebody unticks one person out of a group.
- *
- * It compares **people**, not keys, and that is not a refinement — it is the
- * difference between working and not. "Everyone active" spans 45 keys for 34
- * humans, and the audience saved on the draft holds one key each. Reloading the
- * builder therefore restores 34 keys, and a key-wise comparison would find 11
- * missing and leave the button dark while every one of its people was in.
- */
+// Is everybody this group would invite already invited? Drives the group button's lit state.
+// Compares **people**, not keys (see relocations.md).
 export function groupIsSelected(
   candidates: readonly AudienceCandidate[],
   groupKey: string,
@@ -524,46 +275,8 @@ export function groupIsSelected(
   return [...wanted].every((personId) => held.has(personId));
 }
 
-/**
- * The selection after pressing a group button: add the group's keys, or remove
- * them.
- *
- * ## Removal is by key, and the first version got this wrong
- *
- * It removed every key belonging to a *person* in the group. That is
- * indistinguishable from key-wise removal for "Everyone active" — which is the
- * only group the test exercised — and destructive for every narrower one:
- *
- *   * Select **All active players** (Alice, Bob, Cara), then **All active
- *     committee** (adds Xena), then press committee again to undo. Alice also
- *     holds a committee seat, so person-wise removal took her out too — even
- *     though the players group put her there and is still lit.
- *   * Worse, with one press: after selecting players, **All active coaches** is
- *     already lit, because the only coach is a selected player. Pressing it to
- *     *add* coaches took the remove branch and deleted her. Fewer people than
- *     before, and no coach added.
- *
- * Ten people in the seeded club hold two capacities, so that was one mis-click
- * from an approval quietly missing somebody, with the audit recording the
- * already-shrunk count. Independent review found it; `npm run test` did not.
- *
- * Removing exactly the keys the group would add is the inverse of adding them,
- * which is what a toggle should be. A person held under another capacity keeps
- * that capacity and stays in the audience.
- *
- * ## Why a lit button can then do nothing
- *
- * `groupIsSelected` asks whether everybody in the group is invited, so it can
- * light up for a group whose own keys are not in the selection at all — the
- * coaches case above, and any group restored from a saved audience, which holds
- * one key per person rather than one per capacity.
- *
- * Pressing such a button removes its keys, finds none, and changes nothing. The
- * button stays lit, which is still true: those people are still all invited.
- * That is the honest outcome, and much better than the alternative, which was
- * to delete somebody the operator never asked to remove. Anyone genuinely
- * wanting them out can untick them individually or press **Clear selection**.
- */
+// The selection after pressing a group button: add the group's keys, or remove them. Removal is by
+// key, not by person (see relocations.md for the bug person-wise removal caused).
 export function toggleGroup(
   candidates: readonly AudienceCandidate[],
   groupKey: string,
@@ -579,80 +292,22 @@ export function toggleGroup(
   return new Set([...selected].filter((key) => !leaving.has(key)));
 }
 
-/**
- * The audience named by its groups before its people — W4, amendment W4-A1.
- *
- * Brian, 2026-08-21: "it should say at the very top what groups it would be ...
- * You don't have to show me how it's done." An approver checks a shape faster
- * than they check a list of thirty-five, so the review leads with **All active
- * players, all coaches** and a headcount, and the names follow underneath.
- *
- * ## The covering, and why it is greedy in the declared order
- *
- * `AUDIENCE_GROUPS` runs widest first, so the walk below names the broadest
- * group that is wholly present and then only names a narrower one if it adds
- * somebody not already covered. An audience of the whole club therefore reads
- * "Everyone active" rather than "Everyone active, all active players, all active
- * coaches, all active committee", which is the same fact said four times.
- *
- * ## What is left over is counted, never guessed at
- *
- * People chosen by hand belong to no group, and a group that is *partly*
- * selected is not named at all — naming it would tell the approver the whole
- * group is invited when it is not, which is the one thing this line must never
- * do. They come back as `others`, and the named list underneath is where they
- * are actually read.
- *
- * ## A member who has since gone inactive is still one of the people (LAN-242)
- *
- * This summary is read against a *saved* audience, and a saved audience outlives
- * the catalogue it was built from: a player whose membership lapsed after the
- * draft was written is still a row in `event_audience_members` and still a name
- * on the screen, but the builder would no longer offer them. `resolveSelection`
- * refuses such a selection outright — correctly, because a *write* that silently
- * shrank would invite a list nobody confirmed — and this function used to reach
- * for it. One lapsed membership therefore collapsed the whole summary to
- * `total: 0`, so **every** event with any history at all printed "0 people"
- * above its own list of sixty-one names, on the event page, the approval review
- * and the cancel screen alike (LAN-239, walkers M2/M4/M6).
- *
- * Reading is not writing. Here an unknown key is a person the club still
- * invited, so it is counted rather than refused: it lands in
- * `noLongerSelectable`, it is part of `total`, and it is deliberately not part
- * of `others` — "chosen by hand" is a statement about how somebody was picked,
- * and a lapsed membership is not that. It cannot complete a group either, which
- * keeps the one rule this line must never break: a group is named only when
- * every person it would invite today is in the audience.
- */
+// The audience named by its groups before its people — W4, W4-A1. Widest group named first (LAN-242; see relocations.md).
 export interface AudienceGroupSummary {
-  /** The labels of the groups wholly present, widest first. Possibly empty. */
-  groups: string[];
-  /** How many of the chosen people no named group accounts for. */
-  others: number;
-  /**
-   * How many of the chosen the builder would no longer offer — a lapsed
-   * membership or a dropped role since the audience was saved. Counted in
-   * `total`, never in `others`, and never named as a group.
-   */
-  noLongerSelectable: number;
-  /** How many people are chosen altogether. */
-  total: number;
+  groups: string[]; // labels of the groups wholly present, widest first — possibly empty
+  others: number; // how many of the chosen people no named group accounts for
+  noLongerSelectable: number; // chosen but the builder would no longer offer them; counted in total, never in others
+  total: number; // how many people are chosen altogether
 }
 
-/**
- * The chosen selection, split into the people the catalogue still knows and the
- * keys it no longer does. Tolerant where {@link resolveSelection} is strict —
- * see the note above on why reading and writing differ here.
- */
+// The chosen selection, split into known people and no-longer-selectable keys. Tolerant where resolveSelection is strict.
 function chosenIn(
   candidates: readonly AudienceCandidate[],
   selected: readonly string[],
 ): { known: ReadonlySet<string>; noLongerSelectable: number } {
   const byKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
   const known = new Set<string>();
-  // By key, not by count: the same key twice is one person, exactly as
-  // `resolveSelection` collapses duplicates for a selection it can resolve.
-  const unknown = new Set<string>();
+  const unknown = new Set<string>(); // by key, not count — the same key twice is one person
 
   for (const key of selected) {
     const candidate = byKey.get(key);

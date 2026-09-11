@@ -1,57 +1,10 @@
 import { addClubDays, formatClubDay } from "@/lib/club-time";
 import { optional, trimmed, type EventDeliveryMode, type EventStatus } from "./event-input";
 
-/**
- * The rules an amendment and a cancellation obey — W5 and W6, LAN-156.
- *
- * Pure, for the same structural reason `event-input.ts` is pure: the review
- * screen that shows an operator what changed, and the tick that decides whether
- * it notifies, are rendered in the browser, and a module the browser imports
- * cannot reach the PostgreSQL client. Everything that touches a row is in
- * `event-amendment.ts`, which re-exports this file so a server caller has one
- * import.
- *
- * The division also keeps the four decisions below testable without a database,
- * which matters because every one of them is a club rule rather than a query:
- *
- *   1. what counts as a change (`diffAmendment`);
- *   2. which changes strand somebody, and therefore where the single notify
- *      tick starts (`isMaterial`, `defaultNotify`);
- *   3. when silence has to be chosen rather than defaulted into
- *      (`silenceNeedsConfirmation`);
- *   4. where the RSVP chase threshold lands once an event moves
- *      (`chaseThresholdOn`).
- *
- * ## What this file deliberately does not know
- *
- * Anything about a message. Whether the club is on WhatsApp or on email does
- * not change one line here, which is the packet's own test for which side of
- * the Mission 4 seam a rule sits on. Nothing here schedules, formats, sends,
- * retries or chases.
- */
+// The rules an amendment and a cancellation obey — W5/W6, LAN-156. Pure, like event-input.ts;
+// event-amendment.ts re-exports this. Knows nothing about a message (the Mission 4 seam). See relocations.md.
 
-// ---------------------------------------------------------------------------
-// What an amendment may change
-// ---------------------------------------------------------------------------
-
-/**
- * The fields an amendment compares.
- *
- * Exactly the fields `W4`'s editor puts on screen, because `W5` is that editor
- * made reachable on an approved event rather than a second form with its own
- * ideas. `status` is not among them and cannot be: an amendment never leaves
- * `approved` (REQ-amend-in-place).
- *
- * **The template is not among them either, since LAN-265.** Brian, 2026-09-09:
- * "New event picks a template. Amend does not change template." A template
- * decides what an event *is* — its class, its default audience, its questions
- * and the cadence forty people were already messaged on — and swapping it on an
- * approved event would reclassify the event underneath all four without a single
- * one of them being recomputed. The honest way to hold a different kind of event
- * is to cancel this one and create that one. It was `eventType` here until
- * LAN-265, on the reasoning that whatever `W4`'s editor shows, `W5` compares;
- * `W4`'s editor no longer shows it either.
- */
+// The fields an amendment compares — exactly W4's editor fields; `status` and the template (LAN-265) cannot be among them. See relocations.md.
 export type AmendableField =
   | "name"
   | "scheduledOn"
@@ -64,19 +17,9 @@ export type AmendableField =
   | "joiningUrl"
   | "isMandatory";
 
-/** The comparable shape of an event, before or after. */
 export interface AmendableEvent {
   name: string;
-  /**
-   * The template, carried but never compared — LAN-265.
-   *
-   * It is on this shape because the amendment has to recompute a response
-   * deadline and a chase threshold, and both are read from the template. It is
-   * absent from `AMENDABLE_FIELDS` because an amendment cannot change it, so it
-   * is identity travelling with the snapshot rather than a field with a before
-   * and an after.
-   */
-  templateId: string;
+  templateId: string; // carried but never compared (LAN-265) — needed to recompute deadline/chase threshold
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -88,40 +31,15 @@ export interface AmendableEvent {
   isMandatory: boolean;
 }
 
-/** One field that moved, in the words the review screen uses. */
 export interface AmendmentChange {
   field: AmendableField;
-  /** "Venue" — the label the operator saw on the field they edited. */
-  label: string;
-  /** What it was, rendered. `null` where it was not set. */
-  previous: string | null;
-  /** What it becomes, rendered. `null` where it is being cleared. */
-  next: string | null;
-  /**
-   * D55. Whether this is a change that can strand somebody at the wrong place
-   * at the wrong time — see `MATERIAL_FIELDS`.
-   */
-  material: boolean;
+  label: string; // "Venue" — the label the operator saw on the field they edited
+  previous: string | null; // what it was, rendered; null where it was not set
+  next: string | null; // what it becomes, rendered; null where it is being cleared
+  material: boolean; // D55: whether this can strand somebody at the wrong place/time — see MATERIAL_FIELDS
 }
 
-/**
- * D55's list, and the one addition it implies.
- *
- * The decision names "date, time or venue", and `startsAt`/`endsAt` are the
- * time. `deliveryMode` is here because it is the venue's other half: D20 and
- * D21 made in-person-or-online a property of the event with one venue column
- * meaning an address or a destination accordingly, so a practice moving from
- * Iffley Road to a video call changes where somebody has to be exactly as much
- * as moving to University Parks does, and strands them harder.
- *
- * What is deliberately **not** here: `name`, `description`, `requiredEquipment`,
- * `joiningUrl` and `isMandatory`. D55 lists description, equipment
- * and name as the silent ones, and D14 says a name change is not material
- * because the name is where the club writes "vs Bath". The remaining two are
- * not on D55's list in either direction; treating them as silent-by-default is
- * the same answer as the fields they most resemble, and the operator can still
- * turn the tick on for any of them with no confirmation asked.
- */
+// D55's list ("date, time or venue") plus deliveryMode, the venue's other half (D20/D21). See relocations.md.
 export const MATERIAL_FIELDS: readonly AmendableField[] = Object.freeze([
   "scheduledOn",
   "startsAt",
@@ -143,8 +61,7 @@ const FIELD_LABELS: Readonly<Record<AmendableField, string>> = Object.freeze({
   isMandatory: "Attendance",
 });
 
-/** Every field an amendment compares, in the order the editor shows them. */
-export const AMENDABLE_FIELDS: readonly AmendableField[] = Object.freeze([
+const AMENDABLE_FIELDS: readonly AmendableField[] = Object.freeze([
   "name",
   "scheduledOn",
   "startsAt",
@@ -169,14 +86,8 @@ function renderValue(event: AmendableEvent, field: AmendableField): string | nul
       return event.deliveryMode === "online" ? "Online" : "In person";
     case "name":
       return trimmed(event.name) === "" ? null : trimmed(event.name);
-    // R156-B4. `scheduledOn` is a stored calendar date ("2026-11-11"), and this
-    // is the one place that value becomes the string the review screen and the
-    // change history print. Left raw, it read as `2026-11-11` on both —
-    // `docs/ux/standards.md` rule 3 — while every other date in the
-    // application read `11 Nov 2026`. `startsAt`/`endsAt` need no equivalent
-    // pass: a stored time of day is already the club's display form, "20:00",
-    // not an instant with a shape rule 3 is about.
     case "scheduledOn": {
+      // R156-B4: formatted for display (docs/ux/standards.md rule 3).
       const value = optional(event.scheduledOn);
       return value === null ? null : formatClubDay(value);
     }
@@ -185,15 +96,7 @@ function renderValue(event: AmendableEvent, field: AmendableField): string | nul
   }
 }
 
-/**
- * The fields that actually moved between two versions of one event.
- *
- * Compared on the **normalised** value, not on the raw one, so that adding a
- * trailing space to a description is not an amendment: it produces no history
- * row, sends nobody a message, and holds nothing. `optional()` is the same
- * normalisation `validateEventDraft` applies before storing, so the comparison
- * is between what is stored and what would be stored.
- */
+// The fields that actually moved, compared on the **normalised** value, so a trailing space is not an amendment.
 export function diffAmendment(
   before: AmendableEvent,
   after: AmendableEvent,
@@ -216,40 +119,12 @@ export function diffAmendment(
   return changes;
 }
 
-/** Whether any of these changes is one D55 says speaks up by itself. */
 export function hasMaterialChange(changes: readonly AmendmentChange[]): boolean {
   return changes.some((change) => change.material);
 }
 
-/**
- * The amendment a submitted form actually asks for, against the record as it
- * stands now — LAN-244.
- *
- * ## The defect
- *
- * The amend form posts a whole snapshot of the event, every field, whether or
- * not the operator touched it. Two tabs open on one event is then destructive
- * by construction: tab A saves a new venue; tab B, loaded before that and never
- * refreshed, saves a description and carries the *old* venue along with it, so
- * the venue silently reverts. Worse than the data loss is the record it wrote —
- * the change history stated as fact "Venue: M2W Tab A Venue → Blues Gym, Iffley
- * Road", an amendment no operator made, attributed to whoever saved second
- * (LAN-239, walker M2).
- *
- * ## The rule
- *
- * A form that never touched a field cannot change it. `baseline` is the event
- * as that form loaded it, so `baseline` versus `submitted` is exactly "what did
- * this operator type", and every other field keeps whatever `current` holds —
- * including a value some other tab wrote in the meantime. Two operators editing
- * two different fields both get their change; two editing the *same* field is
- * still last-write-wins, which is honest and is recorded as the change it
- * actually was.
- *
- * Compared through `diffAmendment`, so "touched" here means exactly what
- * "changed" means everywhere else: normalised, so a trailing space is not an
- * edit, and a `null`-versus-empty-string difference is not one either.
- */
+// The amendment a submitted form actually asks for — LAN-244. A form that never touched a field
+// cannot change it: baseline-vs-submitted is "what did this operator type" (see relocations.md).
 export function mergeAmendment(
   current: AmendableEvent,
   baseline: AmendableEvent,
@@ -260,8 +135,7 @@ export function mergeAmendment(
 
   for (const field of AMENDABLE_FIELDS) {
     if (!touched.has(field)) continue;
-    // Each arm assigns one field to itself, which is the only way to keep the
-    // union of value types sound without casting the whole record to `any`.
+    // each arm assigns one field to itself — keeps the value-type union sound without an `any` cast
     switch (field) {
       case "isMandatory":
         merged.isMandatory = submitted.isMandatory;
@@ -281,22 +155,7 @@ export function mergeAmendment(
   return merged;
 }
 
-// ---------------------------------------------------------------------------
-// The one notify decision
-// ---------------------------------------------------------------------------
-
-/**
- * Where the single tick starts — D55, as W5 reframed it.
- *
- * There is **one** decision per amendment and not one per changed field:
- * "You don't notify per thing … It's one tick" (Brian, 2026-08-21). Nobody
- * receives three messages because three fields moved. D55's per-field defaults
- * survive as the thing that decides where that one tick starts.
- *
- * `isFuture` is the second half, from W5's exceptions table: a past event is a
- * correction to the record, so the tick starts off however much moved. Nobody
- * needs a message about a venue change to a session three weeks gone.
- */
+// Where the single notify tick starts — D55/W5. One decision per amendment (Brian: "It's one tick"), not one per field.
 export function defaultNotify(
   changes: readonly AmendmentChange[],
   options: { isFuture: boolean },
@@ -304,18 +163,7 @@ export function defaultNotify(
   return options.isFuture && hasMaterialChange(changes);
 }
 
-/**
- * Whether turning the tick off has to be chosen rather than defaulted into.
- *
- * "37 people were told this is at Iffley Road Astro" — the confirmation names
- * the consequence in people, not in fields. An outright prohibition was
- * considered and rejected, because it would make a corrected spelling
- * impossible to fix without messaging the whole squad.
- *
- * The predicate is the same one that decides the default, which is the point:
- * silence is only a decision worth stopping for where the default was to
- * speak.
- */
+// Whether turning the tick off must be chosen, not defaulted — the same predicate as the default.
 export function silenceNeedsConfirmation(
   changes: readonly AmendmentChange[],
   options: { isFuture: boolean },
@@ -323,61 +171,22 @@ export function silenceNeedsConfirmation(
   return defaultNotify(changes, options);
 }
 
-// ---------------------------------------------------------------------------
-// Cancellation
-// ---------------------------------------------------------------------------
-
-/**
- * D58 and D31 together. Everyone invited is told by default — except where the
- * silent path exists for, which is tidying up a bygone event that never
- * happened. So the default follows the event's date, and nothing else.
- */
+// D58/D31: everyone invited is told by default, except a bygone event being tidied up.
 export function cancellationDefaultNotify(options: { isFuture: boolean }): boolean {
   return options.isFuture;
 }
 
-/** The same rule W5 uses, for the same reason: thirty-two people are expecting to be somewhere. */
 export function cancellationSilenceNeedsConfirmation(options: { isFuture: boolean }): boolean {
-  return options.isFuture;
+  return options.isFuture; // same rule as W5, for the same reason
 }
 
-/**
- * Whether an event is still ahead of the club, in the club's own zone.
- *
- * A `null` date cannot be approved (invariant E1a), so it cannot be amended or
- * cancelled either — but the predicate answers anyway rather than throwing,
- * and answers "not future", because an event with no date strands nobody.
- *
- * Compared on the calendar day rather than on the start time: an event today at
- * 14:00 is a future event at 18:00 for this purpose, because the people
- * invited to it are still expecting it and the register may already be open.
- */
+// Whether an event is still ahead of the club. A null date answers "not future" (invariant E1a);
+// compared on the calendar day, so today's event is still "future" all day.
 export function isFutureEvent(event: { scheduledOn: string | null }, today: string): boolean {
   return event.scheduledOn !== null && event.scheduledOn >= today;
 }
 
-// ---------------------------------------------------------------------------
-// The chase threshold, recomputed
-// ---------------------------------------------------------------------------
-
-/**
- * OD-1/Q6 — where the RSVP chase threshold lands, against whatever date the
- * event now has.
- *
- * The per-type day counts are stored in `public.event_type_settings` (D75,
- * D77), which LAN-151 created for exactly this. This function is the
- * recomputation: given the new date and the type's threshold in days, the day
- * on which an unanswered invitation becomes an exception the club chases.
- *
- * **Mission 4 does the chasing.** Nothing here schedules a reminder, decides an
- * escalation, or writes a job. The value is recomputed so that a practice moved
- * from next week to next month stops being chased on next week's schedule, and
- * it is recorded against the amendment so the recomputation is observable
- * rather than implied.
- *
- * `null` when the event has no date, which is a state an approved event cannot
- * be in.
- */
+// OD-1/Q6: recomputes where the RSVP chase threshold lands (public.event_type_settings, D75/D77/LAN-151); Mission 4 does the actual chasing.
 export function chaseThresholdOn(
   scheduledOn: string | null,
   chaseThresholdDays: number,
@@ -386,20 +195,7 @@ export function chaseThresholdOn(
   return addClubDays(scheduledOn, -Math.abs(chaseThresholdDays));
 }
 
-// ---------------------------------------------------------------------------
-// Terminality
-// ---------------------------------------------------------------------------
-
-/**
- * D60. A cancelled event goes nowhere.
- *
- * Written as a predicate over the *stored* status rather than as a list of
- * permitted transitions, because the guarantee the acceptance evidence asks for
- * is the negative one: "cannot be returned to any other status by any route,
- * including a direct service call". Every write path in `event-amendment.ts`
- * asks this question first, so the guarantee is one sentence in one place
- * rather than a rule each caller remembers.
- */
+// D60: a cancelled event goes nowhere — a predicate over the *stored* status, not a transition list.
 export function isTerminal(status: EventStatus): boolean {
   return status === "cancelled";
 }

@@ -3,67 +3,15 @@
 import { createTheme } from "@mui/material/styles";
 
 /**
- * The club's tokens — LAN-225, from `docs/ux/review/design-audit-2026-09/brief.md` §1.
- *
- * ## Contrast — measured, WCAG 2.x, every pair a text colour is drawn in
- *
- * AA is 4.5 for text and 3.0 for large text and UI components. Recorded here
- * and nowhere else; `src/theme.test.ts` recomputes each pair from the values
- * below and fails if one drifts under the line. Pairs the palette forbids are
- * listed so nobody has to rediscover why.
- *
- * | Foreground            | Background          | Ratio | Used for                                  |
- * | --------------------- | ------------------- | ----- | ----------------------------------------- |
- * | Charcoal `#211D1C`    | White `#FFFFFF`     | 16.70 | body text on paper                        |
- * | Charcoal              | Ground `#F6F5F2`    | 15.32 | body text on the page ground              |
- * | Charcoal              | Sky Blue `#B9D6F2`  | 11.11 | text on a selected row / active tint      |
- * | Charcoal              | Gold `#C09723`      |  6.12 | text on a gold band                       |
- * | Charcoal              | Ochre `#E2C044`     |  9.43 | text on a highlighted row                 |
- * | Charcoal              | Lemon `#F7EF66`     | 13.91 | text on a callout band                    |
- * | Secondary `#5A5754`   | White               |  7.18 | captions, helper text, table sublines     |
- * | Secondary             | Ground              |  6.58 | captions on the page ground               |
- * | White                 | Oxford Blue `#002147`| 16.05| sidebar text, contained primary buttons   |
- * | White                 | Oxford Blue dark `#001633` | 18.06 | contained primary button, hover   |
- * | White                 | Royal Blue `#1D42A6`|  8.82 | info chips, focus ring on dark ground     |
- * | Sky Blue `#B9D6F2`    | Oxford Blue         | 10.67 | sidebar secondary lines                   |
- * | Oxford Blue           | Sky Blue            | 10.67 | the active navigation item                |
- * | Oxford Blue           | Gold                |  5.88 | crest lettering, a gold accent band       |
- * | Royal Blue            | White               |  8.82 | links, outlined info chips                |
- * | Royal Blue            | Ground              |  8.09 | links on the page ground                  |
- * | Old Gold `#8D7149`    | White               |  4.57 | overlines and secondary emphasis (AA, not AAA) |
- * | Success `#1E6F3C`     | White / on tint `#E3F1E7` | 6.19 / 5.30 | outlined chip text; alert text |
- * | Warning `#9A5B00`     | White / on tint `#FBF1DC` | 5.43 / 4.84 | outlined chip text; alert text |
- * | Error `#B3261E`       | White / on tint `#FBE7E5` | 6.54 / 5.50 | outlined chip text; alert text |
- * | Info `#1D42A6`        | White / on tint `#E3EBF8` | 8.82 / 7.35 | outlined chip text; alert text |
- * | Neutral `#5A5754`     | White / on tint `#ECEAE6` | 7.18 / 5.97 | outlined chip text; alert text |
- * | White                 | Success / Warning / Error / Info / Neutral | 6.19 / 5.43 / 6.54 / 8.82 / 7.18 | filled chips |
- * | Charcoal              | each semantic tint  | ≥ 13.90 | alert body text                         |
- *
- * Forbidden, and why (the brief's §1.1 rules, enforced by never being tokens):
- *
- * - White on Gold 2.73, on Ochre 1.77, on Lemon 1.20, on Sky Blue 1.50 — the
- *   four never carry white text; they are grounds under Charcoal or Oxford Blue.
- * - Gold, Ochre, Lemon on White (2.73, 1.77, 1.20) — never text, icon or a chip
- *   outline that must be read; a gold rule is decoration.
- * - Royal Blue on Oxford Blue 1.82 — the two blues never stack as text on
- *   ground; sidebar text is white or Sky Blue.
- * - Old Gold on Oxford Blue 3.51 — large text or a rule only.
- * - `text.disabled` `#8C8987` on White 3.47 — a disabled control is exempt from
- *   AA (WCAG 1.4.3) and is never the only way to read a value.
- *
- * ## What is decided here, and by whom
- *
- * Six of the brief's open decisions (§4) were taken on the recommendation each
- * one carries, and each is Brian's to overturn at visual review: Geist stays;
- * light only, `cssVariables` left on so dark can follow; compact tables and
- * comfortable forms; the crest in the shell; sentence-case buttons; and the
- * copy findings H1 (login alert), A6 (`Sep`), E9 (pickers over native dates)
- * riding as labelled deltas on the screens that carry them.
+ * The club's tokens — LAN-225, from
+ * `docs/ux/review/design-audit-2026-09/brief.md` §1. Contrast (WCAG 2.x, AA
+ * 4.5 text / 3.0 large-text-and-components) is measured and recorded here
+ * only; `src/theme.test.ts` recomputes each pair and fails if one drifts.
  */
 
 import { CLUB, LAYOUT, RADIUS, SEMANTIC } from "@/theme-tokens";
 
-export { CLUB, LAYOUT, RADIUS, SEMANTIC, FONT_MONO } from "@/theme-tokens";
+export { CLUB, SEMANTIC } from "@/theme-tokens";
 
 declare module "@mui/material/styles" {
   interface Palette {
@@ -110,8 +58,7 @@ const theme = createTheme({
       main: CLUB.gold,
       light: CLUB.ochre,
       dark: CLUB.oldGold,
-      // Never white on Gold (2.73). Charcoal on Gold is 6.12.
-      contrastText: CLUB.charcoal,
+      contrastText: CLUB.charcoal, // never white on Gold (2.73); Charcoal on Gold is 6.12
     },
     success: { ...SEMANTIC.success, contrastText: CLUB.white },
     warning: { ...SEMANTIC.warning, contrastText: CLUB.white },
@@ -133,10 +80,7 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: FONT_SANS,
-    // Brief §1.4. `h1` is the one `display` title per page; `h2`/`h3` follow.
-    // `h4`–`h6` alias the same three tiers so the shipped pages, which still
-    // pick their heading variant by habit, land on the scale rather than on
-    // MUI's defaults until the kit replaces them.
+    // Brief §1.4. h4-h6 alias h1-h3 so pages picking by habit land on this scale, not MUI's defaults.
     h1: { fontSize: 28, lineHeight: "34px", fontWeight: 700, letterSpacing: "-0.01em" },
     h2: { fontSize: 22, lineHeight: "28px", fontWeight: 700 },
     h3: { fontSize: 17, lineHeight: "24px", fontWeight: 600 },

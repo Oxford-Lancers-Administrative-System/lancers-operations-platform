@@ -5,18 +5,10 @@ import Typography from "@mui/material/Typography";
 import { CLUB_NAME, CREST_PATH } from "@/lib/brand";
 
 /**
- * The crest and the club's name, together — LAN-225, brief §4.4.
- *
- * `public/brand/crest.svg` is the white mark from Brian's supplied Group
- * 2454.svg (LAN-278; `public/brand/README.md` records the provenance). The
- * wordmark remains set in Geist.
- *
- * `tone` says which ground it sits on. On Oxford Blue the name is white; on
- * paper it is Oxford Blue. Nothing here is ever Gold text (2.73 on white).
- *
- * The mark here is **not** the mark in the browser tab: the favicon and app
- * icons are cut from the gold-outline Ops logo (LAN-269), a different file,
- * and `public/brand/README.md` says which is which.
+ * The crest and the club's name, together — LAN-225, brief §4.4. `tone` says
+ * which ground it sits on: white on Oxford Blue, Oxford Blue on paper, never
+ * Gold text. Not the browser-tab mark — that's a different file, cut from the
+ * gold-outline Ops logo (LAN-269); `public/brand/README.md` says which is which.
  */
 export { CLUB_NAME, CREST_PATH } from "@/lib/brand";
 

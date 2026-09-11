@@ -8,10 +8,8 @@ import type { SeasonMessagingConsentState } from "@/lib/services/messaging-conse
 import { CONSENT_FILTER_OPTIONS, STATUS_FILTER_OPTIONS, rawValue } from "./board-columns";
 
 /**
- * Pure search, filter and sort over the recruit board's rows — no database, no
- * `server-only`. Mirrors `../roster/board-data.ts`'s own shape: the season
- * holds dozens of recruits, not thousands, so this operates over the whole
- * in-memory set rather than pushing every possible predicate into SQL.
+ * Pure search, filter and sort over the recruit board's rows — no database.
+ * Operates over the whole in-memory set (dozens of recruits, not thousands).
  */
 
 export const NOT_RECORDED = "Not recorded";
@@ -88,9 +86,7 @@ export function applyBoard(
 
   const { key, direction } = options.sort;
   const factor = direction === "desc" ? -1 : 1;
-  // Null always sorts last, in either direction — reversing the whole
-  // comparison (rather than the finished array) is what keeps that true
-  // instead of a bare `.reverse()` putting every "not recorded" row first.
+  // Null always sorts last, in either direction — reversing the comparison, not just the array.
   return [...filtered].sort((a, b) => {
     const av = comparable(a, key);
     const bv = comparable(b, key);
@@ -109,11 +105,8 @@ export function displayOf(value: string | number | boolean | null): string {
 }
 
 /**
- * The values a column's header filter offers — `../board-filter-controls.tsx`'s
- * `ColumnFilterMenu` reads this the same way `../roster/board-data.ts`'s own
- * `filterOptions` does. Every filterable recruitment column has a fixed,
- * known vocabulary (never derived from the rows in view, unlike the roster's
- * open-ended columns), so this is a lookup rather than a scan.
+ * The values a column's header filter offers. Every filterable recruitment
+ * column has a fixed, known vocabulary — a lookup, not a scan of rows in view.
  */
 export function filterOptions(column: { key: string }): readonly string[] {
   switch (column.key) {
@@ -144,6 +137,3 @@ export function optionListLabel(column: { key: string }, value: string): string 
       return value;
   }
 }
-
-/** The chip and menu label for a filter's *selected* value — same word, no distinct "not recorded" case here. */
-export const filterOptionLabel = optionListLabel;

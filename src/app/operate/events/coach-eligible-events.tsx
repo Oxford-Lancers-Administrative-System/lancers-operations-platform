@@ -13,21 +13,20 @@ import Typography from "@mui/material/Typography";
 import { useFilterSearch } from "../filter-search";
 
 /** The badge on a session happening today. */
-export const TODAY_CHIP = "Today";
+const TODAY_CHIP = "Today";
 
 /** Said on a card whose register cannot be opened yet. */
-export const NOT_OPEN_YET = "Attendance not open";
+const NOT_OPEN_YET = "Attendance not open";
 
 /** One event, reduced to what a coach needs to pick the right one. */
-export interface CoachEligibleEvent {
+interface CoachEligibleEvent {
   id: string;
   name: string;
   when: string;
   venue: string | null;
   /** Happening today: badged, outlined, and sorted to the top of Upcoming. */
   isToday: boolean;
-  /** Its register has opened — D71's buffer, asked of the same function the
-   * register itself asks. Nobody asserts anything. */
+  /** Its register has opened — D71's buffer, asked of the same function the register itself asks. */
   isOpen: boolean;
 }
 
@@ -39,40 +38,16 @@ export interface CoachEligibleSection {
   events: CoachEligibleEvent[];
 }
 
-export const COACH_EVENTS_HEADING = "Attendance";
-export const COACH_EVENTS_DETAIL = "This season's sessions";
+const COACH_EVENTS_HEADING = "Attendance";
+const COACH_EVENTS_DETAIL = "This season's sessions";
 
-export const COACH_EVENTS_EMPTY =
+const COACH_EVENTS_EMPTY =
   "This season has no approved sessions yet. They appear here as soon as one is approved.";
 
-export const COACH_EVENTS_FILTER_EMPTY =
+const COACH_EVENTS_FILTER_EMPTY =
   "No session matches that search. Clear it to see everything in the season.";
 
-/**
- * The coaching assignment's whole destination — the list UX-90's **Return to
- * eligible events** returns to, and what UX-91's sidebar entry opens. LAN-110.
- *
- * ## Why it is this route and not a new one
- *
- * `slice-ux.md` § 4's route contract is closed, and this ticket may not add to
- * it. So `/operate/events` is shared, and — exactly as § 4 already says of the
- * attendance route — the *presentation* is capability-scoped. An operator gets
- * the club calendar; a coach gets the events they can take a register for.
- *
- * ## What is deliberately not on it
- *
- * Everything that is event administration rather than attendance: no **Create
- * event**, no status filter, no draft, pending, approved, cancelled or not-held
- * event, no audience or response counts, and no link to `/operate/events/[id]`,
- * which is where approval, the occurrence assertion and delivery live. § 3
- * withholds all of it from a coaching assignment, and withholding it here is a
- * courtesy on top of the refusal — the event detail refuses a coach outright.
- *
- * A search box, and nothing else. A club plays and practises upwards of sixty
- * times a season and a coach at the side of a pitch is looking for one of them;
- * a filter set that let them ask questions about the calendar would be the
- * administration this screen exists not to give them.
- */
+/** The coaching assignment's whole destination — LAN-110. Shares `/operate/events` (route contract closed, §4); capability-scoped presentation, withholding event administration (§3). */
 export function CoachEligibleEvents({
   sections,
   search,
@@ -113,10 +88,7 @@ export function CoachEligibleEvents({
         />
       ) : (
         sections.map((section) =>
-          // An empty section is not drawn. A club practises three times a week
-          // for eight months and then stops for the summer, so "Today" is empty
-          // far more often than not — and a standing empty heading trains the
-          // reader to skip the place the one thing they came for will appear.
+          // An empty section is not drawn (Today is empty far more often than not out of season).
           section.events.length === 0 ? null : (
             <Box key={section.key} data-testid={`coach-events-section-${section.key}`}>
               <Section title={section.label}>

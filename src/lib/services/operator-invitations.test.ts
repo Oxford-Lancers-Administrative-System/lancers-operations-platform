@@ -56,7 +56,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 vi.mock("server-only", () => ({}));
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import pg, { type Client } from "pg";
@@ -98,6 +98,19 @@ import {
 const MARKER = "LAN131Fixture:operator-invitations";
 
 const CALLBACK = "http://localhost:3000/auth/invitation";
+
+/**
+ * The concatenated source of every file in `./operator-invitations/`, for
+ * the test below that reads the module's own source rather than its
+ * behaviour (LAN-300 split every action into its own sibling).
+ */
+function operatorInvitationsSource(): string {
+  const dir = path.join(process.cwd(), "src/lib/services/operator-invitations");
+  return readdirSync(dir)
+    .filter((file) => file.endsWith(".ts"))
+    .map((file) => readFileSync(path.join(dir, file), "utf8"))
+    .join("\n");
+}
 
 let observer: Client;
 let actorPersonId: string;
@@ -1285,10 +1298,7 @@ describe("row 17b — the seats an invitation's own guard is judged on", () => {
     // fifth call site being added later on the default. Six of the mission's
     // ten sites were unwidened before LAN-141, and every one of them looked
     // fine in isolation.
-    const source = readFileSync(
-      path.join(process.cwd(), "src/lib/services/operator-invitations.ts"),
-      "utf8",
-    );
+    const source = operatorInvitationsSource();
     const callSites = source.split("readAdministrationSubject(tx").slice(1);
 
     expect(callSites.length, "invite twice, and send-again twice").toBe(4);

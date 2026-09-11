@@ -10,12 +10,7 @@ import {
   TERMINAL_PRIVACY_NOTE,
 } from "@/app/rsvp/[token]/presentation";
 
-/**
- * S5's security-uniform sibling — the one response every unusable RSVP link
- * gets (UX-63/64/65), on the public shell. LAN-225. The copy is
- * `rsvp/[token]/not-found.tsx`'s, unchanged; the contact button stays absent
- * because the club's contact address is still deferred.
- */
+/** S5's uniform sibling (UX-63/64/65), on the public shell (LAN-225). Copy unchanged from `rsvp/[token]/not-found.tsx`; contact button absent (address still deferred). */
 export default async function RsvpUnusablePreviewPage() {
   const gate = await gateShellPage("/design-preview/rsvp-unusable");
   if ("screen" in gate) return gate.screen;

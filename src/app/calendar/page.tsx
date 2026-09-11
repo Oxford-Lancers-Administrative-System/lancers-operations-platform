@@ -24,42 +24,15 @@ import ViewSwitch from "./view-switch";
 import { readEventYear } from "./year";
 
 /**
- * The public calendar — the club's own noticeboard. LAN-153.
- *
- * ## Readable by anyone, with no account
- *
- * D1 and D5, owner-approved 14 August 2026. This is the application's first
- * genuinely anonymous read surface: every other route needs an operator session
- * or a signed token. `src/proxy.ts` protects `/dashboard` and `/operate` and
- * nothing else, so this route is unprotected by the same rule that has always
- * governed the others rather than by an exception written for it.
- *
- * LAN-114 deliberately did **not** open the calendar and recorded why: opening
- * one to unauthenticated visitors "would be a change to the security posture
- * rather than a calendar feature, and `AGENTS.md` reserves that for Brian." That
- * reservation is satisfied here, not overridden.
- *
- * ## Reading it creates nothing
- *
- * `REQ-public-calendar`. This module imports no server action and no write path,
- * and `listPublicSeasonEvents` is one `select`. It is a property of what is
- * imported rather than a promise, and `tests/public-calendar-side-effects.test.ts`
- * counts the rows in the audience, invitation, RSVP, attendance and notification
- * tables either side of a render rather than taking anyone's word for it.
- *
- * ## And it carries nothing about people
- *
- * The public read has no column for a joining URL, a count or a status, so there
- * is nothing on this page to withhold. See `PUBLIC_EVENT_COLUMNS`.
+ * The public calendar — the club's own noticeboard. LAN-153. D1/D5,
+ * owner-approved 14 August 2026: the application's first genuinely anonymous
+ * read surface, unprotected by the same rule (`src/proxy.ts`) that governs
+ * every other route rather than by an exception. `REQ-public-calendar`:
+ * imports no server action or write path; `tests/public-calendar-side-effects
+ * .test.ts` counts rows either side of a render. No joining URL, count or
+ * status column, so nothing to withhold.
  */
-/**
- * The club's own noticeboard, as a shared link — LAN-269 item 4.
- *
- * This is the one page the club posts publicly, so it is the one that most
- * needs to unfurl as something a stranger would tap. Static: the card describes
- * the calendar, not what happens to be on it this week, so nothing here reads
- * the database and the `<head>` costs a crawler one cached response.
- */
+/** The club's noticeboard as a shared link (LAN-269 item 4). Static: describes the calendar, not this week's events, so nothing reads the database. */
 export const metadata: Metadata = publicPageMetadata("Club calendar", CALENDAR_DESCRIPTION);
 
 export default async function PublicCalendarPage({ searchParams }: PageProps<"/calendar">) {
@@ -77,10 +50,7 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
         sort: query.sort,
         direction: query.direction,
       }),
-      // LAN-265. The Type filter offers the club's own templates by name, so it
-      // has to read them; the seven-value enum it used to offer is no longer
-      // what any of these events is called.
-      listEventTemplateOptions(),
+      listEventTemplateOptions(), // LAN-265: Type filter offers the club's templates by name, not the old seven-value enum.
     ]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
@@ -188,14 +158,7 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
   );
 }
 
-/**
- * Three empty states, distinguished, because the recovery differs.
- *
- * `slice-ux.md` § 9 and `W1`'s exception table: "nothing this month" is not
- * "nothing all season", which is not "nothing matching your filter". Each says
- * what is true and, where there is one, the smallest thing the reader can do —
- * and none of them explains a rule.
- */
+/** Three empty states, distinguished (`slice-ux.md` § 9): the recovery differs, and none explains a rule. */
 function emptyTestId(list: PublicEventList, filtered: boolean): string {
   if (list.totalInSeason === 0) return "public-season-empty";
   return filtered ? "public-filter-empty" : "public-period-empty";

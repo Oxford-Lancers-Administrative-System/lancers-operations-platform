@@ -9,16 +9,7 @@ import { readSeasonLabelIn } from "@/lib/services/seasons";
 import { withdrawMessagingConsent } from "./actions";
 import StopFlow from "./stop-flow";
 
-/**
- * The opt-out surface — LAN-202, item 6: "a page on the club's own domain
- * that withdraws consent for the season, honoured immediately across every
- * channel." Reached from a link at the foot of a message, so it carries a
- * token and lives under the same `/me/` prefix as the tokenised sign-up door
- * — the proxy's early return sets `no-store`, `no-referrer` and `noindex`
- * with no edit, exactly as it does there.
- *
- * `LAN-199`'s `Stop messages` button points here.
- */
+/** The opt-out surface (LAN-202, item 6) — "honoured immediately across every channel." Under `/me/` so the proxy's `no-store`/`no-referrer`/`noindex` apply unchanged. `LAN-199`'s `Stop messages` button points here. */
 export const metadata: Metadata = {
   title: "Stop messages",
   robots: { index: false, follow: false },

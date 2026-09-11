@@ -6,37 +6,7 @@ import { isServiceError } from "@/lib/db";
 import { retryDelivery, revokeAndReissue } from "@/lib/services/delivery";
 import type { EventTransitionState } from "../../form-state";
 
-/**
- * The two repair actions UX-52 offers, and the two it deliberately does not.
- *
- * **Offered:** Retry delivery, and Revoke and reissue link. Both are auditable
- * system actions that act on an invitation that already exists.
- *
- * **Not offered, and not implementable from here:** copy link, send message,
- * post to group, mark as sent, add a recipient. None has a service function
- * behind it, so none could be added by writing a button — the absence is in the
- * service layer and in the schema, not in this file's restraint.
- *
- * ## Authorization
- *
- * Both open with `requireCapability("delivery_administration")`, which resolves
- * the actor from the verified session. Neither takes an actor argument: a
- * Server Action is a POST endpoint the browser can call directly, so an action
- * accepting "who am I" would accept whatever was sent.
- *
- * ## Why a refusal is rethrown rather than returned
- *
- * The same reason as the event actions: a `NotPermitted` rendered as red text
- * beside a button reads as "try again", which is the wrong instruction and
- * hides an authorization event inside what looks like a transient failure.
- *
- * ## Why neither redirects
- *
- * The operator stays on the invitee they were repairing, so they can see the
- * result against the person it concerns. `revalidatePath` re-reads the delivery
- * state from the database, so the screen shows what actually happened rather
- * than what was requested.
- */
+// The two repair actions UX-52 offers.
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -49,14 +19,7 @@ function messageFor(error: unknown): string {
   return error.message;
 }
 
-/**
- * Retry one failed or queued delivery.
- *
- * Idempotent where it counts. The service claims the job with a guarded
- * `update`, so a double-press produces one further attempt and the second press
- * finds the job already in progress and says so. It creates no invitation and
- * cannot reach the audience.
- */
+/** Retry one failed or queued delivery — idempotent where it counts (a guarded update claims the job). */
 export async function retryDeliveryAction(
   _previous: EventTransitionState,
   formData: FormData,
@@ -74,10 +37,7 @@ export async function retryDeliveryAction(
 
   revalidatePath(`/operate/events/${eventId}/delivery`);
 
-  // "Failures are safely visible" is an acceptance criterion, and reporting a
-  // refused attempt as success is the cheapest way to break it. The refreshed
-  // row would eventually say so, but the operator pressed a button and is owed
-  // an answer to that press.
+  // "Failures are safely visible" — reporting a refused attempt as success would break it.
   return {
     error:
       outcome === "accepted"
@@ -86,18 +46,7 @@ export async function retryDeliveryAction(
   };
 }
 
-/**
- * Withdraw the live link and issue a new one, then send it.
- *
- * The reason is required by `rsvp_access_tokens_revocation_is_explained` and by
- * the service before it — withdrawing somebody's link is a decision, and an
- * unexplained one is a decision nobody can review later.
- *
- * There is no way to reissue a link *without* sending it, and that is
- * deliberate: a token nobody can read is worthless unless it goes somewhere,
- * and an operator holding one on screen is the manual path this issue exists to
- * remove.
- */
+/** Withdraws the live link and issues a new one, then sends it — never without sending. Reason required (`rsvp_access_tokens_revocation_is_explained`). */
 export async function revokeAndReissueAction(
   _previous: EventTransitionState,
   formData: FormData,
@@ -116,12 +65,7 @@ export async function revokeAndReissueAction(
 
   revalidatePath(`/operate/events/${eventId}/delivery`);
 
-  // The more destructive of the two controls, and the one that most needs an
-  // honest answer. Revocation happens first and the send follows, so a refused
-  // send leaves the operator having withdrawn a link somebody was holding with
-  // nothing in its place — which is exactly the state an unconfigured
-  // deployment produces today. Reporting that as success was worse here than it
-  // would have been on Retry, and Retry already refused to do it.
+  // Revocation happens first, so a refused send leaves no working link — the more destructive control gets the more honest answer.
   return {
     error:
       outcome === "accepted"

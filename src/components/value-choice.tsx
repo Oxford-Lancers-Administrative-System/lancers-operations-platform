@@ -5,14 +5,9 @@ import Typography from "@mui/material/Typography";
 
 /**
  * One side of a two-value choice; omit `name` for a read-only comparison.
- *
- * LAN-256: controlled rather than uncontrolled, and there is deliberately no
- * `defaultSelected` any more. The merge comparison's radios used to carry
- * `defaultChecked` on the survivor's side of every row, which made "the
- * operator answered nothing" indistinguishable from "the operator chose the
- * survivor" — and the screen that has to know the difference is the one
- * deciding whether Merge may be pressed at all. A caller that renders a radio
- * therefore owns the answer.
+ * LAN-256: controlled, deliberately no `defaultSelected` — that used to make
+ * "answered nothing" indistinguishable from "chose the survivor" on the
+ * merge screen deciding whether Merge may be pressed.
  */
 export function ValueChoice({
   name,

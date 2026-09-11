@@ -1,7 +1,5 @@
 import Button from "@mui/material/Button";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { SortableHeader as KitSortableHeader } from "@/components/sortable-header";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError, withTransaction } from "@/lib/db";
@@ -27,54 +25,21 @@ import {
   isNudgeable,
 } from "./chase-presentation";
 import QueueBoard, { type QueueRowView } from "./queue-board";
+import EmptyQueue from "./empty-queue";
+import MissingSortableHeader from "./missing-sortable-header";
+import {
+  first,
+  isRequiredField,
+  MISSING_SORT_OPTIONS,
+  withPlayersParam,
+  withScopeParam,
+} from "./missing-query";
 
 /**
  * `W7-01` … `W7-05`, `W7-07` — the missing-data queue. LAN-184,
- * `REQ-missing-queue`. Extended by `W8`/`W9`/`W11` (LAN-218) with two columns
- * — when each person was last contacted and what kind it was, and when the
- * machine will next write, or that it will not — and one action: select one
- * person or several, and nudge.
- *
- * Every person tied to the season in view (or, widened, outside it) with at
- * least one required fact absent, naming which facts per row and never a
- * value. `DEC-w7-07`, drawn deliberately rather than hidden: there is no
- * `refused` or `not applicable` state here, so a departed alumnus with no
- * personal email — `W7-07` — sits in this queue indefinitely until Mission 7
- * builds the state that would retire the row.
- *
- * `W8`'s own locked recommendation: this page defaults to onboarding players
- * only, with Mission 5's full shipped scope one click away
- * (`?players=all`) — a second, independent widen from the existing
- * in-season/outside-season one, because "everybody with missing data" and
- * "everybody, including people outside this season" answer different
- * questions.
- *
- * Correction round 1, `C-2` (Brian, 2026-09-03 walkthrough): no reachable
- * mobile number ranks first, above every other ordering this page applies —
- * see the comment beside the reachability sort below.
+ * `REQ-missing-queue`. Extended by `W8`/`W9`/`W11` (LAN-218) with contact
+ * history, next-chase and a nudge action.
  */
-
-function first(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0] ?? "";
-  return value ?? "";
-}
-
-/**
- * Validates the `fact` query param against the real vocabulary rather than
- * trusting a caller's text — the same whitelist discipline `roster.ts`'s
- * `ROSTER_SORT_COLUMNS` uses for `sort`. `REQUIRED_FIELD_LABELS` is the one
- * list of every `RequiredField`, so a new required fact is recognised here
- * without this module naming its own copy of the ten keys.
- */
-function isRequiredField(value: string): value is RequiredField {
-  return Object.hasOwn(REQUIRED_FIELD_LABELS, value);
-}
-
-const SORT_OPTIONS: readonly { value: string; label: string }[] = Object.freeze([
-  { value: "missing", label: "How much is missing" },
-  { value: "name", label: "Name" },
-]);
-
 export default async function MissingDataPage({
   searchParams,
 }: PageProps<"/operate/people/missing">) {
@@ -145,17 +110,9 @@ export default async function MissingDataPage({
     });
   }
 
-  // Correction round 1, `C-2` (Brian, 2026-09-03 walkthrough): "a missing
-  // number, an incorrect number, or a number we can't contact means they're
-  // out of the loop. That's a terrible problem" — a class-1 issue, because
-  // everything runs on WhatsApp, and one the plain "how much is missing"
-  // count already buries no higher than a missing degree subject. Applied
-  // last, after every other ordering above (the operator's own explicit
-  // Name/Missing sort, or the onboarding-only default), as a stable
-  // partition — nobody with no reachable number's relative order among
-  // themselves, or a fully-reachable person's, ever changes; only the two
-  // groups swap which comes first. `Array.prototype.sort` has been a stable
-  // sort since ES2019, so this is safe without a second key.
+  // Correction round 1, `C-2` (Brian, 2026-09-03 walkthrough): no reachable
+  // mobile number ranks first, above every other ordering above, applied as a
+  // stable partition.
   const reachabilityRank = (entry: (typeof entries)[number]) => (entry.hasMobile ? 1 : 0);
   entries = [...entries].sort((a, b) => reachabilityRank(a) - reachabilityRank(b));
 
@@ -253,7 +210,7 @@ export default async function MissingDataPage({
       <MissingFilters
         basePath={basePath}
         scope={scope}
-        sortColumns={SORT_OPTIONS}
+        sortColumns={MISSING_SORT_OPTIONS}
         search={search}
         status={status}
         fact={fact ?? ""}
@@ -267,7 +224,7 @@ export default async function MissingDataPage({
         <QueueBoard
           rows={rows}
           nameHeader={
-            <SortableHeader
+            <MissingSortableHeader
               column="name"
               label="Name"
               sort={sort}
@@ -276,7 +233,7 @@ export default async function MissingDataPage({
             />
           }
           missingHeader={
-            <SortableHeader
+            <MissingSortableHeader
               column="missing"
               label="Missing"
               sort={sort}
@@ -287,108 +244,5 @@ export default async function MissingDataPage({
         />
       )}
     </Stack>
-  );
-}
-
-function SortableHeader({
-  column,
-  label,
-  sort,
-  direction,
-  query,
-}: {
-  column: string;
-  label: string;
-  sort: string;
-  direction: string;
-  query: Record<string, string | string[] | undefined>;
-}) {
-  const active = sort === column;
-  const next = active
-    ? direction === "asc"
-      ? "desc"
-      : "asc"
-    : column === "missing"
-      ? "desc"
-      : "asc";
-
-  const params = new URLSearchParams();
-  for (const key of ["q", "status", "fact", "scope", "players"]) {
-    const value = first(query[key]);
-    if (value !== "") params.set(key, value);
-  }
-  params.set("sort", column);
-  params.set("dir", next);
-
-  return (
-    <KitSortableHeader
-      column={column}
-      label={label}
-      active={active}
-      direction={active && direction === "desc" ? "desc" : "asc"}
-      href={`/operate/people/missing?${params.toString()}`}
-    />
-  );
-}
-
-function withPlayersParam(href: string, onboardingOnly: boolean): string {
-  if (onboardingOnly) return href;
-  const joiner = href.includes("?") ? "&" : "?";
-  return `${href}${joiner}players=all`;
-}
-
-function withScopeParam(href: string, scope: PeopleScope): string {
-  if (scope !== "outside_season") return href;
-  const joiner = href.includes("?") ? "&" : "?";
-  return `${href}${joiner}scope=outside`;
-}
-
-/**
- * Two distinguishable outcomes — `W7-04` and `W7-05` — and neither is a
- * failure. Nobody missing anything is a good outcome and says so; a filter
- * matching nothing offers to clear it, matching the roster's own distinction
- * between a filtered empty and a system empty.
- */
-function EmptyQueue({
-  totalMissing,
-  scope,
-  outsideHref,
-}: {
-  totalMissing: number;
-  scope: PeopleScope;
-  outsideHref: string;
-}) {
-  const nothingMissingAtAll = totalMissing === 0;
-
-  return (
-    <EmptyState
-      title={
-        nothingMissingAtAll ? "Every required fact is recorded" : "Nobody matches these filters"
-      }
-      testId={nothingMissingAtAll ? "missing-empty" : "missing-filter-empty"}
-      actions={
-        <>
-          {nothingMissingAtAll ? (
-            scope === "in_season" ? (
-              <Button variant="contained" href={outsideHref} sx={{ minHeight: 44 }}>
-                See people outside this season
-              </Button>
-            ) : null
-          ) : (
-            <Button
-              variant="outlined"
-              href={
-                scope === "in_season"
-                  ? "/operate/people/missing"
-                  : "/operate/people/missing?scope=outside"
-              }
-              sx={{ minHeight: 44 }}
-            >
-              Clear filters
-            </Button>
-          )}
-        </>
-      }
-    />
   );
 }

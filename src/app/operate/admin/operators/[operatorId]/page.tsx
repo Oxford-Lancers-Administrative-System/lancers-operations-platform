@@ -32,36 +32,11 @@ import { ArrivalNotice, OutcomeSlotProvider } from "@/components/outcome-slot";
 import OperatorActions from "./operator-actions";
 
 /**
- * One operator's record — LAN-133.
- *
- * ## The separation this page exists to make visible
- *
- * `REQ-admin-surfaces`: operator detail "uses club-facing labels and
- * distinguishes operator account state from role state". Two panels, and the
- * line between them is the whole design:
- *
- *   * **Operator account** — can this person sign in, and what happened to the
- *     invitation. One of five states, in the club's own words.
- *   * **Current relationships** — what the club has asked them to do, and
- *     whether they are also a player this season
- *     (`DEC-one-person-multiple-capacities`: one Person, one login, several
- *     capacities).
- *
- * A deactivated Vice-President reads *Deactivated* on the left and
- * *Vice-President* on the right at the same time, which is exactly what
- * `REQ-deactivate-and-reinstate` requires and what a single merged "status"
- * could not express.
- *
- * ## The delivery failure reason is rendered here — LAN131-A5
- *
- * When an invitation is opened and then abandoned, the account cannot be
- * invited again, and the reason recorded against it says so and says what to do
- * instead. Independent review of `WP-invitation` confirmed the escape route
- * works and that its **discoverability** was the open half: the sentence was
- * written to `invitation_delivery_failure_reason` and rendered nowhere. It is
- * on this page, beside the state that produced it, and in the list's invitation
- * column as well — a Delivery failed badge with no reason beside it is the
- * defect that finding names.
+ * One operator's record — LAN-133. Two panels: **Operator account** (can
+ * they sign in, one of five states) and **Current relationships** (roles
+ * and player membership) — `DEC-one-person-multiple-capacities`.
+ * LAN131-A5: the delivery-failure reason is rendered here, beside the state
+ * that produced it, and in the list's invitation column.
  */
 export default async function OperatorRecordPage({
   params,
@@ -131,12 +106,7 @@ export default async function OperatorRecordPage({
                   </Typography>
                 </Box>
 
-                {/*
-              LAN131-A5. The transport's own sentence, shown wherever Delivery
-              failed is. It is the only place an administrator is told that an
-              invitation which was opened and abandoned is recovered through
-              Forgot password rather than through another invitation.
-            */}
+                {/* LAN131-A5: the transport's own sentence, wherever "Delivery failed" is. */}
                 {operator.state === "delivery_failed" && operator.deliveryFailureReason ? (
                   <Notice severity="warning" testId="delivery-failure-reason">
                     {operator.deliveryFailureReason}
@@ -245,12 +215,9 @@ export default async function OperatorRecordPage({
 }
 
 /**
- * The one-word outcome the invitation flow redirects with.
- *
- * A code rather than a sentence: a message carried in a query string is a
- * message the URL can be edited to say anything, and this page would then be
- * repeating a stranger's text back to an administrator as if the application
- * had said it.
+ * The one-word outcome code the invitation flow redirects with — not a
+ * free-text message, which the URL could be edited to make the application
+ * appear to say anything.
  */
 function noticeFor(query: Record<string, string | string[] | undefined>): {
   severity: "success" | "warning";

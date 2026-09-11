@@ -26,48 +26,11 @@ import {
 } from "./roster-board";
 
 /**
- * The player record aggregate — `WP-player-record`, LAN-187, W6.
- *
- * ## Why this is a new module rather than an addition to an existing one
- *
- * The same reasoning `roster-board.ts`'s own module note gives for itself:
- * this package's collision domain is `src/app/operate/roster/[membershipId]/**`
- * and a fresh file that *reads* the substrate other packages already built —
- * `membership.ts` for the membership and its history, `person-record.ts` for
- * the durable person facts, `roster-board.ts` for the season's position
- * vocabulary — rather than editing any of them. Nothing here duplicates a
- * write path: every commit this page makes reuses `roster-board.ts`'s own
- * `commitPosition`, `commitJerseyNumbers`, `commitCoachGroup`,
- * `commitFormalwearItem`, `commitBlues`, `commitEligibility`,
- * `commitAvailability` and `commitEntry`, and `membership.ts`'s own
- * `setMembershipStatus` and `resolveOnboardingItem` — called from this
- * package's own `record-actions.ts`, never reimplemented.
- *
- * ## What this module adds that no existing read covers
- *
- * `listRosterBoard()` assembles the *whole current season's* board in one
- * pass and does not expose a single-membership read — this membership may
- * belong to a past, closed season (a departed or archived record from an
- * earlier year), which `listRosterBoard()` never reaches at all. This module
- * is the single-membership equivalent: the same seven board columns
- * (positions, jersey numbers, coach group, formalwear, Blues, eligibility,
- * availability), the season's jersey holder map, and the season's position
- * vocabulary, all scoped to *this membership's own season* rather than
- * whichever season happens to be current.
- *
- * Three facts this page states that neither existing read computes on its
- * own:
- *
- *   * **The Blues total across seasons** — already derived, unmodified, by
- *     `person-record.ts`'s `halfBlueCount` / `fullBlueCount`
- *     (`public.person_blues_totals`). This module adds nothing; it surfaces
- *     what `readPersonRecord()` already returns.
- *   * **Constitutional membership** — `public.constitutional_membership`,
- *     invariant I5, read directly by `season_membership_id` rather than
- *     reimplemented: admitted and paid, for this one season's membership.
- *   * **The person's other seasons** — every other `season_memberships` row
- *     for the same person, with that season's label, status, predominant Blue
- *     jersey number and Blues award, for the "Their other seasons" panel.
+ * The player record aggregate — `WP-player-record`, LAN-187, W6. Reads only:
+ * assembles `membership.ts`, `person-record.ts` and `roster-board.ts`'s own
+ * substrate for one membership's season, rather than duplicating any write
+ * path. The single-membership equivalent of `listRosterBoard()`, scoped to
+ * this membership's own season (which may not be the current one).
  */
 
 export interface PlayerSeasonFacts {
@@ -85,7 +48,7 @@ export interface PlayerSeasonFacts {
   availability: string | null;
 }
 
-export interface JerseyHolders {
+interface JerseyHolders {
   blue: Record<string, string>;
   white: Record<string, string>;
 }
@@ -100,22 +63,13 @@ export interface OtherSeasonSummary {
   blues: BluesValue;
 }
 
-/**
- * `public.invitations.status` — never `pending` on a row this module returns:
- * `readAttendanceHistoryIn` excludes it below, the same "sent" filter
- * `Q15-attendance`'s approved design applies.
- */
-export type AttendanceInvitationStatus = "issued" | "responded" | "expired" | "cancelled";
+/** `public.invitations.status` — never `pending` on a row this module returns (Q15-attendance). */
+type AttendanceInvitationStatus = "issued" | "responded" | "expired" | "cancelled";
 
 /** `public.rsvp_value` — binary, no "maybe" (Requirement 5). */
-export type AttendanceRsvp = "yes" | "no";
+type AttendanceRsvp = "yes" | "no";
 
-/**
- * One event this membership held a sent invitation for, this season —
- * `WP-player-record`'s Attendance band, `Q15-attendance`. Every event the
- * membership was actually asked about, whether or not it has an attendance
- * record yet.
- */
+/** One event this membership held a sent invitation for, this season — `Q15-attendance`. */
 export interface AttendanceEvent {
   id: string;
   eventName: string;
@@ -125,32 +79,13 @@ export interface AttendanceEvent {
   invitationStatus: AttendanceInvitationStatus;
   /** `null` is `not recorded` — never blank, never defaulted. */
   rsvp: AttendanceRsvp | null;
-  /**
-   * `null` is no attendance record yet — an event that has not occurred, or an
-   * invitation cancelled before one was taken. Never defaulted to `absent`: an
-   * unrecorded event is a different fact from a recorded miss, and the score
-   * this band shows excludes both for the same reason it reads this column
-   * rather than the calendar or the invitation status.
-   */
+  /** `null` is no attendance record yet; never defaulted to `absent`. */
   attendance: AttendancePresence | null;
-  /**
-   * What the event itself looks like now — `derivedEventState()` in
-   * `event-input.ts`, the same D30 derivation `/operate/events` already uses
-   * for its own Status column and filter (Q-6). Nothing new is stored or
-   * asserted: this is the event's own `status` and `scheduled_on`, read once
-   * here rather than recomputed by the component (W1, Q-19).
-   */
+  /** `derivedEventState()` (D30), the same rule `/operate/events` shows in its own Status column. */
   eventStatus: DerivedEventState;
 }
 
-/**
- * One recorded transition of one onboarding item, with its actor named —
- * `REQ-item-history`, W6. `onboarding-item-history.ts` is the substrate's own
- * writer and reader (LAN-214); this module adds nothing to what it stores,
- * only the actor's display name, resolved once here in the same batched join
- * `readMembership`'s own status-history read already uses for
- * `season_membership_status_events`.
- */
+/** One recorded transition of one onboarding item, with its actor named — `REQ-item-history`, W6. */
 export interface OnboardingItemHistoryEntry {
   fromStatus: OnboardingItem["status"] | null;
   toStatus: OnboardingItem["status"];
@@ -166,14 +101,8 @@ export interface OnboardingItemDisplay extends OnboardingItem {
   history: OnboardingItemHistoryEntry[];
 }
 
-/**
- * One entry in the sectioned activity log, with its actor named —
- * `REQ-activity-log`, W6. `onboarding-activity-log.ts` is the substrate's own
- * writer and grouped reader; this module resolves `actorPersonId` to a
- * display name the same way, rather than a second copy of the write path or
- * the grouping.
- */
-export interface OnboardingActivityEntryDisplay {
+/** One entry in the sectioned activity log, with its actor named — `REQ-activity-log`, W6. */
+interface OnboardingActivityEntryDisplay {
   kind: OnboardingActivityKind;
   channel: string;
   who: string;
@@ -185,11 +114,7 @@ export interface OnboardingActivitySection {
   entries: OnboardingActivityEntryDisplay[];
 }
 
-/**
- * Every onboarding item's history, batched in one query rather than one per
- * item — `readOnboardingItemHistoryIn`'s own SQL, joined to `people` for the
- * actor's name, filtered to this membership's items at once.
- */
+/** Every onboarding item's history, batched in one query rather than one per item, joined for the actor's name. */
 async function readOnboardingItemHistoryDisplayIn(
   tx: Tx,
   items: readonly OnboardingItem[],
@@ -234,15 +159,9 @@ async function readOnboardingItemHistoryDisplayIn(
 }
 
 /**
- * The sectioned activity log, actor names resolved — `REQ-activity-log`.
- * Reuses `readOnboardingActivityLogBySectionIn`'s own grouped read for the
- * rows and the grouping; this only adds the one thing that read cannot know
- * on its own, the human name behind an `actorPersonId`, via one extra batched
- * lookup rather than a join inside that substrate module.
- *
- * Ordered newest first, both across sections and within one — the Mission
- * Lead's own delegated decision on how far the log reaches on first render:
- * the whole season, newest first, no pagination.
+ * The sectioned activity log, actor names resolved via one extra batched
+ * lookup. Ordered newest first, both across sections and within one — the
+ * whole season, no pagination.
  */
 async function readOnboardingActivityLogDisplayIn(
   tx: Tx,
@@ -317,19 +236,11 @@ export interface PlayerRecordData {
   /** Every current holder in this membership's season, both kits — never the filtered view. */
   jerseyHolders: JerseyHolders;
   otherSeasons: OtherSeasonSummary[];
-  /**
-   * Every event this membership had an invitation sent for, this season —
-   * `Q15-attendance`. Displayed, never edited; Mission 2 owns the write path.
-   */
+  /** Every event this membership had an invitation sent for, this season — `Q15-attendance`. */
   attendance: AttendanceEvent[];
   /** The full, unredacted person record. The caller redacts for the viewer's role. */
   person: PersonRecord;
-  /**
-   * What the record's own **Send onboarding questionnaire** control shows and
-   * whether it may be pressed — LAN-266. Read from the missing-data queue's
-   * own functions so the record and the queue can never describe the same
-   * player's chase two different ways.
-   */
+  /** What the **Send onboarding questionnaire** control shows and whether it may be pressed — LAN-266. */
   send: OnboardingSendStatus;
 }
 
@@ -416,7 +327,6 @@ async function readSeasonFactsIn(
       ? "Half"
       : "None";
 
-  // Unreachable without the season's own vocabulary — never hardcoded (S3).
   void seasonId;
 
   return {
@@ -445,41 +355,12 @@ interface AttendanceEventRow {
 }
 
 /**
- * The Attendance band's own read — `WP-player-record`'s correction round,
- * `Q15-attendance`. Brian ruled the prose stands: this season's RSVP and
- * attendance history renders here, read-only, from Mission 2's own tables.
- *
- * ## Every event with a *sent* invitation, this season
- *
- * `public.invitations.status <> 'pending'` is the whole filter — `pending`
- * never reached the player, so there is nothing yet to show them (the same
- * read `chore/roster-fidelity-attendance`'s approved mockup demonstrates).
- * `cancelled` and `expired` invitations stay rows: the invitation was sent,
- * whatever became of it afterwards.
- *
- * ## `rsvp` and `attendance` are two independent reads, never one derived
- * from the other (locked Requirement 7) — `public.current_rsvp` for the
- * standing answer, `public.attendance_records` for what was actually
- * observed. Neither implies the other, and either may be `null` while the
- * invitation itself is real.
- *
- * ## Scoring is the caller's job
- *
- * This function returns the raw rows only. `attendance-section.tsx` computes
- * the mandatory-attendance score against whichever rows the viewer's filters
- * currently show — "the score follows the filter" is a presentation rule,
- * not a second query.
- *
- * ## `eventStatus` is derived here, once, from the event's own date and status
- *
- * W1/Q-19: Brian's walkthrough found the table listing every invited event —
- * including ones that have not happened yet — above a score that only counts
- * occurred ones, so a correct number sat over a table that looked like it
- * contradicted it. Each row now carries `derivedEventState()`'s answer
- * (`event-input.ts`, D30, the same rule `/operate/events` already shows in its
- * own Status column), read against `todayInClubZone()` at the moment of the
- * read. No new column, no migration — the event's `status` and `scheduled_on`
- * are exactly what `events` already stores.
+ * The Attendance band's own read — `Q15-attendance`. Every event with a
+ * *sent* invitation this season (`status <> 'pending'`); `rsvp` and
+ * `attendance` are two independent reads, never one derived from the other
+ * (locked Requirement 7). Returns raw rows only — scoring is the caller's
+ * job. `eventStatus` is `derivedEventState()`'s answer (D30), read against
+ * `todayInClubZone()` at read time.
  */
 async function readAttendanceHistoryIn(
   tx: Tx,
@@ -522,13 +403,7 @@ async function readAttendanceHistoryIn(
   }));
 }
 
-/**
- * Every current jersey holder in this membership's season, both kits — built
- * from every membership in the season, never the filtered view, so a number
- * worn by somebody Departed or Archived is still shown as issued. The same
- * rule `roster-board.ts`'s own `jerseyHolders` follows, scoped here to one
- * season rather than assumed to be the current one.
- */
+/** Every current jersey holder in this membership's season, both kits — never the filtered view. */
 async function readJerseyHoldersIn(tx: Tx, seasonId: string): Promise<JerseyHolders> {
   const result = await tx.query<{
     kit: string;
@@ -619,15 +494,8 @@ async function readMilestonesIn(
   };
 }
 
-/**
- * A membership whose person was merged away — invariant I6, W1-09. The
- * `season_memberships` row still names the losing `people.id` (a merge
- * repoints no foreign key; it only marks the loser's own row), so this
- * membership resolves instead to wherever the survivor's own record for the
- * *same season* lives, or to the survivor's person record when they never
- * held one.
- */
-export interface PlayerRecordRedirect {
+/** A membership whose person was merged away — invariant I6, W1-09. Resolves to the survivor's own record for the same season, or their person record. */
+interface PlayerRecordRedirect {
   kind: "redirect";
   href: string;
 }
@@ -646,10 +514,7 @@ async function survivorRedirectIn(tx: Tx, personId: string, seasonId: string): P
   );
   const survivorPersonId = survivor.rows[0]?.merged_into_person_id;
   if (!survivorPersonId) {
-    // The person genuinely does not exist rather than having been merged —
-    // the caller's own `readMembership` already proved the membership row
-    // exists, so this would be a data inconsistency rather than a normal
-    // outcome; there is nothing better to resolve to than the roster.
+    // Data inconsistency, not a normal outcome — nothing better to resolve to than the roster.
     return "/operate/roster";
   }
 
@@ -661,17 +526,7 @@ async function survivorRedirectIn(tx: Tx, personId: string, seasonId: string): P
   return membershipId ? `/operate/roster/${membershipId}` : `/operate/people/${survivorPersonId}`;
 }
 
-/**
- * One player's whole record for one season — everything W6 states as fact,
- * assembled from the substrate this mission already built rather than a
- * second copy of any of it.
- *
- * Not atomic across every sub-read: this is a display page, not a write path,
- * and the membership, the person and the season facts are independently
- * consistent reads rather than one locked snapshot — the same posture
- * `people-directory.ts`'s combined reads take, and never a concern for a
- * screen that renders and reloads rather than computing a balance.
- */
+/** One player's whole record for one season, assembled from existing substrate. Not atomic across sub-reads — a display page, not a write path. */
 export async function readPlayerRecord(membershipId: string): Promise<PlayerRecordResult> {
   const membership: MembershipRecord = await readMembership(membershipId);
 

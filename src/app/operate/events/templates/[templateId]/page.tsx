@@ -14,19 +14,8 @@ import type { RawEventTemplate } from "@/lib/services/event-template-input";
 import { gateShellPage } from "../../../gate";
 import TemplateEditor from "../template-editor";
 
-/**
- * W8-02 — one template.
- *
- * The route carries the template's own identifier since LAN-265. It used to
- * carry the `event_type`, because the type *was* the template's identity — there
- * were exactly seven, created by a migration, and nobody added or removed one.
- * Operators create and rename templates now, so a route segment made of the name
- * would change under a rename and break every link an operator had kept.
- *
- * `readEventTemplate` refuses anything that is not a live template, so a
- * hand-typed URL — or a link to one somebody deleted while it was open — gets a
- * sentence rather than an empty form.
- */
+// W8-02 — one template. Route carries the template's own id since LAN-265
+// (used to carry event_type, before templates were rename-able).
 export default async function EventTemplatePage({
   params,
 }: PageProps<"/operate/events/templates/[templateId]">) {

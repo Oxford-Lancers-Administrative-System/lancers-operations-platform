@@ -11,98 +11,22 @@ import {
 } from "./audience-selection";
 
 /**
- * Who an event *can* be sent to, read from the club's authoritative data.
- * LAN-77.
- *
- * The vocabulary, the derived groups and the resolution rules live in
- * `./audience-selection`, which is pure and is what the client-side builder
- * imports; see that module's header for why the split exists. This one is the
- * database half, and it is re-exported from here so a server caller has a single
- * import.
- *
- * ## The one rule this module exists to serve, as D47 narrowed it
- *
- * `docs/adr/0012-explicit-event-audience.md` and Brian's 12 August
- * clarification said selection begins empty and nothing is ever implied. **D47
- * reverses half of that, deliberately and narrowly**, and LAN-154 is where the
- * reversal lands: a type's template supplies a default audience, which arrives
- * with a new event already set, visible and editable, so the approver checks
- * rather than builds the same thirty-two names every Wednesday.
- *
- * What survives unchanged is the part ADR 0012 was actually about. There is
- * still no whole-roster fallback and no "if none selected then everyone"
- * anywhere here or in anything that calls it: an audience that nobody put there
- * is still empty, and approval still refuses it. What the club configured once,
- * on purpose, on the template, is not the system implying anything.
- *
- * The stored audience is still an explicit resolved list. A group is a way of
- * selecting people, never a live query that changes underneath an approved
- * event — which is why `createEventDraft` resolves the template's groups to
- * people at the moment the draft is created.
- *
- * ## Where the groups come from
- *
- * All five derived groups are read from current authoritative domain data, not
- * from a stored list somebody has to maintain:
- *
- *   * **Active players** — the season's `active` memberships.
- *   * **Active coaches** — role assignments effective then whose role code is
- *     one of `COACH_ROLE_CODES`. Register D8 puts coaching staff on the season,
- *     but not everything scoped to a season coaches — see that constant.
- *   * **Active committee** — `committee_year`-scoped role assignments effective then.
- *   * **Everyone active** — the de-duplicated union of the three.
- *   * **Recruits** — open prospects in `recruitment_prospects`, offered on a
- *     Recruitment event alone (D46).
- *
- * "Effective" is the domain's own definition and not a status column:
- * `effective_from <= date < effective_to`, per register D11 and invariant S4,
- * which is what makes a mid-year handover resolve to the person holding the seat
- * rather than to whoever held it first.
- *
- * ## …and why that date is the event's, not today's
- *
- * The obvious implementation asks who holds a seat *now*, and it is wrong in the
- * ordinary case. The club plans a season before it starts: in the seeded club on
- * 13 August 2026 the 2026-27 coaches are appointed from 1 September and players
- * have no position assignments until 27 September, so a catalogue built "as of
- * today" for an October practice offers **no coaches at all** and no playing
- * units — silently, with an empty tab that looks like a club without coaching
- * staff.
- *
- * The question an audience builder is actually asking is "who holds this seat
- * when the event happens", so the effective-date test runs against the event's
- * scheduled date. A draft with no date yet falls back to today, which is the only
- * honest answer available and costs nothing: invariant E1a already refuses to
- * approve a dateless event, so no audience resolved that way can be written.
+ * Who an event can be sent to, read from the club's authoritative data (LAN-77). Vocabulary and derived groups are pure, in `./audience-selection` (re-exported below); this module is the database read.
+ * Groups are live reads: active `season_memberships`; effective-dated coach/committee `role_assignments` (register D8, D11, invariant S4); open `recruitment_prospects` (Recruitment events only, D46). The effective-date test runs against the event's own date, not today (falls back to today for a dateless draft, which invariant E1a refuses to approve anyway).
  */
 
 export {
-  AUDIENCE_GROUPS,
   audiencePeople,
-  groupsForEventType,
-  templateGroupsForEventType,
   summariseAudienceGroups,
-  CAPACITY_PRECEDENCE,
   EMPTY_AUDIENCE_MESSAGE,
   EMPTY_AUDIENCE_RULE,
-  groupIsSelected,
   groupSelectionKeys,
-  groupSize,
-  toggleGroup,
-  RECRUITMENT_EVENT_TYPE,
   resolveSelection,
   selectionKey,
-  UNKNOWN_SELECTION_MESSAGE,
   UNKNOWN_SELECTION_RULE,
-  type AudienceCandidate,
   type AudienceCapacity,
   type AudienceCatalogue,
-  type AudienceGroup,
-  type AudienceGroupKey,
   type AudienceGroupSummary,
-  type AudiencePerson,
-  type ResolvedAudienceMember,
-  type SelectionResolution,
 } from "./audience-selection";
 
 interface CandidateRow {
@@ -125,13 +49,7 @@ function displayNameOf(row: CandidateRow): string {
   return row.family_name ? `${first} ${row.family_name}` : first;
 }
 
-/**
- * A player's playing unit, from the position assignments effective on the day.
- *
- * UX-40 shows it as a column, and the club reads a roster by unit before it
- * reads it by name. "Both" is the common case — SDA §11.1 puts ~83% of records
- * on both sides of the ball.
- */
+/** A player's playing unit, from position assignments effective on the day (UX-40). */
 const UNIT_EXPRESSION = `
   (select case
             when bool_or(pa.side = 'offence') and bool_or(pa.side = 'defence') then 'Both'
@@ -145,13 +63,7 @@ const UNIT_EXPRESSION = `
       and pa.effective_from <= as_of.day
       and (pa.effective_to is null or pa.effective_to > as_of.day))`;
 
-/**
- * A current contact value, phone first.
- *
- * Phone before email because the slice's delivery path is 1:1 WhatsApp, so the
- * phone is the operationally relevant one; a coach with only an email still
- * shows something rather than an empty cell.
- */
+/** A current contact value, phone first (delivery is 1:1 WhatsApp); falls back to email. */
 const CONTACT_EXPRESSION = `
   coalesce(
     (select c.raw_value from public.contact_points c
@@ -161,18 +73,7 @@ const CONTACT_EXPRESSION = `
       where c.person_id = p.id and c.kind = 'email' and c.valid_until is null
       order by c.is_preferred desc, c.created_at desc limit 1))`;
 
-/**
- * D46, at the level approval actually invites from — LAN-295.
- *
- * Recruits are read from the funnel rather than from the roster, because that is
- * where a prospect lives: modelling them as provisional memberships would
- * pollute the roster with people who never commit (model §1.2).
- *
- * Joined is excluded because a joined prospect IS a member and appears under the
- * player capacity; disengaged, declined and void are excluded because D45 says
- * inactive people are never invited, somebody who said no is exactly that, and a
- * void row is not a person to invite at all (LAN-201).
- */
+/** Open recruits (D46, LAN-295); excludes joined/disengaged/declined/void (D45, LAN-201). */
 const RECRUIT_ARM = `
      select 'recruit' as capacity,
             p.id as anchor_id,
@@ -189,39 +90,8 @@ const RECRUIT_ARM = `
         and rp.status in ('identified', 'engaged', 'committed')`;
 
 /**
- * Every person selectable for an event in `seasonId`, in every capacity they
- * qualify under, as at `scheduledOn` — the event's own date, falling back to
- * today for a draft that has none yet.
- *
- * The arms are one statement so the catalogue is a single consistent read: a
- * role expiring between two queries would otherwise produce a list whose counts
- * disagree with its rows.
- *
- * A person qualifying twice appears twice **here**, deliberately — the derived
- * groups are defined by capacity, and collapsing at this level would hide a
- * coach from the coaching group. The collapse into one row per human happens
- * once at each of the two points it matters: `audiencePeople` for what the
- * picker shows, `resolveSelection` for what is written.
- *
- * ## `eventType` is required, and it is what keeps recruits off a practice
- *
- * D46 puts recruits on a Recruitment event alone, and Brian restated it on
- * 2026-09-10: "Recruits should only ever be selectable and only ever be
- * available for a recruitment event. Every other event, they're non-factors."
- * Before LAN-295 that rule lived only in `AUDIENCE_GROUPS` — the *Recruits
- * button* was withheld, while the recruits themselves stayed in the catalogue as
- * individually tickable rows that `resolveSelection` would happily resolve and
- * approval would happily invite.
- *
- * So the gate is here, in the read every one of those paths shares, and it is a
- * required parameter rather than an optional filter: a caller that forgets it
- * does not compile. On a non-Recruitment event a recruit is not merely hidden —
- * they are not in the catalogue, so their key resolves to nothing and
- * `saveEventAudience` refuses the selection outright.
- *
- * The class is the event's own `events.event_type`, never a template's name.
- * After LAN-265 an operator names templates freely and every template they
- * create is `practice` class, so a name is not something a rule can key on.
+ * Every person selectable for an event in `seasonId`, in every capacity they qualify under, as at `scheduledOn` (falls back to today for a dateless draft). One statement, for a single consistent read; a person qualifying twice appears twice here, by design (collapsed later by `audiencePeople` / `resolveSelection`).
+ * `eventType` is required: on anything but a Recruitment event, recruits are not in the catalogue at all (D46, LAN-295), keyed off `events.event_type`, never a template's name (LAN-265 lets templates be renamed freely).
  */
 export async function listAudienceCatalogueIn(
   tx: Tx,
@@ -301,9 +171,7 @@ export async function listAudienceCatalogueIn(
     [seasonId, scheduledOn, COACH_ROLE_CODES],
   );
 
-  // A person holding two committee seats at once is legal and real — the model
-  // names Social Sec ×2 — and would otherwise appear twice in one capacity.
-  // Their seats are joined into one line rather than becoming two rows.
+  // Two seats in one capacity (e.g. Social Sec ×2) join into one row, not two.
   const byKey = new Map<string, AudienceCandidate>();
   for (const row of result.rows) {
     const key = `${row.capacity}:${row.anchor_id}`;

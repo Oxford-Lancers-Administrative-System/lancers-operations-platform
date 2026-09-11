@@ -6,29 +6,12 @@ import Typography from "@mui/material/Typography";
 import { CLUB, SEMANTIC } from "@/theme-tokens";
 
 /**
- * One card with a heading — LAN-225, brief §2. Replaces the six local
- * `Section`s, the record shell's banded card and the admin panels (audit A1).
- *
- * Two variants, same padding:
- *
- *   - `plain` — an outlined card with an `h3` heading. Forms, panels, the
- *     people record, the admin record.
- *   - `banded` — a filled overline band over a tinted body. The record language
- *     the roster board and the player record share; recruitment reads it too.
- *
- * `collapsible` makes a `plain` section a disclosure: the heading row becomes
- * the `<summary>` of a `<details>`, closed unless `defaultOpen`. It exists
- * because two surfaces already hide a long tail behind one — `/me/[token]`'s
- * "See what else is coming up" and the record's own history — and both built
- * it by hand out of `<details>` with `listStyle: none` and a webkit marker
- * reset (player-surfaces finding P8). A section that hides its body is still a
- * section; nothing else about it changes.
- *
- * The bands and their colours are the brief's §1.5 mapping and nothing else:
- * `person` Oxford Blue, `season` and `recruitment` Royal Blue, `onboarding`
- * Old Gold, `history` and `attendance` neutral. The purple attendance band is
- * gone; a band never carries a traffic-light hue because a band is a place,
- * not a verdict.
+ * One card with a heading — LAN-225, brief §2. Two variants: `plain` (an
+ * outlined card, `h3` heading) and `banded` (a filled overline band over a
+ * tinted body). `collapsible` makes `plain` a disclosure (`<details>`),
+ * closed unless `defaultOpen` (player-surfaces finding P8). Band colours are
+ * brief §1.5's mapping — never a traffic-light hue; a band is a place, not a
+ * verdict.
  */
 export type Band = "person" | "season" | "recruitment" | "onboarding" | "attendance" | "history";
 

@@ -11,34 +11,14 @@ import { checkForExistingQrRecruit, submitQrSignup } from "./actions";
 import SignupForm, { EMPTY_ALIAS } from "./signup-form";
 
 /**
- * `W7` — the QR (anonymous) door. LAN-202 amendment 2: "an ordinary new public
- * route" — route protection in `src/proxy.ts` is opt-in through
- * `PROTECTED_PREFIXES`, which does not name `/join`, so nothing there needs to
- * change. This page's own `metadata` is what keeps it out of search indexes.
+ * `W7` — the QR (anonymous) door. LAN-202 amendment 2: an ordinary new public
+ * route — `src/proxy.ts`'s `PROTECTED_PREFIXES` does not name `/join`.
+ * Public and unauthenticated by design: exposes nothing about the club, the
+ * roster, or any other recruit.
  *
- * Public and unauthenticated by design: it must expose nothing about the
- * club, the roster, or any other recruit. The one thing it reads is which
- * season this code opens the form for; everything else here is a fresh,
- * empty form.
- */
-/**
- * The one link the club pushes at strangers, and the one card that sells it —
- * LAN-279.
- *
- * The image is `./opengraph-image.tsx`, drawn from the application mark; Next
- * finds it by convention and emits `og:image` and `twitter:image` for this
- * segment, overriding the club-wide card the rest of the application shows.
- *
- * **Static, not `generateMetadata`.** LAN-279 asks for the latter, but the card
- * it specifies contains no season and no code — the two things `params` could
- * supply — and deliberately so: a card that printed the code would leave it in
- * the chat transcript of everyone who ever saw the link. With nothing dynamic
- * to read, `generateMetadata` would be a function that ignores its argument and
- * returns a constant. This is that constant.
- *
- * `robots` is unchanged and still keeps the door out of search indexes. It does
- * not affect unfurling: WhatsApp, iMessage and Facebook fetch the card from
- * their own crawlers, which read the Open Graph tags and not this directive.
+ * Static, not `generateMetadata` (LAN-279): the card contains no season and
+ * no code, deliberately, so nothing dynamic exists to read. `robots` keeps
+ * the door out of search indexes without affecting unfurling.
  */
 export const metadata: Metadata = {
   title: { absolute: JOIN_TITLE },

@@ -16,21 +16,7 @@ import { recordSendOnboardingQuestionnaireAction } from "./record-actions";
 const LABEL = "SEND ONBOARDING QUESTIONNAIRE";
 const RESEND_LABEL = "RESEND ONBOARDING QUESTIONNAIRE";
 
-/**
- * `sendOnboardingNudges`'s four outcomes, in the club's words. Requirement 3:
- * "Sent only on provider acceptance, a named refusal otherwise (no consent,
- * no reachable number, delivery not configured), and never a silent failure.
- * Refusals name the reason on the record, not 'could not be completed'."
- *
- * These are the fallbacks. A refused or skipped send carries the dispatcher's
- * own stored sentence back with it (`reason`, read off the job the send just
- * wrote), and that is what the dialog shows whenever there is one — the same
- * provider-neutral text `delivery.ts`'s own delivery page and the queue's
- * `Delivery failed · …` column already show. The walk found why this matters:
- * with delivery unconfigured, the reason on the job named the five missing
- * settings and the fact that it needs the club's administrator, and none of
- * that reached the operator who pressed the button.
- */
+/** `sendOnboardingNudges`'s four outcomes (requirement 3); refused/skipped uses the dispatcher's own stored reason. */
 const OUTCOME_MESSAGE: Readonly<Record<string, string>> = Object.freeze({
   accepted: "Sent.",
   refused: "Not sent — the delivery attempt was refused.",
@@ -39,28 +25,7 @@ const OUTCOME_MESSAGE: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /**
- * The onboarding record's manual ask — LAN-266, modelled on the recruit
- * record's own SEND buttons (`../../recruitment/[prospectId]/send-questionnaire-button.tsx`)
- * because Brian named that control as the thing onboarding should have.
- *
- * Visual correction (Brian, 2026-09-09, on `feb9d6d`): "same component and
- * props" is meant literally. This first shipped `fullWidth`, which made it the
- * only send button in the product that stretched its card; the recruit
- * record's two are content-width and left-aligned, with their status line
- * beneath. The props here are now exactly the recruit button's —
- * `variant="contained"`, `size="small"`, `sx={{ minHeight: 44 }}` — inside the
- * same `Box sx={{ py: 1.5 }}` wrapper, so there is one style for this control
- * and not a second one for onboarding.
- *
- * `W2-04`'s reasoning is carried across intact: the button is never natively
- * `disabled` for a gate the operator could act on, because a disabled HTML
- * button fires no `onClick` and so cannot open the dialog that would explain
- * itself. The dialog is what refuses, in words, at the moment of action. The
- * one exception is the recruit record's own exception — a state that already
- * carries its explanation above the button, which here is a membership that
- * is no longer onboarding: there is nothing to chase and the record says so
- * in its own status line, so discovering it one click in would be the gap
- * rather than the fix.
+ * LAN-266 manual ask, modelled on the recruit SEND buttons — never natively `disabled` (W2-04).
  */
 export default function SendOnboardingQuestionnaireButton({
   membershipId,
@@ -164,16 +129,7 @@ export default function SendOnboardingQuestionnaireButton({
   );
 }
 
-/**
- * The status line beneath the button — LAN-266 requirement 2, in two parts
- * because it carries two facts: what was last sent, and where the automatic
- * chase has got to.
- *
- * Every word of the second part comes from the missing-data queue's own
- * `formatChaseNext`, imported rather than reproduced: "the same words the
- * queue already uses" is the requirement, and a second copy of five phrases
- * is exactly the thing that drifts.
- */
+/** LAN-266 requirement 2: last sent, and where the automatic chase has got to (via the queue's `formatChaseNext`). */
 export function sendStatusLines(status: {
   lastAsk: { requestedAt: string; delivery: string; reason: string | null } | null;
   /** `formatChaseNext`'s own output for this player, whatever it says. */
@@ -188,22 +144,14 @@ export function sendStatusLines(status: {
     lines.push("Not sent");
   } else {
     const when = formatWhen(new Date(status.lastAsk.requestedAt));
-    // A failure names itself here, on the record, rather than sending the
-    // operator to the delivery page to find out why — requirement 3's "the
-    // delivery state: queued, delivered, failed **with the reason the delivery
-    // page shows**". The reason is the stored, provider-neutral sentence, not
-    // one written here.
+    // A failure names itself here (requirement 3) instead of sending the operator to the delivery page.
     lines.push(
       status.lastAsk.delivery === "failed" && status.lastAsk.reason
         ? `Sent ${when} · failed — ${status.lastAsk.reason}`
         : `Sent ${when} · ${status.lastAsk.delivery}`,
     );
   }
-  // "Chase 2 of 4 sent · next 12 Sept" — the count and the queue's own Next
-  // wording, joined only when there is a date to join it to. Every other
-  // state ("Chase exhausted", "No phone number on file", "Delivery failed · …")
-  // is the whole of the second line on its own: a count in front of those
-  // would only repeat what they already say.
+  // Count joined to the queue's "next" wording only when there's a date; other states stand alone.
   lines.push(
     status.chaseIsScheduled && status.chaseCount > 0
       ? `Chase ${status.deliveredCount} of ${status.chaseCount} sent · next ${status.chaseLine}`

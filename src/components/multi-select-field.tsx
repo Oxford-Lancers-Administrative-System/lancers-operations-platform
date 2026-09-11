@@ -9,31 +9,11 @@ import { Field } from "./field";
 
 /**
  * The outlined `TextField select` multi-choice `interest-questionnaire.tsx`
- * uses for "Which positions interest you?" and "What playing gear do you
- * already have?" — F-206-02 first shipped these as a bare inline checkbox
- * list (correction round 1), which V-5 (correction round 2) named a
- * regression: "The dropdown should have a multi-tick. It shouldn't just be
- * up and about." (Brian). This is what
- * `git show origin/chore/recruitment-fidelity-mockup:src/app/recruitment-preview/questionnaire-b.tsx`
- * actually builds — a `TextField select` with `slotProps.select.multiple`,
- * a `renderValue` joining the selection, and a `Checkbox` inside each
- * `MenuItem` — the same outlined idiom the two yes/no questions and "How
- * did you hear" already use on this form, not a control of its own.
- *
- * A dedicated client component for the same reason correction round 1's
- * version was one: `interest-questionnaire.tsx` stays a Server Component,
- * and MUI's `Select` needs a client boundary. Controlled (`useState`,
- * seeded from `selected`) rather than uncontrolled — a `Select` has no
- * native `defaultValue`-and-checkbox-per-option shape to collect via
- * `formData.getAll` the way correction round 1's plain checkboxes did.
- * MUI's own `Select` still posts through the plain server-action `<form>`
- * this page uses without any client-side submit handling: given a `name`,
- * it renders its own hidden `<input>` whose value is the array joined with
- * a bare comma (`SelectInput.js`'s own `value.join(',')`), so the server
- * action reads one field, not several — `splitMultiAnswer`
- * (`recruitment-vocabulary.ts`) already splits and trims on `,`, which
- * reads a bare-comma join exactly as it reads this record's own stored
- * `", "`-joined answer.
+ * uses. F-206-02's bare checkbox list (round 1) was a regression V-5 named —
+ * Brian: "The dropdown should have a multi-tick." A dedicated client
+ * component so `interest-questionnaire.tsx` stays a Server Component. MUI's
+ * `Select` posts a bare-comma-joined hidden input; `splitMultiAnswer` already
+ * reads that.
  */
 export function MultiSelectField({
   name,

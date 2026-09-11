@@ -17,32 +17,9 @@ import { DELIVERY_MODE_LABELS, formatShortDate, labelFor } from "@/lib/services/
 
 /**
  * The operator's event list — the one they live in. LAN-153, `REQ-list-shape`.
- *
- * ## The columns, after Brian's clarification
- *
- * Name (a link to the event — Brian, 21 August 2026: "the event itself should be
- * a hyperlink that leads to the event page itself"), type with its shared
- * colour, date, term and week, status, and the three counts an operator actually
- * asks about: **Invited**, **Said yes**, and **Showed / Invited**.
- *
- * Brian, 20 August 2026: "If you're an operator, you get a slightly different
- * view of these because you should be able to see attendance numbers in the
- * list." The counts are raw pairs and never percentages (D62) — a club of
- * forty-seven reading "43%" has to do arithmetic to recover the fact it wanted.
- *
- * ## `Showed / Invited` reads "—" until a register has been saved
- *
- * D73 and D74, established by LAN-152 and formatted by the same function the
- * event page and the register use, so the three cannot disagree. An event nobody
- * has got round to must not read as a disaster: `— / 47` is a session to ask
- * about and `0 / 47` is a register that was taken and found empty, and those are
- * very different facts.
- *
- * ## What went
- *
- * **Audience**, which said "Chosen at approval" for everything a calendar
- * operator can create and a count for the rest, is replaced by the two counts
- * that answer the question it was standing in for. **Venue** merged into Where.
+ * Name links to the event (Brian). Columns: type, date, term/week, status,
+ * Invited/Said yes/Showed-Invited — raw pairs, never percentages (D62).
+ * `Showed / Invited` reads "—" until a register is saved (D73, D74, LAN-152).
  */
 export default function OperatorList({
   buckets,
@@ -190,11 +167,8 @@ export default function OperatorList({
 }
 
 /**
- * The one formatter, fed from the list's own counts.
- *
- * `formatShowedAgainstInvited` is the register's and the event page's too, so
- * the em dash appears in the same circumstances on all three — `docs/ux/standards.md`
- * rule 7 applied to the fact the club is most likely to misread.
+ * The one formatter, fed from the list's own counts — same as the register
+ * and the event page (`docs/ux/standards.md` rule 7).
  */
 function showedAgainstInvited(event: EventListEntry): string {
   return formatShowedAgainstInvited({

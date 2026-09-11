@@ -14,26 +14,7 @@ import { gateShellPage } from "../../../gate";
 import { RosterFormScreen } from "./roster-form-screen";
 import { BACK_LABEL, GENERIC_UNAVAILABLE, HEADING } from "./presentation";
 
-/**
- * `/operate/events/[id]/roster-form` — LAN-267.
- *
- * The action LAN-267 asks for: "A **Roster form** action on a game event's
- * page, for authorised operators."
- *
- * ## The gate
- *
- * `event_calendar_management` — the four offices plus the IT officer, which is
- * what every other deliberate act on a game already requires. It is
- * deliberately not a new capability: the capability map is a recorded
- * authority decision, and `tests/capability-map-single-source.test.ts` makes
- * `capabilities.ts` the only place a role code decides anything. A kit manager
- * who needs to generate a form is a grant Brian widens there, in one row, not
- * something this page decides for itself.
- *
- * The page reads two facts no other operator surface shows — a student number
- * and a BAFA registration number — so it holds the same line the person record
- * does rather than a looser one.
- */
+/** `/operate/events/[id]/roster-form` — LAN-267. Gated on `event_calendar_management`, recorded in the capability map. */
 export const dynamic = "force-dynamic";
 
 function kitFrom(value: string | string[] | undefined): Kit {
@@ -61,9 +42,7 @@ export default async function RosterFormPage({
     return <UnavailableScreen title={HEADING} message={GENERIC_UNAVAILABLE} />;
   }
 
-  // A draft is not a fixture yet, and handing the officials a form for a game
-  // the club has not committed to is worse than having no form: the audience,
-  // the date and the venue can all still move.
+  // A draft is not a fixture yet — handing officials a form before approval is worse than no form.
   if (data.event.status === "draft") {
     return (
       <Stack spacing={3}>

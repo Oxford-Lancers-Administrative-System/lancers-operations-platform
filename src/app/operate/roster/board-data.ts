@@ -9,17 +9,7 @@ import {
 } from "./board-columns";
 import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
-/**
- * Pure search, filter and sort over the board's rows — no database, no
- * `server-only`, so it is unit-testable on its own and reusable by both the
- * server component that builds the initial view and any client-side refinement.
- *
- * The season holds dozens of memberships (`DEC-w1-12`), so this operates over
- * the whole in-memory set rather than pushing nineteen possible predicates into
- * SQL — exactly the approach the approved `chore/roster-fidelity-mockup`
- * demonstrates, adapted from its illustrative fixtures to the real
- * `RosterBoardRow` shape.
- */
+// Pure search, filter and sort over the board's rows — no database. Operates in memory (`DEC-w1-12`), not SQL predicates.
 
 export const NOT_RECORDED = "Not recorded";
 
@@ -30,7 +20,6 @@ export interface BoardSort {
   direction: "asc" | "desc";
 }
 
-/** One cell's underlying value, for sorting, filtering and display. */
 export function rawValue(row: RosterBoardRow, key: string): string | string[] | number | null {
   switch (key) {
     case "college":
@@ -75,26 +64,14 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.availability;
     case "bps":
       return row.bps;
-    // Correction round 2, item 5 — one onboarding item's own status.
+    // Correction round 2, item 5. subsPaid is null until subsInvoiced is
+    // complete (D-002, round 3, Q-14) — decision history: relocations.md.
     case "subsInvoiced":
       return row.onboardingItems["subs_invoiced"]?.status ?? null;
-    // D-002 (correction round 3, Q-14): blank — nothing at all — until
-    // Subscription invoiced is itself complete. The board's own convention
-    // (`NOT_RECORDED`, immediately below) already renders `null` as "Not
-    // recorded" rather than a true blank — `REQ-not-recorded` — so returning
-    // `null` here is the honest "nothing to show yet", not a new rendering
-    // rule.
     case "subsPaid":
       return row.onboardingItems["subs_invoiced"]?.status === "complete"
         ? (row.onboardingItems["subs_paid"]?.status ?? null)
         : null;
-    // Correction round 2, item 2 gave Kit Distributed its Yes/No wording;
-    // correction round 5 moved that wording into `itemStatusLabel` alongside
-    // every other item's, so this reads the same raw status every other
-    // onboarding column does. It used to pre-convert to "Yes"/"No" here,
-    // which — now that the item's own model is the one place that word is
-    // decided — made this column the one place still capable of handing that
-    // model a status it does not recognise (`"Yes"` and `"No"` are neither).
     case "kitDistributed":
       return row.onboardingItems["kit_sorted"]?.status ?? null;
     case "bucsPlay":
@@ -110,13 +87,7 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
   }
 }
 
-/**
- * UX-20's Onboarding column, in one sentence — the same rule
- * `presentation.ts`'s `describeOnboarding` states for the old six-column list,
- * restated here because this module takes a `RosterBoardRow` rather than a
- * `RosterEntry`. The words are identical on purpose: an operator reads the
- * same vocabulary whichever surface they are on.
- */
+/** UX-20's Onboarding column — same vocabulary as `presentation.ts`'s `describeOnboarding`, for a `RosterBoardRow` instead of a `RosterEntry`. */
 export function onboardingLabel(row: RosterBoardRow): string {
   if (row.itemsTotal === 0) return "No items configured";
   if (row.requiredOutstanding > 0) return `${row.requiredOutstanding} outstanding`;
@@ -135,20 +106,11 @@ function comparable(row: RosterBoardRow, key: string): string | number | null {
   return Number.isNaN(asNumber) ? value : asNumber;
 }
 
-/** Columns whose stored value already IS the season vocabulary's code. */
 const CODE_ONLY_COLUMNS = new Set(["offencePosition", "defencePosition", "specialTeamsPosition"]);
 
-/**
- * Display text for a column's option code — the label alone, never the code
- * beside it (`REQ`, LAN-186 item 9: no `"eligible · Eligible"` anywhere).
- *
- * Positions are the deliberate exception, in the other direction: the club's
- * vocabulary IS the code (`T`, `NT`, `KO` …), so this returns it unchanged —
- * LAN-186 item 7's cell half, which Brian's walkthrough of the built board
- * left standing: "letters in the grid" has not changed. Item 7's *dropdown*
- * half is superseded by `optionListLabel` below, for the one context where a
- * list of choices, not a selected value, is on screen.
- */
+// Display text for a column's option code — label alone, never the code
+// beside it (LAN-186 item 9). Positions are the exception: the club's
+// vocabulary IS the code, so item 7's cell half returns it unchanged.
 function optionLabel(column: ColumnDef, code: string): string {
   if (CODE_ONLY_COLUMNS.has(column.key)) return code;
   if (column.key === "status") return labelFor(MEMBERSHIP_STATUS_LABELS, code);
@@ -156,29 +118,19 @@ function optionLabel(column: ColumnDef, code: string): string {
   if (column.key === "eligibility") return labelFor(ELIGIBILITY_LABELS, code);
   if (column.key === "availability") return labelFor(AVAILABILITY_LABELS, code);
   if (column.key === "formalwear") return labelFor(FORMALWEAR_LABELS, code);
-  // D-002 (correction round 6, `WP-operator-record`, LAN-217): `code` is
-  // always a real `OnboardingItemStatus` now — the closed cell, the filter
-  // popover and the open dropdown's own menu items all read from the one
-  // list `allowedItemStates` names, so there is no second, "resolution"
-  // vocabulary any more for this to reconcile.
+  // D-002 (round 6, LAN-217): code is always a real OnboardingItemStatus now.
   if (column.edit === "onboarding") {
     return itemStateLabel(column.itemCode ?? "", code as OnboardingItemStatus);
   }
   return column.optionLabels?.[code] ?? code;
 }
 
-/** The values a column's filter offers, read from the fixed set or from the data. */
 export function filterOptions(
   column: ColumnDef,
   rows: readonly RosterBoardRow[],
 ): readonly string[] {
   if (column.key === "missing") return ["Yes", "No"];
   if (column.key === "contactable") return ["Has mobile", "Has email", "Neither"];
-  // Correction round 2, item 5: the filter offers exactly the states that
-  // appear in the current data, derived below, the same way every column
-  // with no fixed `options` already does — `column.options` (the open
-  // dropdown's own list) and `rawValue`'s stored status are now the same
-  // vocabulary, but the filter still only offers values actually present.
   if (column.options && column.edit !== "onboarding") return [...column.options];
 
   const seen = new Set<string>();
@@ -196,31 +148,14 @@ export function filterOptions(
   return blanks ? [...values, NOT_RECORDED] : values;
 }
 
-/** The chip and menu label for a filter's *selected* value — a fuller word where one exists. */
 export function filterOptionLabel(column: ColumnDef, value: string): string {
   if (value === NOT_RECORDED) return value;
   return optionLabel(column, value);
 }
 
-/**
- * Display text for one entry in an *open list of choices* — the in-cell edit
- * dropdown and the column filter's own popover — as distinct from a value
- * already chosen, which `filterOptionLabel` and `displayOf` still show as the
- * label alone.
- *
- * Position columns are the one case where the two differ: Brian's walkthrough
- * of the built board asked for the code *and* the full name in the open
- * dropdown ("If it says QB, it should be QB-quarterback"), while the selected
- * value — the cell, the active-filter chip, the filtered column's own caption
- * — stays the code alone, per item 7's cell half. The full name comes from
- * `column.optionLabels`, itself read from the season's vocabulary (S3) in
- * `readPositionOptions()`, never hardcoded here.
- *
- * Every other column's list already shows the label alone with nothing beside
- * it, so this delegates straight to `optionLabel` for them — no `${value} ·
- * ${label}` echo reappears (item 9), because eligibility and availability's
- * value and label are the same word and doubling either would repeat it.
- */
+// Display text for one entry in an open list of choices (in-cell edit
+// dropdown, filter popover) — distinct from a chosen value. Positions show
+// code + full name in the open dropdown only, per item 7's cell half.
 export function optionListLabel(column: ColumnDef, value: string): string {
   if (value === NOT_RECORDED) return value;
   if (CODE_ONLY_COLUMNS.has(column.key)) {
@@ -247,7 +182,6 @@ function matches(row: RosterBoardRow, key: string, wanted: string): boolean {
   return String(value ?? "") === wanted;
 }
 
-/** Search is name or alias — the raw contact values it used to search are gone. */
 function searchMatches(row: RosterBoardRow, term: string): boolean {
   const wanted = term.trim().toLowerCase();
   if (wanted === "") return true;
@@ -261,13 +195,7 @@ export interface AppliedBoard {
   isFiltered: boolean;
 }
 
-/**
- * Search, filter and sort, applied together. `filters` is one value per
- * column key — the same object the pinned controls and every column's own
- * funnel both write to, which is what makes a pinned control and its column
- * header "one filter with two controls" rather than two filters kept in step
- * by hand.
- */
+/** Search, filter and sort, applied together — `filters` is the same object the pinned controls and each column's funnel both write to. */
 export function applyBoard(
   rows: readonly RosterBoardRow[],
   params: { search: string; filters: BoardFilters; sort: BoardSort },
@@ -283,10 +211,7 @@ export function applyBoard(
     const left = params.sort.key === "displayName" ? a.displayName : comparable(a, params.sort.key);
     const right =
       params.sort.key === "displayName" ? b.displayName : comparable(b, params.sort.key);
-    // Not recorded sorts last regardless of direction — the same "nulls last"
-    // rule `membership.ts`'s `rosterOrderBy()` applies in SQL, so an operator
-    // reversing the sort finds the fullest records first either way rather
-    // than being confronted with a wall of blanks.
+    // Not recorded sorts last regardless of direction — same "nulls last" rule as rosterOrderBy() in SQL.
     if (left === null && right === null) return 0;
     if (left === null) return 1;
     if (right === null) return -1;

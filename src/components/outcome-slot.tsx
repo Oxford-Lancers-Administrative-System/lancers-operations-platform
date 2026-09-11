@@ -4,18 +4,10 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import { Notice } from "./notice";
 
 /**
- * One action's result at a time — `docs/ux/standards.md` rule 1, promoted out
- * of `src/app/operate/admin/outcome.tsx` for the whole application (LAN-225,
- * brief §2 `OutcomeSlot`).
- *
- * The rule: **a screen shows the result of at most one action; starting
- * another action clears the previous one's result.** Panels register through
- * {@link useOutcomeSlot}, claim the slot when their form is submitted, and
- * {@link Outcome} draws nothing for a panel that no longer holds it. A screen
- * with a single action needs no provider and behaves identically.
- *
- * It is a display rule. Nothing here cancels a request, and an action whose
- * result is cleared still happened — the audit history records that.
+ * One action's result at a time (`docs/ux/standards.md` rule 1, LAN-225).
+ * Panels register through {@link useOutcomeSlot}, claim the slot on submit;
+ * {@link Outcome} draws nothing for a panel that no longer holds it. A
+ * display rule only — an action whose result is cleared still happened.
  */
 export interface OutcomeState {
   readonly refusal: string | null;

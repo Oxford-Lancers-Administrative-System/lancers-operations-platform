@@ -86,13 +86,7 @@ export default function QrCodeView({
             <Typography variant="body2" sx={{ mt: 2, wordBreak: "break-all" }}>
               {joinUrl}
             </Typography>
-            {/*
-              What a recruit sees in a chat, beside what they scan off the
-              poster — LAN-279 item 3. It is the same generated image the link
-              itself unfurls with (`/join/[code]/opengraph-image`), not a copy
-              of it, so an operator printing this page cannot be looking at a
-              design that has drifted from the one being shared.
-            */}
+            {/* LAN-279 item 3: the same generated image the link unfurls with, not a copy — never drifts from what's shared. */}
             {cardImageSrc ? (
               <Box
                 component="img"

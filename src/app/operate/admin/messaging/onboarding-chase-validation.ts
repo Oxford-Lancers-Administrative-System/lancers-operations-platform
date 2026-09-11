@@ -1,15 +1,5 @@
-/**
- * Reading and checking the onboarding chase's own row — LAN-218, `W11`.
- * `validation.ts`/`cycle-validation.ts`'s own "ergonomic layer in front of
- * the database" idiom, for the three values `onboarding_chase_settings`
- * carries.
- *
- * Bounds mirror the database's own check constraints exactly
- * (`onboarding_chase_settings_first_chase_is_sane`,
- * `..._count_is_sane`, `..._interval_is_sane`) — checked here so a mistyped
- * field comes back naming the field rather than a round trip to the
- * database, on the same footing as the event schedule's own six fields.
- */
+// Reading and checking the onboarding chase's own row — LAN-218, `W11`.
+// Bounds mirror the database's own check constraints exactly.
 
 export interface OnboardingChaseFieldBounds {
   /** The `<input>` name within the section's one form. */
@@ -22,7 +12,6 @@ export interface OnboardingChaseFieldBounds {
 
 export const ONBOARDING_CHASE_FIELDS: readonly OnboardingChaseFieldBounds[] = Object.freeze([
   { key: "firstChaseAfterHours", label: "First chase after joining", unit: "h", min: 0, max: 2160 },
-  // No unit — a plain count, matching the approved `W11-01` mockup exactly.
   { key: "chaseCount", label: "Ask this many times", unit: "", min: 0, max: 50 },
   { key: "chaseIntervalDays", label: "Every", unit: "days", min: 1, max: 90 },
 ]);

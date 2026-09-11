@@ -6,12 +6,7 @@ import { readCurrentSeason } from "@/lib/services/seasons";
 import { gateShellPage } from "../../../gate";
 import EditPersonForm from "./edit-person-form";
 
-/**
- * `/operate/people/[personId]/edit` — W2-01 … W2-10. LAN-185.
- *
- * `redirect=missing` returning to the queue is not built — see the receipt's
- * limitations. Every entry point still lands here on the whole record.
- */
+// `/operate/people/[personId]/edit` — W2-01..W2-10, LAN-185.
 export default async function EditPersonPage({
   params,
 }: PageProps<"/operate/people/[personId]/edit">) {
@@ -28,9 +23,7 @@ export default async function EditPersonPage({
   }
 
   const version = await personVersion(personId);
-  // B3, correction round 2: the mobile field's inline WhatsApp-seam preview
-  // needs the active season's label, the same input `actions.ts` already
-  // reads server-side before it existed inline.
+  // B3, round 2: the inline WhatsApp-seam preview needs the active season's label.
   const season = await readCurrentSeason().catch(() => null);
 
   return (

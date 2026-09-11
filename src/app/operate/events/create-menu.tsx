@@ -6,27 +6,9 @@ import ListItemText from "@mui/material/ListItemText";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 
-/**
- * **Create event**, as a menu of exactly two. LAN-155, screen `W3-04`.
- *
- * Brian, 2026-08-21: "Create Event should be Add Single Event, and then Bulk
- * Import. It should be only two options. You should not export the season. That
- * doesn't make sense to be in the proposed column."
- *
- * Two consequences, and both are decisions rather than layout:
- *
- *   * **Importing is here** because it is a way of creating events, so it
- *     belongs under the control that creates them rather than as a third button
- *     competing in the header.
- *   * **Exporting is not here**, because it is not a way of creating anything.
- *     It lives on the bulk import screen, beside the file it produces.
- *
- * This is the only change this work package makes to the Events page. The list,
- * the filters, the period control and the view switch are `W1`'s and are
- * untouched.
- */
+// Create event, as a menu of exactly two — LAN-155, `W3-04`, Brian 2026-08-21.
 
-export const CREATE_MENU_CHOICES: readonly {
+const CREATE_MENU_CHOICES: readonly {
   href: string;
   label: string;
   detail: string;

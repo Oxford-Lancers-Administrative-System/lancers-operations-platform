@@ -20,35 +20,7 @@ import {
 } from "../../../participation/presentation";
 import { issueClubLinkAction } from "./club-link-actions";
 
-/**
- * **Share this event** — W7-04.
- *
- * ## What is on it, and what is not
- *
- * The link, one sentence saying what a holder of it can and cannot do, and
- * **Copy link**. The approved mockup also carried a second paragraph — "It is a
- * private link, not a secret one — a squad list is not a secret from the squad"
- * — which is D81's reasoning rather than the control's consequence, and Brian
- * has rejected copy of that shape on this mission five times. The deviation is
- * recorded in the pull request.
- *
- * There is no **Revoke** and no expiry. Q2 is a nonblocking unknown the owner
- * chose to settle by testing; the link ships without revocation and adding it
- * later is additive.
- *
- * ## Why opening it may not have created anything
- *
- * Rendering a page must not write. When no link has been issued the panel
- * offers one button that issues it; until it is pressed, `club_link_tokens`
- * holds no row for this event.
- *
- * ## Refusals are content
- *
- * An unconfigured deployment and a draft event both render a sentence in this
- * panel rather than an error page — `docs/ux/standards.md` rule 6 — and the
- * button that would fail is not offered. The action refuses again on its own
- * behalf regardless: hiding a control is a courtesy, never the boundary.
- */
+/** **Share this event** — W7-04. Link, one sentence, **Copy link** — no more (Brian rejected extra copy repeatedly). Issuing writes nothing until pressed. */
 const REFUSAL_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   [CLUB_LINK_UNCONFIGURED_RULE]: CLUB_LINK_UNCONFIGURED_MESSAGE,
   [CLUB_LINK_NEEDS_AN_AUDIENCE_RULE]: CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE,

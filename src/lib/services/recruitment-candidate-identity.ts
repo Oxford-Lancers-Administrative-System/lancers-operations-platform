@@ -1,22 +1,11 @@
 import "server-only";
 
-import { withTransaction, type Tx } from "@/lib/db";
+import { type Tx } from "@/lib/db";
 
 /**
- * "Each candidate has to say who it is" — `W8`, Brian 2026-08-31: "Are they a
- * part of the current season? Are they already a player on the season? Are
- * they another recruit? Who are they, because it could have the same name."
- *
- * `findPersonDuplicates` (`person-duplicate.ts`) answers "who might this
- * already be" and stops there, by design; this module answers the second,
- * separate question `W8` asks of whatever it returns — never a second
- * duplicate check, never a change to that function's own query. Read-only,
- * same as its sibling.
- *
- * Returns raw status codes, never a label — `MEMBERSHIP_STATUS_LABELS` and
- * `PROSPECT_STATUS_LABELS` already exist for that, in the app layer that
- * already imports both; this module stays a plain data read, the same split
- * every other service in this codebase keeps.
+ * "Each candidate has to say who it is" — `W8`. Answers `W8`'s second
+ * question about whatever `findPersonDuplicates` returns — never a second
+ * duplicate check. Read-only, returns raw status codes, never a label.
  */
 
 export type CandidateIdentity =
@@ -25,7 +14,6 @@ export type CandidateIdentity =
   | { readonly kind: "past_member"; readonly lastSeasonLabel: string }
   | { readonly kind: "none" };
 
-/** One identity per `personId`, `"none"` for a person with no membership or recruit history at all. */
 export async function readCandidateIdentitiesIn(
   tx: Tx,
   personIds: readonly string[],
@@ -83,11 +71,4 @@ export async function readCandidateIdentitiesIn(
   }
 
   return identities;
-}
-
-export async function readCandidateIdentities(
-  personIds: readonly string[],
-  currentSeasonId: string,
-): Promise<Map<string, CandidateIdentity>> {
-  return withTransaction((tx) => readCandidateIdentitiesIn(tx, personIds, currentSeasonId));
 }

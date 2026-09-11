@@ -15,30 +15,11 @@ import {
 import { personDisplayNameSql as displayName } from "./sql-text";
 
 /**
- * The Follow-ups queue — W5. `REQ-nobody-compiles-a-list`, `REQ-one-list-two-streams`.
- *
- * ## What this reads, and what it never computes
- *
- * `nonresponse_queue` already exists on `main` and already is the definition
- * of "has not answered" — `invitation_response_state` joined to approved
- * events, filtered to `awaiting_response` or `expired_without_response`. This
- * module adds nothing to that definition; it reads the view, joins each row to
- * its most recent delivery and its escalation flag, and labels the result.
- *
- * The escalation itself — raising the flag, resolving the office, sending the
- * message with no player personal data in it — is LAN-169's, in
- * `messaging-scheduler.ts`. This module only reads what that already wrote.
- *
- * ## The two streams, one list
- *
- * `F4`: somebody the club cannot reach is as unresolved as somebody who has
- * not replied. Both are `nonresponse_queue` rows — an undeliverable person has
- * not answered either, by construction, since answering removes the row from
- * the view before this module ever sees it. The distinction is a label
- * (`FollowUpStatus`), not a second query.
+ * The Follow-ups queue — W5 (`REQ-nobody-compiles-a-list`, `REQ-one-list-two-streams`). Reads `nonresponse_queue` (the existing "has not answered" definition) and joins each row to its most recent delivery and escalation flag; adds no logic of its own. The escalation itself — raising the flag, resolving the office, sending it — is LAN-169's, in `messaging-scheduler.ts`.
+ * `F4`: an undeliverable person and one who has not replied are both unresolved and both `nonresponse_queue` rows; the split is a `FollowUpStatus` label, not a second query.
  */
 
-export type FollowUpStatus = "delivery_problem" | "escalated" | "escalation_held" | "chasing";
+type FollowUpStatus = "delivery_problem" | "escalated" | "escalation_held" | "chasing";
 
 export interface FollowUpRow {
   readonly invitationId: string;
@@ -68,28 +49,12 @@ interface QueueRow {
   delivery_channel: string | null;
   delivery_failure_reason: string | null;
   escalation_job_id: string | null;
-  /**
-   * F-B1, mechanism 4. `notification_jobs.status` of the escalation job
-   * itself — `null` when `escalation_job_id` is null (the office was vacant
-   * when the threshold was crossed). Read here rather than through
-   * `readChaseJobsForIn` below, which joins on `invitation_id` and can never
-   * reach an escalation job: those are addressed to the office about the
-   * event, keyed to `event_id`/`person_id`, never to one invitee.
-   */
+  /** F-B1: the escalation job's own `notification_jobs.status`; null when the office was vacant. */
   escalation_status: string | null;
   flag_open: boolean;
 }
 
-/**
- * OWNER-LAN173-06 (correction round 2): this lateral shared
- * `participation.ts`'s `DELIVERY_LATERAL` bug exactly — `order by
- * j.created_at desc limit 1` with no tiebreaker over a set of rows that, in
- * real use, commonly share one `created_at` (a whole ladder is created in
- * `approveEvent`'s single transaction). Both now order by
- * `NOTIFICATION_JOB_RECENCY_ORDER`, so they cannot drift back into two
- * different answers to "which job is this invitee's most recent." See that
- * constant in `./delivery.ts` for the full account.
- */
+/** OWNER-LAN173-06: orders by `NOTIFICATION_JOB_RECENCY_ORDER` (see `./delivery.ts`). */
 async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
   const result = await tx.query<QueueRow>(
     `select q.invitation_id, q.event_id, q.event_name, q.scheduled_on::text as scheduled_on,
@@ -166,14 +131,7 @@ async function readChaseJobsForIn(
   return byInvitation;
 }
 
-/**
- * The cross-event queue, grouped by event, soonest first — W5's own layout.
- *
- * `requireGeneralOperator()` is the floor, exactly as the participation
- * table's does: seeing who has not answered is not gated on a further
- * capability, and the narrow coaching assignment is already excluded by that
- * guard the same way it is everywhere else.
- */
+/** The cross-event queue, grouped by event, soonest first (W5). Requires `requireGeneralOperator()`, same floor as the participation table. */
 export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
   await requireGeneralOperator();
   return withTransaction(async (tx) => {
@@ -190,20 +148,12 @@ export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
         (row.delivery_failure_reason === NO_USABLE_NUMBER_REASON ||
           row.delivery_failure_reason === NO_USABLE_EMAIL_REASON);
 
-      // F-B1, mechanism 4. `escalation_job_id` being non-null used to be read
-      // as "escalated", full stop — three people read "Escalated to the
-      // President" while their own escalation job was terminally `failed`
-      // and would never be looked at again. A job that exists is not the
-      // same claim as a job that was delivered; `escalation_status` is what
-      // actually was.
+      // F-B1: a job that exists is not a job that was delivered.
       const escalationDelivered =
         row.escalation_status === "completed" || row.escalation_status === "processing";
 
-      // F4: one list, two streams. A delivery problem is shown as one, ahead
-      // of where escalation or chasing would otherwise put this row — the
-      // club cannot chase somebody it has never reached. Reused here for a
-      // failed escalation too, for the identical reason: the club cannot
-      // tell this person's story is even known to the President.
+      // F4: delivery problem outranks escalation/chasing — the club cannot chase
+      // somebody it has never reached.
       const status: FollowUpStatus = noUsableRoute
         ? "delivery_problem"
         : row.flag_open
@@ -211,9 +161,7 @@ export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
             ? escalationDelivered
               ? "escalated"
               : "delivery_problem"
-            : // T03-escalation-office: a vacant seat holds the escalation
-              // visibly rather than dropping it or sending it to a stale
-              // holder — messaging-scheduler.ts's own words for this state.
+            : // T03-escalation-office: a vacant seat holds the escalation visibly.
               "escalation_held"
           : "chasing";
 

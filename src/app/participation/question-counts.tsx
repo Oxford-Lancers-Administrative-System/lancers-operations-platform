@@ -12,17 +12,10 @@ import {
 import { NOTHING, QUESTIONS_HEADING, QUESTION_NO_ANSWER } from "./presentation";
 
 /**
- * D68's other half: **a collapsed Questions section on the event page showing
- * counts.** The per-person answers are in the table; this is the shape of the
- * answers at a glance — "eleven need a lift" is the thing an operator actually
- * acts on, and reading it off forty-seven rows is not answering the question.
- *
- * Collapsed by a real `<details>` rather than an accordion, so it needs no
- * client component, works with scripting disabled, and costs nothing on the
- * server. Open it and it stays open by the browser's own mechanics.
- *
- * The counts come from the rows the table already has —
- * `summariseQuestion` — so the section and the columns cannot disagree.
+ * D68's other half: a collapsed Questions section showing counts, not
+ * per-person answers. A real `<details>`, not an accordion — no client
+ * component, works with scripting disabled. Counts come from the rows the
+ * table already has (`summariseQuestion`), so they cannot disagree.
  */
 function QuestionLine({
   question,

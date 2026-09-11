@@ -38,7 +38,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import pg, { type Client } from "pg";
@@ -89,6 +89,21 @@ const MARKER = "LAN132Fixture:operator-administration";
 
 /** Where the emailed verification link points. The real recovery callback. */
 const CALLBACK = "http://localhost:3000/auth/recovery";
+
+/**
+ * The concatenated source of every file in `./operator-administration/`,
+ * for the tests below that read the module's own source rather than its
+ * behaviour (LAN-300 split every action into its own sibling; `exclude`
+ * names siblings to leave out, e.g. `role-detail.ts`, the one file that
+ * legitimately takes a cycle).
+ */
+function operatorAdministrationSource(...exclude: readonly string[]): string {
+  const dir = path.join(process.cwd(), "src/lib/services/operator-administration");
+  return readdirSync(dir)
+    .filter((file) => file.endsWith(".ts") && !exclude.includes(file))
+    .map((file) => readFileSync(path.join(dir, file), "utf8"))
+    .join("\n");
+}
 
 let observer: Client;
 let actorPersonId: string;
@@ -1079,10 +1094,7 @@ describe("A/B — the guard, on every write", () => {
       // Deliberately a source read rather than a lint rule — the rule is about
       // one function in one module, and `G` already reads this file for the
       // same kind of reason.
-      const source = readFileSync(
-        path.join(process.cwd(), "src/lib/services/operator-administration.ts"),
-        "utf8",
-      );
+      const source = operatorAdministrationSource();
       const callSites = source.split("readAdministrationSubject(tx").slice(1);
 
       expect(callSites.length, "every write here reads the target's seats").toBe(8);
@@ -2340,11 +2352,7 @@ describe("F — one operating year at a time", () => {
     const parameters = [assignRole, endRoleAssignment, replaceRoleHolder].map((fn) => fn.length);
     expect(parameters).toEqual([1, 1, 1]);
 
-    const source = readFileSync(
-      path.join(process.cwd(), "src/lib/services/operator-administration.ts"),
-      "utf8",
-    );
-    const writeSection = source.slice(0, source.indexOf("// Role detail"));
+    const writeSection = operatorAdministrationSource("role-detail.ts");
     expect(writeSection).not.toMatch(/cycleId/);
   });
 });
@@ -2355,10 +2363,7 @@ describe("F — one operating year at a time", () => {
 
 describe("G — nothing here deletes anything", () => {
   it("issues no delete against any table", async () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "src/lib/services/operator-administration.ts"),
-      "utf8",
-    );
+    const source = operatorAdministrationSource();
     expect(source).not.toMatch(/\bdelete\s+from\b/i);
     expect(source).not.toMatch(/\btruncate\b/i);
   });

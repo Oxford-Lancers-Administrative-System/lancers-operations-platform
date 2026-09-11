@@ -36,30 +36,10 @@ import {
 
 /**
  * Bulk import — screens `W3-01`, `W3-02`, `W3-03` and `W3-05` of the approved
- * mockup. LAN-155.
- *
- * One component, because they are one screen in four states: a season with
- * nothing in it, a season with events, the proposal, and what happened. The
- * operator never navigates between them, and a proposal that survived a
- * navigation would be a proposal computed against a season they have since left.
- *
- * ## Nothing here decides anything
- *
- * Every rule this screen appears to apply — what a blank cell means, which rows
- * are refused, what an update changes — was decided in
- * `@/lib/services/event-csv` and arrives already decided. This component chooses
- * colours and column order. That is deliberate: `AGENTS.md` puts business rules
- * in the service layer, and a refusal reason written here would be a second,
- * quieter copy of a club rule.
- *
- * ## The export lives here, not on the Events page
- *
- * Brian, 2026-08-21: "If you Mass Export the season … that detail should be in
- * that screen." Importing is a way of creating events, so it sits under **Create
- * event**; exporting is not a way of creating anything, so it lives beside the
- * file it produces. One button whose label follows the state — *Download the
- * template* on an empty season, *Download the current season's events* once
- * there are any — rather than two buttons one of which is always wrong.
+ * mockup. LAN-155. One component, four states (empty/has-events/proposal/
+ * applied) — a survived proposal across navigation would target a season the
+ * operator has since left. Rules live in `@/lib/services/event-csv`; this
+ * component only chooses colours and column order.
  */
 
 export interface ImportScreenProps {
@@ -141,13 +121,8 @@ function ImportContent(props: ImportScreenProps) {
 }
 
 /**
- * Screen `W3-05`'s last block — the three things an import can never do, stated
- * where an operator will read them rather than in a document they will not.
- *
- * It is on the screen in every state, not only after a refusal. The blast radius
- * of a bulk file is the thing a Secretary with a spreadsheet needs to know
- * *before* they choose one, and a boundary that only appears once something has
- * gone wrong is a boundary explained too late.
+ * Screen `W3-05`'s last block — the three things an import can never do,
+ * shown in every state, not only after a refusal.
  */
 function Boundaries() {
   return (
@@ -268,12 +243,9 @@ function HowItWorks({ first }: { first: string }) {
 }
 
 /**
- * The prompt is copied, not retyped, so the button is the feature.
- *
- * `navigator.clipboard` is unavailable over plain HTTP and in a browser that has
- * refused the permission, and the recovery is not a retry — it is the text
- * itself, which is on screen underneath. So the failure says to select it rather
- * than pretending the copy worked.
+ * The prompt is copied, not retyped. `navigator.clipboard` can be
+ * unavailable (plain HTTP, refused permission); the fallback is to select
+ * the text on screen, not a retry.
  */
 function CopyPromptButton({ prompt }: { prompt: string }) {
   const [said, setSaid] = useState<string | null>(null);
@@ -453,12 +425,8 @@ function Confirmation({
 }
 
 /**
- * The same row at 375px.
- *
- * A thirteen-column table does not become a phone screen by scrolling, so the
- * narrow presentation states the row and then only the fields that changed —
- * which is the same information the highlighted cells carry, arranged for a
- * reader holding the phone in one hand.
+ * The same row at 375px — states the row, then only the fields that
+ * changed, matching the highlighted cells in the desktop table.
  */
 function ImportRowCard({ row }: { row: PlannedRow }) {
   return (

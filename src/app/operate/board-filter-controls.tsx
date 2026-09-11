@@ -7,26 +7,7 @@ import MuiMenu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Tooltip from "@mui/material/Tooltip";
 
-/**
- * The board's own filter affordances — extracted from `../roster/roster-board.tsx`
- * (LAN-186) so a second board reuses the identical control rather than
- * inventing one that merely looks similar. LAN-204's own correction: Brian,
- * 2026-09-02 — "The filters here are weird because the UI elements are
- * completely different than what's on the roster page… it reinvented the
- * shit." The roster keeps importing from here too, unchanged in appearance
- * or behaviour; only where the code lives has moved.
- *
- * Two pieces:
- *
- *   - {@link FilterButton} — the small funnel icon a filterable column header
- *     carries, opening a menu anchored to itself.
- *   - {@link ColumnFilterMenu} — the single `Menu` every board owns one of,
- *     listing "All" plus whatever `optionsFor` returns for the column the
- *     last-opened `FilterButton` named.
- *
- * A board wires these to its own column model and its own `filters` state;
- * nothing here knows what a "column" is beyond `key` and `label`.
- */
+/** The board's own filter affordances — extracted from `../roster/roster-board.tsx` (LAN-186). */
 
 export function FilterButton({
   label,
@@ -86,11 +67,7 @@ export interface FilterMenuColumn {
   readonly key: string;
 }
 
-/**
- * The one `Menu` a board's column-header filters share — "All", then every
- * option `optionsFor` returns for whichever column's `FilterButton` opened
- * it, each labelled by `optionLabel`.
- */
+/** The one `Menu` a board's column-header filters share — "All" plus `optionsFor`'s options for the opened column, labelled by `optionLabel`. */
 export function ColumnFilterMenu<TColumn extends FilterMenuColumn>({
   menu,
   filters,
@@ -141,16 +118,7 @@ export function ColumnFilterMenu<TColumn extends FilterMenuColumn>({
   );
 }
 
-/**
- * The board's one status-pill formula — `../roster/roster-board.tsx`'s own
- * `CellValue`, extracted (LAN-204, item 1: "the same pill formula"). A
- * colour-coded `Chip`, the single exception every board makes to "plain text
- * like every other select cell" — kept because a status is the fact an
- * operator scans the whole row for. Which MUI semantic colour each board's
- * own values map to is that board's own choice (Brian, 2026-09-02: recruitment's
- * own colours "are fine"); the formula — one small `Chip`, coloured, labelled,
- * nothing else — is what has to match.
- */
+/** The board's status-pill formula — `../roster/roster-board.tsx`'s `CellValue` (LAN-204 item 1). */
 export function StatusPill({
   domain,
   status,
@@ -169,14 +137,7 @@ export interface BandedColumn {
   readonly band: string;
 }
 
-/**
- * Groups a column list into consecutive same-band runs, for a header's band
- * overline row — one `colSpan`ned cell per run rather than one per column.
- * Extracted from `../roster/roster-board.tsx` (LAN-186) alongside the rest
- * of this module; a board with its own band set (recruitment's Person /
- * Recruitment / one-per-event Events, in place of the roster's Person /
- * Onboarding / Season) calls this the same way.
- */
+/** Groups columns into consecutive same-band runs for one `colSpan`ned header cell per run (extracted from `../roster/roster-board.tsx`, LAN-186). */
 export function groupRuns<TColumn extends BandedColumn>(
   columns: readonly TColumn[],
 ): { band: TColumn["band"]; span: number }[] {
@@ -189,11 +150,7 @@ export function groupRuns<TColumn extends BandedColumn>(
   return runs;
 }
 
-/**
- * The key of the last column in each band's run — the seam between two
- * bands gets a visibly heavier border than the seam between two columns of
- * the same band, on both the header row and every body cell.
- */
+/** Last column key in each band's run — gets a heavier border seam than same-band neighbours. */
 export function bandBoundaryKeys<TColumn extends BandedColumn>(
   columns: readonly TColumn[],
 ): ReadonlySet<string> {

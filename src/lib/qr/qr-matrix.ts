@@ -1,54 +1,10 @@
 /**
  * A minimal, dependency-free QR Code encoder — `W1-04`'s season sign-up code,
- * LAN-204. `AGENTS.md` closes `package.json` to a new dependency, and no QR
- * library already exists anywhere in this tree (a repository-wide grep found
- * none), so this is the whole of the encoder rather than a wrapper around one.
- *
- * ## Scope, deliberately narrow
- *
- * Byte mode only (every character as one 8-bit codeword — no digit or
- * alphanumeric mode), error-correction level **L** (the lowest overhead,
- * chosen for the most data capacity per version), and versions 1–5 only.
- * Versions 1–5 at level L are each a **single Reed–Solomon block**
- * (26/44/70/100/134 total codewords split 19+7, 34+10, 55+15, 80+20,
- * 108+26 data+ecc), so this module never has to implement block
- * interleaving — the one piece of the spec a hand-rolled encoder most often
- * gets wrong. `/join/<code>` links are at most a few dozen bytes; five
- * versions carries a wide margin (up to 106 usable bytes) over anything this
- * application ever mints.
- *
- * The one mask pattern used is a fixed `(row + col) % 2 === 0` (mask 0) —
- * correctness never depends on choosing the *best-looking* mask, only on the
- * format bits correctly declaring which one was used, which this module
- * always gets right because it never varies.
- *
- * ## What is proved, and what is not
- *
- * `qr-matrix.test.ts` asserts the structural invariants a decoder relies on
- * (matrix size, finder/timing/alignment placement, the fixed dark module),
- * the exact fixed format-info value this module's one configuration must
- * always place, and — via an independent reader it writes from scratch,
- * `decodeQrMatrixByteMode`, which knows nothing of this file's own internal
- * functions — that every supported byte length round-trips back to the text
- * that went in, including a Reed–Solomon consistency check on the codewords
- * actually stored in the grid. That test suite did not always contain the
- * last three of those: correction round 1 (F-LAN204-002) found, the hard
- * way, that "both format-info copies agree with each other" and "the two
- * codewords match" are both satisfiable by a self-consistent but *wrong*
- * encoding — a real scanner (Apple Vision, via this repository's own
- * `decode_qr.py`) returned `NO BARCODE FOUND` for a build that passed every
- * test in this file as it then stood, because the format-info value both
- * copies agreed on was reversed bit-for-bit (LSB-first instead of the
- * spec's MSB-first), so a real decoder recovered the wrong mask and level
- * from it. One production scan has still never been performed against this
- * module's actual output — the local toolchain has no scanner of its own —
- * so that residual gap is recorded in the package receipt rather than
- * asserted away here.
+ * LAN-204 (no QR dependency exists in this tree). Byte mode only, level L,
+ * versions 1-5 only (each a single Reed-Solomon block), mask 0 fixed.
+ * `qr-matrix.test.ts` round-trips every byte length through an independent
+ * decoder; no production scan has run against this module's real output.
  */
-
-// ---------------------------------------------------------------------------
-// GF(256) arithmetic — computed at module load, never hand-transcribed.
-// ---------------------------------------------------------------------------
 
 const GF_EXP = new Array<number>(512);
 const GF_LOG = new Array<number>(256);
@@ -102,12 +58,6 @@ function rsEncode(data: readonly number[], eccCount: number): number[] {
   return remainder.slice(data.length);
 }
 
-// ---------------------------------------------------------------------------
-// Version table — level L, versions 1-5. Single RS block at this level for
-// each of these versions (verified against the spec's own total-codeword
-// count: 26, 44, 70, 100, 134 — each equal to dataCodewords + eccCodewords).
-// ---------------------------------------------------------------------------
-
 interface VersionSpec {
   readonly version: number;
   readonly size: number;
@@ -142,16 +92,11 @@ export class QrCapacityExceeded extends Error {
 /** Chooses the smallest supported version whose byte-mode capacity fits `byteLength`. */
 function chooseVersion(byteLength: number): VersionSpec {
   for (const spec of VERSIONS) {
-    // Mode indicator (4 bits) + byte count indicator (8 bits, versions 1-9) = 12 bits = 1.5 bytes,
-    // plus up to a 4-bit terminator — 2 whole bytes is always enough headroom.
+    // 2 bytes of headroom: mode + length indicator (12 bits) plus a 4-bit terminator.
     if (byteLength <= spec.dataCodewords - 2) return spec;
   }
   throw new QrCapacityExceeded(byteLength);
 }
-
-// ---------------------------------------------------------------------------
-// Bit buffer -> codewords
-// ---------------------------------------------------------------------------
 
 class BitWriter {
   private bits: number[] = [];
@@ -165,19 +110,8 @@ class BitWriter {
   }
 
   toCodewords(totalCodewords: number): number[] {
-    // Terminator — up to 4 zero bits, never past the data capacity — THEN
-    // pad to the next byte boundary. Order matters and this module got it
-    // wrong once already: rounding up to a byte boundary *before* adding
-    // the terminator (as an earlier revision did) silently manufactures an
-    // extra padding byte whenever the pre-terminator length is not already
-    // byte-aligned — the common case — because the boundary-rounding and
-    // the terminator each believe they own the same few bits. That shifted
-    // every codeword after it, so the payload, the Reed–Solomon codewords
-    // computed over it, and therefore the whole symbol, decoded to nothing.
-    // Found by round-tripping this module's own byte-mode output for a
-    // plain two-character string against a real decoder and a reference
-    // encoder's own codeword dump, which is what `qr-matrix.test.ts`'s
-    // `encodeByteMode` codeword-count assertion now pins down structurally.
+    // Terminator (up to 4 zero bits) THEN byte-boundary padding — order matters,
+    // or an extra byte is silently manufactured when unaligned.
     const capacityBits = totalCodewords * 8;
     for (let i = 0; i < 4 && this.bits.length < capacityBits; i++) this.bits.push(0);
     while (this.bits.length % 8 !== 0) this.bits.push(0);
@@ -188,7 +122,6 @@ class BitWriter {
       for (let j = 0; j < 8; j++) byte = (byte << 1) | this.bits[i + j];
       codewords.push(byte);
     }
-    // Pad codewords, alternating, until the version's full data capacity is met.
     const PAD = [0xec, 0x11];
     let padIndex = 0;
     while (codewords.length < totalCodewords) codewords.push(PAD[padIndex++ % 2]);
@@ -206,10 +139,6 @@ function encodeByteMode(text: string, spec: VersionSpec): number[] {
   for (const byte of bytes) writer.push(byte, 8);
   return writer.toCodewords(spec.dataCodewords);
 }
-
-// ---------------------------------------------------------------------------
-// Format information (15 bits: 5 data bits + 10-bit BCH, XORed with a fixed mask)
-// ---------------------------------------------------------------------------
 
 /** Binary polynomial long division, over GF(2) (plain XOR, not the GF(256) table above). */
 function bchRemainder(data: number, dataBits: number, generator: number, eccBits: number): number {
@@ -230,10 +159,6 @@ function formatBits(): number {
   return raw ^ FORMAT_MASK_XOR;
 }
 
-// ---------------------------------------------------------------------------
-// Matrix assembly
-// ---------------------------------------------------------------------------
-
 export interface QrMatrix {
   readonly size: number;
   /** `matrix[row][col]`: `true` is a dark module. */
@@ -249,7 +174,6 @@ function drawFinderPattern(modules: boolean[][], top: number, left: number): voi
       const inRing = r >= 0 && r <= 6 && c >= 0 && c <= 6;
       const onOuter = inRing && (r === 0 || r === 6 || c === 0 || c === 6);
       const onInner = r >= 2 && r <= 4 && c >= 2 && c <= 4;
-      // The separator (the ring just outside the 7x7 pattern) is explicitly light.
       modules[row][col] = onOuter || onInner;
     }
   }
@@ -276,24 +200,20 @@ function buildReservedMask(spec: VersionSpec): boolean[][] {
     for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) reserved[r][c] = true;
   };
 
-  // Finder patterns plus their separators (8x8 blocks at three corners).
   markBlock(0, 0, 7, 7);
   markBlock(0, size - 8, 7, size - 1);
   markBlock(size - 8, 0, size - 1, 7);
 
-  // Timing patterns.
   for (let i = 0; i < size; i++) {
     reserved[6][i] = true;
     reserved[i][6] = true;
   }
 
-  // Alignment pattern.
   if (spec.alignmentCenter !== null) {
     const center = spec.alignmentCenter;
     markBlock(center - 2, center - 2, center + 2, center + 2);
   }
 
-  // Format information, both copies, plus the fixed dark module.
   markBlock(8, 0, 8, 8);
   markBlock(0, 8, 8, 8);
   markBlock(size - 8, 8, size - 1, 8);
@@ -304,34 +224,19 @@ function buildReservedMask(spec: VersionSpec): boolean[][] {
 
 function drawFormatInformation(modules: boolean[][], size: number): void {
   const bits = formatBits();
-  // The 15-bit format value is transmitted MSB first: placement-order index
-  // 0 (the first module either copy writes) carries bit 14, the highest bit
-  // of `formatBits()`'s own return value, down to placement-order index 14
-  // carrying bit 0 — the same MSB-first convention `placeData` already uses
-  // for the data codewords. Indexing `bits` directly by placement order
-  // (`(bits >>> i) & 1`) silently reversed that polarity — every format-info
-  // module still got *a* bit, so the finder/timing/alignment structure and
-  // the two copies' own mutual agreement all read fine, but the level and
-  // mask a real decoder recovered from them were wrong, and Apple Vision
-  // refused the whole symbol rather than reading it with the wrong mask
-  // undone. Found by round-tripping this module's own output through a
-  // real decoder (`decode_qr.py`) after `qr-matrix.test.ts`'s structural
-  // assertions — which check the two copies agree with each other, not that
-  // either carries the *correct* value — passed on the broken code.
+  // MSB-first, matching `placeData`'s convention: indexing `bits` directly by
+  // placement order reverses this polarity (F-LAN204-002).
   const bit = (i: number) => ((bits >>> (14 - i)) & 1) === 1;
 
-  // Copy 1 — hugging the top-left finder pattern.
   for (let i = 0; i <= 5; i++) modules[8][i] = bit(i);
   modules[8][7] = bit(6);
   modules[8][8] = bit(7);
   modules[7][8] = bit(8);
   for (let i = 9; i <= 14; i++) modules[14 - i][8] = bit(i);
 
-  // Copy 2 — split across the top-right and bottom-left finder patterns.
   for (let i = 0; i <= 7; i++) modules[size - 1 - i][8] = bit(i);
   for (let i = 8; i <= 14; i++) modules[8][size - 15 + i] = bit(i);
 
-  // The one module that is always dark, regardless of version or mask.
   modules[size - 8][8] = true;
 }
 
@@ -354,7 +259,6 @@ function placeData(
         if (reserved[row][c]) continue;
         const bitValue = bitIndex < bits.length ? bits[bitIndex] : 0;
         bitIndex += 1;
-        // Mask 0: invert wherever (row + col) is even.
         const masked = (row + c) % 2 === 0 ? bitValue ^ 1 : bitValue;
         modules[row][c] = masked === 1;
       }

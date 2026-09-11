@@ -12,22 +12,12 @@ import { labelFor, TERM_LABELS } from "@/lib/services/event-vocabulary";
 import type { SegmentChoice } from "./calendar-controls";
 
 /**
- * The one academic year every event surface reads. LAN-153.
- *
- * ## Why the list builds a calendar
- *
- * `REQ-three-arrangements`: the list, Calendar View and Oxford View "cannot
- * disagree about which events exist or when they are". Which events is the
- * query's job — all three read one. **When** is this module's: the list's *Term
- * and week* column, the Oxford View's row labels and the list's *This term*
- * bucket are all read off one built column, so they cannot drift.
- *
- * The alternative — the list deriving its own coordinate from
- * `deriveTermCoordinate`, and the calendar deriving another — is what would
- * drift, and it would drift exactly where the club cares: a vacation event would
- * read "Outside term" in the list and "Christmas Vacation 2" on the calendar.
- * `events.week_number` cannot even hold the second (it is constrained to −1..8),
- * which is why the coordinate is derived at read time rather than looked up.
+ * The one academic year every event surface reads. LAN-153. Per
+ * `REQ-three-arrangements`, the list's *Term and week* column, the Oxford
+ * View's row labels and the list's *This term* bucket are all read off one
+ * built column, so they cannot drift. The coordinate is derived at read time,
+ * not looked up: `events.week_number` cannot even hold a vacation week
+ * (constrained to −1..8).
  */
 
 export interface EventYear {
@@ -36,31 +26,15 @@ export interface EventYear {
   segments: SegmentChoice[];
   /** The segment holding today, for the jump control's initial value. */
   currentSegmentKey: string;
-  /**
-   * The first day of the segment holding today, or `null` when today is in
-   * none. Paired with `currentSegmentEndsOn`; together, what the list's
-   * **This term** period means (C7/Q-18) — the segment's own start, not
-   * today.
-   */
+  /** First day of the segment holding today, or `null`. Together with `currentSegmentEndsOn`: the list's **This term** period (C7/Q-18) — the segment's start, not today. */
   currentSegmentStartsOn: string | null;
-  /**
-   * The last day of the segment holding today, or `null` when today is in none.
-   * What the list's **This term** bucket means.
-   */
+  /** Last day of the segment holding today, or `null`. */
   currentSegmentEndsOn: string | null;
   /** "MT 2nd", "Christmas Vacation 2", or "No date yet". */
   coordinateLabel: (scheduledOn: string | null) => string;
 }
 
-/**
- * Abbreviations for the list's narrow **Term and week** column.
- *
- * Terms only. A vacation keeps its full name there — "Christmas Vacation 2" —
- * because the club's names for the vacations came verbatim from Stewart Humble
- * and abbreviating them would be inventing club vocabulary to save six
- * characters. The approved mockup shows "MT 2nd" for a term, which is where
- * these three come from.
- */
+/** Abbreviations for the list's narrow **Term and week** column. Terms only — a vacation keeps its full club-given name (the approved mockup shows "MT 2nd" for a term). */
 const TERM_ABBREVIATIONS: Readonly<Record<string, string>> = Object.freeze({
   michaelmas: "MT",
   hilary: "HT",
@@ -81,14 +55,7 @@ const SHORT_ORDINALS: Readonly<Record<string, string>> = Object.freeze({
   "8": "8th",
 });
 
-/**
- * The open season's academic year, built once for a page.
- *
- * `events` is what the page is already showing, so the column places exactly the
- * events the reader can see. `today` decides which cell is highlighted and which
- * segment the jump control opens on — from `@/lib/club-time`, in the club's
- * zone, and passed in rather than read here so one page cannot ask two clocks.
- */
+/** The open season's academic year, built once for a page. `today` (from `@/lib/club-time`) is passed in, not read here, so one page cannot ask two clocks. */
 export async function readEventYear(
   events: readonly CalendarEvent[],
   options: { today: string; seasonStartsOn?: string | null; seasonEndsOn?: string | null },

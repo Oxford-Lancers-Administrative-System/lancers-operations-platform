@@ -5,11 +5,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 /**
- * A duplicate-person match — LAN-225, brief §2. Replaces the three
- * implementations behind the roster, people and recruitment "add" forms
- * (audit E6, H5): the name, the facts that matched in the club's words
- * ("Matched first name", never `given_name`), the chips that say what the
- * record is, and one action — **This is them** — that resolves the match.
+ * A duplicate-person match — LAN-225, brief §2. Name, facts in the club's
+ * words ("Matched first name", never `given_name`), status chips, one action.
  */
 export function CandidateRow({
   name,

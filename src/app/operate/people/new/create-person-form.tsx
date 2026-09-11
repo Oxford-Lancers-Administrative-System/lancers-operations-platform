@@ -51,12 +51,7 @@ export default function CreatePersonForm() {
 
         {state.formError ? <Notice severity="warning">{state.formError}</Notice> : null}
 
-        {/* B4, LAN-185 correction round 2 (Brian's walk): the duplicate check
-            must answer even when it finds nothing — a silent no-match reads
-            as though the check never ran. Matches the count sentence
-            `returner-intake-form.tsx`'s `CandidatesStep` already uses for the
-            same check elsewhere in the application, rather than inventing a
-            second shape. */}
+        {/* B4, LAN-185 round 2 (Brian's walk): duplicate check answers even with no match. */}
         {candidates !== null ? (
           <Section title={candidates.length > 0 ? "Already in the club" : "Duplicate check"}>
             <Typography
@@ -109,10 +104,7 @@ export default function CreatePersonForm() {
               error={Boolean(errors.familyName)}
               helperText={errors.familyName}
             />
-            {/* LAN-211: the shared two-part control. This door mints coaches
-                and committee members as well as players, and none of them is
-                asked for a college email here — `person-required.ts`'s
-                everyone-else tier does not ask for one. */}
+            {/* LAN-211: shared two-part control. Coaches/committee doors mint here too, none asked for a college email. */}
             <PhoneField
               name="mobile"
               label="Mobile phone"

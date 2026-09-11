@@ -15,35 +15,7 @@ import {
 } from "./presentation";
 import { RECRUIT_SCHEDULE_FIELDS, SCHEDULE_FIELDS } from "./validation";
 
-/**
- * **Messaging schedule** — Administration's third destination, and W7's
- * settings page. LAN-171.
- *
- * ADR 0021 said Release One would carry no configuration-administration
- * surface at all. `docs/adr/0036-messaging-schedule-configuration.md` records
- * why Brian reversed that on 2026-08-25, and this page is the reversal: the
- * club's messaging policy, per event type, editable here rather than known
- * only to whoever last touched `response-deadline.ts`.
- *
- * ## What survives from ADR 0021, unchanged
- *
- * Editable **per template, never per event** — there is no event picker
- * anywhere on this page, because `public.messaging_schedules` has no event
- * column to point one at. The table is complete over `public.event_templates`
- * with no default arm: a template's row is created with it and deleted with it
- * (LAN-265), so this page only ever updates a row and never creates or deletes
- * one. A template the club created a minute ago is already here, carrying
- * `DEFAULT_MESSAGING_SCHEDULE`, which is the half of the decision that makes
- * creating a template worth anything.
- *
- * ## The worked example is real arithmetic, not a second copy of it
- *
- * `listMessagingSchedulesWithPreview` resolves each row's example through
- * `resolveMessagingPlanIn` — the same function `event-approval.ts` calls at
- * approval — so the dates a reader expands here are the dates the scheduler
- * would actually produce, never a hand-written illustration that can drift
- * from the real rule.
- */
+/** **Messaging schedule** — Administration's third destination, W7's settings page. LAN-171. Editable per template, never per event. */
 export default async function MessagingSchedulePage() {
   const gate = await gateShellPage("/operate/admin/messaging", "delivery_administration");
   if ("screen" in gate) return gate.screen;
@@ -64,9 +36,7 @@ export default async function MessagingSchedulePage() {
       for (const field of SCHEDULE_FIELDS) {
         values[field.key] = schedule[field.field];
       }
-      // LAN-203, DEC-split-on-the-schedule. Populated only for the
-      // Recruitment row — every other event type's two recruit columns are
-      // `null`, and `RecruitmentScheduleRow` is the only reader of this.
+      // LAN-203, DEC-split-on-the-schedule: populated only for the Recruitment row.
       const recruitValues: Record<string, number> | null =
         schedule.eventType === "recruitment"
           ? Object.fromEntries(

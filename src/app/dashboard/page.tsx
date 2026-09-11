@@ -12,15 +12,11 @@ import { createClient } from "@/lib/supabase/server";
 import { signOut } from "../login/actions";
 
 /**
- * The trivial session-protected page. `proxy.ts` already redirects anonymous
- * requests, but this re-checks the session server-side: proxy matchers can be
- * changed or bypassed, so every protected route verifies for itself.
- *
- * LAN-71 added the operator block below. It is deliberately the smallest
- * possible proof that a session resolves to a club Person and their roles end
- * to end — it is not a real screen, and it must not grow into one before the
- * LAN-90 UX approval is recorded. Nothing here enforces anything: the role
- * codes are displayed, not checked. Enforcement arrives in LAN-73.
+ * The trivial session-protected page. Re-checks the session server-side —
+ * proxy matchers can be changed or bypassed, so every protected route
+ * verifies for itself. LAN-71's operator block is the smallest proof a
+ * session resolves to a club Person end to end; not a real screen, and
+ * enforces nothing (role codes are displayed, not checked — LAN-73).
  */
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -54,17 +50,7 @@ export default async function DashboardPage() {
             )}
           </Section>
         ) : (
-          // One state for all three unresolved causes — no link, an inactive
-          // link, and (unreachable here, because the session gate above has
-          // already redirected) no session. LAN-95 reworded it: LAN-71's
-          // "No operator record is linked to this account" was false for a
-          // deactivated operator, whose record *is* linked and has simply
-          // been disabled, and it sent that person somewhere useless. The
-          // replacement is true of all three causes, and still tells the
-          // reader nothing about which of them applies to him. Brian chose
-          // the one neutral state over two specific ones on 2026-08-11; the
-          // vocabulary is LAN-90's to settle, and LAN-73 may revisit it when
-          // it builds the real state.
+          // One state for all unresolved causes (LAN-95): the old wording was false for a deactivated operator. Brian chose neutral over specific, 2026-08-11.
           <Notice severity="warning">
             This account cannot access the operator area. Contact the committee.
           </Notice>

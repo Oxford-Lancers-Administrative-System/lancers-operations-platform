@@ -3,21 +3,10 @@ import { NextResponse } from "next/server";
 import { getPool } from "@/lib/db";
 
 /**
- * Deploy-readiness endpoint for Cloud Run releases and uptime checks.
- *
- * This is a deploy-readiness check, not a Cloud Run liveness probe. When a
- * database is configured it reads one row from a current-schema table, so a
- * revision cannot report healthy against a database that is missing the schema
- * it was built to use.
- *
- * `secretsLoaded` reports only whether the runtime secret injected from Secret
- * Manager is present — never its value, length, or prefix. It exists so a deploy
- * can be verified without anyone reading a secret.
- *
- * `databaseConfigured` does the same for the service layer's PostgreSQL
- * credential. `schemaCompatible` reports only whether the current-schema probe
- * succeeded. Neither field reports a host, role, credential detail, or failure
- * reason.
+ * Deploy-readiness endpoint for Cloud Run releases and uptime checks, not a
+ * liveness probe. Reads one row from a current-schema table when a database
+ * is configured. `secretsLoaded`/`databaseConfigured`/`schemaCompatible`
+ * report presence only — never a value, host, role, or failure reason.
  */
 export const dynamic = "force-dynamic";
 
@@ -30,8 +19,7 @@ export async function GET() {
       await getPool().query("select id from public.events limit 1");
       schemaCompatible = true;
     } catch {
-      // This endpoint is public. Report the failed capability, never the target
-      // or the database error that explains it.
+      // Public endpoint: report the failed capability, never the error that explains it.
     }
   }
 

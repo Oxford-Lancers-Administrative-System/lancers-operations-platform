@@ -35,37 +35,14 @@ import {
 } from "./presentation";
 
 /**
- * W7's filter bar — by name, capacity, answer, attendance, and delivery at the
+ * W7's filter bar — by name, capacity, answer, attendance, delivery at the
  * operator tier. Brian, 2026-08-21: "I also should have filters to only
- * players, a filter to only yes, a filter to only no … I can see only the nos."
- *
- * ## Why the state is in the URL
- *
- * The same reason the roster, the events list and the attendance board put
- * theirs there: a filtered table is a link, the back button undoes a filter,
- * and a shared club link can carry one. It also means the filtering itself is
- * done once, on the server, by the same pure function both tiers call — rather
- * than twice, in two components, from two copies of the rules.
- *
- * The search box is `useFilterSearch`, which carries the two corrections Brian
- * paid for twice on the other screens: filter as you type rather than a hidden
- * Enter, and no keystrokes dropped when a navigation lands mid-typing.
- *
- * ## Native selects, deliberately
- *
- * Every filter is a real `<select>` rather than MUI's menu. Three reasons, and
- * the third is the one that matters here: it is the phone control the club
- * actually uses at 375px; it needs no portal, so the element a test drives is
- * the element the operator drives; and a `change` event on it is the same event
- * either way. This mission has already shipped a control that looked right and
- * was inert, and a filter whose test drives a different element from the
- * operator is exactly how that happens.
- *
- * ## The delivery filter exists only where the column does
- *
- * `showDelivery` is the tier, and the club-link page passes `false`. There is
- * nothing to hide: those rows carry no delivery state, so the control would
- * filter on a field that is not there.
+ * players, a filter to only yes, a filter to only no." State lives in the URL
+ * (filtering done once, server-side, one pure function for both tiers).
+ * Native `<select>`s, not MUI menus: no portal, so the element a test drives
+ * is the element the operator drives — this mission has already shipped an
+ * inert control that looked right. `showDelivery` is the tier; those rows
+ * carry no delivery state to filter on.
  */
 const ANSWER_LABELS: Readonly<Record<string, string>> = Object.freeze({
   yes: ANSWER_YES,
@@ -121,12 +98,7 @@ export function ParticipationFilterBar({
   showDelivery: boolean;
 }) {
   const router = useRouter();
-  // R157C-B2. A filter change re-orders what is already on screen; it is not a
-  // fresh page, so it must not fling an operator part-way down the table back
-  // to the top. `scroll: false` is Next.js's own control for this
-  // (`node_modules/next/dist/docs/01-app/03-api-reference/02-components/link.md`
-  // § Disable scrolling to the top of the page) — the URL still carries every
-  // filter and sort key, which stays the single source of truth for the view.
+  // R157C-B2: a filter change re-orders the screen, not a fresh page — `scroll: false` keeps an operator part-way down from bouncing to the top.
   const push = useCallback((href: string) => router.push(href, { scroll: false }), [router]);
 
   const carried: Record<string, string> = {

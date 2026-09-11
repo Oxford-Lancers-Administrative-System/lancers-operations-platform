@@ -1,13 +1,8 @@
 /**
- * The club's token values — LAN-225. A plain module with no `"use client"`
- * directive, so a Server Component (the kit's `Section`, the preview layout)
- * can read a hex value as a value. `src/theme.ts` is a client module because
- * the theme object it builds is handed to `ThemeProvider`; anything exported
- * from there arrives in a Server Component as a client reference, not a
- * string, which is why the values live here and the theme imports them.
- *
- * The measured contrast of every pair is recorded in `src/theme.ts`, nowhere
- * else, and recomputed by `src/theme.test.ts`.
+ * The club's token values — LAN-225. A plain module, no `"use client"`, so a
+ * Server Component can read a hex value as a value; `src/theme.ts` (a client
+ * module) imports these rather than being imported. Contrast is recorded in
+ * `src/theme.ts` and recomputed by `src/theme.test.ts`.
  */
 
 /** The nine Figma brand-board styles, read 3 September 2026, plus the two neutrals the board does not supply. */
@@ -28,12 +23,7 @@ export const CLUB = Object.freeze({
   ground: "#F6F5F2",
 });
 
-/**
- * The semantic set — brief §1.2. The club palette has no green or red, so these
- * were chosen to sit with it: warm, slightly desaturated, every `main` passing
- * AA both as white-on-colour (filled chips) and as colour-on-white (outlined
- * chips and alert text). `light` is the tint an alert or a selected row sits on.
- */
+/** The semantic set (brief §1.2) — chosen to sit with the club's palette, every `main` passing AA both directions. `light` is the tint an alert sits on. */
 export const SEMANTIC = Object.freeze({
   success: { main: "#1E6F3C", light: "#E3F1E7", dark: "#155029" },
   warning: { main: "#9A5B00", light: "#FBF1DC", dark: "#6E4100" },
@@ -54,6 +44,3 @@ export const LAYOUT = Object.freeze({
   drawerWidth: 280,
   touchTarget: 44,
 });
-
-/** Geist Mono, for identifiers and the import prompt only (brief §1.4). */
-export const FONT_MONO = "var(--font-geist-mono), ui-monospace, monospace";

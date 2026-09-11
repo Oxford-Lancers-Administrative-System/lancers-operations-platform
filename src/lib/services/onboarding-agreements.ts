@@ -2,20 +2,10 @@ import "server-only";
 
 import { ConstraintViolated, type Tx, withTransaction } from "@/lib/db";
 
-/**
- * The versioned-agreement mechanism — LAN-214. Version, moment and person:
- * the Code of Conduct and the photo release are each "read on their own
- * page, then confirmed, dated, against the exact version shown"
- * (`REQ-policy-at-collection`). No object storage — the application has
- * none, and none is needed: an agreement is "I read version N and agreed",
- * never a signature image.
- *
- * `nonblocking_unknowns`: the wording is a labelled placeholder in this real
- * versioned slot until LAN-213 lands Clint's actual text — never invented
- * club policy in the meantime. Swapping the placeholder for real wording is
- * inserting a new `onboarding_agreement_versions` row; nothing about the
- * mechanism changes.
- */
+// The versioned-agreement mechanism — LAN-214. Version, moment and person: an agreement is "I read
+// version N and agreed" (REQ-policy-at-collection), never a signature image, no object storage.
+// nonblocking_unknowns: the wording is a placeholder until LAN-213 lands the real text — swapping it
+// is a new onboarding_agreement_versions row, nothing about the mechanism changes.
 
 export type OnboardingAgreementType = "code_of_conduct" | "photo_release";
 
@@ -54,7 +44,6 @@ function toVersion(row: VersionRow): OnboardingAgreementVersion {
   };
 }
 
-/** The version a player should be shown right now — the most recently effective row for this document. */
 export async function readCurrentOnboardingAgreementVersionIn(
   tx: Tx,
   agreementType: OnboardingAgreementType,
@@ -97,14 +86,8 @@ function toAgreement(row: AgreementRow): OnboardingAgreement {
   };
 }
 
-/**
- * Records that a person read and agreed to the current version of one
- * document, for one season. Seasonal — item-and-ask-inventory.md's item 11
- * ("asked of everyone every season") — so this writes once per (person,
- * season, type); a second call for the same three is refused by the
- * schema's own `onboarding_agreements_one_per_person_season_type` rather
- * than silently updating a moment that already happened.
- */
+// Seasonal (item-and-ask-inventory.md item 11: asked of everyone every season) — writes once per
+// (person, season, type); a second call is refused by onboarding_agreements_one_per_person_season_type.
 export async function recordOnboardingAgreementIn(
   tx: Tx,
   params: { personId: string; seasonId: string; agreementType: OnboardingAgreementType },
@@ -152,37 +135,11 @@ export async function readOnboardingAgreementsIn(
   return result.rows.map((row) => toAgreement(row as unknown as AgreementRow));
 }
 
-/**
- * Removes one season's agreement row so the document can be agreed again —
- * LAN-240 (walker M7, finding M7-01), the blocker that broke the M7 journey
- * at its last step.
- *
- * There is no reopen verb (D-002): an operator reopens the photo release or
- * the Code of Conduct by setting that item's own state back to "No" on the
- * record. That flipped `onboarding_items.status` and nothing else, so the
- * `onboarding_agreements` row — unique per (person, season, type), and by
- * this module's own design never updated — survived. The player's link then
- * said two contradictory things at once: the navigator read "PHOTO RELEASE —
- * Outstanding" above a panel reading "Already agreed", and a bare load of the
- * link resumed at "There is nothing left to fill in". The player could never
- * see or act on the reopened item, and `recordOnboardingAgreementIn` would
- * have refused a second agreement anyway.
- *
- * Deleted rather than superseded, on the Lead's recorded migration review
- * (2026-09-09): this package is schema-free, and nothing is lost by the
- * delete. `onboarding_item_history` already holds the transition that agreed
- * the item and the one that reopened it, with the actor and the moment of
- * each, and `audit_events` holds the operator's own reopen. What the row
- * uniquely carried — *which version* was agreed — is carried alongside it in
- * the item history's own audit trail, and a reopened document is one the club
- * has decided is no longer agreed, so the version that was agreed is history
- * rather than standing record.
- *
- * Returns the number of rows removed: zero is a legitimate, expected outcome
- * (an item set back to "No" that the player had never agreed through the
- * link at all), and is recorded as one by the caller rather than treated as
- * a failure.
- */
+// Removes one season's agreement row so the document can be agreed again — LAN-240 (walker M7,
+// finding M7-01). No reopen verb (D-002): setting the item back to "No" flipped onboarding_items.status
+// only, leaving this row (unique per person/season/type) stranded. Deleted, not superseded — the
+// Lead's recorded migration review (2026-09-09): schema-free, nothing lost (onboarding_item_history
+// and audit_events already hold the transitions). Zero removed is a legitimate outcome. See relocations.md.
 export async function deleteOnboardingAgreementIn(
   tx: Tx,
   params: { personId: string; seasonId: string; agreementType: OnboardingAgreementType },
@@ -196,7 +153,6 @@ export async function deleteOnboardingAgreementIn(
   return result.rowCount ?? 0;
 }
 
-/** Convenience wrapper for a caller with no open transaction. */
 export async function readOnboardingAgreements(
   personId: string,
   seasonId: string,

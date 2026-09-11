@@ -1,51 +1,26 @@
 import "server-only";
 
-import { ConstraintViolated, NotFound, type Tx, withTransaction } from "@/lib/db";
+import { ConstraintViolated, NotFound, type Tx } from "@/lib/db";
 import { actorRequirement } from "./actor";
 import { updatePersonField, type PersonFieldUpdate } from "./person-write";
 import type { PersonRecord } from "./person-record";
 
 /**
  * The disputed-fact raise-and-resolve pair — LAN-214, `REQ-no-silent-overwrite`.
- *
- * `person-record.ts`'s own module note says why this did not exist before
- * this package: "There is no contested-value field, no verification-mark
- * field and no confidence class anywhere below — not struck out, never
- * added" (`REQ-no-disputed`). `W5` raises a dispute when a player's answer
- * differs from an operator-recorded value; `W7` settles it. Neither
- * workflow's own screen is this package's — this module is the mechanism
- * both call through.
- *
- * ## Scope: exactly the seven fields that can silently overwrite today
- *
- * `person-write.ts`'s `updatePersonField` overwrites `given_name`,
- * `family_name`, `college`, `matriculation_year`, `expected_graduation_year`,
- * `degree_field` and `date_of_birth` in place — `PersonFieldUpdate`'s own
- * union. That is exactly the set `REQ-no-silent-overwrite` is about. Contact
- * values are deliberately out of scope: `supersedeContactPoint` already dates
- * the old value and inserts a new one rather than overwriting, so nothing
- * there silently overwrites and a dispute table over it would solve nothing.
- *
- * ## "The newer answer supersedes the waiting one"
- *
- * W7's own exceptions-and-recovery note. Enforced structurally by
- * `person_fact_disputes_one_open_per_field`: at most one *open* dispute per
- * (person, field), so {@link raisePersonFactDisputeIn} upserts the open row
- * rather than inserting a second one beside it.
- *
- * ## Resolution actually moves the field
- *
- * "One value stands, the other is retained" (W7's acceptance) is only true
- * of the record itself if resolving to the player's answer actually writes
- * it. `resolvePersonFactDisputeIn` calls `updatePersonField` for exactly that
- * — reusing the one write path this codebase already has for these seven
- * columns rather than a second copy of its column whitelist and its
- * `given_name`-must-not-be-blank rule.
+ * `W5` raises a dispute when a player's answer differs from an
+ * operator-recorded value; `W7` settles it — this module is the mechanism
+ * both call through. Scoped to `PersonFieldUpdate`'s seven overwritable
+ * fields; contact values are out of scope (`supersedeContactPoint` already
+ * dates and supersedes, never overwrites). At most one *open* dispute per
+ * (person, field) — {@link raisePersonFactDisputeIn} upserts rather than
+ * inserting a second row. `resolvePersonFactDisputeIn` calls
+ * `updatePersonField` to actually move the field, reusing the one write path
+ * rather than a second column whitelist.
  */
 
 export type DisputedPersonField = PersonFieldUpdate["field"];
 
-export type PersonFactDisputeStatus = "open" | "resolved_kept_club" | "resolved_took_player";
+type PersonFactDisputeStatus = "open" | "resolved_kept_club" | "resolved_took_player";
 
 export interface PersonFactDispute {
   id: string;
@@ -97,12 +72,7 @@ function optional(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/**
- * Raises a dispute, or — where one is already open for this (person, field)
- * — supersedes its waiting answer with the newer one. Never touches
- * `people`: the club's value stays exactly what it was until an operator
- * resolves the dispute.
- */
+/** Raises a dispute, or supersedes an already-open one's waiting answer. Never touches `people` until resolved. */
 export async function raisePersonFactDisputeIn(
   tx: Tx,
   params: {
@@ -144,25 +114,11 @@ export async function raisePersonFactDisputeIn(
   return toDispute(result.rows[0] as unknown as DisputeRow);
 }
 
-/** Convenience wrapper for a caller with no open transaction. */
-export async function raisePersonFactDispute(
-  params: Parameters<typeof raisePersonFactDisputeIn>[1],
-): Promise<PersonFactDispute> {
-  return withTransaction((tx) => raisePersonFactDisputeIn(tx, params));
-}
-
 const requireActor = actorRequirement(
   "Resolving a disputed fact has to name the four-role operator who decided.",
 );
 
-/**
- * Builds `updatePersonField`'s own discriminated-union argument for one
- * disputed field. A `switch` over the literal field name, not a generic
- * spread — `PersonFieldUpdate` is a discriminated union precisely so a caller
- * cannot construct a `{ field: "matriculation_year", value: "a string" }`
- * that type-checks, and this is the one place a disputed row's stored text
- * has to become that union again.
- */
+/** Builds `updatePersonField`'s discriminated-union argument for one field — a `switch`, not a spread, so a mismatched value can't type-check. */
 function updateFor(
   field: DisputedPersonField,
   text: string,
@@ -196,20 +152,11 @@ function updateFor(
 
 export interface ResolvePersonFactDisputeResult {
   dispute: PersonFactDispute;
-  /** The person record, re-read after the write — `null` when the club's value was kept, since nothing on `people` changed. */
+  /** Re-read after the write; `null` when the club's value was kept. */
   personRecord: PersonRecord | null;
 }
 
-/**
- * Settles one open dispute — `W7`'s "keep the club's value, or take the
- * player's." `resolution: "take_player"` writes the player's value onto
- * `people` through `updatePersonField`, in the same transaction as the
- * dispute's own resolution; `"keep_club"` writes nothing to `people` at all,
- * because the club's value already is what it was.
- *
- * The losing value is never deleted — it stays on this same row, in
- * whichever of `clubValue`/`playerValue` did not win, permanently.
- */
+/** Settles one open dispute (W7). `take_player` writes to `people` via `updatePersonField`, in the same transaction; `keep_club` writes nothing. The losing value stays on the row, permanently. */
 export async function resolvePersonFactDisputeIn(
   tx: Tx,
   params: {
@@ -275,13 +222,6 @@ export async function resolvePersonFactDisputeIn(
   return { dispute, personRecord: record };
 }
 
-/** Convenience wrapper for a caller with no open transaction. */
-export async function resolvePersonFactDispute(
-  params: Parameters<typeof resolvePersonFactDisputeIn>[1],
-): Promise<ResolvePersonFactDisputeResult> {
-  return withTransaction((tx) => resolvePersonFactDisputeIn(tx, params));
-}
-
 /** Every open dispute for one person — what `W7`'s surface lists to resolve. */
 export async function readOpenPersonFactDisputesIn(
   tx: Tx,
@@ -297,61 +237,4 @@ export async function readOpenPersonFactDisputesIn(
     [personId],
   );
   return result.rows.map((r) => toDispute(r as unknown as DisputeRow));
-}
-
-/**
- * One dispute, with the flag and the confirmation each named —
- * `WP-operator-record` (LAN-217), `W7`'s "flag, correction and confirmation
- * stay separately attributable". `raisedByName` is the player who flagged it
- * (`raisedByPersonId`); `resolvedByName` is the four-role operator who
- * resolved it (`resolvedByPersonId`), present only once it has been. The
- * correction itself — the value actually changing on `people` — is already
- * attributable through `updatePersonField`'s own `person_<field>_updated`
- * audit row, read back by `person-record.ts`'s `Q-13` derivation; this is the
- * one thing that path cannot show, because "keep the club's value" writes
- * nothing to `people` at all.
- */
-export interface PersonFactDisputeDisplay extends PersonFactDispute {
-  raisedByName: string | null;
-  resolvedByName: string | null;
-}
-
-/**
- * The most recent dispute for each field this person has ever had one on,
- * open or resolved — one row per field, `distinct on`. `W7-02`'s approved
- * screen keeps the losing value visible on the record after resolution, not
- * only in the general history; this is what that rendering reads.
- */
-export async function readLatestPersonFactDisputesIn(
-  tx: Tx,
-  personId: string,
-): Promise<PersonFactDisputeDisplay[]> {
-  const result = await tx.query<
-    DisputeRow & { raised_by_name: string | null; resolved_by_name: string | null }
-  >(
-    `select distinct on (d.field)
-            d.id, d.person_id, d.field, d.club_value, d.player_value,
-            d.raised_by_person_id, d.raised_at, d.status::text as status,
-            d.resolution_note, d.resolved_by_person_id, d.resolved_at,
-            r.given_name || coalesce(' ' || r.family_name, '') as raised_by_name,
-            v.given_name || coalesce(' ' || v.family_name, '') as resolved_by_name
-       from public.person_fact_disputes d
-       left join public.people r on r.id = d.raised_by_person_id
-       left join public.people v on v.id = d.resolved_by_person_id
-      where d.person_id = $1::uuid
-      order by d.field, d.raised_at desc`,
-    [personId],
-  );
-  return result.rows.map((row) => ({
-    ...toDispute(row as unknown as DisputeRow),
-    raisedByName: row.raised_by_name,
-    resolvedByName: row.resolved_by_name,
-  }));
-}
-
-/** Convenience wrapper for a caller with no open transaction. */
-export async function readLatestPersonFactDisputes(
-  personId: string,
-): Promise<PersonFactDisputeDisplay[]> {
-  return withTransaction((tx) => readLatestPersonFactDisputesIn(tx, personId));
 }

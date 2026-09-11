@@ -11,7 +11,7 @@ export const OPERATOR_SECTION = "Operations";
 export const OPERATOR_CAPTION = "Authorized operator";
 export const COACH_SECTION = "Attendance";
 
-/** Presentation only. Each entry point retains its own session and capability gates. */
+// Presentation only. Each entry point retains its own session and capability gates.
 export default function OperatorShell({
   operator,
   children,
@@ -19,11 +19,8 @@ export default function OperatorShell({
   operator: ResolvedOperator;
   children: ReactNode;
 }) {
-  // LAN-110. A coaching assignment gets the coach shell — one destination, and
-  // the sidebar captioned with the seat they hold rather than with the general
-  // "Authorized operator", because they are not one and the shell should not
-  // imply that they are. Resolved here, on the server, from the verified
-  // session; `ShellNav` is handed the answer and never the roles.
+  // LAN-110: the coach shell's caption is resolved server-side, from the
+  // verified session — ShellNav is handed the answer, never the roles.
   const isCoachShell = isNarrowAttendanceRecorder(operator.roleCodes);
   const roleCaption = isCoachShell
     ? describeHeldCoachingSeats(operator.roleCodes)
@@ -41,10 +38,7 @@ export default function OperatorShell({
       <ShellNav
         operatorName={operator.displayName}
         destinations={destinationsFor(operator.roleCodes)}
-        // LAN-133. Resolved here, on the server, from the verified session —
-        // the same rule the coach shell follows: `ShellNav` is handed the
-        // answer and never the role codes it would have to be trusted with to
-        // work it out. Empty for every operator who does not administer.
+        // LAN-133: resolved server-side, same rule as the coach shell above.
         administration={administrationDestinationsFor(operator.roleCodes)}
         sectionLabel={isCoachShell ? COACH_SECTION : OPERATOR_SECTION}
         roleCaption={roleCaption}
@@ -67,10 +61,7 @@ export default function OperatorShell({
           minWidth: 0,
           px: { xs: 2, md: 4 },
           pb: { xs: 3, md: 4 },
-          // LAN-195. The fixed bar moved from the bottom of the phone screen
-          // to the top (the hamburger), so the clearance moves with it: 56px
-          // of bar plus the ordinary 3-unit (24px) top spacing used everywhere
-          // else, i.e. 10 spacing units rather than 3.
+          // LAN-195: clearance for the phone top bar (56px + ordinary 24px spacing).
           pt: { xs: 10, md: 4 },
         }}
       >

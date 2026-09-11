@@ -1,32 +1,15 @@
 import "server-only";
 
-import { type Tx, withTransaction } from "@/lib/db";
+import { type Tx } from "@/lib/db";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import type { RequiredField } from "./person-required";
 import { readPersonRecordIn } from "./person-record";
 import type { OnboardingItemStatus } from "./membership";
 
-/**
- * The compiled-outstanding-ask reader — LAN-214, `REQ-one-link`'s share of
- * this package: "the compiled-outstanding-ask reader, and one open ask per
- * person. You add no page." `W4`'s form and `W8`'s nudge both need one
- * answer to the same question — "what does this person still need to do?" —
- * compiled fresh every time rather than frozen at the moment a link was
- * minted, because "every later message re-sends the same link, compiled to
- * whatever is still outstanding" (item-and-ask-inventory.md).
- *
- * ## "Never a second open ask" — where that guarantee actually lives
- *
- * This module reads; it mints nothing. The one-open-ask-per-person invariant
- * is `person_access_tokens_one_live_per_person_season`, a partial unique
- * index Mission 4 (LAN-169) already built and this package does not touch —
- * see the brief's repository-drift note. {@link hasLiveOnboardingLinkIn} reads
- * that same index rather than duplicating its guarantee, so a caller minting
- * a link has one place to check first and this reader never needs to know
- * how a token is issued.
- */
+// The compiled-outstanding-ask reader — LAN-214, REQ-one-link: compiled fresh every time, never
+// frozen at mint. This module reads; it mints nothing.
 
-export interface OutstandingOnboardingItem {
+interface OutstandingOnboardingItem {
   itemId: string;
   code: string;
   label: string;
@@ -37,10 +20,8 @@ export interface CompiledOutstandingAsk {
   personId: string;
   seasonId: string;
   membershipId: string;
-  /** `REQ-required-set`'s share of the compiled ask — person-required.ts's tiers, read, never redefined here. */
-  missingRequiredFields: RequiredField[];
-  /** Every checklist item not yet resolved — `pending`, `invited` or `claimed`. Never filtered by who completes it; that grouping is the reading package's. */
-  outstandingItems: OutstandingOnboardingItem[];
+  missingRequiredFields: RequiredField[]; // REQ-required-set's share — person-required.ts's tiers, read, never redefined here
+  outstandingItems: OutstandingOnboardingItem[]; // pending/invited/claimed only; never filtered by who completes it
   hasGrantedConsent: boolean;
 }
 
@@ -51,13 +32,7 @@ interface OutstandingItemRow {
   status: OnboardingItemStatus;
 }
 
-/**
- * What is still outstanding for one person, in one season — `REQ-one-link`:
- * "new outstanding facts join the open ask rather than starting a second."
- * Throws nothing when the person has no membership this season; it returns
- * `null` instead, because "not onboarding this season" is a real, unexceptional
- * answer a caller has to handle, not a fault.
- */
+// REQ-one-link: returns null, not a throw, for no membership this season.
 export async function readCompiledOutstandingAskIn(
   tx: Tx,
   personId: string,
@@ -88,10 +63,7 @@ export async function readCompiledOutstandingAskIn(
     personId,
     seasonId,
     membershipId,
-    // `readPersonRecordIn` already computes this against person-required.ts's
-    // tiers for this person's assembled status — the same computation this
-    // reader would otherwise duplicate.
-    missingRequiredFields: person.missingRequiredFields,
+    missingRequiredFields: person.missingRequiredFields, // readPersonRecordIn already computes this against person-required.ts's tiers
     outstandingItems: items.rows.map((row) => ({
       itemId: row.id,
       code: row.code,
@@ -102,20 +74,7 @@ export async function readCompiledOutstandingAskIn(
   };
 }
 
-/** Convenience wrapper for a caller with no open transaction. */
-export async function readCompiledOutstandingAsk(
-  personId: string,
-  seasonId: string,
-): Promise<CompiledOutstandingAsk | null> {
-  return withTransaction((tx) => readCompiledOutstandingAskIn(tx, personId, seasonId));
-}
-
-/**
- * Whether this person already holds a live, durable onboarding link this
- * season — `person_access_tokens_one_live_per_person_season`'s own
- * guarantee, read rather than re-derived. `false` covers both "never issued"
- * and "revoked"; a caller deciding whether to mint one reads this first.
- */
+// person_access_tokens_one_live_per_person_season's own guarantee; false covers "never issued" and "revoked".
 export async function hasLiveOnboardingLinkIn(
   tx: Tx,
   personId: string,

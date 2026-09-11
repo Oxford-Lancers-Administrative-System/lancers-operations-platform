@@ -7,12 +7,7 @@ import { mintRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-c
 import { readCurrentSeasonIn } from "@/lib/services/seasons";
 import type { RecruitmentActionState } from "../action-state";
 
-/**
- * `W1-04`'s own action — mint (or re-mint) the season's one live sign-up
- * code. `mintRecruitmentSignupCodeIn` already does the whole of "deactivate a
- * live code and mint a replacement" (Brian, 2026-08-31) atomically, so this
- * is a thin gate around it and nothing more.
- */
+// `W1-04`'s action — mint/re-mint the season's one live sign-up code, atomically (Brian, 2026-08-31).
 export async function mintRecruitmentSignupCodeAction(): Promise<RecruitmentActionState> {
   const operator = await requireCapability("person_record_authority");
   try {

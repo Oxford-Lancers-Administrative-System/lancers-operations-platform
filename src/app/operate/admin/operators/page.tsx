@@ -30,34 +30,10 @@ import {
 
 /**
  * **Operators** — the first of Administration's two destinations. LAN-133.
- *
- * ## What the reviewed prototype fixes here
- *
- * Three things, and all three are `DEC-administration-navigation` rather than
- * taste: the sections are Standing Officers, Club Officers and Coaches, in the
- * catalogue's group order; **Invite operator** is the top-right primary action;
- * and the guide is reached from the compact question-mark link beside the
- * heading rather than from a callout or a third sidebar entry.
- *
- * ## Account state and role state are two columns, deliberately
- *
- * `REQ-admin-surfaces` requires operator surfaces to "distinguish operator
- * account state from role state", and this is the list's half of that. **Current
- * roles** says what the club has asked this person to do; **Account status**
- * says whether they can sign in. `REQ-deactivate-and-reinstate` is the reason
- * that separation has to survive contact with a real screen: deactivating
- * access "does not end organizational roles, make a role pending or create a
- * vacancy", so a deactivated Vice-President is a row reading *Vice-President*
- * and *Deactivated* at the same time, and one merged column could not say it.
- *
- * ## Two shapes, one set of facts
- *
- * A wide table from `md` up and cards below it — the roster's precedent, and for
- * the same reason: an operator scanning eight accounts for the one that never
- * accepted its invitation is doing comparison work, which a table does and a
- * stack of cards does not. At 375px the same fields are stacked, none dropped;
- * the invitation line in particular stays, because it is the only place the
- * delivery failure reason appears outside the record itself.
+ * Sections in catalogue group order (`DEC-administration-navigation`).
+ * Account state and role state are two columns, deliberately
+ * (`REQ-admin-surfaces`, `REQ-deactivate-and-reinstate`). Table from `md`
+ * up, cards below — same fields, none dropped.
  */
 export default async function OperatorsPage() {
   const gate = await gateShellPage("/operate/admin/operators", "role_management");
@@ -81,10 +57,7 @@ export default async function OperatorsPage() {
       <AdminPageHeading
         title="Operators"
         subtitle={[
-          // LAN-141 finding 8: the year is a label. A gap between committee
-          // years used to take this page down entirely, telling the reader a
-          // year "has to be recorded first" from a page with no route to record
-          // one.
+          // LAN-141 finding 8: committee year is a label — a gap year used to take this page down entirely.
           directory.committeeYear?.label ?? "No committee year recorded",
           `${count} ${count === 1 ? "operator account" : "operator accounts"}`,
         ].join(" · ")}
@@ -108,13 +81,7 @@ export default async function OperatorsPage() {
             <DesktopOnly>
               <TableFrame>
                 <Table size="small" aria-label={section.label}>
-                  {/*
-                  The proportions are fixed rather than left to the content.
-                  A delivery failure carries the transport's own sentence, which
-                  is a paragraph, and an auto-sized table gives that paragraph
-                  the room by taking it from the name and the roles beside it —
-                  so one failed invitation reshapes the whole section.
-                */}
+                  {/* Fixed column proportions — a failed-invitation paragraph would otherwise reshape the whole section. */}
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ width: "24%" }}>Name</TableCell>

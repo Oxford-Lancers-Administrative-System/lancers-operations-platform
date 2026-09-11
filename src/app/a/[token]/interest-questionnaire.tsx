@@ -20,27 +20,11 @@ import { submitInterestQuestionnaire } from "./interest-actions";
 import { PRIVACY_NOTE } from "./presentation";
 
 /**
- * Questionnaire B — "how you came to football". `W4`, LAN-206.
- *
- * Correction round 1, F-206-02 (Brian: "Mock up wins" on structure and copy
- * where the runnable fidelity mockup and the approved screens disagree):
- * heading, sub-heading, every field's prompt, the submit label and the
- * saved/already-answered flow all follow
- * `src/app/recruitment-preview/questionnaire-b.tsx` on
- * `origin/chore/recruitment-fidelity-mockup`, read directly. `played`,
- * `watched`, `heard` and `anything else` stay `question-field.tsx`'s own
- * shipped controls; `positions` and `gear` are the two the mockup makes
- * genuine multi-selects (Brian: "A recruit is allowed to be interested in
- * more than one thing"), which the shared `QuestionField` has no variant
- * for, so those two use the same `Checkbox`/`FormControlLabel` idiom
- * `audience-builder.tsx` already ships elsewhere in this application —
- * native, uncontrolled checkboxes, each its own `q_B3`/`q_B4` form field, so
- * the plain server-action `<form>` this page already posts through needs no
- * client-side state to carry several selections at once.
- *
- * Every field is optional — no `isRequired`, ever, on any of the six —
- * `REQ-missing-never-blocks` and W4's own "every field is optional and
- * nothing gates."
+ * Questionnaire B — "how you came to football". `W4`, LAN-206. F-206-02,
+ * round 1 (Brian: "Mock up wins"): structure and copy follow the fidelity
+ * mockup. `positions`/`gear` are genuine multi-selects (Brian: "A recruit is
+ * allowed to be interested in more than one thing"). Every field optional —
+ * no `isRequired`, ever (`REQ-missing-never-blocks`).
  */
 
 const HEARD_CHOICES = [
@@ -100,7 +84,7 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
   ];
 }
 
-export function QuestionnaireBShell({ children }: { children: React.ReactNode }) {
+function QuestionnaireBShell({ children }: { children: React.ReactNode }) {
   return (
     <PublicShell caption="Football background">
       <Stack spacing={3}>{children}</Stack>
@@ -174,13 +158,7 @@ function QuestionnaireBForm({
           <QuestionField question={played} enforceRequired={false} />
           <QuestionField question={watched} enforceRequired={false} />
 
-          {/* V-5, correction round 2 (Brian: "The dropdown should have a
-              multi-tick... That's awful" of the inline checkbox list
-              correction round 1 shipped): the same outlined `TextField
-              select` idiom `played`/`watched`/`heard` above already use,
-              carrying tick boxes in its own menu — `multi-select-field.tsx`'s
-              own module note has the mockup citation and the wiring detail.
-              The option sets are unchanged from round 1. */}
+          {/* V-5, round 2 (Brian: "The dropdown should have a multi-tick"). See `multi-select-field.tsx` for the wiring. */}
           <GroupedMultiSelectField
             name="q_B3"
             label="Which positions interest you?"
@@ -217,12 +195,7 @@ function QuestionnaireBForm({
   );
 }
 
-/**
- * The three real states a GET to this route resolves to, matching the
- * mockup's own `state: "form" | "saved" | "already"` (`"invalid"` is the
- * uniform `not-found.tsx` the caller reaches through `notFound()` instead,
- * never rendered here).
- */
+/** The three real states a GET resolves to (`state: "form" | "saved" | "already"`) — `"invalid"` reaches `not-found.tsx` via `notFound()` instead. */
 export function QuestionnaireBScreen({
   token,
   displayName,

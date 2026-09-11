@@ -1,30 +1,16 @@
 import type { PersonDuplicateCandidate } from "@/lib/services/person-duplicate";
 import type { CandidateIdentity } from "@/lib/services/recruitment-candidate-identity";
 
-/**
- * The state `/operate/recruitment/new`'s form is driven by — the same split
- * `/operate/people/new/create-state.ts` keeps, for the same reason: a
- * `"use server"` file may export only async functions.
- */
+/** The state `/operate/recruitment/new`'s form is driven by — same split as `/operate/people/new/create-state.ts` (a "use server" file may export only async functions). */
 
 export interface AddRecruitFormValues {
   givenName: string;
   familyName: string;
   mobile: string;
-  /**
-   * LAN-268, Brian 2026-09-09. Required, and only an `ox.ac.uk` address is
-   * accepted — the operator adding somebody by hand is held to the same rule
-   * as the recruit filling the door in themselves, because it is the same
-   * fact about the same person.
-   */
+  /** LAN-268, Brian 2026-09-09: required, ox.ac.uk only. */
   collegeEmail: string;
   personalEmail: string;
-  /**
-   * V-2, correction round 2 — the shipped intake forms' own field set
-   * (`signup-form.tsx`, `edit-person-form.tsx`), not one invented here.
-   * Every field below is optional; `REQ-missing-never-blocks` names only
-   * first name, last name and mobile.
-   */
+  /** V-2, correction round 2: the shipped intake forms' own field set; every field below is optional (REQ-missing-never-blocks). */
   knownAs: string;
   college: string;
   matriculationYear: string;
@@ -42,7 +28,7 @@ export interface AddRecruitFormValues {
   optInNote: string;
 }
 
-export const EMPTY_VALUES: AddRecruitFormValues = {
+const EMPTY_VALUES: AddRecruitFormValues = {
   givenName: "",
   familyName: "",
   mobile: "",
@@ -69,15 +55,8 @@ export interface AddRecruitCandidate extends PersonDuplicateCandidate {
   readonly identity: CandidateIdentity;
 }
 
-/**
- * V-3 / V-4, correction round 2 — "This is them" on a candidate who already
- * holds a membership this season used to fall into the ordinary `formError`
- * banner, stacked on top of the still-visible candidates panel and form:
- * Brian's own "flurry of information" and "that's not an error state."
- * Set only for that one outcome, and rendered as this record's own single
- * confirmation screen — everything else disappears while it is set.
- */
-export interface AddRecruitAlreadyMember {
+/** V-3/V-4, correction round 2: an existing-member match gets its own confirmation screen, not the formError banner. */
+interface AddRecruitAlreadyMember {
   readonly displayName: string;
   readonly membershipStatus: string;
   readonly seasonLabel: string;

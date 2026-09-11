@@ -4,18 +4,8 @@ import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
 import RecruitmentBoardView from "./recruitment-board-view";
 
-/**
- * `/operate/recruitment` — `W1`, LAN-204. The recruitment mission's spine:
- * one board carrying every recruit in the open season, modelled on
- * `../roster/page.tsx` (LAN-186).
- *
- * ## `REQ-authority`
- *
- * Gated on `person_record_authority` — the same four-office capability the
- * roster board reads. A coach, or any operator outside those four offices
- * plus the administrative seat, is refused here, before
- * `listRecruitmentBoard()` is ever called.
- */
+// `/operate/recruitment` — `W1`, LAN-204, modelled on ../roster/page.tsx
+// (LAN-186). Gated on `person_record_authority` (`REQ-authority`).
 export default async function RecruitmentBoardPage({
   searchParams,
 }: PageProps<"/operate/recruitment">) {

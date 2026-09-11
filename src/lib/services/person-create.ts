@@ -13,14 +13,9 @@ import {
 
 /**
  * W3 — add or link a person who holds no membership. LAN-185,
- * `REQ-duplicate-check` and `REQ-create-without-roles`.
- *
- * `person-duplicate.ts` (LAN-183) answers "who might this already be" and
- * stops there, by design — the write that follows is where a reason and an
- * audit row belong, and this module is that write. It never assigns a role,
- * never opens a login, and never creates a membership: "this is where people
- * get created… roles get assigned where roles get assigned" (Brian,
- * 2026-08-27).
+ * `REQ-duplicate-check`, `REQ-create-without-roles`. `person-duplicate.ts`
+ * answers "who might this already be"; this module is the write that
+ * follows. Never assigns a role, opens a login, or creates a membership.
  */
 
 export interface CreatePersonInput {
@@ -29,16 +24,7 @@ export interface CreatePersonInput {
   /** Raw, as typed. Validated here, and again — the same posture `person-write.ts` states. */
   mobile?: string | null;
   personalEmail?: string | null;
-  /**
-   * LAN-268. **Optional here, deliberately.** This function creates people for
-   * two different doors: `/operate/recruitment/new`, where the college email
-   * is required (a recruit is a student, and the address is the proof), and
-   * `/operate/people/new`, where it is not (that door mints coaches and
-   * committee members, whom `person-required.ts`'s everyone-else tier never
-   * asks for one). Required-ness is therefore each door's own check, exactly
-   * as it already is for the mobile; what this module owns is that a value
-   * which *is* supplied has to be a real Oxford address, whoever supplied it.
-   */
+  /** LAN-268: optional here — required-ness is each door's own check. This module only owns that a supplied value is real. */
   collegeEmail?: string | null;
 }
 
@@ -62,12 +48,7 @@ function trimmedOrNull(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-/**
- * The minimum to mint, checked here rather than trusted from the client — a
- * script or a retried request gets the club's own sentence, not an
- * integrity error. Task 08 §4, amended 2026-08-26: last name is required at
- * every rung, this one included.
- */
+/** The minimum to mint, checked here rather than trusted from the client. Task 08 §4: last name required at every rung. */
 function validateMinimum(input: CreatePersonInput): {
   givenName: string;
   familyName: string;
@@ -105,9 +86,7 @@ function validateMinimum(input: CreatePersonInput): {
     if (!validation.valid)
       throw new ConstraintViolated(validation.message, { rule: validation.rule });
   }
-  // LAN-268. Asked of the one validator, which checks shape first and only
-  // then the domain, so "that is not an address" and "that is not an Oxford
-  // address" stay two different sentences.
+  // LAN-268: one validator, shape then domain, so the two refusal sentences stay distinct.
   const collegeEmail = trimmedOrNull(input.collegeEmail);
   if (collegeEmail) {
     const validation = validateCollegeEmail(collegeEmail);
@@ -166,13 +145,7 @@ async function insertContactIn(
   );
 }
 
-/**
- * The full W3 flow: validate the minimum, then act on the operator's answer
- * to the duplicate check. `link_existing` and `create_new` both re-run the
- * duplicate check inside the transaction — never trusting a candidate list
- * the client sent back, which could be stale, tampered with, or simply from
- * before a concurrent merge.
- */
+/** The full W3 flow. Both decisions re-run the duplicate check inside the transaction — never trusting a candidate list the client sent back. */
 export async function createPerson(params: {
   actorPersonId: string;
   input: CreatePersonInput;

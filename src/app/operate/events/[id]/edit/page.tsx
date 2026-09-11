@@ -18,18 +18,9 @@ import { gateShellPage } from "../../../gate";
 import EventForm from "../../event-form";
 
 /**
- * UX-31 in edit mode — LAN-76's "edit view".
- *
- * `slice-ux.md` § 4 registers `/operate/events/[id]` and not this sub-route,
- * but the live issue requires an edit view and UX-32 carries an "Edit draft"
- * action that has to lead somewhere. The editor screen it leads to is UX-31,
- * so this route renders UX-31 against an existing draft. It is not a new
- * navigation destination — the shell still exposes Roster, Events and Report
- * and nothing else.
- *
- * Only a draft is editable. The refusal is rendered here as well as thrown by
- * the service, because arriving at this URL for a submitted event should
- * explain itself rather than present a form whose save will be refused.
+ * UX-31 in edit mode — LAN-76's "edit view", against `/operate/events/[id]`'s
+ * "Edit draft" action. Not a new nav destination. Only a draft is editable;
+ * the refusal renders here too, not just thrown by the service.
  */
 export default async function EditEventPage({ params }: PageProps<"/operate/events/[id]/edit">) {
   const gate = await gateShellPage("/operate/events", "event_calendar_management");
@@ -74,9 +65,7 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
     attendance: event.isMandatory ? "mandatory" : "optional",
   };
 
-  // The questions as stored, not the template's: this event's questions are its
-  // own from the moment it was created, and an operator who removed one (D42)
-  // must not find it back on the form.
+  // Questions as stored, not the template's — an operator who removed one (D42) must not find it back.
   const initialQuestions: RawEventQuestion[] = (await readEventQuestions(event.id)).map(
     (question) => ({
       prompt: question.prompt,

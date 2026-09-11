@@ -1,9 +1,4 @@
-/**
- * The state `/operate/people/[personId]/edit`'s form is driven by — W2,
- * LAN-185. Plain data and pure helpers only, for the same reason
- * `roster/new/intake-state.ts` states: a `"use server"` file may export only
- * async functions.
- */
+/** The state `/operate/people/[personId]/edit`'s form is driven by — W2, LAN-185. Plain data and pure helpers only (a "use server" file may export only async functions). */
 
 export interface EditFieldErrors {
   givenName?: string;
@@ -29,22 +24,10 @@ export interface EditFieldErrors {
 }
 
 /**
- * F1, LAN-185 correction (`inv-ae866233-f12`): every field
- * `person-write.ts`'s `requireReasonForChange` covers needs a reachable
- * *Reason for the change* input, the same way `mobileReason` /
- * `personalEmailReason` / `collegeEmailReason` already work — required only
- * to change a value that is already on record, never to fill an empty one.
- * These twelve cover the remaining fields the rule applies to: the seven
- * `PersonFieldUpdate` fields (`given_name` through `date_of_birth`) and all
- * five `EmergencyContactFieldUpdate` fields.
- *
- * B1, LAN-185 correction round 2 (Brian's walk): `edit-person-form.tsx`
- * renders each `*Reason` input only once the field's live value actually
- * differs from what is stored — never up front just because the field is
- * populated. That is client behaviour (`edit-person-form.tsx`'s own state),
- * not a shape change here.
+ * F1, LAN-185 correction: every field `requireReasonForChange` covers needs
+ * a reachable *Reason for the change* input (twelve fields).
  */
-export interface CorrectionReasonFormValues {
+interface CorrectionReasonFormValues {
   givenNameReason: string;
   familyNameReason: string;
   collegeReason: string;

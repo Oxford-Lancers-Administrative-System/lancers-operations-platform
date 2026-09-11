@@ -12,21 +12,11 @@ import { useFilterSearch } from "../../../filter-search";
 import { NOT_MARKED, PRESENCE_LABELS } from "./presentation";
 
 /**
- * UX-72's **Search player**, **RSVP** and **Attendance** filters.
- *
- * Everything is in the query string, for the same reason it is on the roster
- * and the events list: a filtered board is a link, and the back button behaves.
- * The search box reuses `../../../filter-search`, which carries the two
- * corrections Brian paid for twice on the other two screens — filter-as-you-type
- * rather than a hidden Enter, and no dropped keystrokes when a navigation lands
- * mid-typing.
- *
- * The Attendance filter's default in the wireframe is **Not marked**, which is
- * the state a recorder is actually working through — but it is a *choice* here
- * rather than the default, because a board that silently hides everybody
- * already recorded would show an empty screen at the end of the evening and
- * look broken. `slice-ux.md` § 9 requires filter-empty and system-empty to be
- * distinguishable, and the surest way is not to filter by default at all.
+ * UX-72's Search/RSVP/Attendance filters — all in the query string (filtered
+ * board is a shareable link). Search reuses `../../../filter-search`
+ * (filter-as-you-type, no dropped keystrokes). Attendance defaults to
+ * unfiltered, not "Not marked" — filtering it by default would make an
+ * end-of-evening board look broken instead of finished (`slice-ux.md` §9).
  */
 export function AttendanceFilters({
   basePath,

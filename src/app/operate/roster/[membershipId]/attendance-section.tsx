@@ -20,65 +20,33 @@ import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 
 import { isShowedPresence } from "@/lib/services/attendance-vocabulary";
 import type { AttendanceEvent } from "@/lib/services/player-record";
 import { formatDay } from "../presentation";
+import {
+  ATTENDANCE_LABEL,
+  COLUMNS,
+  comparable,
+  countUnrecordedOccurredMandatory,
+  DEFAULT_FILTERS,
+  EVENT_STATUS_LABEL,
+  FILTER_LABEL,
+  FILTER_OPTIONS,
+  FILTERABLE,
+  filterLabel,
+  type FilterKey,
+  RSVP_LABEL,
+  type SortKey,
+} from "./attendance-filters";
+import { FilterButton, ValueOrNotRecorded } from "./attendance-table-bits";
 
 /**
  * `WP-player-record`'s Attendance band — `Q15-attendance`, corrected at W1/W2
- * (Brian's walkthrough, `Q-19`). Brian ruled the prose stands over the
- * approved photographs' silence: this season's RSVP and attendance history
- * renders here, read-only, from Mission 2's own tables. The design is a
- * running mockup Brian saw and approved (`chore/roster-fidelity-attendance`'s
- * `attendance-section.tsx`), not a description — this component follows its
- * behaviour, restyled for the real violet band rather than copied wholesale.
- *
- * ## Rows
- *
- * Every event this membership had an invitation **sent** for, this season —
- * `readAttendanceHistoryIn()` already filtered out `pending`, so every row
- * here really was asked. That includes events that have not happened yet;
- * the **Event status** column and its filter (W1) are what let an operator
- * tell those apart from what already occurred, on a table defaulted to
- * showing only the latter.
- *
- * ## What counts toward the score
- *
- * `present` and `late` both count as attended (`isShowedPresence`, unmodified
- * from `attendance.ts`'s own board); `absent` and `excused` do not. The
- * denominator is **mandatory events that carry an attendance record** — not
- * every mandatory invitation. An upcoming event and a cancelled invitation
- * both hold no record yet and are excluded from the score the same way, for
- * different reasons: one rule, reading attendance rather than the calendar or
- * the invitation status, covers both without a special case for "upcoming".
- *
- * A third figure (W2) counts **occurred mandatory events with no attendance
- * record** — the ones Brian's walkthrough found sitting in the table, unequal
- * to the score above it, that neither attended nor missed anything. It reads
- * "N attendants not recorded" and is absent, not zero, when there are none.
- *
- * ## The score follows the filter
- *
- * Mandatory, RSVP, Attendance and Event status each filter the section — the
- * board's own funnel-in-a-bordered-button interaction, restyled here rather
- * than imported, because `roster-board.tsx` is LAN-186's and this package
- * does not edit it. The score always reads the same set the table or the
- * cards are currently showing, with a `Filtered` chip and a "Filtered by …
- * Clear all" row saying which set that is, in labels and values — Event
- * status defaults to `Occurred` (W1) and shows in that row exactly like any
- * other active filter, so the default is visible and reversible rather than
- * hidden.
- *
- * ## Two shapes, one dataset
- *
- * A table with sortable, filterable header cells at and above the board's own
- * breakpoint; a stack of labelled blocks below it, each event its own card,
- * with the same four filters as compact selects and a sort field-plus-
- * direction control, because a six-column row and a header funnel both have
- * nowhere to go at 375px.
+ * (Brian's walkthrough, `Q-19`): this season's RSVP and attendance history,
+ * read-only, with a mandatory-attendance score that follows the same four
+ * filters (Mandatory, RSVP, Attendance, Event status) the table applies.
  */
 export default function AttendanceSection({ events }: { events: readonly AttendanceEvent[] }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
@@ -464,195 +432,5 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
           : null}
       </Menu>
     </Box>
-  );
-}
-
-type SortKey = "eventName" | "date" | "isMandatory" | "rsvp" | "attendance" | "eventStatus";
-type FilterKey = "isMandatory" | "rsvp" | "attendance" | "eventStatus";
-
-const COLUMNS: readonly { key: SortKey; label: string; filterKey?: FilterKey }[] = Object.freeze([
-  { key: "eventName", label: "Event" },
-  { key: "date", label: "Date" },
-  { key: "isMandatory", label: "Mandatory", filterKey: "isMandatory" },
-  { key: "rsvp", label: "RSVP", filterKey: "rsvp" },
-  { key: "attendance", label: "Attendance", filterKey: "attendance" },
-  // Appended rather than inserted earlier (W1) — the five existing columns
-  // keep their own order and behaviour exactly; this is the one new column.
-  { key: "eventStatus", label: "Event status", filterKey: "eventStatus" },
-]);
-
-/**
- * Defaults the table to `Occurred` (W1, Q-19) — Brian's walkthrough found
- * every invited event on screen, including ones that had not happened yet,
- * above a score that only ever counted occurred ones. `clearAll()` below
- * drops this back to "everything", same as any other filter.
- */
-const DEFAULT_FILTERS: Readonly<Record<FilterKey, string>> = Object.freeze({
-  isMandatory: "",
-  rsvp: "",
-  attendance: "",
-  eventStatus: "Occurred",
-});
-
-const FILTER_LABEL: Readonly<Record<FilterKey, string>> = Object.freeze({
-  isMandatory: "Mandatory",
-  rsvp: "RSVP",
-  attendance: "Attendance",
-  eventStatus: "Event status",
-});
-
-const FILTER_OPTIONS: Readonly<Record<FilterKey, readonly string[]>> = Object.freeze({
-  isMandatory: ["Mandatory", "Not mandatory"],
-  rsvp: ["Yes", "No", "Not recorded"],
-  attendance: ["Present", "Late", "Absent", "Excused", "Not recorded"],
-  eventStatus: ["Occurred", "Upcoming", "Cancelled"],
-});
-
-const FILTERABLE: readonly { key: FilterKey; label: string; options: readonly string[] }[] =
-  Object.freeze([
-    { key: "isMandatory", label: FILTER_LABEL.isMandatory, options: FILTER_OPTIONS.isMandatory },
-    { key: "rsvp", label: FILTER_LABEL.rsvp, options: FILTER_OPTIONS.rsvp },
-    { key: "attendance", label: FILTER_LABEL.attendance, options: FILTER_OPTIONS.attendance },
-    { key: "eventStatus", label: FILTER_LABEL.eventStatus, options: FILTER_OPTIONS.eventStatus },
-  ]);
-
-const RSVP_LABEL: Readonly<Record<"yes" | "no", string>> = Object.freeze({ yes: "Yes", no: "No" });
-
-const ATTENDANCE_LABEL: Readonly<Record<"present" | "late" | "excused" | "absent", string>> =
-  Object.freeze({
-    present: "Present",
-    late: "Late",
-    excused: "Excused",
-    absent: "Absent",
-  });
-
-/**
- * `derivedEventState()`'s three words, in the club's language — the same
- * wording `/operate/events`'s own Status column and filter already use
- * (`DERIVED_STATE_LABELS`, `event-vocabulary.ts`), restyled as a local
- * constant here for the reason this file's own `FilterButton` gives: this
- * package does not import from `roster-board.tsx` or the events surface.
- */
-const EVENT_STATUS_LABEL: Readonly<Record<AttendanceEvent["eventStatus"], string>> = Object.freeze({
-  upcoming: "Upcoming",
-  occurred: "Occurred",
-  cancelled: "Cancelled",
-});
-
-/**
- * The third score figure (W2, Q-19) — occurred mandatory events with no
- * attendance record, out of exactly the rows given. A separate, named
- * function rather than inlined so a later reversal to a miss-counting
- * denominator is a one-line change here, not a search through the render.
- */
-function countUnrecordedOccurredMandatory(rows: readonly AttendanceEvent[]): number {
-  return rows.filter(
-    (event) => event.isMandatory && event.eventStatus === "occurred" && event.attendance === null,
-  ).length;
-}
-
-/** One event's display value for a given filterable field — what a filter compares against. */
-function filterLabel(event: AttendanceEvent, key: FilterKey): string {
-  switch (key) {
-    case "isMandatory":
-      return event.isMandatory ? "Mandatory" : "Not mandatory";
-    case "rsvp":
-      return event.rsvp === null ? "Not recorded" : RSVP_LABEL[event.rsvp];
-    case "attendance":
-      return event.attendance === null ? "Not recorded" : ATTENDANCE_LABEL[event.attendance];
-    case "eventStatus":
-      return EVENT_STATUS_LABEL[event.eventStatus];
-    default:
-      return "";
-  }
-}
-
-/** `not recorded` sorts last in either direction, matching the board's own `comparable()`. */
-function comparable(event: AttendanceEvent, key: SortKey): string {
-  switch (key) {
-    case "eventName":
-      return event.eventName;
-    case "date":
-      return event.date ?? "￿";
-    case "isMandatory":
-      return event.isMandatory ? "0" : "1";
-    case "rsvp":
-      return event.rsvp ?? "￿";
-    case "attendance":
-      return event.attendance ?? "￿";
-    case "eventStatus":
-      return event.eventStatus;
-    default:
-      return "";
-  }
-}
-
-/** A value, or the kit's explicit missing value. */
-function ValueOrNotRecorded({ value }: { value: string | null }) {
-  return value === null ? (
-    <NotRecorded />
-  ) : (
-    <Typography component="span" variant="body2">
-      {value}
-    </Typography>
-  );
-}
-
-/**
- * The board's own funnel-in-a-bordered-button — restyled here rather than
- * imported from `roster-board.tsx`, which this package does not edit. Same
- * inline SVG for the same reason the board's own comment gives: no icon
- * package in this dependency tree.
- */
-function FilterButton({
-  label,
-  active,
-  onOpen,
-}: {
-  label: string;
-  active: boolean;
-  onOpen: (anchor: HTMLElement) => void;
-}) {
-  return (
-    <Tooltip title={active ? `Filtering ${label}` : `Filter ${label}`} placement="top">
-      <Box
-        component="button"
-        type="button"
-        aria-label={active ? `Filtering ${label}` : `Filter ${label}`}
-        aria-pressed={active}
-        onClick={(event) => onOpen(event.currentTarget as HTMLElement)}
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          width: 44,
-          height: 44,
-          p: 0,
-          cursor: "pointer",
-          borderRadius: 1,
-          border: 1,
-          borderColor: active ? "primary.main" : "divider",
-          bgcolor: active ? "primary.main" : "transparent",
-          color: active ? "common.white" : "text.secondary",
-          "&:hover": {
-            borderColor: "primary.main",
-            bgcolor: active ? "primary.dark" : "action.hover",
-            color: active ? "common.white" : "primary.main",
-          },
-          "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main" },
-        }}
-      >
-        <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 14, height: 14 }}>
-          <path
-            d="M4 5.5h16l-6.2 7.2V19l-3.6 1.8v-8.1z"
-            fill={active ? "currentColor" : "none"}
-            stroke="currentColor"
-            strokeWidth={1.7}
-            strokeLinejoin="round"
-          />
-        </Box>
-      </Box>
-    </Tooltip>
   );
 }

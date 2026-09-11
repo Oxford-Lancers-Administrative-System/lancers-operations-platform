@@ -27,29 +27,10 @@ import {
 } from "./presentation";
 
 /**
- * W8-01 — the club's templates.
- *
- * The administration surface D40 asks for, behind the Events area. It was a
- * fixed list of exactly seven until LAN-265: "A template is anything the
- * operators want to create: 'Kicking Clinic', 'Full Pads Practice', 'Film
- * Review', whatever they name" (Brian, with Stu and Clint, 2026-09-09).
- *
- * ## Create and delete, and the sentence under the table
- *
- * **New template** is here because creating one is now an ordinary
- * administrative act rather than a migration. Deleting is not symmetrical with
- * it, and the sentence under the table is where that is said: a template an
- * event was created from cannot be deleted, because an event's every label is
- * read from its template and there is nothing for one to fall back to. The place
- * an operator looks for **Delete** and does not find it is the place to say why —
- * `docs/ux/standards.md` rule 4, the same reason this surface used to carry the
- * opposite sentence about **Add a type**.
- *
- * ## Two presentations of one list
- *
- * A table on a wide screen and cards at 375px, which is how every other list in
- * this application reflows. Nothing is dropped between them — the phone card
- * carries the same four facts, stacked.
+ * W8-01 — the club's templates. D40's administration surface, behind Events
+ * (LAN-265 opened it up from a fixed seven). Delete is not symmetrical with
+ * Create — the sentence under the table names why (`docs/ux/standards.md`
+ * rule 4). Table on wide screens, cards at 375px, same four facts.
  */
 export default async function EventTemplatesPage() {
   const gate = await gateShellPage(OPERATOR_EVENT_TEMPLATES_PATH, "event_calendar_management");
@@ -126,14 +107,7 @@ export default async function EventTemplatesPage() {
                   <TableCell>
                     <Button
                       href={`/operate/events/templates/${template.id}`}
-                      // `textTransform: none` because these are the club's own
-                      // words for its own kinds of event — "Strength and
-                      // conditioning", not "STRENGTH AND CONDITIONING" — and
-                      // MUI's button default would shout them at an operator
-                      // reading a table of sentence-case values. The width and
-                      // alignment overrides stop a short label like "Game"
-                      // being centred inside the button's minimum width while a
-                      // long one starts at the cell edge.
+                      // textTransform: none — the club's own event-kind words, not shouted; width/alignment stop short labels centring.
                       sx={{
                         p: 0,
                         minWidth: 0,

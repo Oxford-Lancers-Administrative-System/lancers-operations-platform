@@ -31,76 +31,21 @@ import {
   describeBuilderDefault,
 } from "../presentation";
 
-/**
- * UX-40 — choosing who an event is for.
- *
- * ## What this component owns, and what it deliberately does not
- *
- * It owns a tick list and nothing else. Pressing **Review** posts the selection
- * to `saveEventAudienceAction`, which stores it against the draft and redirects
- * to the confirmation. The confirmation and the empty-audience refusal are
- * server-rendered from the stored rows, not from state in here.
- *
- * That split is the fix for what Brian found: the first version kept the whole
- * audience in this component, so **Edit draft** and back threw it away. A
- * component that holds the only copy of something valuable will eventually lose
- * it. Now the database holds it and this screen is a way to change it.
- *
- * ## Selection starts from what is stored — which since D47 may be the template's
- *
- * `initialKeys` is the audience already stored on the draft. Two things put
- * people there: the operator's own saved work, and the type's template, which
- * supplies a default audience when the draft is created. Both are stored rows by
- * the time this screen opens, so this component does not know or care which.
- *
- * That is the reversal D47 makes to LAN-77, and it is narrower than it looks.
- * ADR 0012's rule is that the *system* never implies an audience, and nothing
- * below implies one: there is still no default group, no whole-roster fallback,
- * and no "if none selected then everyone". A template's default audience is a
- * choice the club made once, on purpose, and the sentence under the heading says
- * which template made it so the approver knows what they are checking.
- *
- * ## Group buttons are toggles, and say what they will do
- *
- * A lit button means every one of that group's people is currently ticked;
- * pressing it again clears them. The lit state is computed from the selection
- * rather than remembered as "which buttons were pressed", because the two
- * disagree the moment somebody unticks one person out of a group — and the
- * button then has to stop claiming the whole group is in.
- *
- * The count on each button is **people**, not rows. Brian's instruction: the
- * club knows what "everyone active" means, and the screen should not explain its
- * own arithmetic. See `groupSize`.
- *
- * ## One row per person — LAN-294
- *
- * The catalogue is one row per *capacity*, and this screen used to render it
- * one-to-one, so Bertram (player, President) and Caspian (player, three
- * committee seats) each appeared twice. Brian, 2026-09-10, opening the picker on
- * a practice event: a person appears once, however many roles they hold.
- *
- * So the list is `audiencePeople(candidates)` — the same collapse
- * `resolveSelection` applies to the write, computed by the same rule, so the
- * screen cannot come to a different answer than the transaction. A tick carries
- * **all** of that human's keys in and out together, which is what leaves the
- * group buttons behaving exactly as they did when there were two rows: press
- * *All active committee* and Bertram's committee key goes in; press it again and
- * that key alone comes back out, and he stays in as a player.
- *
- * The count under the list was already people rather than rows, and still is.
- */
+// UX-40 — choosing who an event is for. Owns a tick list only; the
+// confirmation and empty-audience refusal are server-rendered from stored
+// rows, not state here (fixes a lost-audience defect Brian found). Since
+// D47 the initial selection may be the template's default (ADR 0012: the
+// system never implies one). One row per person, not per capacity — LAN-294,
+// Brian 2026-09-10; a tick carries all of a person's keys together, the
+// same collapse resolveSelection applies to the write.
 
 export interface AudienceBuilderProps {
   eventId: string;
-  /** Decides which groups are offered: recruits appear on Recruitment (D46). */
   eventType: string;
-  /** LAN-265. What the club calls this kind of event — the word the note uses. */
   templateName: string;
   candidates: AudienceCandidate[];
   counts: Record<AudienceCapacity, number>;
-  /** The audience already saved against this draft. Empty when there is none. */
   initialKeys: string[];
-  /** The groups this type's template supplies, for the sentence above (D47). */
   templateGroups: AudienceGroupKey[];
 }
 
@@ -131,42 +76,23 @@ export function AudienceBuilder({
 
   const keys = useMemo(() => [...selected], [selected]);
 
-  /** Exactly what saving will store, by the same rules the service applies. */
   const resolution = useMemo(() => resolveSelection(candidates, keys), [candidates, keys]);
   const people = resolution.ok ? resolution.members.length : 0;
 
-  /** The catalogue as humans — one row each, however many capacities they hold. */
   const roster = useMemo(() => audiencePeople(candidates), [candidates]);
 
-  /**
-   * Ticked when any of a person's keys is in the selection.
-   *
-   * One definition, used by the checkbox and by the chosen-first sort: a
-   * reloaded draft holds one key per person rather than one per capacity, so
-   * "are they in" has to be asked of the whole set and the two must not be able
-   * to answer differently.
-   */
   const isChosen = useCallback(
     (person: AudiencePerson) => person.keys.some((key) => selected.has(key)),
     [selected],
   );
 
-  /**
-   * Chosen people first, then everybody else, each alphabetically.
-   *
-   * Brian asked for it and the reason holds up: an audience of forty built out
-   * of a roster of forty-five is unreviewable if the ticked names are scattered
-   * through the list. Sorting is stable across a toggle because it is derived
-   * from the selection, so a name jumps to the top when ticked and back when
-   * unticked — which is also the feedback that the tick registered.
-   */
+  // Chosen people first, then everybody else, each alphabetically — Brian
+  // asked for it (unreviewable otherwise). Sorted from the selection, so
+  // ticking moves a name to the top.
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return roster
       .filter((person) => {
-        // A capacity filter asks "is this person a coach", not "is this row a
-        // coaching row" — the row is the human now, and hiding a coach who also
-        // plays would be a stranger answer than the duplicate rows it replaced.
         if (capacity !== "all" && !person.capacities.includes(capacity)) return false;
         if (unit !== "all" && person.unit !== unit) return false;
         if (needle === "") return true;
@@ -182,14 +108,8 @@ export function AudienceBuilder({
       });
   }, [roster, search, capacity, unit, isChosen]);
 
-  /**
-   * In or out as a whole person.
-   *
-   * Every key the human holds moves together, so a hand-ticked player who also
-   * coaches is in the coaching group's lit state as well — and unticking them
-   * takes them out of both, rather than leaving a capacity behind that nothing
-   * on screen would then account for.
-   */
+  // Every key the human holds moves together, so a coaching lit state stays
+  // consistent with a hand-ticked player who also coaches.
   function toggle(person: AudiencePerson) {
     setSelected((current) => {
       const next = new Set(current);

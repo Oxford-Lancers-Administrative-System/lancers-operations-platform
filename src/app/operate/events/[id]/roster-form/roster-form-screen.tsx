@@ -64,34 +64,14 @@ import {
 /**
  * The pick-and-tick screen, and the printed form — LAN-267.
  *
- * ## One page, two states
+ * One page, two states: filter/tick, then the same page becomes the printed
+ * form, derived entirely from what was already loaded (nothing re-fetched).
  *
- * The operator filters, ticks and generates; then the same page becomes the
- * form. Both states are here because the second is derived entirely from the
- * first — everything the printed page shows was already loaded for the picking
- * screen, so generating fetches nothing and can never disagree with what the
- * operator just ticked.
+ * The print stylesheet is scoped to this page via MUI's `GlobalStyles`
+ * (unmounts with the component) using a `visibility` idiom — `display: none`
+ * on the shell would need cooperation this page's parent shell can't give.
  *
- * ## The print stylesheet
- *
- * This is the first surface in the application that is meant to come out of a
- * printer, so there is no house pattern to follow and this one owns its own
- * rules. They are scoped to this page through MUI's `GlobalStyles` rather than
- * added to `globals.css`: a print sheet for one form has no business applying
- * to every other screen, and `GlobalStyles` unmounts with the component.
- *
- * The `visibility` idiom — hide everything, then show the sheet and its
- * descendants — is deliberate over `display: none` on the shell. This page
- * renders inside the operator shell's own layout, which it neither owns nor
- * can reach; hiding by visibility needs no cooperation from an ancestor it
- * cannot see, and `position: absolute` on the sheet then reclaims the page
- * from the shell's own margins.
- *
- * ## 375
- *
- * The printed page is not a 375 target — LAN-267 says so. The picking screen
- * is, and it is a stack of rows with one tick box each, which is why the
- * player list is not a `<table>` until it is being printed.
+ * LAN-267: the printed page is not a 375 target; the picking screen is.
  */
 
 type RsvpFilter = "all" | "yes" | "no" | "unanswered";
@@ -144,11 +124,8 @@ export function RosterFormScreen({
   coaches,
   kit,
 }: RosterFormScreenProps) {
-  // The kit lives in the URL rather than in state, because changing it changes
-  // which jersey number each player carries and that answer comes from the
-  // database, not from this component. Re-reading also, deliberately, resets
-  // the ticks: a selection made against the blue numbers says nothing about
-  // who is dressing in white.
+  // Kit lives in the URL, not state — it decides jersey numbers (a DB fact),
+  // and re-reading resets ticks (blue numbers say nothing about white).
   const router = useRouter();
   const pathname = usePathname();
   const [rsvpFilter, setRsvpFilter] = useState<RsvpFilter>("all");
@@ -344,10 +321,8 @@ const CELL = {
 const HEAD_CELL = { ...CELL, fontWeight: 700 } as const;
 
 /**
- * LAN-267's "not in scope": "reproducing the Word template's exact typography…
- * The officials need the same three tables with the same columns, not the same
- * file." So this is the app's own plain, black-on-white table — legible on a
- * printer, and nothing copied from the template.
+ * LAN-267's own plain black-on-white table — nothing copied from the Word
+ * template.
  */
 function PrintedForm({
   opponent,
@@ -383,9 +358,7 @@ function PrintedForm({
         </Typography>
       </Stack>
 
-      {/* Above the form, and printed with it: the operator can fill a blank in
-          by hand at the ground, and cannot do that if the page never told them
-          which blanks there are. */}
+      {/* Printed with the form — an operator can fill a blank by hand at the ground once it's flagged here. */}
       {hasWarning ? (
         <Box sx={{ border: "1px solid #000", p: 1, mb: 1.5 }}>
           {warning.notDressable.length > 0 ? (
@@ -473,9 +446,7 @@ function PrintedForm({
               </Box>
             </Box>
           ))}
-          {/* The form is a fixed shape whoever is on it: blank rows for the
-              trainer and other sideline personnel the role catalogue has no
-              seat for, and spares for anyone added by hand at the ground. */}
+          {/* Fixed shape regardless of roster size — blanks for uncatalogued sideline roles and spares for on-the-day additions. */}
           {Array.from({ length: Math.max(0, 12 - coaches.length) }).map((_, index) => (
             <Box component="tr" key={`blank-${index}`}>
               <Box component="td" sx={CELL} />

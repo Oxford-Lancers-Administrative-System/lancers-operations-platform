@@ -38,25 +38,12 @@ import YearColumn from "../year-column";
 import { readEventYear } from "../year";
 
 /**
- * The public calendar's two calendar arrangements. LAN-153.
- *
- * ## The same query, rearranged
- *
- * This page and `/calendar` call `listPublicSeasonEvents` with the same tier and
- * the same season, so `REQ-three-arrangements` — "the list, Calendar View and
- * Oxford View … cannot disagree about which events exist or when they are" —
- * holds because there is one read, not because three reads happen to agree.
- * Every tile links to `/calendar/<id>`, the same page the list rows open.
- *
- * ## Calendar View is unchanged
- *
- * Brian, 20 August 2026: "The Gregorian calendar is fine as it is." The month
- * grid is LAN-114's, moved rather than rewritten.
- *
- * ## Oxford View is the new one
- *
- * One continuous academic year with a jump control and no season selector —
- * `REQ-oxford-continuous`. `@/lib/services/oxford-year` builds it.
+ * The public calendar's two arrangements. LAN-153. This page and `/calendar`
+ * call `listPublicSeasonEvents` with the same tier/season, so
+ * `REQ-three-arrangements` holds because there is one read, not three that
+ * happen to agree. Calendar View is unchanged (Brian, 20 August 2026: "fine
+ * as it is"). Oxford View is one continuous academic year, no season
+ * selector (`REQ-oxford-continuous`).
  */
 
 type CalendarMode = "gregorian" | "oxford";
@@ -69,10 +56,7 @@ function gregorianHref(month: string): string {
   return `${PUBLIC_CALENDAR_VIEW_PATH}?mode=gregorian&month=${month}`;
 }
 
-/**
- * The same noticeboard, arranged as a month — LAN-269 item 4. One calendar, two
- * arrangements, so one card: a link to either should read the same in a chat.
- */
+/** The same noticeboard, arranged as a month (LAN-269 item 4) — one card for both arrangements. */
 export const metadata: Metadata = publicPageMetadata("Club calendar", CALENDAR_DESCRIPTION);
 
 export default async function PublicCalendarViewPage({
@@ -98,11 +82,7 @@ export default async function PublicCalendarViewPage({
 
   const events = list.events;
 
-  // Awaited here rather than inside the arrangement below: an async component
-  // element returned from another async component is resolved by the framework
-  // but not by a direct `render(await Page())`, which is the level these screens
-  // are tested at. Only the Oxford arrangement needs it, and building it for the
-  // Gregorian one costs a term read the page has to do anyway on half its loads.
+  // Awaited here, not inside the arrangement: `render(await Page())` (test level) doesn't resolve a nested async component element.
   const year =
     mode === "oxford"
       ? await readEventYear(list.events, {
@@ -111,8 +91,7 @@ export default async function PublicCalendarViewPage({
           seasonEndsOn: list.season.endsOn,
         })
       : null;
-  // One tier decision, applied to every tile on the page: the public event page,
-  // and a word only where the event is off.
+  // One tier decision, applied to every tile: the public event page, a word only where the event is off.
   const tile = (eventId: string) => {
     const event = events.find((candidate) => candidate.id === eventId);
     return {
@@ -188,9 +167,7 @@ function GregorianArrangement({
   today: string;
   tile: Tile;
 }) {
-  // An unreadable `month` falls back rather than failing: the parameter arrives
-  // from a URL anybody can edit, and a calendar that throws on `?month=banana`
-  // is a worse answer than one that opens where it would have opened anyway.
+  // An unreadable `month` falls back rather than throwing on a hand-edited URL like `?month=banana`.
   const month = parseMonth(first(params.month)) ?? defaultMonth(events, today);
   const grid = buildMonthGrid(month, events, today);
   const todayMonth = monthOf(today) ?? month;
@@ -247,13 +224,7 @@ function OxfordArrangement({
   );
 }
 
-/**
- * The events no cell can hold.
- *
- * `W1`'s exception table: an event with no date "cannot be placed on a calendar;
- * listed separately rather than dropped". Understated, and on a normal season it
- * renders nothing at all.
- */
+/** The events no cell can hold — `W1`'s exception table: an undated event is listed separately, not dropped. */
 function Undated({ events, tile }: { events: readonly CalendarEvent[]; tile: Tile }) {
   if (events.length === 0) return null;
 

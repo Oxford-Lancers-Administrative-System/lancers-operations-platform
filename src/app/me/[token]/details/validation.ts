@@ -1,40 +1,10 @@
 /**
  * Shape and required-ness checks for the player details form — LAN-216,
- * correction round 2, B-009.
- *
- * ## Why this exists
- *
- * The form used to rely on the DOM `required` attribute to keep a player from
- * submitting a blank required field. That meant Chrome, not this app, decided
- * what "this field needs something" looked like — its own bubble, its own
- * wording, pointed at whichever field the browser's own tab order reached
- * first, which was not even always the first blank field on screen. The
- * server-side shape checks in `saveDetailsStep`
- * (`src/lib/services/player-questionnaire.ts`) were never reached, because the
- * browser refused to submit at all.
- *
- * The form now carries `noValidate`, so every submission reaches the server
- * action regardless of what was typed. This module supplies the half of
- * validation the service does not: required-ness. `saveDetailsStep` checks
- * shape (`looksLikePhone`/`looksLikeEmail`, the same predicates
- * `src/app/operate/roster/new/validation.ts` exports) for whatever was typed,
- * but a blank value is never a shape failure there — "required" is
- * deliberately a separate concern, so it is deliberately a separate check
- * here, run before the service is ever called.
- *
- * ## Which fields
- *
- * Every field this route's form marks with an asterisk: the nine player-tier
- * facts a text field can hold (`REQ-required-set`'s `PLAYER_TIER` in
- * `person-required.ts` names ten — the tenth, `emergency_contact`, is a single
- * aggregate fact that this form collects as the four fields below), plus the
- * emergency contact's given name, family name, phone and email. The
- * relationship field is deliberately not required and carries no shape check —
- * the form has never asked that of it, and this correction does not add one.
- *
- * `DETAILS_FIELD_ORDER` is the screen's own top-to-bottom order, so
- * `firstInvalidDetailsField` sends focus to the same field a sighted player
- * would reach first, matching `src/app/operate/roster/new/validation.ts`'s own
+ * correction round 2, B-009. The form carries `noValidate`, so this module
+ * supplies the required-ness half of validation the service does not:
+ * `saveDetailsStep` checks shape for whatever was typed, but a blank value is
+ * never a shape failure there. `DETAILS_FIELD_ORDER` is the screen's own
+ * top-to-bottom order, matching `roster/new/validation.ts`'s
  * `firstInvalidField` contract.
  */
 
@@ -106,20 +76,14 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
   ec_email: "",
 };
 
-/**
- * Every field this form requires. `ec_relationship` has never been required
- * and still is not; `student_number` and `bafa_registration_number` join it
- * as the two LAN-267 added that a player may genuinely not have yet — the
- * roster form prints a blank row and warns about them rather than this form
- * refusing to move on.
- */
-export type ValidatedDetailsField = Exclude<
+/** Every field this form requires. `ec_relationship` was never required; `student_number`/`bafa_registration_number` (LAN-267) a player may genuinely not have yet. */
+type ValidatedDetailsField = Exclude<
   keyof DetailsFormValues,
   "ec_relationship" | "student_number" | "bafa_registration_number"
 >;
 
 /** The screen's own top-to-bottom order. */
-export const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
+const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
   "given_name",
   "family_name",
   "mobile",
@@ -181,13 +145,7 @@ export function readDetailsValues(form: FormData): DetailsFormValues {
   };
 }
 
-/**
- * Every required field left blank, in screen order. Pure — no database, no
- * knowledge of what tier this particular player is on: this form's own
- * asterisks say all thirteen are required of whoever is filling it in, and
- * that is unchanged by this correction (`REQ-required-set`: "required still
- * blocks the form and never the player").
- */
+/** Every required field left blank, in screen order. Pure — no database, no player-tier knowledge (`REQ-required-set`). */
 export function validateRequiredDetails(values: DetailsFormValues): DetailsFieldErrors {
   const errors: DetailsFieldErrors = {};
   for (const field of DETAILS_FIELD_ORDER) {
@@ -198,14 +156,7 @@ export function validateRequiredDetails(values: DetailsFormValues): DetailsField
   return errors;
 }
 
-/**
- * `saveDetailsStep`'s own error keys, mapped onto this form's field names.
- * Every key it returns is already this form's field name except one:
- * `personalEmail`, which the service keys in camelCase while the form (and
- * every other field here) uses `personal_email`. Anything the service ever
- * adds under a name that already matches a form field passes through
- * unchanged, so this map only needs to name the one exception.
- */
+/** `saveDetailsStep`'s error keys, mapped onto this form's field names — only the camelCase exceptions need naming. */
 const SERVICE_ERROR_FIELD: Readonly<Record<string, keyof DetailsFormValues>> = Object.freeze({
   personalEmail: "personal_email",
   collegeEmail: "college_email",
@@ -220,11 +171,7 @@ export function mapServiceErrors(serviceErrors: Record<string, string>): Details
   return errors;
 }
 
-/**
- * The first invalid field in screen order, for "focus the first invalid
- * control" — the same contract `src/app/operate/roster/new/validation.ts`'s
- * own `firstInvalidField` keeps.
- */
+/** The first invalid field in screen order — same contract as `roster/new/validation.ts`'s `firstInvalidField`. */
 export function firstInvalidDetailsField(
   errors: DetailsFieldErrors,
 ): keyof DetailsFormValues | null {

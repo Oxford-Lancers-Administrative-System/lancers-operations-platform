@@ -12,19 +12,7 @@ import { Section } from "@/components/section";
 import { StepTrail, type TrailStep } from "@/components/step-trail";
 import { PRIVACY_NOTE, stepLabel } from "@/app/me/[token]/details/presentation";
 
-/**
- * The frame both questionnaire previews share — LAN-225's player-surfaces
- * addendum. `/me/[token]/details` draws this itself, five times, as a
- * `Paper` holding a five-column `<dl>` over a second `Paper` holding an
- * `h1` built from raw `fontSize`.
- *
- * Here it is the public masthead, one `StepTrail`, and one `PageHeader`. The
- * step words, the lead lines and the privacy note are the real page's own,
- * unchanged: `Step 2 of 5 · Read it, then agree` still says exactly that,
- * because the trail showing the same fact does not make the sentence wrong,
- * and cutting it would be a copy change (player-surfaces finding P6, left as
- * a finding).
- */
+/** The frame both questionnaire previews share — LAN-225's player-surfaces addendum. Words unchanged from the real page (player-surfaces finding P6). */
 function trailFor(view: QuestionnaireView): readonly TrailStep[] {
   return STEP_ORDER.map((step): TrailStep => {
     if (step === "details") {

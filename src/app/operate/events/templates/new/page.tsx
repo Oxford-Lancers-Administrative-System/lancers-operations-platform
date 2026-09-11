@@ -10,30 +10,9 @@ import { gateShellPage } from "../../../gate";
 import TemplateEditor from "../template-editor";
 import { NEW_TEMPLATE_HEADLINE } from "../presentation";
 
-/**
- * W8-01's **New template** — LAN-265.
- *
- * Brian, with Stu and Clint, 2026-09-09: "A template is anything the operators
- * want to create: 'Kicking Clinic', 'Full Pads Practice', 'Film Review',
- * whatever they name."
- *
- * ## Empty, deliberately
- *
- * Nothing is copied from another template. "Kicking Clinic" is not a variant of
- * Practice, and pre-filling it with Practice's venue, questions and audience
- * would put words in the operator's mouth on the one screen whose entire purpose
- * is that they get to choose. Every field is optional except the name, exactly
- * as it is on an existing template.
- *
- * ## No class control, and that is the decision
- *
- * A template's behavioural class — `public.event_type`, the thing D46's
- * recruits rule and the Monday report's buckets key off — is `practice` on
- * anything created here, and there is no control for it because LAN-265 says
- * there is not one: "new behavioural classes (new enum values) ... stays a
- * migration and a Brian decision." The audience groups offered are therefore
- * that class's, which is what `templateGroupsForEventType` is asked for here.
- */
+// W8-01's New template — LAN-265, Brian/Stu/Clint 2026-09-09. Empty,
+// deliberately (no copying from another template); no class control (`event_type`
+// stays `practice`, a migration+Brian decision).
 export default async function NewEventTemplatePage() {
   const gate = await gateShellPage("/operate/events/templates", "event_calendar_management");
   if ("screen" in gate) return gate.screen;

@@ -14,14 +14,8 @@ import {
 } from "@/lib/services/person-merge";
 import { GENERIC_FAILURE, INITIAL_MERGE_STATE, type MergeState } from "./merge-state";
 
-/**
- * `/operate/people/[personId]/merge`'s one server action — W4, LAN-185.
- * `requireCapability("person_record_authority")` first, itself.
- *
- * `survivorPersonId` and `loserPersonId` are hidden fields the comparison
- * screen sets from its own `?with=` query — "Make this the survivor" swaps
- * which id is which by navigating, not by anything this action decides.
- */
+// The merge page's one server action — W4, LAN-185. survivor/loserPersonId
+// swap by navigating (?with=), not by anything this action decides.
 export async function submitMerge(_previous: MergeState, formData: FormData): Promise<MergeState> {
   const operator = await requireCapability("person_record_authority");
 
@@ -47,9 +41,7 @@ export async function submitMerge(_previous: MergeState, formData: FormData): Pr
     if (choice === "survivor" || choice === "loser") fieldChoices[kind] = choice as MergeChoice;
   }
 
-  // B-003: one radio group per colliding season, `consent_<seasonId>` — the
-  // season ids are dynamic per pair, so read them back from the submitted
-  // keys rather than a static label map like the two loops above.
+  // B-003: consent_<seasonId> keys are dynamic per pair, read back rather than a static map.
   const consentChoices: MergeConsentChoices = {};
   for (const [key, value] of formData.entries()) {
     if (!key.startsWith("consent_")) continue;

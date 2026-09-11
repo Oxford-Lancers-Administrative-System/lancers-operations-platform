@@ -44,21 +44,10 @@ import { QuestionnaireShell } from "./questionnaire-shell";
 
 /**
  * S10 — step 1 of the player's questionnaire (`/me/[token]/details`), on the
- * public shell. LAN-225's player-surfaces addendum.
- *
- * Read by person id through the operator tier — never by token, and no token
- * is rendered. Every label, lead line, section heading and helper sentence is
- * `/me/[token]/details`'s own `presentation.ts`, unchanged. What changes is
- * the chrome and the components: the masthead with the crest instead of the
- * plain-text banner; `Field` at one size and full width instead of five
- * different `TextField` shapes; the date of birth on the `DateField` picker
- * rather than a native date input (audit E9, already taken); the four groups
- * as `Section`s; the foot as an `ActionBar`, sticky on a phone, so the one
- * button a fourteen-field form ends with is not 2,000px below the fold.
- *
- * The form is drawn, not wired: the real one is a client component holding
- * `saveDetails`'s returned state, and a preview that submitted it would write
- * to a seeded person.
+ * public shell. LAN-225's player-surfaces addendum. Read by person id through
+ * the operator tier, never by token. Copy is `presentation.ts`, unchanged;
+ * only chrome and components change. Drawn, not wired — the real form is a
+ * client component holding `saveDetails`'s state.
  */
 function currentContact(view: QuestionnaireView, kind: "phone" | "email"): string {
   const contact = view.person.contacts.find(

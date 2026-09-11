@@ -21,16 +21,7 @@ function toSubmission(values: SignupFieldValues & { consent: boolean }): SignupS
   };
 }
 
-/**
- * The tokenised door's one write. `token` is bound by the page
- * (`submitTokenSignup.bind(null, token)`) — the client never carries it as
- * form data, only as the URL it already loaded.
- *
- * Re-resolves the credential here rather than trusting a `personId` the
- * client might send: the token is the whole of this door's authorization
- * (Task 08 §3, "acts as the Person"), so trusting a client-supplied id instead
- * would let anybody who can call this action name whichever person they like.
- */
+/** The tokenised door's one write. `token` is bound by the page, never carried as client form data. Re-resolves the credential rather than trusting a client-supplied `personId` (Task 08 §3). */
 export async function submitTokenSignup(
   token: string,
   values: SignupFieldValues & { consent: boolean; confirmedExistingMatch: boolean },

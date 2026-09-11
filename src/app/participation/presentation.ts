@@ -8,47 +8,15 @@ import type {
 import { CAPACITY_LABELS } from "../operate/events/presentation";
 
 /**
- * The participation table's words, in one place — W7. LAN-157.
- *
- * ## Why this folder exists, and why it is not a route
- *
- * Two surfaces render the same table: `/operate/events/[id]` at the operator
- * tier, and `/e/[token]` at the club-link tier. `docs/ux/standards.md` rule 7
- * says two screens answering the same question answer it identically, and one
- * component with one vocabulary is a stronger guarantee than two components
- * pinned together by a test.
- *
- * `src/app/participation/` holds no `page.tsx`, so the App Router creates no
- * route for it. It is a shared component folder that happens to live under
- * `src/app`, which is where every other component in this repository lives.
- *
- * ## The copy rule this file is held to
- *
- * Brian, repeatedly through this mission: the application says what a control
- * does and what its consequence is. It never explains its own design, never
- * justifies a default, and never tells the operator to use a different field.
- * Every string below is the minimum that tells somebody what will happen.
+ * The participation table's words, in one place — W7. LAN-157. Shared by
+ * `/operate/events/[id]` and `/e/[token]` per `docs/ux/standards.md` rule 7.
+ * No `page.tsx`, so no route. Copy rule: says what a control does and its
+ * consequence, never why or a justification.
  */
 
-// ---------------------------------------------------------------------------
 // The three headline numbers — D62, D73, D74
-// ---------------------------------------------------------------------------
 
-/**
- * Re-exported from the attendance screen's own vocabulary rather than written
- * again here.
- *
- * The headline numbers and D74's `showed / invited` pair belong to LAN-152 and
- * are not rebuilt by this package. The club-link page needs them, so it reads
- * the same three labels and the same formatter the event page already reads —
- * which is `docs/ux/standards.md` rule 7 satisfied by having one definition
- * rather than two readings pinned together afterwards.
- *
- * The one thing left open: LAN-152 renders the unsaved case as `— / 47`, while
- * W7's approval note records `NA / 47`. Both are in the workflow document.
- * Changing it is a change to LAN-152's surface, so it is reported rather than
- * taken here.
- */
+/** Re-exported from the attendance screen's vocabulary (LAN-152), not rewritten — rule 7. Open: LAN-152 renders `— / 47`, W7's note records `NA / 47`; that is LAN-152's surface to change. */
 export {
   formatShowedAgainstInvited,
   HEADLINE_INVITED_LABEL,
@@ -56,35 +24,13 @@ export {
   HEADLINE_SHOWED_LABEL,
 } from "../operate/events/[id]/attendance/presentation";
 
-/**
- * The event page's own term-and-week sentence, re-exported rather than written
- * again — W157-F2.
- *
- * The club link had its own `TERM_LABELS` map and its own `ordinal()`, and the
- * two surfaces disagreed in the first screenful: the operator read
- * `Michaelmas 2026-27 · Week 7` and the club link read
- * `michaelmas 2026-27 · 7th week` for the same event at the same moment. The
- * map was dead code — it is keyed on `michaelmas | hilary | trinity` while
- * `events.termLabel` is built as `<name> <academic year>`, so the lookup never
- * matched and the raw lowercase value fell through. A pre-season event read
- * `michaelmas 2026-27 · -1th week`.
- *
- * `docs/ux/standards.md` rule 7 is the rule that breaks, and this folder's own
- * header names that rule as the reason it exists. One definition, then, rather
- * than two readings pinned together afterwards.
- */
+/** Re-exported, not rewritten (W157-F2): a duplicated `TERM_LABELS` map here previously disagreed with the event page's, reading a pre-season event as "-1th week". Rule 7. */
 export { formatTermAndWeek } from "../operate/events/presentation";
 
-/**
- * `invitation_capacity`, in the club's words — re-exported rather than a
- * second copy. This file used to carry its own byte-identical map; the
- * `formatTermAndWeek` note above is the exact defect that shape invites.
- */
+/** `invitation_capacity`, in the club's words — re-exported, not a second copy (same defect shape as `formatTermAndWeek` above). */
 export { CAPACITY_LABELS };
 
-// ---------------------------------------------------------------------------
 // The table
-// ---------------------------------------------------------------------------
 
 export const TABLE_HEADINGS = Object.freeze({
   name: "Name",
@@ -111,13 +57,7 @@ export const ANSWER_YES = "Yes";
 export const ANSWER_NO = "No";
 export const ANSWER_NONE = "No answer";
 
-/**
- * The standing answer, in the club's words.
- *
- * A walk-up reads `—` rather than **No answer**: nobody asked them, so there is
- * no answer missing. `slice-ux.md` § 9 wants an absence and an empty result to
- * be distinguishable, and this is the same distinction one cell wide.
- */
+/** The standing answer. A walk-up reads `—`, not **No answer**: nobody asked them, so nothing is missing (`slice-ux.md` § 9). */
 export function answerLabel(person: ParticipationPerson): string {
   if (person.isWalkUp) return NOTHING;
   if (person.answer === "yes") return ANSWER_YES;
@@ -138,13 +78,7 @@ export function presenceLabel(presence: AttendancePresence | null): string {
   return presence === null ? NOT_RECORDED : PRESENCE_LABELS[presence];
 }
 
-/**
- * D3, D65: the delivery states, exactly as the delivery screen says them —
- * `docs/ux/standards.md` rule 7, one word per fact across both surfaces.
- * `held` and `cancelled` are LAN-156's; this table reads the same
- * `DELIVERY_STATE_EXPRESSION` the delivery screen does, so both can appear
- * here too.
- */
+/** D3, D65: the delivery states, exactly as the delivery screen says them (rule 7). `held`/`cancelled` are LAN-156's. */
 export const DELIVERY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   queued: "Queued",
   attempted: "Attempted",
@@ -157,41 +91,24 @@ export const DELIVERY_LABELS: Readonly<Record<string, string>> = Object.freeze({
 
 export const DELIVERY_NOT_QUEUED = "Nothing queued";
 
-/**
- * W4/W6's two named exceptions to the plain five-state vocabulary above —
- * `REQ-no-channel-backstop` and `REQ-whatsapp-outage-visible`. Both replace
- * what would otherwise read as an undifferentiated **Failed**: one because
- * there is nothing left to try, the other because the message got through on
- * the other channel and the failure is still worth seeing.
- */
+/** W4/W6's two named exceptions to the five-state vocabulary above (`REQ-no-channel-backstop`, `REQ-whatsapp-outage-visible`) — replace an undifferentiated **Failed**. */
 export const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
 export const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
 
 /** The Delivery filter's own entry for W4's acceptance #3, above the five states. */
 export const NEEDS_ATTENTION_FILTER_LABEL = "Needs attention";
 
-// ---------------------------------------------------------------------------
 // The discrepancy marker — D64
-// ---------------------------------------------------------------------------
 
 /** The glyph the approved mockup puts beside the name. */
 export const DISCREPANCY_MARK = "≠";
 
-/**
- * What the marker means, per case.
- *
- * Statements of fact, and none of them an accusation: the workflow says in as
- * many words that the marker records that two facts differ and does not accuse
- * anybody. "Said yes, marked absent" is what the two records say; "did not
- * bother to turn up" is what it must never say.
- */
-export const DISCREPANCY_LABELS: Readonly<Record<ParticipationDiscrepancy, string>> = Object.freeze(
-  {
-    said_yes_marked_absent: "Said yes, marked absent",
-    said_no_but_attended: "Said no, attended",
-    never_answered_attended: "Never answered, attended",
-  },
-);
+/** What the marker means, per case — statements of fact, never an accusation. */
+const DISCREPANCY_LABELS: Readonly<Record<ParticipationDiscrepancy, string>> = Object.freeze({
+  said_yes_marked_absent: "Said yes, marked absent",
+  said_no_but_attended: "Said no, attended",
+  never_answered_attended: "Never answered, attended",
+});
 
 export function discrepancyLabel(discrepancy: ParticipationDiscrepancy | null): string | null {
   return discrepancy === null ? null : DISCREPANCY_LABELS[discrepancy];
@@ -207,18 +124,14 @@ export function everyoneAsked(total: number): string {
   return `Everyone asked — ${total}`;
 }
 
-// ---------------------------------------------------------------------------
 // The collapsed Questions section — D68
-// ---------------------------------------------------------------------------
 
 export const QUESTIONS_HEADING = "Questions";
 
 /** Applicable people with nothing stored against a question. */
 export const QUESTION_NO_ANSWER = "No answer";
 
-// ---------------------------------------------------------------------------
 // Filters
-// ---------------------------------------------------------------------------
 
 export const FILTER_SEARCH_LABEL = "Search name";
 export const FILTER_CAPACITY_LABEL = "As";
@@ -226,32 +139,18 @@ export const FILTER_ANSWER_LABEL = "Answer";
 export const FILTER_ATTENDANCE_LABEL = "Attendance";
 export const FILTER_DELIVERY_LABEL = "Delivery";
 export const FILTER_ALL = "All";
-export const FILTERS_COMBINE = "Applied as you type — combines";
 export const CLEAR_FILTERS = "Clear filters";
 
 /** `slice-ux.md` § 9: a filtered-empty table must not read like an empty one. */
 export const NO_MATCHING_PEOPLE = "No one matches these filters.";
 export const NOBODY_ASKED = "Nobody has been invited to this event yet.";
 
-// ---------------------------------------------------------------------------
 // The club link — §4.15, D2, D81
-// ---------------------------------------------------------------------------
 
 export const SHARE_LINK = "Share link";
 export const SHARE_HEADLINE = "Share this event";
 
-/**
- * The one sentence the dialog carries.
- *
- * It states the consequence of pressing the control — who can see what, and
- * what they cannot do — and nothing else.
- *
- * The approved mockup carried a second paragraph: "It is a private link, not a
- * secret one — a squad list is not a secret from the squad. Share it where you
- * would share the squad." That is D81's *reasoning*, and reasoning is what
- * Brian has rejected on this mission's screens five times. It is recorded in
- * the pull request as a deviation from the mockup rather than shipped.
- */
+/** The one sentence the dialog carries — the consequence of pressing the control. The mockup's reasoning paragraph is a deviation reported in the PR, not shipped. */
 export const SHARE_CONSEQUENCE =
   "Anyone with this link can see who was asked, what they said and who turned up. They " +
   "cannot change anything and do not need an account.";
@@ -261,27 +160,15 @@ export const COPY_LINK_DONE = "Copied";
 export const ISSUE_LINK = "Create the link";
 export const CLOSE = "Close";
 
-/** The club-link page's own heading strip. */
-export const CLUB_LINK_BRAND = "Oxford Lancers";
 export const CLUB_LINK_SUBTITLE = "Shared link";
 
-/**
- * What a stranger gets for an unknown, revoked or draft-event token.
- *
- * One body for all three, like the RSVP page's, so the internal states cannot
- * render different text even by accident.
- */
+/** What a stranger gets for an unknown, revoked or draft-event token — one body for all three, like the RSVP page's. */
 export const CLUB_LINK_UNAVAILABLE_HEADLINE = "This link does not open anything.";
 export const CLUB_LINK_UNAVAILABLE_DETAIL = "Ask the club for a current link.";
 
-// ---------------------------------------------------------------------------
 // Recording an answer in person — W3, LAN-170
-// ---------------------------------------------------------------------------
 
-/**
- * The row action, and the dialog's own submit button — the same word for the
- * same act, which is what W3-02's wireframe does too.
- */
+/** The row action, and the dialog's submit button — the same word, per W3-02's wireframe. */
 export const RECORD_ANSWER = "Record answer";
 
 export function recordAnswerDialogTitle(displayName: string): string {
@@ -289,19 +176,10 @@ export function recordAnswerDialogTitle(displayName: string): string {
 }
 
 /**
- * `vs Harewell Hawks · Sunday, 13 September 2026 · 14:00–16:30` — the
- * dialog's event-identity subtitle.
- *
- * OWNER-LAN170-09 (correction round 4): `W3-02` and `W3-04` both draw a
- * second line under the title naming which event the answer is being
- * recorded against; the shipped dialog dropped it with nothing authorising
- * the omission. Structure and copy are the mockup's — the event's own name
- * (which already carries the "vs" the club writes into it,
- * `event-csv.ts`'s own note) followed by when it is — but the date/time
- * half is `formatDetailWhen`, the same service formatter the operator event
- * page's own header uses for this exact fact (`operate/events/[id]/page.tsx`
- * `data-testid="event-subtitle"`), per Q-23: style is the application's, not
- * the mockup's own rendering of the date, and not a hand-rolled one here.
+ * The dialog's event-identity subtitle (OWNER-LAN170-09, correction round 4):
+ * restores the second line `W3-02`/`W3-04` both draw, dropped without
+ * authorisation. Date/time half uses `formatDetailWhen`, the same formatter
+ * the operator event page's header uses, per Q-23.
  */
 export function recordAnswerEventSubtitle(
   event: Pick<EventFactsBase, "name" | "scheduledOn" | "startsAt" | "endsAt">,
@@ -321,28 +199,15 @@ export const REASON_LABEL = "Reason";
 export const REASON_REQUIRED_FOR_NO = "Required for a No";
 export const REASON_PLACEHOLDER = "What they told you, in their words";
 
-/**
- * The one warning the form carries about who reads a reason — required by
- * W3's "Safety, privacy, and authority" section, because the operator is
- * writing words a club-link holder will read, not only the coach who typed
- * them.
- */
+/** Required by W3's "Safety, privacy, and authority" section — a club-link holder reads this, not only the coach who typed it. */
 export const REASON_PRIVACY_NOTE =
   "This reason is visible to anybody holding the club link for this event, the same as a " +
   "player's own reason would be.";
 
 export const EVENT_QUESTIONS_HEADING = "This event's questions";
-export const EVENT_QUESTIONS_HELPER =
-  "Fill in whatever they told you. Partial answers are fine — the rest stays outstanding.";
 export const QUESTION_OPTIONAL = "Optional";
 
-/**
- * OWNER-LAN170-08's wording check: a question the event marks
- * `is_required` still says so here, so this label never reads as "optional
- * for the player" — it says whose rule is whose. The player-facing
- * requirement is a separate fact from whether the operator has to fill this
- * field in before saving what was actually said.
- */
+/** OWNER-LAN170-08: says whose rule is whose — the player-facing requirement is separate from whether the operator must fill this in now. */
 export const QUESTION_REQUIRED_OF_PLAYER_OPTIONAL_HERE =
   "Required of the player, optional to record now";
 

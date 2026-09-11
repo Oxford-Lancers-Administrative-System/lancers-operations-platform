@@ -1,29 +1,20 @@
 "use client";
 
-import { useCallback, useId, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import ListItemText from "@mui/material/ListItemText";
-import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
-import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import TableSortLabel from "@mui/material/TableSortLabel";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { PinnedSelect } from "@/components/pinned-select";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
 import type { MembershipStatus, OnboardingItemStatus } from "@/lib/services/membership";
@@ -47,42 +38,15 @@ import {
   commitOnboardingItemAction,
   commitPositionAction,
 } from "./board-actions";
-import {
-  BAND_LABEL_INSET_PX,
-  BAND_ROW_HEIGHT,
-  bandOf,
-  PLAYER_COLUMN_WIDTH,
-  type ColumnDef,
-} from "./board-columns";
-import {
-  applyBoard,
-  displayOf,
-  filterOptionLabel,
-  filterOptions,
-  NOT_RECORDED,
-  onboardingLabel,
-  optionListLabel,
-  rawValue,
-} from "./board-data";
+import { PLAYER_COLUMN_WIDTH, type ColumnDef } from "./board-columns";
+import { applyBoard, filterOptionLabel, filterOptions, optionListLabel } from "./board-data";
 import AddPlayersMenu from "./add-players-menu";
-import JerseyPicker from "./jersey-picker";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
-import {
-  bandBoundaryKeys,
-  ColumnFilterMenu,
-  FilterButton,
-  groupRuns,
-  StatusPill,
-} from "../board-filter-controls";
-
-const AVAILABILITY_COLOUR: Readonly<Record<string, string>> = Object.freeze({
-  green: "#2e7d32",
-  orange: "#ed6c02",
-  red: "#c62828",
-});
-
-/** `MISSING_DATA_ROUTE` links into the queue LAN-184 owns — LAN-186's own words: "if this package lands first, the link arrives with it." */
-const MISSING_DATA_ROUTE = "/operate/people/missing";
+import { bandBoundaryKeys, ColumnFilterMenu } from "../board-filter-controls";
+import RosterHeading from "./roster-heading";
+import BoardTableHead from "./roster-board-header";
+import { Cell } from "./roster-board-cell";
+import PlayerCard from "./roster-board-card";
 
 function buildUrl(base: string, params: URLSearchParams): string {
   const query = params.toString();
@@ -438,7 +402,7 @@ export default function RosterBoard({
   if (visible.length === 0) {
     return (
       <Stack spacing={3}>
-        <Heading
+        <RosterHeading
           count={seasonEmpty ? 0 : totalInSeason}
           columns={columns.length + 1}
           seasonLabel={seasonLabel}
@@ -476,7 +440,11 @@ export default function RosterBoard({
 
   return (
     <Stack spacing={3}>
-      <Heading count={visible.length} columns={columns.length + 1} seasonLabel={seasonLabel} />
+      <RosterHeading
+        count={visible.length}
+        columns={columns.length + 1}
+        seasonLabel={seasonLabel}
+      />
       {pinned}
       {chips}
 
@@ -491,162 +459,15 @@ export default function RosterBoard({
         data-testid="roster-board"
       >
         <Table size="small" stickyHeader sx={{ width: "max-content", minWidth: "100%" }}>
-          <TableHead>
-            <TableRow sx={{ height: BAND_ROW_HEIGHT }}>
-              <TableCell
-                sx={{
-                  position: "sticky",
-                  left: 0,
-                  top: 0,
-                  zIndex: 6,
-                  bgcolor: "background.paper",
-                  borderRight: 1,
-                  borderColor: "divider",
-                  minWidth: PLAYER_COLUMN_WIDTH,
-                  width: PLAYER_COLUMN_WIDTH,
-                  p: 0,
-                }}
-              />
-              {groupRuns(columns).map((run) => {
-                const band = bandOf(run.band);
-                return (
-                  <TableCell
-                    key={run.band}
-                    colSpan={run.span}
-                    sx={{
-                      top: 0,
-                      bgcolor: band.header,
-                      color: "common.white",
-                      pl: `${BAND_LABEL_INSET_PX}px`,
-                      pr: 0,
-                      py: 0,
-                      height: BAND_ROW_HEIGHT,
-                      borderBottom: "none",
-                      borderRight: 2,
-                      borderRightColor: "background.paper",
-                    }}
-                  >
-                    <Typography
-                      variant="overline"
-                      component="span"
-                      sx={{
-                        fontWeight: 700,
-                        lineHeight: `${BAND_ROW_HEIGHT}px`,
-                        position: "sticky",
-                        left: PLAYER_COLUMN_WIDTH + BAND_LABEL_INSET_PX,
-                        display: "inline-block",
-                      }}
-                    >
-                      {band.label}
-                    </Typography>
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-
-            <TableRow>
-              <TableCell
-                sx={{
-                  position: "sticky",
-                  left: 0,
-                  top: BAND_ROW_HEIGHT,
-                  zIndex: 6,
-                  bgcolor: "background.paper",
-                  borderRight: 1,
-                  borderColor: "divider",
-                  minWidth: PLAYER_COLUMN_WIDTH,
-                  width: PLAYER_COLUMN_WIDTH,
-                  verticalAlign: "bottom",
-                }}
-              >
-                <TableSortLabel
-                  active={sortKey === "displayName"}
-                  direction={sortKey === "displayName" ? sortDirection : "asc"}
-                  onClick={() => setSort("displayName")}
-                >
-                  Player
-                </TableSortLabel>
-                <Typography variant="caption" sx={{ display: "block", lineHeight: 1.3 }}>
-                  &nbsp;
-                </Typography>
-              </TableCell>
-
-              {columns.map((column) => {
-                const band = bandOf(column.band);
-                const filtered = (filters[column.key] ?? "") !== "";
-                return (
-                  <TableCell
-                    key={column.key}
-                    sx={{
-                      top: BAND_ROW_HEIGHT,
-                      bgcolor: band.solid,
-                      minWidth: column.width,
-                      width: column.width,
-                      verticalAlign: "bottom",
-                      whiteSpace: "nowrap",
-                      borderBottom: filtered ? 2 : 1,
-                      borderBottomColor: filtered ? "primary.main" : "divider",
-                      borderRight: bandBoundaries.has(column.key) ? 2 : 0,
-                      borderRightColor: "background.paper",
-                    }}
-                  >
-                    <Stack
-                      direction="row"
-                      spacing={0.5}
-                      sx={{ alignItems: "center", justifyContent: "space-between" }}
-                    >
-                      {column.sortable ? (
-                        <TableSortLabel
-                          active={sortKey === column.key}
-                          direction={sortKey === column.key ? sortDirection : "asc"}
-                          onClick={() => setSort(column.key)}
-                        >
-                          {column.label}
-                        </TableSortLabel>
-                      ) : (
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {column.label}
-                        </Typography>
-                      )}
-                      {column.filterable ? (
-                        <FilterButton
-                          label={column.label}
-                          active={filtered}
-                          onOpen={(anchor) => setMenu({ anchor, column })}
-                        />
-                      ) : null}
-                    </Stack>
-                    {filtered ? (
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          display: "block",
-                          color: "primary.main",
-                          fontWeight: 700,
-                          lineHeight: 1.3,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {filterOptionLabel(column, filters[column.key])}
-                      </Typography>
-                    ) : column.edit === "record" ? (
-                      <Typography
-                        variant="caption"
-                        sx={{ display: "block", color: "text.disabled", lineHeight: 1.3 }}
-                      >
-                        edit on the record
-                      </Typography>
-                    ) : (
-                      <Typography variant="caption" sx={{ display: "block", lineHeight: 1.3 }}>
-                        &nbsp;
-                      </Typography>
-                    )}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          </TableHead>
+          <BoardTableHead
+            columns={columns}
+            bandBoundaries={bandBoundaries}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            setSort={setSort}
+            filters={filters}
+            onOpenFilter={(anchor, column) => setMenu({ anchor, column })}
+          />
 
           <TableBody>
             {visible.map((row) => (
@@ -741,451 +562,3 @@ export default function RosterBoard({
     </Stack>
   );
 }
-
-function Heading({
-  count,
-  columns,
-  seasonLabel,
-}: {
-  count: number;
-  columns: number;
-  seasonLabel: string;
-}) {
-  return (
-    <Stack
-      direction={{ xs: "column", sm: "row" }}
-      spacing={2}
-      sx={{ alignItems: { sm: "flex-start" }, justifyContent: "space-between" }}
-    >
-      <Box>
-        <Typography variant="h6" component="h1">
-          Roster
-        </Typography>
-        <Typography variant="body2" color="text.secondary" data-testid="season-label">
-          {`Season ${seasonLabel} · ${count} ${count === 1 ? "player" : "players"} · ${columns} columns`}
-        </Typography>
-      </Box>
-      <AddPlayersMenu />
-    </Stack>
-  );
-}
-
-/**
- * One pinned filter. LAN-259: the `<InputLabel>` carries an `id` and the
- * `<Select>` points at it with `labelId`, which is what gives the rendered
- * combobox an accessible name — MUI derives `aria-labelledby` from `labelId`
- * and from nothing else. Without the pair the three filters reported
- * `aria-labelledby: null` and read to a screen reader as three unnamed
- * comboboxes, even though `label` was set: `label` only reserves the notch in
- * the outline. The id comes from `useId()` so that two boards on one page —
- * or a label whose text repeats — still name their own control.
- */
-function PinnedSelect({
-  label,
-  value,
-  options,
-  optionLabel,
-  onChange,
-  minWidth,
-}: {
-  label: string;
-  value: string;
-  options: readonly string[];
-  optionLabel?: (value: string) => string;
-  onChange: (value: string) => void;
-  minWidth?: number;
-}) {
-  const labelId = useId();
-  return (
-    <FormControl size="small" sx={{ minWidth: minWidth ?? 190 }}>
-      <InputLabel id={labelId}>{label}</InputLabel>
-      <Select
-        labelId={labelId}
-        label={label}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <MenuItem value="">
-          <em>All</em>
-        </MenuItem>
-        {options.map((option) => (
-          <MenuItem key={option} value={option}>
-            {optionLabel ? optionLabel(option) : option}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  );
-}
-
-function Cell({
-  row,
-  column,
-  editing,
-  holders,
-  canManageStatus,
-  bandEnd,
-  onOpen,
-  onClose,
-  onCommit,
-  onToggleFormalwear,
-}: {
-  row: RosterBoardRow;
-  column: ColumnDef;
-  editing: boolean;
-  holders?: Record<string, string>;
-  canManageStatus: boolean;
-  /** Whether this column is the last in its band's run — see `bandBoundaryKeys`. */
-  bandEnd: boolean;
-  onOpen: () => void;
-  onClose: () => void;
-  onCommit: (next: string | string[]) => void;
-  onToggleFormalwear: (item: FormalwearItemKey, owned: boolean) => void;
-}) {
-  const band = bandOf(column.band);
-  const shell = {
-    bgcolor: band.tint,
-    minWidth: column.width,
-    width: column.width,
-    whiteSpace: "nowrap" as const,
-    // The same seam the band header draws, carried into the body so all three
-    // boundaries — Person|Onboarding, Onboarding|Season — read with equal
-    // weight instead of only the always-bordered Player column looking
-    // separated (LAN-186 item 12).
-    borderRight: bandEnd ? 2 : 0,
-    borderRightColor: "background.paper",
-  };
-
-  if (editing) {
-    if (column.edit === "jersey") {
-      const held = column.key === "blueNumbers" ? row.blueNumbers : row.whiteNumbers;
-      return (
-        <TableCell sx={shell}>
-          <JerseyPicker
-            held={held}
-            holders={holders ?? {}}
-            onCommit={onCommit}
-            onClose={onClose}
-            width={column.width}
-          />
-        </TableCell>
-      );
-    }
-
-    if (column.edit === "multiselect") {
-      const current = row.formalwear;
-      return (
-        <TableCell sx={shell}>
-          <Select
-            size="small"
-            open
-            multiple
-            value={(Object.keys(current) as FormalwearItemKey[]).filter((key) => current[key])}
-            onClose={onClose}
-            renderValue={(value) => (value as string[]).join(", ") || "—"}
-            sx={{ width: Math.max(column.width - 24, 64) }}
-          >
-            {(column.options ?? []).map((option) => {
-              const key = option as FormalwearItemKey;
-              return (
-                <MenuItem
-                  key={option}
-                  value={option}
-                  onClick={() => onToggleFormalwear(key, !current[key])}
-                >
-                  <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={current[key]} />
-                  <ListItemText primary={column.optionLabels?.[option] ?? option} />
-                </MenuItem>
-              );
-            })}
-          </Select>
-        </TableCell>
-      );
-    }
-
-    // The open list of choices reads `optionListLabel` — the label alone
-    // (LAN-186 item 9), except for a position column, whose options carry the
-    // code *and* the full name (Brian's walkthrough of the built board). The
-    // selected value shown when the dropdown is closed is `displayOf` below,
-    // unaffected: item 7's cell half — the code alone for a position — still
-    // stands.
-    const current = rawValue(row, column.key);
-    return (
-      <TableCell sx={shell}>
-        <Select
-          size="small"
-          open
-          autoFocus
-          value={(current as string) ?? ""}
-          onClose={onClose}
-          onChange={(event) => {
-            onCommit(event.target.value);
-            onClose();
-          }}
-          renderValue={() => displayOf(row, column)}
-          sx={{ width: Math.max(column.width - 24, 64) }}
-        >
-          {column.key === "status" || column.edit === "onboarding" ? null : (
-            <MenuItem value="">
-              <em>{NOT_RECORDED}</em>
-            </MenuItem>
-          )}
-          {(column.options ?? []).map((option) => (
-            <MenuItem key={option} value={option}>
-              {optionListLabel(column, option)}
-            </MenuItem>
-          ))}
-        </Select>
-      </TableCell>
-    );
-  }
-
-  const editable =
-    (column.edit === "select" ||
-      column.edit === "multiselect" ||
-      column.edit === "jersey" ||
-      column.edit === "onboarding") &&
-    (column.key !== "status" || canManageStatus) &&
-    // Correction round 2, item 5: a column whose item this membership has
-    // not (yet) had generated has nothing to edit — same posture as every
-    // other absent value on this board, never a control that would refuse.
-    (column.edit !== "onboarding" ||
-      (column.itemCode ? Boolean(row.onboardingItems[column.itemCode]) : false)) &&
-    // D-002 (correction round 3, Q-14): Subscription paid opens no control at
-    // all until Subscription invoiced is complete — there is nothing to
-    // record payment against yet, and the service itself refuses the write
-    // this cell would otherwise offer.
-    (column.key !== "subsPaid" || row.onboardingItems["subs_invoiced"]?.status === "complete");
-
-  return (
-    <TableCell
-      sx={{
-        ...shell,
-        cursor: editable ? "pointer" : "default",
-        "&:hover": editable
-          ? { outline: "1px solid", outlineColor: "primary.light", outlineOffset: -1 }
-          : undefined,
-      }}
-      onClick={editable ? onOpen : undefined}
-      data-testid={editable ? "editable-cell" : undefined}
-    >
-      <CellValue row={row} column={column} />
-    </TableCell>
-  );
-}
-
-function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) {
-  if (column.key === "contactable") {
-    if (!row.hasMobile && !row.hasEmail)
-      return (
-        <Typography variant="body2" color="text.disabled">
-          —
-        </Typography>
-      );
-    return (
-      <Stack direction="row" spacing={0.5}>
-        {row.hasMobile ? <Chip size="small" variant="outlined" label="Mobile" /> : null}
-        {row.hasEmail ? <Chip size="small" variant="outlined" label="Email" /> : null}
-      </Stack>
-    );
-  }
-
-  if (column.key === "missing") {
-    if (row.missingCount === 0)
-      return (
-        <Typography variant="body2" color="text.disabled">
-          —
-        </Typography>
-      );
-    // Links into the queue LAN-184 owns. If this package lands first, per the
-    // issue's own words, the link arrives with it; the route not existing yet
-    // on this branch is expected and correct.
-    return (
-      <Chip
-        component="a"
-        href={MISSING_DATA_ROUTE}
-        clickable
-        size="small"
-        color="warning"
-        variant="outlined"
-        label={row.missingCount}
-        data-testid="missing-count"
-      />
-    );
-  }
-
-  if (column.key === "onboarding") {
-    return <Typography variant="body2">{onboardingLabel(row)}</Typography>;
-  }
-
-  if (column.key === "status") {
-    // The board's one status-pill formula (`../board-filter-controls.tsx`) —
-    // the single exception to "plain text like every other select cell",
-    // kept because a status is the fact an operator scans the whole row
-    // for. Editing still opens the identical generic dropdown every other
-    // season fact uses.
-    return (
-      <StatusPill
-        domain="membership"
-        status={row.status}
-        label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
-      />
-    );
-  }
-
-  if (column.key === "availability" && row.availability) {
-    return (
-      <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
-        <Box
-          aria-hidden
-          sx={{
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            bgcolor: AVAILABILITY_COLOUR[row.availability],
-          }}
-        />
-        <Typography variant="body2">{displayOf(row, column)}</Typography>
-      </Stack>
-    );
-  }
-
-  const text = displayOf(row, column);
-  if (column.edit === "record") {
-    return (
-      <Tooltip title="Opens the person record — W2's rules apply" placement="top">
-        <Typography
-          variant="body2"
-          sx={{
-            color: text === NOT_RECORDED ? "text.disabled" : "text.primary",
-            textDecoration: text === NOT_RECORDED ? "none" : "underline dotted",
-            textUnderlineOffset: 3,
-          }}
-          component="a"
-          href={`/operate/roster/${row.membershipId}`}
-        >
-          {text}
-        </Typography>
-      </Tooltip>
-    );
-  }
-
-  return (
-    <Typography
-      variant="body2"
-      sx={{ color: text === NOT_RECORDED ? "text.disabled" : "text.primary" }}
-    >
-      {text}
-    </Typography>
-  );
-}
-
-/**
- * The phone card — LAN-186's owner walkthrough, item 15.
- *
- * Not a miniature board. Brian, 2026-08-29: "the mobile view is horrendous.
- * Most of the time, the operators aren't going to be using this as a mobile
- * view anyway, so it should just be a way to click in." So the card carries
- * exactly three things — the player's name, their status, and the missing-data
- * flag when it is set — and nothing else from the twenty columns. There is no
- * in-cell editing at 375px; editing is desktop work, and the phone is for
- * finding somebody and opening them.
- *
- * The whole card is the tap target, not a chevron or a "View" link in a
- * corner — the anchor wraps the name and the chips. The call button is the one
- * deliberate exception: its own control, its own tap target, `stopPropagation`
- * on both so a call can never fire from a tap meant for the card and a card
- * navigation can never fire from a tap meant for the call. W5 locks voice call
- * as the mobile quick action and nothing else — a one-tap WhatsApp link would
- * be manual sending outside the pipeline's consent checks, which R12 and R15
- * prohibit.
- */
-function PlayerCard({ row }: { row: RosterBoardRow }) {
-  return (
-    <Card variant="outlined" sx={{ position: "relative", p: 0 }} data-testid="roster-card">
-      <Box
-        component="a"
-        href={`/operate/roster/${row.membershipId}`}
-        data-testid="roster-card-open"
-        sx={{
-          display: "block",
-          p: 2,
-          pr: 8,
-          minHeight: 44,
-          textDecoration: "none",
-          color: "inherit",
-          borderRadius: 1,
-          "&:hover": { bgcolor: "action.hover" },
-          "&:focus-visible": {
-            outline: "2px solid",
-            outlineColor: "primary.main",
-            outlineOffset: -2,
-          },
-        }}
-      >
-        <Stack spacing={1}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            {row.displayName}
-          </Typography>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            <StatusPill
-              domain="membership"
-              status={row.status}
-              label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
-            />
-            {row.missingCount > 0 ? (
-              <Chip
-                size="small"
-                color="warning"
-                variant="outlined"
-                label={`${row.missingCount} missing`}
-                data-testid="card-missing-flag"
-              />
-            ) : null}
-          </Stack>
-        </Stack>
-      </Box>
-
-      {/* A sibling of the card-opening anchor, never nested inside it — two
-          anchors cannot nest, and stacking this one on top by position rather
-          than by DOM order is what keeps both tap targets independently real. */}
-      <Box
-        sx={{ position: "absolute", top: 8, right: 8 }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <Button
-          variant="contained"
-          component="a"
-          href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
-          disabled={!row.phoneForCall}
-          aria-label="Call"
-          onClick={(event) => event.stopPropagation()}
-          sx={{
-            minHeight: 44,
-            minWidth: 44,
-            width: 44,
-            height: 44,
-            p: 0,
-            borderRadius: "50%",
-          }}
-        >
-          <PhoneIcon />
-        </Button>
-      </Box>
-    </Card>
-  );
-}
-
-/** Drawn inline, the same reason `FilterButton`'s funnel is: no icon package in this dependency tree. */
-function PhoneIcon() {
-  return (
-    <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 18, height: 18 }}>
-      <path
-        fill="currentColor"
-        d="M6.6 10.8c1.4 2.7 3.6 4.9 6.3 6.3l2.1-2.1c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.5.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.4 21 3 13.6 3 4.5c0-.6.4-1 1-1h3.6c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.5.1.4 0 .8-.2 1L6.6 10.8z"
-      />
-    </Box>
-  );
-}
-
-export { MISSING_DATA_ROUTE };
