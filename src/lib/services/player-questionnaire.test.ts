@@ -30,7 +30,6 @@ import {
   claimTrustItem,
   emergencyContactIsComplete,
   readQuestionnaireView,
-  recordHudlNoInvitation,
   saveDetailsStep,
   type DetailsStepInput,
 } from "./player-questionnaire";
@@ -778,21 +777,6 @@ describe("claimTrustItem", () => {
   });
 });
 
-describe("recordHudlNoInvitation", () => {
-  it("logs the answer without moving the item's status", async () => {
-    const { personId, membershipId } = await givenPlayer();
-
-    await recordHudlNoInvitation({ personId, seasonId: openSeasonId, membershipId });
-
-    expect(await itemStatus(membershipId, "hudl_access")).toBe("pending");
-    const activity = await observer.query(
-      `select section, channel from public.onboarding_activity_log where season_membership_id = $1::uuid`,
-      [membershipId],
-    );
-    expect(activity.rows).toEqual([expect.objectContaining({ section: "Hudl" })]);
-  });
-});
-
 describe("readQuestionnaireView — the finishing sequence", () => {
   it("reports nothing outstanding once every player-owned item is resolved", async () => {
     const { personId, membershipId } = await givenPlayer();
@@ -1052,8 +1036,9 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       agreementType: "photo_release",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
-    await recordHudlNoInvitation({ personId, seasonId: openSeasonId, membershipId });
 
+    // LAN-333: Hudl is answered by claiming it, and by nothing else. Leaving it
+    // unanswered is what keeps the sequence pointing at it.
     const view = await readQuestionnaireView(personId, openSeasonId);
     expect(view?.nothingOutstanding).toBe(false);
     expect(view?.nextStep).toBe("hudl");

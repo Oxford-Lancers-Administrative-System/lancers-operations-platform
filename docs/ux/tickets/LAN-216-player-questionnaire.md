@@ -127,9 +127,11 @@ twice in one season is refused by the schema's own
 refusal as a no-op rather than an error, since a resubmitted or
 double-clicked form is not a failure.
 
-Document and instruction text is a labelled placeholder in the real
-versioned `onboarding_agreement_versions` slot the migration already seeded
-— **LAN-213** owes the real wording. Nothing here invents club policy.
+Document text is a labelled placeholder in the real versioned
+`onboarding_agreement_versions` slot the migration already seeded —
+**LAN-213** owes the Code of Conduct's and the photo release's real wording.
+**The BUCS Play and Hudl instructions are no longer placeholders** (LAN-333,
+Brian 2026-09-11); see below. Nothing here invents club policy.
 
 **The item, not the agreement row, is what these two steps obey** (LAN-240).
 The sequence used to read either signal — "the item is complete **or** an
@@ -150,11 +152,31 @@ resume to the same step forever.
 Both are `claimOnboardingItem` (unchanged) — the player's own trust-class
 word, recorded `claimed`, never `complete`. Neither step blocks the
 sequence: "Continue"/"Finish" always advances, claimed or not, per the
-packet's own "continue anyway. The club will ask you again." Hudl carries a
-second, independent control — "No invitation has reached me" — which moves
-nothing in `onboarding_items` (the invitation genuinely has not gone out)
-and is recorded only in the sectioned activity log, since no status value
-exists to carry it without a migration this package does not own.
+packet's own "continue anyway. The club will ask you again."
+
+**Both carry the club's own instructions since LAN-333**, replacing four and
+three invented placeholder lines. Two things in them are configuration rather
+than copy, and neither may become copy:
+
+- **The BUCS league is season-stamped.** Step 5 names the "BUCS American
+  Football 26-27 league", and that year is derived from the open season's own
+  label by `bucsLeagueYear` — a constant would name last season's league from
+  the first day of the next one, and nobody would be looking. A label it
+  cannot read drops the year rather than guessing; the league is still
+  findable without it.
+- **The Hudl join link is `HUDL_JOIN_LINK`**, read through
+  `src/lib/services/player-config.ts` like the two WhatsApp group links. This
+  repository is public, so the link is never a literal in code, a fixture, a
+  test or a seed. Unset, the step still shows every instruction and states
+  that the link is not published yet — it never invents a destination.
+
+**Hudl is self-serve, and the club sends nothing** (LAN-333, reversing this
+ticket's earlier rule). The step described an email invitation an operator was
+assumed to send, and offered a second control — "No invitation has reached
+me" — for an invitation that could not arrive. The control, its lead ("Accept
+your invitation") and the `recordHudlNoInvitation` branch behind it are all
+gone. Activity-log rows already written by it stay: they record what a player
+actually pressed, and history is not rewritten.
 
 ### The finishing page (`W4-07`) and the already-complete page (`W4-08`)
 

@@ -81,20 +81,10 @@ export async function claimTrustItem(params: {
   );
 }
 
-/** Hudl's second answer — "no invitation has reached me". Moves nothing; recorded via the activity log's free-text `channel`, no migration owned. */
-export async function recordHudlNoInvitation(params: {
-  personId: string;
-  seasonId: string;
-  membershipId: string;
-}): Promise<void> {
-  await withTransaction((tx) =>
-    recordOnboardingActivityIn(tx, {
-      membershipId: params.membershipId,
-      seasonId: params.seasonId,
-      section: "Hudl",
-      kind: "answer",
-      channel: "signed link — reports no invitation received",
-      actorPersonId: params.personId,
-    }),
-  );
-}
+/**
+ * LAN-333 removed `recordHudlNoInvitation`. Hudl is self-serve from the club's
+ * join link and no operator sends an invitation, so "no invitation has reached
+ * me" was an answer to a question the workflow never asks. Activity-log rows
+ * already written with its `channel` stay exactly where they are: they are a
+ * true record of what a player pressed, and history is not rewritten.
+ */

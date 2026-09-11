@@ -44,7 +44,6 @@ vi.mock("@/lib/services/player-questionnaire", async (importOriginal) => {
     saveDetailsStep: vi.fn(),
     agreeOnboardingDocument: vi.fn(),
     claimTrustItem: vi.fn(),
-    recordHudlNoInvitation: vi.fn(),
   };
 });
 
@@ -55,7 +54,6 @@ import {
   agreeOnboardingDocument,
   claimTrustItem,
   readQuestionnaireView,
-  recordHudlNoInvitation,
   saveDetailsStep,
   type QuestionnaireView,
 } from "@/lib/services/player-questionnaire";
@@ -127,7 +125,6 @@ beforeEach(() => {
   vi.mocked(saveDetailsStep).mockResolvedValue({ errors: {}, outcomes: {} });
   vi.mocked(agreeOnboardingDocument).mockResolvedValue({} as never);
   vi.mocked(claimTrustItem).mockResolvedValue(undefined);
-  vi.mocked(recordHudlNoInvitation).mockResolvedValue(undefined);
 });
 
 describe("saveDetails", () => {
@@ -362,21 +359,14 @@ describe("submitTrustStep", () => {
     );
   });
 
-  it("records Hudl's no-invitation state against the re-resolved person, never the form's claimed one (F-001)", async () => {
-    await redirectFrom(() =>
-      submitTrustStep(
-        formFor({ code: "hudl_access", no_invitation: "1", personId: OTHER_PERSON_ID }),
-      ),
-    );
+  // LAN-333. Hudl is self-serve from the club's join link and no operator sends
+  // an invitation, so the second checkbox answered a question the workflow
+  // never asks. A form still carrying `no_invitation` — a stale tab, a replayed
+  // post — must change nothing beyond the ordinary claim.
+  it("ignores a stale no_invitation field entirely", async () => {
+    await redirectFrom(() => submitTrustStep(formFor({ code: "hudl_access", no_invitation: "1" })));
 
-    expect(recordHudlNoInvitation).toHaveBeenCalledWith({
-      personId: PERSON_ID,
-      seasonId: SEASON_ID,
-      membershipId: MEMBERSHIP_ID,
-    });
-    expect(recordHudlNoInvitation).not.toHaveBeenCalledWith(
-      expect.objectContaining({ personId: OTHER_PERSON_ID }),
-    );
+    expect(claimTrustItem).not.toHaveBeenCalled();
   });
 
   it("advances to the literal next step regardless of whether this one was just claimed", async () => {
