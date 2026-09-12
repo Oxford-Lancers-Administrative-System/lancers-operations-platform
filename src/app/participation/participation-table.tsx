@@ -1,4 +1,5 @@
 import Box from "@mui/material/Box";
+import { applicationClockOffsetMs } from "@/lib/application-clock";
 import { StatusChip } from "@/components/status-chip";
 import { Section } from "@/components/section";
 import { Fact, FactGrid } from "@/components/fact";
@@ -137,6 +138,10 @@ function AnswerCell({
         invitationId={invitationId}
         displayName={person.displayName}
         questions={questions}
+        // LAN-340: the form's default "now" follows the same clock the
+        // server judges the answer against — the test clock on the test box,
+        // and exactly the real clock everywhere else.
+        clockOffsetMs={applicationClockOffsetMs()}
       />
     );
   }
