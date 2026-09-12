@@ -30,7 +30,12 @@ import { requireGeneralOperator } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 import { ESCALATED_TO_PRESIDENT, ESCALATION_NOT_DELIVERED } from "./chase-position";
-import { dispatchJob, EMAIL_FALLBACK_SUFFIX, MAX_ATTEMPTS } from "./delivery";
+import {
+  concludeExpiredDeliveries,
+  dispatchJob,
+  EMAIL_FALLBACK_SUFFIX,
+  MAX_ATTEMPTS,
+} from "./delivery";
 import { readFollowUpsQueue, countPeople } from "./follow-ups";
 import { sendEventChases } from "./messaging-scheduler";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -382,6 +387,33 @@ describe("the queue itself", () => {
     const row = personRow(events, "Invitee");
     expect(row?.status).toBe("delivery_problem");
     expect(row?.chasePosition).toBeNull();
+  });
+
+  it("shows an expired delivery as a failure rather than as still being sent — LAN-288", async () => {
+    // Meta never says a message expired: it drops one it could not deliver
+    // inside the validity period and sends no webhook at all, so an accepted
+    // attempt sat here reading **Attempted** for ever. `concludeExpiredDeliveries`
+    // turns that silence into the queue's own last-delivery line, which is
+    // what an operator actually looks at.
+    const target = await fixture();
+    await dispatchJob(target.jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.lastDelivery?.state).toBe("attempted");
+
+    await observer.query(
+      `update public.delivery_attempts set accepted_at = now() - interval '31 days'
+        where notification_job_id = $1`,
+      [target.jobId],
+    );
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED_WITH_EMAIL })).toBeGreaterThan(0);
+
+    const row = personRow(await readFollowUpsQueue(), "Invitee");
+    expect(row?.lastDelivery?.state).toBe("retryable");
+    // Still a chase, not a delivery_problem: there was a route, and the repair
+    // for a dropped message is to send it again.
+    expect(row?.status).toBe("chasing");
   });
 
   /**

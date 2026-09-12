@@ -24,6 +24,7 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import {
   applyProviderCallback,
+  concludeExpiredDeliveries,
   JOB_HELD_MESSAGE,
   JOB_HELD_RULE,
   JOB_NOT_FOUND_RULE,
@@ -1270,6 +1271,191 @@ describe("provider callbacks", () => {
     const current = await row(eventId);
     expect(current.state).toBe("retryable");
     expect(current.failureReason).toContain("could not deliver");
+  });
+});
+
+/**
+ * LAN-288 — a message WhatsApp dropped.
+ *
+ * Read from Meta's own documentation before any of this was written, because
+ * the historical ticket wording assumed a literal `expired` webhook status and
+ * there is no such thing. What the Cloud API actually documents:
+ *
+ *   * the status webhook's `status` field takes exactly `sent`, `delivered`,
+ *     `read`, `played` and `failed`
+ *     (developers.facebook.com/docs/whatsapp/cloud-api/webhooks/reference/messages/status/);
+ *   * a message has a validity period, or TTL — thirty days for everything
+ *     except authentication templates — and "the platform drops messages that
+ *     cannot be delivered within the default or customized TTL"
+ *     (developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages/);
+ *   * and the instruction that follows from it: "If you do not receive a
+ *     status messages webhook with `status` set to `delivered` before the TTL
+ *     is exceeded, assume the message was dropped."
+ *
+ * So expiry is an **absence**, not an event, and these tests stage it the only
+ * way it occurs: an accepted attempt with no callback, aged past the window.
+ */
+describe("LAN-288 — an expired delivery becomes an actionable failure", () => {
+  async function attemptRow(eventId: string) {
+    const result = await observer.query<{
+      id: string;
+      provider_message_id: string;
+      concluded_at: Date | null;
+      failure_reason: string | null;
+    }>(
+      `select a.id, a.provider_message_id, a.concluded_at, a.failure_reason
+         from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    return result.rows[0];
+  }
+
+  async function resultCount(eventId: string): Promise<number> {
+    const result = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.delivery_results r
+         join public.notification_jobs j on j.id = r.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    return Number(result.rows[0].count);
+  }
+
+  /** Ages the accepted attempt past the window, which is what a month passing looks like. */
+  async function ageBeyondTheWindow(eventId: string) {
+    await observer.query(
+      `update public.delivery_attempts a
+          set accepted_at = now() - interval '31 days'
+        from public.notification_jobs j
+       where j.id = a.notification_job_id and j.event_id = $1`,
+      [eventId],
+    );
+  }
+
+  it("concludes an accepted message the provider never confirmed, and offers the repair", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}TTL`),
+    });
+    // Before: apparently sent, and an operator is told to keep waiting.
+    expect((await row(eventId)).state).toBe("attempted");
+
+    await ageBeyondTheWindow(eventId);
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(1);
+
+    const current = await row(eventId);
+    // `retryable` is **Needs attention** on the delivery screen and the
+    // Follow-ups queue's own last-delivery line: the existing actionable
+    // failure path, with no new state invented for this.
+    expect(current.state).toBe("retryable");
+    expect(current.failureReason).toContain("delivery window");
+    // Provider-neutral, and no telephone number in what an operator reads.
+    expect(current.failureReason).not.toMatch(/\d{4,}/);
+
+    const attempt = await attemptRow(eventId);
+    expect(attempt.concluded_at).not.toBeNull();
+    // The raw evidence this attempt already held is preserved, not rewritten:
+    // the provider's own message identifier still matches its callbacks.
+    expect(attempt.provider_message_id).toContain(PROVIDER_MESSAGE_PREFIX);
+    expect(await resultCount(eventId)).toBe(1);
+  });
+
+  it("leaves an attempt still inside its window alone", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}YOUNG`),
+    });
+
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+    expect((await row(eventId)).state).toBe("attempted");
+    expect(await resultCount(eventId)).toBe(0);
+  });
+
+  it("never downgrades a confirmed delivery, however old it is", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}DONE`),
+    });
+    const messageId = (await attemptRow(eventId)).provider_message_id;
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId}:delivered`,
+        providerMessageId: messageId,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    await ageBeyondTheWindow(eventId);
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+
+    expect((await row(eventId)).state).toBe("delivered");
+    expect(await resultCount(eventId)).toBe(1);
+  });
+
+  it("creates no second repair row, however many times it runs", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}TWICE`),
+    });
+    await ageBeyondTheWindow(eventId);
+
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(1);
+    // A second tick, and a third: an attempt this already concluded is no
+    // longer a candidate, so the counts cannot climb.
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+    expect(await resultCount(eventId)).toBe(1);
+  });
+
+  it("keeps the expiry authoritative when a stale callback arrives afterwards", async () => {
+    // Out of order, and the documented shape of it: Meta says a message "might
+    // trigger status message webhooks with `status` set to `delivered`, and
+    // another webhook with `status` set to `failed`" when somebody is signed
+    // in on two devices, and that a failed webhook can be delayed. Invariant
+    // M4 already decides this — the first recorded result per attempt stays
+    // authoritative — and the expiry conclusion is a recorded result like any
+    // other.
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}LATE`),
+    });
+    const messageId = (await attemptRow(eventId)).provider_message_id;
+    await ageBeyondTheWindow(eventId);
+    await concludeExpiredDeliveries({ source: CONFIGURED });
+
+    const applied = await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId}:delivered`,
+        providerMessageId: messageId,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    expect(applied).toBe("superseded");
+    expect(await resultCount(eventId)).toBe(1);
+    // And the callback is still stored as evidence, which is the whole point
+    // of `delivery_callbacks`: it records what arrived and why it moved
+    // nothing.
+    const stored = await observer.query<{ ignored_reason: string | null }>(
+      `select ignored_reason from public.delivery_callbacks
+        where provider_event_id = $1`,
+      [`${messageId}:delivered`],
+    );
+    expect(stored.rows[0].ignored_reason).toContain("already has a recorded outcome");
   });
 });
 

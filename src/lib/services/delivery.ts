@@ -16,7 +16,7 @@ import {
   type DeliveryContext,
   type Transport,
 } from "@/lib/delivery";
-import type { EnvironmentSource } from "@/lib/delivery/config";
+import { resolveMessageTtlHours, type EnvironmentSource } from "@/lib/delivery/config";
 import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
@@ -1686,6 +1686,135 @@ export async function applyProviderCallback(
     });
 
     return "applied";
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Messages the provider never delivered and never reported — LAN-288
+// ---------------------------------------------------------------------------
+
+/**
+ * What an operator is told about a message WhatsApp dropped.
+ *
+ * Provider-neutral like every other reason on this screen, and phrased as the
+ * fact rather than as a diagnosis: the club knows the message was accepted and
+ * never confirmed delivered, and it does not know why. Retrying is a real
+ * repair — the message was dropped, so sending it again is exactly the thing
+ * that might work — which is why this is a `failed` outcome with attempts
+ * remaining (**Retryable**) and not a `rejected` one.
+ */
+export const DELIVERY_EXPIRED_REASON =
+  "WhatsApp accepted this message and never confirmed it reached the phone, and its delivery " +
+  "window has now passed, so it will not arrive. Nothing was delivered and nothing was recalled.";
+
+/**
+ * Concludes every accepted attempt the provider has gone silent on — LAN-288.
+ *
+ * ## What Meta actually does
+ *
+ * There is no `expired` callback. Meta's five status values are `sent`,
+ * `delivered`, `read`, `played` and `failed`, and a message that never reached
+ * a phone produces **no webhook at all** — the platform "drops messages that
+ * cannot be delivered within the default or customized TTL", and tells
+ * businesses: "If you do not receive a status messages webhook with `status`
+ * set to `delivered` before the TTL is exceeded, assume the message was
+ * dropped." Expiry is therefore an absence, and absence is the one thing a
+ * callback handler can never observe. Hence a sweep.
+ *
+ * Without this, such an attempt sat `accepted` forever and the operator read
+ * **Attempted — waiting for the provider to confirm delivery** about a message
+ * that had already been thrown away. That state is honest for an hour and a
+ * lie after a month, and it carries no repair.
+ *
+ * ## Why it cannot downgrade a delivery
+ *
+ * It only ever touches an attempt with `accepted_at` set, `concluded_at` null,
+ * and no `delivery_results` row — an attempt nothing has concluded. A
+ * delivered, failed or superseded attempt is concluded by definition, so a
+ * confirmed **Delivered** is out of reach here, and so is a second repair row
+ * for an attempt that already has one. Running it twice changes nothing the
+ * first run did not: the second pass finds no unconcluded attempt.
+ *
+ * The job itself moves only when this is still its current attempt —
+ * `applyProviderCallback`'s own fencing rule, for the same reason: a later
+ * attempt's claim must not be stamped by an older attempt's conclusion.
+ *
+ * Meta notes that a `failed` webhook "could be a minor delay", so the cut-off
+ * is deliberately the full TTL rather than the TTL minus a margin.
+ */
+export async function concludeExpiredDeliveries(
+  options: { source?: EnvironmentSource } = {},
+): Promise<number> {
+  const ttlHours = resolveMessageTtlHours(options.source ?? process.env);
+
+  return withTransaction(async (tx) => {
+    const stale = await tx.query<{
+      id: string;
+      notification_job_id: string;
+      attempt_number: number;
+      channel: string;
+      provider: string;
+    }>(
+      `select a.id, a.notification_job_id, a.attempt_number, a.channel::text as channel, a.provider
+         from public.delivery_attempts a
+        where a.accepted_at is not null
+          and a.concluded_at is null
+          and a.accepted_at < now() - ($1 || ' hours')::interval
+          and not exists (
+            select 1 from public.delivery_results r
+             where r.notification_job_id = a.notification_job_id
+               and r.attempt_number = a.attempt_number
+          )
+        order by a.accepted_at
+        for update of a`,
+      [String(ttlHours)],
+    );
+
+    for (const attempt of stale.rows) {
+      await tx.query(
+        `update public.delivery_attempts
+            set concluded_at = now(), failure_reason = $2
+          where id = $1`,
+        [attempt.id, DELIVERY_EXPIRED_REASON],
+      );
+
+      await tx.query(
+        `insert into public.delivery_results
+           (notification_job_id, attempt_number, outcome, channel, provider, detail)
+         values ($1, $2, 'failed', $3::public.notification_channel, $4, $5)
+         on conflict (notification_job_id, attempt_number) do nothing`,
+        [
+          attempt.notification_job_id,
+          attempt.attempt_number,
+          attempt.channel,
+          attempt.provider,
+          DELIVERY_EXPIRED_REASON,
+        ],
+      );
+
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2,
+                claimed_at = null, claimed_by = null, updated_at = now()
+          where id = $1 and attempt_count = $3`,
+        [attempt.notification_job_id, DELIVERY_EXPIRED_REASON, attempt.attempt_number],
+      );
+
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.failed",
+        entityTable: "notification_jobs",
+        entityId: attempt.notification_job_id,
+        reason: DELIVERY_EXPIRED_REASON,
+        context: {
+          attemptNumber: attempt.attempt_number,
+          provider: attempt.provider,
+          expiredAfterHours: ttlHours,
+        },
+      });
+    }
+
+    return stale.rows.length;
   });
 }
 

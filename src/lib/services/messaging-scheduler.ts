@@ -14,6 +14,7 @@ import {
   EMAIL_FALLBACK_SUFFIX,
   EVENT_HAS_NO_START_TIME_REASON,
   MAX_ATTEMPTS,
+  concludeExpiredDeliveries,
   dispatchJob,
 } from "./delivery";
 import {
@@ -105,6 +106,12 @@ export interface SweepSummary {
   readonly onboardingEscalationsCreated: number;
   /** LAN-218. Onboarding exhaustions held because the escalation office is vacant. */
   readonly onboardingEscalationsHeld: number;
+  /**
+   * LAN-288. Accepted messages the provider never confirmed, whose delivery
+   * window has passed — concluded as failures this tick rather than left
+   * reading **Attempted** for ever.
+   */
+  readonly deliveriesExpired: number;
 }
 
 /**
@@ -717,6 +724,14 @@ export async function runMessagingSweep(
   const declaredChases = await declareDueOnboardingChasesIn();
   const onboardingEscalations = await raiseDueOnboardingChaseEscalations();
 
+  // LAN-288. Before the tick dispatches anything, it closes the books on
+  // messages WhatsApp dropped: Meta sends no callback for those, so the only
+  // way the club ever learns is by noticing that a `delivered` webhook never
+  // arrived. Run here rather than on its own schedule because a tick is the
+  // only clock this application has, and it costs one indexed read when there
+  // is nothing to conclude.
+  const deliveriesExpired = await concludeExpiredDeliveries(options);
+
   const due = await readDueJobs(options.limit ?? SWEEP_BATCH_LIMIT);
 
   let accepted = 0;
@@ -771,6 +786,7 @@ export async function runMessagingSweep(
     onboardingChasesExhausted: onboardingEscalations.newlyExhausted,
     onboardingEscalationsCreated: onboardingEscalations.escalationsCreated,
     onboardingEscalationsHeld: onboardingEscalations.escalationsHeld,
+    deliveriesExpired,
   };
 }
 

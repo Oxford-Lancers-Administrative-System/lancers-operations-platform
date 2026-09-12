@@ -98,6 +98,11 @@ const PROVIDER_REASONS: Readonly<Record<number, string>> = {
     "conversation with this person and the message was not an approved template.",
   131026: "WhatsApp could not deliver to this number — it may not be a WhatsApp account.",
   131030: "This number is not on the provider's permitted recipient list.",
+  // LAN-288. Both documented under "Unable to deliver the message" and both
+  // terminal: one is the recipient's own choice and the other is the club's
+  // own account having blocked them. Neither is fixed by sending again.
+  131050: "This person has chosen to stop receiving messages from the club on WhatsApp.",
+  130403: "WhatsApp would not deliver this message because this person is blocked by the club.",
   132000: "The approved message template did not match what was sent.",
   132001: "The message template named for invitations does not exist on the club's account.",
   132015: "The message template named for invitations has been paused by the provider.",

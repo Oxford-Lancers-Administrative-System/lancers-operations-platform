@@ -242,6 +242,9 @@ const DEFAULTS = Object.freeze({
   WHATSAPP_TEMPLATE_LANGUAGE: "en_GB",
   DELIVERY_DEFAULT_CALLING_CODE: "44",
   EMAIL_API_BASE_URL: "https://api.resend.com",
+  // LAN-288. Meta's own documented default, not a number this repository chose.
+  // See `resolveMessageTtlHours`.
+  WHATSAPP_MESSAGE_TTL_HOURS: "720",
 });
 
 function trimmed(name: string, source: EnvironmentSource): string {
@@ -349,6 +352,42 @@ export function resolveLocalTestOverrides(
  */
 export function resolveDefaultCallingCode(source: EnvironmentSource = process.env): string {
   return withDefault("DELIVERY_DEFAULT_CALLING_CODE", source).replace(/^\+/, "");
+}
+
+/**
+ * How long WhatsApp keeps trying before it drops a message — LAN-288.
+ *
+ * Meta calls this the message's **validity period**, or TTL, and documents it
+ * in the Cloud API messaging guide:
+ *
+ *   * "All messages except authentication templates: 30 days." Authentication
+ *     templates are ten minutes. The club sends Utility-category templates, so
+ *     thirty days is its number, and 720 hours is that default here.
+ *   * "The platform drops messages that cannot be delivered within the default
+ *     or customized TTL."
+ *   * "If you do not receive a status messages webhook with `status` set to
+ *     `delivered` before the TTL is exceeded, assume the message was dropped."
+ *
+ * That last sentence is the whole of how an expired message is represented:
+ * **there is no callback**. Meta's five status values are `sent`, `delivered`,
+ * `read`, `played` and `failed`, and none of them is `expired`; a message that
+ * simply never reached a phone produces silence, not evidence. So this value
+ * is what turns that silence into the actionable failure LAN-288 asks for, and
+ * it is read here rather than folded into `resolveOutboundConfig` for
+ * `resolveDefaultCallingCode`'s own reason: ageing an accepted attempt out is
+ * bookkeeping about messages already sent, and must not be gated on the
+ * deployment's outbound secrets being present.
+ *
+ * A deployment that customises the TTL on its templates — which Meta permits
+ * for utility and authentication templates — sets the same number here, or the
+ * application would conclude a message dropped while WhatsApp was still
+ * trying. Nonsense (a non-number, zero or a negative) falls back to the
+ * documented default rather than to "immediately", which would mark every
+ * accepted message failed.
+ */
+export function resolveMessageTtlHours(source: EnvironmentSource = process.env): number {
+  const hours = Number(withDefault("WHATSAPP_MESSAGE_TTL_HOURS", source));
+  return Number.isFinite(hours) && hours > 0 ? hours : Number(DEFAULTS.WHATSAPP_MESSAGE_TTL_HOURS);
 }
 
 /**

@@ -480,6 +480,51 @@ describe("parsing a callback", () => {
     expect(new Set(events.map((event) => event.providerEventId)).size).toBe(2);
   });
 
+  /**
+   * LAN-288. Meta's own documented failed-status shape, copied from the status
+   * webhook reference rather than imagined: `errors[]` carries `code`, `title`,
+   * `message`, `error_data.details` and an `href`, and `played` joins `sent`,
+   * `delivered`, `read` and `failed` as the fifth status value. There is no
+   * `expired` status — a message the platform drops produces no webhook at all
+   * — so nothing here may be built to expect one.
+   */
+  it("reads Meta's documented failed shape, and quotes none of it back", () => {
+    const events = parseCallbackPayload(
+      payload([
+        {
+          id: "wamid.HBgLMTY1MDM4Nzk0MzkVAgARGBI0QUQ2MjA4NEYyRkExNjMyREUA",
+          status: "failed",
+          timestamp: "1751142888",
+          recipient_id: "16505551234",
+          errors: [
+            {
+              code: 131026,
+              title: "Message undeliverable.",
+              message: "Message undeliverable.",
+              error_data: { details: "Message Undeliverable." },
+              href: "/documentation/business-messaging/whatsapp/support/error-codes",
+            },
+          ],
+        },
+      ]),
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0].outcome).toBe("failed");
+    expect(events[0].providerStatus).toBe("failed");
+    // The operator's sentence is the club's own, not the provider's, and the
+    // recipient's number appeared in this payload: none of it may survive.
+    expect(events[0].detail).toMatch(/not be a WhatsApp account/i);
+    expect(events[0].detail).not.toMatch(/\d{4,}/);
+  });
+
+  it("keeps `played`, Meta's fifth status, as evidence with no outcome", () => {
+    const events = parseCallbackPayload(payload([{ id: "wamid.P", status: "played" }]));
+    expect(events).toHaveLength(1);
+    expect(events[0].providerStatus).toBe("played");
+    expect(events[0].outcome).toBeNull();
+  });
+
   it("yields nothing for a shape it does not recognise, and never throws", () => {
     // A webhook that 500s because the provider added a field is a webhook the
     // provider retries forever.

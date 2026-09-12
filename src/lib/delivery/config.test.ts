@@ -18,6 +18,7 @@ import {
   isLoopbackBaseUrl,
   OUTBOUND_ENVIRONMENT_VARIABLES,
   resolveLocalTestOverrides,
+  resolveMessageTtlHours,
   resolveOutboundConfig,
   resolveWebhookConfig,
   rsvpUrl,
@@ -298,5 +299,30 @@ describe("the local test affordances", () => {
     const overrides = resolveLocalTestOverrides("http://localhost:3010", {});
     expect(overrides.messageMode).toBe("template");
     expect(overrides.recipientOverride).toBeNull();
+  });
+});
+
+describe("LAN-288 — the message validity period", () => {
+  it("defaults to Meta's own documented thirty days", () => {
+    // "All messages except authentication templates: 30 days", and the club
+    // sends Utility-category templates. Not a number this repository chose.
+    expect(resolveMessageTtlHours({})).toBe(720);
+  });
+
+  it("takes a deployment's customised TTL, which Meta permits for utility templates", () => {
+    expect(resolveMessageTtlHours({ WHATSAPP_MESSAGE_TTL_HOURS: "12" })).toBe(12);
+  });
+
+  it("falls back to the documented default rather than to nothing", () => {
+    // The dangerous direction is zero: a TTL of nothing would conclude every
+    // accepted message dropped the instant it was sent, turning a working
+    // deployment's whole outbox into failures an operator is asked to repair.
+    for (const raw of ["", "   ", "nonsense", "0", "-5"]) {
+      expect(resolveMessageTtlHours({ WHATSAPP_MESSAGE_TTL_HOURS: raw }), raw).toBe(720);
+    }
+  });
+
+  it("is not required configuration — it has a safe default", () => {
+    expect(OUTBOUND_ENVIRONMENT_VARIABLES).not.toContain("WHATSAPP_MESSAGE_TTL_HOURS");
   });
 });
