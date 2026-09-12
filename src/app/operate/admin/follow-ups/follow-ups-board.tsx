@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import { Notice } from "@/components/notice";
@@ -13,6 +14,7 @@ import {
   andMore,
   chaseButtonLabel,
   chaseProblemNotice,
+  chaseRefusalLine,
   chaseSentNotice,
   REFUSALS_NAMED,
 } from "./presentation";
@@ -83,13 +85,30 @@ export default function FollowUpsBoard({
     chase,
   };
 
+  const nameOf = (invitationId: string) =>
+    rows.find((row) => row.invitationId === invitationId)?.personName ?? null;
+
   const namesFor = (ids: readonly string[]) => {
-    const named = rows.filter((row) => ids.includes(row.invitationId)).map((row) => row.personName);
+    const named = ids.map(nameOf).filter((name) => name !== null);
     const shown = named.slice(0, REFUSALS_NAMED);
     return named.length > shown.length
       ? `${shown.join(", ")} ${andMore(named.length - shown.length)}`
       : shown.join(", ");
   };
+
+  /**
+   * The refused, one line each, capped at the same `REFUSALS_NAMED` the names
+   * alone were capped at. The cap's own reasoning is unchanged and now matters
+   * more: a select-all that refuses everybody would otherwise put a reason
+   * sentence beside every one of hundreds of names.
+   */
+  const refusalLines = (result?.refusals ?? []).flatMap((refusal) => {
+    const name = nameOf(refusal.invitationId);
+    return name === null
+      ? []
+      : [{ invitationId: refusal.invitationId, line: chaseRefusalLine(name, refusal.reason) }];
+  });
+  const shownRefusals = refusalLines.slice(0, REFUSALS_NAMED);
 
   return (
     <Stack spacing={2}>
@@ -117,11 +136,17 @@ export default function FollowUpsBoard({
           {chaseSentNotice(result.accepted)}
         </Notice>
       ) : null}
-      {result && result.refusedInvitationIds.length > 0 ? (
+      {result && result.refusals.length > 0 ? (
         <Notice severity="warning" testId="chase-refused">
-          {`${chaseProblemNotice(result.refusedInvitationIds.length)} ${namesFor(
-            result.refusedInvitationIds,
-          )}`}
+          {chaseProblemNotice(result.refusals.length)}
+          <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
+            {shownRefusals.map((refusal) => (
+              <li key={refusal.invitationId}>{refusal.line}</li>
+            ))}
+            {refusalLines.length > shownRefusals.length ? (
+              <li>{andMore(refusalLines.length - shownRefusals.length)}</li>
+            ) : null}
+          </Box>
         </Notice>
       ) : null}
       {result && result.notOutstandingInvitationIds.length > 0 ? (

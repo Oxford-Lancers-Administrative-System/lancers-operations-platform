@@ -73,6 +73,10 @@ async function renderPage(query: Record<string, string> = {}) {
   return render(element);
 }
 
+/** The delivery path's own recorded sentences, abbreviated to their load-bearing half. */
+const NO_NUMBER = "No usable mobile number is recorded for this person.";
+const UNCONFIGURED = "Automated delivery is not configured on this deployment.";
+
 const HAWKS: FollowUpEvent = {
   eventId: "event-hawks",
   eventName: "vs Harewell Hawks",
@@ -146,7 +150,7 @@ beforeEach(() => {
   vi.mocked(chaseSelectedAction).mockResolvedValue({
     error: null,
     accepted: 0,
-    refusedInvitationIds: [],
+    refusals: [],
     notOutstandingInvitationIds: [],
   });
   signedInAs(["secretary"]);
@@ -583,7 +587,7 @@ describe("chasing several people from the queue — LAN-322", () => {
     vi.mocked(chaseSelectedAction).mockResolvedValue({
       error: null,
       accepted: 2,
-      refusedInvitationIds: [],
+      refusals: [],
       notOutstandingInvitationIds: [],
     });
     await renderPage();
@@ -602,7 +606,7 @@ describe("chasing several people from the queue — LAN-322", () => {
     vi.mocked(chaseSelectedAction).mockResolvedValue({
       error: null,
       accepted: 1,
-      refusedInvitationIds: ["invitation-2"],
+      refusals: [{ invitationId: "invitation-2", reason: NO_NUMBER }],
       notOutstandingInvitationIds: [],
     });
     await renderPage();
@@ -612,6 +616,37 @@ describe("chasing several people from the queue — LAN-322", () => {
     await waitFor(() =>
       expect(screen.getByTestId("chase-refused").textContent).toContain("Marlowe Fairhurst"),
     );
+  });
+
+  /**
+   * LAN-322's walk: the notice counted the refusals and named them, and said
+   * nothing about why. Correcting a phone number, asking the club's
+   * administrator to configure the deployment and leaving a recruit alone are
+   * three different next actions, and the operator could not tell which one
+   * this was.
+   */
+  it("says why each person could not be chased, beside their name", async () => {
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 0,
+      refusals: [
+        { invitationId: "invitation-2", reason: NO_NUMBER },
+        { invitationId: "invitation-3", reason: UNCONFIGURED },
+      ],
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(screen.getAllByLabelText("Select Gideon Thornbury")[0]);
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() => expect(screen.getByTestId("chase-refused")).not.toBeNull());
+    const lines = within(screen.getByTestId("chase-refused"))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+    expect(lines).toEqual([
+      `Marlowe Fairhurst — ${NO_NUMBER}`,
+      `Peregrine Oakhanger — ${UNCONFIGURED}`,
+    ]);
   });
 
   it("counts the rest rather than printing every name, when a whole queue is refused", async () => {
@@ -627,7 +662,10 @@ describe("chasing several people from the queue — LAN-322", () => {
     vi.mocked(chaseSelectedAction).mockResolvedValue({
       error: null,
       accepted: 0,
-      refusedInvitationIds: many.map((person) => person.invitationId),
+      refusals: many.map((person) => ({
+        invitationId: person.invitationId,
+        reason: NO_NUMBER,
+      })),
       notOutstandingInvitationIds: [],
     });
     await renderPage();

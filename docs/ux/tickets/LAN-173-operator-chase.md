@@ -119,7 +119,11 @@ desktop table and on the phone card:
 - **Several rows can be selected and chased in one action**, following
   `/operate/people/missing`'s existing selection-and-nudge shape rather than a second one —
   accepted and refused counted, refusals named on the row, and nothing sent without the
-  operator's own press.
+  operator's own press. Each refusal carries **why** beside the name — the delivery path's own
+  recorded sentence off `notification_jobs.last_error`, the same one the event's repair panel
+  shows, or the queue's own recruit wording where no job was ever written. A count alone left an
+  operator unable to tell a roster fix from a deployment the club's administrator has not
+  configured yet. Five are named, then the rest are counted.
 - A chase is **another `reminder` rung on that invitation's own ladder**, one rung above what the
   ladder has reached, dispatched through the same path every automated rung takes
   (`sendEventChases`, `messaging-scheduler.ts`). No new job type, no new table, and therefore the
@@ -250,7 +254,8 @@ Restated from `acceptance/W4.md`, `W5.md`, `W6.md` and `W8.md` as what was built
   click away, on desktop and at 375px, and no row renders a link into a refusal (LAN-329).
 - Several people can be selected and chased in one action from either rendering; a person with no
   reachable channel, a recruit, and somebody who has answered since the page was drawn are each
-  refused by name rather than silently skipped; and nothing is sent without the press (LAN-322).
+  refused by name **and by reason** rather than silently skipped; and nothing is sent without the
+  press (LAN-322).
 - The delivery page's counts are real; retries and the email fallback offer no operator action;
   only **Not dispatched — no channel** requires a person, and what it requires is a roster fix
   (linked) — retry stays available for exactly the reason `delivery.test.ts` already settled.

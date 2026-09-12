@@ -2646,6 +2646,20 @@ export type EventChaseOutcome =
 export interface EventChaseResult {
   readonly invitationId: string;
   readonly outcome: EventChaseOutcome;
+  /**
+   * Why nothing was sent, in the delivery path's own recorded words, or `null`
+   * where the outcome is the whole answer.
+   *
+   * Only a `refused` result carries one. The reason is read straight back off
+   * `notification_jobs.last_error` — the same sentence the event's delivery
+   * repair panel shows for the same failure — rather than re-derived here, so
+   * the queue cannot come to disagree with the delivery screens about why one
+   * message did not go. `accepted` and `not_outstanding` carry none because
+   * nothing failed and the word already says everything; `not_chaseable` is
+   * decided before any job exists, so it has no job row to read and the queue
+   * says the rule in its own vocabulary instead.
+   */
+  readonly reason: string | null;
 }
 
 /** This chase's own job, one per press, so two operators produce two rows rather than colliding on one key (invariant M1 keys on facts that do not change; the nonce is this press). */
@@ -2680,7 +2694,10 @@ function operatorChaseIdempotencyKey(eventId: string, invitationId: string, nonc
  *     door around a decided rule.
  *   * `refused` — everything `dispatchJob` refuses: no usable number or
  *     address, an unpermitted recipient, no consent, a provider that declined.
- *     The reason is on the job row, where the delivery screens read it.
+ *     The reason is on the job row, where the delivery screens read it, and
+ *     LAN-322's walk found that a count of refusals with no reason beside it
+ *     leaves an operator nothing to act on — so it is carried back out on
+ *     {@link EventChaseResult.reason} for the queue to name per person.
  */
 export async function sendEventChases(
   actorPersonId: string,
@@ -2746,7 +2763,7 @@ export async function sendEventChases(
     });
 
     if (prepared.outcome !== "prepared") {
-      results.push({ invitationId, outcome: prepared.outcome });
+      results.push({ invitationId, outcome: prepared.outcome, reason: null });
       continue;
     }
 
@@ -2760,7 +2777,28 @@ export async function sendEventChases(
     } catch {
       outcome = "refused";
     }
-    results.push({ invitationId, outcome: outcome === "accepted" ? "accepted" : "refused" });
+    if (outcome === "accepted") {
+      results.push({ invitationId, outcome: "accepted", reason: null });
+      continue;
+    }
+
+    // Read after the dispatch, not during it: `dispatchJob` records its own
+    // failure in its own transaction, so the sentence only exists once that
+    // has committed. A `null` here is a refusal that recorded nothing — the
+    // `catch` above, where the claim itself threw — and the queue says so in
+    // its own words rather than showing an empty reason.
+    const recorded = await withTransaction(async (tx) =>
+      tx.query<{ last_error: string | null }>(
+        "select last_error from public.notification_jobs where id = $1",
+        [prepared.jobId],
+      ),
+    );
+
+    results.push({
+      invitationId,
+      outcome: "refused",
+      reason: recorded.rows[0]?.last_error ?? null,
+    });
   }
 
   return results;

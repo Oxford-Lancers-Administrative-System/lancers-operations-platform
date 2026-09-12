@@ -59,6 +59,22 @@ export function chaseProblemNotice(refused: number): string {
 
 export const CHASE_NOBODY_SELECTED = "Select at least one person to chase.";
 
+/** A refusal the delivery path recorded no sentence for — the claim itself threw. */
+export const CHASE_REFUSAL_UNRECORDED = "Not sent — no reason recorded";
+
+/**
+ * One refused person and why — LAN-322's walk.
+ *
+ * The notice used to be a count and a run of names, which told an operator
+ * that something was wrong and nothing about what. The three refusals this
+ * queue actually produces each want a different next action — correct a phone
+ * number, ask the club's administrator to configure the deployment, or leave a
+ * recruit alone — so the name is useless without the reason beside it.
+ */
+export function chaseRefusalLine(name: string, reason: string): string {
+  return `${name} — ${reason}`;
+}
+
 /**
  * How many refused people a notice names before it counts the rest.
  *

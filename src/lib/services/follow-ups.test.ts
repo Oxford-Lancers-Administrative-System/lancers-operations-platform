@@ -622,7 +622,9 @@ describe("chasing from the queue — LAN-322", () => {
       transport: acceptsEverything(),
     });
 
-    expect(results).toEqual([{ invitationId: target.invitationId, outcome: "accepted" }]);
+    expect(results).toEqual([
+      { invitationId: target.invitationId, outcome: "accepted", reason: null },
+    ]);
 
     const jobs = await observer.query<{
       job_type: string;
@@ -674,7 +676,11 @@ describe("chasing from the queue — LAN-322", () => {
       transport: acceptsEverything(),
     });
 
-    expect(results).toEqual([{ invitationId: target.invitationId, outcome: "refused" }]);
+    // LAN-322's walk: the queue's notice can only name a next action if the
+    // refusal carries the delivery path's own recorded sentence out with it.
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ invitationId: target.invitationId, outcome: "refused" });
+    expect(results[0].reason).toMatch(/no usable mobile number/i);
   });
 
   it("chases the reachable people in a mixed selection, and refuses the rest", async () => {
@@ -688,8 +694,12 @@ describe("chasing from the queue — LAN-322", () => {
     );
 
     expect(results).toEqual([
-      { invitationId: reachable.invitationId, outcome: "accepted" },
-      { invitationId: unreachable.invitationId, outcome: "refused" },
+      { invitationId: reachable.invitationId, outcome: "accepted", reason: null },
+      {
+        invitationId: unreachable.invitationId,
+        outcome: "refused",
+        reason: expect.stringMatching(/no usable mobile number/i),
+      },
     ]);
   });
 
@@ -706,7 +716,9 @@ describe("chasing from the queue — LAN-322", () => {
       transport: acceptsEverything(),
     });
 
-    expect(results).toEqual([{ invitationId: target.invitationId, outcome: "not_chaseable" }]);
+    expect(results).toEqual([
+      { invitationId: target.invitationId, outcome: "not_chaseable", reason: null },
+    ]);
 
     const jobs = await observer.query<{ id: string; job_type: string }>(
       `select id, job_type::text as job_type
@@ -743,7 +755,9 @@ describe("chasing from the queue — LAN-322", () => {
       transport: acceptsEverything(),
     });
 
-    expect(results).toEqual([{ invitationId: target.invitationId, outcome: "not_outstanding" }]);
+    expect(results).toEqual([
+      { invitationId: target.invitationId, outcome: "not_outstanding", reason: null },
+    ]);
     const jobs = await observer.query(
       "select id from public.notification_jobs where invitation_id = $1 and job_type = 'reminder'",
       [target.invitationId],
