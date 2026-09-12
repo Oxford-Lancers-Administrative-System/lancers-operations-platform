@@ -2063,6 +2063,150 @@ describe("the invitation email really arrives, and carries a usable link", () =>
   });
 });
 
+/**
+ * The phone number recorded while inviting — LAN-332.
+ *
+ * The form posted free text and this module stored it, so a number entered at
+ * invitation could be in a shape nothing else in the club's records uses. The
+ * storage assertion is the one that matters: the form can be changed back
+ * without anything failing, but `contact_points.raw_value` cannot.
+ */
+describe("a phone number given at invitation is stored like every other one", () => {
+  it("writes the canonical value the shared control posts", async () => {
+    const result = await inviteOperator({
+      operator: administrator(),
+      subject: {
+        kind: "new",
+        givenName: MARKER,
+        familyName: "phone-canonical",
+        // Exactly what `PhoneField` posts for a UK mobile: joined, trunk 0
+        // dropped, country code explicit.
+        phone: "+447700900123",
+      },
+      email: uniqueAddress("phone-canonical"),
+      roles: [{ roleCode: "kit_manager" }],
+      callbackUrl: CALLBACK,
+      identity: identity(),
+    });
+    people.add(result.personId);
+
+    const stored = await observer.query<{ raw_value: string }>(
+      "select raw_value from public.contact_points where person_id = $1 and kind = 'phone'",
+      [result.personId],
+    );
+
+    expect(stored.rows).toHaveLength(1);
+    expect(stored.rows[0].raw_value).toBe("+447700900123");
+  });
+
+  it("refuses a number that is not one, and writes nothing at all", async () => {
+    const email = uniqueAddress("phone-nonsense");
+    const attempt = inviteOperator({
+      operator: administrator(),
+      subject: { kind: "new", givenName: MARKER, familyName: "phone-nonsense", phone: "banana" },
+      email,
+      roles: [{ roleCode: "kit_manager" }],
+      callbackUrl: CALLBACK,
+      identity: identity(),
+    });
+
+    await expect(attempt).rejects.toMatchObject({ rule: "operator_invitation_phone_invalid" });
+    // The same sentence `/operate/people/new` gives for the same input.
+    await expect(attempt).rejects.toThrow(/cannot be a phone number/i);
+
+    const account = await observer.query(
+      "select id from public.operator_accounts where lower(login_email) = lower($1)",
+      [email],
+    );
+    expect(account.rows).toHaveLength(0);
+    // And the login the refusal aborted was compensated away, so the address
+    // is free for the honest retry.
+    expect(sends).toHaveLength(0);
+  });
+
+  it("still accepts a number written the way a person writes it", async () => {
+    const result = await inviteSomebody({ tag: "phone-national" });
+    const stored = await observer.query<{ raw_value: string }>(
+      "select raw_value from public.contact_points where person_id = $1 and kind = 'phone'",
+      [result.personId],
+    );
+
+    expect(stored.rows[0].raw_value).toBe("07700 900131");
+  });
+});
+
+/**
+ * Inviting an address that already has an account — LAN-311, and LAN-309
+ * decision 12.
+ *
+ * An `invite` OTP cannot verify against a user who already exists and is
+ * confirmed, so an invitation sent to such an address is dead the moment it is
+ * issued. Clint met exactly that: he seated a coach on himself, using an
+ * address the club already held an account for, and the link never worked.
+ *
+ * Two paths reach it, and both are covered, because they refuse for different
+ * reasons and only one of them can name a record to open:
+ *
+ *   * the club's own `operator_accounts` already holds the address — the
+ *     ordinary case, one person picking up a second seat; and
+ *   * the Auth server holds it and this application does not, which is what a
+ *     half-written invitation or an account created outside the app leaves.
+ */
+describe("an address that already has an account never gets an invitation — LAN-311", () => {
+  it("names whose account it is, and what state their access is in", async () => {
+    const email = uniqueAddress("second-seat");
+    const first = await inviteSomebody({ email, tag: "second-seat" });
+    expect(first.state).toBe("invitation_pending");
+
+    const again = inviteSomebody({ email, tag: "second-seat-again" });
+
+    await expect(again).rejects.toMatchObject({ rule: EMAIL_ALREADY_HAS_LOGIN_RULE });
+    // The administrator's next move depends on which state it is in, so the
+    // refusal says. It used only to say that the address was taken.
+    await expect(again).rejects.toThrow(new RegExp(`${MARKER} second-seat`));
+    await expect(again).rejects.toThrow(/Invitation pending/);
+    await expect(again).rejects.toThrow(/open their operator record/i);
+  });
+
+  it("refuses before anything is written or sent", async () => {
+    const email = uniqueAddress("no-second-invite");
+    await inviteSomebody({ email, tag: "no-second-invite" });
+    sends = [];
+
+    await expect(inviteSomebody({ email, tag: "no-second-invite-2" })).rejects.toThrow();
+
+    expect(sends).toHaveLength(0);
+    const accounts = await observer.query(
+      "select id from public.operator_accounts where lower(login_email) = lower($1)",
+      [email],
+    );
+    expect(accounts.rows).toHaveLength(1);
+  });
+
+  /**
+   * The half `refuseTakenEmail` cannot see. The address is in `auth.users` and
+   * in no table this application owns, so the only thing that can refuse it is
+   * the login attempt itself — and it must refuse rather than proceed, because
+   * GoTrue would otherwise mint a token against a user that is already
+   * confirmed.
+   */
+  it("refuses an address the auth server holds and the club's records do not", async () => {
+    const email = uniqueAddress("auth-only");
+    const admin = createAdminClient();
+    const created = await admin.auth.admin.createUser({ email, email_confirm: true });
+    expect(created.error, "the fixture login was not created").toBeNull();
+    authUsers.add(created.data!.user!.id);
+
+    const attempt = inviteSomebody({ email, tag: "auth-only" });
+
+    await expect(attempt).rejects.toThrow(/already has a sign-in account/i);
+    // It says what it is refusing, not that there is a record to open — in
+    // this case there is not one.
+    await expect(attempt).rejects.toThrow(/could never be used/i);
+    expect(sends).toHaveLength(0);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

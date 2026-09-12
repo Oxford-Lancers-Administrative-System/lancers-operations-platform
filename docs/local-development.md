@@ -471,7 +471,9 @@ either. This is the whole first-access journey, end to end.
    Lancers operations account**.
 3. The link lands on `/auth/invitation`, which exchanges the one-time invite
    token and sends the browser to `/reset-password` with the token stripped from
-   the URL.
+   the URL. A token that does **not** exchange goes to `/invitation-link`
+   instead — LAN-311. Both destinations are fixed in `src/lib/auth/invitation.ts`
+   and neither is ever read from the query string.
 4. Choose a password. The account is recorded as activated at that moment — not
    when the link was opened — and Administration moves it from **Invitation
    pending** to **Active**.
@@ -480,6 +482,21 @@ either. This is the whole first-access journey, end to end.
 An expired link is normal and is not an error: ask for a resend. **Delivery
 failed** is what an account shows when the send itself failed; the person, the
 account and their role assignment are all still there, and Resend is offered.
+
+`/invitation-link` says only that the link cannot be used, and points at the one
+remedy that works — the club sends the invitation again. It never says which of
+expired, spent or wrong-type it was, and it never offers `/forgot-password`:
+until LAN-311 it did both by accident, because a failed invitation shared
+`/reset-password` with password recovery, and an invited operator sent to
+request a password reset for an account that has never had a password gets the
+same failure a second time.
+
+**An address that already has an account cannot be invited at all**, and the
+invite form refuses it rather than sending a link that could not work: an
+`invite` token does not verify against a user the Auth server has already
+confirmed. To see it, invite an address you have already invited — the refusal
+names whose account it is and what state their access is in. Give the second
+seat on the existing operator record instead.
 
 ### The Auth configuration this depends on
 

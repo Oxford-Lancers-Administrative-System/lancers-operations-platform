@@ -82,9 +82,8 @@ export const INVITATION_UNUSABLE_PATH = "/invitation-link";
 
 /** Shown when the invitation context is missing, spent, expired or the wrong type. LAN-311. */
 export const INVALID_INVITATION_LINK_MESSAGE =
-  "This invitation link cannot be used. An invitation link works once and expires after a short " +
-  "time. Ask whoever set up your account to send the invitation again, then follow the link in " +
-  "the most recent email.";
+  "An invitation link can be used once and expires after a short time. Ask whoever set up your " +
+  "account to send the invitation again, then follow the link in the most recent email.";
 
 /**
  * A shape check on the emailed token hash, before any network call.
