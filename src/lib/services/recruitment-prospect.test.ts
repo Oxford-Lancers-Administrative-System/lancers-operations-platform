@@ -1233,6 +1233,81 @@ describe("LAN-341 — a status change cancels what is still in flight", () => {
     expect(recruit.every((row) => row.status === "cancelled")).toBe(true);
   });
 
+  it("leaves the same person's coach-capacity invitation alone — the capacity clause, not the anchor, is what spares it", async () => {
+    const { personId, prospectId } = await newProspect("engaged");
+    await grantConsent(personId);
+    await giveMobile(personId);
+    await recruitEventFixture(personId);
+
+    // The player case above cannot prove `i.capacity = 'recruit'`, because a
+    // player anchors on `season_membership_id` and leaves `invitations.person_id`
+    // null (invariant P8) — the update's own `i.person_id = $1` excludes it
+    // whatever the capacity clause says. `coach`, `committee` and `guest` all
+    // anchor on `person_id` exactly as `recruit` does, so on a coach-capacity
+    // invitation the capacity clause is the only thing standing between the
+    // coach's queued message and the recruit's exit.
+    //
+    // A third event, because invariant P9 gives one human one audience row per
+    // event — and that is the real shape: somebody the club is recruiting who
+    // also coaches is invited to the recruitment evening as a recruit and to the
+    // practice as the coach taking it.
+    const coachEvent = await observer.query<{ id: string }>(
+      `insert into public.events
+         (season_id, name, template_id, event_type, origin, status, scheduled_on, starts_at,
+          is_mandatory, owner_person_id, approved_at, approved_by_person_id,
+          audience_confirmed_at, audience_confirmed_by_person_id)
+       select $1::uuid, $2, tpl.id, tpl.event_type, 'club_controlled', 'approved',
+              (now() + interval '14 days')::date, '19:00'::time, false, $3::uuid, now(), $3::uuid,
+              now(), $3::uuid
+         from public.event_templates tpl
+        where tpl.event_type = 'practice'
+        limit 1
+       returning id`,
+      [seasonId, `${MARKER} coached practice`, actorPersonId],
+    );
+    const coachEventId = coachEvent.rows[0].id;
+
+    const coachAudience = await observer.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, person_id, invitee_person_id, added_by_person_id)
+       values ($1::uuid, $2::uuid, 'coach', $3::uuid, $3::uuid, $4::uuid)
+       returning id`,
+      [coachEventId, seasonId, personId, actorPersonId],
+    );
+    const coachInvitation = await observer.query<{ id: string }>(
+      `insert into public.invitations
+         (event_id, event_status, season_id, capacity, person_id, status, expires_at,
+          audience_member_id)
+       values ($1::uuid, 'approved', $2::uuid, 'coach', $3::uuid, 'pending',
+               now() + interval '5 days', $4::uuid)
+       returning id`,
+      [coachEventId, seasonId, personId, coachAudience.rows[0].id],
+    );
+    // Due now, like the recruit's own rungs, so a job left standing really is a
+    // message the next sweep would send.
+    const coachKey = `event:${coachEventId}:invitation:coach:${personId}`;
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+          channel, scheduled_for, ladder_rung)
+       values ($1, 'invitation', 'pending', $2::uuid, $3::uuid, $4::uuid, 'whatsapp',
+               now() - interval '1 hour', 0)`,
+      [coachKey, coachInvitation.rows[0].id, coachEventId, personId],
+    );
+
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "declined"),
+    );
+
+    const states = await jobStatesFor(personId);
+    const coach = states.filter((row) => row.idempotency_key === coachKey);
+    const recruit = states.filter((row) => row.idempotency_key !== coachKey);
+    expect(coach.map((row) => row.status)).toEqual(["pending"]);
+    expect(coach[0].cancelled_reason).toBeNull();
+    expect(recruit).toHaveLength(3);
+    expect(recruit.every((row) => row.status === "cancelled")).toBe(true);
+  });
+
   it("cancels the recruitment cycle's queued reminders on the flip, naming the flip, and no failed job follows", async () => {
     const { personId, prospectId } = await newProspect("committed");
     await grantConsentViaWalkUp(personId);
