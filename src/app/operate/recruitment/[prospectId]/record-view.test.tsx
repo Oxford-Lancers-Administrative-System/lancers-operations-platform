@@ -25,8 +25,10 @@ vi.mock("../status-cell", () => ({
   default: () => null,
 }));
 
-import type { PersonRecord } from "@/lib/services/person-record";
+import type { PersonRecord, PersonContactValue } from "@/lib/services/person-record";
 import type { RecruitmentProspectRecord } from "@/lib/services/recruitment-prospect";
+import { selectMobileNumber } from "@/lib/delivery/phone-shape";
+import { DEFAULT_CALLING_CODE } from "@/lib/services/person-validation";
 import {
   ContactSection,
   IdentitySection,
@@ -185,9 +187,79 @@ describe("LAN-307 — the recruit record shows the whole person record", () => {
     render(<RecruitmentRecordView record={BASE_RECORD} person={FULL_PERSON} />);
     const person = screen.getByTestId("section-person");
     expect(person.textContent).toContain("Sends to");
-    expect(person.textContent).toContain("07700 900321");
+    expect(person.textContent).toContain(
+      selectMobileNumber(FULL_PERSON.contacts, DEFAULT_CALLING_CODE)!,
+    );
     // The action it qualifies is in the same card, not a section away.
     expect(person.querySelector('[data-testid="recruitment-send-personal"]')).not.toBeNull();
+  });
+
+  /**
+   * R7-1. "Sends to" ordered the contacts the way the dispatcher does and then
+   * printed the chosen contact's raw string. The dispatcher does not stop at
+   * the first candidate — it stops at the first one `toE164` can convert — so a
+   * preferred number nothing could be sent to was displayed as the destination
+   * of a message that would in fact go somewhere else entirely.
+   */
+  describe("the destination is the one a send would use", () => {
+    const phone = (over: Partial<PersonContactValue>): PersonContactValue => ({
+      id: "c",
+      kind: "phone",
+      scope: null,
+      rawValue: "07700 900321",
+      normalisedValue: null,
+      isPreferred: false,
+      source: null,
+      validFrom: new Date(),
+      validUntil: null,
+      ...over,
+    });
+
+    /** The row read out of the "Sends to" field, whatever it says. */
+    function sendsTo(): string {
+      const row = screen
+        .getAllByTestId("record-row")
+        .find((node) => node.getAttribute("data-label") === "Sends to")!;
+      return row.textContent ?? "";
+    }
+
+    it("skips a preferred number the dispatcher could not convert", () => {
+      // "7700 900321" carries no trunk zero and no calling code: `toE164`
+      // refuses it rather than guessing, so the send falls through to the
+      // second contact. Preferred, and still not the destination.
+      const contacts = [
+        phone({ id: "unconvertible", rawValue: "7700 900321", isPreferred: true }),
+        phone({ id: "reachable", rawValue: "07700 900987" }),
+      ];
+      render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
+
+      const chosen = selectMobileNumber(contacts, DEFAULT_CALLING_CODE);
+      expect(chosen).toBe("447700900987");
+      expect(sendsTo()).toContain(chosen!);
+      expect(sendsTo()).not.toContain("7700 900321");
+    });
+
+    it("reads not recorded when no recorded number converts", () => {
+      const contacts = [
+        phone({ id: "short", rawValue: "07700 90012", isPreferred: true }),
+        phone({ id: "words", rawValue: "ask Sam" }),
+      ];
+      expect(selectMobileNumber(contacts, DEFAULT_CALLING_CODE)).toBeNull();
+
+      render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
+      expect(sendsTo()).toContain("not recorded");
+    });
+
+    it("ignores a number that stopped being theirs", () => {
+      // `valid_until` is how the club records that. The dispatcher never sees
+      // such a row, so neither may the field that claims to name its choice.
+      const contacts = [
+        phone({ id: "old", rawValue: "07700 900111", isPreferred: true, validUntil: new Date() }),
+        phone({ id: "current", rawValue: "07700 900987" }),
+      ];
+      render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
+      expect(sendsTo()).toContain("447700900987");
+    });
   });
 
   it("offers the canonical record, so a correction is still made in one place", () => {

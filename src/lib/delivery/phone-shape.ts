@@ -98,6 +98,62 @@ export function toE164(raw: string, defaultCallingCode: string): string | null {
 }
 
 /**
+ * One recorded contact point, as much of it as the selection below reads.
+ *
+ * Structural, so both `PersonContactValue` (the person record's own shape) and
+ * the delivery layer's row satisfy it without either importing the other.
+ */
+export interface ContactPointRow {
+  readonly kind: string;
+  readonly rawValue: string;
+  readonly normalisedValue: string | null;
+  readonly isPreferred: boolean;
+}
+
+/**
+ * The number a send would actually go to, from a person's recorded contact
+ * points, or `null` when none of them converts.
+ *
+ * Prefers the contact the club marked preferred, then the most recently
+ * recorded current one — the same precedence a human would apply — and falls
+ * through to the next candidate when one cannot be converted, because an
+ * unconvertible number is not a destination. Only current contact points are
+ * considered: `valid_until` is how the club records that a number stopped being
+ * that person's, so the caller filters those out before calling.
+ *
+ * ## Why this lives in `./phone-shape.ts` rather than `./phone.ts`
+ *
+ * This is the dispatcher's own choice, and a surface that tells an operator
+ * *where a send will go* has to make the identical choice or it is describing a
+ * different message than the one that will be sent (LAN-307, R7-1: the recruit
+ * record showed the chosen contact's raw string, so a number the dispatcher
+ * would skip was displayed as the destination). One of those surfaces is a
+ * client component, which cannot import `./phone.ts`'s `server-only` tag. The
+ * question therefore lives here, next to the conversion it depends on, and
+ * `./phone.ts` re-exports it unchanged for every existing caller.
+ */
+export function selectMobileNumber(
+  contacts: readonly ContactPointRow[],
+  defaultCallingCode: string,
+): string | null {
+  const phones = contacts.filter((contact) => contact.kind === "phone");
+  const ordered = [...phones].sort((a, b) => Number(b.isPreferred) - Number(a.isPreferred));
+
+  for (const contact of ordered) {
+    // `normalised_value` is the club's own cleaned form where intake produced
+    // one; `raw_value` is what was actually supplied. Both go through the same
+    // conversion, so a stored "normalised" value that is not E.164 is still
+    // checked rather than trusted.
+    const converted =
+      toE164(contact.normalisedValue ?? "", defaultCallingCode) ??
+      toE164(contact.rawValue, defaultCallingCode);
+    if (converted) return converted;
+  }
+
+  return null;
+}
+
+/**
  * Digits after the country code, for the countries this club has numbers in.
  *
  * Deliberately tiny. It is not a general phone-number library and must not grow

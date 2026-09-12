@@ -4,6 +4,8 @@ import { NotRecorded } from "@/components/fact";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { selectMobileNumber } from "@/lib/delivery/phone-shape";
+import { DEFAULT_CALLING_CODE } from "@/lib/services/person-validation";
 import type { PersonRecord } from "@/lib/services/person-record";
 
 /**
@@ -124,14 +126,27 @@ export function ContactSection({
  * shows this beside the questionnaire actions so an operator can read the
  * destination before pressing send, rather than opening another page to
  * find out where the message went.
+ *
+ * It is the dispatcher's own `selectMobileNumber`, not a re-statement of its
+ * ordering (R7-1). The earlier version ordered the contacts the same way and
+ * then returned the chosen contact's `rawValue`, which disagrees with the send
+ * path in both directions: the dispatcher falls through to the next candidate
+ * when a number cannot be converted, so a contact a send would skip was shown
+ * as the destination; and it converts `normalised_value` first, so even for the
+ * contact it does pick, the raw string is not necessarily where the message
+ * goes. What is shown is therefore the converted E.164 destination itself —
+ * character for character what would be handed to the provider.
+ *
+ * `valid_until` is filtered here rather than there: `selectMobileNumber` is
+ * given current rows by every one of its callers, which is where "this number
+ * stopped being theirs" is decided.
+ *
+ * `DEFAULT_CALLING_CODE` rather than the delivery configuration's own value,
+ * because this runs in a client component and cannot read the server's
+ * environment. `onboarding-chase/chase-state.ts` answers the same "could this
+ * be sent" question the same way.
  */
 export function recordedMobile(record: VisiblePersonRecord): string | null {
-  // Preferred first, any scope, current only — `selectMobileNumber`'s own
-  // ordering, so what is shown is what a send would actually pick rather than
-  // the narrower scope-`null` row the section above labels "Mobile phone".
-  const phones = (record.contacts ?? []).filter(
-    (contact) => contact.kind === "phone" && contact.validUntil === null,
-  );
-  const chosen = phones.find((contact) => contact.isPreferred) ?? phones[0];
-  return chosen?.rawValue ?? null;
+  const current = (record.contacts ?? []).filter((contact) => contact.validUntil === null);
+  return selectMobileNumber(current, DEFAULT_CALLING_CODE);
 }
