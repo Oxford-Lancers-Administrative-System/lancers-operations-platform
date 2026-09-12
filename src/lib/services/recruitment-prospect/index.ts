@@ -8,6 +8,10 @@ export { addRecruitmentProspectNote, addRecruitmentProspectNoteIn } from "./note
 
 export { updateRecruitmentProspectStatus, updateRecruitmentProspectStatusIn } from "./status";
 
+// `./cancellations` is deliberately not re-exported: standing a recruit's queued
+// messages down is something a status change does, never something a caller asks
+// for on its own (LAN-341).
+
 export {
   RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON,
   flipRecruitmentProspectToJoined,

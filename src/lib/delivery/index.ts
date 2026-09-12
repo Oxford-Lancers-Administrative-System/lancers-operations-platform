@@ -119,7 +119,16 @@ export function resolveDeliveryProvider(
   };
 }
 
-export { rsvpUrl, playerAnswerUrl, playerHomeUrl } from "./config";
+export {
+  rsvpUrl,
+  playerAnswerUrl,
+  playerEventsUrl,
+  onboardingUrl,
+  signupUrl,
+  stopMessagesUrl,
+  eventQuestionsUrl,
+  recruitBackgroundUrl,
+} from "./config";
 export type {
   DeliveryProvider,
   InvitationMessage,

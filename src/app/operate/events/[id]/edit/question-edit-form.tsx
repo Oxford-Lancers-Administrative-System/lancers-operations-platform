@@ -7,9 +7,11 @@ import Stack from "@mui/material/Stack";
 import { ActionBar } from "@/components/action-bar";
 import { preventImplicitSubmit } from "@/components/field";
 import { Notice } from "@/components/notice";
+import { RECRUITMENT_EVENT_TYPE } from "@/lib/services/audience-selection";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import { updateEventQuestionsAction } from "../../actions";
 import { EMPTY_FORM_STATE } from "../../form-state";
+import { RECRUIT_QUESTIONS_NOTICE } from "../../presentation";
 import QuestionEditor from "../../question-editor";
 
 // LAN-318, amending D41 (Brian, 2026-09-11) — the questions of an event that has already been
@@ -20,11 +22,14 @@ import QuestionEditor from "../../question-editor";
 export default function QuestionEditForm({
   eventId,
   eventTypeLabel,
+  eventType,
   initialQuestions,
   cancelHref,
 }: {
   eventId: string;
   eventTypeLabel: string;
+  /** The `public.event_type` class, for LAN-339's notice — never the template's name. */
+  eventType: string;
   initialQuestions: readonly RawEventQuestion[];
   cancelHref: string;
 }) {
@@ -57,6 +62,7 @@ export default function QuestionEditForm({
           issues={state.questionIssues}
           disabled={pending}
           removable={false}
+          notice={eventType === RECRUITMENT_EVENT_TYPE ? RECRUIT_QUESTIONS_NOTICE : undefined}
         />
 
         <ActionBar

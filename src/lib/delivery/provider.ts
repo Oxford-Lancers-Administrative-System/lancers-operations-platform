@@ -139,6 +139,14 @@ export interface OutboundMessage {
   /** The signed RSVP link. Carries the plaintext token and is never logged. */
   readonly rsvpUrl: string;
   /**
+   * The nudge's own link — LAN-343. One event's outstanding questions, on the
+   * same per-invitation RSVP token `rsvpUrl` carries, at `/questions/<t>`. A
+   * separate field rather than a second meaning for `rsvpUrl`: the two are
+   * different pages asking different things, and one field standing for both
+   * is how a template comes to link at the page that asks nothing.
+   */
+  readonly questionsUrl?: string | null;
+  /**
    * The two Yes/No answer links — LAN-172, Q-11. `invitation` and `reminder`
    * are the only kinds that carry these; every other kind still uses the
    * single `rsvpUrl` above. Each carries its own one-time token and is never
@@ -161,18 +169,26 @@ export interface OutboundMessage {
   /** The operator-tier follow-up queue. Escalation only. */
   readonly queueUrl?: string | null;
   /**
-   * LAN-203, LAN-199. The recruit's own tokenised, prefilled link — the
-   * sign-up form for `recruit_welcome`/`recruit_details_reminder`, Questionnaire
-   * B for `recruit_interest_ask`/`recruit_interest_reminder`. Both live under
-   * LAN-202's `/me/` prefix; which page a given token resolves to is that
-   * package's own routing, not a fact this module carries.
+   * LAN-203, LAN-199. The one form link a message asks somebody to fill in —
+   * the prefilled sign-up form (`recruit_welcome`,
+   * `recruit_details_reminder`), the football-background questionnaire
+   * (`recruit_interest_ask`, `recruit_interest_reminder`) or the onboarding
+   * questionnaire (`onboarding_welcome`, `onboarding_chase`). LAN-343 gave
+   * each of those three its own route and its own credential, so which page a
+   * given token resolves to is now a fact about the token itself, not about
+   * which message happened to carry it.
    */
   readonly formUrl?: string | null;
   /**
-   * LAN-203, LAN-199. The opt-out link every recruit template but
-   * `recruit_event_followup` carries as its second URL button (that one
+   * LAN-203, LAN-199. The opt-out link every recruit and onboarding template
+   * but `recruit_event_followup` carries as its second URL button (that one
    * spends both of its two allowed URL buttons on the yes/no answer, per
-   * LAN-199's own note). LAN-202 owns the page this resolves to.
+   * LAN-199's own note).
+   *
+   * LAN-343: never the same credential as `formUrl` beside it. The scheduler
+   * used to mint one durable token and put it in both, so one leaked link
+   * opened a form and an opt-out alike; each is its own purpose-tagged
+   * credential now.
    */
   readonly stopUrl?: string | null;
 }

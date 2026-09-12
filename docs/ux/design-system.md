@@ -189,11 +189,14 @@ They take the tokens and the band colours and are otherwise untouched.
 
 ## 7. The player surfaces
 
-The nine routes a player reaches without an account — `/me/[token]`, its
-five-step questionnaire, `/rsvp/[token]`, `/a/[token]`, `/join/[code]`,
-`/me/join/[token]`, `/me/stop/[token]`, `/e/[token]`, and the session-gated
+The routes a player reaches without an account — `/events/[token]`,
+`/onboarding/[token]`, `/questions/[token]`, `/rsvp/[token]`,
+`/a/yes/[token]` and `/a/no/[token]`, `/join/[code]`, `/signup/[token]`,
+`/stop/[token]`, `/background/[token]`, `/e/[token]`, and the session-gated
 `/me` — arrived with LAN-214, LAN-215 and LAN-216, after the audit brief chose
-its screens. LAN-225's addendum audited all nine; the catalogue is
+its screens, and were given one route and one credential each by LAN-343. The
+audited catalogue (LAN-225's addendum, taken against the nine paths those
+pages then had) is
 [`review/design-mockup-2026-09/player-surfaces.md`](review/design-mockup-2026-09/player-surfaces.md)
 and the pairs are on the same review page as the rest.
 

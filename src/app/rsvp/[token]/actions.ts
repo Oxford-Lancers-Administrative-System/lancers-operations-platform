@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { isServiceError } from "@/lib/db";
+import { isServiceError, withTransaction } from "@/lib/db";
 import {
   allowRsvpRequest,
   clientKeyFrom,
@@ -11,8 +11,10 @@ import {
   logThrottledRsvpRequest,
   startUniformClock,
 } from "@/lib/rsvp/public-surface";
+import { issuePersonTokenIn } from "@/lib/services/player-answer-tokens";
+import { readInvitationOwnerIn } from "@/lib/services/player-home";
 import { NO_REQUIRES_A_REASON_RULE, recordSignedLinkResponse } from "@/lib/services/rsvp";
-import { recordRsvpTokenUse } from "@/lib/services/rsvp-tokens";
+import { recordRsvpTokenUse, resolveRsvpTokenIn } from "@/lib/services/rsvp-tokens";
 import {
   BUSY_ERROR,
   CLOSED_ERROR,
@@ -110,6 +112,45 @@ function failureFor(error: unknown): string {
     return REASON_REQUIRED_ERROR;
   }
   return CLOSED_ERROR;
+}
+
+/**
+ * "See all your events." from the saved page — LAN-343.
+ *
+ * This page was a closed loop: "Change response" and "Close" both pointed back
+ * at itself, and nothing here led to the player's own page. The page it now
+ * leads to needs a durable credential, whose plaintext cannot be recovered, so
+ * one is minted behind this click — a POST, deliberately, because the GET this
+ * page is reached by must keep writing nothing for a link-preview crawler, and
+ * a crawler never submits a form.
+ *
+ * The person comes from this link's own RSVP token, never from the form. A
+ * recruit is refused: they have no events page at all
+ * (`REQ-recruit-sees-public-only`), and `saved-and-cancelled.tsx` does not
+ * render the control for them either.
+ */
+export async function openEventsPage(form: FormData): Promise<void> {
+  const startedAt = startUniformClock();
+  const token = tokenFrom(form);
+  const here = `/rsvp/${encodeURIComponent(token)}?${SAVED_PARAM}=1`;
+
+  if (await throttled(token)) return refuse(here, startedAt);
+
+  let destination: string;
+  try {
+    destination = await withTransaction(async (tx) => {
+      const resolution = await resolveRsvpTokenIn(tx, token);
+      if (resolution.invitation === null) throw new Error("unresolved");
+      const owner = await readInvitationOwnerIn(tx, resolution.invitation.invitationId);
+      if (owner === null || owner.capacity === "recruit") throw new Error("unresolved");
+      const durable = await issuePersonTokenIn(tx, owner.personId, owner.seasonId);
+      return `/events/${encodeURIComponent(durable.token)}`;
+    });
+  } catch {
+    return refuse(here, startedAt);
+  }
+
+  redirect(destination);
 }
 
 /**

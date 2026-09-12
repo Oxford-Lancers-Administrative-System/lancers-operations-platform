@@ -4,6 +4,11 @@ import { InvalidTransition, NotFound, withTransaction, type Tx } from "@/lib/db"
 import { todayInClubZone } from "@/lib/club-time";
 import { recordAudit } from "../audit";
 import { EXIT_STATUSES, type ProspectStatus } from "../recruitment-vocabulary";
+import {
+  cancelRecruitCycleJobsIn,
+  cancelRecruitEventJobsIn,
+  recruitStatusCancellationReason,
+} from "./cancellations";
 
 /** The exits — `W13`. `joined` is refused here; `flip.ts` owns it. LAN-204. */
 
@@ -14,9 +19,15 @@ export interface UpdateRecruitmentStatusOptions {
 const JOINED_THROUGH_FLIP_RULE = "recruitment_prospect_joined_through_flip";
 
 /**
- * Every status change except `joined` (W13). Cancels every queued cycle job
- * on an exit (`declined`, `disengaged`, `void`): "nothing is sent to them"
- * must be true even for a job the sweep already claimed.
+ * Every status change except `joined` (W13). On an exit (`declined`,
+ * `disengaged`, `void`) it cancels every queued message on both of the
+ * recruit's ladders — the recruitment cycle, and any event that already holds
+ * them (LAN-341): "nothing is sent to them" must be true even for a job the
+ * sweep already claimed.
+ *
+ * Consent is deliberately untouched. Declined is a recruitment status, and
+ * withdrawing consent stays the person's own act through the stop link
+ * (Brian's own recommendation on LAN-341).
  */
 export async function updateRecruitmentProspectStatusIn(
   tx: Tx,
@@ -90,15 +101,24 @@ export async function updateRecruitmentProspectStatusIn(
   });
 
   if (EXIT_STATUSES.includes(toStatus)) {
-    await tx.query(
-      `update public.notification_jobs
-          set status = 'cancelled', cancelled_reason = $2, claimed_at = null, claimed_by = null,
-              updated_at = now()
-        where person_id = $1::uuid
-          and idempotency_key like 'recruit-cycle:%'
-          and status in ('pending', 'ready', 'failed')`,
-      [row.person_id, `Recruit moved to ${toStatus}.`],
-    );
+    // LAN-341. The cycle was already stood down here; the event ladder was not,
+    // so an exited recruit still received the invitation and the follow-up of
+    // any event that already held them. Both ladders, one reason, in
+    // `./cancellations.ts` — and the flip (`./flip.ts`) shares the first.
+    const reason = recruitStatusCancellationReason(toStatus);
+    const cycleJobs = await cancelRecruitCycleJobsIn(tx, row.person_id, row.season_id, reason);
+    const eventJobs = await cancelRecruitEventJobsIn(tx, row.person_id, row.season_id, reason);
+
+    if (cycleJobs + eventJobs > 0) {
+      await recordAudit(tx, {
+        actorPersonId,
+        action: "recruitment_prospect.messages_cancelled",
+        entityTable: "recruitment_prospects",
+        entityId: prospectId,
+        reason,
+        context: { issue: "LAN-341", cycleJobs, eventJobs },
+      });
+    }
   }
 }
 

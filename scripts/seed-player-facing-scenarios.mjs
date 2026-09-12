@@ -14,7 +14,7 @@
  * dispatch (`issuePersonTokenIn`, `src/lib/services/player-answer-tokens.ts`).
  * A local environment has no delivery settings, so dispatch always refuses —
  * `person_access_tokens` is empty database-wide on a plain `db:seed`, and
- * `/me/<token>/details` is unreachable by any route a local operator can
+ * `/onboarding/<token>` is unreachable by any route a local operator can
  * click through. The same gap means an onboarding chase can never reach
  * `chaseCount` *delivered* attempts locally (`onboarding-chase.ts`'s own
  * `deliveredCount`), so the "exhausted — human follow-up" state W9 describes
@@ -33,10 +33,10 @@
  *      nothing on file (no college, no contact point of any kind — see that
  *      script's own recruit block, and `tests/seed-onboarding-chase.test.ts`'s
  *      own proof that this stays true) — so his compiled ask is never empty
- *      and `/me/<token>/details` always lands on the form, not the
- *      already-complete page. Reissuing his durable credential here (the
- *      same revoke-then-insert `issuePersonTokenIn` performs) is exactly the
- *      operation this table exists for, not a shortcut around it. Minting a
+ *      and `/onboarding/<token>` always lands on the form, not the
+ *      already-complete page. Minting his onboarding credential here is
+ *      exactly the operation this table exists for, not a shortcut around it.
+ *      Minting a
  *      token adds no contact point and grants no consent, so his own
  *      "genuinely never asked, and also unreachable" state
  *      (`seed-onboarding-chase.mjs`'s own comment) is untouched.
@@ -187,21 +187,27 @@ try {
     );
   }
 
-  // The reissue idiom `issuePersonTokenIn` itself performs: supersede
-  // whatever durable credential is live, then mint a fresh one — never a
-  // second live row, and never a recovered plaintext (LAN-169's own rule;
-  // rsvp-tokens.ts's module note explains why in full).
+  // Revoked first, unlike `issuePersonTokenIn` itself — LAN-343 stopped that
+  // function superseding anything, because a link the club has sent must keep
+  // resolving until the season closes. A *reseed* is the one case where the
+  // opposite is wanted: it runs repeatedly against one database, and every
+  // earlier run's plaintext was printed to a terminal nobody is reading any
+  // more. Leaving those live would accumulate credentials for one person that
+  // no page has any use for.
   await client.query(
     `update public.person_access_tokens
         set revoked_at = now(),
             revoked_reason = 'Reseeded by scripts/seed-player-facing-scenarios.mjs (LAN-229).'
-      where person_id = $1 and season_id = $2 and not single_use and revoked_at is null`,
+      where person_id = $1 and season_id = $2 and not single_use and revoked_at is null
+        and purpose is not distinct from 'onboarding_details'::public.person_access_token_purpose`,
     [lysander.person_id, lysander.season_id],
   );
   const plaintext = mintToken();
+  // `onboarding_details` (LAN-343): `/onboarding/<t>` resolves that purpose and
+  // nothing else, so an untagged row would land on the uniform not-found page.
   await client.query(
-    `insert into public.person_access_tokens (person_id, season_id, token_hash, single_use)
-     values ($1, $2, $3, false)`,
+    `insert into public.person_access_tokens (person_id, season_id, token_hash, single_use, purpose)
+     values ($1, $2, $3, false, 'onboarding_details'::public.person_access_token_purpose)`,
     [lysander.person_id, lysander.season_id, hashToken(plaintext)],
   );
 
@@ -290,7 +296,7 @@ try {
 
   const workdir = process.env.SUPABASE_WORKDIR;
   const port = process.env.PORT;
-  const relativePath = `/me/${plaintext}/details`;
+  const relativePath = `/onboarding/${plaintext}`;
   let writtenTo = null;
   if (workdir) {
     fs.mkdirSync(workdir, { recursive: true, mode: 0o700 });

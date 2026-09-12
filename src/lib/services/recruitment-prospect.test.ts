@@ -1003,3 +1003,261 @@ describe("addRecruitmentProspectNoteIn", () => {
     expect(record?.notes[0].authorLabel).toContain(ACTOR_MARKER);
   });
 });
+
+/**
+ * LAN-341 — a recruit's status changing stands their queued messages down.
+ *
+ * Two ladders, because a recruit is addressed by two kinds of message: the
+ * recruitment cycle (no event, keyed by `recruit-cycle:`) and every message of
+ * an event that already holds them (keyed to a recruit-capacity invitation).
+ * Both are proved the same way — real pending jobs, due now, against a person
+ * who is reachable and consented, so a job left pending really would have gone
+ * out — and then a real sweep, which must send nothing.
+ */
+describe("LAN-341 — a status change cancels what is still in flight", () => {
+  /** The Recruitment template the migration seeds, by its fixed literal id (LAN-265). */
+  const RECRUITMENT_TEMPLATE_ID = "ae03257b-292e-5a97-b6ef-c3a6a2b839d7";
+
+  /** An approved, future Recruitment event holding one recruit-capacity invitation, every event rung queued and due. */
+  async function recruitEventFixture(personId: string): Promise<{
+    eventId: string;
+    invitationId: string;
+  }> {
+    const event = await observer.query<{ id: string }>(
+      `insert into public.events
+         (season_id, name, template_id, event_type, origin, status, scheduled_on, starts_at,
+          is_mandatory, owner_person_id, approved_at, approved_by_person_id,
+          audience_confirmed_at, audience_confirmed_by_person_id)
+       select $1::uuid, $2, tpl.id, tpl.event_type, 'club_controlled', 'approved',
+              (now() + interval '10 days')::date, '19:00'::time, false, $3::uuid, now(), $3::uuid,
+              now(), $3::uuid
+         from public.event_templates tpl
+        where tpl.id = $4::uuid
+       returning id`,
+      [seasonId, `${MARKER} recruitment evening`, actorPersonId, RECRUITMENT_TEMPLATE_ID],
+    );
+    const eventId = event.rows[0].id;
+
+    const audience = await observer.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, person_id, invitee_person_id, added_by_person_id)
+       values ($1::uuid, $2::uuid, 'recruit', $3::uuid, $3::uuid, $4::uuid)
+       returning id`,
+      [eventId, seasonId, personId, actorPersonId],
+    );
+
+    const invitation = await observer.query<{ id: string }>(
+      `insert into public.invitations
+         (event_id, event_status, season_id, capacity, person_id, status, expires_at,
+          audience_member_id)
+       values ($1::uuid, 'approved', $2::uuid, 'recruit', $3::uuid, 'pending',
+               now() + interval '5 days', $4::uuid)
+       returning id`,
+      [eventId, seasonId, personId, audience.rows[0].id],
+    );
+    const invitationId = invitation.rows[0].id;
+
+    // The invitation, the recruit ladder's one follow-up, and an operator's own
+    // chase — every shape of event message addressed to this invitation.
+    const rungs: readonly (readonly [string, "invitation" | "reminder", number])[] = [
+      [`event:${eventId}:invitation:recruit:${personId}`, "invitation", 0],
+      [`event:${eventId}:reminder:recruit:${invitationId}:1`, "reminder", 1],
+      [`event:${eventId}:chase:${invitationId}:${crypto.randomUUID()}`, "reminder", 2],
+    ];
+    for (const [key, jobType, rung] of rungs) {
+      await observer.query(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+            channel, scheduled_for, ladder_rung)
+         values ($1, $2::public.notification_job_type, 'pending', $3::uuid, $4::uuid, $5::uuid,
+                 'whatsapp', now() - interval '1 hour', $6::smallint)`,
+        [key, jobType, invitationId, eventId, personId, rung],
+      );
+    }
+
+    return { eventId, invitationId };
+  }
+
+  /** Reachable, so a job left pending really would have been sent. */
+  async function giveMobile(personId: string): Promise<void> {
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, normalised_value, is_preferred)
+       values ($1::uuid, 'phone', $2, $3, true)`,
+      [personId, "07700 900342", "+447700900342"],
+    );
+  }
+
+  async function jobStatesFor(personId: string) {
+    const result = await observer.query<{
+      idempotency_key: string;
+      status: string;
+      cancelled_reason: string | null;
+    }>(
+      `select idempotency_key, status::text as status, cancelled_reason
+         from public.notification_jobs
+        where person_id = $1::uuid
+        order by idempotency_key`,
+      [personId],
+    );
+    return result.rows;
+  }
+
+  // This block's own event rows, in dependency order, before the file's own
+  // `afterEach` takes the people they hang off away.
+  afterEach(async () => {
+    const scope = `${MARKER}%`;
+    const events = `(select id from public.events where name like $1)`;
+    const jobs = `(select id from public.notification_jobs where event_id in ${events})`;
+    const invitations = `(select id from public.invitations where event_id in ${events})`;
+    await observer.query(
+      `delete from public.delivery_results where notification_job_id in ${jobs}`,
+      [scope],
+    );
+    await observer.query(
+      `delete from public.delivery_attempts where notification_job_id in ${jobs}`,
+      [scope],
+    );
+    await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [
+      scope,
+    ]);
+    await observer.query(
+      `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
+      [scope],
+    );
+    await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
+    await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
+      scope,
+    ]);
+    await observer.query(
+      `delete from public.audit_events where entity_table = 'events' and entity_id in ${events}`,
+      [scope],
+    );
+    await observer.query("delete from public.events where name like $1", [scope]);
+  });
+
+  it("cancels every event message addressed to an exited recruit, and the sweep then sends nothing", async () => {
+    const { personId, prospectId } = await newProspect("engaged");
+    await grantConsent(personId);
+    await giveMobile(personId);
+    await recruitEventFixture(personId);
+
+    const before = await jobStatesFor(personId);
+    expect(before).toHaveLength(3);
+    expect(before.every((row) => row.status === "pending")).toBe(true);
+
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "declined"),
+    );
+
+    const after = await jobStatesFor(personId);
+    expect(after).toHaveLength(3);
+    expect(after.every((row) => row.status === "cancelled")).toBe(true);
+    expect(after.every((row) => row.cancelled_reason === "Recruit moved to declined.")).toBe(true);
+
+    const { sent, transport } = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport });
+    expect(sent).toHaveLength(0);
+  }, 30_000);
+
+  it("leaves the same person's player invitation alone — only the recruit capacity is stood down", async () => {
+    const { personId, prospectId } = await newProspect("engaged");
+    await grantConsent(personId);
+    await giveMobile(personId);
+    await recruitEventFixture(personId);
+
+    const membership = await observer.query<{ id: string }>(
+      `insert into public.season_memberships
+         (person_id, season_id, status, entry, confirmed_on, activated_on)
+       values ($1::uuid, $2::uuid, 'active', 'returning', current_date, current_date)
+       returning id`,
+      [personId, seasonId],
+    );
+    // A second event, because `event_audience_members_one_per_human_per_event`
+    // (LAN-293/LAN-294) allows one person one row per event — which is exactly
+    // the real shape here: a recruit who is also a player is invited to the
+    // recruitment evening as a recruit and to practice as a player.
+    const playerEvent = await observer.query<{ id: string }>(
+      `insert into public.events
+         (season_id, name, template_id, event_type, origin, status, scheduled_on, starts_at,
+          is_mandatory, owner_person_id, approved_at, approved_by_person_id,
+          audience_confirmed_at, audience_confirmed_by_person_id)
+       select $1::uuid, $2, tpl.id, tpl.event_type, 'club_controlled', 'approved',
+              (now() + interval '12 days')::date, '19:00'::time, false, $3::uuid, now(), $3::uuid,
+              now(), $3::uuid
+         from public.event_templates tpl
+        where tpl.event_type = 'practice'
+        limit 1
+       returning id`,
+      [seasonId, `${MARKER} practice`, actorPersonId],
+    );
+    const playerEventId = playerEvent.rows[0].id;
+
+    const playerAudience = await observer.query<{ id: string }>(
+      // A player anchors to the membership, so `person_id` stays null and
+      // `invitee_person_id` carries the human — `event_audience_members_anchor_matches_capacity`.
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id,
+          added_by_person_id)
+       values ($1::uuid, $2::uuid, 'player', $3::uuid, $4::uuid, $5::uuid)
+       returning id`,
+      [playerEventId, seasonId, membership.rows[0].id, personId, actorPersonId],
+    );
+    const playerInvitation = await observer.query<{ id: string }>(
+      `insert into public.invitations
+         (event_id, event_status, season_id, capacity, season_membership_id, status, expires_at,
+          audience_member_id)
+       values ($1::uuid, 'approved', $2::uuid, 'player', $3::uuid, 'pending',
+               now() + interval '5 days', $4::uuid)
+       returning id`,
+      [playerEventId, seasonId, membership.rows[0].id, playerAudience.rows[0].id],
+    );
+    const playerKey = `event:${playerEventId}:invitation:player:${membership.rows[0].id}`;
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+          channel, scheduled_for, ladder_rung)
+       values ($1, 'invitation', 'pending', $2::uuid, $3::uuid, $4::uuid, 'whatsapp',
+               now() + interval '5 days', 0)`,
+      [playerKey, playerInvitation.rows[0].id, playerEventId, personId],
+    );
+
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "disengaged"),
+    );
+
+    const states = await jobStatesFor(personId);
+    const player = states.filter((row) => row.idempotency_key === playerKey);
+    const recruit = states.filter((row) => row.idempotency_key !== playerKey);
+    expect(player.map((row) => row.status)).toEqual(["pending"]);
+    expect(recruit).toHaveLength(3);
+    expect(recruit.every((row) => row.status === "cancelled")).toBe(true);
+  });
+
+  it("cancels the recruitment cycle's queued reminders on the flip, naming the flip, and no failed job follows", async () => {
+    const { personId, prospectId } = await newProspect("committed");
+    await grantConsentViaWalkUp(personId);
+    await giveMobile(personId);
+    const declared = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, actorPersonId, prospectId, "personal"),
+    );
+    expect(declared.created.length).toBeGreaterThan(0);
+
+    await withTransaction((tx) => flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId));
+
+    const cycle = (await jobStatesFor(personId)).filter((row) =>
+      row.idempotency_key.startsWith("recruit-cycle:"),
+    );
+    expect(cycle.length).toBeGreaterThan(0);
+    expect(cycle.every((row) => row.status === "cancelled")).toBe(true);
+    expect(cycle.every((row) => row.cancelled_reason === "Recruit joined the roster.")).toBe(true);
+
+    // The defect this closes: the reminders stayed pending and surfaced days
+    // later as failed jobs on the delivery pages, for somebody who is a player.
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+    const afterSweep = (await jobStatesFor(personId)).filter((row) =>
+      row.idempotency_key.startsWith("recruit-cycle:"),
+    );
+    expect(afterSweep.every((row) => row.status === "cancelled")).toBe(true);
+    expect(afterSweep.some((row) => row.status === "failed")).toBe(false);
+  }, 30_000);
+});

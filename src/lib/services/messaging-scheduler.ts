@@ -2,7 +2,14 @@ import "server-only";
 
 import { LEADERSHIP_TIER_SEATS } from "@/lib/auth/capabilities";
 import { withTransaction, type Tx } from "@/lib/db";
-import { resolveDeliveryProvider, type Transport } from "@/lib/delivery";
+import {
+  onboardingUrl,
+  recruitBackgroundUrl,
+  resolveDeliveryProvider,
+  signupUrl,
+  stopMessagesUrl,
+  type Transport,
+} from "@/lib/delivery";
 import type { EnvironmentSource } from "@/lib/delivery/config";
 import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
@@ -1020,7 +1027,12 @@ export async function dispatchEscalationJob(
             outstandingCount: detail.outstanding,
             // The queue, not the names. The club login is the boundary that decides
             // who reads a roster, and this message travels outside it.
-            queueUrl: `${context.appBaseUrl}/operate/follow-ups`,
+            // LAN-343. `/operate/follow-ups` for a route that has always been
+            // `/operate/admin/follow-ups` — the escalation told the President
+            // to open a page that 404s. Found by the test that pins every
+            // minted path to a route the application serves, which is what
+            // that ticket asked for.
+            queueUrl: `${context.appBaseUrl}/operate/admin/follow-ups`,
             // Empty, and not a URL. An escalation is a message *about* players, to
             // a committee officer; there is nothing here for anybody to answer, and
             // the escalation template declares no link parameter. Building a
@@ -1463,28 +1475,32 @@ export async function dispatchRecruitmentCycleJob(
     // invitation's yes/no tokens inside its own claim rather than at
     // `scheduleEventLadderIn` time.
     //
-    // The opt-out link is always the durable, season-scoped credential —
-    // one mechanism for "stop messaging me", independent of which specific
-    // form a message happens to carry. The welcome track's own link is that
-    // same credential (LAN-202's sign-up form, `/me/join/[token]`,
-    // `resolvePersonTokenIn`); the questionnaire track's link is LAN-206's
-    // own purpose-tagged credential (`/a/[token]`,
-    // `resolveRecruitmentInterestTokenIn`) — a different page, and per
-    // W4/`REQ-two-questionnaires`'s "one open request per person, ever", a
-    // different substrate, so both are minted here rather than reusing one
-    // token for two unrelated pages.
+    // One credential per page, every time (LAN-343). This used to mint one
+    // durable token and put it in *both* `stopUrl` and the welcome track's
+    // `formUrl`, so a single leaked link opened the sign-up form and the
+    // button that stops every message the club sends. Each is now its own
+    // purpose-tagged credential: `messaging_stop` for the opt-out,
+    // `recruit_signup` for the prefilled form, and LAN-206's own
+    // `recruit_interest_request` for the questionnaire — which keeps
+    // `REQ-two-questionnaires`'s "one open request per person, ever", the one
+    // rule here that does still supersede on reissue.
     const stopIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
       actorPersonId: null,
+      purpose: "messaging_stop",
     });
-    const stopUrl = `${context.appBaseUrl}/me/stop/${stopIssued.token}`;
+    const stopUrl = stopMessagesUrl(context.appBaseUrl, stopIssued.token);
     let formUrl: string;
     if (CYCLE_COMPLETION_TRACK[step] === "questionnaireBComplete") {
       const formIssued = await issueRecruitmentInterestTokenIn(tx, job.person_id, seasonId, {
         actorPersonId: null,
       });
-      formUrl = `${context.appBaseUrl}/a/${formIssued.token}`;
+      formUrl = recruitBackgroundUrl(context.appBaseUrl, formIssued.token);
     } else {
-      formUrl = `${context.appBaseUrl}/me/join/${stopIssued.token}`;
+      const formIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
+        actorPersonId: null,
+        purpose: "recruit_signup",
+      });
+      formUrl = signupUrl(context.appBaseUrl, formIssued.token);
     }
 
     const attempt = await tx.query<{ id: string }>(
@@ -1766,13 +1782,23 @@ export async function dispatchOnboardingWelcomeJob(
       return { kind: "no-send" };
     }
 
-    // Minted here, at dispatch: the durable page, and its own opt-out — both
-    // the same credential, on `issuePersonTokenIn`'s own revoke-then-insert
-    // (see the doc comment above for why superseding here, rather than at
-    // declaration, is the correct order).
-    const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, { actorPersonId: null });
-    const formUrl = `${context.appBaseUrl}/me/${issued.token}`;
-    const stopUrl = `${context.appBaseUrl}/me/stop/${issued.token}`;
+    // Minted here, at dispatch: the onboarding questionnaire, and the opt-out
+    // — two credentials, never one (LAN-343). They used to be one token in two
+    // URLs, and the questionnaire link went to the events page rather than to
+    // the questionnaire this message is entirely about. Neither mint revokes
+    // anything: a link the club has sent keeps working until the season
+    // closes, which is what makes this page's own "you can come back to this
+    // link" true.
+    const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
+      actorPersonId: null,
+      purpose: "onboarding_details",
+    });
+    const stopIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
+      actorPersonId: null,
+      purpose: "messaging_stop",
+    });
+    const formUrl = onboardingUrl(context.appBaseUrl, issued.token);
+    const stopUrl = stopMessagesUrl(context.appBaseUrl, stopIssued.token);
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
@@ -2474,13 +2500,21 @@ export async function dispatchOnboardingChaseJob(
       return { kind: "no-send" };
     }
 
-    // Every later ask re-sends the same link, compiled to whatever remains
-    // outstanding (`REQ-one-link`, `person_access_tokens_one_live_per_person_season`).
-    // Minted here, at dispatch, never earlier — the identical reasoning the
-    // welcome's own dispatcher already carries.
-    const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, { actorPersonId: null });
-    const formUrl = `${context.appBaseUrl}/me/${issued.token}`;
-    const stopUrl = `${context.appBaseUrl}/me/stop/${issued.token}`;
+    // Every later ask re-sends *a* link to the same page, compiled to whatever
+    // remains outstanding (`REQ-one-link`). Minted here, at dispatch, never
+    // earlier — the identical reasoning the welcome's own dispatcher carries,
+    // and since LAN-343 this chase's link no longer kills the welcome's: both
+    // keep resolving until the season closes.
+    const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
+      actorPersonId: null,
+      purpose: "onboarding_details",
+    });
+    const stopIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
+      actorPersonId: null,
+      purpose: "messaging_stop",
+    });
+    const formUrl = onboardingUrl(context.appBaseUrl, issued.token);
+    const stopUrl = stopMessagesUrl(context.appBaseUrl, stopIssued.token);
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts

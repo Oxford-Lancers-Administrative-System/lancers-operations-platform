@@ -511,12 +511,54 @@ export function rsvpUrl(appBaseUrl: string, token: string): string {
  * hard-coded host. `app.oxfordlancers.com` is the decided permanent host
  * (Q-14), but it is still read from `APP_BASE_URL` here, never inlined — a
  * local or review deployment keeps its own configured host.
+ *
+ * LAN-343 put the answer in the path — `/a/yes/<t>` and `/a/no/<t>` — because
+ * a Meta URL button carries a fixed base plus exactly one dynamic suffix, and
+ * Yes and No are two buttons that have to arrive at two different bases for
+ * the template to say which is which without reading the token. The token
+ * still encodes its own `y`/`n` inside the hashed string, so the segment is
+ * checked against the token rather than believed: presenting a Yes token at
+ * `/a/no/` resolves to nothing.
  */
-export function playerAnswerUrl(appBaseUrl: string, token: string): string {
-  return `${appBaseUrl.replace(/\/+$/, "")}/a/${encodeURIComponent(token)}`;
+export function playerAnswerUrl(appBaseUrl: string, answer: "yes" | "no", token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/a/${answer}/${encodeURIComponent(token)}`;
 }
 
-/** The player's own durable page for one season — LAN-172. */
-export function playerHomeUrl(appBaseUrl: string, token: string): string {
-  return `${appBaseUrl.replace(/\/+$/, "")}/me/${encodeURIComponent(token)}`;
+/**
+ * The other six message links — LAN-343. One function each, all here, for the
+ * single reason `rsvpUrl` and `playerAnswerUrl` are here: the base URL has
+ * exactly one reader and no route, adapter or template string can grow a
+ * hard-coded host. Each path is one message's own, and each resolves exactly
+ * one credential (`person_access_token_purpose`, or the per-invitation RSVP
+ * token for the two event links).
+ */
+
+/** The player's own events page for one season — the durable, untagged credential. */
+export function playerEventsUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/events/${encodeURIComponent(token)}`;
+}
+
+/** The onboarding questionnaire — `onboarding_details`. */
+export function onboardingUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/onboarding/${encodeURIComponent(token)}`;
+}
+
+/** The prefilled sign-up form — `recruit_signup`. */
+export function signupUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/signup/${encodeURIComponent(token)}`;
+}
+
+/** The opt-out surface — `messaging_stop`. Never the same credential as the form beside it. */
+export function stopMessagesUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/stop/${encodeURIComponent(token)}`;
+}
+
+/** The nudge's own page: one event's outstanding questions, on its per-invitation RSVP token. */
+export function eventQuestionsUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/questions/${encodeURIComponent(token)}`;
+}
+
+/** Questionnaire B, the recruit's football background — `recruit_interest_request`. */
+export function recruitBackgroundUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/background/${encodeURIComponent(token)}`;
 }

@@ -31,18 +31,32 @@ import { hashToken, mintToken, TOKEN_PATTERN } from "./rsvp-tokens";
  * riding alongside it in the same hashed string is what lets one digest lookup
  * answer "for which invitation, and which button" without a second column.
  *
- * ## Durable person tokens: reissued, never recovered
+ * ## Durable person tokens: issued afresh, never recovered, and never superseded
  *
  * A durable credential cannot have its plaintext read back once minted — same
  * rule `rsvp_access_tokens` already lives by, and the same reason: only the
  * digest is ever stored. So a person's durable link cannot be "looked up
- * again" to put in a second message; it can only be **reissued**, which is
- * exactly what `issuePersonTokenIn` does — supersede whatever was live, mint a
- * fresh one, hand back the one plaintext this call will ever produce. Every
- * touchpoint that needs to send a player to their own page (today: the answer
- * link's own POST, once it has recorded the click) reissues at that moment.
- * An older durable link going stale when a newer one is issued is the same
- * trade `rsvp_access_tokens` already makes on every resend, not a new one.
+ * again" to put in a second message; every touchpoint that needs to send
+ * somebody a link mints a new one at that moment.
+ *
+ * LAN-343 changed what that does to the link already in their pocket. Until
+ * then every mint revoked whatever was live, because
+ * `person_access_tokens_one_live_per_person_season` allowed exactly one — so a
+ * September link was dead by October and the onboarding page's own promise
+ * ("You can leave and come back to this link") was false. Brian, 2026-09-11:
+ * a link that was sent keeps resolving until `seasons.closed_at` is set, and a
+ * leaked link therefore stays live for the season. Several live durable
+ * credentials per person and season now coexist, the index is gone, and
+ * `issuePersonTokenIn` inserts without revoking anything.
+ *
+ * ## One credential per journey
+ *
+ * `purpose` (LAN-206, extended by LAN-343) is what stops one credential
+ * opening four unrelated pages, which is what the scheduler used to do by
+ * putting one plaintext into both `formUrl` and `stopUrl`. Each route resolves
+ * exactly its own purpose and refuses every other credential outright; the
+ * player's own events page is the untagged one (`purpose is null`), the
+ * credential `REQ-person-token` was written for.
  */
 
 export type PlayerAnswer = "yes" | "no";
@@ -77,6 +91,28 @@ function parseAnswerToken(token: string): ParsedAnswerToken | null {
   const answer = answerFromCode(match[1]);
   if (!answer) return null;
   return { answer, invitationId: match[2] };
+}
+
+/**
+ * The two path segments the answer links live under — LAN-343's `/a/yes/<t>`
+ * and `/a/no/<t>`. A Meta URL button carries a fixed base plus exactly one
+ * dynamic suffix, so Yes and No need two bases; the answer stays inside the
+ * hashed token as well, and the route checks one against the other, so the
+ * segment is never the thing that decides what a click meant.
+ */
+export type AnswerSegment = "yes" | "no";
+
+/** The answer a segment names, or `null` for any other segment. Parsing is not authorization. */
+export function answerForSegment(segment: string): PlayerAnswer | null {
+  if (segment === "yes") return "yes";
+  if (segment === "no") return "no";
+  return null;
+}
+
+/** The segment one answer token belongs under, or `null` if it is not an answer token at all. */
+export function answerSegmentOf(token: string): AnswerSegment | null {
+  const parsed = parseAnswerToken(token);
+  return parsed === null ? null : parsed.answer === "yes" ? "yes" : "no";
 }
 
 /**
@@ -300,7 +336,7 @@ export interface RecordedPlayerAnswer {
   /**
    * LAN-203. `recruit`, or one of the other three `invitation_capacity`
    * values. The caller uses this to decide where the answer lands — a
-   * recruit has no durable `/me/[token]` page to be sent to (there is no
+   * recruit has no durable `/events/[token]` page to be sent to (there is no
    * event page for them at all, REQ-recruit-sees-public-only).
    */
   readonly capacity: string;
@@ -438,38 +474,47 @@ export interface IssuedPersonToken {
 }
 
 /**
- * Reissues the durable, season-scoped credential for one person — never
- * "looks one up", because a previously issued plaintext cannot be recovered
- * (same rule `rsvp_access_tokens` lives by). Every call supersedes whatever was
- * live and mints a fresh one; `person_access_tokens_one_live_per_person_season`
- * is what makes revoke-then-insert the only safe order, exactly as
- * `issueTokenIn` in `rsvp-tokens.ts` already reasons for the per-invitation
- * credential.
+ * Which page a durable credential opens — LAN-343.
+ *
+ * `null` is the player's own events page, the credential this table was
+ * created for (`REQ-person-token`). The three named values are the journeys
+ * that used to share it: a route accepts exactly one of these and nothing
+ * else, so a leaked opt-out link cannot open an onboarding questionnaire and a
+ * sign-up link cannot open somebody's events page.
+ *
+ * `recruit_interest_request` is deliberately absent: Questionnaire B's own
+ * credential is minted and resolved by `recruitment-interest-tokens.ts`, under
+ * `REQ-two-questionnaires`'s one-open-request-ever rule, which is not this
+ * module's rule.
+ */
+export type PersonTokenPurpose = "onboarding_details" | "recruit_signup" | "messaging_stop";
+
+/**
+ * Mints one durable, season-scoped credential for one person and one page.
+ *
+ * **Revokes nothing.** LAN-343: a link that was sent keeps resolving until its
+ * season closes, so a fresh mint stands alongside whatever the person already
+ * holds rather than killing it. That is only safe because a plaintext can
+ * never be recovered from a digest — a later mint cannot re-send an earlier
+ * link, so leaving the earlier link live is the only way the club's own
+ * promise ("come back to this link") is true. The trade Brian accepted is
+ * that a leaked link stays live for the season; `revokePersonTokenIn` is the
+ * escape hatch for one that is known to have leaked.
  */
 export async function issuePersonTokenIn(
   tx: Tx,
   personId: string,
   seasonId: string,
-  options: { actorPersonId?: string | null } = {},
+  options: { actorPersonId?: string | null; purpose?: PersonTokenPurpose | null } = {},
 ): Promise<IssuedPersonToken> {
   const token = mintToken();
 
-  await tx.query(
-    `update public.person_access_tokens
-        set revoked_at = now(), revoked_reason = 'Superseded by a freshly issued durable link.'
-      where person_id = $1
-        and season_id = $2
-        and not single_use
-        and revoked_at is null`,
-    [personId, seasonId],
-  );
-
   const inserted = await tx.query<{ id: string }>(
     `insert into public.person_access_tokens
-       (person_id, season_id, token_hash, single_use, issued_by_person_id)
-     values ($1, $2, $3, false, $4)
+       (person_id, season_id, token_hash, single_use, purpose, issued_by_person_id)
+     values ($1, $2, $3, false, $4::public.person_access_token_purpose, $5)
      returning id`,
-    [personId, seasonId, hashToken(token), options.actorPersonId ?? null],
+    [personId, seasonId, hashToken(token), options.purpose ?? null, options.actorPersonId ?? null],
   );
 
   return { token, tokenId: inserted.rows[0].id };
@@ -488,17 +533,30 @@ export interface PersonTokenResolution {
 }
 
 /**
- * Resolves a durable person token. Writes nothing — the durable page's GET is
- * held to the same no-mutation posture as the answer link's, for the same
- * scanner-safety reason, even though nothing here is single-use to protect.
+ * Resolves a durable person token for **one** purpose. Writes nothing — the
+ * durable page's GET is held to the same no-mutation posture as the answer
+ * link's, for the same scanner-safety reason, even though nothing here is
+ * single-use to protect.
+ *
+ * `purpose` is the whole of LAN-343's cross-journey isolation and it is a
+ * required argument rather than a default: every caller is a route, every
+ * route opens exactly one page, and a credential minted for another page
+ * resolves to `unknown` here — the same answer an invented token gets. There
+ * is no second resolver to fall through to, which is what makes `/signup/` the
+ * recruit gate `/me/join/` never had.
  *
  * A closed season collapses to `unknown` rather than a distinct state: telling
  * a stranger "this credential is real but its season closed" is strictly more
  * than telling them nothing, and `REQ-cross-person-isolation`'s sibling rule —
  * unknown and revoked stay indistinguishable — extends naturally to this third
- * way of no longer resolving.
+ * way of no longer resolving. A credential for the wrong purpose collapses the
+ * same way, for the same reason.
  */
-export async function resolvePersonTokenIn(tx: Tx, token: string): Promise<PersonTokenResolution> {
+export async function resolvePersonTokenIn(
+  tx: Tx,
+  token: string,
+  purpose: PersonTokenPurpose | null,
+): Promise<PersonTokenResolution> {
   if (!TOKEN_PATTERN.test(token)) return { state: "unknown", resolved: null };
 
   const result = await tx.query<{ person_id: string; season_id: string }>(
@@ -508,8 +566,9 @@ export async function resolvePersonTokenIn(tx: Tx, token: string): Promise<Perso
       where t.token_hash = $1
         and not t.single_use
         and t.revoked_at is null
+        and t.purpose is not distinct from $2::public.person_access_token_purpose
         and s.closed_at is null`,
-    [hashToken(token)],
+    [hashToken(token), purpose],
   );
 
   const row = result.rows[0];
@@ -520,16 +579,25 @@ export async function resolvePersonTokenIn(tx: Tx, token: string): Promise<Perso
 export const REVOCATION_NEEDS_A_REASON_RULE = "person_token_revocation_needs_a_reason";
 
 /**
- * Withdraws a person's live durable credential without waiting for their
+ * Withdraws a person's live durable credentials without waiting for their
  * season to close — `REQ-person-token`'s explicit, Mission-10-independent
  * escape hatch for a leaked link. Returns how many rows were revoked; zero is
  * legitimate for a person who was never issued one.
+ *
+ * Every live durable credential for that person and season, across every
+ * purpose, unless `purpose` names one. LAN-343 made several coexist, so "the
+ * live one" is no longer a thing to revoke: a leak is a leak of a link, and
+ * the club cannot tell which of a person's links leaked, so the default is all
+ * of them. An omitted `purpose` means every purpose, which is why it is
+ * `undefined` and not `null` — `null` is itself a purpose here, the events
+ * page's own.
  */
 export async function revokePersonTokenIn(
   tx: Tx,
   personId: string,
   seasonId: string,
   reason: string,
+  options: { purpose?: PersonTokenPurpose } = {},
 ): Promise<number> {
   if (reason.trim() === "") {
     throw new ConstraintViolated(
@@ -544,8 +612,10 @@ export async function revokePersonTokenIn(
       where person_id = $1
         and season_id = $2
         and not single_use
-        and revoked_at is null`,
-    [personId, seasonId, reason.trim()],
+        and revoked_at is null
+        and ($4::text is null
+             or purpose = $4::public.person_access_token_purpose)`,
+    [personId, seasonId, reason.trim(), options.purpose ?? null],
   );
 
   return result.rowCount ?? 0;
@@ -556,6 +626,9 @@ export async function resolveAnswerToken(token: string): Promise<AnswerTokenReso
   return withTransaction((tx) => resolveAnswerTokenIn(tx, token));
 }
 
-export async function resolvePersonToken(token: string): Promise<PersonTokenResolution> {
-  return withTransaction((tx) => resolvePersonTokenIn(tx, token));
+export async function resolvePersonToken(
+  token: string,
+  purpose: PersonTokenPurpose | null,
+): Promise<PersonTokenResolution> {
+  return withTransaction((tx) => resolvePersonTokenIn(tx, token, purpose));
 }

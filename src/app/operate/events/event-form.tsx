@@ -21,7 +21,8 @@ import { dateFromScheduledOn, scheduledOnFromDate } from "./date-time-controls";
 import { EMPTY_FORM_STATE } from "./form-state";
 import QuestionEditor from "./question-editor";
 import { EventCoreFields, issueFor } from "./event-core-fields";
-import { duplicatedFrom } from "./presentation";
+import { duplicatedFrom, RECRUIT_QUESTIONS_NOTICE } from "./presentation";
+import { RECRUITMENT_EVENT_TYPE } from "@/lib/services/audience-selection";
 
 // UX-31 — the event editor, both modes, LAN-154. One component for
 // create/edit. Term/week derived from the date (LAN-76); the template fills
@@ -273,6 +274,11 @@ export default function EventForm({
           eventTypeLabel={typeLabel}
           issues={state.questionIssues}
           disabled={pending}
+          // LAN-339: keyed off the selected template's class, so switching Type
+          // to or from Recruitment shows or hides it without a reload.
+          notice={
+            template?.eventType === RECRUITMENT_EVENT_TYPE ? RECRUIT_QUESTIONS_NOTICE : undefined
+          }
         />
 
         <ActionBar

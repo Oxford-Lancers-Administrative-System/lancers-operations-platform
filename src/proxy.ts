@@ -21,14 +21,11 @@ import { ANSWER_GATE_COOKIE, ANSWER_GATE_MAX_AGE_SECONDS } from "@/lib/rsvp/answ
  * Route protection here is a convenience, not the authorization boundary. RLS
  * in the database and explicit checks in server code are the real boundary.
  *
- * F-A3, LAN-180. `"/me"` here is deliberately the bare path only, not a
- * prefix that would also swallow `/me/[token]` — that route's own
- * authorization is the token in its URL, not a session, and it stays in the
- * public, unauthenticated bucket below exactly as it always has. The proxy
- * function's own early return is what keeps the two from colliding: it
- * excludes the exact bare path from that bucket before this list is ever
- * checked, so `matchesPrefix`'s `pathname === prefix` arm is what actually
- * matches here, never its `startsWith(prefix + "/")` one.
+ * `"/me"` is an ordinary protected prefix. It used to need a special case: the
+ * bare path was session-gated while everything under it was a public
+ * token-authorized page. LAN-343 moved every one of those pages to its own
+ * route (`/events`, `/onboarding`, `/signup`, `/stop`), so nothing under `/me`
+ * is public any more and the exception is gone with them.
  */
 const PROTECTED_PREFIXES = ["/dashboard", "/operate", "/me"];
 
@@ -72,22 +69,47 @@ const RSVP_PREFIX = "/rsvp";
 const CLUB_LINK_PREFIX = "/e";
 
 /**
- * The WhatsApp/email answer link (LAN-172, Q-11) and the durable player page
- * — public, and handled exactly like `/rsvp` and `/e`, for the same three
- * facts: the token in the URL is the whole authorization, nothing here may be
- * cached or indexed, and no referrer may carry the token onward.
+ * The remaining private links — public, and handled exactly like `/rsvp` and
+ * `/e`, for the same three facts: the token in the URL is the whole
+ * authorization, nothing here may be cached or indexed, and no referrer may
+ * carry the token onward.
+ *
+ * LAN-343 gave every message its own route, so this is now the whole list of
+ * them rather than one prefix plus `/me`: the answer link (`/a/yes`, `/a/no`),
+ * the player's events page, the onboarding questionnaire, the prefilled
+ * sign-up form, the opt-out, one event's outstanding questions, and the
+ * recruit's football background. `/me` left this bucket entirely — it is
+ * session-gated now, and a session page must not skip the refresh below.
  */
 const ANSWER_LINK_PREFIX = "/a";
-const PLAYER_HOME_PREFIX = "/me";
+const PRIVATE_LINK_PREFIXES = [
+  RSVP_PREFIX,
+  CLUB_LINK_PREFIX,
+  ANSWER_LINK_PREFIX,
+  "/events",
+  "/onboarding",
+  "/signup",
+  "/stop",
+  "/questions",
+  "/background",
+];
 
 /**
- * The GET/POST gate cookie for `/a/[token]` — see `@/lib/rsvp/answer-gate.ts`
- * for the full contract. Setting it here, in the proxy, rather than in the
- * page, is not a style choice: a Server Component's render may not mutate
- * cookies in this framework, and the proxy runs before the request reaches
- * one. `Path` is set to the request's own pathname, which is what makes the
- * cookie return only on a request to this exact token's URL — never another
- * token's, and never a plain `/a` crawl of the prefix.
+ * The two routes whose POST is gated by `ANSWER_GATE_COOKIE`, and therefore
+ * the two whose GET has to set it: the answer link and Questionnaire B. Both
+ * refuse a POST that did not follow a GET, which is what stops an automated
+ * caller recording an answer nobody tapped (`REQ-no-false-rsvp`).
+ */
+const ANSWER_GATE_PREFIXES = [ANSWER_LINK_PREFIX, "/background"];
+
+/**
+ * The GET/POST gate cookie — see `@/lib/rsvp/answer-gate.ts` for the full
+ * contract. Setting it here, in the proxy, rather than in the page, is not a
+ * style choice: a Server Component's render may not mutate cookies in this
+ * framework, and the proxy runs before the request reaches one. `Path` is set
+ * to the request's own pathname, which is what makes the cookie return only on
+ * a request to this exact token's URL — never another token's, and never a
+ * plain crawl of the prefix.
  */
 function setAnswerGateCookie(response: NextResponse, request: NextRequest): void {
   response.cookies.set(ANSWER_GATE_COOKIE, "1", {
@@ -163,22 +185,13 @@ export async function proxy(request: NextRequest) {
   if (["/privacy", "/data-deletion", "/terms"].includes(path)) {
     return NextResponse.next({ request });
   }
-  // F-A3. `path.startsWith(PLAYER_HOME_PREFIX + "/")` rather than
-  // `matchesPrefix(path, [PLAYER_HOME_PREFIX])`: the latter's `pathname ===
-  // prefix` arm would swallow the exact bare `/me` too, and that path is now
-  // the signed-in entry point — protected below, alongside `/dashboard` and
-  // `/operate` — not the public, token-authorized page every other path under
-  // this prefix still is.
-  const isPlayerHomeToken = path.startsWith(`${PLAYER_HOME_PREFIX}/`);
-  if (
-    matchesPrefix(path, [RSVP_PREFIX, CLUB_LINK_PREFIX, ANSWER_LINK_PREFIX]) ||
-    isPlayerHomeToken
-  ) {
+  if (matchesPrefix(path, PRIVATE_LINK_PREFIXES)) {
     const privateLink = NextResponse.next({ request });
     for (const [key, value] of PRIVATE_LINK_HEADERS) privateLink.headers.set(key, value);
-    // Only `/a/[token]`, and only its GET: that is the one request `page.tsx`
-    // treats as side-effect-free and the one a POST must prove it followed.
-    if (request.method === "GET" && matchesPrefix(path, [ANSWER_LINK_PREFIX])) {
+    // Only the two gated routes, and only their GET: that is the one request
+    // each page treats as side-effect-free and the one a POST must prove it
+    // followed.
+    if (request.method === "GET" && matchesPrefix(path, ANSWER_GATE_PREFIXES)) {
       setAnswerGateCookie(privateLink, request);
     }
     return privateLink;
@@ -251,14 +264,14 @@ export const config = {
     // Everything except Next.js internals, the health check, the provider
     // webhook, and static assets.
     //
-    // `/rsvp`, `/e`, `/a` and `/me/[token]` stay matched deliberately, even
-    // though all four are public: the proxy returns early for them above,
+    // Every prefix in `PRIVATE_LINK_PREFIXES` stays matched deliberately, even
+    // though all of them are public: the proxy returns early for them above,
     // before any Supabase work, and sets the headers those routes depend on
-    // (plus, for `/a`, the answer-link gate cookie). Excluding them from the
-    // matcher would skip the early return too, and with it `no-store`. Bare
-    // `/me` needs matching for the opposite reason (F-A3) — it is one of the
-    // *protected* prefixes below, and excluding it would skip the
-    // authenticated session refresh that route now depends on.
+    // (plus, for `/a` and `/background`, the answer-link gate cookie).
+    // Excluding them from the matcher would skip the early return too, and
+    // with it `no-store`. `/me` needs matching for the opposite reason — it is
+    // one of the *protected* prefixes below, and excluding it would skip the
+    // authenticated session refresh it depends on.
     //
     // The WhatsApp webhook — that one route, not the `api/webhooks` namespace —
     // is excluded because it is the one route an unauthenticated

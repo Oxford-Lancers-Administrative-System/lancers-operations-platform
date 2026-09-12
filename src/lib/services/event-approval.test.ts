@@ -46,6 +46,7 @@ import {
   resolveMessagingPlanIn,
   updateMessagingScheduleIn,
 } from "./messaging-schedule";
+import { updateRecruitmentProspectStatusIn } from "./recruitment-prospect";
 import { recordAnswerIn } from "./rsvp";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -119,6 +120,29 @@ afterEach(async () => {
     `delete from public.season_messaging_consents
       where person_id in (select person_id from public.recruitment_prospects)`,
   );
+
+  // LAN-341's own fixture: a recruit of this file's own making, so a test can
+  // move one to an exit status without touching the two the dataset seeds and
+  // every other test here reads. Last, because the event rows above reference
+  // these people.
+  const ownPeople = "(select id from public.people where given_name = $1)";
+  const ownProspects = `(select id from public.recruitment_prospects where person_id in ${ownPeople})`;
+  await observer.query(
+    `delete from public.recruitment_prospect_status_events where prospect_id in ${ownProspects}`,
+    [NAME_MARKER],
+  );
+  await observer.query(
+    `delete from public.audit_events
+      where entity_table = 'recruitment_prospects' and entity_id in ${ownProspects}`,
+    [NAME_MARKER],
+  );
+  await observer.query(`delete from public.recruitment_prospects where person_id in ${ownPeople}`, [
+    NAME_MARKER,
+  ]);
+  await observer.query(`delete from public.audit_events where entity_id in ${ownPeople}`, [
+    NAME_MARKER,
+  ]);
+  await observer.query("delete from public.people where given_name = $1", [NAME_MARKER]);
 });
 
 afterAll(async () => {
@@ -2328,5 +2352,129 @@ describe("recruits belong to a recruitment event and nowhere else", () => {
       [recruitment.id],
     );
     expect(Number(invited.rows[0].count)).toBe(recruitKeys.length);
+  });
+});
+
+/**
+ * LAN-341's third defect — a draft whose confirmed audience holds a recruit who
+ * then leaves recruitment.
+ *
+ * The audience freeze (R4) is deliberate for a player: approval honours the
+ * confirmed list even for somebody who has gone inactive since. A recruit who
+ * has declined is a different fact — inviting them would be the club chasing
+ * somebody it has recorded as gone — so approval re-reads the prospect's status
+ * and mints no invitation, which is also what stops every rung the ladder would
+ * hang off one.
+ *
+ * The confirmed audience row itself is left exactly as it was: it is the record
+ * of what the approver confirmed, and `readEventAudience` already reports the
+ * person as no longer listed.
+ */
+describe("LAN-341 — a recruit who leaves recruitment between confirmation and approval", () => {
+  /** This file's own recruit, so a test can exit one without disturbing the dataset's two. */
+  async function ownRecruit(seasonId: string): Promise<{ personId: string; prospectId: string }> {
+    const person = await observer.query<{ id: string }>(
+      "insert into public.people (given_name, family_name) values ($1, 'Prospect') returning id",
+      [NAME_MARKER],
+    );
+    const personId = person.rows[0].id;
+    const prospect = await observer.query<{ id: string }>(
+      `insert into public.recruitment_prospects (person_id, season_id, status, source)
+       values ($1::uuid, $2::uuid, 'identified', 'other')
+       returning id`,
+      [personId, seasonId],
+    );
+    return { personId, prospectId: prospect.rows[0].id };
+  }
+
+  async function recruitmentDraftWithOwnRecruit(scheduledOn: string) {
+    const event = await newDraft({
+      templateId: SEEDED_TEMPLATE_IDS.recruitment,
+      scheduledOn,
+    });
+    const recruit = await ownRecruit(event.seasonId);
+    return { event, ...recruit };
+  }
+
+  it("mints no invitation and no job for a recruit moved to disengaged after the audience was confirmed", async () => {
+    const { event, personId, prospectId } = await recruitmentDraftWithOwnRecruit("2026-11-21");
+    const playerKeys = await keysFor(event, "player", 2);
+    expect(playerKeys.length).toBe(2);
+
+    await saveEventAudience(actorPersonId, event.id, [
+      ...playerKeys,
+      selectionKey("recruit", personId),
+    ]);
+    expect((await countsFor(event.id)).audience).toBe(3);
+
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "disengaged"),
+    );
+
+    const outcome = await approveEvent(actorPersonId, event.id);
+    expect(outcome.members.map((member) => member.personId)).not.toContain(personId);
+    expect(outcome.invitationCount).toBe(2);
+
+    const theirs = await observer.query<{ invitations: string; jobs: string }>(
+      `select (select count(*)::text from public.invitations
+                where event_id = $1 and person_id = $2::uuid) as invitations,
+              (select count(*)::text from public.notification_jobs
+                where event_id = $1 and person_id = $2::uuid) as jobs`,
+      [event.id, personId],
+    );
+    expect(theirs.rows[0]).toEqual({ invitations: "0", jobs: "0" });
+
+    // The confirmed row stays: it is the record of what the approver confirmed.
+    expect((await countsFor(event.id)).audience).toBe(3);
+  });
+
+  it("records how many were skipped on the approval's own audit row", async () => {
+    const { event, personId, prospectId } = await recruitmentDraftWithOwnRecruit("2026-11-22");
+    const playerKeys = await keysFor(event, "player", 1);
+
+    await saveEventAudience(actorPersonId, event.id, [
+      ...playerKeys,
+      selectionKey("recruit", personId),
+    ]);
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "declined"),
+    );
+    await approveEvent(actorPersonId, event.id);
+
+    const audit = await observer.query<{ context: { exitedRecruitsSkipped?: number } }>(
+      `select context from public.audit_events
+        where entity_table = 'events' and entity_id = $1 and action = 'event.approved'`,
+      [event.id],
+    );
+    expect(audit.rows[0].context.exitedRecruitsSkipped).toBe(1);
+  });
+
+  it("refuses the approval outright when the exited recruit was the whole audience — E1b, not a silent no-op", async () => {
+    const { event, personId, prospectId } = await recruitmentDraftWithOwnRecruit("2026-11-23");
+
+    await saveEventAudience(actorPersonId, event.id, [selectionKey("recruit", personId)]);
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "void", {
+        reason: "Recorded twice.",
+      }),
+    );
+
+    const error = await caught(() => approveEvent(actorPersonId, event.id));
+    expect(error.rule).toBe(EMPTY_AUDIENCE_RULE);
+    expect(error.message).toBe(EMPTY_AUDIENCE_MESSAGE);
+    expect((await readEvent(event.id)).status).toBe("draft");
+  });
+
+  it("still invites a recruit who is merely no longer committed — only an exit withholds the invitation", async () => {
+    const { event, personId, prospectId } = await recruitmentDraftWithOwnRecruit("2026-11-24");
+
+    await saveEventAudience(actorPersonId, event.id, [selectionKey("recruit", personId)]);
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "engaged"),
+    );
+
+    const outcome = await approveEvent(actorPersonId, event.id);
+    expect(outcome.invitationCount).toBe(1);
+    expect(outcome.members.map((member) => member.personId)).toContain(personId);
   });
 });

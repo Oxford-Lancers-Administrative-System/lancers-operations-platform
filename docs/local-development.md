@@ -158,11 +158,11 @@ absent until a link is configured, and absent is the correct state locally, in
 CI, and on any deployed revision nobody has configured — nothing is invented
 and nothing half-works.
 
-| Variable                          | Read by                                  | What it turns on                                                                |
-| --------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
-| `RECRUITMENT_WHATSAPP_GROUP_LINK` | `src/lib/services/recruitment-config.ts` | The rookies-group button on the recruit sign-up form's saved page (LAN-202)     |
-| `PLAYER_WHATSAPP_GROUP_LINK`      | `src/lib/services/player-config.ts`      | The club's main group, offered on the player's own page `/me/[token]` (LAN-327) |
-| `HUDL_JOIN_LINK`                  | `src/lib/services/player-config.ts`      | The join link in step 5 of the player questionnaire (LAN-333)                   |
+| Variable                          | Read by                                  | What it turns on                                                                           |
+| --------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `RECRUITMENT_WHATSAPP_GROUP_LINK` | `src/lib/services/recruitment-config.ts` | The rookies-group button on the recruit sign-up form's saved page (LAN-202)                |
+| `PLAYER_WHATSAPP_GROUP_LINK`      | `src/lib/services/player-config.ts`      | The club's main group, offered on the player's own events page `/events/[token]` (LAN-327) |
+| `HUDL_JOIN_LINK`                  | `src/lib/services/player-config.ts`      | The join link in step 5 of the player questionnaire (LAN-333)                              |
 
 Unset, each resolves to `null`: the two group offers are not rendered at all,
 and the Hudl step keeps its instructions while stating that the link is not

@@ -7,6 +7,7 @@ import { generateOnboardingItems } from "../membership";
 import { emitOnboardingOpenedWelcomeIn } from "../onboarding-welcome";
 import { revokePersonTokenIn } from "../player-answer-tokens";
 import { commitAvailability } from "../roster-board";
+import { cancelRecruitCycleJobsIn, RECRUIT_JOINED_CANCELLATION_REASON } from "./cancellations";
 
 /** The flip — `W14`, LAN-215's `W3`. See `relocations.md` for the full design note. */
 
@@ -99,6 +100,20 @@ export async function flipRecruitmentProspectToJoinedIn(
     },
   });
 
+  // LAN-341. The recruitment cycle's queued steps — the details reminder and
+  // the questionnaire reminder — describe somebody the club is still trying to
+  // recruit. This person is on the roster, and the welcome emitted above is the
+  // message that now applies to them; leaving the old rungs pending meant they
+  // surfaced days later as failed jobs on the delivery pages for a player.
+  // Event messages are deliberately left alone: a recruit-capacity invitation
+  // they already hold stays a recruit's invitation (LAN-339's own rule 3).
+  const cancelledCycleJobs = await cancelRecruitCycleJobsIn(
+    tx,
+    row.person_id,
+    row.season_id,
+    RECRUIT_JOINED_CANCELLATION_REASON,
+  );
+
   await emitOnboardingOpenedWelcomeIn(tx, {
     membershipId,
     personId: row.person_id,
@@ -126,7 +141,11 @@ export async function flipRecruitmentProspectToJoinedIn(
     entityId: prospectId,
     fromState: row.status,
     toState: "joined",
-    context: { seasonMembershipId: membershipId, seasonId: row.season_id },
+    context: {
+      seasonMembershipId: membershipId,
+      seasonId: row.season_id,
+      cancelledCycleJobs, // LAN-341: how many queued recruitment steps this flip stood down
+    },
   });
 
   return { membershipId };

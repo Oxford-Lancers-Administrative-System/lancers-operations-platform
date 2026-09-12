@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
  * The phone half of every table — LAN-225, brief §2. A title, one or two
  * sublines, status chips, one tap target (the whole card when it has `href`).
  */
-/** The width the row's own controls get at `sm` and up — `/me/[token]`'s own measure. */
+/** The width the row's own controls get at `sm` and up — `/events/[token]`'s own measure. */
 const ACTION_COLUMN = 236;
 
 export function RowCard({

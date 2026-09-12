@@ -6,9 +6,17 @@ import { personDisplayName } from "./person-name";
 
 /**
  * The credential Questionnaire B's ask and reminder carry — LAN-206.
- * `single_use = true` despite resolving repeatedly, to avoid colliding with
- * `person_access_tokens_one_live_per_person_season`; this resolver never
+ * `single_use = true` despite resolving repeatedly, so this row is never
+ * counted among a person's durable page credentials; this resolver never
  * writes `single_use_at`, so "consumed, now dead" never applies here.
+ *
+ * LAN-206 chose the flag to dodge
+ * `person_access_tokens_one_live_per_person_season`, which LAN-343 has since
+ * dropped. It stays anyway, for the reason that outlived the index: this is
+ * not the player's own page credential, and `resolvePersonTokenIn` excludes
+ * single-use rows before it looks at `purpose` at all. Two independent reasons
+ * a Questionnaire B link cannot open somebody's events page is the right
+ * number.
  */
 
 const PURPOSE = "recruit_interest_request";

@@ -22,13 +22,13 @@ import {
   confirmLabel,
   eventTypeLabel,
   otherOutstandingSentence,
-} from "@/app/a/[token]/presentation";
+} from "@/app/a/[answer]/[token]/presentation";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 import { gateShellPage } from "@/app/operate/gate";
 import { pickApprovedEvent, pickInvitationId } from "../picks";
 
 /**
- * S11 — the one-tap answer landing (`/a/[token]`), on the public shell.
+ * S11 — the one-tap answer landing (`/a/<yes|no>/[token]`), on the public shell.
  * LAN-225's player-surfaces addendum. Read by invitation id through the
  * operator tier, never by token. The Yes side is drawn (the audit's captured
  * state, `a-token--confirm-yes--*.png`); copy unchanged, including the

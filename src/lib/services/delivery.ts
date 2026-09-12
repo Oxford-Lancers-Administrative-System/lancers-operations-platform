@@ -10,6 +10,7 @@ import {
   type Tx,
 } from "@/lib/db";
 import {
+  eventQuestionsUrl,
   playerAnswerUrl,
   resolveDeliveryProvider,
   rsvpUrl,
@@ -539,8 +540,8 @@ async function claimJobIn(
       issueAnswerTokenIn(tx, job.invitation_id, "yes"),
       issueAnswerTokenIn(tx, job.invitation_id, "no"),
     ]);
-    yesUrl = playerAnswerUrl(context.appBaseUrl, yes.token);
-    noUrl = playerAnswerUrl(context.appBaseUrl, no.token);
+    yesUrl = playerAnswerUrl(context.appBaseUrl, "yes", yes.token);
+    noUrl = playerAnswerUrl(context.appBaseUrl, "no", no.token);
   }
 
   // The upsert is LAN-252's other half. A job that failed before the provider
@@ -596,8 +597,13 @@ async function claimJobIn(
         // gets `undefined`, exactly as before.
         changeSummary: kind === "change_notice" ? describeScheduleChange(detail) : undefined,
         // The one place the plaintext token becomes a URL, and the last place
-        // it exists at all.
+        // it exists at all. Two URLs on one token, deliberately: the change
+        // notice sends a player to the answer page and the nudge sends them to
+        // the same invitation's outstanding questions (LAN-343), and both are
+        // the same invitation's own credential. Only the template that
+        // declares a field ever reads it.
         rsvpUrl: rsvpUrl(context.appBaseUrl, token.token),
+        questionsUrl: eventQuestionsUrl(context.appBaseUrl, token.token),
         yesUrl,
         noUrl,
       },
