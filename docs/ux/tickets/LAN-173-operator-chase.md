@@ -119,7 +119,10 @@ desktop table and on the phone card:
 - **Several rows can be selected and chased in one action**, following
   `/operate/people/missing`'s existing selection-and-nudge shape rather than a second one —
   accepted and refused counted, refusals named on the row, and nothing sent without the
-  operator's own press. Each refusal carries **why** beside the name — the delivery path's own
+  operator's own press. The "Chase N people" bar is **sticky** at both widths, below the phone
+  shell's own top bar: ticking a card scrolls the page to that card, so a bar fixed to the top of
+  the board left a live selection with no control on screen to act on it. Each refusal carries
+  **why** beside the name — the delivery path's own
   recorded sentence off `notification_jobs.last_error`, the same one the event's repair panel
   shows, or the queue's own recruit wording where no job was ever written. A count alone left an
   operator unable to tell a roster fix from a deployment the club's administrator has not

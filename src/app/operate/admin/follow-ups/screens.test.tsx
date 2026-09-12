@@ -583,6 +583,25 @@ describe("chasing several people from the queue — LAN-322", () => {
     expect(chaseSelectedAction).not.toHaveBeenCalled();
   });
 
+  /**
+   * LAN-322's walk, at a measured 375px: ticking a card scrolls the page to
+   * that card while the "Chase N people" bar stays at the top of the board, so
+   * the bar was at y = -386 — off the screen, with a live selection that
+   * nothing on screen could act on. jsdom computes no layout, so what is
+   * asserted is the declaration itself; a person on a real screen says whether
+   * it looks right (`declarationsAt`'s own reasoning in `shell.test.tsx`).
+   */
+  it("keeps the chase bar on screen once a selection exists", async () => {
+    await renderPage();
+    expect(screen.queryByTestId("chase-bar")).toBeNull();
+
+    fireEvent.click(screen.getAllByLabelText("Select Gideon Thornbury")[0]);
+
+    const bar = screen.getByTestId("chase-bar");
+    expect(window.getComputedStyle(bar).position).toBe("sticky");
+    expect(within(bar).getByTestId("chase-selected")).not.toBeNull();
+  });
+
   it("chases exactly the people selected, in one action", async () => {
     vi.mocked(chaseSelectedAction).mockResolvedValue({
       error: null,

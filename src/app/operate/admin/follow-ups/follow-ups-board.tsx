@@ -113,7 +113,39 @@ export default function FollowUpsBoard({
   return (
     <Stack spacing={2}>
       {mayChase && selectedIds.length > 0 ? (
-        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+        /*
+         * Sticky, at both widths — LAN-322's walk. The bar appears at the top
+         * of the board, and ticking a card scrolls the page to that card, so
+         * on a queue of any length the operator's own selection carried the
+         * one control that acts on it off the screen (measured at 375px:
+         * y = -386 after ticking a card partway down). Selecting several
+         * people and then being unable to find the button is the whole
+         * feature failing quietly.
+         *
+         * `top` clears the phone shell's own fixed 56px top bar and sits at
+         * the top of the column on desktop, where the sidebar is the only
+         * other sticky thing. `zIndex` is below MUI's `appBar` (1100) so the
+         * phone bar and its drawer still pass over this, and below
+         * `ActionBar`'s 1099 for the same reason it chose that number. The
+         * background is opaque because rows scroll underneath it.
+         */
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            alignItems: "center",
+            position: "sticky",
+            top: { xs: 56, md: 0 },
+            zIndex: 1098,
+            // Opaque, and the full width of the board itself, because the
+            // queue scrolls underneath it.
+            bgcolor: "background.default",
+            py: 1.5,
+            borderBottom: 1,
+            borderColor: "divider",
+          }}
+          data-testid="chase-bar"
+        >
           <Button
             variant="contained"
             disabled={pending}
