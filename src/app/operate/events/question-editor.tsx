@@ -2,6 +2,7 @@
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
 import IconButton from "@mui/material/IconButton";
 import { FieldGroup } from "@/components/section";
@@ -49,6 +50,11 @@ export interface QuestionEditorProps {
    */
   headline?: string;
   detail?: string;
+  /**
+   * LAN-339. A fact about who this event's questions reach, shown beside them.
+   * Set on a Recruitment event; absent everywhere else.
+   */
+  notice?: string;
 }
 
 function blankQuestion(): RawEventQuestion {
@@ -71,6 +77,7 @@ export default function QuestionEditor({
   removable = true,
   headline = QUESTIONS_HEADLINE,
   detail = QUESTIONS_FORM_DETAIL,
+  notice,
 }: QuestionEditorProps) {
   function update(index: number, patch: Partial<RawEventQuestion>) {
     onChange(
@@ -95,6 +102,13 @@ export default function QuestionEditor({
       {/* Always posted, even with no questions — distinguishes "asks nothing" from "not about questions" (service would otherwise leave a deleted question in place). */}
       <input type="hidden" name="questionsPresent" value="1" />
       <Stack spacing={2}>
+        {/* LAN-339: who these questions reach, said before one is written. */}
+        {notice ? (
+          <Notice severity="info" testId="recruit-questions-notice">
+            {notice}
+          </Notice>
+        ) : null}
+
         {/* C4: no filler when the list is empty — Add a question already says what to do. */}
 
         <Stack component="ol" spacing={2} sx={{ listStyle: "none", p: 0, m: 0 }}>

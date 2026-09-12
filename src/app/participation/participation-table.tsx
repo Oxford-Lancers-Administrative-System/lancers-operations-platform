@@ -25,6 +25,7 @@ import {
   type ParticipationPerson,
   type ParticipationQuestion,
 } from "@/lib/services/participation-view";
+import { questionAppliesToCapacity } from "@/lib/services/question-applicability";
 
 import {
   answerLabel,
@@ -108,7 +109,12 @@ function AnswerCell({
         event={event}
         invitationId={invitationId}
         displayName={person.displayName}
-        questions={questions}
+        // LAN-339: only the questions this invitation's capacity is ever asked —
+        // a recruit is asked Yes or No and nothing more, so the dialog offers an
+        // operator nothing to record on their behalf either.
+        questions={questions.filter((question) =>
+          questionAppliesToCapacity(question.appliesToCapacities, person.capacity),
+        )}
       />
     );
   }

@@ -73,6 +73,7 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
         <QuestionEditForm
           eventId={event.id}
           eventTypeLabel={event.templateName}
+          eventType={event.eventType}
           initialQuestions={initialQuestions}
           cancelHref={`/operate/events/${event.id}`}
         />

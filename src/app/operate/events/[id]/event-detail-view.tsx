@@ -18,7 +18,10 @@ import {
 } from "@/lib/services/attendance";
 import type { AudienceMember } from "@/lib/services/event-approval";
 import type { FrozenMessagingPlan } from "@/lib/services/messaging-schedule";
-import type { AudienceGroupSummary } from "@/lib/services/audience-selection";
+import {
+  RECRUITMENT_EVENT_TYPE,
+  type AudienceGroupSummary,
+} from "@/lib/services/audience-selection";
 import type { EventChangeEntry } from "@/lib/services/event-amendment";
 import type {
   OperatorParticipation,
@@ -58,6 +61,7 @@ import {
   PLAN_MISSING_HEADLINE,
   PLAN_MISSING_NOTE,
   QUESTIONS_HEADLINE,
+  RECRUIT_QUESTIONS_NOTICE,
   STATUS_LABELS,
   venueLabel,
 } from "../presentation";
@@ -379,6 +383,17 @@ export function EventDetailView({
         {/* Amendment W4-A1: this panel is what the event adds beyond the RSVP's own first question. */}
         <Section title={QUESTIONS_HEADLINE} testId="event-questions">
           <Stack spacing={2}>
+            {/*
+              LAN-339: on a Recruitment event the questions reach the players in
+              its audience and nobody else — a fact about the event, so it is
+              here whether or not this one asks anything yet.
+            */}
+            {event.eventType === RECRUITMENT_EVENT_TYPE ? (
+              <Notice severity="info" testId="recruit-questions-notice">
+                {RECRUIT_QUESTIONS_NOTICE}
+              </Notice>
+            ) : null}
+
             {/* C4: shows nothing when there are no extra questions. */}
             {questions.length === 0 ? null : (
               <QuestionList

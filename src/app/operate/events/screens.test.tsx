@@ -146,7 +146,13 @@ import {
 import type { OperatorParticipation } from "@/lib/services/participation-view";
 import { todayInClubZone } from "@/lib/club-time";
 import { NO_AUTOFILL } from "@/components/field";
-import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
+import {
+  DERIVED_STATE_LABELS,
+  labelFor,
+  RECRUIT_QUESTIONS_NOTICE,
+  STATUS_LABELS,
+  TYPE_LABELS,
+} from "./presentation";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
@@ -3407,5 +3413,86 @@ describe("the approval review leads with the audience's shape", () => {
     expect(
       within(screen.getByTestId("resolved-audience")).getByText("Avery Fielding"),
     ).toBeVisible();
+  });
+});
+
+/**
+ * LAN-339 — who a Recruitment event's questions reach, said on the screen that
+ * writes them (Brian, 2026-09-12, verbatim copy).
+ *
+ * A recruit's answer is Yes or No and nothing more, so a question written on a
+ * Recruitment event reaches the enlisted players in its audience and nobody
+ * else. The notice is a fact about the event, so it stands whether or not this
+ * one asks anything yet, and on all three surfaces that show its questions.
+ */
+describe("LAN-339 — the Recruitment event notice", () => {
+  it("stands beside the questions on the event's own page", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ eventType: "recruitment", templateId: SEEDED_TEMPLATE_IDS.recruitment }),
+    );
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
+      RECRUIT_QUESTIONS_NOTICE,
+    );
+  });
+
+  it("is absent on every other type of event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("recruit-questions-notice")).toBeNull();
+  });
+
+  it("stands in the create form once the Recruitment type is the one selected", async () => {
+    // `?from=` opens the create form on the source event's own template (D39),
+    // which is how a Recruitment draft is reached without driving the Type
+    // control — the notice is keyed off the selected template's class.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ eventType: "recruitment", templateId: SEEDED_TEMPLATE_IDS.recruitment }),
+    );
+
+    render(await NewEventPage(newProps({ from: EVENT_ID })));
+
+    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
+      RECRUIT_QUESTIONS_NOTICE,
+    );
+  });
+
+  it("is absent in a create form opening on Practice", async () => {
+    render(await NewEventPage(newProps()));
+
+    expect(screen.queryByTestId("recruit-questions-notice")).toBeNull();
+  });
+
+  it("stands in the edit form of a Recruitment draft", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ eventType: "recruitment", templateId: SEEDED_TEMPLATE_IDS.recruitment }),
+    );
+
+    render(await EditEventPage(editProps()));
+
+    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
+      RECRUIT_QUESTIONS_NOTICE,
+    );
+  });
+
+  it("stands in the questions-only editor of an approved Recruitment event — LAN-318's route", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({
+        status: "approved",
+        eventType: "recruitment",
+        templateId: SEEDED_TEMPLATE_IDS.recruitment,
+      }),
+    );
+
+    render(await EditEventPage(editProps()));
+
+    expect(screen.getByTestId("event-questions-form")).toBeInTheDocument();
+    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
+      RECRUIT_QUESTIONS_NOTICE,
+    );
   });
 });

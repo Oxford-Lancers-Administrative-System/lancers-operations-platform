@@ -776,3 +776,46 @@ describe("chasing from the queue — LAN-322", () => {
     expect(after.rows[0].count).toBe(before.rows[0].count);
   });
 });
+
+/**
+ * LAN-339 — the queue never carries a recruit for a question (Brian, 2026-09-12).
+ *
+ * `nonresponse_queue` is the club's own definition of "has not answered", and a
+ * recruit's answer is Yes or No and nothing more. So a recruit who has answered
+ * is finished, and an event question — stored, required, and carrying `recruit`
+ * in `applies_to_capacities` like every question the form writes — keeps them in
+ * nothing. Proved here rather than assumed, because the queue is the one screen
+ * that turns an outstanding thing into work for an operator.
+ */
+describe("LAN-339 — a recruit is never queued for an event's questions", () => {
+  it("drops an answered recruit from the queue even with a required question stored against them", async () => {
+    const target = await fixture({ capacity: "recruit" });
+    // Written with no `applies_to_capacities`, so the row takes the database
+    // default naming every capacity — exactly what the question form stores.
+    await observer.query(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required)
+       values ($1::uuid, 'Boots size?', 'text', true)`,
+      [target.eventId],
+    );
+    await observer.query(
+      `insert into public.rsvp_responses (invitation_id, response, responded_at, source)
+       values ($1, 'yes', now(), 'signed_link')`,
+      [target.invitationId],
+    );
+
+    const events = await readFollowUpsQueue();
+    expect(personRow(events, "Invitee")).toBeUndefined();
+  });
+
+  it("still offers no operator chase for an unanswered recruit — REQ-never-harsh, unchanged", async () => {
+    const target = await fixture({ capacity: "recruit" });
+    await observer.query(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required)
+       values ($1::uuid, 'Boots size?', 'text', true)`,
+      [target.eventId],
+    );
+
+    const events = await readFollowUpsQueue();
+    expect(personRow(events, "Invitee")?.chaseable).toBe(false);
+  });
+});

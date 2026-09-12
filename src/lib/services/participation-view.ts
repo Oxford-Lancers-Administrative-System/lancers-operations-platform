@@ -5,6 +5,7 @@
 import type { AttendancePresence } from "./attendance-vocabulary";
 import type { DerivedDiscrepancy } from "./discrepancy-vocabulary";
 import type { DeliveryState } from "./delivery";
+import { questionAppliesToCapacity } from "./question-applicability";
 
 /** Who may read a participation table; delivery is the only difference (D3). `EventReadTier` minus `public`, pinned by a compile-time assertion. */
 export type ParticipationTier = "operator" | "club_link";
@@ -50,13 +51,20 @@ export interface QuestionSummary {
   readonly noAnswer: number;
 }
 
-/** D68's counts, from the rows the table already has (not a second query, so the two cannot disagree). A walk-up is not in the denominator. */
+/**
+ * D68's counts, from the rows the table already has (not a second query, so the
+ * two cannot disagree). A walk-up is not in the denominator, and — LAN-339 —
+ * neither is a recruit: their answer is Yes or No, so counting them as having
+ * left a question unanswered was the operator being told to chase something
+ * nobody ever asked.
+ */
 export function summariseQuestion(
   people: readonly ParticipationPerson[],
   question: ParticipationQuestion,
 ): QuestionSummary {
   const applies = people.filter(
-    (person) => !person.isWalkUp && question.appliesToCapacities.includes(person.capacity),
+    (person) =>
+      !person.isWalkUp && questionAppliesToCapacity(question.appliesToCapacities, person.capacity),
   );
 
   const tally = new Map<string, number>();

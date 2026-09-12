@@ -4,6 +4,7 @@ import { ConstraintViolated, InvalidTransition, type Tx } from "@/lib/db";
 
 import { recordAnswerIn, type SignedRsvpSubmission } from "./rsvp";
 import { NO_REASON_GIVEN_DEFAULT } from "./player-answer-tokens";
+import { capacityIsAskedQuestions, questionAppliesToCapacitySql } from "./question-applicability";
 import { personDisplayAliasSql } from "./sql-text";
 
 /**
@@ -117,7 +118,10 @@ export async function readPlayerAnswerLandingIn(
        left join public.question_responses qr
          on qr.event_question_id = q.id and qr.invitation_id = $2
       where q.event_id = $1
-        and $3::public.invitation_capacity = any(q.applies_to_capacities)
+        -- LAN-339, in the one place the rule lives: a recruit-capacity
+        -- invitation has no applicable question, whatever the stored
+        -- capacities say.
+        and ${questionAppliesToCapacitySql("q", "$3::public.invitation_capacity")}
       order by q.sort_order, q.prompt`,
     [row.event_id, invitationId, row.capacity],
   );
@@ -185,9 +189,11 @@ export async function answerEventQuestionsIn(
 
   const eventContext = await tx.query<{
     event_id: string;
+    capacity: string;
     resolved_person_id: string | null;
   }>(
-    `select i.event_id, coalesce(i.person_id, m.person_id) as resolved_person_id
+    `select i.event_id, i.capacity::text as capacity,
+            coalesce(i.person_id, m.person_id) as resolved_person_id
        from public.invitations i
        left join public.season_memberships m on m.id = i.season_membership_id
       where i.id = $1`,
@@ -204,6 +210,10 @@ export async function answerEventQuestionsIn(
       rule: INVITATION_NOT_OWNED_RULE,
     });
   }
+  // LAN-339. A recruit-capacity invitation has no applicable question, so there
+  // is nothing here to save — the same rule the reads apply, on the write, so a
+  // submission built against a stale page cannot record one behind them.
+  if (!capacityIsAskedQuestions(row.capacity)) return;
   const eventId = row.event_id;
 
   for (const submission of submissions) {
@@ -381,7 +391,7 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
          left join public.question_responses qr
            on qr.event_question_id = q.id and qr.invitation_id = $2
         where q.event_id = $1
-          and $3::public.invitation_capacity = any(q.applies_to_capacities)
+          and ${questionAppliesToCapacitySql("q", "$3::public.invitation_capacity")}
           and q.is_required
           and qr.id is null`,
       [row.event_id, row.invitation_id, row.capacity],

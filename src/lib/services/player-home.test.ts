@@ -723,3 +723,115 @@ describe("writing from the durable page", () => {
     expect(error.rule).toBe("player_home_write_window_closed");
   });
 });
+
+/**
+ * LAN-339 — recruits are never asked an event's questions (Brian, 2026-09-12).
+ *
+ * Every question stored today carries `recruit` in `applies_to_capacities`: the
+ * question form never offered a capacity choice, so every row takes the
+ * database's own default of every capacity. Honouring that column alone meant a
+ * recruit's Yes read as leaving the question unanswered — and then, once they
+ * joined, their own player page listed that event as still needing follow-up.
+ * The rule is one place (`question-applicability.ts`); these are the readers.
+ */
+describe("LAN-339 — a recruit-capacity invitation has no questions", () => {
+  /** A recruitment event with one recruit-capacity invitation, and one question stored the way the form stores every question. */
+  async function recruitFixture(suffix: string): Promise<{
+    personId: string;
+    eventId: string;
+    invitationId: string;
+    questionId: string;
+  }> {
+    const person = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name, created_at)
+       values ($1, 'Recruit', now() + interval '100 years') returning id`,
+      [MARKER],
+    );
+    const personId = person.rows[0].id;
+
+    const event = await observer.query<{ id: string }>(
+      `insert into public.events
+         (season_id, name, event_type, status, scheduled_on, starts_at,
+          audience_confirmed_at, audience_confirmed_by_person_id, approved_at,
+          approved_by_person_id, template_id)
+       select $1, $2, 'recruitment', 'approved', current_date + 3, '19:00',
+              now(), $3::uuid, now(), $3::uuid,
+              (select tpl.id from public.event_templates tpl
+                where tpl.event_type = 'recruitment' order by lower(tpl.name) limit 1)
+       returning id`,
+      [seasonId, `${MARKER} recruitment${suffix}`, personId],
+    );
+    const eventId = event.rows[0].id;
+
+    const audience = await observer.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, person_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, 'recruit', $3, $3, $3) returning id`,
+      [eventId, seasonId, personId],
+    );
+    const invitation = await observer.query<{ id: string }>(
+      `insert into public.invitations
+         (event_id, event_status, season_id, capacity, person_id, status, audience_member_id)
+       values ($1, 'approved', $2, 'recruit', $3, 'pending', $4)
+       returning id`,
+      [eventId, seasonId, personId, audience.rows[0].id],
+    );
+
+    // Written with no `applies_to_capacities` at all — the column the question
+    // form never sets, so the row takes the database default that names every
+    // capacity, `recruit` included. This is what every stored question looks
+    // like, which is the whole reason the rule cannot live in that column.
+    const question = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required)
+       values ($1, 'Boots size?', 'text', true) returning id`,
+      [eventId],
+    );
+
+    return {
+      personId,
+      eventId,
+      invitationId: invitation.rows[0].id,
+      questionId: question.rows[0].id,
+    };
+  }
+
+  it("asks a recruit nothing on their own answer page, and owes nothing", async () => {
+    const { invitationId } = await recruitFixture("-landing");
+    const landing = await withTransaction((tx) => readPlayerAnswerLandingIn(tx, invitationId));
+    expect(landing.questions).toEqual([]);
+    expect(landing.outstandingRequiredQuestions).toBe(0);
+  });
+
+  it("records nothing when a recruit's answer page is posted with a question on it", async () => {
+    const { personId, invitationId, questionId } = await recruitFixture("-write");
+    await withTransaction((tx) =>
+      answerEventQuestionsIn(tx, personId, invitationId, [{ questionId, text: "10" }]),
+    );
+    const stored = await observer.query(
+      "select id from public.question_responses where invitation_id = $1::uuid",
+      [invitationId],
+    );
+    expect(stored.rows).toHaveLength(0);
+  });
+
+  it("does not list the event as needing follow-up after they join — the answer stays a recruit's answer", async () => {
+    const { personId, invitationId } = await recruitFixture("-flip");
+    await answer(invitationId, "yes");
+
+    // They are on the roster now; the recruit-capacity invitation is unchanged,
+    // which is exactly the case LAN-339's rule 3 names.
+    await observer.query(
+      `insert into public.season_memberships
+         (person_id, season_id, status, entry, confirmed_on)
+       values ($1::uuid, $2::uuid, 'onboarding', 'new', current_date)`,
+      [personId, seasonId],
+    );
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    const entry = [...home.followUpNeeded, ...home.answeredUpcoming].find(
+      (row) => row.invitationId === invitationId,
+    );
+    expect(entry?.outstandingRequiredQuestions).toBe(0);
+    expect(home.followUpNeeded.map((row) => row.invitationId)).not.toContain(invitationId);
+  });
+});

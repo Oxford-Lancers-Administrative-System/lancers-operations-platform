@@ -322,10 +322,11 @@ const RECRUIT_BASE: SignedRsvpPage = { ...BASE, capacity: "recruit", playerName:
 function givenRecruitAnswer(answer: "yes" | "no") {
   givenAnswer(answer, [QUESTION]);
   vi.mocked(readSignedRsvpPageIn).mockResolvedValue(RECRUIT_BASE);
-  // A recruit's invitation carries no event questions in practice
-  // (`event_questions.applies_to_capacities` is never seeded with
-  // `recruit`), but even the "yes, there is one" case must not render it —
-  // this proves the branch, not the data.
+  // A recruit's invitation carries no event questions — LAN-339, enforced in
+  // `question-applicability.ts` rather than by the stored capacities, which
+  // name every capacity on every question the form has ever written. Even the
+  // "yes, the reader handed one over anyway" case must not render it: this
+  // proves the branch, not the data.
   vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({ ...LANDING, questions: [QUESTION] });
 }
 

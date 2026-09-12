@@ -859,6 +859,24 @@ submission that drops one, and the screen offers no Remove. No wording is
 snapshotted on the answer, so `question_responses` tells you what was answered
 and not what the question said at the time.
 
+**LAN-339 (Brian, 2026-09-12) narrows how `applies_to_capacities` is read.**
+Recruits are never asked an event's questions: their answer is Yes or No,
+nothing more, and a question asked while somebody was a recruit never comes back
+to them as follow-up, not while a recruit and not after they join. The column is
+still honoured — a coach-only question stays coach-only — and then narrowed, in
+`src/lib/services/question-applicability.ts`, which is the single place both
+halves of the rule live (a SQL predicate for the reads that count in the
+database, a predicate for the lists counted in memory). No migration and no
+column change: every row ever written by the question form takes the table's own
+default naming every capacity, `recruit` included, because the form has never
+offered a capacity choice — so a narrowed default would leave every existing row
+needing the code rule anyway, and the rule would then be stated twice. A
+recruit-capacity invitation therefore has no applicable question on the recruit's
+own answer page, on the operator's participation view and its D68 counts, in the
+follow-up queue, or on the player page after the flip; the two writers
+(`answerEventQuestionsIn` and the operator's `recordOperatorRsvpResponse`) record
+none either. A Recruitment event's screens carry a plain notice saying so.
+
 Still untouched by any workflow: `event_type_settings`, which stores D75 and
 D77's chase thresholds for Mission 4 to consume, and `club_link_tokens`.
 

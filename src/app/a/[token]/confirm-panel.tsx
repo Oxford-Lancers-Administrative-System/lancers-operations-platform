@@ -261,8 +261,10 @@ export function Confirm({
 /**
  * REQ-recruit-sees-public-only, REQ-no-reason-asked, REQ-never-harsh. One
  * question, one confirm, nothing else: no player-name framing, no event
- * questions (there are none an `applies_to_capacities` including `recruit`
- * would offer, but this also never asks), no reason field, no attending
+ * questions (LAN-339 is what makes a recruit-capacity invitation have none —
+ * `applies_to_capacities` names every capacity on every stored question, so
+ * the rule is in `question-applicability.ts`; this page also never asks
+ * regardless), no reason field, no attending
  * count, no other-outstanding count — none of `player-home.ts`'s counts are
  * even read into this branch. A No submits with no `reason` field in the
  * form at all, so `consumeAnswerTokenIn` falls back to its own

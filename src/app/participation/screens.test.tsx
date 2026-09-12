@@ -21,7 +21,7 @@
  * data, which does have it.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("server-only", () => ({}));
@@ -1665,5 +1665,72 @@ describe("recording an answer in person", () => {
     // Left blank — partial answers are accepted, and this one stays
     // outstanding rather than blocking the answer that was given.
     expect(submission.questionAnswers?.["question-shirt"]).toBe("");
+  });
+});
+
+/**
+ * LAN-339 — the operator's own dialog asks a recruit nothing either.
+ *
+ * Brian, 2026-09-12: recruits are never asked an event's questions, and their
+ * answer is Yes or No. Recording one in person is still recording their answer,
+ * so the dialog offers the questions the invitation's capacity is actually
+ * asked — which, for a recruit, is none of them. The rule is one function in
+ * the service layer (`question-applicability.ts`); this is the table consuming
+ * it rather than restating it.
+ */
+describe("LAN-339 — a recruit is offered no questions when an operator records their answer", () => {
+  const TRANSPORT: ParticipationQuestion = {
+    id: "question-transport",
+    prompt: "Transport there?",
+    answerType: "boolean",
+    sortOrder: 0,
+    // The database default every stored question carries: every capacity,
+    // `recruit` included, because the question form never offered a choice.
+    appliesToCapacities: ["player", "coach", "committee", "guest", "recruit"],
+  };
+
+  function payloadFor(capacity: string): OperatorParticipation {
+    return {
+      ...OPERATOR,
+      questions: [TRANSPORT],
+      people: [unanswered({ key: `${capacity}:unanswered`, capacity })],
+    };
+  }
+
+  beforeEach(() => {
+    vi.mocked(recordOperatorRsvpResponse).mockReset();
+    vi.mocked(resolveOperatorAccess).mockReset();
+    vi.mocked(resolveOperatorAccess).mockResolvedValue(resolvedOperator());
+  });
+
+  it("offers the question to a player", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={payloadFor("player")}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+    fireEvent.click(screen.getByTestId("response-yes"));
+
+    // Scoped to the dialog: the prompt is also a column heading on the table behind it.
+    expect(within(screen.getByRole("dialog")).getByText("Transport there?")).toBeVisible();
+  });
+
+  it("offers a recruit the answer alone, with no question beneath it", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={payloadFor("recruit")}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+    fireEvent.click(screen.getByTestId("response-yes"));
+
+    expect(within(screen.getByRole("dialog")).queryByText("Transport there?")).toBeNull();
+    // The answer itself is still recordable — this withholds the questions, not the control.
+    expect(screen.getByTestId("record-answer-submit")).toBeEnabled();
   });
 });
