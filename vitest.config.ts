@@ -102,6 +102,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/rsvp.test.ts",
   "src/lib/services/seasons.test.ts",
   "src/lib/services/weekly-report.test.ts",
+  "tests/answer-lands-on-the-events-page.test.ts",
   "tests/auth-flow.test.ts",
   "tests/auth-recovery-flow.test.ts",
   "tests/calendar-feed-side-effects.test.ts",
