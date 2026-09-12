@@ -1027,7 +1027,12 @@ export async function dispatchEscalationJob(
             outstandingCount: detail.outstanding,
             // The queue, not the names. The club login is the boundary that decides
             // who reads a roster, and this message travels outside it.
-            queueUrl: `${context.appBaseUrl}/operate/follow-ups`,
+            // LAN-343. `/operate/follow-ups` for a route that has always been
+            // `/operate/admin/follow-ups` — the escalation told the President
+            // to open a page that 404s. Found by the test that pins every
+            // minted path to a route the application serves, which is what
+            // that ticket asked for.
+            queueUrl: `${context.appBaseUrl}/operate/admin/follow-ups`,
             // Empty, and not a URL. An escalation is a message *about* players, to
             // a committee officer; there is nothing here for anybody to answer, and
             // the escalation template declares no link parameter. Building a

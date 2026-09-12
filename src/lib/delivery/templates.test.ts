@@ -61,7 +61,7 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     changeSummary: "The venue moved to the University Parks.",
     cancellationReason: "The pitch is waterlogged.",
     outstandingCount: 6,
-    queueUrl: "https://lancers.example/operate/follow-ups",
+    queueUrl: "https://lancers.example/operate/admin/follow-ups",
     formUrl: "https://lancers.example/onboarding/abc",
     stopUrl: "https://lancers.example/stop/def",
     ...overrides,
@@ -230,7 +230,7 @@ describe("the escalation", () => {
     expect(body).toContain("6 people have not answered");
     expect(body).toContain("Michaelmas week 3");
     expect(body).toContain("Tuesday 13 October, 20:00");
-    expect(body).toContain("https://lancers.example/operate/follow-ups");
+    expect(body).toContain("https://lancers.example/operate/admin/follow-ups");
   });
 
   it("reads naturally when exactly one person has not answered", () => {
@@ -301,7 +301,7 @@ describe("the onboarding chase escalation", () => {
       "The automated chase has finished for 3 players who still have onboarding details " +
         "outstanding.",
     );
-    expect(body).toContain("https://lancers.example/operate/follow-ups");
+    expect(body).toContain("https://lancers.example/operate/admin/follow-ups");
   });
 });
 
