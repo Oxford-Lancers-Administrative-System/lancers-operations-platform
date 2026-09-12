@@ -213,8 +213,9 @@ When real panel identities exist, the small-squad reset requires
 `--replace-local-data --preserve-real-people`. It archives the completed run and
 preserves their person IDs, names, person fields, aliases and contact rows in the
 same reset transaction. It clears workflow history for the new season. Real
-identities remain real, with actual delivery intercepted and automatic responses
-disabled. Add their new-season player memberships through normal roster intake;
+identities remain real, their delivery choice is kept, automatic responses stay
+disabled, and each starts the new season as a recruit. Add their new-season
+player memberships through normal roster intake;
 leave missing facts and onboarding items for humans to complete. Onboarding
 players do not automatically qualify for the active-player event audience.
 
@@ -346,10 +347,11 @@ Restart the preserved run with `node scripts/test-box/app.mjs` and
 `node scripts/test-box/panel-server.mjs`. Read the new panel URL from
 `.lancers-runtime/panel-runtime.json` and regenerate the HTML guide with
 `node scripts/test-box/build-small-guide.mjs`. Do not run a database reset to
-resume this saved state. The generic small-squad reset preserves identities
-but defaults real delivery back to interception and does not recreate the
-four recruitment records; inspect those settings explicitly after any future
-reset. Rewinding simulation time must also account for preserved contact
+resume this saved state. The small-squad reset with `--preserve-real-people`
+keeps each real tester's identity, contacts, aliases and delivery choice, and
+starts them as recruits in the new season (a prospect row with source
+"Operator add", no consent and no queued message — Brian triggers their first
+real send from the app). Rewinding simulation time must also account for preserved contact
 validity dates.
 
 Checkpoint verification: 243 targeted delivery/test-box unit tests passed,
