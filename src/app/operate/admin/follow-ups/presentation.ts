@@ -63,16 +63,21 @@ export const CHASE_NOBODY_SELECTED = "Select at least one person to chase.";
 export const CHASE_REFUSAL_UNRECORDED = "Not sent — no reason recorded";
 
 /**
- * One refused person and why — LAN-322's walk.
+ * Who was refused, and why — LAN-322's walk.
  *
  * The notice used to be a count and a run of names, which told an operator
  * that something was wrong and nothing about what. The three refusals this
  * queue actually produces each want a different next action — correct a phone
  * number, ask the club's administrator to configure the deployment, or leave a
- * recruit alone — so the name is useless without the reason beside it.
+ * recruit alone — so a name is useless without the reason beside it.
+ *
+ * `names` is everybody who hit the same reason, because they usually all did:
+ * one press refused three people locally and repeating the configuration
+ * sentence under each of them rebuilt the wall of text {@link REFUSALS_NAMED}
+ * exists to prevent.
  */
-export function chaseRefusalLine(name: string, reason: string): string {
-  return `${name} — ${reason}`;
+export function chaseRefusalLine(names: string, reason: string): string {
+  return `${names} — ${reason}`;
 }
 
 /**

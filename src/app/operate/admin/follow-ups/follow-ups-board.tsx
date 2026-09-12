@@ -88,27 +88,38 @@ export default function FollowUpsBoard({
   const nameOf = (invitationId: string) =>
     rows.find((row) => row.invitationId === invitationId)?.personName ?? null;
 
-  const namesFor = (ids: readonly string[]) => {
-    const named = ids.map(nameOf).filter((name) => name !== null);
-    const shown = named.slice(0, REFUSALS_NAMED);
-    return named.length > shown.length
-      ? `${shown.join(", ")} ${andMore(named.length - shown.length)}`
+  const namesFrom = (names: readonly string[]) => {
+    const shown = names.slice(0, REFUSALS_NAMED);
+    return names.length > shown.length
+      ? `${shown.join(", ")} ${andMore(names.length - shown.length)}`
       : shown.join(", ");
   };
 
+  const namesFor = (ids: readonly string[]) =>
+    namesFrom(ids.map(nameOf).filter((name) => name !== null));
+
   /**
-   * The refused, one line each, capped at the same `REFUSALS_NAMED` the names
-   * alone were capped at. The cap's own reasoning is unchanged and now matters
-   * more: a select-all that refuses everybody would otherwise put a reason
-   * sentence beside every one of hundreds of names.
+   * The refused, grouped by the reason they share.
+   *
+   * One line per person was the first shape, and pressing Chase on three
+   * people locally produced the same four-sentence configuration paragraph
+   * three times — the wall of text `REFUSALS_NAMED` exists to prevent,
+   * rebuilt out of sentences instead of names. Refusals in one press are
+   * nearly always the same refusal, so the reason is said once and everybody
+   * it applies to is named against it. Each group's names are still capped and
+   * the rest counted, for that constant's own recorded reason.
+   *
+   * First-appearance order, which is the queue's own order, so the first name
+   * an operator reads is the first row they would have looked at.
    */
-  const refusalLines = (result?.refusals ?? []).flatMap((refusal) => {
+  const refusalGroups: { reason: string; names: string[] }[] = [];
+  for (const refusal of result?.refusals ?? []) {
     const name = nameOf(refusal.invitationId);
-    return name === null
-      ? []
-      : [{ invitationId: refusal.invitationId, line: chaseRefusalLine(name, refusal.reason) }];
-  });
-  const shownRefusals = refusalLines.slice(0, REFUSALS_NAMED);
+    if (name === null) continue;
+    const existing = refusalGroups.find((group) => group.reason === refusal.reason);
+    if (existing) existing.names.push(name);
+    else refusalGroups.push({ reason: refusal.reason, names: [name] });
+  }
 
   return (
     <Stack spacing={2}>
@@ -172,12 +183,9 @@ export default function FollowUpsBoard({
         <Notice severity="warning" testId="chase-refused">
           {chaseProblemNotice(result.refusals.length)}
           <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
-            {shownRefusals.map((refusal) => (
-              <li key={refusal.invitationId}>{refusal.line}</li>
+            {refusalGroups.map((group) => (
+              <li key={group.reason}>{chaseRefusalLine(namesFrom(group.names), group.reason)}</li>
             ))}
-            {refusalLines.length > shownRefusals.length ? (
-              <li>{andMore(refusalLines.length - shownRefusals.length)}</li>
-            ) : null}
           </Box>
         </Notice>
       ) : null}

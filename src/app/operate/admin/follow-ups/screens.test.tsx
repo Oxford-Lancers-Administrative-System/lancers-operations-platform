@@ -696,6 +696,43 @@ describe("chasing several people from the queue — LAN-322", () => {
     ]);
   });
 
+  /**
+   * Pressing Chase on three people locally refused all three for the same
+   * reason and printed the whole configuration paragraph three times -- the
+   * wall of text `REFUSALS_NAMED` exists to prevent, rebuilt out of sentences
+   * instead of names. One press nearly always produces one refusal, so the
+   * reason is said once with everybody it applies to named against it.
+   */
+  it("says a shared reason once, with everybody it applies to named against it", async () => {
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 0,
+      refusals: [
+        { invitationId: "invitation-1", reason: UNCONFIGURED },
+        { invitationId: "invitation-2", reason: UNCONFIGURED },
+        { invitationId: "invitation-3", reason: UNCONFIGURED },
+      ],
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() => expect(screen.getByTestId("chase-refused")).not.toBeNull());
+    const notice = screen.getByTestId("chase-refused");
+    expect(notice.textContent).toContain("3 people could not be chased");
+    const lines = within(notice)
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+    expect(lines).toEqual([
+      `Gideon Thornbury, Marlowe Fairhurst, Peregrine Oakhanger — ${UNCONFIGURED}`,
+    ]);
+  });
+
   it("counts the rest rather than printing every name, when a whole queue is refused", async () => {
     // Measured at 375px against the seeded database: a select-all refused 559
     // people and the notice became an unreadable wall of names.

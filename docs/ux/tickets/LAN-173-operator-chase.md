@@ -129,7 +129,9 @@ desktop table and on the phone card:
   recorded sentence off `notification_jobs.last_error`, the same one the event's repair panel
   shows, or the queue's own recruit wording where no job was ever written. A count alone left an
   operator unable to tell a roster fix from a deployment the club's administrator has not
-  configured yet. Five are named, then the rest are counted.
+  configured yet. Refusals that share a reason share a line — one press nearly always produces one
+  refusal, and repeating the sentence under each name rebuilds the wall of text the five-name cap
+  exists to prevent. Five names per reason, then the rest are counted.
 - A chase is **another `reminder` rung on that invitation's own ladder**, one rung above what the
   ladder has reached, dispatched through the same path every automated rung takes
   (`sendEventChases`, `messaging-scheduler.ts`). No new job type, no new table, and therefore the

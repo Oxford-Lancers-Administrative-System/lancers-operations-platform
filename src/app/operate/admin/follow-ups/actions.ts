@@ -36,7 +36,7 @@ export interface ChaseActionResult {
  * are three entirely different next actions. The reason travels with the name
  * so the notice can say which.
  */
-export interface ChaseRefusal {
+interface ChaseRefusal {
   readonly invitationId: string;
   readonly reason: string;
 }
