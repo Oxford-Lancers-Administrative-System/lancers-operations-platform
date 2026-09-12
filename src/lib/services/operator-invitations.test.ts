@@ -2203,6 +2203,14 @@ describe("an address that already has an account never gets an invitation — LA
     // It says what it is refusing, not that there is a record to open — in
     // this case there is not one.
     await expect(attempt).rejects.toThrow(/could never be used/i);
+    await expect(attempt).rejects.toThrow(/records hold no operator/i);
+    // The whole of this half: an operator sent to open a record that does not
+    // exist searches for it and finds nothing, which is Clint's item 8.
+    const refusal = await attempt.then(
+      () => null,
+      (reason: unknown) => reason,
+    );
+    expect((refusal as Error).message).not.toMatch(/operator record/i);
     expect(sends).toHaveLength(0);
   });
 });

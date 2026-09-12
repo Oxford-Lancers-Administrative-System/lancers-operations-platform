@@ -493,6 +493,12 @@ confirmed. To see it, invite an address you have already invited — the refusal
 names whose account it is and what state their access is in. Give the second
 seat on the existing operator record instead.
 
+The other half is an address the Auth server holds and this application's
+records do not — a login left behind by an invitation whose rows never wrote.
+There is no operator record to open, so the refusal does not send anyone
+looking for one: it says the records hold no operator for the address, that
+nothing on the screen changes that, and to invite a different address.
+
 ### The Auth configuration this depends on
 
 Four entries in `supabase/config.toml`, and all of them are **local only** — the
