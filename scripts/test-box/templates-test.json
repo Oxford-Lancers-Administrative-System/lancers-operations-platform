@@ -74,7 +74,7 @@
     ]
   },
   {
-    "name": "lancers_event_nudge_v2_test",
+    "name": "lancers_event_nudge_v3_test",
     "kind": "nudge",
     "category": "UTILITY",
     "environment": "Test",
@@ -96,12 +96,12 @@
     "buttons": [
       {
         "label": "Answer questions",
-        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/a/{{1}}"
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/questions/{{1}}"
       }
     ]
   },
   {
-    "name": "lancers_event_change_notice_v2_test",
+    "name": "lancers_event_change_notice_v3_test",
     "kind": "change_notice",
     "category": "UTILITY",
     "environment": "Test",
@@ -127,7 +127,7 @@
     "buttons": [
       {
         "label": "Change your answer",
-        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/a/{{1}}"
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/rsvp/{{1}}"
       }
     ]
   },
@@ -219,7 +219,7 @@
     ]
   },
   {
-    "name": "recruit_welcome_v2_test",
+    "name": "recruit_welcome_v3_test",
     "kind": "recruit_welcome",
     "category": "UTILITY",
     "environment": "Test",
@@ -241,12 +241,12 @@
     "buttons": [
       {
         "label": "Answer questions",
-        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/me/{{1}}"
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/signup/{{1}}"
       }
     ]
   },
   {
-    "name": "recruit_details_reminder_v2_test",
+    "name": "recruit_details_reminder_v3_test",
     "kind": "recruit_details_reminder",
     "category": "UTILITY",
     "environment": "Test",
@@ -268,12 +268,12 @@
     "buttons": [
       {
         "label": "Answer questions",
-        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/me/{{1}}"
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/signup/{{1}}"
       }
     ]
   },
   {
-    "name": "recruit_interest_ask_v2_test",
+    "name": "recruit_interest_ask_v3_test",
     "kind": "recruit_interest_ask",
     "category": "UTILITY",
     "environment": "Test",
@@ -295,12 +295,12 @@
     "buttons": [
       {
         "label": "Answer questions",
-        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/me/{{1}}"
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/background/{{1}}"
       }
     ]
   },
   {
-    "name": "recruit_interest_reminder_v2_test",
+    "name": "recruit_interest_reminder_v3_test",
     "kind": "recruit_interest_reminder",
     "category": "UTILITY",
     "environment": "Test",
@@ -322,12 +322,12 @@
     "buttons": [
       {
         "label": "Answer questions",
-        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/me/{{1}}"
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/background/{{1}}"
       }
     ]
   },
   {
-    "name": "onboarding_welcome_v2_test",
+    "name": "onboarding_welcome_v3_test",
     "kind": "onboarding_welcome",
     "category": "UTILITY",
     "environment": "Test",
@@ -349,12 +349,12 @@
     "buttons": [
       {
         "label": "Answer questions",
-        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/me/{{1}}"
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/onboarding/{{1}}"
       }
     ]
   },
   {
-    "name": "onboarding_chase_v2_test",
+    "name": "onboarding_chase_v3_test",
     "kind": "onboarding_chase",
     "category": "UTILITY",
     "environment": "Test",
@@ -376,7 +376,7 @@
     "buttons": [
       {
         "label": "Answer questions",
-        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/me/{{1}}"
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/onboarding/{{1}}"
       }
     ]
   },

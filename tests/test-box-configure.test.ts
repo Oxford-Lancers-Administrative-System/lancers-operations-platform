@@ -39,7 +39,7 @@ describe("LAN-222 private test configuration", () => {
     expect(result.EMAIL_API_KEY).toBe("");
     expect(local.WHATSAPP_APP_SECRET).toBe("private-placeholder");
   });
-  it("uses every declared template's v2 Utility test name and no optional egress overrides", () => {
+  it("uses every declared template's Utility test name and no optional egress overrides", () => {
     const result = settingsFor("sink", current, {}, "http://127.0.0.1:3101", names, contacts);
     expect(Object.keys(names)).toHaveLength(14);
     expect(result.APP_BASE_URL).toBe("http://127.0.0.1:3101");
@@ -49,10 +49,12 @@ describe("LAN-222 private test configuration", () => {
     expect(result.EMAIL_API_BASE_URL).toBeUndefined();
     expect(result.WHATSAPP_GRAPH_BASE_URL).toBeUndefined();
     expect(result.SUPABASE_DB_URL).toBe(current.SUPABASE_DB_URL);
-    expect(result.WHATSAPP_TEMPLATE_ONBOARDING_CHASE).toBe("onboarding_chase_v2_test");
+    expect(result.WHATSAPP_TEMPLATE_ONBOARDING_CHASE).toBe("onboarding_chase_v3_test");
     expect(result.WHATSAPP_TEMPLATE_NAME).toBe("lancers_event_invitation_v2_test");
     // LAN-335: the production `_v1` suffix is replaced, never stacked.
-    expect(result.WHATSAPP_TEMPLATE_RECRUIT_WELCOME).toBe("recruit_welcome_v2_test");
+    // LAN-344: the eight rebuilt templates are `_v3_test`; the six others stay `_v2_test`.
+    expect(result.WHATSAPP_TEMPLATE_RECRUIT_WELCOME).toBe("recruit_welcome_v3_test");
+    expect(result.WHATSAPP_TEMPLATE_RECRUIT_EVENT_FOLLOWUP).toBe("recruit_event_followup_v2_test");
     for (const [kind, name] of Object.entries(names)) {
       const key =
         kind === "invitation"

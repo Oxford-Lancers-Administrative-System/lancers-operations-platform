@@ -11,13 +11,28 @@ import { runtime } from "./runtime.mjs";
 export const TEST_HOST = "https://marvel-indiscernible-daxton.ngrok-free.dev";
 
 /**
- * The test-box template name for one production name. LAN-335: the fourteen
- * Utility test templates are `<production name without its _v1>_v2_test`;
- * the earlier `_test` names were deleted on 2026-09-11 and stay locked until
- * roughly 11 October 2026.
+ * The test-box template name for one production name. LAN-335 created the
+ * fourteen `<production name without its _v1>_v2_test` Utility templates on
+ * 2026-09-11. LAN-344 rebuilt the eight with a person-following or single
+ * button as `_v3_test` on 2026-09-12, identical bodies, one button base per
+ * destination (`/questions/`, `/rsvp/`, `/signup/`, `/background/`,
+ * `/onboarding/`); the eight `_v2_test` names were deleted and stay locked
+ * until roughly 12 October 2026. The six with Yes/No buttons or no button
+ * remain `_v2_test`.
  */
+const REBUILT_V3 = new Set([
+  "lancers_event_nudge",
+  "lancers_event_change_notice",
+  "recruit_welcome",
+  "recruit_details_reminder",
+  "recruit_interest_ask",
+  "recruit_interest_reminder",
+  "onboarding_welcome",
+  "onboarding_chase",
+]);
 export function testTemplateName(productionName) {
-  return `${productionName.replace(/_v1$/, "")}_v2_test`;
+  const base = productionName.replace(/_v1$/, "");
+  return `${base}_${REBUILT_V3.has(base) ? "v3" : "v2"}_test`;
 }
 
 /** Read names as data, without importing server code or evaluating the registry. */
