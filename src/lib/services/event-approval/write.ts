@@ -12,7 +12,6 @@ import {
 } from "../event-audience";
 import { lockEventIn, readEventIn, type EventDetail } from "../events";
 import { readCurrentSeasonIn } from "../seasons";
-import { EXIT_STATUSES } from "../recruitment-vocabulary";
 import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "../messaging-schedule";
 import { scheduleEventLadderIn } from "../messaging-scheduler";
 import type { ResolvedResponseDeadline } from "../response-deadline";
@@ -157,10 +156,16 @@ export async function approveEvent(
     // player who went inactive since is still invited, deliberately (R4) — but
     // a recruit who has left recruitment is a different fact: inviting them
     // would be the club chasing somebody it has recorded as declined. Read
-    // here rather than at `saveEventAudience` because the exit happens between
-    // the two, which is the whole defect.
-    const exited = await readExitedRecruitAudienceIdsIn(tx, eventId, before.seasonId);
-    const members = confirmed.filter((member) => !exited.has(member.id));
+    // through `readAudienceIn`'s own `exitedRecruit`, the same field the
+    // approval screen reads, so what the approver was told and what this write
+    // does cannot drift apart. Read here rather than at `saveEventAudience`
+    // because the exit happens between the two, which is the whole defect. The
+    // audience row itself is never rewritten — the record of what the approver
+    // confirmed stays — so all that changes is that no invitation is minted for
+    // them, which also withholds every rung of the ladder, since
+    // `scheduleEventLadderIn` builds each one by selecting from `invitations`.
+    const exited = confirmed.filter((member) => member.exitedRecruit).map((member) => member.id);
+    const members = confirmed.filter((member) => !member.exitedRecruit);
 
     if (members.length === 0) {
       throw new ConstraintViolated(EMPTY_AUDIENCE_MESSAGE, { rule: EMPTY_AUDIENCE_RULE }); // invariant E1b, refused before anything is written
@@ -205,7 +210,7 @@ export async function approveEvent(
         where a.event_id = $1
           and not (a.id = any($3::uuid[]))
        returning id`,
-      [eventId, deadline.at, [...exited]],
+      [eventId, deadline.at, exited],
     );
 
     const jobs = await tx.query<{ id: string }>( // idempotency_key derives from facts that never change (invariant M1) — a retry can't double-send
@@ -239,7 +244,7 @@ export async function approveEvent(
         audienceSize: members.length,
         byCapacity,
         noLongerSelectable: members.filter((member) => !member.stillSelectable).length, // approval honours the confirmed list even if since-inactive
-        exitedRecruitsSkipped: exited.size, // LAN-341: confirmed, then left recruitment before approval
+        exitedRecruitsSkipped: exited.length, // LAN-341: confirmed, then left recruitment before approval
       },
     });
 
@@ -253,7 +258,7 @@ export async function approveEvent(
       context: {
         audienceSize: members.length,
         byCapacity,
-        exitedRecruitsSkipped: exited.size,
+        exitedRecruitsSkipped: exited.length,
         invitationsCreated: invitations.rowCount,
         notificationJobsCreated: (jobs.rowCount ?? 0) + ladder.reminders,
         responseDeadlineAt: deadline.at.toISOString(),
@@ -275,34 +280,6 @@ export async function approveEvent(
       plan,
     };
   });
-}
-
-/**
- * The audience rows naming a recruit who has since left recruitment — LAN-341.
- *
- * The saved audience is not rewritten: the row stays, so the record of what the
- * approver confirmed stays, and `readAudienceIn` already reports them as no
- * longer listed (the catalogue drops an exited prospect, D45/LAN-201). What
- * changes is that approval stops minting an invitation for them — and therefore
- * stops minting any of the jobs that hang off one, since `scheduleEventLadderIn`
- * builds every rung by selecting from `invitations`.
- */
-async function readExitedRecruitAudienceIdsIn(
-  tx: Tx,
-  eventId: string,
-  seasonId: string,
-): Promise<Set<string>> {
-  const result = await tx.query<{ id: string }>(
-    `select a.id
-       from public.event_audience_members a
-       join public.recruitment_prospects rp
-         on rp.person_id = a.person_id and rp.season_id = $2::uuid
-      where a.event_id = $1
-        and a.capacity = 'recruit'
-        and rp.status = any($3::public.prospect_status[])`,
-    [eventId, seasonId, [...EXIT_STATUSES]],
-  );
-  return new Set(result.rows.map((row) => row.id));
 }
 
 // W11's second defect, LAN-203: this omitted recruits, so an approver was never told how many

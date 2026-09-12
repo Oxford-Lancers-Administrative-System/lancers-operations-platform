@@ -61,7 +61,16 @@ export function AudienceList({
               {member.displayName}
             </Typography>
             <Stack direction="row" spacing={1}>
-              {member.stillSelectable ? null : (
+              {/*
+                LAN-341: an exited recruit is "No longer listed" — the word the
+                read model already uses for them — and not "No longer active",
+                which on this screen means somebody who is still invited.
+              */}
+              {member.exitedRecruit ? (
+                <Typography variant="caption" color="text.secondary">
+                  No longer listed
+                </Typography>
+              ) : member.stillSelectable ? null : (
                 <Typography variant="caption" color="text.secondary">
                   No longer active
                 </Typography>

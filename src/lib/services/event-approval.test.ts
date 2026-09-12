@@ -2465,6 +2465,59 @@ describe("LAN-341 — a recruit who leaves recruitment between confirmation and 
     expect((await readEvent(event.id)).status).toBe("draft");
   });
 
+  /**
+   * The screen half of the same defect (walk finding F2). The approval review
+   * is the screen whose whole job is to say what approval will send, and it can
+   * only say it if the read model tells it who will be sent to. `exitedRecruit`
+   * is that field, and approval itself now filters on it, so the sentence the
+   * approver reads and the invitations the press creates come from one fact.
+   */
+  it("reports the exited recruit to the approval screen as somebody who will not be invited", async () => {
+    const { event, personId, prospectId } = await recruitmentDraftWithOwnRecruit("2026-11-25");
+    const playerKeys = await keysFor(event, "player", 2);
+
+    await saveEventAudience(actorPersonId, event.id, [
+      ...playerKeys,
+      selectionKey("recruit", personId),
+    ]);
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "declined"),
+    );
+
+    const preview = await readApprovalPreview(event.id);
+    const theirs = preview.audience.find((member) => member.personId === personId);
+    expect(theirs).toBeDefined();
+    expect(theirs).toMatchObject({
+      capacity: "recruit",
+      exitedRecruit: true,
+      stillSelectable: false,
+      standing: "No longer listed",
+    });
+
+    // Three confirmed, two of them invitees — and the shape the screen leads
+    // with ("Who will be asked") counts only who will be asked.
+    expect(preview.audience).toHaveLength(3);
+    expect(preview.audience.filter((member) => member.exitedRecruit)).toHaveLength(1);
+    expect(preview.groupSummary.total).toBe(2);
+
+    // And the same read through the plainer reader every other screen uses.
+    const audience = await readEventAudience(event.id);
+    expect(
+      audience.filter((member) => member.exitedRecruit).map((member) => member.personId),
+    ).toEqual([personId]);
+  });
+
+  it("reports a recruit still in recruitment as an ordinary invitee", async () => {
+    const { event, personId } = await recruitmentDraftWithOwnRecruit("2026-11-26");
+
+    await saveEventAudience(actorPersonId, event.id, [selectionKey("recruit", personId)]);
+
+    const preview = await readApprovalPreview(event.id);
+    expect(preview.audience).toHaveLength(1);
+    expect(preview.audience[0]).toMatchObject({ personId, exitedRecruit: false });
+    expect(preview.groupSummary.total).toBe(1);
+  });
+
   it("still invites a recruit who is merely no longer committed — only an exit withholds the invitation", async () => {
     const { event, personId, prospectId } = await recruitmentDraftWithOwnRecruit("2026-11-24");
 
