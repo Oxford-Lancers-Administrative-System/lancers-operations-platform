@@ -14,8 +14,8 @@
  * expressions are compared as text, and the two scripts that had their own
  * copies are held to the shared one.
  */
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { personDisplayNameSql } from "@/lib/services/sql-text";
@@ -60,4 +60,54 @@ describe("the scripts name a person the way the application does", () => {
       expect(read(path)).toContain("person-display-name-sql.mjs");
     });
   }
+
+  /**
+   * The named list above was the closing round's guard, and it named the two
+   * scripts that were known to have copies. Two more still had them —
+   * `link-test-operator.mjs` and `link-review-coach.mjs`, both substituting the
+   * Known-as alias for the given name months after the rule changed — and a
+   * list cannot catch the copy nobody has noticed yet. So the guard is the
+   * shape rather than the roster: every `.mjs` under `scripts/` is read, and
+   * one that composes a person's name in SQL must get the expression from the
+   * shared module.
+   *
+   * The two shapes below are the two that have actually appeared. Writing an
+   * alias is not one of them — `is_display_name` in an `insert` or a seed row
+   * is the club recording a Known as, which is exactly what the rule keeps as
+   * its own value.
+   */
+  describe("no script keeps a private copy of the expression", () => {
+    /** Every `.mjs` under `scripts/`, at any depth, except the shared module. */
+    function scriptFiles(directory: string): string[] {
+      return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) return scriptFiles(path);
+        return entry.isFile() && entry.name.endsWith(".mjs") ? [path] : [];
+      });
+    }
+
+    /** The shared expression's own shape: a `case` that reads both name parts. */
+    const INLINE_CASE =
+      /\bcase\b[\s\S]{0,400}?\bgiven_name\b[\s\S]{0,400}?\bfamily_name\b[\s\S]{0,400}?\bend\b/;
+
+    /** The other shape the defect took: selecting the display alias to stand in for the name. */
+    const SELECTS_THE_ALIAS = /\bas\s+display_alias\b/;
+
+    const shared = resolve(root, "scripts/lib/person-display-name-sql.mjs");
+    const scripts = scriptFiles(resolve(root, "scripts")).filter((path) => path !== shared);
+
+    it("reads every script in the tree", () => {
+      // A walker that silently found nothing would pass this whole block.
+      expect(scripts.length).toBeGreaterThan(10);
+    });
+
+    it.each(scripts.map((path) => relative(root, path)))("%s", (path) => {
+      const source = read(path);
+      const composesAName = INLINE_CASE.test(source) || SELECTS_THE_ALIAS.test(source);
+      if (!composesAName) return;
+      expect(source, `${path} composes a person's name in SQL of its own`).toContain(
+        "person-display-name-sql.mjs",
+      );
+    });
+  });
 });

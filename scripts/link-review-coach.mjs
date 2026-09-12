@@ -59,6 +59,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { connectLocal, resolveLocalDatabaseUrl } from "./lib/local-db.mjs";
 import { LOCAL_REVIEW_COACH_EMAIL } from "./lib/local-review-account.mjs";
+import { personDisplayNameSql } from "./lib/person-display-name-sql.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: resolve(root, ".env.local"), quiet: true });
@@ -106,13 +107,6 @@ if (!isLocalApi) {
   );
 }
 
-/** Display form. `family_name` is nullable by design. */
-function displayName(person) {
-  const first = person.display_alias?.trim() || person.given_name.trim();
-  const last = person.family_name?.trim();
-  return last ? `${first} ${last}` : first;
-}
-
 const client = await connectLocal(databaseUrl);
 
 try {
@@ -129,11 +123,7 @@ try {
    * code rather than in the fixture.
    */
   const candidate = await client.query(
-    `select p.id, p.given_name, p.family_name,
-            (select da.alias
-              from public.person_aliases da
-             where da.person_id = p.id and da.is_display_name
-             limit 1) as display_alias,
+    `select p.id, ${personDisplayNameSql("p")} as display_name,
             ra.id as assignment_id,
             ra.effective_from
        from public.role_assignments ra
@@ -223,7 +213,7 @@ try {
 
   if (linked.rowCount === 0) fail("Could not link the local review coach.");
 
-  console.log(`Linked ${email} -> ${displayName(person)} (head_coach)`);
+  console.log(`Linked ${email} -> ${person.display_name} (head_coach)`);
   if (broughtForward.rowCount > 0) {
     console.log("Brought the current-season head-coach appointment forward to today, locally.");
   }
