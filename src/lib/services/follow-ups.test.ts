@@ -185,6 +185,17 @@ afterEach(async () => {
     MARKER,
   ]);
   await observer.query(`delete from public.contact_points where person_id in ${people}`, [MARKER]);
+  // LAN-341's own fixture. `recruitment_prospects` references `people` with
+  // `on delete restrict` — a recruitment record is durable — so it goes before
+  // them, and its status events before it.
+  const prospects = `(select id from public.recruitment_prospects where person_id in ${people})`;
+  await observer.query(
+    `delete from public.recruitment_prospect_status_events where prospect_id in ${prospects}`,
+    [MARKER],
+  );
+  await observer.query(`delete from public.recruitment_prospects where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query(`delete from public.audit_events where actor_person_id in ${people}`, [
     MARKER,
   ]);
@@ -817,5 +828,51 @@ describe("LAN-339 — a recruit is never queued for an event's questions", () =>
 
     const events = await readFollowUpsQueue();
     expect(personRow(events, "Invitee")?.chaseable).toBe(false);
+  });
+});
+
+/**
+ * LAN-341, walk finding F5 — a recruit who has left recruitment leaves the queue.
+ *
+ * The queue is people who owe an answer and can be chased. LAN-341 cancelled
+ * every message an exited recruit was holding and will send no more, so the row
+ * read **Chasing** against somebody nothing can be done for. A prospect merely
+ * cooling off is not an exit and stays, because the club may still hear from
+ * them.
+ */
+describe("LAN-341 — an exited recruit leaves the follow-ups queue", () => {
+  async function prospect(personId: string, status: string): Promise<void> {
+    await observer.query(
+      `insert into public.recruitment_prospects (person_id, season_id, status, source)
+       values ($1::uuid, $2::uuid, $3::public.prospect_status, 'other')`,
+      [personId, seasonId, status],
+    );
+  }
+
+  it.each(["declined", "disengaged", "void"])("drops a %s recruit", async (status) => {
+    const target = await fixture({ capacity: "recruit" });
+    // Present before the exit: this is the row the walk found.
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.status).toBe("chasing");
+
+    await prospect(target.personId, status);
+
+    expect(personRow(await readFollowUpsQueue(), "Invitee")).toBeUndefined();
+  });
+
+  it("keeps a recruit who is still in recruitment", async () => {
+    const target = await fixture({ capacity: "recruit" });
+    await prospect(target.personId, "engaged");
+
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.status).toBe("chasing");
+  });
+
+  it("keeps a player whose own prospect record has exited — the capacity is what decides", async () => {
+    // The same human can be a player this season and a prospect who declined
+    // the club's recruitment of them. Their player invitation is a player's, and
+    // R4's freeze and every chase for it are untouched.
+    const target = await fixture({ capacity: "player" });
+    await prospect(target.personId, "declined");
+
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.status).toBe("chasing");
   });
 });

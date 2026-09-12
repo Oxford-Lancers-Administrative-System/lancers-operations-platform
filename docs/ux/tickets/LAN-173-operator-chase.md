@@ -89,7 +89,10 @@ Four workflows, none of which share files with each other:
   seats Operators and Roles are narrowed to.
 - Reads `nonresponse_queue`, the view LAN-169 already shipped and nothing rendered — one flat
   table, sorted soonest event first, with the event name repeated down the rows (the mockup's
-  `W5-01` draws one continuous table, not a heading per event).
+  `W5-01` draws one continuous table, not a heading per event). LAN-341 drops one kind of row from
+  that read: a recruit-capacity invitation whose prospect has left recruitment. Its messages were
+  all cancelled and no more will be sent, so **Chasing** against them named work no operator could
+  do. Only this list drops them; the invitation stays as the record of what was sent.
 - Columns: Person, Event, When, Deadline, Where the chase has got to, Status. Status is one of
   **Chasing**, **Delivery problem**, **Escalated**, or **Escalation held: no President in post** —
   the last taken verbatim from `messaging-scheduler.ts`'s own comment naming what the queue must
