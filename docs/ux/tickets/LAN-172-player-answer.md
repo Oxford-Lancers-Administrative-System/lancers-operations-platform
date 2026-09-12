@@ -104,7 +104,11 @@ packet mockup is the named source per the brief.
   focused panel carries the event's own facts — venue, response deadline, and
   since LAN-323 the description and the required equipment, two separately
   labelled facts using the same labels the public event page uses, each absent
-  entirely when the operator left the field empty. Since LAN-327 the page also
+  entirely when the operator left the field empty. Those same two facts are on
+  the **list cards** as well, and each card's title links to its own focused
+  view: the ticket says every player surface, and the list is the surface a
+  player lands on — both facts stopped at the panel, and nothing on a card led
+  there. Since LAN-327 the page also
   ends with the club's main WhatsApp group, when `PLAYER_WHATSAPP_GROUP_LINK`
   is configured and not otherwise: recruits have been offered the rookies
   group since LAN-202, and a recruit flipped to joined moved to a surface that

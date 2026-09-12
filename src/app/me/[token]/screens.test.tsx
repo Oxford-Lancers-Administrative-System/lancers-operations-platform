@@ -598,6 +598,51 @@ describe("LAN-323 — the event's description and equipment on the player's own 
     expect(container.textContent).not.toContain("Description");
     expect(container.textContent).not.toContain("What to bring");
   });
+
+  /**
+   * The walk found both facts stopped at the focused panel: the list a player
+   * actually lands on showed neither, and nothing on a card led to the panel
+   * that had them. Brian's ticket says every player surface, and a list card
+   * is the surface a player reads first.
+   */
+  it("shows both on the list card, not only on the focused panel", async () => {
+    givenHome({ ...HOME, newInvitations: [DETAILED], nextInvitationId: DETAILED.invitationId });
+    const { container } = await renderPage();
+
+    const card = container.querySelector('[data-testid="row-card"]')!;
+    expect(card.querySelector('[data-testid="summary-equipment"]')?.textContent).toContain(
+      "What to bring",
+    );
+    expect(card.querySelector('[data-testid="summary-equipment"]')?.textContent).toContain(
+      "Gumshield",
+    );
+    expect(card.querySelector('[data-testid="summary-description"]')?.textContent).toContain(
+      "Description",
+    );
+    expect(card.querySelector('[data-testid="summary-description"]')?.textContent).toContain(
+      "Full pads.",
+    );
+  });
+
+  it("leaves the card's facts off entirely when the operator left both empty", async () => {
+    const bare = invitation({ invitationId: "88888888-8888-4888-8888-888888888888" });
+    givenHome({ ...HOME, newInvitations: [bare], nextInvitationId: bare.invitationId });
+    const { container } = await renderPage();
+
+    expect(container.querySelector('[data-testid="summary-description"]')).toBeNull();
+    expect(container.querySelector('[data-testid="summary-equipment"]')).toBeNull();
+  });
+
+  it("points the card's own title at the focused view that carries the rest", async () => {
+    givenHome({ ...HOME, newInvitations: [DETAILED], nextInvitationId: DETAILED.invitationId });
+    const { container } = await renderPage();
+
+    const title = container.querySelector('[data-testid="row-card"] a')!;
+    expect(title.textContent).toBe("Padded practice");
+    expect(title.getAttribute("href")).toBe(
+      `/me/${encodeURIComponent(TOKEN)}?open=${DETAILED.invitationId}`,
+    );
+  });
 });
 
 describe("LAN-327 — the club's WhatsApp group on the player's own page", () => {
