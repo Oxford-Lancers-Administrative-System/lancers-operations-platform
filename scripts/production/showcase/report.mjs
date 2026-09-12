@@ -14,19 +14,21 @@
  */
 
 import { id } from "./ids.mjs";
+import { personDisplayNameSql } from "../../lib/person-display-name-sql.mjs";
 
 export const METRIC_DEFINITION_VERSION = "LAN-81.5";
 export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v5";
 const REPORT_WINDOW_DAYS = 7;
 const REPORT_LOOKAHEAD_DAYS = 7;
 
-const DISPLAY_NAME = (alias) => `case
-  when ${alias}.id is null then null
-  when ${alias}.family_name is null
-    then coalesce(nullif(btrim((select da.alias from public.person_aliases da where da.person_id = ${alias}.id and da.is_display_name limit 1)), ''), ${alias}.given_name)
-  else coalesce(nullif(btrim((select da.alias from public.person_aliases da where da.person_id = ${alias}.id and da.is_display_name limit 1)), ''), ${alias}.given_name)
-       || ' ' || ${alias}.family_name
-end`;
+/**
+ * LAN-306's rule, from the one place the scripts keep it. This file used to
+ * carry its own copy, which still substituted the Known-as alias for the given
+ * name, so the filed report said "Vee Frayne" where the report page said
+ * "Verity Frayne" — the mismatch `tests/showcase-loader.test.ts` exists to
+ * catch, on the very name the loader seeds.
+ */
+const DISPLAY_NAME = personDisplayNameSql;
 
 function asDate(value) {
   if (value === null || value === undefined) return null;
