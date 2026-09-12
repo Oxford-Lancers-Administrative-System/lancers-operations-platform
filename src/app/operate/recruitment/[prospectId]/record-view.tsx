@@ -152,11 +152,22 @@ export default function RecruitmentRecordView({
             />
           }
           actions={
-            record.convertedMembershipId ? (
-              <Button variant="outlined" href={`/operate/roster/${record.convertedMembershipId}`}>
-                Joined — view on the roster
+            <>
+              {/* LAN-307: where a correction is made, in the place the person
+                  page puts its own record actions. */}
+              <Button
+                variant="outlined"
+                href={`/operate/people/${record.personId}`}
+                data-testid="open-person-record"
+              >
+                Open the person record
               </Button>
-            ) : undefined
+              {record.convertedMembershipId ? (
+                <Button variant="outlined" href={`/operate/roster/${record.convertedMembershipId}`}>
+                  Joined — view on the roster
+                </Button>
+              ) : null}
+            </>
           }
         />
         {/* V-8: headline strip mirrors the roster record's own strip (own shape, not shared import). */}
@@ -200,27 +211,7 @@ export default function RecruitmentRecordView({
               the same record under the same redaction — not a second, drifting
               four-field summary of it. The send actions stay at the top, with
               the destination beside them. */}
-          <Section
-            variant="banded"
-            band="person"
-            title="Person"
-            testId="person"
-            action={
-              <Button
-                href={`/operate/people/${record.personId}`}
-                sx={{
-                  p: 0,
-                  minHeight: 0,
-                  textTransform: "none",
-                  color: "inherit",
-                  fontWeight: 700,
-                }}
-                data-testid="open-person-record"
-              >
-                Open the person record →
-              </Button>
-            }
-          >
+          <Section variant="banded" band="person" title="Personal questionnaire" testId="person">
             <RecordField label="Sends to" value={sendsTo} readOnly />
             <Box sx={{ py: 1.5 }}>
               <SendQuestionnaireButton

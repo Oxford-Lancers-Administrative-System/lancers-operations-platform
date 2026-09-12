@@ -154,13 +154,13 @@ than a lookalike `Card`/`CardHeader` layout (the 2026-09-02 correction; the
 first shipped version built its own cards). Every card is a shipped card
 with its content replaced, per `W2`'s own table:
 
-| Card                   | Colour | Holds                                                                                                                                                                                                                                                                        |
-| ---------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Person**             | slate  | The personal questionnaire's send line, the number it sends to, and a link to the canonical record. **Superseded by LAN-307** (Brian, 2026-09-11) — see below.                                                                                                               |
-| **Recruitment**        | teal   | Status (the roster's own click-to-edit status pill, `StatusCell`), source, first contact, committed on, WhatsApp consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
-| **Recruitment events** | blue   | The shipped attendance table's own shape, reused: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events).                                                                                                                 |
-| **Notes**              | slate  | Prose, attributed and dated, with a place to write the next one.                                                                                                                                                                                                             |
-| **Status history**     | slate  | Recruitment's own status changes, not membership's.                                                                                                                                                                                                                          |
+| Card                       | Colour | Holds                                                                                                                                                                                                                                                                        |
+| -------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Personal questionnaire** | slate  | The personal questionnaire's send line and the number it sends to. Was **Person**, four academic fields — **superseded by LAN-307** (Brian, 2026-09-11); see below.                                                                                                          |
+| **Recruitment**            | teal   | Status (the roster's own click-to-edit status pill, `StatusCell`), source, first contact, committed on, WhatsApp consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
+| **Recruitment events**     | blue   | The shipped attendance table's own shape, reused: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events).                                                                                                                 |
+| **Notes**                  | slate  | Prose, attributed and dated, with a place to write the next one.                                                                                                                                                                                                             |
+| **Status history**         | slate  | Recruitment's own status changes, not membership's.                                                                                                                                                                                                                          |
 
 ### The Person card — LAN-307, superseding the four-field summary
 
@@ -183,12 +183,17 @@ its category, and a field this operator may not see is absent rather than
 null — which is why the sections take `Partial<PersonRecord>`. Lists, boards
 and queues are untouched.
 
-Two things sit above the sections rather than inside them: **Sends to**, the
-one current mobile a send would actually pick, so the destination is readable
-beside the action that uses it; and **Open the person record →**, which is
-where a correction is still made. The change history is collapsed here and its
-"Show all" opens the canonical page, which owns the filter form and the query
-string it reads.
+The card that used to be called **Person** keeps the personal questionnaire's
+send line and gains **Sends to** — the one current mobile a send would actually
+pick, so the destination is readable beside the action that uses it. It is
+retitled **Personal questionnaire**, because five sections that really are the
+person now follow it and two headings called Person would be a worse page than
+the one this ticket is fixing.
+
+**Open the person record** sits in the page header, beside "Joined — view on
+the roster", which is where the person page puts its own record actions. The
+change history is collapsed on this page and its "Show all" opens the canonical
+one, which owns the filter form and the query string it reads.
 
 The header keeps a glance-only status pill beside the recruit's name — the
 same read-only-summary-plus-editable-Section-field duality the roster
