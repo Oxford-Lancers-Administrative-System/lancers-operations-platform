@@ -23,6 +23,7 @@ import {
   type DeliveryState,
 } from "./delivery";
 import { readEventIn } from "./events";
+import { JOB_CANCELLED_REASON } from "./rsvp";
 import { personDisplayNameSql as displayName } from "./sql-text";
 import {
   discrepancyFor,
@@ -56,12 +57,53 @@ interface PersonRow {
   delivery_channel: string | null;
   delivery_failure_reason: string | null;
   delivery_fallback_status: string | null;
+  /** LAN-296. The recorded reason, where this invitee's answer stopped a reminder. */
+  reminders_stopped_reason: string | null;
 }
+
+/**
+ * A reminder this invitee's own answer made unnecessary — LAN-296.
+ *
+ * Two writers leave this row and both write the identical sentence, which is
+ * why it is compared rather than guessed at: `stopChasingIn` cancels the
+ * queued rungs when the answer is recorded, and `claimJobIn` withholds one
+ * whose answer arrived after the job was created (LAN-292).
+ */
+const REMINDER_STOPPED_BY_ANSWER = `
+  j.status = 'cancelled'
+    and j.job_type = 'reminder'
+    and j.cancelled_reason = $2`;
 
 /**
  * The delivery column, operator tier only — a lateral over the most recent
  * job (`notification_jobs` has no unique constraint on `invitation_id`).
  * `j.id is null` guard keeps a never-queued invitee from reading as Failed.
+ *
+ * ## Why a reminder the answer stopped is not a candidate — LAN-296
+ *
+ * Brian read a **Cancelled** chip beside a recorded **Yes** and could not tell
+ * what had been cancelled. The chip was right about the row it found and wrong
+ * about the question the column asks. `NOTIFICATION_JOB_RECENCY_ORDER` breaks
+ * the ladder's `created_at` tie on `scheduled_for desc`, so the invitee's
+ * *last* reminder rung wins — and the moment they answer, that rung is
+ * cancelled. The person's invitation had been delivered; the column said
+ * Cancelled; and nothing on the row said which of the invitation, the answer,
+ * the reminder or the event that referred to.
+ *
+ * So the Delivery column answers the question it is asked — did the club's
+ * message reach this person — from the jobs that are evidence about that, and
+ * a reminder cancelled *because they answered* is not one: it is the record of
+ * a message deliberately not sent. It comes back beside the chip instead, as
+ * `reminders_stopped_reason`, in the club's own recorded words.
+ *
+ * An event cancellation is untouched by this and still reads **Cancelled**:
+ * `cancelEvent` cancels the invitation job too, with its own different reason,
+ * and that job is still a candidate here.
+ *
+ * `follow-ups.ts`'s lateral deliberately keeps the unnarrowed set — its queue
+ * lists people who have *not* answered, so the row this excludes cannot arise
+ * there. The shared recency order is unchanged; only this one caller's
+ * candidate set is.
  */
 const DELIVERY_LATERAL = `
   left join lateral (
@@ -76,9 +118,21 @@ const DELIVERY_LATERAL = `
       ${DELIVERY_LATEST_RESULT_JOIN}
      where j.invitation_id = inv.invitation_id
        and j.idempotency_key not like '%${EMAIL_FALLBACK_SUFFIX}'
+       and not (${REMINDER_STOPPED_BY_ANSWER})
      ${NOTIFICATION_JOB_RECENCY_ORDER}
      limit 1
   ) delivery on true`;
+
+/** The recorded reason, where this invitee's own answer stopped a reminder — LAN-296. */
+const REMINDERS_STOPPED_LATERAL = `
+  left join lateral (
+    select j.cancelled_reason as reason
+      from public.notification_jobs j
+     where j.invitation_id = inv.invitation_id
+       and (${REMINDER_STOPPED_BY_ANSWER})
+     order by j.ladder_rung desc nulls last, j.id desc
+     limit 1
+  ) stopped on true`;
 
 /** Every invitee and walk-up, one list, via the same `full outer join` as `./attendance.ts` (invariant P8). Not gated on the register window. */
 function participantQuery(tier: ParticipationTier): string {
@@ -122,7 +176,8 @@ function participantQuery(tier: ParticipationTier): string {
              ? ",\n         delivery.state as delivery_state" +
                ",\n         delivery.channel as delivery_channel" +
                ",\n         delivery.failure_reason as delivery_failure_reason" +
-               ",\n         delivery.fallback_status as delivery_fallback_status"
+               ",\n         delivery.fallback_status as delivery_fallback_status" +
+               ",\n         stopped.reason as reminders_stopped_reason"
              : ""
          }
     from invited inv
@@ -130,7 +185,7 @@ function participantQuery(tier: ParticipationTier): string {
     left join public.people p
       on p.id = coalesce(inv.subject_person_id, rec.subject_person_id)
     left join public.current_rsvp r on r.invitation_id = inv.invitation_id${
-      operator ? DELIVERY_LATERAL : ""
+      operator ? DELIVERY_LATERAL + REMINDERS_STOPPED_LATERAL : ""
     }
    order by display_name, coalesce(inv.capacity, rec.capacity)`;
 }
@@ -289,9 +344,16 @@ async function readPeopleIn(
   tier: ParticipationTier,
   questions: readonly ParticipationQuestion[],
 ): Promise<OperatorParticipationPerson[]> {
-  const rows = await tx.query<PersonRow>(participantQuery(tier), [eventId]);
-
   const operator = tier === "operator";
+
+  // `$2` exists only in the operator tier's two delivery laterals, and
+  // PostgreSQL refuses a bind carrying a parameter the statement never names,
+  // so the list is built the same way the projection is.
+  const rows = await tx.query<PersonRow>(
+    participantQuery(tier),
+    operator ? [eventId, JOB_CANCELLED_REASON] : [eventId],
+  );
+
   const chaseJobsByInvitation = operator
     ? await readChaseJobsIn(tx, eventId)
     : new Map<string, ChaseJobFact[]>();
@@ -363,6 +425,8 @@ async function readPeopleIn(
       noUsableRoute,
       whatsappUnresponsive,
       chasePosition,
+      // LAN-296. Beside the delivery chip, never instead of it.
+      remindersStoppedReason: row.reminders_stopped_reason ?? null,
     };
   });
 }

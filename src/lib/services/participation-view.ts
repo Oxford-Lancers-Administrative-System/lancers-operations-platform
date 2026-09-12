@@ -96,6 +96,15 @@ export interface OperatorParticipationPerson extends ParticipationPerson {
   readonly chasePosition?: string | null;
   readonly noUsableRoute?: boolean;
   readonly whatsappUnresponsive?: boolean;
+  /**
+   * LAN-296. The club's own recorded reason for stopping this person's
+   * reminders, present only when their own answer is what stopped them —
+   * `null` for everybody else, including a reminder cancelled with the event
+   * or dropped by a rescheduled runway, which are different facts and read
+   * differently. It is a detail beside the delivery state, never a
+   * replacement for it: the invitation still reports whether it reached them.
+   */
+  readonly remindersStoppedReason?: string | null;
 }
 
 export interface EventFactsBase {

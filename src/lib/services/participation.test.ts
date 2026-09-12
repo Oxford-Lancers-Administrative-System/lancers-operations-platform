@@ -499,6 +499,115 @@ describe("the participation table", () => {
     expect(states).not.toContain("failed");
   });
 
+  /**
+   * LAN-296, staged as the ticket's own recorded sequence: invitation
+   * delivered 14 September 2026 17:00, a Yes at 17:01, and both queued
+   * reminders cancelled at 17:01 with the club's recorded reason. Neither
+   * reminder was attempted and the event stayed approved.
+   *
+   * What Brian saw on that row was a **Cancelled** chip beside the Yes, with
+   * nothing saying what had been cancelled: the recency order breaks the
+   * ladder's tied `created_at` on `scheduled_for desc`, so the last cancelled
+   * reminder won the Delivery column outright from the delivered invitation.
+   */
+  async function answeredWithStoppedReminders(invitationId: string, eventId: string) {
+    const tiedAt = "2026-09-14T17:00:00.000Z";
+    await observer.query(
+      `delete from public.notification_jobs where invitation_id = $1 and job_type = 'invitation'`,
+      [invitationId],
+    );
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel,
+          created_at, scheduled_for, ladder_rung)
+       values ($1, 'invitation', 'completed', $2, $3, 'whatsapp',
+               $4::timestamptz, $4::timestamptz, 0)`,
+      [`${NAME_MARKER}:lan296:invitation:${invitationId}`, invitationId, eventId, tiedAt],
+    );
+
+    for (const [rung, channel, hours] of [
+      [1, "whatsapp", 24],
+      [2, "email", 48],
+    ] as const) {
+      await observer.query(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, invitation_id, event_id,
+            channel, created_at, scheduled_for, ladder_rung, cancelled_reason)
+         values ($1, 'reminder', 'cancelled', $2, $3, $4::public.notification_channel,
+                 $5::timestamptz, $5::timestamptz + ($6 || ' hours')::interval, $7, $8)`,
+        [
+          `${NAME_MARKER}:lan296:reminder:${rung}:${invitationId}`,
+          invitationId,
+          eventId,
+          channel,
+          tiedAt,
+          String(hours),
+          rung,
+          "The invitee responded, so this reminder is no longer needed.",
+        ],
+      );
+    }
+  }
+
+  it("reads Delivered beside a stopped reminder's own recorded reason, not a bare Cancelled", async () => {
+    const staged = await scenario();
+    await answeredWithStoppedReminders(staged.invitations[0].id, staged.eventId);
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
+
+    // The invitation's own state, which is what the column asks about.
+    expect(person.delivery).toBe("delivered");
+    // And beside it, what actually stopped: the reminder, in the club's own
+    // recorded words, naming the cause.
+    expect(person.remindersStoppedReason).toBe(
+      "The invitee responded, so this reminder is no longer needed.",
+    );
+  });
+
+  it("leaves a reminder cancelled with the event reading Cancelled, with no stopped-reminder line", async () => {
+    // The distinction the ticket insists on: an actual event cancellation must
+    // still look different. `cancelEvent` writes its own reason and cancels
+    // the invitation job too, so the chip is unchanged and this row carries no
+    // reminder line at all.
+    const staged = await scenario();
+    await observer.query(
+      `update public.notification_jobs
+          set status = 'cancelled', cancelled_reason = 'The event was cancelled.'
+        where invitation_id = $1`,
+      [staged.invitations[0].id],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
+
+    expect(person.delivery).toBe("cancelled");
+    expect(person.remindersStoppedReason).toBeNull();
+  });
+
+  it("still reports a real delivery failure when a stopped reminder is the newer job", async () => {
+    // The failure mode of excluding rows from a lateral: exclude too much and
+    // a genuine failure disappears behind an answer. The invitation here
+    // failed terminally, and that is what the operator must still read.
+    const staged = await scenario();
+    await answeredWithStoppedReminders(staged.invitations[0].id, staged.eventId);
+    await observer.query(
+      `update public.notification_jobs
+          set status = 'failed', attempt_count = 5, last_error = $2
+        where invitation_id = $1 and job_type = 'invitation'`,
+      [staged.invitations[0].id, NO_USABLE_NUMBER_REASON],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
+
+    expect(person.delivery).toBe("failed");
+    expect(person.noUsableRoute).toBe(true);
+    expect(person.remindersStoppedReason).toBe(
+      "The invitee responded, so this reminder is no longer needed.",
+    );
+  });
+
   it("is readable long before the register opens", async () => {
     // The board answers "may this be opened?" and returns no participants for
     // an event a fortnight away. This table answers "who is coming?", which is

@@ -62,6 +62,15 @@ Four workflows, none of which share files with each other:
   person; **Chase stopped** for an answered person whose chase was actually running; **Escalated to
   the President** for an escalated person, with no further rung named. `null` (no line at all) for
   a walk-up, an ordinary answered row, or a no-channel person.
+- **A reminder the invitee's own answer stopped is not a delivery state** (LAN-296). The Delivery
+  column answers "did the club's message reach this person", and a reminder cancelled because they
+  responded is the record of a message deliberately not sent, so it is no longer a candidate for
+  the column's most-recent-job lateral: the chip reports the invitation (**Delivered**), and the
+  club's own recorded reason — "The invitee responded, so this reminder is no longer needed." —
+  sits beneath it. Before this the last cancelled rung won the column outright and the row read a
+  bare **Cancelled** beside a recorded Yes, naming neither the reminder nor the cause. An event
+  cancellation is untouched and still reads **Cancelled**: `cancelEvent` cancels the invitation job
+  too, with its own different reason.
 - The Delivery filter gains **Needs attention**, matching exactly the failed and retryable people
   — the same predicate `delivery/presentation.ts`'s own filter of the same name uses, so the two
   screens' filter agrees.

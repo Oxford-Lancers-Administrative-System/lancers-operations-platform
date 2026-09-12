@@ -1270,6 +1270,63 @@ describe("the delivery column's exceptions and chase position", () => {
     expect(container.querySelector('[data-testid="chase-position"]')).toBeNull();
   });
 
+  it("says what stopped a reminder, beside the invitation's own Delivered — LAN-296", () => {
+    // Brian read a bare **Cancelled** next to a recorded Yes and could not
+    // tell whether the invitation, the answer, the reminder or the event had
+    // been cancelled. The chip now reports the invitation, which is what the
+    // column asks about, and the club's own recorded reason sits beneath it,
+    // naming the reminder and the cause.
+    const stopped = {
+      ...OPERATOR,
+      people: [
+        ...PEOPLE,
+        unanswered({
+          answer: "yes",
+          delivery: "delivered",
+          chasePosition: null,
+          remindersStoppedReason: "The invitee responded, so this reminder is no longer needed.",
+        }),
+      ],
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={stopped}
+        filters={filters()}
+      />,
+    );
+    const row = Array.from(container.querySelectorAll('[data-testid="participation-row"]')).find(
+      (row) => row.textContent?.includes("Gideon Thornbury"),
+    )!;
+    expect(row.querySelector('[data-testid="reminders-stopped"]')?.textContent).toBe(
+      "The invitee responded, so this reminder is no longer needed.",
+    );
+    // The invitation's state stays primary and the answer is untouched.
+    expect(row.textContent).toContain("Delivered");
+    expect(row.textContent).not.toContain("Cancelled");
+  });
+
+  it("keeps an event cancellation looking like one — LAN-296", () => {
+    // The other half of the same distinction: a row cancelled with the event
+    // still reads Cancelled and carries no stopped-reminder line.
+    const cancelled = {
+      ...OPERATOR,
+      people: [...PEOPLE, unanswered({ delivery: "cancelled", chasePosition: null })],
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={cancelled}
+        filters={filters()}
+      />,
+    );
+    const row = Array.from(container.querySelectorAll('[data-testid="participation-row"]')).find(
+      (row) => row.textContent?.includes("Gideon Thornbury"),
+    )!;
+    expect(row.textContent).toContain("Cancelled");
+    expect(row.querySelector('[data-testid="reminders-stopped"]')).toBeNull();
+  });
+
   it("reads Not dispatched — no channel for a person with no usable route, and shows no chase position", () => {
     const withNoRoute = {
       ...OPERATOR,

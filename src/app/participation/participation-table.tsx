@@ -165,6 +165,18 @@ function DeliveryCell({
           {person.chasePosition}
         </Typography>
       ) : null}
+      {/*
+        LAN-296. The club's own recorded reason, beside the chip rather than in
+        place of it: the chip keeps saying whether the invitation reached this
+        person, and this says what stopped their reminders. A reminder cancelled
+        with the event or dropped by a rescheduled runway carries neither this
+        line nor a Delivered chip — it reads Cancelled, as it did before.
+      */}
+      {person.remindersStoppedReason ? (
+        <Typography variant="caption" color="text.secondary" data-testid="reminders-stopped">
+          {person.remindersStoppedReason}
+        </Typography>
+      ) : null}
     </Stack>
   );
 }
