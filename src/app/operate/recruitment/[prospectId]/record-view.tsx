@@ -15,6 +15,23 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import type { PersonRecord } from "@/lib/services/person-record";
+import type {
+  PersonHistoryEntry,
+  PersonRoleAssignment,
+  PersonSeasonRecord,
+} from "@/lib/services/people-directory";
+import {
+  ContactSection,
+  IdentitySection,
+  recordedMobile,
+} from "@/app/operate/people/[personId]/identity-contact-sections";
+import {
+  AcademicSection,
+  RestrictedSection,
+} from "@/app/operate/people/[personId]/academic-restricted-sections";
+import StatusSection from "@/app/operate/people/[personId]/status-section";
+import SeasonsSection from "@/app/operate/people/[personId]/seasons-section";
+import HistorySection from "@/app/operate/people/[personId]/history-section";
 import {
   ATTENDANCE_LABEL,
   CONSENT_LABELS,
@@ -47,9 +64,22 @@ const EVENT_STATUS_LABEL: Readonly<Record<"upcoming" | "occurred" | "cancelled",
 export default function RecruitmentRecordView({
   record,
   person,
+  // LAN-307's supplementary person-record context. Optional because the person
+  // read can fail open (`person` is then `{}`, and every section below is
+  // gated on a field that is therefore absent); the page supplies all five.
+  roles = [],
+  seasons = [],
+  history = [],
+  alumniLabel = "Never a member",
+  currentSeasonLabel = null,
 }: {
   record: RecruitmentProspectRecord;
   person: Partial<PersonRecord>;
+  roles?: readonly PersonRoleAssignment[];
+  seasons?: readonly PersonSeasonRecord[];
+  history?: readonly PersonHistoryEntry[];
+  alumniLabel?: string;
+  currentSeasonLabel?: string | null;
 }) {
   // LAN-204 item 9: the consent deadlock, fixed — personal and recruitment
   // sends no longer share one gate. See `sendRecruitmentQuestionnaireIn`.
@@ -79,6 +109,10 @@ export default function RecruitmentRecordView({
       : !grantedViaSignupForm
         ? "Messaging is refused. Consent was recorded another way, not through the sign-up form — this questionnaire waits for that."
         : null;
+
+  // LAN-307: the destination itself, beside the actions, so an operator can
+  // read where the questionnaire is going before pressing send.
+  const sendsTo = recordedMobile(person);
 
   const bannerDetail = blockedByStatus
     ? `Declined${declinedOn ? ` on ${formatWhen(new Date(declinedOn))}` : ""}. Change the status if that is wrong.`
@@ -162,21 +196,32 @@ export default function RecruitmentRecordView({
 
         {/* Person and Recruitment stacked full width — mirrors the shipped roster bands. */}
         <Stack spacing={3} data-testid="recruitment-record-top-bands">
-          <Section variant="banded" band="person" title="Person" testId="person">
-            <RecordField label="College" value={person.college ?? null} readOnly />
-            <RecordField
-              label="Matriculation"
-              value={person.matriculationYear != null ? String(person.matriculationYear) : null}
-              readOnly
-            />
-            <RecordField
-              label="Expected graduation"
-              value={
-                person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
-              }
-              readOnly
-            />
-            <RecordField label="Degree field" value={person.degreeField ?? null} readOnly />
+          {/* LAN-307: the canonical person record's own sections, rendered from
+              the same record under the same redaction — not a second, drifting
+              four-field summary of it. The send actions stay at the top, with
+              the destination beside them. */}
+          <Section
+            variant="banded"
+            band="person"
+            title="Person"
+            testId="person"
+            action={
+              <Button
+                href={`/operate/people/${record.personId}`}
+                sx={{
+                  p: 0,
+                  minHeight: 0,
+                  textTransform: "none",
+                  color: "inherit",
+                  fontWeight: 700,
+                }}
+                data-testid="open-person-record"
+              >
+                Open the person record →
+              </Button>
+            }
+          >
+            <RecordField label="Sends to" value={sendsTo} readOnly />
             <Box sx={{ py: 1.5 }}>
               <SendQuestionnaireButton
                 prospectId={record.prospectId}
@@ -203,6 +248,16 @@ export default function RecruitmentRecordView({
               </Typography>
             </Box>
           </Section>
+
+          <IdentitySection record={person} />
+          {person.contacts !== undefined ? (
+            <ContactSection record={person} currentSeasonLabel={currentSeasonLabel} />
+          ) : null}
+          {person.college !== undefined ? <AcademicSection record={person} /> : null}
+          {person.dateOfBirth !== undefined ? <RestrictedSection record={person} /> : null}
+          {person.status !== undefined ? (
+            <StatusSection record={person} roles={roles} alumniLabel={alumniLabel} />
+          ) : null}
 
           <Section variant="banded" band="recruitment" title="Recruitment" testId="recruitment">
             <StatusRow
@@ -311,6 +366,18 @@ export default function RecruitmentRecordView({
               <NotesCard prospectId={record.prospectId} notes={record.notes} />
             </Box>
           </Section>
+
+          <SeasonsSection seasons={seasons} />
+
+          {/* Collapsed here. "Show all" opens the canonical page, which owns the
+              filter form and the query string it reads (LAN-307). */}
+          <HistorySection
+            personId={record.personId}
+            history={history}
+            historyExpanded={false}
+            historyField=""
+            historyActor=""
+          />
 
           <Section collapsible title="Status history" testId="status-history">
             {record.statusHistory.length === 0 ? (

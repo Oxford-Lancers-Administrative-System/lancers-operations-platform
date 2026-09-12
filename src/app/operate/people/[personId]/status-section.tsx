@@ -6,8 +6,8 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import type { PersonRecord } from "@/lib/services/person-record";
 import type { PersonRoleAssignment } from "@/lib/services/people-directory";
+import type { VisiblePersonRecord } from "./identity-contact-sections";
 import { labelFor, STATUS_LABELS } from "../presentation";
 
 /** "Where they stand" — status, alumni standing and role assignments. */
@@ -16,14 +16,14 @@ export default function StatusSection({
   roles,
   alumniLabel,
 }: {
-  record: PersonRecord;
+  record: VisiblePersonRecord;
   roles: readonly PersonRoleAssignment[];
   alumniLabel: string;
 }) {
   return (
     <Section variant="banded" band="person" title="Where they stand">
       <Fact label="Status">
-        {record.status !== null ? (
+        {record.status != null ? (
           <StatusChip
             domain={record.status === "recruit" ? "personType" : "membership"}
             status={record.status}

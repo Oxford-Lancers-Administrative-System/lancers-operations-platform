@@ -6,8 +6,20 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { PersonRecord } from "@/lib/services/person-record";
 
+/**
+ * The person record's own sections, shared — LAN-307. The recruit record
+ * renders these same components rather than a second, drifting copy of the
+ * markup, so a field added here appears on both surfaces at once.
+ *
+ * Every one of them takes the **redacted** record (`redactPersonRecord`'s
+ * `Partial<PersonRecord>`): a field this operator may not see is absent, not
+ * `null`, and absent renders exactly as "not recorded" does. The page decides
+ * whether a whole section appears; these decide nothing about authority.
+ */
+export type VisiblePersonRecord = Partial<PersonRecord>;
+
 /** Provenance is shown only when the record supplies an actor. */
-function By({ who }: { who: string | null }) {
+function By({ who }: { who: string | null | undefined }) {
   return who ? (
     <Typography component="span" variant="caption" color="text.secondary">
       {" "}
@@ -18,39 +30,35 @@ function By({ who }: { who: string | null }) {
 
 /** The preferred current contact of one kind (and scope), for a labelled row. */
 function currentContact(
-  record: PersonRecord,
+  record: VisiblePersonRecord,
   kind: "email" | "phone",
   scope: "college" | "personal" | null,
 ) {
-  const candidates = record.contacts.filter(
+  const candidates = (record.contacts ?? []).filter(
     (contact) => contact.kind === kind && contact.scope === scope && contact.validUntil === null,
   );
   const preferred = candidates.find((contact) => contact.isPreferred) ?? candidates[0];
   return preferred ?? null;
 }
 
-/** "Who they are" — name and aliases, always shown. `visible` gates redacted fields. */
-export function IdentitySection({
-  record,
-  visible,
-}: {
-  record: PersonRecord;
-  visible: Partial<PersonRecord>;
-}) {
+/** "Who they are" — name, Known as and aliases. */
+export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
   return (
     <Section variant="banded" band="person" title="Who they are">
       <Fact label="First name" note={record.givenNameSource ?? undefined}>
-        {visible.givenName ? <>{record.givenName}</> : <NotRecorded />}
+        {record.givenName ? <>{record.givenName}</> : <NotRecorded />}
       </Fact>
       <Fact label="Last name" note={record.familyNameSource ?? undefined}>
-        {record.familyName !== null ? <>{record.familyName}</> : <NotRecorded />}
+        {record.familyName ? <>{record.familyName}</> : <NotRecorded />}
       </Fact>
+      {/* LAN-306: its own labelled value, never spliced into the name above. */}
+      <Fact label="Known as">{record.knownAs ? <>{record.knownAs}</> : <NotRecorded />}</Fact>
       <Fact label="Aliases">
-        {record.aliases.length === 0 ? (
+        {(record.aliases ?? []).length === 0 ? (
           <NotRecorded />
         ) : (
           <Stack spacing={0.5}>
-            {record.aliases.map((alias) => (
+            {(record.aliases ?? []).map((alias) => (
               <Box key={alias.id}>
                 <Typography component="span" sx={{ fontWeight: alias.isDisplayName ? 700 : 400 }}>
                   {alias.alias}
@@ -58,7 +66,7 @@ export function IdentitySection({
                 {alias.isDisplayName ? (
                   <Typography component="span" variant="caption" color="text.secondary">
                     {" "}
-                    · display name
+                    · known as
                   </Typography>
                 ) : null}
                 <By who={alias.source} />
@@ -79,7 +87,7 @@ export function ContactSection({
   record,
   currentSeasonLabel,
 }: {
-  record: PersonRecord;
+  record: VisiblePersonRecord;
   currentSeasonLabel: string | null;
 }) {
   const mobile = currentContact(record, "phone", null);
@@ -109,4 +117,21 @@ export function ContactSection({
       ) : null}
     </Section>
   );
+}
+
+/**
+ * The one current mobile a send would go to — LAN-307. The recruit record
+ * shows this beside the questionnaire actions so an operator can read the
+ * destination before pressing send, rather than opening another page to
+ * find out where the message went.
+ */
+export function recordedMobile(record: VisiblePersonRecord): string | null {
+  // Preferred first, any scope, current only — `selectMobileNumber`'s own
+  // ordering, so what is shown is what a send would actually pick rather than
+  // the narrower scope-`null` row the section above labels "Mobile phone".
+  const phones = (record.contacts ?? []).filter(
+    (contact) => contact.kind === "phone" && contact.validUntil === null,
+  );
+  const chosen = phones.find((contact) => contact.isPreferred) ?? phones[0];
+  return chosen?.rawValue ?? null;
 }

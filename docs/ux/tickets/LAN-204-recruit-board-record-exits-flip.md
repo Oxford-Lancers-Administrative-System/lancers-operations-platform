@@ -156,11 +156,39 @@ with its content replaced, per `W2`'s own table:
 
 | Card                   | Colour | Holds                                                                                                                                                                                                                                                                        |
 | ---------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Person**             | slate  | Person facts, read-only, no "open the person record" link — Brian, 2026-09-01. The personal questionnaire's send line sits here.                                                                                                                                             |
+| **Person**             | slate  | The personal questionnaire's send line, the number it sends to, and a link to the canonical record. **Superseded by LAN-307** (Brian, 2026-09-11) — see below.                                                                                                               |
 | **Recruitment**        | teal   | Status (the roster's own click-to-edit status pill, `StatusCell`), source, first contact, committed on, WhatsApp consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
 | **Recruitment events** | blue   | The shipped attendance table's own shape, reused: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events).                                                                                                                 |
 | **Notes**              | slate  | Prose, attributed and dated, with a place to write the next one.                                                                                                                                                                                                             |
 | **Status history**     | slate  | Recruitment's own status changes, not membership's.                                                                                                                                                                                                                          |
+
+### The Person card — LAN-307, superseding the four-field summary
+
+This card shipped as four academic fields, and Brian opened an identified
+recruit on 2026-09-11 to send them the personal questionnaire and found no
+phone number on the page at all: no way to check where the message was going,
+and no way through to the record that held it. The original "no open the
+person record link" ruling (2026-09-01) went with it.
+
+The card now renders the canonical person page's own section components —
+identity and Known as, contacts, academic, restricted, standing, seasons and a
+collapsed change history — from the same `readPersonRecord` and the same
+`redactPersonRecord` this page already called. Not a copy of them: the same
+components, so a field added to the person record appears on both surfaces or
+`record-view.test.tsx`'s parity assertion fails.
+
+Nothing about authority changed. The page gates on `person_record_authority`
+as it always did, each section is drawn only when the redacted payload carries
+its category, and a field this operator may not see is absent rather than
+null — which is why the sections take `Partial<PersonRecord>`. Lists, boards
+and queues are untouched.
+
+Two things sit above the sections rather than inside them: **Sends to**, the
+one current mobile a send would actually pick, so the destination is readable
+beside the action that uses it; and **Open the person record →**, which is
+where a correction is still made. The change history is collapsed here and its
+"Show all" opens the canonical page, which owns the filter form and the query
+string it reads.
 
 The header keeps a glance-only status pill beside the recruit's name — the
 same read-only-summary-plus-editable-Section-field duality the roster
