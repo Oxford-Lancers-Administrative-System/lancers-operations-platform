@@ -10,6 +10,10 @@ export const PERSON_DEFAULTS = Object.freeze({
   delayHours: 24,
   outcome: "delivered",
   eventAnswer: "yes",
+  // LAN-298. A simulated person answers each invitation once. "after_reminder"
+  // is the only way to get a second answer, it is off by default, and it means
+  // exactly one change of mind on the first reminder for that same invitation.
+  repeat: "never",
 });
 export function validatePersonSettings(input, person) {
   const result = { ...PERSON_DEFAULTS, ...input };
@@ -20,6 +24,7 @@ export function validatePersonSettings(input, person) {
     responder: ["none", "prompt", "late", "never"],
     completion: ["all", "partial", "minimum", "none"],
     outcome: ["delivered", "failed", "undelivered"],
+    repeat: ["never", "after_reminder"],
   })) {
     if (!values.includes(result[key]))
       throw new Error("Choose one of the displayed person settings.");
@@ -28,6 +33,8 @@ export function validatePersonSettings(input, person) {
     throw new Error("Response delay must be between zero and 8,760 hours.");
   if (result.identity !== "synthetic" && result.responder !== "none")
     throw new Error("Only explicitly synthetic people can have simulated responses.");
+  if (result.repeat !== "never" && !["prompt", "late"].includes(result.responder))
+    throw new Error("Only a responding synthetic person can change its answer after a reminder.");
   if (result.delivery === "real" && (result.identity !== "real" || !person.phone))
     throw new Error("Identify a real person with a phone number before selecting actual delivery.");
   if (result.delivery === "real" && result.outcome !== "delivered")
@@ -41,13 +48,17 @@ export function effectivePersonSettings(saved, person) {
   if (!saved) return { ...PERSON_DEFAULTS, destination: person.phone ?? null };
   if (saved.destination !== person.phone)
     return {
+      ...PERSON_DEFAULTS,
       ...saved,
       delivery: "intercepted",
       responder: "none",
+      repeat: "never",
       destination: person.phone ?? null,
       destinationChanged: true,
     };
-  return saved;
+  // Defaults fill in behind a state saved before a setting existed, so an older
+  // panel-state.json reads as "answers once" rather than as undefined.
+  return { ...PERSON_DEFAULTS, ...saved };
 }
 export function readPanelState(directory) {
   try {

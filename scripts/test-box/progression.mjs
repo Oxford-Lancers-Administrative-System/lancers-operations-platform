@@ -8,6 +8,62 @@ import { prepareDatabaseClock, setSharedTime } from "./database-clock.mjs";
 import { confirmIntercepted } from "./callbacks.mjs";
 import { templateNames, testTemplateName } from "./configure.mjs";
 
+/** The three player-facing rungs a simulated person may answer. LAN-297. */
+const ANSWERABLE_KINDS = ["invitation", "reminder", "recruit_event_follow_up"];
+/** The reminder rung in either ladder: the only capture a change of answer follows. */
+const REMINDER_KINDS = ["reminder", "recruit_event_follow_up"];
+/**
+ * `y.<invitationId>.<nonce>` — `src/lib/services/player-answer-tokens.ts`. The
+ * invitation is named inside the token, which is what lets a capture be
+ * attributed to the invitation it belongs to without reading the database.
+ */
+const ANSWER_TOKEN =
+  /^[yn]\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.[A-Za-z0-9_-]+$/;
+
+function buttonToken(record, index) {
+  const button = (record.payload?.template?.components ?? []).find(
+    (c) => c.type === "button" && Number(c.index) === index,
+  );
+  const text = button?.parameters?.[0]?.text;
+  return typeof text === "string" ? text : null;
+}
+/** Button 0 is Yes and button 1 is No on all three answerable templates. */
+function answerToken(record, answer) {
+  return buttonToken(record, answer === "no" ? 1 : 0);
+}
+function invitationOf(record) {
+  for (const index of [0, 1]) {
+    const match = ANSWER_TOKEN.exec(buttonToken(record, index) ?? "");
+    if (match) return match[1];
+  }
+  return null;
+}
+function otherAnswer(answer) {
+  return answer === "no" ? "yes" : "no";
+}
+function recordedResult(results, hash) {
+  const file = path.join(results, hash + ".json");
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null;
+}
+
+/**
+ * What each simulated person is going to do, and when. LAN-298.
+ *
+ * One answer per invitation, not one per delivered message. A person's profile
+ * delay is measured from the **first** delivered capture for that invitation,
+ * and every later capture for the same invitation — a reminder, a second
+ * invitation, a recruit follow-up — schedules nothing. Before this, each
+ * delivered capture scheduled its own action, so a 14-invitee run that sent
+ * reminders produced 13 RSVP history rows for 10 current responses: Hollis,
+ * Ignatius and Jarrah each answered twice for one invitation, which is not
+ * something a real invitee does and made the history unreadable as evidence.
+ *
+ * A second answer exists only where somebody selected it: `repeat:
+ * "after_reminder"` schedules exactly one change of mind, on the first reminder
+ * for that same invitation, recording the opposite of the person's event
+ * answer. That is the changed-answer scenario the panel could not produce
+ * before; it is off by default and labelled as a change wherever it is shown.
+ */
 export function responsePlans(directory, people) {
   const state = readPanelState(directory);
   const folder = path.join(directory, "transport-evidence");
@@ -19,7 +75,7 @@ export function responsePlans(directory, people) {
         .map((f) => JSON.parse(fs.readFileSync(path.join(folder, f), "utf8")))
     : [];
   const results = path.join(directory, "responses");
-  const plans = [];
+  const captures = [];
   for (const record of records) {
     if (
       record.transport !== "intercepted" ||
@@ -46,32 +102,67 @@ export function responsePlans(directory, people) {
       Object.entries(names).find(
         ([, v]) => record.payload?.template?.name === testTemplateName(v),
       )?.[0];
-    if (!["invitation", "reminder", "recruit_event_follow_up"].includes(kind)) continue;
-    const buttons = record.payload?.template?.components?.filter((c) => c.type === "button") ?? [];
-    const token = buttons.find(
-      (b) =>
-        Number(b.index) ===
-        (profile.eventAnswer === "no" &&
-        ["invitation", "reminder", "recruit_event_follow_up"].includes(kind)
-          ? 1
-          : 0),
-    )?.parameters?.[0]?.text;
-    if (typeof token !== "string") continue;
-    const file = path.join(results, hash + ".json");
-    const result = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null;
-    const delay = profile.responder === "prompt" ? 1 / 60 : profile.delayHours;
-    plans.push({
-      id: hash,
-      personId: person.id,
-      person: person.name,
+    if (!ANSWERABLE_KINDS.includes(kind)) continue;
+    captures.push({
+      record,
+      hash,
+      person,
+      profile,
       kind,
-      token,
-      file,
-      at: new Date(Date.parse(record.testAt ?? record.at) + delay * 3600000).toISOString(),
-      result,
-      profile: profile.responder,
-      completion: profile.completion,
+      at: Date.parse(record.testAt ?? record.at),
+      // Wall-clock capture order breaks a tie between two captures the paused
+      // test clock stamped with the same simulated instant.
+      capturedAt: Date.parse(record.actualAt ?? record.testAt ?? record.at),
     });
+  }
+  // One group per invitation per person. A capture whose buttons name no
+  // invitation cannot be attributed to one, so it stands alone rather than
+  // being folded into somebody else's invitation.
+  const groups = new Map();
+  for (const capture of captures.sort(
+    (a, b) => a.at - b.at || a.capturedAt - b.capturedAt || (a.hash < b.hash ? -1 : 1),
+  )) {
+    const key = capture.person.id + "|" + (invitationOf(capture.record) ?? capture.hash);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(capture);
+  }
+  const plans = [];
+  for (const group of groups.values()) {
+    const { profile } = group[0];
+    const delay = profile.responder === "prompt" ? 1 / 60 : profile.delayHours;
+    const answer = profile.eventAnswer ?? "yes";
+    const plan = (capture, stage, stageAnswer, result) => {
+      const token = answerToken(capture.record, stageAnswer);
+      if (typeof token !== "string") return;
+      plans.push({
+        id: capture.hash,
+        personId: capture.person.id,
+        person: capture.person.name,
+        kind: capture.kind,
+        token,
+        file: path.join(results, capture.hash + ".json"),
+        at: new Date(capture.at + delay * 3600000).toISOString(),
+        result,
+        profile: profile.responder,
+        completion: profile.completion,
+        answer: stageAnswer,
+        stage,
+      });
+    };
+    // Any answer already recorded for this invitation completes the one initial
+    // plan, whichever capture recorded it. A run that answered twice under the
+    // old behaviour therefore reads as answered rather than being answered again.
+    plan(
+      group[0],
+      "first",
+      answer,
+      group.map((c) => recordedResult(results, c.hash)).find(Boolean) ?? null,
+    );
+    if (profile.repeat === "after_reminder") {
+      const reminder = group.slice(1).find((c) => REMINDER_KINDS.includes(c.kind));
+      if (reminder)
+        plan(reminder, "change", otherAnswer(answer), recordedResult(results, reminder.hash));
+    }
   }
   return plans;
 }
@@ -101,7 +192,7 @@ export function createProgression(db, directory, domain, readPeople) {
         try {
           result = {
             status: "completed",
-            ...(await domain.simulateResponse(plan.personId, plan.token, plan.kind)),
+            ...(await domain.simulateResponse(plan.personId, plan.token, plan.kind, plan.answer)),
           };
         } catch {
           result = {

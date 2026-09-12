@@ -8,6 +8,7 @@ import {
 import {
   resolveAnswerTokenIn,
   consumeAnswerTokenIn,
+  type PlayerAnswer,
 } from "../../src/lib/services/player-answer-tokens";
 import {
   readPlayerAnswerLandingIn,
@@ -27,7 +28,12 @@ export async function onboardingExpectations() {
 }
 
 /** Recheck current identity, destination and valid link inside the write transaction. */
-export async function simulateResponse(personId: string, token: string, kind: string) {
+export async function simulateResponse(
+  personId: string,
+  token: string,
+  kind: string,
+  response?: string,
+) {
   // LAN-297: people complete recruitment and onboarding forms manually.
   if (
     !["invitation", "reminder", "recruit_event_follow_up"].includes(kind) ||
@@ -50,13 +56,19 @@ export async function simulateResponse(personId: string, token: string, kind: st
       profile.completion === "none"
     )
       throw new Error("Synthetic response is not enabled for this person.");
+    // LAN-298: the caller states the answer, because a change-of-mind plan
+    // records the opposite of the person's standing event answer.
+    const requested = response ?? profile.eventAnswer ?? "yes";
+    if (requested !== "yes" && requested !== "no")
+      throw new Error("A simulated event answer is either yes or no.");
+    const answer: PlayerAnswer = requested;
     if (/^[yn]\./.test(token)) {
       const resolved = await resolveAnswerTokenIn(tx, token);
       if (!resolved.invitation || !resolved.writable)
         throw new Error("The response link does not belong to this synthetic person.");
       const recorded = await consumeAnswerTokenIn(tx, token, {
-        response: profile.eventAnswer ?? "yes",
-        reason: profile.eventAnswer === "no" ? "Synthetic test: unavailable" : undefined,
+        response: answer,
+        reason: answer === "no" ? "Synthetic test: unavailable" : undefined,
       });
       if (recorded.personId !== personId)
         throw new Error("The response token belongs to a different person.");

@@ -16,7 +16,9 @@ to run setup commands once the environment is ready.
    defaults to **Intercept locally**, including for routable phone numbers.
 2. For a synthetic person choose a response profile: prompt (one minute after
    simulated delivery), late (chosen hours), or non-responder. Choose attending
-   or not attending for events, and all/partial/minimum/no event question answers. Save.
+   or not attending for events, and all/partial/minimum/no event question answers.
+   Leave **Repeat answering** at “Answers each invitation once” unless the scenario
+   under test is a change of mind. Save.
 3. In the normal app, create/approve an event or start a recruitment/onboarding
    workflow. The panel processes due messages every ten seconds.
 4. In **Message timeline**, filter by person or event. Inspect the actual
@@ -34,6 +36,37 @@ to run setup commands once the environment is ready.
    work, failures, reminders after an answer, and correctly cancelled reminders.
    Other workflow families retain an explicit owner checklist; they are not
    automatically marked passed from captured messages alone.
+
+### One answer per invitation — LAN-298
+
+A simulated person answers each invitation **once**. The profile delay is measured
+from the first delivered intercepted capture for that invitation; every later
+capture for the same invitation — a reminder, a repeated invitation, a recruit
+event follow-up — schedules nothing. The invitation is read from the answer
+token each Yes/No button carries, so two rungs of the same ladder are recognised
+as one invitation without a database lookup. A capture whose buttons name no
+invitation is treated on its own.
+
+Before this, each delivered capture scheduled its own action: a 14-invitee
+mandatory practice advanced through 84 hours produced 10 current responses but
+13 RSVP history rows, because the three late responders each answered their own
+invitation twice. Runs recorded before this change keep that history; the
+Responses tab now lists one plan per invitation, and an invitation any earlier
+capture already answered reads as answered rather than being answered again.
+
+**Repeat answering** is the only way to get a second answer, it is off by
+default, and it is per person:
+
+| Setting                               | Effect                                                                                                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Answers each invitation once          | The default. One answer per invitation, whatever arrives afterwards.                                                                    |
+| Changes answer once, after a reminder | One further answer, the opposite of the person's event answer, the profile delay after the **first** reminder for that same invitation. |
+
+It requires a prompt or late response profile — the panel refuses it otherwise —
+and it is one change, not an oscillation: a second reminder adds nothing. The
+change uses that reminder's own fresh answer link, which is what a real invitee
+tapping the newer message does, and the Responses tab labels the plan
+“Change of answer” with the answer it will record.
 
 Partial completion preserves existing answers: half of missing onboarding detail
 fields, two football-background answers, half of event questions, or the recruit
