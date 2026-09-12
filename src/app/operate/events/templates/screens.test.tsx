@@ -10,6 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -925,6 +926,88 @@ describe("the confirmation reads as W8-03 specifies", () => {
     expect(names).toContain("defaultVenue");
     expect(names).toContain("defaultDurationMinutes");
     expect(names).toContain("defaultAttendance");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-313, on the template's own form
+// ---------------------------------------------------------------------------
+
+describe("LAN-313 — Enter while writing a question does not save the template", () => {
+  /**
+   * The same defect and the same guard as the event editor's own block: the
+   * whole template is one `<form>` with `QuestionEditor` inside it, so the
+   * browser's implicit submission turned "I have finished typing this
+   * question" into **Save…**. `preventImplicitSubmit` is wired here too, and
+   * was asserted nowhere — the attribute could be dropped and this file stayed
+   * green.
+   */
+  function editor() {
+    return render(
+      <TemplateEditor
+        templateId={PRACTICE.id}
+        eventTypeLabel="Practice"
+        eventCount={0}
+        initial={{}}
+        initialQuestions={[]}
+        groups={groupsForEventType("practice")}
+      />,
+    );
+  }
+
+  it("submits nothing, and leaves what was typed where it was typed", async () => {
+    const user = userEvent.setup();
+    editor();
+    fireEvent.click(screen.getByTestId("add-question"));
+
+    const submitted = vi.fn();
+    screen.getByTestId("template-form").addEventListener("submit", submitted);
+
+    const written = screen.getAllByRole("textbox", { name: /^Question$/ });
+    const prompt = written[written.length - 1];
+    await user.click(prompt);
+    // Pasted rather than typed a character at a time, for the reason the event
+    // editor's block gives: every keystroke re-renders the whole editor. Only
+    // the Enter has to be a real keystroke, because Enter is the whole defect.
+    await user.paste("Bringing a gumshield?");
+    await user.keyboard("{Enter}");
+
+    expect(submitted).not.toHaveBeenCalled();
+    expect(prompt).toHaveValue("Bringing a gumshield?");
+  });
+
+  it("submits nothing from the Options field either", async () => {
+    const user = userEvent.setup();
+    editor();
+    fireEvent.click(screen.getByTestId("add-question"));
+
+    const answer = screen.getAllByRole("combobox", { name: "Answer" });
+    fireEvent.mouseDown(answer[answer.length - 1]);
+    fireEvent.click(screen.getByRole("option", { name: "Pick from a list" }));
+
+    const submitted = vi.fn();
+    screen.getByTestId("template-form").addEventListener("submit", submitted);
+
+    await user.click(screen.getByRole("textbox", { name: "Options" }));
+    await user.paste("S, M, L");
+    await user.keyboard("{Enter}");
+
+    expect(submitted).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Options" })).toHaveValue("S, M, L");
+  });
+
+  it("still saves when the operator means to — Enter on the primary control", async () => {
+    // The guard must not cost the keyboard its way out of the form.
+    const user = userEvent.setup();
+    editor();
+
+    const submitted = vi.fn((event: Event) => event.preventDefault());
+    screen.getByTestId("template-form").addEventListener("submit", submitted);
+
+    screen.getByTestId("preview-template").focus();
+    await user.keyboard("{Enter}");
+
+    expect(submitted).toHaveBeenCalled();
   });
 });
 
