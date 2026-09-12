@@ -220,6 +220,23 @@ describe("interpreting a response", () => {
     expect(outcome.status === "refused" && outcome.retryable).toBe(false);
   });
 
+  /**
+   * 131050 says the recipient opted out of **marketing** messages, and nothing
+   * more. The sentence used to say "messages", which an operator reads as a
+   * total opt-out — so they would stop chasing somebody a Utility reminder
+   * still reaches. It stays terminal: this send is over either way.
+   */
+  it("scopes the opt-out to marketing, and stays terminal", () => {
+    const outcome = interpretResponse(400, { error: { code: 131050 } });
+    expect(outcome.status).toBe("refused");
+    if (outcome.status !== "refused") return;
+    expect(outcome.retryable).toBe(false);
+    expect(outcome.reason).toMatch(/marketing messages/i);
+    expect(outcome.reason).toMatch(/reminders may still reach them/i);
+    // The claim the old sentence made, and the reason it was wrong.
+    expect(outcome.reason).not.toMatch(/stop receiving messages/i);
+  });
+
   it("explains the window failure the live test produced", () => {
     // 131047 is what an out-of-window free-form message becomes. The sentence
     // has to be one an operator can act on without knowing what a window is.

@@ -101,7 +101,18 @@ const PROVIDER_REASONS: Readonly<Record<number, string>> = {
   // LAN-288. Both documented under "Unable to deliver the message" and both
   // terminal: one is the recipient's own choice and the other is the club's
   // own account having blocked them. Neither is fixed by sending again.
-  131050: "This person has chosen to stop receiving messages from the club on WhatsApp.",
+  //
+  // 131050 is narrower than it reads. Meta documents it as the recipient
+  // having opted out of **marketing** messages, and that is the only category
+  // it stops: a Utility template — a reminder, a nudge, an RSVP — still
+  // delivers to the same number. The sentence said "messages", which reads as
+  // a total opt-out and would have an operator stop chasing somebody the club
+  // can still reach. It does not say the reminder *will* arrive, because
+  // whether a given template is Utility is Meta's classification and not the
+  // club's (see the template-category record).
+  131050:
+    "This person has chosen to stop receiving marketing messages from the club " +
+    "on WhatsApp; reminders may still reach them.",
   130403: "WhatsApp would not deliver this message because this person is blocked by the club.",
   132000: "The approved message template did not match what was sent.",
   132001: "The message template named for invitations does not exist on the club's account.",
