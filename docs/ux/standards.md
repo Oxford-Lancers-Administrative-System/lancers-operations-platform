@@ -231,6 +231,12 @@ its absence is as legible as its presence. Lists, boards and queues show the
 name only. An alias that merely repeats the given name is not a Known as and is
 not shown as one.
 
+A duplicate check is the exception that proves the rule rather than a list: a
+candidate can surface _because_ the search matched the Known as, and the whole
+question being asked is whether this row and that person page name the same
+human. So those rows carry Known as beside the formal name — its own value,
+with its own word — and never spliced into it.
+
 ---
 
 ## What binds these
@@ -248,6 +254,7 @@ is carried by a test rather than by this page:
 | 6    | `src/app/operate/admin/screens.test.tsx` — a missing cycle renders content, not an error    |
 | 7    | `src/lib/services/administration-directory.test.ts` — the readers the pages actually call   |
 | 8    | `src/lib/services/person-name.test.ts`, and `person-record.test.ts` — record and list agree |
+| 8    | `src/app/operate/admin/actions.test.ts` and both `screens.test.tsx` — the duplicate checks  |
 
 This page is the reasoning; those files are the enforcement. If one of them is
 deleted, the rule it carries is unbound however clearly it is written here.

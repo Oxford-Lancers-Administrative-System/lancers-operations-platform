@@ -1614,6 +1614,7 @@ describe("one role's record", () => {
           {
             personId: "cccccccc-1111-4111-8111-111111111111",
             name: "Marigold Ashgrovemoor",
+            knownAs: null,
             email: "marigold@lan141.example",
             phone: null,
             matchedOn: ["email"],
@@ -1634,6 +1635,40 @@ describe("one role's record", () => {
         /choose the person above to enable this/i,
       );
       expect(screen.getByTestId("choose-somebody-first")).not.toHaveTextContent(/find the person/i);
+    });
+
+    /**
+     * LAN-306, rule 8, and R7-4. A candidate can surface *on* the Known-as
+     * alias, and this search used to hand the screens a name with that alias
+     * substituted for the given name. The operator is deciding whether the row
+     * and the person page name the same human; two different names is the one
+     * thing that decision cannot survive.
+     */
+    it("names the candidate formally and carries Known as beside it", async () => {
+      vi.mocked(searchCandidatesAction).mockResolvedValue({
+        ...EMPTY_ADMIN_ACTION_STATE,
+        candidates: [
+          {
+            personId: "cccccccc-1111-4111-8111-111111111111",
+            name: "Ambrose Kittiwake",
+            knownAs: "Bram",
+            email: "bram@lan141.example",
+            phone: null,
+            matchedOn: ["known as"],
+            operatorState: null,
+            operatorAccountId: null,
+          },
+        ],
+      });
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+      fireEvent.click(screen.getByRole("button", { name: "Assign role" }));
+      fireEvent.submit(screen.getByTestId("assign-panel").querySelectorAll("form")[0]);
+
+      const row = await screen.findByTestId("candidate-choice");
+      expect(row).toHaveTextContent("Ambrose Kittiwake");
+      expect(row).toHaveTextContent("Known as Bram");
+      expect(row).not.toHaveTextContent("Bram Kittiwake");
     });
   });
 
@@ -1656,6 +1691,7 @@ describe("one role's record", () => {
     const CANDIDATE = {
       personId: "cccccccc-1111-4111-8111-111111111111",
       name: "Marigold Ashgrovemoor",
+      knownAs: null,
       email: "marigold@lan141.example",
       phone: null,
       matchedOn: ["email"],

@@ -173,6 +173,11 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
                         <Typography variant="body2">{candidate.name}</Typography>
                         <Typography variant="caption" color="text.secondary">
                           {[
+                            // LAN-306, rule 8: its own value beside the formal
+                            // name, never spliced into it. A candidate can
+                            // surface on it alone, so hiding it would leave
+                            // "matched on known as" with nothing to read.
+                            candidate.knownAs ? `Known as ${candidate.knownAs}` : null,
                             candidate.email,
                             candidate.operatorState
                               ? `Already has a sign-in: ${candidate.operatorState}`

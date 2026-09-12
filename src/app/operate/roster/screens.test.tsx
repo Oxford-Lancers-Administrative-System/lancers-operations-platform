@@ -395,6 +395,36 @@ describe("UX-11 — Review possible matches", () => {
     expect(screen.getAllByTestId("candidate")[0]).toHaveTextContent("Matched on given name, email");
   });
 
+  /**
+   * LAN-306, rule 8, and R7-4. This row composed the name in its own words. It
+   * happened to agree with `personDisplayName`, which is exactly how the four
+   * implementations that rule replaced started out: a second copy agrees until
+   * the rule changes under it. It is held to the shared function instead.
+   */
+  it("names a candidate formally, whatever alias the record carries", async () => {
+    const aliased: PersonCandidate = {
+      personId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      givenName: "Ambrose",
+      familyName: "Kittiwake",
+      displayAlias: "Bram",
+      email: null,
+      phone: null,
+      currentMembership: null,
+      matchedOn: ["known as"],
+    };
+    // `beforeEach` already mounted the standard list, so this render is scoped
+    // to its own container rather than read off the whole document.
+    const again = await renderIntakeAt({
+      step: "candidates",
+      values: VALUES,
+      candidates: [aliased],
+    });
+
+    const row = within(again.container).getByTestId("candidate");
+    expect(row).toHaveTextContent("Ambrose Kittiwake");
+    expect(row).not.toHaveTextContent("Bram Kittiwake");
+  });
+
   it("keeps the operator's typed values for the next submission", () => {
     const form = screen.getByRole("button", { name: "Use selected person" }).closest("form");
     const hidden = form!.querySelectorAll('input[type="hidden"]');

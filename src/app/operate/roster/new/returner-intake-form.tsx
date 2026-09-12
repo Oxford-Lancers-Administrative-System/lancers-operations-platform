@@ -21,6 +21,7 @@ import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
 import type { PersonCandidate } from "@/lib/services/roster";
+import { personDisplayName } from "@/lib/services/person-name";
 import { submitReturnerIntake } from "./actions";
 import { INITIAL_INTAKE_STATE, type IntakeState } from "./intake-state";
 import { firstInvalidField, type IntakeFormValues } from "./validation";
@@ -261,9 +262,10 @@ function CandidatesStep({
  * this person is refused, so it is never the field dropped for phone.
  */
 function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
-  const name = candidate.familyName
-    ? `${candidate.givenName} ${candidate.familyName}`
-    : candidate.givenName;
+  // The one function that composes a person's name (LAN-306, rule 8). This said
+  // the same thing in its own words, which is how the four implementations that
+  // rule replaced came to disagree in the first place.
+  const name = personDisplayName(candidate.givenName, candidate.familyName);
 
   return (
     <Surface testId="candidate">

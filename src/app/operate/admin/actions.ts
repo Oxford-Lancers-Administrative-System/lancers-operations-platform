@@ -22,6 +22,7 @@ import {
   startOperatorEmailRehome,
 } from "@/lib/services/operator-administration";
 import { operatorAccountState } from "@/lib/services/operator-account-state";
+import { knownAsOf, personDisplayName } from "@/lib/services/person-name";
 import type { AdminActionState, CandidateChoice } from "./action-state";
 
 // Administration's server actions — LAN-133, `WP-surfaces`. Thin adapters:
@@ -112,9 +113,14 @@ export async function searchCandidatesAction(
 
     const candidates: CandidateChoice[] = found.map((candidate) => ({
       personId: candidate.personId,
-      name: [candidate.displayAlias?.trim() || candidate.givenName, candidate.familyName]
-        .filter((part) => Boolean(part))
-        .join(" "),
+      // LAN-306, rule 8: the formal name, composed by the one function that
+      // composes it. The Known-as alias travels as its own value below — a
+      // candidate can surface *because* of it (`matchedOn` says "known as"),
+      // and this list stood the alias in for the given name, so an operator
+      // deciding whether two records are the same human read a name the
+      // person page does not print.
+      name: personDisplayName(candidate.givenName, candidate.familyName),
+      knownAs: knownAsOf(candidate.givenName, candidate.displayAlias),
       email: candidate.email,
       phone: candidate.phone,
       matchedOn: [...candidate.matchedOn],

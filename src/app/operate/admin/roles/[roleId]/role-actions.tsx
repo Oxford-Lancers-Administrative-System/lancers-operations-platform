@@ -262,6 +262,11 @@ function PersonPanel({
                         <Typography variant="body2">{candidate.name}</Typography>
                         <Typography variant="caption" color="text.secondary">
                           {[
+                            // LAN-306, rule 8: beside the formal name, never
+                            // inside it. The same search feeds the invitation
+                            // door, and both are the operator deciding whether
+                            // this is the same human.
+                            candidate.knownAs ? `Known as ${candidate.knownAs}` : null,
                             candidate.email,
                             candidate.operatorState
                               ? `Operator account: ${candidate.operatorState}`
