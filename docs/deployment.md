@@ -106,6 +106,7 @@ None of these are secrets.
 | `CLOUD_RUN_MAX_INSTANCES`              | `3`                                                            |
 | `SUPABASE_SECRET_KEY_SECRET`           | `supabase-secret-key`                                          |
 | `DATABASE_URL_SECRET`                  | `database-url` (the default; set only to override)             |
+| `CLUB_LINK_SECRET_SECRET`              | `club-link-secret` (the default; set only to override)         |
 | `NEXT_PUBLIC_SUPABASE_URL`             | hosted Supabase URL                                            |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | hosted publishable key                                         |
 
@@ -145,8 +146,13 @@ printf '%s' "$(openssl rand -hex 32)" | gcloud secrets create club-link-secret -
 gcloud secrets add-iam-policy-binding club-link-secret --member="serviceAccount:$(gcloud run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
 ```
 
-then add `CLUB_LINK_SECRET=club-link-secret:latest` to the revision's
-`--set-secrets`.
+before the next deploy. The workflow's `secrets:` block already injects it as
+`CLUB_LINK_SECRET=club-link-secret:latest` (LAN-345), so nothing is added to the
+revision by hand — a value set on the revision would be erased by the next
+deploy, because `--set-secrets` replaces the list. Cloud Run refuses to create a
+revision whose secret does not exist, so the two commands above must have run
+before `deploy.yml` does; until they have, the run fails at revision creation and
+traffic stays on the revision already serving.
 
 **Rotating it invalidates every club link already shared**, because the tokens
 are derived from it rather than stored. That is a deliberate act — the way to
