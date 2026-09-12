@@ -16,6 +16,7 @@ import {
   type RsvpValue,
 } from "../recruitment-vocabulary";
 import { SENT_STEP_KEYS } from "./shared";
+import { personDisplayName } from "../person-name";
 
 /**
  * `/operate/recruitment/[prospectId]`'s own read — `W2`'s record. LAN-204.
@@ -263,14 +264,14 @@ export async function readRecruitmentProspectIn(
   };
 
   const personLabel = (givenName: string | null, familyName: string | null): string | null =>
-    givenName ? [givenName, familyName].filter(Boolean).join(" ") : null;
+    givenName ? personDisplayName(givenName, familyName) : null;
 
   return {
     prospectId: row.id,
     personId: row.person_id,
     seasonId: row.season_id,
     seasonLabel: seasonLabel ?? "",
-    displayName: [row.given_name, row.family_name].filter(Boolean).join(" "),
+    displayName: personDisplayName(row.given_name, row.family_name),
     status: row.status as ProspectStatus,
     source: row.source,
     firstContactOn: row.first_contact_on,

@@ -2,6 +2,7 @@ import "server-only";
 
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { personDisplayAliasSql } from "./sql-text";
+import { personDisplayName } from "./person-name";
 
 /**
  * The one duplicate check — LAN-183, `REQ-duplicate-check`. `main` has three
@@ -84,16 +85,6 @@ async function readCurrentContacts(
     byPerson.set(row.person_id, entry);
   }
   return byPerson;
-}
-
-function displayNameFrom(
-  givenName: string,
-  familyName: string | null,
-  displayAlias: string | null,
-): string {
-  const trimmedAlias = displayAlias?.trim();
-  const first = trimmedAlias ? trimmedAlias : givenName;
-  return familyName ? `${first} ${familyName}` : first;
 }
 
 function matchedOnFrom(row: CandidateRow): PersonDuplicateMatch[] {
@@ -209,7 +200,7 @@ export async function findPersonDuplicates(
         givenName: row.given_name,
         familyName: row.family_name,
         displayAlias: row.display_alias,
-        displayName: displayNameFrom(row.given_name, row.family_name, row.display_alias),
+        displayName: personDisplayName(row.given_name, row.family_name),
         currentEmails: contacts.emails,
         currentPhones: contacts.phones,
         matchedOn: matchedOnFrom(row),

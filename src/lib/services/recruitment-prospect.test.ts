@@ -22,7 +22,9 @@ import {
   grantSeasonMessagingConsentIn,
   withdrawSeasonMessagingConsentIn,
 } from "./messaging-consent";
+import { readMembership } from "./membership";
 import { runMessagingSweep } from "./messaging-scheduler";
+import { readPersonRecord } from "./person-record";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import {
   addRecruitmentProspectNoteIn,
@@ -197,6 +199,8 @@ afterEach(async () => {
     MARKER,
   ]);
   await observer.query(`delete from public.contact_points where person_id in ${people}`, [MARKER]);
+  // LAN-306's conversion test writes a Known-as alias.
+  await observer.query(`delete from public.person_aliases where person_id in ${people}`, [MARKER]);
   await observer.query(`delete from public.audit_events where entity_id in ${people}`, [MARKER]);
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
 });
@@ -501,6 +505,57 @@ describe("flipRecruitmentProspectToJoinedIn — W14", () => {
       [prospectId],
     );
     expect(audits.rows[0].n).toBe(1);
+  });
+
+  /**
+   * LAN-306's second acceptance. Brian read the conversion as having rewritten
+   * the record, because the two screens named the person differently. They did
+   * not: the flip writes a membership and touches `people`, `person_aliases`
+   * and `contact_points` not at all. Proved rather than argued, and proved
+   * through the readers the two screens actually call.
+   */
+  it("changes nothing about the person — name, Known as, contacts and academic facts all survive", async () => {
+    const { personId, prospectId } = await newProspect("committed");
+    await observer.query(
+      `update public.people
+          set family_name = 'Ashcombe', college = 'Kestrelhall', matriculation_year = 2026,
+              degree_field = 'Human Sciences'
+        where id = $1::uuid`,
+      [personId],
+    );
+    await observer.query(
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1::uuid, 'Jonty', 'test fixture', true)`,
+      [personId],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', null, '07700900321', true, 'test fixture')`,
+      [personId],
+    );
+
+    const before = await readPersonRecord(personId);
+    const result = await withTransaction((tx) =>
+      flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+    );
+    const after = await readPersonRecord(personId);
+
+    expect(after.displayName).toBe(`${MARKER} Ashcombe`);
+    expect(after.knownAs).toBe("Jonty");
+    expect(after.aliases.map((alias) => alias.alias)).toEqual(before.aliases.map((a) => a.alias));
+    expect(after.contacts.map((c) => c.rawValue)).toEqual(before.contacts.map((c) => c.rawValue));
+    expect(after.college).toBe("Kestrelhall");
+    expect(after.matriculationYear).toBe(2026);
+    expect(after.degreeField).toBe("Human Sciences");
+    // What was never recorded is still not recorded — the flip invents nothing.
+    expect(after.expectedGraduationYear).toBeNull();
+    expect(after.dateOfBirth).toBeNull();
+    expect(after.emergencyContact).toBeNull();
+
+    // And the membership names the same person the same way (LAN-306).
+    const membership = await readMembership(result.membershipId);
+    expect(membership.displayName).toBe(after.displayName);
+    expect(membership.knownAs).toBe(after.knownAs);
   });
 
   it("refuses a second flip attempt — the one-membership-per-season invariant", async () => {

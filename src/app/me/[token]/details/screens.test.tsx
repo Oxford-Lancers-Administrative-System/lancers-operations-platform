@@ -79,6 +79,7 @@ function personRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     familyNameSource: null,
     aliases: [],
     displayName: "Jordan Ashworth",
+    knownAs: null,
     status: "onboarding",
     college: null,
     collegeSource: null,

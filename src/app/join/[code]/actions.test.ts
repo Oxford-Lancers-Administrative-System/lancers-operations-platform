@@ -61,6 +61,11 @@ beforeAll(async () => {
 
 afterEach(async () => {
   const people = "(select id from public.people where given_name = $1)";
+  // LAN-305: both sign-up doors now declare the recruitment cycle's jobs, and
+  // `notification_jobs.person_id` restricts the person delete at the foot.
+  await observer.query(`delete from public.notification_jobs where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query(`delete from public.recruitment_prospects where person_id in ${people}`, [
     MARKER,
   ]);

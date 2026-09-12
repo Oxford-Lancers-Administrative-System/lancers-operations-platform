@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NotFound, withTransaction, type Tx } from "@/lib/db";
+import { knownAsOf, personDisplayName } from "../person-name";
 import { readCurrentSeasonIn, type Season } from "../seasons";
 import { escapeLikePattern, personDisplayAliasSql } from "../sql-text";
 import {
@@ -103,7 +104,7 @@ interface RosterEntry {
   givenName: string;
   familyName: string | null;
   displayAlias: string | null; // the alias flagged as this person's display name, if they have one
-  displayName: string; // the name as the roster shows it
+  displayName: string; // LAN-306: the formal given and family name, as every surface shows it
   status: MembershipStatus;
   entry: string;
   email: string | null;
@@ -154,15 +155,6 @@ export interface Roster {
   totalInSeason: number; // memberships in the season before any filter was applied
 }
 
-function displayNameOf(row: {
-  given_name: string;
-  family_name: string | null;
-  display_alias: string | null;
-}): string {
-  const formal = row.family_name ? `${row.given_name} ${row.family_name}` : row.given_name;
-  return formal;
-}
-
 // A current contact value, chosen as UX-11 chooses one: preferred, else most recent. A correlated
 // sub-select, not a join, so a person with three emails still produces one roster row.
 const CONTACT_COLUMNS = `
@@ -206,7 +198,7 @@ function toRosterEntry(row: RosterRow): RosterEntry {
     givenName: row.given_name,
     familyName: row.family_name,
     displayAlias: row.display_alias,
-    displayName: displayNameOf(row),
+    displayName: personDisplayName(row.given_name, row.family_name),
     status: row.status,
     entry: row.entry,
     email: row.email,
@@ -298,7 +290,10 @@ export interface MembershipRecord {
   givenName: string;
   familyName: string | null;
   displayAlias: string | null;
+  /** LAN-306: the formal given and family name. */
   displayName: string;
+  /** LAN-306: the Known-as value, shown beside the name and never inside it. */
+  knownAs: string | null;
   status: MembershipStatus;
   entry: string;
   seasonId: string;
@@ -382,7 +377,8 @@ export async function readMembershipIn(tx: Tx, membershipId: string): Promise<Me
     givenName: row.given_name,
     familyName: row.family_name,
     displayAlias: row.display_alias,
-    displayName: displayNameOf(row),
+    displayName: personDisplayName(row.given_name, row.family_name),
+    knownAs: knownAsOf(row.given_name, row.display_alias),
     status: row.status,
     entry: row.entry,
     seasonId: row.season_id,

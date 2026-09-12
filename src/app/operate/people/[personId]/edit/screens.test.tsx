@@ -77,6 +77,7 @@ describe("a four-role operator", () => {
       familyNameSource: null,
       aliases: [],
       displayName: "Hollis Jarrowdale",
+      knownAs: null,
       status: "active",
       college: null,
       collegeSource: null,

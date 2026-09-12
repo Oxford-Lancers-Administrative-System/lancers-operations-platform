@@ -29,12 +29,18 @@ export function personAssembledStatusSql(alias: string): string {
           )`;
 }
 
+/**
+ * The SQL twin of `personDisplayName` (`person-name.ts`) — LAN-306. The formal
+ * given and family name, never the Known-as alias: an alias substituted for a
+ * given name made the same person read as two people either side of a recruit
+ * conversion. Known as is shown beside the name, as its own labelled value, by
+ * the surfaces that identify a person in detail; `personDisplayAliasSql` above
+ * is how they read it.
+ */
 export function personDisplayNameSql(alias: string): string {
   return `case
             when ${alias}.id is null then null
-            when ${alias}.family_name is null
-              then coalesce(nullif(btrim(${personDisplayAliasSql(alias)}), ''), ${alias}.given_name)
-            else coalesce(nullif(btrim(${personDisplayAliasSql(alias)}), ''), ${alias}.given_name)
-                 || ' ' || ${alias}.family_name
+            when ${alias}.family_name is null then btrim(${alias}.given_name)
+            else btrim(${alias}.given_name) || ' ' || btrim(${alias}.family_name)
           end`;
 }

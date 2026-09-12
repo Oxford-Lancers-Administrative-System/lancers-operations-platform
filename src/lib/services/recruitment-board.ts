@@ -9,6 +9,7 @@ import {
   type ProspectStatus,
   type RsvpValue,
 } from "./recruitment-vocabulary";
+import { personDisplayName } from "./person-name";
 
 /**
  * `/operate/recruitment` — `W1`, LAN-204. The board's read: one line per
@@ -248,7 +249,7 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
 
   const rows: RecruitmentBoardRow[] = prospects.rows.map((prospect) => {
     const person = personById.get(prospect.person_id);
-    const displayName = [prospect.given_name, prospect.family_name].filter(Boolean).join(" ");
+    const displayName = personDisplayName(prospect.given_name, prospect.family_name);
     const sentSteps = sentByPerson.get(prospect.person_id) ?? new Set<string>();
     const eventCells: Record<string, RecruitmentEventCell> = {};
     let attendedAnyEvent = false;
