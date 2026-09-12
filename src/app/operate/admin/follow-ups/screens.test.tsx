@@ -572,13 +572,21 @@ describe("chasing several people from the queue — LAN-322", () => {
   it("offers no selection and no chase to a seat without delivery administration", async () => {
     signedInAs([]);
     await renderPage();
-    expect(screen.queryAllByLabelText("Select Gideon Thornbury")).toHaveLength(0);
+    expect(
+      screen.queryAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      ),
+    ).toHaveLength(0);
     expect(screen.queryByTestId("chase-selected")).toBeNull();
   });
 
   it("sends nothing until the operator presses the action", async () => {
     await renderPage();
-    fireEvent.click(screen.getAllByLabelText("Select Gideon Thornbury")[0]);
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
     expect(screen.getByTestId("chase-selected")).not.toBeNull();
     expect(chaseSelectedAction).not.toHaveBeenCalled();
   });
@@ -595,7 +603,11 @@ describe("chasing several people from the queue — LAN-322", () => {
     await renderPage();
     expect(screen.queryByTestId("chase-bar")).toBeNull();
 
-    fireEvent.click(screen.getAllByLabelText("Select Gideon Thornbury")[0]);
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
 
     const bar = screen.getByTestId("chase-bar");
     expect(window.getComputedStyle(bar).position).toBe("sticky");
@@ -610,8 +622,16 @@ describe("chasing several people from the queue — LAN-322", () => {
       notOutstandingInvitationIds: [],
     });
     await renderPage();
-    fireEvent.click(screen.getAllByLabelText("Select Gideon Thornbury")[0]);
-    fireEvent.click(screen.getAllByLabelText("Select Rufus")[0]);
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Rufus for Practice — hilary week 3, Wednesday, 16 September 2026",
+      )[0],
+    );
     fireEvent.click(screen.getByTestId("chase-selected"));
 
     await waitFor(() => expect(chaseSelectedAction).toHaveBeenCalledTimes(1));
@@ -629,7 +649,11 @@ describe("chasing several people from the queue — LAN-322", () => {
       notOutstandingInvitationIds: [],
     });
     await renderPage();
-    fireEvent.click(screen.getAllByLabelText("Select Gideon Thornbury")[0]);
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
     fireEvent.click(screen.getByTestId("chase-selected"));
 
     await waitFor(() =>
@@ -655,7 +679,11 @@ describe("chasing several people from the queue — LAN-322", () => {
       notOutstandingInvitationIds: [],
     });
     await renderPage();
-    fireEvent.click(screen.getAllByLabelText("Select Gideon Thornbury")[0]);
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
     fireEvent.click(screen.getByTestId("chase-selected"));
 
     await waitFor(() => expect(screen.getByTestId("chase-refused")).not.toBeNull());
@@ -688,7 +716,11 @@ describe("chasing several people from the queue — LAN-322", () => {
       notOutstandingInvitationIds: [],
     });
     await renderPage();
-    fireEvent.click(screen.getAllByLabelText("Select Refused Person 0")[0]);
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Refused Person 0 for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
     fireEvent.click(screen.getByTestId("chase-selected"));
 
     await waitFor(() => expect(screen.getByTestId("chase-refused")).not.toBeNull());
@@ -700,10 +732,47 @@ describe("chasing several people from the queue — LAN-322", () => {
     expect(notice).not.toContain("Refused Person 9");
   });
 
+  /**
+   * LAN-322's walk: twenty-two checkboxes on the seeded queue all announced
+   * "Select Dorian". A queue row is a person *on an event*, so one silent
+   * person has as many boxes as they have events, and a screen reader could
+   * not tell an operator which of them they had just ticked.
+   */
+  it("gives every checkbox a label of its own, across a person's several events", async () => {
+    const everywhere = (eventName: string, scheduledOn: string): FollowUpEvent => ({
+      ...HAWKS,
+      eventId: `event-${eventName}`,
+      eventName,
+      scheduledOn,
+      people: [{ ...HAWKS.people[0], invitationId: `invitation-${eventName}` }],
+    });
+    vi.mocked(readFollowUpsQueue).mockResolvedValue([
+      everywhere("vs Harewell Hawks", "2026-09-13"),
+      everywhere("Team Practice", "2026-09-14"),
+      everywhere("Kit collection", "2026-09-15"),
+    ]);
+    await renderPage();
+
+    // One label per rendering, so the desktop table's three and the phone
+    // cards' three are six controls carrying three distinct names.
+    const labels = [...screen.getAllByRole("checkbox")]
+      .map((box) => box.getAttribute("aria-label"))
+      .filter((label): label is string => label !== null && label.startsWith("Select Gideon"));
+    expect(labels).toHaveLength(6);
+    expect(new Set(labels).size).toBe(3);
+    expect(labels).toContain(
+      "Select Gideon Thornbury for Team Practice, Monday, 14 September 2026",
+    );
+  });
+
   it("carries the same selection and chase on the phone card, not only the desktop table", async () => {
     await renderPage();
     const card = screen.getAllByTestId("follow-ups-card")[0];
-    expect(within(card).getByLabelText("Select Gideon Thornbury")).not.toBeNull();
+    expect(
+      within(card).getByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      ),
+    ).not.toBeNull();
     expect(within(card).getByRole("button", { name: "Chase" })).not.toBeNull();
   });
 
@@ -722,7 +791,11 @@ describe("chasing several people from the queue — LAN-322", () => {
       { ...HAWKS, people: [{ ...HAWKS.people[0], chaseable: false }] },
     ]);
     await renderPage();
-    expect(screen.queryAllByLabelText("Select Gideon Thornbury")).toHaveLength(0);
+    expect(
+      screen.queryAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      ),
+    ).toHaveLength(0);
     expect(screen.getAllByTestId("follow-ups-row")[0].textContent).toContain(
       "Recruit — not chased from here",
     );

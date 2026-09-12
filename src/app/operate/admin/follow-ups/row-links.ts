@@ -1,4 +1,5 @@
 import type { FollowUpDelivery } from "@/lib/services/follow-ups";
+import { formatLongDate } from "@/lib/services/event-vocabulary";
 import { DELIVERY_LABELS } from "@/app/participation/presentation";
 import { CHANNEL_LABELS, LAST_MESSAGE_NONE } from "./presentation";
 import type { QueueRow } from "./queue-filters";
@@ -20,6 +21,30 @@ export function personHref(row: Pick<QueueRow, "personId">): string {
 /** The event they are silent about, where the answer can be recorded for them. */
 export function eventHref(row: Pick<QueueRow, "eventId">): string {
   return `/operate/events/${row.eventId}`;
+}
+
+/**
+ * What one row's checkbox is called — LAN-322's walk.
+ *
+ * A queue row is a person *on an event*, not a person, and somebody silent
+ * about three events has three rows and three checkboxes. Every one of them
+ * was called "Select Dorian", so twenty-two controls on the seeded queue
+ * shared a handful of names: a screen reader announced the same label for
+ * boxes that tick different things, and nothing an operator heard told them
+ * which event they had just selected somebody for.
+ *
+ * The event is what separates them, and the date separates two events the club
+ * gave the same name. Both are read out of the row's own rendered values
+ * (`formatLongDate` is what the When column shows), so the label cannot come
+ * to describe something different from the row it sits on. An undated event
+ * contributes nothing rather than "No date yet", which would say less than
+ * silence.
+ */
+export function selectRowLabel(
+  row: Pick<QueueRow, "personName" | "eventName" | "scheduledOn">,
+): string {
+  const when = row.scheduledOn ? `, ${formatLongDate(row.scheduledOn)}` : "";
+  return `Select ${row.personName} for ${row.eventName}${when}`;
 }
 
 /** Selection and the chase, handed to both renderings by the board that owns them. */

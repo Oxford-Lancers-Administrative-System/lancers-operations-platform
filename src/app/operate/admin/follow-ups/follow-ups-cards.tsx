@@ -8,7 +8,13 @@ import { Fact, FactGrid } from "@/components/fact";
 import { formatDeadline } from "@/app/operate/events/presentation";
 import { formatLongDate } from "@/lib/services/event-vocabulary";
 import type { QueueRow } from "./queue-filters";
-import { eventHref, lastMessageLabel, personHref, type QueueSelection } from "./row-links";
+import {
+  eventHref,
+  lastMessageLabel,
+  personHref,
+  selectRowLabel,
+  type QueueSelection,
+} from "./row-links";
 import {
   DEADLINE_UNSET,
   NOT_CHASEABLE,
@@ -54,7 +60,7 @@ export default function FollowUpsCards({
                 checked={selection.selected.has(row.invitationId)}
                 disabled={selection.pending}
                 onChange={() => selection.toggle(row.invitationId)}
-                slotProps={{ input: { "aria-label": `Select ${row.personName}` } }}
+                slotProps={{ input: { "aria-label": selectRowLabel(row) } }}
               />
             ) : undefined
           }

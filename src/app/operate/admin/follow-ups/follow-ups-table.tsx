@@ -23,7 +23,13 @@ import {
   type FollowUpsSortColumn,
   type QueueRow,
 } from "./queue-filters";
-import { eventHref, lastMessageLabel, personHref, type QueueSelection } from "./row-links";
+import {
+  eventHref,
+  lastMessageLabel,
+  personHref,
+  selectRowLabel,
+  type QueueSelection,
+} from "./row-links";
 import {
   CHASE_NONE,
   DEADLINE_UNSET,
@@ -113,7 +119,7 @@ export default function FollowUpsTable({
                         checked={selection.selected.has(row.invitationId)}
                         disabled={selection.pending}
                         onChange={() => selection.toggle(row.invitationId)}
-                        slotProps={{ input: { "aria-label": `Select ${row.personName}` } }}
+                        slotProps={{ input: { "aria-label": selectRowLabel(row) } }}
                       />
                     ) : null}
                   </TableCell>

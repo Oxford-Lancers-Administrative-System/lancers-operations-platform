@@ -119,7 +119,10 @@ desktop table and on the phone card:
 - **Several rows can be selected and chased in one action**, following
   `/operate/people/missing`'s existing selection-and-nudge shape rather than a second one —
   accepted and refused counted, refusals named on the row, and nothing sent without the
-  operator's own press. The "Chase N people" bar is **sticky** at both widths, below the phone
+  operator's own press. Each row's checkbox is named for the person **and the event**, because a
+  queue row is a person on an event and one silent person has as many boxes as they have events —
+  every box announcing the same name told a screen-reader operator nothing about what they had
+  ticked. The "Chase N people" bar is **sticky** at both widths, below the phone
   shell's own top bar: ticking a card scrolls the page to that card, so a bar fixed to the top of
   the board left a live selection with no control on screen to act on it. Each refusal carries
   **why** beside the name — the delivery path's own
