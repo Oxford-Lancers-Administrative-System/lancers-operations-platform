@@ -210,13 +210,25 @@ interface Fixture {
  * An approved, future event with one invitee whose invitation has been
  * delivered but not answered -- the plain `nonresponse_queue` shape, before
  * anything else happens to it.
+ *
+ * `capacity` is the one axis the queue's own action turns on: a player is
+ * anchored on a season membership, a recruit on the person, and the schema's
+ * `*_anchor_matches_capacity` checks refuse either shape holding the other's
+ * anchor. So the recruit case is built the way the club's records build it,
+ * not by relabelling a player row.
  */
 async function fixture(
-  options: { phone?: string | null; email?: string | null; deadlineHours?: number } = {},
+  options: {
+    phone?: string | null;
+    email?: string | null;
+    deadlineHours?: number;
+    capacity?: "player" | "recruit";
+  } = {},
 ): Promise<Fixture> {
   const phone = options.phone === undefined ? "07700 900321" : options.phone;
   const email = options.email === undefined ? null : options.email;
   const deadlineHours = options.deadlineHours ?? 24;
+  const capacity = options.capacity ?? "player";
 
   await observer.query("begin");
   try {
@@ -242,12 +254,19 @@ async function fixture(
       );
     }
 
-    const membership = await observer.query<{ id: string }>(
-      `insert into public.season_memberships
-         (person_id, season_id, status, entry, confirmed_on, activated_on)
-       values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
-      [personId, seasonId],
-    );
+    // A recruit has not joined a season, so there is no membership to anchor
+    // on and the audience row and invitation hang off the person instead.
+    const membershipId =
+      capacity === "player"
+        ? (
+            await observer.query<{ id: string }>(
+              `insert into public.season_memberships
+                 (person_id, season_id, status, entry, confirmed_on, activated_on)
+               values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
+              [personId, seasonId],
+            )
+          ).rows[0].id
+        : null;
 
     const event = await observer.query<{ id: string }>(
       `with target as (select (now() + interval '72 hours') at time zone 'Europe/London' as local)
@@ -266,19 +285,31 @@ async function fixture(
 
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
-       values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
-      [eventId, seasonId, membership.rows[0].id, personId],
+         (event_id, season_id, capacity, season_membership_id, person_id,
+          invitee_person_id, added_by_person_id)
+       values ($1, $2, $5::public.invitation_capacity, $3,
+               case when $3::uuid is null then $6::uuid end, $6, $4)
+       returning id`,
+      [eventId, seasonId, membershipId, personId, capacity, personId],
     );
 
     const invitation = await observer.query<{ id: string }>(
       `insert into public.invitations
-         (event_id, event_status, season_id, capacity, season_membership_id,
+         (event_id, event_status, season_id, capacity, season_membership_id, person_id,
           status, expires_at, audience_member_id)
-       values ($1, 'approved', $2, 'player', $3, 'pending',
+       values ($1, 'approved', $2, $6::public.invitation_capacity, $3,
+               case when $3::uuid is null then $7::uuid end, 'pending',
                now() + ($5 || ' hours')::interval, $4)
        returning id`,
-      [eventId, seasonId, membership.rows[0].id, audience.rows[0].id, String(deadlineHours)],
+      [
+        eventId,
+        seasonId,
+        membershipId,
+        audience.rows[0].id,
+        String(deadlineHours),
+        capacity,
+        personId,
+      ],
     );
     const invitationId = invitation.rows[0].id;
 
@@ -628,6 +659,40 @@ describe("chasing from the queue — LAN-322", () => {
       { invitationId: reachable.invitationId, outcome: "accepted" },
       { invitationId: unreachable.invitationId, outcome: "refused" },
     ]);
+  });
+
+  it("refuses a recruit outright, and writes neither a job nor a chase", async () => {
+    // `REQ-never-harsh`: a recruit gets one invitation and at most one
+    // follow-up, and an operator batch is not a door around that. The refusal
+    // is decided before anything is written, so the proof is that the two rows
+    // a chase always leaves -- the reminder job and its audit row -- are
+    // absent, not merely that the returned word is right.
+    const target = await fixture({ capacity: "recruit" });
+
+    const results = await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    expect(results).toEqual([{ invitationId: target.invitationId, outcome: "not_chaseable" }]);
+
+    const jobs = await observer.query<{ id: string; job_type: string }>(
+      `select id, job_type::text as job_type
+         from public.notification_jobs where invitation_id = $1`,
+      [target.invitationId],
+    );
+    // Only the fixture's own invitation job, which was there before the press.
+    expect(jobs.rows.map((row) => row.job_type)).toEqual(["invitation"]);
+
+    const audit = await observer.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.audit_events
+        where entity_table = 'notification_jobs'
+          and action = 'delivery.chase_requested'
+          and entity_id = any($1::uuid[])`,
+      [jobs.rows.map((row) => row.id)],
+    );
+    expect(audit.rows[0].count).toBe("0");
   });
 
   it("enqueues nothing for an invitation that is no longer outstanding", async () => {
