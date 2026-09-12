@@ -1577,7 +1577,7 @@ describe("the duplicate check the flow starts with", () => {
 
     const found = candidates.find((candidate) => candidate.personId === invited.personId);
     expect(found?.operatorAccount).toMatchObject({ state: "invitation_pending" });
-    expect(found?.matchedOn).toContain("given name");
+    expect(found?.matchedOn).toContainEqual({ field: "given name", value: MARKER });
   });
 
   it("reports no operator account for somebody who has never been invited", async () => {
@@ -1626,7 +1626,54 @@ describe("the duplicate check the flow starts with", () => {
     const found = candidates.find((candidate) => candidate.personId === invited.personId);
 
     expect(found, "an address already in use as a login must match").toBeDefined();
-    expect(found?.matchedOn).toContain("email");
+    expect(found?.matchedOn).toContainEqual({ field: "sign-in address", value: address });
+  });
+
+  /**
+   * Which address matched, and the address itself — LAN-309.
+   *
+   * The club can hold two addresses for one human: the one an operator signs
+   * in with and the one it writes to. The check reported both as "email", and
+   * the screen printed the contact address beside that word — so Brian
+   * searched this door for an address that exists only as somebody's login,
+   * got the right person, and read a row bearing an address he had not typed.
+   * Nothing about the matching changes here; what the search says about a
+   * match does, and only the SQL can say it, because only the SQL knows which
+   * record the term reached.
+   */
+  it("says which record an address matched, and carries the value that matched", async () => {
+    const tag = Math.random().toString(36).slice(2, 8);
+    const contact = `lan309.contact.${tag}@lan309.example`;
+    const signIn = `lan309.signin.${tag}@lan309.example`;
+    // Held in the international spelling; searched for below in the national
+    // one, because the comparison is on the last nine digits and the caption
+    // has to show what the club holds rather than what was typed.
+    const phone = "+44 7700 900309";
+
+    const personId = await insertNamedPerson(`Caspianlan309${tag}`, `Hallowfieldlan309${tag}`, {
+      email: contact,
+      phone,
+    });
+    const { authUserId } = await supabaseOperatorIdentity().createLogin(signIn);
+    authUsers.add(authUserId);
+    await observer.query(
+      `insert into public.operator_accounts (auth_user_id, person_id, login_email, invited_at)
+       values ($1, $2, $3, now())`,
+      [authUserId, personId, signIn],
+    );
+
+    const matchesFor = async (query: Parameters<typeof findOperatorCandidates>[1]) =>
+      (await findOperatorCandidates(administrator(), query)).find(
+        (candidate) => candidate.personId === personId,
+      )?.matchedOn;
+
+    expect(await matchesFor({ email: signIn })).toEqual([
+      { field: "sign-in address", value: signIn },
+    ]);
+    expect(await matchesFor({ email: contact })).toEqual([
+      { field: "contact email", value: contact },
+    ]);
+    expect(await matchesFor({ phone: "07700 900309" })).toEqual([{ field: "phone", value: phone }]);
   });
 
   /**
@@ -1879,7 +1926,10 @@ describe("the duplicate check the flow starts with", () => {
       ] as const) {
         const found = await findOperatorCandidates(administrator(), query);
         const candidate = found.find((row) => row.personId === personId);
-        expect(candidate?.matchedOn, what).toEqual(expected);
+        expect(
+          candidate?.matchedOn.map((match) => match.field),
+          what,
+        ).toEqual(expected);
       }
     });
 

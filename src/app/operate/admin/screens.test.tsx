@@ -108,7 +108,11 @@ import {
   searchCandidatesAction,
   startEmailRehomeAction,
 } from "./actions";
-import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "./action-state";
+import {
+  EMPTY_ADMIN_ACTION_STATE,
+  type AdminActionState,
+  type CandidateChoice,
+} from "./action-state";
 import OperatorsPage from "./operators/page";
 import OperatorRecordPage from "./operators/[operatorId]/page";
 import InviteOperatorPage from "./operators/new/page";
@@ -1617,7 +1621,7 @@ describe("one role's record", () => {
             knownAs: null,
             email: "marigold@lan141.example",
             phone: null,
-            matchedOn: ["email"],
+            matchedOn: [{ field: "contact email", value: "marigold@lan141.example" }],
             operatorState: null,
             operatorAccountId: null,
           },
@@ -1654,7 +1658,7 @@ describe("one role's record", () => {
             knownAs: "Bram",
             email: "bram@lan141.example",
             phone: null,
-            matchedOn: ["known as"],
+            matchedOn: [{ field: "known as", value: "Bram" }],
             operatorState: null,
             operatorAccountId: null,
           },
@@ -1667,7 +1671,10 @@ describe("one role's record", () => {
 
       const row = await screen.findByTestId("candidate-choice");
       expect(row).toHaveTextContent("Ambrose Kittiwake");
-      expect(row).toHaveTextContent("Known as Bram");
+      // Beside the formal name either way. Here the alias is also what the
+      // search hit, so the clause that names the record carries it and the
+      // standing "Known as Bram" would be the same word twice.
+      expect(row).toHaveTextContent("Known as matches: Bram");
       expect(row).not.toHaveTextContent("Bram Kittiwake");
     });
   });
@@ -1688,13 +1695,13 @@ describe("one role's record", () => {
    * fails a test instead of costing another walk.
    */
   describe("choosing a candidate — LAN-251", () => {
-    const CANDIDATE = {
+    const CANDIDATE: CandidateChoice = {
       personId: "cccccccc-1111-4111-8111-111111111111",
       name: "Marigold Ashgrovemoor",
       knownAs: null,
       email: "marigold@lan141.example",
       phone: null,
-      matchedOn: ["email"],
+      matchedOn: [{ field: "contact email", value: "marigold@lan141.example" }],
       operatorState: null,
       operatorAccountId: "aaaaaaaa-1111-4111-8111-111111111111",
     };
@@ -1854,5 +1861,106 @@ describe("the invitation flow", () => {
         expect(input.getAttribute("autocomplete")).toBe(NO_AUTOFILL);
       }
     });
+  });
+});
+
+/**
+ * The caption under a candidate — LAN-309.
+ *
+ * Brian searched this door for his own address. In that environment it is one
+ * operator's **sign-in** address and nothing else, so the row he got was the
+ * right person — but it was captioned with that person's *contact* address and
+ * the words "matched on email", and read as the search having found somebody
+ * else entirely. A match is only legible if it names the record it hit and
+ * shows the value in it.
+ */
+describe("what a candidate row says it matched on — LAN-309", () => {
+  const CONTACT = "caspian.hallowfield@bramshott.ox.ac.example";
+  const LOGIN = "caspian.hallowfield@lancers.ox.ac.example";
+
+  /** Submits the duplicate check with one candidate staged, and returns the row. */
+  async function candidateRow(candidate: Partial<CandidateChoice>) {
+    vi.mocked(searchCandidatesAction).mockResolvedValue({
+      ...EMPTY_ADMIN_ACTION_STATE,
+      candidates: [
+        {
+          personId: "dddddddd-1111-4111-8111-111111111111",
+          name: "Caspian Hallowfield",
+          knownAs: null,
+          email: CONTACT,
+          phone: null,
+          matchedOn: [],
+          operatorState: "Active",
+          operatorAccountId: "eeeeeeee-1111-4111-8111-111111111111",
+          ...candidate,
+        },
+      ],
+    });
+
+    render(await InviteOperatorPage());
+    const search = screen
+      .getByRole("button", { name: "Check for an existing person" })
+      .closest("form")!;
+    fireEvent.submit(search);
+    return await screen.findByTestId("existing-person");
+  }
+
+  it("names the sign-in address, and shows the address that matched", async () => {
+    const row = await candidateRow({
+      matchedOn: [{ field: "sign-in address", value: LOGIN }],
+    });
+
+    expect(row).toHaveTextContent(`Sign-in address matches: ${LOGIN}`);
+    // The bare field name was the defect: it left the reader to guess which of
+    // the two addresses the club holds for this person the search had hit.
+    expect(row).not.toHaveTextContent("matched on");
+    // The standing contact address is still there — it is a different value,
+    // and dropping it would cost the reader the fact it was carrying.
+    expect(row).toHaveTextContent(CONTACT);
+    expect(row).toHaveTextContent("Already has a sign-in: Active");
+  });
+
+  it("names the contact email, and prints that address once", async () => {
+    const row = await candidateRow({
+      matchedOn: [{ field: "contact email", value: CONTACT }],
+    });
+
+    expect(row).toHaveTextContent(`Contact email matches: ${CONTACT}`);
+    expect(row).not.toHaveTextContent("Sign-in address matches");
+    expect(row.textContent?.match(new RegExp(CONTACT, "g"))).toHaveLength(1);
+  });
+
+  it("carries the number a phone match hit, as the club holds it", async () => {
+    const row = await candidateRow({
+      phone: "+447700900123",
+      matchedOn: [{ field: "phone", value: "+447700900123" }],
+    });
+
+    expect(row).toHaveTextContent("Phone matches: +447700900123");
+  });
+
+  /** Two name arms can hit at once; the row's own line already prints the name. */
+  it("says a name matched once, and does not repeat the name under itself", async () => {
+    const row = await candidateRow({
+      matchedOn: [
+        { field: "given name", value: "Caspian" },
+        { field: "family name", value: "Hallowfield" },
+      ],
+    });
+
+    expect(row).toHaveTextContent("Name matches");
+    expect(row.textContent?.match(/Name matches/g)).toHaveLength(1);
+    expect(row).not.toHaveTextContent("Name matches: Caspian");
+  });
+
+  it("never claims a sign-in address matched for somebody who has no sign-in", async () => {
+    const row = await candidateRow({
+      operatorState: null,
+      operatorAccountId: null,
+      matchedOn: [{ field: "contact email", value: CONTACT }],
+    });
+
+    expect(row).not.toHaveTextContent("Sign-in address matches");
+    expect(row).toHaveTextContent("No operator account");
   });
 });

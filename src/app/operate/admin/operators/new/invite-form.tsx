@@ -20,6 +20,7 @@ import { validatePhoneNumber } from "@/lib/services/person-validation";
 import Typography from "@mui/material/Typography";
 import { inviteOperatorAction, searchCandidatesAction } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "../../action-state";
+import { candidateCaption } from "../../candidate-caption";
 import {
   Outcome as AdminOutcome,
   OutcomeSlotProvider,
@@ -172,22 +173,12 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
                       <Box>
                         <Typography variant="body2">{candidate.name}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {[
-                            // LAN-306, rule 8: its own value beside the formal
-                            // name, never spliced into it. A candidate can
-                            // surface on it alone, so hiding it would leave
-                            // "matched on known as" with nothing to read.
-                            candidate.knownAs ? `Known as ${candidate.knownAs}` : null,
-                            candidate.email,
+                          {candidateCaption(
+                            candidate,
                             candidate.operatorState
                               ? `Already has a sign-in: ${candidate.operatorState}`
                               : "No operator account",
-                            candidate.matchedOn.length > 0
-                              ? `matched on ${candidate.matchedOn.join(", ")}`
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
+                          )}
                         </Typography>
                       </Box>
                     }

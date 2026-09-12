@@ -211,7 +211,7 @@ describe("every refusal path, not only the one Brian happened to hit", () => {
         email: "bram@example.test",
         phone: null,
         operatorAccount: null,
-        matchedOn: ["known as"],
+        matchedOn: [{ field: "known as", value: "Bram" }],
       },
     ]);
 
@@ -236,7 +236,7 @@ describe("every refusal path, not only the one Brian happened to hit", () => {
         email: null,
         phone: null,
         operatorAccount: null,
-        matchedOn: ["given name"],
+        matchedOn: [{ field: "given name", value: "Jonathan" }],
       },
     ]);
 

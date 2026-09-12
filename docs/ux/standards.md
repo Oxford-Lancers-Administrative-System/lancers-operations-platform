@@ -237,6 +237,16 @@ question being asked is whether this row and that person page name the same
 human. So those rows carry Known as beside the formal name — its own value,
 with its own word — and never spliced into it.
 
+For the same reason a candidate row says _which record_ the search term hit and
+_what is in it_ — "Sign-in address matches: …", "Contact email matches: …",
+"Phone matches: …", "Known as matches: …", "Name matches" — rather than a bare
+field name. The club can hold two addresses for one human, and the operator
+invitation door reported both as "email" while printing the contact address
+beside the word: a search for somebody's sign-in address returned the right
+person under an address nobody had typed, and read as a wrong match (LAN-309).
+A value the clause already carries is not printed a second time in the same
+caption.
+
 ---
 
 ## What binds these
