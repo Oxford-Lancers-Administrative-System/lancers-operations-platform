@@ -15,6 +15,9 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  redirect: (target: string) => {
+    throw new Error(`NEXT_REDIRECT:${target}`);
+  },
 }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
@@ -34,6 +37,15 @@ vi.mock("@/lib/services/player-home", async (importOriginal) => {
 vi.mock("@/lib/services/rsvp", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/rsvp")>();
   return { ...actual, readSignedRsvpPageIn: vi.fn() };
+});
+vi.mock("@/lib/services/rsvp-tokens", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/rsvp-tokens")>();
+  return { ...actual, resolveRsvpTokenIn: vi.fn() };
+});
+vi.mock("@/lib/services/recruitment-interest-tokens", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/services/recruitment-interest-tokens")>();
+  return { ...actual, resolveRecruitmentInterestTokenIn: vi.fn() };
 });
 // OWNER-LAN172-17, interaction-gated by Q-30 (round 7). `AutoSubmitOnInteraction`
 // is a client component that only submits after a genuine interaction event,
@@ -63,6 +75,8 @@ import {
   type PlayerAnswerLanding,
 } from "@/lib/services/player-home";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
+import { resolveRsvpTokenIn } from "@/lib/services/rsvp-tokens";
+import { resolveRecruitmentInterestTokenIn } from "@/lib/services/recruitment-interest-tokens";
 import { NO_BUTTON_LABEL } from "@/lib/delivery/templates";
 import AnswerLinkPage from "./page";
 import { ANSWER_FORM_ID, ERROR_PARAM } from "./params";
@@ -141,6 +155,54 @@ beforeEach(() => {
   vi.mocked(withTransaction).mockImplementation(async (work: (tx: never) => unknown) =>
     work({ query: vi.fn() } as never),
   );
+  vi.mocked(resolveRecruitmentInterestTokenIn).mockResolvedValue({
+    state: "unknown",
+    resolved: null,
+  });
+  vi.mocked(resolveRsvpTokenIn).mockResolvedValue({
+    state: "unknown",
+    invitation: null,
+    writable: false,
+  });
+});
+
+describe("LAN-336 — an RSVP token arriving on the /a/ prefix", () => {
+  // The approved nudge and change-notice buttons share `/a/` as their fixed
+  // prefix (LAN-335) and carry the player's RSVP token, whose page is
+  // `/rsvp/[token]`. Same 43-character opaque shape as Questionnaire B's own
+  // credential, so it is tried after that one misses.
+  const OPAQUE = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ";
+
+  async function renderOpaque() {
+    const element = await AnswerLinkPage({
+      params: Promise.resolve({ token: OPAQUE }),
+      searchParams: Promise.resolve({}),
+    });
+    return render(element);
+  }
+
+  it("sends a live RSVP token on to /rsvp/[token], writing nothing here", async () => {
+    vi.mocked(resolveRsvpTokenIn).mockResolvedValue({
+      state: "valid",
+      invitation: {
+        invitationId: BASE.invitationId,
+        eventId: "00000000-0000-4000-8000-0000000000ee",
+        eventName: BASE.eventName,
+        eventStatus: BASE.eventStatus,
+        startsAt: BASE.eventStartsAt,
+        inviteeName: BASE.playerName,
+        expiresAt: null,
+      },
+      writable: true,
+    });
+    await expect(renderOpaque()).rejects.toThrow(`NEXT_REDIRECT:/rsvp/${OPAQUE}`);
+    expect(resolveAnswerTokenIn).not.toHaveBeenCalled();
+  });
+
+  it("refuses an anonymous injected RSVP-shaped token that resolves to nothing", async () => {
+    await expect(renderOpaque()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(resolveAnswerTokenIn).not.toHaveBeenCalled();
+  });
 });
 
 describe("OWNER-LAN172-01 — the restored fact block", () => {

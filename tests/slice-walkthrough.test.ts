@@ -979,7 +979,8 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
       expect(template.name).toBe(PROVIDER_ENVIRONMENT.WHATSAPP_TEMPLATE_NAME);
       const body = template.components.find((c) => c.type === "body");
       const parameters = body!.parameters.map((entry) => entry.text);
-      expect(parameters).toHaveLength(3);
+      // LAN-335: name, event, when, venue, deadline.
+      expect(parameters).toHaveLength(5);
       expect(parameters[1]).toContain(MARKER);
       expect(parameters.join(" ")).not.toContain("/rsvp/");
 

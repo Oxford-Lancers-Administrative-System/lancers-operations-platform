@@ -67,7 +67,7 @@ function respond(status: number, body: unknown): Response {
 }
 
 describe("the request body", () => {
-  it("sends the approved template with its three body parameters in order", () => {
+  it("sends the approved template with its five body parameters in order", () => {
     const body = buildMessageBody(config(), MESSAGE) as Record<string, never>;
     expect(body.messaging_product).toBe("whatsapp");
     expect(body.to).toBe("447700900123");
@@ -90,10 +90,14 @@ describe("the request body", () => {
     // Reordering these silently produces "a Wednesday 19 November on Team
     // Practice", which no test of the transport would catch. LAN-172: the
     // link left the body entirely — it is carried by the two buttons below.
+    // LAN-335: name, event, when, venue, deadline; a venue the club has not
+    // recorded fills its slot with words rather than a blank.
     const body_component = template.components.find((c) => c.type === "body");
     expect(body_component?.parameters.map((parameter) => parameter.text)).toEqual([
+      "Alex",
       "Team Practice",
       "Wednesday 19 November, 19:00",
+      "to be confirmed",
       "Tuesday 18 November, 19:00",
     ]);
   });
@@ -264,15 +268,17 @@ describe("LAN-124 — a template that takes no parameters", () => {
     expect(body.template).not.toHaveProperty("components");
   });
 
-  it("still sends the three-parameter body plus two buttons for the club's own template", () => {
+  it("still sends the five-parameter body plus two buttons for the club's own template", () => {
     const body = buildMessageBody(config(), MESSAGE) as {
       template: { components: { type: string; parameters: { text: string }[] }[] };
     };
 
     const bodyComponent = body.template.components.find((c) => c.type === "body");
     expect(bodyComponent?.parameters.map((p) => p.text)).toEqual([
+      "Alex",
       "Team Practice",
       "Wednesday 19 November, 19:00",
+      "to be confirmed",
       "Tuesday 18 November, 19:00",
     ]);
     expect(body.template.components.filter((c) => c.type === "button")).toHaveLength(2);

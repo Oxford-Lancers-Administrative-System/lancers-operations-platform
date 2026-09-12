@@ -1364,8 +1364,14 @@ export async function dispatchRecruitmentCycleJob(
     if (!parsed) return { kind: "no-send" };
     const { step, seasonId } = parsed;
 
-    const prospect = await tx.query<{ id: string; status: string }>(
-      `select id, status::text as status from public.recruitment_prospects
+    // LAN-336, Brian's date decision: the six person-following templates
+    // anchor on the day the person's record was opened. `opened_on` is the
+    // day they were added as a recruit, formatted the way `when_label` is
+    // on the event path (Europe/London, human-readable).
+    const prospect = await tx.query<{ id: string; status: string; opened_on: string }>(
+      `select id, status::text as status,
+              to_char(created_at at time zone 'Europe/London', 'FMDD FMMonth') as opened_on
+         from public.recruitment_prospects
         where person_id = $1::uuid and season_id = $2::uuid`,
       [job.person_id, seasonId],
     );
@@ -1524,11 +1530,13 @@ export async function dispatchRecruitmentCycleJob(
         kind: CYCLE_MESSAGE_KIND[step],
         recipient,
         inviteeName: givenName,
-        // Every field below is declared but unused by all four recruit-cycle
-        // templates (`templates.ts`) — carried only because `OutboundMessage`
-        // is one shared shape across every kind.
+        // LAN-336: `whenLabel` carries the day this person was added as a
+        // recruit — the date slot every recruit-cycle template now renders.
+        // The subject slot is fixed per kind in `templates.ts`. `eventName`
+        // and `rsvpUrl` are unused by these kinds and carried only because
+        // `OutboundMessage` is one shared shape across every kind.
         eventName: "",
-        whenLabel: "",
+        whenLabel: prospect.rows[0].opened_on,
         rsvpUrl: "",
         formUrl,
         stopUrl,
@@ -1717,8 +1725,12 @@ export async function dispatchOnboardingWelcomeJob(
     const membershipId = parseOnboardingWelcomeKey(job.idempotency_key);
     if (!membershipId) return { kind: "no-send" };
 
-    const membership = await tx.query<{ season_id: string }>(
-      `select season_id from public.season_memberships where id = $1::uuid`,
+    // LAN-336: `opened_on` is the day this person was added to onboarding —
+    // the date slot the welcome and chase templates now render.
+    const membership = await tx.query<{ season_id: string; opened_on: string }>(
+      `select season_id,
+              to_char(created_at at time zone 'Europe/London', 'FMDD FMMonth') as opened_on
+         from public.season_memberships where id = $1::uuid`,
       [membershipId],
     );
     const seasonId = membership.rows[0]?.season_id ?? null;
@@ -1822,10 +1834,11 @@ export async function dispatchOnboardingWelcomeJob(
         kind: "onboarding_welcome",
         recipient,
         inviteeName: givenName,
-        // Declared but unused by this template — carried only because
+        // LAN-336: the day this person was added to onboarding. `eventName`
+        // and `rsvpUrl` are unused by this template and carried only because
         // OutboundMessage is one shared shape across every kind.
         eventName: "",
-        whenLabel: "",
+        whenLabel: membership.rows[0].opened_on,
         rsvpUrl: "",
         formUrl,
       },
@@ -2421,8 +2434,10 @@ export async function dispatchOnboardingChaseJob(
     const membershipId = parseOnboardingChaseOrNudgeKey(job.idempotency_key);
     if (!membershipId) return { kind: "no-send" };
 
-    const membership = await tx.query<{ season_id: string }>(
-      `select season_id from public.season_memberships where id = $1::uuid`,
+    const membership = await tx.query<{ season_id: string; opened_on: string }>(
+      `select season_id,
+              to_char(created_at at time zone 'Europe/London', 'FMDD FMMonth') as opened_on
+         from public.season_memberships where id = $1::uuid`,
       [membershipId],
     );
     const seasonId = membership.rows[0]?.season_id ?? null;
@@ -2543,7 +2558,8 @@ export async function dispatchOnboardingChaseJob(
         recipient,
         inviteeName: givenName,
         eventName: "",
-        whenLabel: "",
+        // LAN-336: the day this person was added to onboarding.
+        whenLabel: membership.rows[0].opened_on,
         rsvpUrl: "",
         formUrl,
       },

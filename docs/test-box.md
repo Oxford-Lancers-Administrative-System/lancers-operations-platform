@@ -276,6 +276,41 @@ marketing-delivery refusal, but is not uniquely specific to the US pause.
 Private diagnostic evidence is in `.lancers-runtime/brian-delivery-diagnosis.json`.
 No other recipient was messaged by this diagnostic.
 
+## Utility templates — LAN-335 / LAN-336
+
+The fourteen `*_v2_test` templates are Utility, so a US number can receive
+them (Marketing templates to US numbers have been blocked by Meta since April
+2025). The sender follows their contract exactly: five, four, three, four, four
+and four positional body parameters on the player ladder, then name, subject and
+"opened on" date on the six person-following templates, and a bare count on the
+onboarding escalation. Neither escalation sends the queue link as a parameter;
+Meta refuses a body variable holding a URL, so it is hardcoded in each approved
+body. The event escalation links to `/operate/admin/follow-ups` and the
+onboarding one to `/operate/people/missing`.
+
+`configure.mjs` derives the test names with `testTemplateName()` —
+`<production name without _v1>_v2_test` — and the earlier `_test` names stay
+locked at Meta until roughly 11 October 2026. The matching submission records
+are checked in at `scripts/test-box/templates-v2-test.json` and loaded with
+`node scripts/test-box/import-submissions.mjs scripts/test-box/templates-v2-test.json`.
+
+The six person-following templates carry the day the person was added
+(`recruitment_prospects.created_at` for recruits, `season_memberships.created_at`
+for onboarding) as their date and a fixed subject: "your recruitment, opened",
+"your football background questionnaire, opened", or "your onboarding, opened".
+
+Buttons are dynamic URL buttons. Meta refuses two dynamic buttons on one base
+URL, so the Yes and No buttons resolve at `/a/yes/<token>` and `/a/no/<token>`,
+both pass-throughs to `/a/[token]`; the token itself encodes the answer. The
+nudge and change-notice buttons share the `/a/` base and carry the RSVP token,
+which `/a/[token]` redirects to `/rsvp/[token]`. Every recruit and onboarding
+button shares the `/me/` base: a recruit's durable token redirects from
+`/me/[token]` to the sign-up form, and Questionnaire B's own token redirects to
+`/a/[token]`. No recruit template carries an opt-out button — Meta will not
+classify one as Utility — so `/me/stop/<token>` is reachable only from the email
+bodies until LAN-337 lands. That is acceptable for a closed test on known
+handsets and is not acceptable for production.
+
 ## Analysis handoff — 11 September 2026
 
 Brian paused the session for analysis and requested the work be saved on

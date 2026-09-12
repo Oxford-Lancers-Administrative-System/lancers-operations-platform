@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { Notice } from "@/components/notice";
 import { PublicShell } from "@/components/public-shell";
@@ -21,6 +21,8 @@ import {
   withUniformTerminalTiming,
 } from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
+import { resolveRecruitmentInterestTokenIn } from "@/lib/services/recruitment-interest-tokens";
+import { isRecruitWithoutMembershipIn } from "@/lib/services/recruitment-prospect";
 import {
   needsFollowUp,
   readPlayerAnswerLandingIn,
@@ -94,6 +96,8 @@ interface Resolved {
   readonly personId: string | null;
   readonly home: PlayerHome | null;
   readonly focused: PlayerAnswerLanding | null;
+  /** LAN-336: a page under another prefix that this token actually belongs to. */
+  readonly sendTo?: string;
 }
 
 /** Every invitation across the four near-term buckets plus further-out, flattened once. */
@@ -125,7 +129,28 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
       return withTransaction(async (tx) => {
         const resolution = await resolvePersonTokenIn(tx, token);
         if (resolution.state !== "valid" || !resolution.resolved) {
+          // LAN-336. Every recruit and onboarding WhatsApp button now has
+          // `/me/` as its fixed prefix (LAN-335), including the two that
+          // carry Questionnaire B's own purpose-tagged credential. That
+          // token's page is `/a/[token]`; send it on rather than 404 it.
+          const interest = await resolveRecruitmentInterestTokenIn(tx, token);
+          if (interest.state === "valid" && interest.resolved) {
+            return { personId: null, home: null, focused: null, sendTo: `/a/${token}` };
+          }
           return { personId: null, home: null, focused: null };
+        }
+        // LAN-336. A recruit's durable token reaches this route from the
+        // sign-up buttons (same `/me/` prefix). Their page is the sign-up
+        // form at `/me/join/[token]`, not a player home they have no
+        // membership on yet; a recruit who has since joined the roster
+        // falls through to the home like anyone else.
+        if (await isRecruitWithoutMembershipIn(tx, resolution.resolved)) {
+          return {
+            personId: resolution.resolved.personId,
+            home: null,
+            focused: null,
+            sendTo: `/me/join/${token}`,
+          };
         }
         const home = await readPlayerHomeIn(tx, resolution.resolved.personId);
         const belongsToThisPerson =
@@ -140,6 +165,7 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
     (outcome) => outcome.personId === null,
   );
 
+  if (resolved.sendTo) redirect(resolved.sendTo);
   if (resolved.personId === null || resolved.home === null) {
     notFound();
   }

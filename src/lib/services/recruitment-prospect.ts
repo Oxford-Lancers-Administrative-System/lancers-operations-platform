@@ -219,6 +219,32 @@ async function readSendStateIn(
   };
 }
 
+/**
+ * LAN-336. Whether a durable person token belongs to somebody who is still
+ * only a recruit this season — a prospect row and no season membership. The
+ * recruit and onboarding WhatsApp buttons share one `/me/` prefix (LAN-335),
+ * so `/me/[token]` asks this before deciding whether the token's page is the
+ * sign-up form or a player's home. A recruit who has since joined the roster
+ * has a membership, answers false here, and gets the home like anyone else.
+ */
+export async function isRecruitWithoutMembershipIn(
+  tx: Tx,
+  holder: { readonly personId: string; readonly seasonId: string },
+): Promise<boolean> {
+  const result = await tx.query<{ recruit: boolean }>(
+    `select exists (
+              select 1 from public.recruitment_prospects
+               where person_id = $1::uuid and season_id = $2::uuid
+            )
+            and not exists (
+              select 1 from public.season_memberships
+               where person_id = $1::uuid and season_id = $2::uuid
+            ) as recruit`,
+    [holder.personId, holder.seasonId],
+  );
+  return result.rows[0]?.recruit === true;
+}
+
 /** `null` when no such prospect exists. */
 export async function readRecruitmentProspectIn(
   tx: Tx,

@@ -528,8 +528,15 @@ export function rsvpUrl(appBaseUrl: string, token: string): string {
  * (Q-14), but it is still read from `APP_BASE_URL` here, never inlined — a
  * local or review deployment keeps its own configured host.
  */
-export function playerAnswerUrl(appBaseUrl: string, token: string): string {
-  return `${appBaseUrl.replace(/\/+$/, "")}/a/${encodeURIComponent(token)}`;
+export function playerAnswerUrl(
+  appBaseUrl: string,
+  token: string,
+  answer: "yes" | "no" = "yes",
+): string {
+  // LAN-335: the approved Yes and No buttons carry `/a/yes/` and `/a/no/` as
+  // their fixed prefixes because Meta refuses two dynamic buttons on one base
+  // URL. Both routes render `/a/[token]`; the token itself encodes the answer.
+  return `${appBaseUrl.replace(/\/+$/, "")}/a/${answer}/${encodeURIComponent(token)}`;
 }
 
 /** The player's own durable page for one season — LAN-172. */

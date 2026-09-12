@@ -6,7 +6,7 @@ import { readPanelState, effectivePersonSettings } from "./panel-state.mjs";
 import { advanceChronologically } from "./clock.mjs";
 import { prepareDatabaseClock, setSharedTime } from "./database-clock.mjs";
 import { confirmIntercepted } from "./callbacks.mjs";
-import { templateNames } from "./configure.mjs";
+import { templateNames, testTemplateName } from "./configure.mjs";
 
 export function responsePlans(directory, people) {
   const state = readPanelState(directory);
@@ -43,7 +43,9 @@ export function responsePlans(directory, people) {
     if (!fs.existsSync(path.join(directory, "simulated-receipts", hash + ".json"))) continue;
     const kind =
       record.kind ??
-      Object.entries(names).find(([, v]) => record.payload?.template?.name === v + "_test")?.[0];
+      Object.entries(names).find(
+        ([, v]) => record.payload?.template?.name === testTemplateName(v),
+      )?.[0];
     if (!["invitation", "reminder", "recruit_event_follow_up"].includes(kind)) continue;
     const buttons = record.payload?.template?.components?.filter((c) => c.type === "button") ?? [];
     const token = buttons.find(

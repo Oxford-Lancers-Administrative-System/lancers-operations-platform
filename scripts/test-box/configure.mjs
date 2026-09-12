@@ -10,6 +10,16 @@ import { runtime } from "./runtime.mjs";
 
 export const TEST_HOST = "https://marvel-indiscernible-daxton.ngrok-free.dev";
 
+/**
+ * The test-box template name for one production name. LAN-335: the fourteen
+ * Utility test templates are `<production name without its _v1>_v2_test`;
+ * the earlier `_test` names were deleted on 2026-09-11 and stay locked until
+ * roughly 11 October 2026.
+ */
+export function testTemplateName(productionName) {
+  return `${productionName.replace(/_v1$/, "")}_v2_test`;
+}
+
 /** Read names as data, without importing server code or evaluating the registry. */
 export function templateNames(text) {
   const source = ts.createSourceFile("templates.ts", text, ts.ScriptTarget.Latest, true);
@@ -86,7 +96,7 @@ export function settingsFor(mode, current, privateSettings, baseUrl, names, cont
   for (const [kind, name] of Object.entries(names)) {
     const key =
       kind === "invitation" ? "WHATSAPP_TEMPLATE_NAME" : `WHATSAPP_TEMPLATE_${kind.toUpperCase()}`;
-    values[key] = `${name}_test`;
+    values[key] = testTemplateName(name);
   }
   return values;
 }

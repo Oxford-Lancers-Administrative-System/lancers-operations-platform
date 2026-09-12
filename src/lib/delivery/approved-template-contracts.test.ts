@@ -7,22 +7,23 @@ import { createDeliverySink } from "./local-sink";
 import type { OutboundConfig } from "./config";
 import type { MessageKind, OutboundMessage } from "./provider";
 
-// LAN-286 / LAN-263: positional contracts from the owner's submitted records.
+// LAN-335 / LAN-336: positional contracts from the fourteen `_v2_test`
+// Utility templates as read back from WhatsApp Manager on 2026-09-11.
 const expected = {
-  invitation: [["eventName", "whenAndVenue", "deadlineLabel"], 2],
-  reminder: [["eventName", "attendingSentence"], 2],
-  nudge: [["eventName"], 1],
-  change_notice: [["eventName", "changeSummary", "whenAndVenue"], 1],
-  cancellation: [["eventName", "whenLabel"], 0],
-  escalation: [["outstandingClause", "eventName", "whenLabel", "deadlineLabel"], 1],
-  recruit_event_followup: [["eventName", "whenLabel", "venue"], 2],
-  recruit_welcome: [["inviteeName"], 2],
-  recruit_details_reminder: [[], 2],
-  recruit_interest_ask: [["inviteeName"], 2],
-  recruit_interest_reminder: [["inviteeName"], 2],
-  onboarding_welcome: [["inviteeName"], 1],
-  onboarding_chase: [["inviteeName"], 1],
-  onboarding_chase_escalation: [["outstandingCount", "queueUrl"], 0],
+  invitation: [["inviteeName", "eventName", "whenLabel", "venue", "deadlineLabel"], 2],
+  reminder: [["inviteeName", "eventName", "whenLabel", "venue"], 2],
+  nudge: [["inviteeName", "eventName", "whenLabel"], 1],
+  change_notice: [["inviteeName", "eventName", "whenLabel", "changeSummary"], 1],
+  cancellation: [["inviteeName", "eventName", "whenLabel", "cancellationReason"], 0],
+  escalation: [["outstandingCount", "eventName", "whenLabel", "deadlineLabel"], 0],
+  recruit_event_followup: [["inviteeName", "eventName", "whenLabel", "venue"], 2],
+  recruit_welcome: [["inviteeName", "subject", "openedOn"], 1],
+  recruit_details_reminder: [["inviteeName", "subject", "openedOn"], 1],
+  recruit_interest_ask: [["inviteeName", "subject", "openedOn"], 1],
+  recruit_interest_reminder: [["inviteeName", "subject", "openedOn"], 1],
+  onboarding_welcome: [["inviteeName", "subject", "openedOn"], 1],
+  onboarding_chase: [["inviteeName", "subject", "openedOn"], 1],
+  onboarding_chase_escalation: [["outstandingCount"], 0],
 } as const;
 const config: OutboundConfig = {
   appBaseUrl: "https://club.example",
@@ -49,8 +50,8 @@ const message: OutboundMessage = {
   changeSummary: "Venue changed",
   cancellationReason: "Private cancellation reason must not enter the WhatsApp payload",
   rsvpUrl: "https://club.example/rsvp/rsvp-token",
-  yesUrl: "https://club.example/a/y.token",
-  noUrl: "https://club.example/a/n.token",
+  yesUrl: "https://club.example/a/yes/y.token",
+  noUrl: "https://club.example/a/no/n.token",
   formUrl: "https://club.example/me/person-token",
   stopUrl: "https://club.example/me/stop/person-token",
   queueUrl:
@@ -79,10 +80,16 @@ describe("owner-submitted WhatsApp contracts", () => {
       );
       for (const c of payload.template.components)
         for (const p of c.parameters) expect(p.text.trim()).not.toBe("");
-      if (kind === "escalation")
-        expect(buttons[0].parameters[0].text).toBe("11111111-1111-4111-8111-111111111111");
-      if (kind === "cancellation")
-        expect(JSON.stringify(payload)).not.toContain(message.cancellationReason);
+      // LAN-335: both escalations carry their queue URL hardcoded in the
+      // approved body. Meta refuses a body variable holding a URL, so the
+      // payload must never carry `queueUrl` — and, as before, never a name.
+      if (kind === "escalation" || kind === "onboarding_chase_escalation") {
+        expect(JSON.stringify(payload)).not.toContain(message.queueUrl);
+        expect(JSON.stringify(payload)).not.toContain(message.inviteeName);
+      }
+      if (kind === "invitation" || kind === "reminder" || kind === "recruit_event_followup") {
+        expect(buttons.map((b) => b.parameters[0].text)).toEqual(["y.token", "n.token"]);
+      }
       const sink = createDeliverySink(
         { APP_BASE_URL: "http://localhost:3000" },
         { write: () => {} },
