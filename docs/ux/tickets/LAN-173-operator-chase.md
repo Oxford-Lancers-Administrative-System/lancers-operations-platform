@@ -124,6 +124,14 @@ desktop table and on the phone card:
   around it. The row says so and `sendEventChases` refuses it, named rather than skipped.
 - **An invitation that has left `nonresponse_queue`** — answered, or its event stood down, between
   the page being drawn and the button being pressed — is refused for that reason and named.
+- **A reminder whose invitee has answered is withheld at dispatch** (LAN-292, `claimJobIn`).
+  Recording an answer cancels the queued rungs (`stopChasingIn`); this is the second half, for a
+  rung already claimed, already selected by a sweep, or created after the answer by a path that
+  never ran that cancellation. The job is left **cancelled**, carrying the same sentence — "The
+  invitee responded, so this reminder is no longer needed." — with no attempt row, because nothing
+  was attempted and nothing failed. It applies to the ordinary event reminder alone: the nudge is
+  the contract for a yes with the event's questions unanswered, and the recruit follow-up is the
+  other ladder's single contact.
 - A **Last message** column (the desktop table) and fact (the card) read the latest delivery this
   query already joined, in the delivery screen's own vocabulary, so a second operator can see a
   chase has already gone.

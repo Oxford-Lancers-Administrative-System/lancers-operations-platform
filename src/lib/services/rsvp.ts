@@ -147,7 +147,17 @@ export const NO_REQUIRES_A_REASON_RULE = "rsvp_responses_no_requires_a_reason";
 export const RESPONSE_WINDOW_CLOSED_RULE = "rsvp_response_window_closed";
 export const INVITATION_WITHDRAWN_RULE = "rsvp_invitation_withdrawn";
 
-const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
+/**
+ * Why a queued reminder stops existing once its invitee answers.
+ *
+ * Exported because two paths write it and they must write the same sentence.
+ * This one cancels the reminder the moment the answer is recorded; the other
+ * (`claimJobIn`, `delivery.ts`) withholds a reminder whose answer arrived
+ * after the job was created and before it could be dispatched — LAN-292. An
+ * operator reading either row is reading about the same thing that happened,
+ * so it is one sentence rather than two that nearly agree.
+ */
+export const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
 const FLAG_RESOLVED_BY_ANSWER = "The invitee answered.";
 
 /** Stops chasing one person about one event (LAN-169, `REQ-chase-stopped`); one function every answer path calls. */

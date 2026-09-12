@@ -22,6 +22,7 @@ import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phon
 import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
 import { recordAudit } from "./audit";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
+import { JOB_CANCELLED_REASON } from "./rsvp";
 import { issueAnswerTokenIn } from "./player-answer-tokens";
 import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
 import { personDisplayAliasSql } from "./sql-text";
@@ -254,7 +255,13 @@ type ClaimOutcome =
   // season is not a channel problem — falling back to email would still
   // reach someone who has not consented to being contacted at all, on any
   // channel, which is the one thing this refusal exists to prevent.
-  | { readonly claimed: false; readonly reason: "not_consented"; readonly detail: string };
+  | { readonly claimed: false; readonly reason: "not_consented"; readonly detail: string }
+  // LAN-292. The invitee answered. Distinct from every refusal above, because
+  // nothing is wrong: the message is not undeliverable, not unschedulable and
+  // not refused — it is unnecessary, and the job is cancelled rather than
+  // failed. Never a fallback trigger, for the plainest possible reason: the
+  // email rung would carry the same unnecessary reminder.
+  | { readonly claimed: false; readonly reason: "answered"; readonly detail: string };
 
 /**
  * Claims one job and prepares its message, or explains why it cannot.
@@ -330,9 +337,18 @@ async function claimJobIn(
     changed_starts_at: boolean | null;
     changed_ends_at: boolean | null;
     changed_venue: boolean | null;
+    current_response: string | null;
   }>(
     `select i.id as invitation_id,
             i.capacity::text as capacity,
+            -- LAN-292. The standing answer as it is at THIS moment, read
+            -- inside the claiming transaction rather than assumed from the
+            -- job's existence. A reminder is queued days ahead; the answer
+            -- that makes it unnecessary can arrive at any point in between,
+            -- and did.
+            (select r.response::text
+               from public.current_rsvp r
+              where r.invitation_id = i.id) as current_response,
             e.id as event_id,
             e.season_id,
             e.name as event_name,
@@ -400,6 +416,33 @@ async function claimJobIn(
   }
 
   const kind = messageKindFor(job.job_type, detail.capacity);
+
+  // LAN-292. An ordinary event reminder is a chase, and there is nothing left
+  // to chase once the invitee has said yes or no.
+  //
+  // Cancelling the queued rungs at the moment the answer is recorded
+  // (`stopChasingIn`) is the first half of that and it works. This is the
+  // second half, and it is the half the 38 captured post-response reminders
+  // needed: a job already claimed, already selected by a sweep, or created
+  // before the answer arrived by some path that never ran that cancellation,
+  // is checked here — at the last moment before a message is built, inside
+  // the transaction that claims it. An answer recorded one second earlier is
+  // seen; an answer recorded one second later cancels the rung that follows.
+  //
+  // Scoped to `reminder` deliberately, and to nothing else:
+  //
+  //   * the NUDGE (`other`, `kind === "nudge"`) is the opposite contract — it
+  //     exists precisely FOR a player who answered yes and has not finished
+  //     the event's questions, so withholding it on a recorded yes would
+  //     delete the only message that case has;
+  //   * an INVITATION is how a person comes to have an answer at all;
+  //   * a CHANGE NOTICE or CANCELLATION tells somebody the event moved or is
+  //     off, which matters most to the people who said they were coming; and
+  //   * the recruit FOLLOW-UP (`recruit_event_followup`) is LAN-203's single
+  //     contact on a different ladder, not a rung of the player chase.
+  if (kind === "reminder" && detail.current_response !== null) {
+    return { claimed: false, reason: "answered", detail: JOB_CANCELLED_REASON };
+  }
 
   // F-C1. `starts_at` is nullable, and `approveEvent`'s new guard (Q-31) is
   // forward-only — it cannot reach an event that was approved, or slipped
@@ -741,6 +784,46 @@ async function recordUndeliverableIn(
 }
 
 /**
+ * Records a reminder withheld because its invitee had already answered —
+ * LAN-292.
+ *
+ * Cancelled, not failed, and that distinction is the whole point. A failure
+ * says something went wrong and invites a repair; nothing went wrong here, and
+ * pressing Retry would only reach this same check again. `cancelled` with this
+ * reason is exactly the state `stopChasingIn` leaves a rung in when the answer
+ * arrives while the rung is still queued, so the two paths that reach the same
+ * conclusion leave the same row behind and the delivery surface has one thing
+ * to render rather than two.
+ *
+ * No attempt row and no delivery result: nothing was attempted. The claim's
+ * own increment is given back for the same reason the unconfigured path never
+ * takes one — the attempt ceiling exists to stop a message being tried
+ * forever, and this message was never tried at all.
+ */
+async function recordReminderWithheldIn(tx: Tx, jobId: string, detail: string): Promise<void> {
+  await tx.query(
+    `update public.notification_jobs
+        set status = 'cancelled',
+            cancelled_reason = $2,
+            attempt_count = greatest(attempt_count - 1, 0),
+            claimed_at = null,
+            claimed_by = null,
+            updated_at = now()
+      where id = $1`,
+    [jobId, detail],
+  );
+
+  await recordAudit(tx, {
+    actorLabel: DISPATCH_ACTOR_LABEL,
+    action: "delivery.reminder_withheld",
+    entityTable: "notification_jobs",
+    entityId: jobId,
+    toState: "cancelled",
+    reason: detail,
+  });
+}
+
+/**
  * The suffix that marks a job as the automatic email carrier for a WhatsApp
  * failure, rather than a rung of the ladder in its own right.
  *
@@ -966,6 +1049,11 @@ export async function dispatchJob(
       // never a fallback trigger: the email channel would fail identically,
       // since the fact missing is the event's, not the recipient's.
       await recordUndeliverableIn(tx, jobId, outcome.detail, context);
+    } else if (!outcome.claimed && outcome.reason === "answered") {
+      // LAN-292. Not `recordUndeliverableIn`: that records a failure, and a
+      // reminder nobody needs is not one. Never a fallback trigger either —
+      // the email rung would carry the same unnecessary message.
+      await recordReminderWithheldIn(tx, jobId, outcome.detail);
     } else if (!outcome.claimed && outcome.reason === "not_consented") {
       // LAN-203. Same visible, retryable recording — an operator sees "no
       // consent recorded" and a granted consent record then makes Retry
