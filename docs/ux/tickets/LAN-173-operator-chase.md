@@ -114,7 +114,7 @@ desktop table and on the phone card:
 - A chase is **another `reminder` rung on that invitation's own ladder**, one rung above what the
   ladder has reached, dispatched through the same path every automated rung takes
   (`sendEventChases`, `messaging-scheduler.ts`). No new job type, no new table, and therefore the
-  same fallback, allowlist, consent refusal and recorded result.
+  same fallback, consent refusal and recorded result.
 - **Chasing is gated on `delivery_administration`**, not on the page's own floor: reading who is
   silent harms nobody, but this sends real messages about a real event, which is the act
   `retryDeliveryAction` and `revokeAndReissueAction` already require that capability for. The

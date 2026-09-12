@@ -122,8 +122,8 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
-            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://app.oxfordlancers.com
-          # Three non-secret runtime settings, in one `--set-env-vars` because the
+            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://app.oxfordlancers.com,RECRUITMENT_WHATSAPP_GROUP_LINK=${{vars.RECRUITMENT_WHATSAPP_GROUP_LINK}},PLAYER_WHATSAPP_GROUP_LINK=${{vars.PLAYER_WHATSAPP_GROUP_LINK}},HUDL_JOIN_LINK=${{vars.HUDL_JOIN_LINK}}
+          # Six non-secret runtime settings, in one `--set-env-vars` because the
           # flag REPLACES the revision's environment rather than adding to it —
           # declaring them separately, or mixing this flag with the action's
           # `env_vars` input, would leave whichever ran last as the only one
@@ -179,6 +179,23 @@ jobs:
           # expectation and no availability guarantee. Searches are debounced and
           # every failure falls back to typing the venue by hand. Set it to a
           # self-hosted Photon if the club's usage ever outgrows that.
+          #
+          # The three club links — RECRUITMENT_WHATSAPP_GROUP_LINK (LAN-293),
+          # PLAYER_WHATSAPP_GROUP_LINK (LAN-327) and HUDL_JOIN_LINK (LAN-333) —
+          # take their values from REPOSITORY VARIABLES rather than from this
+          # file. They are not credentials, but a WhatsApp invite link is
+          # joinable by anyone holding it and this repository is public, so the
+          # values are pasted once in the repository's settings and never in a
+          # diff. An unset variable renders as the empty string, every resolver
+          # reads blank as unset (`player-config.ts`, `recruitment-config.ts`),
+          # and the surface then offers no link at all rather than a broken one
+          # — which is the correct deployed state until Brian sets them.
+          #
+          # Written `${{vars.X}}` without inner spaces on purpose: `flags:` is a
+          # folded block whose lines are joined by spaces, and
+          # `tests/deployment-configuration.test.ts` reads this declaration as
+          # one whitespace-free token. A value containing a comma would split
+          # the flag; none of these three links contains one.
           #
           # Read from Secret Manager at runtime — the value never enters this
           # workflow, the image, or the repository.

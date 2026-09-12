@@ -1736,7 +1736,6 @@ describe("the walk-up door's own send — LAN-205 amendment", () => {
     WHATSAPP_TEMPLATE_NAME: "event_invitation",
     EMAIL_API_KEY: "not-a-real-key",
     EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-    DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test",
   };
 
   async function jobsFor(personId: string) {
@@ -1826,7 +1825,7 @@ describe("the walk-up door's own send — LAN-205 amendment", () => {
     const before = new Set(fs.existsSync(SINK_DIRECTORY) ? fs.readdirSync(SINK_DIRECTORY) : []);
 
     const outcome = await dispatchRecruitmentCycleJob(job.rows[0].id, {
-      source: { ...CONFIGURED, DELIVERY_RECIPIENT_ALLOWLIST: "07700 900453" },
+      source: CONFIGURED,
     });
     expect(outcome).toBe("accepted");
 
@@ -1867,13 +1866,19 @@ describe("the walk-up door's own send — LAN-205 amendment", () => {
       [`recruit-cycle:welcome:${personId}:${event.seasonId}`],
     );
 
-    // Deliberately not this call's allowlisted number — standing in for "the
-    // number does not work", the same refusal an unreachable real recipient
-    // would produce at the provider.
+    // "The number does not work", stated the way the provider states it:
+    // Meta's `131026`, undeliverable and not retryable. LAN-287 removed the
+    // recipient allowlist this used to stand on, which was always a proxy for
+    // this refusal rather than the refusal itself.
     const outcome = await dispatchRecruitmentCycleJob(job.rows[0].id, {
-      source: { ...CONFIGURED, DELIVERY_RECIPIENT_ALLOWLIST: "07700 900999" },
+      source: CONFIGURED,
+      transport: async () =>
+        new Response(
+          JSON.stringify({ error: { code: 131_026, message: "Message undeliverable" } }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        ),
     });
-    expect(outcome).toBe("skipped");
+    expect(outcome).toBe("refused");
 
     const failed = await observer.query<{ status: string; last_error: string | null }>(
       "select status::text as status, last_error from public.notification_jobs where id = $1",

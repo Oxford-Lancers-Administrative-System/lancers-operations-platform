@@ -51,10 +51,6 @@ export interface DeliveryContext {
   readonly appBaseUrl: string;
   /** The default calling code for a national-format number, e.g. `44`. */
   readonly defaultCallingCode: string;
-  /** Permitted telephone numbers. Empty on the email channel. */
-  readonly recipientAllowlist: readonly string[];
-  /** Permitted email addresses. Empty on the WhatsApp channel. */
-  readonly emailAllowlist: readonly string[];
   /** The WhatsApp configuration, where this channel needed one. */
   readonly outbound: OutboundConfig | null;
   /** The email configuration, where this channel needed one. */
@@ -99,8 +95,6 @@ export function resolveDeliveryProvider(
         provider: createEmailProvider(email.config, wire),
         appBaseUrl: outbound.config.appBaseUrl,
         defaultCallingCode: outbound.config.defaultCallingCode,
-        recipientAllowlist: [],
-        emailAllowlist: email.config.recipientAllowlist,
         outbound: outbound.config,
         email: email.config,
       },
@@ -119,8 +113,6 @@ export function resolveDeliveryProvider(
       provider: createWhatsAppCloudProvider(outbound.config, wire),
       appBaseUrl: outbound.config.appBaseUrl,
       defaultCallingCode: outbound.config.defaultCallingCode,
-      recipientAllowlist: outbound.config.recipientAllowlist,
-      emailAllowlist: [],
       outbound: outbound.config,
       email: null,
     },

@@ -252,24 +252,19 @@ SCHEDULER_TRIGGER_TOKEN=local-only-not-a-secret
 WHATSAPP_PHONE_NUMBER_ID=local-stub
 WHATSAPP_ACCESS_TOKEN=local-stub-not-a-secret
 WHATSAPP_TEMPLATE_NAME=event_invitation
-DELIVERY_RECIPIENT_ALLOWLIST=07700 900901
 EMAIL_API_KEY=local-stub-not-a-secret
 EMAIL_FROM_ADDRESS=Oxford Lancers <events@lancers.example.org>
-DELIVERY_EMAIL_ALLOWLIST=nobody@example.test
 ```
 
 `3000` is the primary slot's port; an overflow or mission slot's `.env.local`
 already carries a different `PORT` from `db:start` — match `APP_BASE_URL` to
-that value. `DELIVERY_RECIPIENT_ALLOWLIST` is the
-one line worth reading rather than pasting: it has to hold the phone number of
-whoever you want the club to be able to message, in the same free-text shape
-you would type on a roster form — § 4's walkthrough has you create
-"Runbook Walker" at `07700 900901` for exactly this reason. A seeded person's
-own number works too; find one with
-`select raw_value from public.contact_points where kind = 'phone' limit 1;`.
-`DELIVERY_EMAIL_ALLOWLIST` only matters once a reminder reaches the email rung
-or the WhatsApp-unresponsive fallback; a placeholder that matches nobody is
-fine until you need to see one of those.
+that value. Every line above is a placeholder you can paste unchanged.
+
+There is no recipient allowlist to configure. LAN-287 removed
+`DELIVERY_RECIPIENT_ALLOWLIST` and `DELIVERY_EMAIL_ALLOWLIST`, so anybody the
+domain says is eligible — a confirmed member, a recruit with recorded season
+consent — is messaged, and locally every message lands in the delivery sink
+rather than on a handset.
 
 Two things make the loop reviewable with no Meta account and no Resend key:
 

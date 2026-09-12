@@ -51,7 +51,8 @@ let observer: Client;
 let actorPersonId: string;
 let openSeasonId: string;
 
-const ALLOWLISTED_PHONES = [
+// Ofcom's reserved drama range: synthetic, and unroutable by design.
+const DRAMA_RANGE_PHONES = [
   "07700 900372",
   "07700 900373",
   "07700 900374",
@@ -63,7 +64,7 @@ const ALLOWLISTED_PHONES = [
 ];
 let phoneCounter = 0;
 function uniquePhone(): string {
-  const phone = ALLOWLISTED_PHONES[phoneCounter % ALLOWLISTED_PHONES.length];
+  const phone = DRAMA_RANGE_PHONES[phoneCounter % DRAMA_RANGE_PHONES.length];
   phoneCounter += 1;
   return phone;
 }
@@ -73,15 +74,8 @@ const CONFIGURED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  // Bertram — the seeded President `messaging-scheduler.test.ts`'s own F-B1
-  // comment names ("one preferred, current email, no phone. Not a fixture
-  // defect — an ordinary club officer") — holds no phone, so
-  // `presidentEscalationChannelIn` resolves the escalation's channel to
-  // email, and this allowlist is what lets it actually send in these tests.
-  DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test,bertram@ashridge.ox.ac.example",
 };
 
 function acceptingTransport() {
@@ -566,7 +560,7 @@ describe("REQ-operator-nudge — each selected person gets their own compiled as
     expect(buttons[1]).toBeTruthy();
     expect(buttons[0]).not.toBe(buttons[1]);
 
-    // Each recipient is that person's own allowlisted number, never the
+    // Each recipient is that person's own number, never the
     // other's — the isolation `T11-batch-nudge` asks a test to prove.
     const recipients = sent.map((s) => s.body.to);
     expect(new Set(recipients).size).toBe(2);

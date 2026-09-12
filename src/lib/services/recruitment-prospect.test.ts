@@ -44,7 +44,8 @@ let observer: Client;
 let seasonId: string;
 let actorPersonId: string;
 
-const ALLOWLISTED_PHONES = [
+// Ofcom's reserved drama range: synthetic, and unroutable by design.
+const DRAMA_RANGE_PHONES = [
   "07700 900342",
   "07700 900343",
   "07700 900344",
@@ -54,7 +55,7 @@ const ALLOWLISTED_PHONES = [
 ];
 let phoneCounter = 0;
 function uniquePhone(): string {
-  const phone = ALLOWLISTED_PHONES[phoneCounter % ALLOWLISTED_PHONES.length];
+  const phone = DRAMA_RANGE_PHONES[phoneCounter % DRAMA_RANGE_PHONES.length];
   phoneCounter += 1;
   return phone;
 }
@@ -64,10 +65,8 @@ const CONFIGURED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test",
 };
 
 function acceptingTransport() {
@@ -921,19 +920,17 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       // originally flagged as an unresolved discrepancy against a green
       // exact-head CI. A generous explicit `limit` makes the sweep walk the
       // whole due backlog in one call, exactly as a real ticker eventually
-      // would across enough ticks: every one of those other jobs is
-      // `refused` before any transport call (their recipients are real
-      // synthetic numbers, never on `CONFIGURED`'s allowlist), so `sent`
-      // still holds only this job's own message, in ordinary FIFO order.
+      // would across enough ticks. Since LAN-287 those other jobs are no
+      // longer refused at the egress, so `sent` may hold their messages
+      // too; this test finds its own by template name rather than by
+      // position, which is a direct claim either way.
       const summary = await runMessagingSweep({ source: CONFIGURED, transport, limit: 5_000 });
       expect(summary.accepted).toBeGreaterThan(0);
       expect(sent.length).toBeGreaterThan(0);
       // The welcome template, the one due at offset zero — found by name
-      // rather than assumed to be `sent[0]`: the backlog above is refused
-      // before any transport call (none of its real synthetic numbers are
-      // on `CONFIGURED`'s allowlist), so nothing else in this run reaches
-      // `sent` at all, but asserting on the one template this test can ever
-      // cause is a direct claim rather than one resting on queue order.
+      // rather than assumed to be `sent[0]`, so that whatever else the
+      // backlog puts through this transport, the assertion is about the one
+      // message this test can ever cause rather than about queue order.
       const own = sent.find(
         (message) =>
           (message.body as { template?: { name?: string } }).template?.name ===
@@ -942,8 +939,8 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       expect(own).toBeDefined();
       const payload = own!.body as { to: string; template: { name: string } };
       expect(payload.template.name).toBe("recruit_welcome_v1");
-      // The allowlisted number this test itself inserted, WhatsApp's own
-      // E.164-without-plus shape (`recipientPermitted`'s normalisation) —
+      // The number this test itself inserted, in WhatsApp's own
+      // E.164-without-plus shape —
       // proof this message really is the one this test's own job caused,
       // not merely a same-named template from an unrelated row.
       expect(payload.to.endsWith(recruitPhone.replace(/\D/g, "").replace(/^0/, ""))).toBe(true);

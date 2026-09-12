@@ -1,7 +1,5 @@
 import "server-only";
 
-import { parseRecipientAllowlist, RECIPIENT_ALLOWLIST_VARIABLE } from "./allowlist";
-
 /**
  * Delivery configuration, read from the environment and from nowhere else.
  *
@@ -120,15 +118,6 @@ export interface OutboundConfig {
    */
   readonly templateParameters: TemplateParameterShape;
   /**
-   * The only telephone numbers this deployment may send to, in E.164 digits.
-   *
-   * Never empty on a configured deployment: an allowlist that parsed to nothing
-   * is treated as absent, so `resolveOutboundConfig` returns
-   * `{ configured: false }` rather than a configuration permitting nobody. See
-   * `allowlist.ts`.
-   */
-  readonly recipientAllowlist: readonly string[];
-  /**
    * Local-only test affordances, resolved to their inert values unless
    * `appBaseUrl` is a loopback host. See `resolveLocalTestOverrides`.
    */
@@ -182,14 +171,6 @@ export interface EmailConfig {
   readonly fromAddress: string;
   /** Where a reply goes, where the club sets one. */
   readonly replyToAddress: string | null;
-  /**
-   * The only addresses this deployment may email, lowercased.
-   *
-   * Never empty on a configured deployment: an allowlist that parsed to nothing
-   * is treated as absent, so `resolveEmailConfig` returns
-   * `{ configured: false }` rather than a configuration permitting nobody.
-   */
-  readonly recipientAllowlist: readonly string[];
   /** Loopback-only. Redirects every email to one inbox. Never set off loopback. */
   readonly recipientOverride: string | null;
 }
@@ -209,18 +190,23 @@ export type WebhookResolution =
 /**
  * Variables the sending path refuses to run without.
  *
- * `DELIVERY_RECIPIENT_ALLOWLIST` is here rather than among the defaults for the
- * reason the whole file is built on: a missing value is a refusal, never a
- * default. An absent allowlist that meant "send to everybody" would be the one
- * variable in this list whose absence *widened* what the deployment does. See
- * `allowlist.ts`.
+ * Every one of them is something the adapter cannot invent: the application's
+ * own address, the sending identity, the credential and the approved template.
+ *
+ * LAN-287, Brian's LAN-168 decision of 2 September 2026, removed
+ * `DELIVERY_RECIPIENT_ALLOWLIST` from this list and from the deployment
+ * altogether. It was a deployment-wide restriction added for the showcase, and
+ * it answered a question the domain now answers properly: membership supplies a
+ * player's eligibility, a recruit's consent is recorded per season, and
+ * onboarding consent is enforced where it is granted. Who may be messaged is a
+ * fact about the person, and a fact about the person does not belong in an
+ * environment variable that a second deployment can disagree with.
  */
 export const OUTBOUND_ENVIRONMENT_VARIABLES = Object.freeze([
   "APP_BASE_URL",
   "WHATSAPP_PHONE_NUMBER_ID",
   "WHATSAPP_ACCESS_TOKEN",
   "WHATSAPP_TEMPLATE_NAME",
-  RECIPIENT_ALLOWLIST_VARIABLE,
 ] as const);
 
 /** Variables the callback path refuses to run without. */
@@ -232,17 +218,15 @@ export const WEBHOOK_ENVIRONMENT_VARIABLES = Object.freeze([
 /**
  * Variables the email path refuses to run without. LAN-169.
  *
- * `DELIVERY_EMAIL_ALLOWLIST` is here for exactly the reason
- * `DELIVERY_RECIPIENT_ALLOWLIST` is in the outbound list: it is the one
- * variable whose absence would *widen* what the deployment does. An absent
- * email allowlist meaning "email anybody" would make the fallback channel the
- * one hole in a control the club relies on, and the fallback is automatic —
- * nobody presses anything before it sends.
+ * `DELIVERY_EMAIL_ALLOWLIST` left this list with LAN-287 and for the same
+ * reason its telephone counterpart left the outbound one: the email rung is a
+ * rung of the same ladder, carrying the same message to the same person, and a
+ * second restriction governing only the fallback channel would mean one person
+ * could be eligible on WhatsApp and ineligible by email.
  */
 export const EMAIL_ENVIRONMENT_VARIABLES = Object.freeze([
   "EMAIL_API_KEY",
   "EMAIL_FROM_ADDRESS",
-  "DELIVERY_EMAIL_ALLOWLIST",
 ] as const);
 
 /** Variables with a safe, non-secret default. Absence is not a refusal. */
@@ -319,12 +303,13 @@ export function resolveLocalTestOverrides(
   // So this is opt-in, explicit, and separate from `WHATSAPP_MESSAGE_MODE`:
   // setting the mode alone still does nothing off loopback. Both are required.
   //
-  // What makes it acceptable is not this flag. It is
-  // `DELIVERY_RECIPIENT_ALLOWLIST`, which is required, fails closed, and is
-  // enforced twice — before a token is minted and again at the egress. This
-  // deployment can free-form text exactly the two people on that list, and a
-  // message outside a service window is refused by Meta with `131047` rather
-  // than delivered.
+  // LAN-287 removed the recipient allowlist that used to bound this, so what
+  // bounds it now is Meta itself and the two variables: free-form text is only
+  // deliverable inside a 24-hour window the recipient opened by messaging the
+  // number first, and Meta refuses anything else with `131047`. The flag is
+  // unset everywhere and stays that way outside a deliberate proof; it is not
+  // a supported production shape, and an invitation is business-initiated, so
+  // `template` remains the only mode the club's own sending uses.
   const freeFormAllowed = trimmed("WHATSAPP_ALLOW_FREE_FORM", source).toLowerCase() === "true";
 
   if (!loopback && !freeFormAllowed) {
@@ -383,24 +368,10 @@ export function resolveOutboundConfig(source: EnvironmentSource = process.env): 
     "",
   );
 
-  // Parsed before the configuration is declared complete, because an allowlist
-  // of "," or of one unparseable entry is present as a string and absent as a
-  // control. Treating it as configured would produce a deployment that refuses
-  // every recipient while reporting itself ready, which is the failure this is
-  // hardest to notice in.
-  const recipientAllowlist = parseRecipientAllowlist(
-    trimmed(RECIPIENT_ALLOWLIST_VARIABLE, source),
-    defaultCallingCode,
-  );
-  if (recipientAllowlist.length === 0) {
-    return { configured: false, missing: [RECIPIENT_ALLOWLIST_VARIABLE] };
-  }
-
   return {
     configured: true,
     config: {
       appBaseUrl,
-      recipientAllowlist,
       defaultCallingCode,
       graphBaseUrl: withDefault("WHATSAPP_GRAPH_BASE_URL", source).replace(/\/+$/, ""),
       graphVersion: withDefault("WHATSAPP_GRAPH_VERSION", source),
@@ -430,15 +401,6 @@ export function resolveEmailConfig(source: EnvironmentSource = process.env): Ema
 
   const appBaseUrl = trimmed("APP_BASE_URL", source).replace(/\/+$/, "");
 
-  // Parsed before the configuration is declared complete, exactly as the
-  // telephone allowlist is: an allowlist of "," is present as a string and
-  // absent as a control, and treating it as configured would produce a
-  // deployment that refuses every recipient while reporting itself ready.
-  const recipientAllowlist = parseEmailAllowlist(trimmed("DELIVERY_EMAIL_ALLOWLIST", source));
-  if (recipientAllowlist.length === 0) {
-    return { configured: false, missing: ["DELIVERY_EMAIL_ALLOWLIST"] };
-  }
-
   const replyTo = trimmed("EMAIL_REPLY_TO", source);
 
   // Loopback-only, and the same guard `resolveLocalTestOverrides` applies for
@@ -454,26 +416,9 @@ export function resolveEmailConfig(source: EnvironmentSource = process.env): Ema
       apiKey: trimmed("EMAIL_API_KEY", source),
       fromAddress: trimmed("EMAIL_FROM_ADDRESS", source),
       replyToAddress: replyTo === "" ? null : replyTo,
-      recipientAllowlist,
       recipientOverride: override === "" ? null : override.toLowerCase(),
     },
   };
-}
-
-/**
- * Parses the email allowlist into lowercase addresses.
- *
- * Comma, semicolon and newline separate; the space does not, for the same
- * reason it does not in the telephone allowlist. Sorted and deduplicated so two
- * orderings produce the same allowlist.
- */
-export function parseEmailAllowlist(raw: string): readonly string[] {
-  const entries = raw
-    .split(/[,;\n\r\s]+/)
-    .map((entry) => entry.trim().toLowerCase())
-    .filter((entry) => entry !== "" && entry.includes("@"));
-
-  return Object.freeze([...new Set(entries)].sort());
 }
 
 /** Resolves the callback configuration, or names what is absent. */

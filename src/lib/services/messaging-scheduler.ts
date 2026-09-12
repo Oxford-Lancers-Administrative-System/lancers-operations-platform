@@ -4,12 +4,7 @@ import { LEADERSHIP_TIER_SEATS } from "@/lib/auth/capabilities";
 import { withTransaction, type Tx } from "@/lib/db";
 import { resolveDeliveryProvider, type Transport } from "@/lib/delivery";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "@/lib/delivery/allowlist";
-import {
-  EMAIL_NOT_PERMITTED_REASON,
-  NO_USABLE_EMAIL_REASON,
-  emailPermitted,
-} from "@/lib/delivery/email";
+import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { OutboundMessage } from "@/lib/delivery/provider";
 
@@ -339,8 +334,8 @@ export async function currentPresidentIn(tx: Tx): Promise<string | null> {
  *
  * Deliberately the same, cheap existence check `dispatchEscalationJob`'s own
  * recipient lookup repeats and can still disagree with: a phone recorded here
- * as "present" can still fail to convert to E.164, or fail the deployment's
- * allowlist, once dispatch actually reads it with `selectMobileNumber`. That
+ * as "present" can still fail to convert to E.164 once dispatch actually reads
+ * it with `selectMobileNumber`. That
  * disagreement is not a bug to close here — it is exactly what
  * `dispatchEscalationJob`'s new fallback-to-email exists to recover from, the
  * same shape `scheduleWhatsAppFallbackIn` already gives a player-facing job.
@@ -982,25 +977,6 @@ export async function dispatchEscalationJob(
         return { outcome: { kind: "no-send" }, fallbackId };
       }
 
-      const permitted =
-        context.channel === "email"
-          ? emailPermitted(recipient, context.emailAllowlist)
-          : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
-
-      if (!permitted) {
-        await failClaimTerminallyIn(
-          tx,
-          jobId,
-          context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
-          job.attempt_count,
-          context.channel,
-          context.provider.name,
-        );
-        const fallbackId =
-          channel === "whatsapp" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
-        return { outcome: { kind: "no-send" }, fallbackId };
-      }
-
       const attempt = await tx.query<{ id: string }>(
         `insert into public.delivery_attempts
          (notification_job_id, attempt_number, channel, provider)
@@ -1465,18 +1441,6 @@ export async function dispatchRecruitmentCycleJob(
       return { kind: "no-send" };
     }
 
-    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        RECIPIENT_NOT_PERMITTED_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return { kind: "no-send" };
-    }
-
     // Minted here, at dispatch, never persisted at declaration —
     // `player-answer-tokens.ts`'s own rule (a previously issued plaintext
     // cannot be recovered), the same reason `claimJobIn` mints the
@@ -1779,18 +1743,6 @@ export async function dispatchOnboardingWelcomeJob(
         tx,
         jobId,
         NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return { kind: "no-send" };
-    }
-
-    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        RECIPIENT_NOT_PERMITTED_REASON,
         job.attempt_count,
         context.channel,
         context.provider.name,
@@ -2223,23 +2175,6 @@ export async function dispatchOnboardingChaseEscalationJob(
       return { kind: "no-send" };
     }
 
-    const permitted =
-      context.channel === "email"
-        ? emailPermitted(recipient, context.emailAllowlist)
-        : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
-
-    if (!permitted) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return { kind: "no-send" };
-    }
-
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
          (notification_job_id, attempt_number, channel, provider)
@@ -2523,18 +2458,6 @@ export async function dispatchOnboardingChaseJob(
       return { kind: "no-send" };
     }
 
-    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        RECIPIENT_NOT_PERMITTED_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return { kind: "no-send" };
-    }
-
     // Every later ask re-sends the same link, compiled to whatever remains
     // outstanding (`REQ-one-link`, `person_access_tokens_one_live_per_person_season`).
     // Minted here, at dispatch, never earlier — the identical reasoning the
@@ -2722,8 +2645,8 @@ function operatorChaseIdempotencyKey(eventId: string, invitationId: string, nonc
  * the invitation's own ladder, one rung above whatever the ladder has already
  * reached, dispatched through the same `dispatchJob` every automated rung and
  * every operator Retry already takes. So the WhatsApp-to-email fallback, the
- * allowlist, the consent refusal, the attempt ceiling and the recorded
- * delivery result are all exactly what they are for an automatic rung.
+ * consent refusal, the attempt ceiling and the recorded delivery result are
+ * all exactly what they are for an automatic rung.
  *
  * Each invitation runs in its own transaction, then dispatches, for
  * `sendOnboardingNudges`'s reason: one person's unreachable number must not
@@ -3001,23 +2924,6 @@ export async function dispatchNoticeJob(
         tx,
         jobId,
         context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return null;
-    }
-
-    const permitted =
-      context.channel === "email"
-        ? emailPermitted(recipient, context.emailAllowlist)
-        : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
-
-    if (!permitted) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
         job.attempt_count,
         context.channel,
         context.provider.name,

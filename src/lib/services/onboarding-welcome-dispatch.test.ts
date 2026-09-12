@@ -38,7 +38,8 @@ let observer: Client;
 let actorPersonId: string;
 let openSeasonId: string;
 
-const ALLOWLISTED_PHONES = [
+// Ofcom's reserved drama range: synthetic, and unroutable by design.
+const DRAMA_RANGE_PHONES = [
   "07700 900362",
   "07700 900363",
   "07700 900364",
@@ -48,7 +49,7 @@ const ALLOWLISTED_PHONES = [
 ];
 let phoneCounter = 0;
 function uniquePhone(): string {
-  const phone = ALLOWLISTED_PHONES[phoneCounter % ALLOWLISTED_PHONES.length];
+  const phone = DRAMA_RANGE_PHONES[phoneCounter % DRAMA_RANGE_PHONES.length];
   phoneCounter += 1;
   return phone;
 }
@@ -58,10 +59,8 @@ const CONFIGURED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test",
 };
 
 function acceptingTransport() {

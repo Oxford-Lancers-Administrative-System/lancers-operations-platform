@@ -79,11 +79,31 @@ const CONFIGURED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: PHONE,
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: EMAIL,
 };
+
+/** `PHONE` as the adapter dials it: E.164 digits, no plus. */
+const DIALLED_PHONE = PHONE.replace(/\D/g, "").replace(/^0/, "44");
+
+/**
+ * Was this request caused by this suite's own fixture?
+ *
+ * LAN-287. Until the delivery allowlists were removed, `CONFIGURED` narrowed
+ * them to this file's own `PHONE`/`EMAIL`, and that is what kept the ambient
+ * due jobs LAN-181's F-W1 describes out of `sent`: the adapter refused them
+ * before the transport was ever called. Scoping a test's own bookkeeping was
+ * never that control's job, though, and now it is done here instead — ambient
+ * jobs are accepted exactly as a real provider would accept them, and simply
+ * do not enter `sent`.
+ */
+function addressedToThisSuite(url: string, body: Record<string, unknown>): boolean {
+  if (url.endsWith("/emails")) {
+    const to = body.to;
+    return Array.isArray(to) && to.some((address) => String(address).toLowerCase() === EMAIL);
+  }
+  return String(body.to ?? "") === DIALLED_PHONE;
+}
 
 /**
  * LAN-181, F-W1. `runMessagingSweep()` is global by design — it is `readDueJobs`
@@ -117,10 +137,10 @@ const CONFIGURED: EnvironmentSource = {
  * job into `due` in the first place, so those keep the ordinary `-1` hour
  * default.
  *
- * `CONFIGURED`'s allowlist is narrowed to this file's own `PHONE`/`EMAIL`
- * (LAN-124), so ambient jobs claimed alongside a fixture can never reach
- * `sent` — the delivery adapter refuses them before the transport is ever
- * called. `sent` and per-fixture database reads (`jobsFor`, `jobRow`,
+ * `acceptingTransport` records only what is addressed to this file's own
+ * `PHONE`/`EMAIL` (see `addressedToThisSuite`), so ambient jobs claimed
+ * alongside a fixture can never reach
+ * `sent`. `sent` and per-fixture database reads (`jobsFor`, `jobRow`,
  * `escalationStateFor`) are therefore already scoped to this suite's own
  * fixture once the fixture's job is claimed, which is exactly what the
  * ordering guarantee above delivers.
@@ -149,7 +169,7 @@ function acceptingTransport() {
   const sent: { url: string; body: Record<string, unknown> }[] = [];
   const transport = async (url: string, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
-    sent.push({ url, body });
+    if (addressedToThisSuite(url, body)) sent.push({ url, body });
     const id = `wamid.${MARKER}.${crypto.randomUUID()}`;
     return new Response(
       JSON.stringify(
@@ -561,7 +581,7 @@ describe("a due rung", () => {
     const { sent, transport } = acceptingTransport();
     await runMessagingSweep({ source: CONFIGURED, transport });
 
-    // `sent` stays scoped to this fixture's own allowlisted contact (LAN-124),
+    // `sent` stays scoped to this fixture's own contact (`addressedToThisSuite`),
     // so this proves nothing was sent *to this invitee* regardless of ambient
     // volume. `summary.refused` is deliberately not asserted here — LAN-181,
     // F-W1: the repaired seed (F-A1) means this same sweep call also claims

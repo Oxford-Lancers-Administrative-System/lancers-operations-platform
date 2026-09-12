@@ -38,10 +38,11 @@ import { templateFor } from "./templates";
  *
  * No message body is logged. No API key is rendered, returned, written to
  * `delivery_attempts.failure_reason`, or put in an audit row — the refusal text
- * this module produces names Resend's own status and nothing else. And no
- * recipient outside the configured allowlist is ever sent to, which is enforced
- * by the dispatcher before a token is minted and again here at the egress, for
- * the same reason the WhatsApp adapter enforces it twice.
+ * this module produces names Resend's own status and nothing else. And nobody
+ * the club has no standing to email is reached: LAN-287 removed this module's
+ * deployment-wide address allowlist, and what decides who may be written to is
+ * the job the dispatcher created — membership, recorded consent, withdrawal and
+ * departure, each enforced where the ladder is built.
  */
 
 export const EMAIL_PROVIDER = "resend";
@@ -99,17 +100,6 @@ export function looksLikeAnEmailAddress(value: string): boolean {
 export const NO_USABLE_EMAIL_REASON =
   "This person has no usable email address on their record, so the email step could not be " +
   "attempted. Adding one is a change to their roster entry, not a delivery repair.";
-
-export const EMAIL_NOT_PERMITTED_REASON =
-  "This deployment is restricted to an approved list of email recipients, and this person is " +
-  "not on it, so nothing was sent. The restriction is deliberate and is lifted by the club's " +
-  "administrator, not by an operator.";
-
-/** Is this address on the deployment's allowlist? Empty permits nobody. */
-export function emailPermitted(recipient: string, allowlist: readonly string[]): boolean {
-  if (allowlist.length === 0) return false;
-  return allowlist.includes(recipient.trim().toLowerCase());
-}
 
 /**
  * The request body for one email.
@@ -199,14 +189,6 @@ export function createEmailProvider(
 
       if (!looksLikeAnEmailAddress(addressed)) {
         return { status: "refused", reason: NO_USABLE_EMAIL_REASON, retryable: false };
-      }
-
-      // The second enforcement, at the egress. The dispatcher already refused a
-      // recipient off the allowlist before minting a token; this one exists
-      // because a deployment restricted to two addresses must not be one code
-      // path away from messaging forty.
-      if (!emailPermitted(addressed, config.recipientAllowlist)) {
-        return { status: "refused", reason: EMAIL_NOT_PERMITTED_REASON, retryable: false };
       }
 
       const controller = new AbortController();

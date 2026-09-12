@@ -358,7 +358,7 @@ describe("the recruit event follow-up", () => {
     // template with buttonUrls repeats those URLs as text inside body() for
     // exactly this reason; this template must too, or an email recipient
     // whose WhatsApp job fell back to email (the reachable path is an
-    // unconvertible or unallowlisted number, see delivery.ts's unconditional
+    // unconvertible number, see delivery.ts's unconditional
     // scheduleWhatsAppFallbackIn) has no way to answer at all.
     const body = MESSAGE_TEMPLATES.recruit_event_followup
       .body(message({ kind: "recruit_event_followup" }))

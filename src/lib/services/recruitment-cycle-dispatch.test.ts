@@ -41,9 +41,9 @@ let seasonId: string;
 let operatorPersonId: string;
 
 // Every test recruit's mobile is drawn from this fixed pool rather than a
-// generated one, so it is always inside CONFIGURED's own allowlist below —
-// a recipient a dispatch test needs to actually be permitted to send to.
-const ALLOWLISTED_PHONES = [
+// generated one: Ofcom's reserved drama range, synthetic and unroutable by
+// design, so no fixture can name a number somebody actually answers.
+const DRAMA_RANGE_PHONES = [
   "07700 900322",
   "07700 900323",
   "07700 900324",
@@ -55,7 +55,7 @@ const ALLOWLISTED_PHONES = [
 ];
 let phoneCounter = 0;
 function uniquePhone(): string {
-  const phone = ALLOWLISTED_PHONES[phoneCounter % ALLOWLISTED_PHONES.length];
+  const phone = DRAMA_RANGE_PHONES[phoneCounter % DRAMA_RANGE_PHONES.length];
   phoneCounter += 1;
   return phone;
 }
@@ -65,10 +65,8 @@ const CONFIGURED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test",
 };
 
 function acceptingTransport() {

@@ -54,26 +54,14 @@ const PROVIDER_MESSAGE_NAMESPACE = "wamid.LAN78.";
 const PROVIDER_MESSAGE_PREFIX = `${PROVIDER_MESSAGE_NAMESPACE}${crypto.randomUUID().slice(0, 8)}.`;
 
 /**
- * Every number this suite's fixtures use, all of them in Ofcom's reserved
- * drama range. LAN-124 made the allowlist a required outbound variable, so a
- * suite that omitted it would resolve to `{ configured: false }` and prove
- * nothing about dispatch at all.
- *
- * Listed explicitly rather than derived, so that a fixture given a new number
- * fails loudly here instead of quietly exercising the refusal path while
- * looking like it tests a send.
+ * Every number this suite's fixtures use is in Ofcom's reserved drama range,
+ * which can never be dialled.
  */
-const ALLOWLISTED = ["07700 900123", "07700 900444", "07700 900111", "07700 900222"].join(",");
-
-/** A number no fixture uses, for the tests that prove the refusal. */
-const NOT_ALLOWLISTED = "07700 900555";
-
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED,
 };
 
 let observer: Client;
@@ -335,11 +323,11 @@ async function fixture(
 /**
  * A second invitee on the same event, for the batch-isolation test.
  *
- * `phone` is a parameter rather than a constant since LAN-124: proving that the
- * allowlist discriminates *between* two people on one event needs the two to
- * differ in exactly that respect.
+ * `phone` is a parameter rather than a constant, and `null` records no contact
+ * point at all: proving that a refusal discriminates *between* two people on
+ * one event needs the two to differ in exactly that respect.
  */
-async function addInvitee(tag: string, phone = "07700 900444") {
+async function addInvitee(tag: string, phone: string | null = "07700 900444") {
   const person = await observer.query<{ id: string }>(
     `insert into public.people (given_name, family_name, created_at)
      values ($1, $2, now() + interval '100 years') returning id`,
@@ -347,11 +335,13 @@ async function addInvitee(tag: string, phone = "07700 900444") {
   );
   const personId = person.rows[0].id;
 
-  await observer.query(
-    `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
-     values ($1, 'phone', $2, true)`,
-    [personId, phone],
-  );
+  if (phone !== null) {
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+       values ($1, 'phone', $2, true)`,
+      [personId, phone],
+    );
+  }
 
   const membership = await observer.query<{ id: string }>(
     `insert into public.season_memberships
@@ -695,17 +685,39 @@ describe("dispatching after approval", () => {
   });
 
   /**
-   * LAN-124. The hosted database holds the club's real roster and the deployed
-   * application holds a live provider credential; this is what stands between
-   * an approval and forty real students being messaged.
+   * LAN-287, Brian's LAN-168 decision of 2 September 2026. The deployment-wide
+   * recipient allowlist is gone: who may be messaged is a fact about the
+   * person — membership, recorded season consent, withdrawal, departure — and
+   * every one of those boundaries is enforced where the job is created, not in
+   * an environment variable.
    *
-   * The property that matters is not "the send was refused" — it is that a
-   * person outside the allowlist never has a live RSVP link in existence. A
-   * refusal at the send would leave a token issued, recorded, and having
-   * superseded whatever came before it.
+   * What the allowlist tests proved and this block still has to prove is the
+   * token property: an invitee the dispatcher will not send to must never have
+   * a live RSVP link in existence. Minting one and then refusing at the send
+   * would leave a token issued, recorded, and having superseded whatever came
+   * before it. The refusal that remains is a real one — no usable number.
    */
-  it("refuses an invitee outside the allowlist, without burning a token", async () => {
-    const { eventId, invitationId } = await fixture({ phone: NOT_ALLOWLISTED });
+  it("delivers to an invitee whose number no deployment setting names", async () => {
+    const { eventId, invitationId } = await fixture({ phone: "07700 900555" });
+    const transport = accepts();
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    expect(transport).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      (transport.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
+    );
+    expect(body.to).toBe("447700900555");
+
+    const tokens = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
+      [invitationId],
+    );
+    expect(tokens.rows[0].count).toBe("1");
+  });
+
+  it("refuses an invitee with no usable number, without burning a token", async () => {
+    const { eventId, invitationId } = await fixture({ phone: null });
     const transport = accepts();
 
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
@@ -713,9 +725,9 @@ describe("dispatching after approval", () => {
     expect(transport).not.toHaveBeenCalled();
 
     const current = await row(eventId);
-    expect(current.failureReason).toMatch(/approved list of recipients/i);
-    // The reason is rendered on the delivery screen. The numbers behind this
-    // control are private and none of them belongs in it.
+    expect(current.failureReason).toMatch(/no usable mobile number/i);
+    // The reason is rendered on the delivery screen, and a telephone number
+    // does not belong on it.
     expect(current.failureReason).not.toMatch(/\d{4,}/);
 
     const tokens = await observer.query<{ count: string }>(
@@ -725,29 +737,12 @@ describe("dispatching after approval", () => {
     expect(tokens.rows[0].count).toBe("0");
   });
 
-  it("still delivers to an invitee who is on the allowlist", async () => {
-    // The counterpart, so that a control which refused everybody would fail
-    // here rather than passing the test above and looking correct.
-    const { eventId, invitationId } = await fixture({ phone: "07700 900123" });
-    const transport = accepts();
-
-    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
-
-    expect(transport).toHaveBeenCalledTimes(1);
-
-    const tokens = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
-      [invitationId],
-    );
-    expect(tokens.rows[0].count).toBe("1");
-  });
-
-  it("sends to the listed invitee and refuses the unlisted one in the same event", async () => {
-    // The showcase's actual shape: one audience, most of it real roster, two
-    // people who may be reached. A control that worked per-deployment but not
-    // per-recipient would pass both tests above and fail this one.
+  it("sends to the reachable invitee and refuses the unreachable one in the same event", async () => {
+    // One audience, two people, one of whom has no number on file. A refusal
+    // that worked per-deployment rather than per-recipient would pass both
+    // tests above and fail this one.
     const { eventId } = await fixture({ phone: "07700 900123" });
-    const stranger = await addInvitee("unlisted", NOT_ALLOWLISTED);
+    const stranger = await addInvitee("unreachable", null);
     const transport = accepts();
 
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
@@ -963,7 +958,7 @@ describe("revoke and reissue", () => {
    */
   it("refuses a held job, and its live token survives", async () => {
     const { eventId, invitationId, jobId } = await fixture();
-    // A failed attempt with a usable, allowlisted number still mints a
+    // A failed attempt with a usable number still mints a
     // token before the provider is asked — see `claimJobIn`.
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
@@ -1664,7 +1659,6 @@ const CONFIGURED_WITH_EMAIL: EnvironmentSource = {
   ...CONFIGURED,
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: "lan173.fallback@example.test",
 };
 
 async function addEmail(personId: string, email = "lan173.fallback@example.test") {
@@ -1753,9 +1747,9 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
   });
 
   it("never sends the fallback on a channel the person has not consented to: no email on file", async () => {
-    // The consent gate the fallback shares with every other email job:
-    // `selectEmailAddress` -> `emailPermitted`, exactly the path an ordinary
-    // email rung takes. No email contact_points row means nothing to send to.
+    // The same route selection every other email job takes:
+    // `selectEmailAddress`. No email contact_points row means nothing to
+    // send to.
     const { eventId, jobId } = await fixture();
 
     await dispatchJob(jobId, {
@@ -1782,9 +1776,14 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
     expect(attempt.rows[0].outcome).toBe("rejected");
   });
 
-  it("never sends the fallback to an email outside this deployment's allowlist", async () => {
+  it("sends the fallback to whatever address the person has on file — LAN-287", async () => {
+    // The email allowlist is gone (Brian, LAN-168, 2 September 2026). The
+    // fallback is a rung of the same ladder as the WhatsApp attempt that
+    // failed, so it reaches the same person at the address their record
+    // carries; a second restriction governing only this channel would have
+    // meant one person eligible on WhatsApp and ineligible by email.
     const { eventId, jobId, personId } = await fixture();
-    await addEmail(personId, "not-allowlisted@example.test");
+    await addEmail(personId, "someone.else@example.test");
 
     await dispatchJob(jobId, {
       source: CONFIGURED_WITH_EMAIL,
@@ -1793,8 +1792,15 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
 
     const fallbacks = await fallbackJobFor(eventId);
     expect(fallbacks).toHaveLength(1);
-    expect(fallbacks[0].status).toBe("failed");
-    expect(fallbacks[0].last_error).toMatch(/restricted to an approved list/i);
+    expect(fallbacks[0].status).toBe("processing");
+
+    const attempt = await observer.query<{ channel: string }>(
+      `select channel::text as channel from public.delivery_attempts
+        where notification_job_id = $1`,
+      [fallbacks[0].id],
+    );
+    expect(attempt.rows).toHaveLength(1);
+    expect(attempt.rows[0].channel).toBe("email");
   });
 
   it("creates at most one fallback row, however many times the original job is retried", async () => {

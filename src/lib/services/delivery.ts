@@ -17,12 +17,7 @@ import {
   type Transport,
 } from "@/lib/delivery";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "@/lib/delivery/allowlist";
-import {
-  EMAIL_NOT_PERMITTED_REASON,
-  NO_USABLE_EMAIL_REASON,
-  emailPermitted,
-} from "@/lib/delivery/email";
+import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
 import { recordAudit } from "./audit";
@@ -466,7 +461,7 @@ async function claimJobIn(
   // deliberately the only one. Everything below — the token, the attempt row,
   // the message — is identical on both channels, because a rung carried by
   // email is the same message as the rung carried by WhatsApp. What differs is
-  // only what counts as a usable route and which allowlist governs it.
+  // only what counts as a usable route.
   const route =
     context.channel === "email"
       ? selectEmailAddress(contacts.rows, context)
@@ -627,14 +622,6 @@ function selectWhatsAppRoute(rows: readonly ContactRow[], context: DeliveryConte
 
   if (!recipient) return { ok: false, reason: NO_USABLE_NUMBER_REASON };
 
-  // LAN-124. Before a token is minted, and for a stronger reason than tidiness:
-  // a person this deployment may not message must not have a live RSVP link in
-  // existence at all. Refusing at the send would leave a working link that had
-  // been issued, recorded and superseded whatever came before it.
-  if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
-    return { ok: false, reason: RECIPIENT_NOT_PERMITTED_REASON };
-  }
-
   return { ok: true, recipient };
 }
 
@@ -654,10 +641,6 @@ function selectEmailAddress(rows: readonly ContactRow[], context: DeliveryContex
   if (!candidate) return { ok: false, reason: NO_USABLE_EMAIL_REASON };
 
   const recipient = (candidate.normalised_value ?? candidate.raw_value).trim().toLowerCase();
-
-  if (!emailPermitted(recipient, context.emailAllowlist)) {
-    return { ok: false, reason: EMAIL_NOT_PERMITTED_REASON };
-  }
 
   return { ok: true, recipient };
 }
