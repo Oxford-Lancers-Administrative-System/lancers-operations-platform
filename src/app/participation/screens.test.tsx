@@ -1283,7 +1283,8 @@ describe("the delivery column's exceptions and chase position", () => {
           answer: "yes",
           delivery: "cancelled",
           chasePosition: null,
-          remindersStoppedReason: "The invitee responded, so this reminder is no longer needed.",
+          remindersStopped: true,
+          cancelledReason: "The invitee responded, so this reminder is no longer needed.",
         }),
       ],
     };
@@ -1298,7 +1299,7 @@ describe("the delivery column's exceptions and chase position", () => {
       (row) => row.textContent?.includes("Gideon Thornbury"),
     )!;
     expect(row.textContent).toContain("Reminders stopped");
-    expect(row.querySelector('[data-testid="reminders-stopped"]')?.textContent).toBe(
+    expect(row.querySelector('[data-testid="cancelled-reason"]')?.textContent).toBe(
       "The invitee responded, so this reminder is no longer needed.",
     );
     // The word that named nothing is gone from this row, and the answer stays.
@@ -1324,7 +1325,43 @@ describe("the delivery column's exceptions and chase position", () => {
       (row) => row.textContent?.includes("Gideon Thornbury"),
     )!;
     expect(row.textContent).toContain("Cancelled");
-    expect(row.querySelector('[data-testid="reminders-stopped"]')).toBeNull();
+    expect(row.querySelector('[data-testid="cancelled-reason"]')).toBeNull();
+  });
+
+  it("says why a recruit's messages were cancelled — LAN-341", () => {
+    // Walk finding F3. LAN-341 records "Recruit moved to declined." against
+    // every job it stands down, and the participation row showed the bare word
+    // **Cancelled**, which could equally have meant the event was called off or
+    // the runway ran out. The state is unchanged; the reason is beneath it.
+    const exited = {
+      ...OPERATOR,
+      people: [
+        ...PEOPLE,
+        unanswered({
+          answer: "no",
+          delivery: "cancelled",
+          chasePosition: null,
+          cancelledReason: "Recruit moved to declined.",
+        }),
+      ],
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={exited}
+        filters={filters()}
+      />,
+    );
+    const row = Array.from(container.querySelectorAll('[data-testid="participation-row"]')).find(
+      (row) => row.textContent?.includes("Gideon Thornbury"),
+    )!;
+    // Not LAN-296's exception: this was not the answer's own reminder, so the
+    // chip keeps the state's own word.
+    expect(row.textContent).toContain("Cancelled");
+    expect(row.textContent).not.toContain("Reminders stopped");
+    expect(row.querySelector('[data-testid="cancelled-reason"]')?.textContent).toBe(
+      "Recruit moved to declined.",
+    );
   });
 
   it("reads Not dispatched — no channel for a person with no usable route, and shows no chase position", () => {

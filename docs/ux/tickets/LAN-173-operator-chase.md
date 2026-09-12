@@ -70,7 +70,10 @@ Four workflows, none of which share files with each other:
   own recorded reason — "The invitee responded, so this reminder is no longer needed." — sits
   beneath it. Matched on that exact sentence, which `stopChasingIn` and LAN-292's dispatch-time
   withhold both write, so a reminder cancelled with the event or dropped by a rescheduled runway
-  keeps its own reason and still reads **Cancelled**.
+  keeps its own reason and still reads **Cancelled**. LAN-341 widened the line beneath the chip to
+  every recorded reason, its own two included ("Recruit moved to declined.", "Recruit joined the
+  roster."), which were written and shown nowhere; the chip exception above stays LAN-296's alone,
+  so every other cancellation reads **Cancelled** with its reason under it.
 - The Delivery filter gains **Needs attention**, matching exactly the failed and retryable people
   — the same predicate `delivery/presentation.ts`'s own filter of the same name uses, so the two
   screens' filter agrees.

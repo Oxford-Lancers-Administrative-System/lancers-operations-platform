@@ -233,6 +233,10 @@ export default function RecruitmentRecordView({
                   `Sent — last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
                 ) : record.personal.queuedFor ? (
                   <QueuedSendTime scheduledFor={record.personal.queuedFor} />
+                ) : record.personal.cancelledReason ? (
+                  /* LAN-341: the state is still Not sent, and the club's own
+                     recorded reason says why nothing more is coming. */
+                  `Not sent — ${record.personal.cancelledReason}`
                 ) : (
                   "Not sent"
                 )}
@@ -307,6 +311,10 @@ export default function RecruitmentRecordView({
                   `Sent — last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
                 ) : record.recruitment.queuedFor ? (
                   <QueuedSendTime scheduledFor={record.recruitment.queuedFor} />
+                ) : record.recruitment.cancelledReason ? (
+                  /* LAN-341: the state is still Not sent, and the club's own
+                     recorded reason says why nothing more is coming. */
+                  `Not sent — ${record.recruitment.cancelledReason}`
                 ) : (
                   "Not sent"
                 )}

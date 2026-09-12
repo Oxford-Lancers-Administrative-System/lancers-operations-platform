@@ -563,17 +563,20 @@ describe("the participation table", () => {
     // filters and the counts still see exactly what they saw before.
     expect(person.delivery).toBe("cancelled");
     // And now the row carries what it is about: the reminder, and the cause.
-    expect(person.remindersStoppedReason).toBe(
+    expect(person.remindersStopped).toBe(true);
+    expect(person.cancelledReason).toBe(
       "The invitee responded, so this reminder is no longer needed.",
     );
     expect(person.answer).toBe("yes");
   });
 
-  it("leaves a reminder cancelled with the event reading Cancelled, with no stopped-reminder line", async () => {
+  it("leaves a reminder cancelled with the event reading Cancelled, and says the event was", async () => {
     // The distinction the ticket insists on: an actual event cancellation must
     // still look different. `cancelEvent` writes its own reason and cancels
-    // the invitation job too, so the chip is unchanged and this row carries no
-    // reminder line at all.
+    // the invitation job too, so the chip keeps the state's own word — and
+    // since LAN-341 the club's recorded reason is carried through here as well,
+    // because a cancellation whose cause is on no screen is the same gap
+    // LAN-296 closed for one sentence only.
     const staged = await scenario();
     await observer.query(
       `update public.notification_jobs
@@ -586,7 +589,8 @@ describe("the participation table", () => {
     const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
 
     expect(person.delivery).toBe("cancelled");
-    expect(person.remindersStoppedReason).toBeNull();
+    expect(person.remindersStopped).toBe(false);
+    expect(person.cancelledReason).toBe("The event was cancelled.");
   });
 
   it("leaves a reminder the rescheduled runway dropped reading as a plain cancellation", async () => {
@@ -607,7 +611,47 @@ describe("the participation table", () => {
     const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
 
     expect(person.delivery).toBe("cancelled");
-    expect(person.remindersStoppedReason).toBeNull();
+    expect(person.remindersStopped).toBe(false);
+    expect(person.cancelledReason).toBe(
+      "The rescheduled runway no longer has room for this reminder.",
+    );
+  });
+
+  /**
+   * LAN-341, walk finding F3. The reason the exit records is the one an
+   * operator most needs, because it is the only one describing something that
+   * happened to the person rather than to the event: nothing was sent, and the
+   * bare word Cancelled said nothing about why.
+   */
+  it("says a recruit's status change stood their messages down", async () => {
+    const staged = await scenario();
+    await observer.query(
+      `update public.notification_jobs
+          set status = 'cancelled', cancelled_reason = 'Recruit moved to declined.'
+        where invitation_id = $1`,
+      [staged.invitations[0].id],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
+
+    expect(person.delivery).toBe("cancelled");
+    expect(person.remindersStopped).toBe(false);
+    expect(person.cancelledReason).toBe("Recruit moved to declined.");
+  });
+
+  it("carries no reason at all for a cancellation nobody recorded one for", async () => {
+    const staged = await scenario();
+    await observer.query(
+      `update public.notification_jobs set status = 'cancelled' where invitation_id = $1`,
+      [staged.invitations[0].id],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
+
+    expect(person.delivery).toBe("cancelled");
+    expect(person.cancelledReason).toBeNull();
   });
 
   it("is readable long before the register opens", async () => {

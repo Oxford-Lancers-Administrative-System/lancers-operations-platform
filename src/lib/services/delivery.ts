@@ -1855,6 +1855,14 @@ export interface DeliveryRow {
   readonly attemptCount: number;
   /** Safe, provider-neutral. Never raw provider text. */
   readonly failureReason: string | null;
+  /**
+   * The club's own recorded reason for standing this message down — LAN-296's
+   * answered reminder, LAN-156's cancelled event, LAN-341's recruit status
+   * change. `null` unless this row is `cancelled`, because it says nothing
+   * about any other state. A cancellation nobody recorded a reason for stays
+   * `null` and reads as the bare state.
+   */
+  readonly cancelledReason: string | null;
   readonly tokenState: "live" | "revoked" | "none";
   readonly responseState: string;
   readonly retryable: boolean;
@@ -2031,6 +2039,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
       last_attempt_at: Date | null;
       next_attempt_at: Date | null;
       failure_reason: string | null;
+      cancelled_reason: string | null;
       token_state: "live" | "revoked" | "none";
       response_state: string | null;
       fallback_status: string | null;
@@ -2047,6 +2056,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
                 where a.notification_job_id = j.id) as last_attempt_at,
               j.next_attempt_at,
               j.last_error as failure_reason,
+              j.cancelled_reason,
               case
                 when exists (
                   select 1 from public.rsvp_access_tokens t
@@ -2096,6 +2106,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         nextAttemptAt: row.next_attempt_at,
         attemptCount: row.attempt_count,
         failureReason: row.failure_reason,
+        cancelledReason: row.state === "cancelled" ? row.cancelled_reason : null,
         tokenState: row.token_state,
         responseState: row.response_state ?? "not_solicited",
         noUsableRoute,

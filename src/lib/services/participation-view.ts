@@ -105,16 +105,22 @@ export interface OperatorParticipationPerson extends ParticipationPerson {
   readonly noUsableRoute?: boolean;
   readonly whatsappUnresponsive?: boolean;
   /**
-   * LAN-296. The club's own recorded reason, set only when the job this row's
-   * `delivery` state describes is a reminder that this person's own answer
-   * stopped. `null` for everybody else — including a reminder cancelled with
-   * the event or dropped by a rescheduled runway, which are different facts
-   * and keep reading as a plain **Cancelled**.
+   * The club's own recorded reason for cancelling the job this row's `delivery`
+   * state describes — LAN-296 for the answer's own reminder, LAN-341 for a
+   * recruit's status change. `null` whenever nothing was recorded, or the state
+   * is not `cancelled`.
    *
    * It names the state rather than changing it: the filters, the counts and
    * the state itself are untouched, and the answer column stays primary.
    */
-  readonly remindersStoppedReason?: string | null;
+  readonly cancelledReason?: string | null;
+  /**
+   * LAN-296's exception: what was cancelled was this person's reminders,
+   * stopped by their own answer, and the bare word could equally have meant the
+   * invitation or the event. The chip says so; every other cancellation keeps
+   * reading as a plain **Cancelled** with its reason beneath.
+   */
+  readonly remindersStopped?: boolean;
 }
 
 export interface EventFactsBase {

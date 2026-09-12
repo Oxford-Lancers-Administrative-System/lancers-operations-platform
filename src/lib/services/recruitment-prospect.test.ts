@@ -1335,4 +1335,31 @@ describe("LAN-341 — a status change cancels what is still in flight", () => {
     expect(afterSweep.every((row) => row.status === "cancelled")).toBe(true);
     expect(afterSweep.some((row) => row.status === "failed")).toBe(false);
   }, 30_000);
+
+  /**
+   * Walk finding F3. The cancellation was written and shown on no screen: the
+   * recruitment cycle has no operator list, so the record's own send caption is
+   * the only place a cancelled step can appear, and it read "Not sent" — the
+   * same thing it says for a recruit nothing was ever queued for.
+   */
+  it("reports the flip's reason on the record the operator reads", async () => {
+    const { personId, prospectId } = await newProspect("committed");
+    await grantConsentViaWalkUp(personId);
+    await giveMobile(personId);
+    await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, actorPersonId, prospectId, "personal"),
+    );
+
+    const queued = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
+    expect(queued?.personal.queuedFor).not.toBeNull();
+    expect(queued?.personal.cancelledReason).toBeNull();
+
+    await withTransaction((tx) => flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId));
+
+    const record = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
+    expect(record?.personal.queuedFor).toBeNull();
+    expect(record?.personal.cancelledReason).toBe("Recruit joined the roster.");
+    // The other track had nothing queued, so there is nothing to explain there.
+    expect(record?.recruitment.cancelledReason).toBeNull();
+  }, 30_000);
 });
