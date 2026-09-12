@@ -95,6 +95,14 @@ export const DELIVERY_NOT_QUEUED = "Nothing queued";
 export const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
 export const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
 
+/**
+ * LAN-296's exception, for the same reason the two above exist: a bare
+ * **Cancelled** beside a recorded Yes named nothing, and the invitation, the
+ * answer, the reminder and the event can each be cancelled. This says which,
+ * and the recorded reason beneath it says why.
+ */
+export const REMINDERS_STOPPED = "Reminders stopped";
+
 /** The Delivery filter's own entry for W4's acceptance #3, above the five states. */
 export const NEEDS_ATTENTION_FILTER_LABEL = "Needs attention";
 

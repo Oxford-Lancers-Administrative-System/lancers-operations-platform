@@ -97,12 +97,14 @@ export interface OperatorParticipationPerson extends ParticipationPerson {
   readonly noUsableRoute?: boolean;
   readonly whatsappUnresponsive?: boolean;
   /**
-   * LAN-296. The club's own recorded reason for stopping this person's
-   * reminders, present only when their own answer is what stopped them —
-   * `null` for everybody else, including a reminder cancelled with the event
-   * or dropped by a rescheduled runway, which are different facts and read
-   * differently. It is a detail beside the delivery state, never a
-   * replacement for it: the invitation still reports whether it reached them.
+   * LAN-296. The club's own recorded reason, set only when the job this row's
+   * `delivery` state describes is a reminder that this person's own answer
+   * stopped. `null` for everybody else — including a reminder cancelled with
+   * the event or dropped by a rescheduled runway, which are different facts
+   * and keep reading as a plain **Cancelled**.
+   *
+   * It names the state rather than changing it: the filters, the counts and
+   * the state itself are untouched, and the answer column stays primary.
    */
   readonly remindersStoppedReason?: string | null;
 }

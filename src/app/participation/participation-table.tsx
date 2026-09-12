@@ -40,6 +40,7 @@ import {
   NOT_DISPATCHED_NO_CHANNEL,
   NOTHING,
   presenceLabel,
+  REMINDERS_STOPPED,
   TABLE_HEADINGS,
   WHATSAPP_UNRESPONSIVE,
 } from "./presentation";
@@ -130,6 +131,9 @@ function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
 function deliveryChipLabel(person: OperatorParticipationPerson, state: string): string {
   if (person.noUsableRoute) return NOT_DISPATCHED_NO_CHANNEL;
   if (person.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
+  // LAN-296's exception: what was cancelled was this person's reminders, and
+  // the bare word could equally have meant the invitation or the event.
+  if (person.remindersStoppedReason) return REMINDERS_STOPPED;
   return DELIVERY_LABELS[state] ?? state;
 }
 
@@ -166,11 +170,9 @@ function DeliveryCell({
         </Typography>
       ) : null}
       {/*
-        LAN-296. The club's own recorded reason, beside the chip rather than in
-        place of it: the chip keeps saying whether the invitation reached this
-        person, and this says what stopped their reminders. A reminder cancelled
-        with the event or dropped by a rescheduled runway carries neither this
-        line nor a Delivered chip — it reads Cancelled, as it did before.
+        LAN-296. The club's own recorded reason, beneath the chip that now
+        names the reminder. A reminder cancelled with the event or dropped by a
+        rescheduled runway carries neither, and still reads Cancelled.
       */}
       {person.remindersStoppedReason ? (
         <Typography variant="caption" color="text.secondary" data-testid="reminders-stopped">

@@ -525,6 +525,9 @@ describe("the participation table", () => {
       [`${NAME_MARKER}:lan296:invitation:${invitationId}`, invitationId, eventId, tiedAt],
     );
 
+    // Both rungs cancelled, as `stopChasingIn` leaves them, so the recency
+    // order's winner — the last rung — is one of them. That is the row Brian
+    // read as a bare "Cancelled".
     for (const [rung, channel, hours] of [
       [1, "whatsapp", 24],
       [2, "email", 48],
@@ -549,20 +552,21 @@ describe("the participation table", () => {
     }
   }
 
-  it("reads Delivered beside a stopped reminder's own recorded reason, not a bare Cancelled", async () => {
+  it("says which cancellation the Cancelled state is, in the club's own recorded words", async () => {
     const staged = await scenario();
     await answeredWithStoppedReminders(staged.invitations[0].id, staged.eventId);
 
     const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
     const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
 
-    // The invitation's own state, which is what the column asks about.
-    expect(person.delivery).toBe("delivered");
-    // And beside it, what actually stopped: the reminder, in the club's own
-    // recorded words, naming the cause.
+    // The state is unchanged — this is a label, not a different answer, so the
+    // filters and the counts still see exactly what they saw before.
+    expect(person.delivery).toBe("cancelled");
+    // And now the row carries what it is about: the reminder, and the cause.
     expect(person.remindersStoppedReason).toBe(
       "The invitee responded, so this reminder is no longer needed.",
     );
+    expect(person.answer).toBe("yes");
   });
 
   it("leaves a reminder cancelled with the event reading Cancelled, with no stopped-reminder line", async () => {
@@ -585,27 +589,25 @@ describe("the participation table", () => {
     expect(person.remindersStoppedReason).toBeNull();
   });
 
-  it("still reports a real delivery failure when a stopped reminder is the newer job", async () => {
-    // The failure mode of excluding rows from a lateral: exclude too much and
-    // a genuine failure disappears behind an answer. The invitation here
-    // failed terminally, and that is what the operator must still read.
+  it("leaves a reminder the rescheduled runway dropped reading as a plain cancellation", async () => {
+    // The third cancellation, and the one that proves this is not simply
+    // "every cancelled reminder": `amendApprovedEvent` drops a rung the new
+    // runway has no room for, with its own reason, and nobody answered
+    // anything. It stays a bare Cancelled, because that is what it is.
     const staged = await scenario();
     await answeredWithStoppedReminders(staged.invitations[0].id, staged.eventId);
     await observer.query(
       `update public.notification_jobs
-          set status = 'failed', attempt_count = 5, last_error = $2
-        where invitation_id = $1 and job_type = 'invitation'`,
-      [staged.invitations[0].id, NO_USABLE_NUMBER_REASON],
+          set cancelled_reason = 'The rescheduled runway no longer has room for this reminder.'
+        where invitation_id = $1 and job_type = 'reminder'`,
+      [staged.invitations[0].id],
     );
 
     const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
     const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
 
-    expect(person.delivery).toBe("failed");
-    expect(person.noUsableRoute).toBe(true);
-    expect(person.remindersStoppedReason).toBe(
-      "The invitee responded, so this reminder is no longer needed.",
-    );
+    expect(person.delivery).toBe("cancelled");
+    expect(person.remindersStoppedReason).toBeNull();
   });
 
   it("is readable long before the register opens", async () => {
