@@ -188,7 +188,9 @@ send line and gains **Sends to** — the one current mobile a send would actuall
 pick, so the destination is readable beside the action that uses it. It is the
 dispatcher's own `selectMobileNumber` choice, converted, and so it is the number
 that would be handed to the provider rather than the raw string of whichever
-contact happens to be preferred; where nothing recorded can be converted it
+contact happens to be preferred; it is written in full E.164 with its `+`, the
+same shape the Mobile phone fact shows, so the two can be read against each
+other without translation; and where nothing recorded can be converted it
 reads "not recorded", the same as any other absent fact. It is
 retitled **Personal questionnaire**, because five sections that really are the
 person now follow it and two headings called Person would be a worse page than

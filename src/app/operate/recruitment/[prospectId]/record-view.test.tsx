@@ -188,7 +188,7 @@ describe("LAN-307 — the recruit record shows the whole person record", () => {
     const person = screen.getByTestId("section-person");
     expect(person.textContent).toContain("Sends to");
     expect(person.textContent).toContain(
-      selectMobileNumber(FULL_PERSON.contacts, DEFAULT_CALLING_CODE)!,
+      `+${selectMobileNumber(FULL_PERSON.contacts, DEFAULT_CALLING_CODE)!}`,
     );
     // The action it qualifies is in the same card, not a section away.
     expect(person.querySelector('[data-testid="recruitment-send-personal"]')).not.toBeNull();
@@ -235,7 +235,7 @@ describe("LAN-307 — the recruit record shows the whole person record", () => {
 
       const chosen = selectMobileNumber(contacts, DEFAULT_CALLING_CODE);
       expect(chosen).toBe("447700900987");
-      expect(sendsTo()).toContain(chosen!);
+      expect(sendsTo()).toContain(`+${chosen!}`);
       expect(sendsTo()).not.toContain("7700 900321");
     });
 
@@ -258,7 +258,20 @@ describe("LAN-307 — the recruit record shows the whole person record", () => {
         phone({ id: "current", rawValue: "07700 900987" }),
       ];
       render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
-      expect(sendsTo()).toContain("447700900987");
+      expect(sendsTo()).toContain("+447700900987");
+    });
+
+    /**
+     * LAN-307's walk: the Mobile phone fact on the person record renders
+     * `+447700900873` and this field rendered `447700900873` for the same
+     * number, so an operator checking one against the other was comparing two
+     * strings that did not look alike. E.164 is written with its `+`; the bare
+     * digits are the provider's wire format, not the club's.
+     */
+    it("writes the destination the way the record writes the number", () => {
+      const contacts = [phone({ id: "current", rawValue: "+447700900873" })];
+      render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
+      expect(sendsTo()).toContain("+447700900873");
     });
   });
 

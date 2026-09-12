@@ -134,8 +134,15 @@ export function ContactSection({
  * when a number cannot be converted, so a contact a send would skip was shown
  * as the destination; and it converts `normalised_value` first, so even for the
  * contact it does pick, the raw string is not necessarily where the message
- * goes. What is shown is therefore the converted E.164 destination itself —
- * character for character what would be handed to the provider.
+ * goes. What is shown is therefore the converted E.164 destination itself.
+ *
+ * Written the way E.164 is written, with its `+`. `selectMobileNumber` returns
+ * bare digits because that is the shape the WhatsApp Cloud API wants, and
+ * LAN-307's walk found the consequence: the Mobile phone fact one card away
+ * read `+447700900873` and this one read `447700900873`, so an operator
+ * checking the destination against the number on the record was comparing two
+ * different-looking strings and had to work out that they were the same. The
+ * `+` is a rendering of the same value, not a second opinion about it.
  *
  * `valid_until` is filtered here rather than there: `selectMobileNumber` is
  * given current rows by every one of its callers, which is where "this number
@@ -148,5 +155,6 @@ export function ContactSection({
  */
 export function recordedMobile(record: VisiblePersonRecord): string | null {
   const current = (record.contacts ?? []).filter((contact) => contact.validUntil === null);
-  return selectMobileNumber(current, DEFAULT_CALLING_CODE);
+  const digits = selectMobileNumber(current, DEFAULT_CALLING_CODE);
+  return digits === null ? null : `+${digits}`;
 }
