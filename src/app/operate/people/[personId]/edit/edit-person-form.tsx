@@ -9,7 +9,7 @@ import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import { Field, DateField } from "@/components/field";
+import { Field, DateField, NO_AUTOFILL, preventImplicitSubmit } from "@/components/field";
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
@@ -61,7 +61,12 @@ export default function EditPersonForm({
   const ec = record.emergencyContact;
 
   return (
-    <Box component="form" action={formAction} sx={{ maxWidth: 880 }}>
+    <Box
+      component="form"
+      action={formAction}
+      onKeyDown={preventImplicitSubmit}
+      sx={{ maxWidth: 880 }}
+    >
       <input type="hidden" name="personId" value={personId} />
       <input type="hidden" name="expectedVersion" value={expectedVersion ?? ""} />
 
@@ -337,6 +342,9 @@ function CorrectableField({
           label={label}
           type={type}
           required={required}
+          // LAN-324: every field here is about the person on the screen, and
+          // Chrome would otherwise offer the operator's own saved profile.
+          autoComplete={NO_AUTOFILL}
           value={value}
           onChange={(event) => setValue(event.target.value)}
           error={Boolean(error)}
@@ -344,7 +352,9 @@ function CorrectableField({
         />
       )}
       {renderExtra ? renderExtra(value, changed) : null}
-      {needsReason ? <Field name={reasonName} label="Reason for the change" /> : null}
+      {needsReason ? (
+        <Field name={reasonName} label="Reason for the change" autoComplete={NO_AUTOFILL} />
+      ) : null}
     </>
   );
 }

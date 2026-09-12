@@ -5,7 +5,7 @@
  * it, what it groups and sorts, and what each status reads.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -16,6 +16,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
+// LAN-322. The queue's own action, mocked: what is under test here is the
+// screen — who is offered the control, what it is called with, and what the
+// row says afterwards. `sendEventChases` itself is proved against the real
+// database in `src/lib/services/follow-ups.test.ts`.
+vi.mock("./actions", () => ({ chaseSelectedAction: vi.fn() }));
 vi.mock("@/lib/services/follow-ups", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/follow-ups")>();
   return { ...actual, readFollowUpsQueue: vi.fn() };
@@ -42,8 +47,9 @@ import { readEventYear } from "@/app/calendar/year";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { readFollowUpsQueue, type FollowUpEvent } from "@/lib/services/follow-ups";
 import { readCurrentSeason } from "@/lib/services/seasons";
+import { chaseSelectedAction } from "./actions";
 import FollowUpsPage from "./page";
-import { RANGE_FROM_LABEL, RANGE_TO_LABEL, TABLE_PERSON } from "./presentation";
+import { LAST_MESSAGE_NONE, RANGE_FROM_LABEL, RANGE_TO_LABEL, TABLE_PERSON } from "./presentation";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -67,6 +73,10 @@ async function renderPage(query: Record<string, string> = {}) {
   return render(element);
 }
 
+/** The delivery path's own recorded sentences, abbreviated to their load-bearing half. */
+const NO_NUMBER = "No usable mobile number is recorded for this person.";
+const UNCONFIGURED = "Automated delivery is not configured on this deployment.";
+
 const HAWKS: FollowUpEvent = {
   eventId: "event-hawks",
   eventName: "vs Harewell Hawks",
@@ -75,24 +85,37 @@ const HAWKS: FollowUpEvent = {
   people: [
     {
       invitationId: "invitation-1",
+      personId: "person-gideon",
       personName: "Gideon Thornbury",
       deadline: new Date("2026-09-13T17:00:00Z"),
       chasePosition: "WhatsApp 2 sent · email Fri 09:00",
       status: "escalated",
+      lastDelivery: {
+        state: "delivered",
+        channel: "whatsapp",
+        at: new Date("2026-09-11T08:00:00Z"),
+      },
+      chaseable: true,
     },
     {
       invitationId: "invitation-2",
+      personId: "person-marlowe",
       personName: "Marlowe Fairhurst",
       deadline: new Date("2026-09-13T17:00:00Z"),
       chasePosition: null,
       status: "delivery_problem",
+      lastDelivery: { state: "failed", channel: "whatsapp", at: new Date("2026-09-11T08:00:00Z") },
+      chaseable: true,
     },
     {
       invitationId: "invitation-3",
+      personId: "person-peregrine",
       personName: "Peregrine Oakhanger",
       deadline: new Date("2026-09-13T17:00:00Z"),
       chasePosition: null,
       status: "escalation_held",
+      lastDelivery: null,
+      chaseable: true,
     },
   ],
 };
@@ -105,10 +128,17 @@ const PRACTICE: FollowUpEvent = {
   people: [
     {
       invitationId: "invitation-4",
+      personId: "person-rufus",
       personName: "Rufus",
       deadline: new Date("2026-09-17T18:00:00Z"),
       chasePosition: "Invitation delivered · WhatsApp 2 Wed 09:00",
       status: "chasing",
+      lastDelivery: {
+        state: "delivered",
+        channel: "whatsapp",
+        at: new Date("2026-09-10T08:00:00Z"),
+      },
+      chaseable: true,
     },
   ],
 };
@@ -117,6 +147,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   cleanup();
   vi.mocked(readFollowUpsQueue).mockResolvedValue([HAWKS, PRACTICE]);
+  vi.mocked(chaseSelectedAction).mockResolvedValue({
+    error: null,
+    accepted: 0,
+    refusals: [],
+    notOutstandingInvitationIds: [],
+  });
   signedInAs(["secretary"]);
   // "This term" only: today (2026-09-13, mocked above) inside a term running
   // 2026-09-10 to 2026-09-14 — wide enough to hold HAWKS (09-13), narrow
@@ -251,8 +287,19 @@ describe("the queue itself", () => {
  * OWNER-LAN173-05: "at the very least, these columns should be sortable" —
  * reusing the participation table's own link-and-arrow mechanism
  * (`@/lib/services/participation-view`'s `sortColumnHref`/`sortColumnState`,
- * `SortableColumnHeading`) rather than a second one.
+ * `SortableHeader`) rather than a second one.
  */
+/**
+ * The Person cell, by name rather than by position: LAN-322 put a selection
+ * checkbox in front of it for a seat that may chase, so the first `td` is no
+ * longer the name.
+ */
+function personCells(): (string | undefined)[] {
+  return screen
+    .getAllByTestId("follow-ups-row")
+    .map((row) => row.querySelector("td[data-cell='person']")?.textContent ?? undefined);
+}
+
 describe("sorting the queue", () => {
   it("heads every column with a link that sorts by it, carrying the other filters", async () => {
     const { container } = await renderPage({ q: "e", status: "escalated" });
@@ -271,8 +318,7 @@ describe("sorting the queue", () => {
 
   it("defaults to soonest event first, exactly as before this correction", async () => {
     await renderPage();
-    const rows = screen.getAllByTestId("follow-ups-row");
-    expect(rows.map((row) => row.querySelector("td")?.textContent)).toEqual([
+    expect(personCells()).toEqual([
       "Gideon Thornbury",
       "Marlowe Fairhurst",
       "Peregrine Oakhanger",
@@ -282,8 +328,7 @@ describe("sorting the queue", () => {
 
   it("sorts by Person, descending, across every event rather than within one", async () => {
     const { container } = await renderPage({ sort: "person", dir: "desc" });
-    const rows = screen.getAllByTestId("follow-ups-row");
-    expect(rows.map((row) => row.querySelector("td")?.textContent)).toEqual([
+    expect(personCells()).toEqual([
       "Rufus",
       "Peregrine Oakhanger",
       "Marlowe Fairhurst",
@@ -482,5 +527,314 @@ describe("filtering the queue by a date range — LAN-281", () => {
     // are still people, not events with people summarised beneath them.
     expect(screen.getAllByTestId("follow-ups-row")).toHaveLength(4);
     expect(container.textContent).toContain(TABLE_PERSON);
+  });
+});
+
+describe("reaching the person and the event from a row — LAN-329", () => {
+  it("links the person's name to their own record, on the desktop row and the phone card", async () => {
+    await renderPage();
+    const row = screen.getAllByTestId("follow-ups-row")[0];
+    expect(within(row).getByRole("link", { name: "Gideon Thornbury" }).getAttribute("href")).toBe(
+      "/operate/people/person-gideon",
+    );
+
+    const card = screen.getAllByTestId("follow-ups-card")[0];
+    expect(within(card).getByRole("link", { name: "Gideon Thornbury" }).getAttribute("href")).toBe(
+      "/operate/people/person-gideon",
+    );
+  });
+
+  it("links the event's name to the event, where the answer can be recorded for them", async () => {
+    await renderPage();
+    const row = screen.getAllByTestId("follow-ups-row")[0];
+    expect(within(row).getByRole("link", { name: "vs Harewell Hawks" }).getAttribute("href")).toBe(
+      "/operate/events/event-hawks",
+    );
+
+    const card = screen.getAllByTestId("follow-ups-card")[0];
+    expect(within(card).getByRole("link", { name: "vs Harewell Hawks" }).getAttribute("href")).toBe(
+      "/operate/events/event-hawks",
+    );
+  });
+
+  it("renders the name as plain text for a seat that cannot open a person record", async () => {
+    signedInAs([]);
+    await renderPage();
+    const row = screen.getAllByTestId("follow-ups-row")[0];
+    expect(within(row).queryByRole("link", { name: "Gideon Thornbury" })).toBeNull();
+    expect(row.textContent).toContain("Gideon Thornbury");
+    // The event is open to every seated operator, so that link stays.
+    expect(within(row).getByRole("link", { name: "vs Harewell Hawks" })).not.toBeNull();
+  });
+});
+
+describe("chasing several people from the queue — LAN-322", () => {
+  it("offers no selection and no chase to a seat without delivery administration", async () => {
+    signedInAs([]);
+    await renderPage();
+    expect(
+      screen.queryAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      ),
+    ).toHaveLength(0);
+    expect(screen.queryByTestId("chase-selected")).toBeNull();
+  });
+
+  it("sends nothing until the operator presses the action", async () => {
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    expect(screen.getByTestId("chase-selected")).not.toBeNull();
+    expect(chaseSelectedAction).not.toHaveBeenCalled();
+  });
+
+  /**
+   * LAN-322's walk, at a measured 375px: ticking a card scrolls the page to
+   * that card while the "Chase N people" bar stays at the top of the board, so
+   * the bar was at y = -386 — off the screen, with a live selection that
+   * nothing on screen could act on. jsdom computes no layout, so what is
+   * asserted is the declaration itself; a person on a real screen says whether
+   * it looks right (`declarationsAt`'s own reasoning in `shell.test.tsx`).
+   */
+  it("keeps the chase bar on screen once a selection exists", async () => {
+    await renderPage();
+    expect(screen.queryByTestId("chase-bar")).toBeNull();
+
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+
+    const bar = screen.getByTestId("chase-bar");
+    expect(window.getComputedStyle(bar).position).toBe("sticky");
+    expect(within(bar).getByTestId("chase-selected")).not.toBeNull();
+  });
+
+  it("chases exactly the people selected, in one action", async () => {
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 2,
+      refusals: [],
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Rufus for Practice — hilary week 3, Wednesday, 16 September 2026",
+      )[0],
+    );
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() => expect(chaseSelectedAction).toHaveBeenCalledTimes(1));
+    expect(chaseSelectedAction).toHaveBeenCalledWith(["invitation-1", "invitation-4"]);
+    await waitFor(() =>
+      expect(screen.getByTestId("chase-notice").textContent).toContain("Chased 2 people."),
+    );
+  });
+
+  it("names the people it could not chase, rather than only counting them", async () => {
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 1,
+      refusals: [{ invitationId: "invitation-2", reason: NO_NUMBER }],
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chase-refused").textContent).toContain("Marlowe Fairhurst"),
+    );
+  });
+
+  /**
+   * LAN-322's walk: the notice counted the refusals and named them, and said
+   * nothing about why. Correcting a phone number, asking the club's
+   * administrator to configure the deployment and leaving a recruit alone are
+   * three different next actions, and the operator could not tell which one
+   * this was.
+   */
+  it("says why each person could not be chased, beside their name", async () => {
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 0,
+      refusals: [
+        { invitationId: "invitation-2", reason: NO_NUMBER },
+        { invitationId: "invitation-3", reason: UNCONFIGURED },
+      ],
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() => expect(screen.getByTestId("chase-refused")).not.toBeNull());
+    const lines = within(screen.getByTestId("chase-refused"))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+    expect(lines).toEqual([
+      `Marlowe Fairhurst — ${NO_NUMBER}`,
+      `Peregrine Oakhanger — ${UNCONFIGURED}`,
+    ]);
+  });
+
+  /**
+   * Pressing Chase on three people locally refused all three for the same
+   * reason and printed the whole configuration paragraph three times -- the
+   * wall of text `REFUSALS_NAMED` exists to prevent, rebuilt out of sentences
+   * instead of names. One press nearly always produces one refusal, so the
+   * reason is said once with everybody it applies to named against it.
+   */
+  it("says a shared reason once, with everybody it applies to named against it", async () => {
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 0,
+      refusals: [
+        { invitationId: "invitation-1", reason: UNCONFIGURED },
+        { invitationId: "invitation-2", reason: UNCONFIGURED },
+        { invitationId: "invitation-3", reason: UNCONFIGURED },
+      ],
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() => expect(screen.getByTestId("chase-refused")).not.toBeNull());
+    const notice = screen.getByTestId("chase-refused");
+    expect(notice.textContent).toContain("3 people could not be chased");
+    const lines = within(notice)
+      .getAllByRole("listitem")
+      .map((item) => item.textContent);
+    expect(lines).toEqual([
+      `Gideon Thornbury, Marlowe Fairhurst, Peregrine Oakhanger — ${UNCONFIGURED}`,
+    ]);
+  });
+
+  it("counts the rest rather than printing every name, when a whole queue is refused", async () => {
+    // Measured at 375px against the seeded database: a select-all refused 559
+    // people and the notice became an unreadable wall of names.
+    const many = Array.from({ length: 12 }, (_, index) => ({
+      ...HAWKS.people[0],
+      invitationId: `invitation-many-${index}`,
+      personId: `person-many-${index}`,
+      personName: `Refused Person ${index}`,
+    }));
+    vi.mocked(readFollowUpsQueue).mockResolvedValue([{ ...HAWKS, people: many }]);
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 0,
+      refusals: many.map((person) => ({
+        invitationId: person.invitationId,
+        reason: NO_NUMBER,
+      })),
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Refused Person 0 for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() => expect(screen.getByTestId("chase-refused")).not.toBeNull());
+    const notice = screen.getByTestId("chase-refused").textContent ?? "";
+    expect(notice).toContain("12 people could not be chased");
+    // Five names, in the order the queue itself lists them, then the count.
+    expect(notice).toContain("Refused Person 0");
+    expect(notice).toContain("and 7 more");
+    expect(notice).not.toContain("Refused Person 9");
+  });
+
+  /**
+   * LAN-322's walk: twenty-two checkboxes on the seeded queue all announced
+   * "Select Dorian". A queue row is a person *on an event*, so one silent
+   * person has as many boxes as they have events, and a screen reader could
+   * not tell an operator which of them they had just ticked.
+   */
+  it("gives every checkbox a label of its own, across a person's several events", async () => {
+    const everywhere = (eventName: string, scheduledOn: string): FollowUpEvent => ({
+      ...HAWKS,
+      eventId: `event-${eventName}`,
+      eventName,
+      scheduledOn,
+      people: [{ ...HAWKS.people[0], invitationId: `invitation-${eventName}` }],
+    });
+    vi.mocked(readFollowUpsQueue).mockResolvedValue([
+      everywhere("vs Harewell Hawks", "2026-09-13"),
+      everywhere("Team Practice", "2026-09-14"),
+      everywhere("Kit collection", "2026-09-15"),
+    ]);
+    await renderPage();
+
+    // One label per rendering, so the desktop table's three and the phone
+    // cards' three are six controls carrying three distinct names.
+    const labels = [...screen.getAllByRole("checkbox")]
+      .map((box) => box.getAttribute("aria-label"))
+      .filter((label): label is string => label !== null && label.startsWith("Select Gideon"));
+    expect(labels).toHaveLength(6);
+    expect(new Set(labels).size).toBe(3);
+    expect(labels).toContain(
+      "Select Gideon Thornbury for Team Practice, Monday, 14 September 2026",
+    );
+  });
+
+  it("carries the same selection and chase on the phone card, not only the desktop table", async () => {
+    await renderPage();
+    const card = screen.getAllByTestId("follow-ups-card")[0];
+    expect(
+      within(card).getByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      ),
+    ).not.toBeNull();
+    expect(within(card).getByRole("button", { name: "Chase" })).not.toBeNull();
+  });
+
+  it("shows what was last sent, so a second operator does not chase the same person again", async () => {
+    await renderPage();
+    const row = screen.getAllByTestId("follow-ups-row")[0];
+    expect(row.textContent).toContain("WhatsApp");
+    expect(row.textContent).toContain("Delivered");
+
+    const held = screen.getAllByTestId("follow-ups-row")[2];
+    expect(held.textContent).toContain(LAST_MESSAGE_NONE);
+  });
+
+  it("offers no chase against a recruit — REQ-never-harsh", async () => {
+    vi.mocked(readFollowUpsQueue).mockResolvedValue([
+      { ...HAWKS, people: [{ ...HAWKS.people[0], chaseable: false }] },
+    ]);
+    await renderPage();
+    expect(
+      screen.queryAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      ),
+    ).toHaveLength(0);
+    expect(screen.getAllByTestId("follow-ups-row")[0].textContent).toContain(
+      "Recruit — not chased from here",
+    );
   });
 });

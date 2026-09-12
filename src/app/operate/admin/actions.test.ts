@@ -192,6 +192,63 @@ describe("every refusal path, not only the one Brian happened to hit", () => {
     expect(state.error).toBeNull();
   });
 
+  /**
+   * LAN-306, rule 8, and R7-4: this list composed the name itself, with the
+   * Known-as alias standing in for the given name. An operator reading "Bram
+   * Kittiwake" here and "Ambrose Kittiwake" on the person page has to decide
+   * whether they are the same human, which is the whole job of a duplicate
+   * check — the drift the rule was written to end, at the one door that
+   * creates operator accounts.
+   */
+  it("names a candidate formally and carries Known as as its own value", async () => {
+    const { findOperatorCandidates } = await import("@/lib/services/operator-invitations");
+    vi.mocked(findOperatorCandidates).mockResolvedValue([
+      {
+        personId: "33333333-3333-4333-8333-333333333333",
+        givenName: "Ambrose",
+        familyName: "Kittiwake",
+        displayAlias: "Bram",
+        email: "bram@example.test",
+        phone: null,
+        operatorAccount: null,
+        matchedOn: [{ field: "known as", value: "Bram" }],
+      },
+    ]);
+
+    const state = await searchCandidatesAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      form({ givenName: "", familyName: "Kittiwake", email: "" }),
+    );
+
+    expect(state.candidates?.[0]?.name).toBe("Ambrose Kittiwake");
+    expect(state.candidates?.[0]?.knownAs).toBe("Bram");
+  });
+
+  /** An alias that only repeats the given name is not a second way to refer to anybody. */
+  it("offers no Known as when the alias is the given name", async () => {
+    const { findOperatorCandidates } = await import("@/lib/services/operator-invitations");
+    vi.mocked(findOperatorCandidates).mockResolvedValue([
+      {
+        personId: "33333333-3333-4333-8333-333333333333",
+        givenName: "Jonathan",
+        familyName: null,
+        displayAlias: "jonathan",
+        email: null,
+        phone: null,
+        operatorAccount: null,
+        matchedOn: [{ field: "given name", value: "Jonathan" }],
+      },
+    ]);
+
+    const state = await searchCandidatesAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      form({ givenName: "Jonathan", familyName: "", email: "" }),
+    );
+
+    expect(state.candidates?.[0]?.name).toBe("Jonathan");
+    expect(state.candidates?.[0]?.knownAs).toBeNull();
+  });
+
   it("carries a refusal back from the duplicate check", async () => {
     const { findOperatorCandidates } = await import("@/lib/services/operator-invitations");
     vi.mocked(findOperatorCandidates).mockRejectedValue(new NotPermitted(REFUSAL));

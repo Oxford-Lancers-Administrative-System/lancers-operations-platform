@@ -4,6 +4,15 @@ import { readRecruitmentProspect } from "@/lib/services/recruitment-prospect";
 import { readPersonRecord } from "@/lib/services/person-record";
 import { redactPersonRecord } from "@/lib/auth/person-authority";
 import type { PersonRecord } from "@/lib/services/person-record";
+import {
+  listPersonRoleAssignments,
+  listPersonSeasons,
+  readPersonHistory,
+  type PersonHistoryEntry,
+  type PersonRoleAssignment,
+  type PersonSeasonRecord,
+} from "@/lib/services/people-directory";
+import { readCurrentSeason } from "@/lib/services/seasons";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import RecruitmentRecordView from "./record-view";
@@ -44,5 +53,41 @@ export default async function RecruitmentRecordPage({
     person = {};
   }
 
-  return <RecruitmentRecordView record={record} person={person} />;
+  /**
+   * LAN-307. The same sections the canonical person page draws, from the same
+   * record and the same redaction — an operator looking at a recruit before
+   * pressing send should not have to open a second page to find out what the
+   * club holds about them, or where the message is going. No new grant: this
+   * page already gates on `person_record_authority`, and `redactPersonRecord`
+   * above still decides every field.
+   */
+  const [roles, seasons, history, currentSeason]: [
+    readonly PersonRoleAssignment[],
+    readonly PersonSeasonRecord[],
+    readonly PersonHistoryEntry[],
+    { label: string } | null,
+  ] = await Promise.all([
+    listPersonRoleAssignments(record.personId),
+    listPersonSeasons(record.personId),
+    readPersonHistory(record.personId),
+    readCurrentSeason().catch(() => null),
+  ]);
+
+  const alumniLabel = person.isPastMember
+    ? "Alumnus"
+    : seasons.length > 0
+      ? "Current member"
+      : "Never a member";
+
+  return (
+    <RecruitmentRecordView
+      record={record}
+      person={person}
+      roles={roles}
+      seasons={seasons}
+      history={history}
+      alumniLabel={alumniLabel}
+      currentSeasonLabel={currentSeason?.label ?? null}
+    />
+  );
 }

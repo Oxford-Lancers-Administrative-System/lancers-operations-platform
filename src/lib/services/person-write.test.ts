@@ -570,20 +570,27 @@ describe("actor requirement", () => {
 });
 
 describe("aliases — add, remove, flag as the display name", () => {
-  it("adds an alias with no reason, flags it as the display name, and the list's name follows it", async () => {
+  // LAN-306 reversed half of this test's original claim. Flagging an alias
+  // used to substitute it for the given name, so the same person read as two
+  // people either side of a recruit conversion. The flag now decides Known as,
+  // which is shown beside the name; the name itself never moves.
+  it("adds an alias with no reason, flags it as Known as, and leaves the name alone", async () => {
     const personId = await insertPerson({ givenName: "Hollis" });
 
     const afterAdd = await addPersonAlias({ actorPersonId, personId, alias: "Holly" });
     const added = afterAdd.aliases.find((a) => a.alias === "Holly");
     expect(added).toBeDefined();
     expect(added!.isDisplayName).toBe(false);
+    expect(afterAdd.knownAs).toBeNull();
 
     const afterFlag = await setDisplayNamePersonAlias({
       actorPersonId,
       personId,
       aliasId: added!.id,
     });
-    expect(afterFlag.displayName).toContain("Holly");
+    expect(afterFlag.knownAs).toBe("Holly");
+    expect(afterFlag.displayName).toContain("Hollis");
+    expect(afterFlag.displayName).not.toContain("Holly");
     expect(afterFlag.aliases.find((a) => a.id === added!.id)?.isDisplayName).toBe(true);
 
     const audit = await latestAudit("person_aliases", added!.id);

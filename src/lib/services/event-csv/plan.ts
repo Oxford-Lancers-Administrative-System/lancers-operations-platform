@@ -9,6 +9,7 @@ import {
   changesBetween,
   type PlannedInput,
 } from "./compare";
+import { DATE_CELL_EXPECTATION, parseCalendarDate } from "./dates";
 import { digestOf } from "./export";
 import {
   IMPORT_COLUMNS,
@@ -196,10 +197,10 @@ function planRow(
   let parsedDate: string | null = null;
   if (said(cells.date)) {
     const date = trimmed(cells.date);
-    if (!isCalendarDate(date)) {
-      reasons.push(`“date” reads “${date}”. Dates are YYYY-MM-DD.`);
-    } else {
-      parsedDate = date;
+    // LAN-317: day-first as well as ISO, since Excel rewrites the column on open.
+    parsedDate = parseCalendarDate(date);
+    if (parsedDate === null) {
+      reasons.push(`“date” reads “${date}”. ${DATE_CELL_EXPECTATION}`);
     }
   }
 
@@ -383,13 +384,6 @@ function parseBooleanCell(
   if (NO.has(value)) return false;
   reasons.push(`“${column}” reads “${trimmed(cell)}”. It must be yes or no.`);
   return null;
-}
-
-/** A real calendar date, so 2026-02-30 is refused rather than rolled forward. */
-function isCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 /** `9c14e0…`, which is how the refusal names an id nobody can read anyway. */

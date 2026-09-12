@@ -9,6 +9,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { Fact, FactGrid } from "@/components/fact";
 
 import { PUBLIC_CALENDAR_FEED_PATH } from "./routes";
 
@@ -16,10 +17,11 @@ import { PUBLIC_CALENDAR_FEED_PATH } from "./routes";
  * `Add to your calendar` — `W2`, the whole workflow. LAN-158. Two screens
  * only, Brian cut the other three: `W2-01` (opening) and `W2-02` (once a
  * destination is chosen), one `Dialog` switched on `chosen`. `window.open`
- * hands off to the reader's own calendar app and immediately shows Done —
- * this control's job ends there, and nothing here reads back whether the
- * subscription completed. Not a notification channel. Both this dialog's URL
- * and `feed.ics/route.ts` start from `PUBLIC_CALENDAR_FEED_PATH`.
+ * hands off to the reader's own calendar app; nothing here can read back
+ * whether the subscription completed, so the second screen states what was
+ * opened and what to look for there rather than claiming success (LAN-320).
+ * Not a notification channel. Both this dialog's URL and `feed.ics/route.ts`
+ * start from `PUBLIC_CALENDAR_FEED_PATH`.
  */
 
 const PROVIDERS = [
@@ -30,17 +32,28 @@ const PROVIDERS = [
 
 type ProviderId = (typeof PROVIDERS)[number]["id"];
 
-/** Where each destination is sent. Apple gets `webcal:` (registered handler); Google/Outlook get the HTTPS address unchanged via their add-by-URL endpoint. */
+/**
+ * Where each destination is sent — all three get the `webcal:` address.
+ *
+ * LAN-320: Google was handed `cid=https://…` and silently did nothing useful
+ * with it. Google subscribes to an external feed only when `cid` is a
+ * `webcal://` URL; an `https://` value is read as one of the reader's own
+ * calendar ids. Apple already had the `webcal:` form, and Outlook's
+ * documented `addfromweb` endpoint takes the same address, so the scheme swap
+ * happens once, for every destination.
+ */
 function destinationUrl(provider: ProviderId, origin: string): string {
-  const httpsUrl = `${origin}${PUBLIC_CALENDAR_FEED_PATH}`;
+  const webcalUrl = `${origin}${PUBLIC_CALENDAR_FEED_PATH}`.replace(/^https?:/, "webcal:");
   switch (provider) {
     case "apple":
-      return httpsUrl.replace(/^https?:/, "webcal:");
+      return webcalUrl;
     case "google":
-      return `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(httpsUrl)}`;
+      return `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
+    // outlook.live.com is the personal-account host. A university Microsoft 365
+    // account lives on outlook.office.com and is untested — see LAN-320.
     case "outlook":
-      return `https://outlook.live.com/calendar/0/addcalendar?url=${encodeURIComponent(
-        httpsUrl,
+      return `https://outlook.live.com/calendar/0/addfromweb/?url=${encodeURIComponent(
+        webcalUrl,
       )}&name=${encodeURIComponent("Oxford Lancers")}`;
   }
 }
@@ -48,6 +61,15 @@ function destinationUrl(provider: ProviderId, origin: string): string {
 function labelFor(provider: ProviderId): string {
   return PROVIDERS.find((candidate) => candidate.id === provider)!.label;
 }
+
+/** What the reader should see in that app once they have confirmed there. A state to check, not a claim this dialog can make. */
+const CONFIRM_THERE: Record<ProviderId, string> = {
+  google: "Oxford Lancers listed under Other calendars",
+  apple: "Oxford Lancers listed in your calendar list",
+  outlook: "Oxford Lancers listed under Other calendars",
+};
+
+const NOT_OBSERVED = "Opened — this page cannot see whether it was added";
 
 export default function SubscribeToCalendarButton({
   variant = "outlined",
@@ -104,7 +126,7 @@ export default function SubscribeToCalendarButton({
         data-testid="subscribe-dialog"
       >
         <DialogTitle id="subscribe-dialog-title" sx={{ pr: 6 }}>
-          {chosen === null ? "Add to your calendar" : "Done"}
+          {chosen === null ? "Add to your calendar" : `Opened in ${labelFor(chosen)}`}
         </DialogTitle>
         <IconButton
           aria-label="Close dialog"
@@ -180,27 +202,20 @@ export default function SubscribeToCalendarButton({
               </Typography>
             </Stack>
           ) : (
-            <Stack spacing={2} sx={{ textAlign: "center" }} data-testid="subscribe-done">
-              <Box
-                sx={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: "50%",
-                  bgcolor: "success.light",
-                  color: "success.dark",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 26,
-                  mx: "auto",
-                }}
-                aria-hidden
-              >
-                ✓
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                {`${labelFor(chosen)} has opened. Confirm there and the season's events will appear — your calendar keeps itself up to date after that.`}
-              </Typography>
+            <Stack spacing={2} data-testid="subscribe-opened">
+              <FactGrid columns={1}>
+                <Fact label="Destination" value={labelFor(chosen)} />
+                <Fact label="Status" value={NOT_OBSERVED} />
+                <Fact label="Confirm there" value={CONFIRM_THERE[chosen]} />
+                <Fact
+                  label="Calendar address"
+                  value={
+                    <Typography variant="body2" sx={{ wordBreak: "break-all" }}>
+                      {feedUrl}
+                    </Typography>
+                  }
+                />
+              </FactGrid>
               <Button variant="contained" onClick={close} sx={{ minHeight: 44 }}>
                 Close
               </Button>

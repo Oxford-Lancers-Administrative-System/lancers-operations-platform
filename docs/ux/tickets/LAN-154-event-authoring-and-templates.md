@@ -4,7 +4,10 @@ Status: implemented under mission `M-EVENTS-CALENDAR-TARGET-STATE`, work package
 `WP-authoring`. Packet approved by Brian Schuster on 2026-08-21; amendment W4-A1
 approved the same day; the duplicate decision settled 2026-08-22. Owner
 correction round 2, 2026-08-25: Q-27 reverses the clock to 12-hour AM/PM, and
-Q-28 settles C8 for the event detail page — both recorded below.
+Q-28 settles C8 for the event detail page — both recorded below. Tester week,
+LAN-326, 2026-09-11: Brian reverses Q-27 in turn — the clock is 24-hour.
+LAN-318, the same day: an approved event's questions are editable, and a
+question may no longer be removed once the event has left draft.
 
 > **Synthetic scenario data:** All displayed people, contact details, statuses,
 > responses and attendance records are synthetic and do not correspond to real
@@ -110,16 +113,47 @@ Everything else in both tickets stands, including the empty-audience refusal
 - **Times are five-minute increments, in Europe/London, with the zone stated**
   (D78, D86). Entering a start fills the end from the type's default length; an
   end the operator sets is left alone. The control is a deliberately-drawn
-  **12-hour clock with AM/PM** (Q-27, round 2), on every machine regardless of
-  its own locale — the same locale-independence C1/C2 won in the first place,
-  which is not given back by which clock face is drawn. The stored value is
-  unaffected: `startsAt`/`endsAt` are still plain 24-hour `HH:mm`.
+  **24-hour clock, no AM/PM** (LAN-326, Brian 2026-09-11, reversing Q-27 of
+  round 2), on every machine regardless of its own locale — the same
+  locale-independence C1/C2 won in the first place, which is not given back by
+  which clock face is drawn. It is now the only clock face in the application:
+  every screen that _displays_ a time already reads 24-hour, and the editor was
+  the one place that asked for one in a different notation. The stored value is
+  unaffected either way: `startsAt`/`endsAt` are still plain `HH:mm`.
 - **`Response requested` appears nowhere** (D23).
 - **Questions are written here** (W4-A1), below the event's own facts: add,
   remove, reorder, choose one of three answer types, and mark each independently
   required or optional. A question the template supplied is marked as such and
   may be removed for this event alone (D42).
+- **Enter in a question field does nothing** (LAN-313, Brian 2026-09-11). The
+  editor is one form with a submit button, so the browser's implicit submission
+  used to read a finished question as "Save draft" and take the operator off
+  the screen mid-task. There is no "add the next option" behaviour in its
+  place; Enter simply does not submit from a single-line field on any of the
+  long operator forms.
 - Two submit buttons: **Save draft**, and **Save and choose audience**.
+
+**Once the event is approved, the questions are still editable** (LAN-318,
+Brian 2026-09-11, amending D41). Approval used to freeze them and the edit
+route refused an approved event outright; it now answers **Edit questions** on
+the event's own page with the same question editor, alone — the event's facts
+still change only through the amend path (W5), which tells people.
+
+What changes there: a question may be added, reworded, retyped, given
+different options, made required or optional, and put in a different order.
+What does not: **a question cannot be removed**, and the Remove control is
+absent rather than present and refused, because an answer already given points
+at the question it answered. Nothing is sent — no notification, no queue entry,
+no delivery — and nobody is re-asked. Whoever answers next meets the questions
+as they now stand; answers already given are left exactly as they were,
+including a choice answer that is no longer among the options. A cancelled
+event is still refused: it is asking nobody anything.
+
+The participation table shows the questions as they now stand, not as they
+stood when each person answered. `question_responses` stores the answer and a
+reference to the live question row, and no snapshot of the wording, so what was
+on screen at the time is not recoverable. Recording it would need a schema
+change and an owner decision; neither is in this change.
 
 ### `W4-02` — the audience
 
@@ -284,9 +318,11 @@ not and why**, and what will not move at all. The button says what it will do.
 | Online or in person is a property; venue follows it                                  | D20, D21                                     |
 | `Response requested` is removed                                                      | D23                                          |
 | Five-minute increments; end follows start; Europe/London stated                      | D78, D86                                     |
-| **The clock is 12-hour with AM/PM, deliberately drawn on every machine**             | Q-27, round 2                                |
+| **The clock is 24-hour, deliberately drawn on every machine**                        | LAN-326, Brian 2026-09-11, reversing Q-27    |
 | **The event detail page names the audience by its groups too, before its people**    | Q-28, round 2                                |
 | Template values flow per field into unapproved drafts; approval freezes them         | D41, refined 2026-08-21                      |
+| **Approval no longer freezes the questions; they stay editable, silently**           | LAN-318, Brian 2026-09-11, amending D41      |
+| **A question cannot be removed once the event has left draft**                       | LAN-318, Brian 2026-09-11                    |
 | No approved event and no past event ever changes                                     | W8                                           |
 | An abandoned draft is deleted, permanently, after a confirmation naming it           | D29                                          |
 | Only a draft may be deleted; an approved event is cancelled                          | D29, W6                                      |
@@ -374,13 +410,18 @@ the change and says so on the confirmation before anything is saved.
 | `Response requested` appears nowhere                                        | `screens.test.tsx`, `labels.test.ts`                        |
 | Description and required equipment round-trip separately                    | `events.test.ts`                                            |
 | Times save and display in Europe/London, five-minute steps, end after start | `event-input.test.ts`, `screens.test.tsx`                   |
-| The clock is 12-hour AM/PM on every machine, regardless of locale           | `screens.test.tsx`                                          |
+| The clock is 24-hour on every machine, regardless of locale                 | `screens.test.tsx`                                          |
 | A draft is deleted after a confirmation naming it                           | `event-questions.test.ts`, `screens.test.tsx`               |
 | An approved or cancelled event cannot be deleted at all                     | `event-questions.test.ts`, `screens.test.tsx`               |
 | Questions: three types, independently required, reorderable, removable      | `event-questions-input.test.ts`, `question-editor.test.tsx` |
 | The review names the audience by groups first, and shows the questions      | `audience-selection.test.ts`, `screens.test.tsx`            |
 | The event detail page names the audience by groups first too                | `screens.test.tsx`                                          |
 | The confirmation names what will and will not move                          | `event-templates.test.ts`, `templates/screens.test.tsx`     |
+| Enter in a question field submits nothing, and Save draft still does        | `screens.test.tsx`                                          |
+| No field in the editor is offered the operator's own saved details          | `screens.test.tsx`                                          |
+| An approved event's questions change in place and send nothing              | `event-questions.test.ts`, `actions.test.ts`                |
+| A question cannot be removed once the event has left draft                  | `event-questions.test.ts`, `screens.test.tsx`               |
+| An answer already given survives the question being reworded or re-optioned | `event-questions.test.ts`                                   |
 
 ## Where the rules live
 

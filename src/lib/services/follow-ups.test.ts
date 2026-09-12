@@ -30,8 +30,14 @@ import { requireGeneralOperator } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 import { ESCALATED_TO_PRESIDENT, ESCALATION_NOT_DELIVERED } from "./chase-position";
-import { dispatchJob, EMAIL_FALLBACK_SUFFIX, MAX_ATTEMPTS } from "./delivery";
+import {
+  concludeExpiredDeliveries,
+  dispatchJob,
+  EMAIL_FALLBACK_SUFFIX,
+  MAX_ATTEMPTS,
+} from "./delivery";
 import { readFollowUpsQueue, countPeople } from "./follow-ups";
+import { sendEventChases } from "./messaging-scheduler";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN173FollowUpsSuite";
@@ -41,10 +47,8 @@ const CONFIGURED_WITH_EMAIL = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: "07700 900321",
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: "lan173.followups@example.test",
 };
 
 function refusesWhatsAppAcceptsEmail() {
@@ -59,6 +63,18 @@ function refusesWhatsAppAcceptsEmail() {
     }
     return new Response(JSON.stringify({ error: { code: 131026, fbtrace_id: "trace" } }), {
       status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  });
+}
+
+/** Everything accepted, WhatsApp included — the ordinary send, for LAN-322's own chase. */
+function acceptsEverything() {
+  let serial = 0;
+  return vi.fn(async () => {
+    serial += 1;
+    return new Response(JSON.stringify({ messages: [{ id: `wamid.${MARKER}.chase.${serial}` }] }), {
+      status: 200,
       headers: { "content-type": "application/json" },
     });
   });
@@ -127,11 +143,26 @@ afterEach(async () => {
     `delete from public.nonresponse_flags where invitation_id in ${invitations}`,
     [scope],
   );
+  // Before the jobs themselves: this names them by their own ids, so deleting
+  // the jobs first leaves every audit row about them behind. LAN-322's chase
+  // writes one per press, under the anchor person rather than a MARKER person,
+  // so nothing else here would collect it.
+  await observer.query(
+    `delete from public.audit_events
+      where entity_table = 'notification_jobs'
+        and entity_id in (select id from public.notification_jobs where event_id in ${events})`,
+    [scope],
+  );
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
   await observer.query(
     `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
     [scope],
   );
+  // LAN-322's "already answered" case writes one, and `invitations` is
+  // `on delete restrict` from it, so it goes before them.
+  await observer.query(`delete from public.rsvp_responses where invitation_id in ${invitations}`, [
+    scope,
+  ]);
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
     scope,
@@ -184,13 +215,25 @@ interface Fixture {
  * An approved, future event with one invitee whose invitation has been
  * delivered but not answered -- the plain `nonresponse_queue` shape, before
  * anything else happens to it.
+ *
+ * `capacity` is the one axis the queue's own action turns on: a player is
+ * anchored on a season membership, a recruit on the person, and the schema's
+ * `*_anchor_matches_capacity` checks refuse either shape holding the other's
+ * anchor. So the recruit case is built the way the club's records build it,
+ * not by relabelling a player row.
  */
 async function fixture(
-  options: { phone?: string | null; email?: string | null; deadlineHours?: number } = {},
+  options: {
+    phone?: string | null;
+    email?: string | null;
+    deadlineHours?: number;
+    capacity?: "player" | "recruit";
+  } = {},
 ): Promise<Fixture> {
   const phone = options.phone === undefined ? "07700 900321" : options.phone;
   const email = options.email === undefined ? null : options.email;
   const deadlineHours = options.deadlineHours ?? 24;
+  const capacity = options.capacity ?? "player";
 
   await observer.query("begin");
   try {
@@ -216,12 +259,19 @@ async function fixture(
       );
     }
 
-    const membership = await observer.query<{ id: string }>(
-      `insert into public.season_memberships
-         (person_id, season_id, status, entry, confirmed_on, activated_on)
-       values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
-      [personId, seasonId],
-    );
+    // A recruit has not joined a season, so there is no membership to anchor
+    // on and the audience row and invitation hang off the person instead.
+    const membershipId =
+      capacity === "player"
+        ? (
+            await observer.query<{ id: string }>(
+              `insert into public.season_memberships
+                 (person_id, season_id, status, entry, confirmed_on, activated_on)
+               values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
+              [personId, seasonId],
+            )
+          ).rows[0].id
+        : null;
 
     const event = await observer.query<{ id: string }>(
       `with target as (select (now() + interval '72 hours') at time zone 'Europe/London' as local)
@@ -240,19 +290,31 @@ async function fixture(
 
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
-       values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
-      [eventId, seasonId, membership.rows[0].id, personId],
+         (event_id, season_id, capacity, season_membership_id, person_id,
+          invitee_person_id, added_by_person_id)
+       values ($1, $2, $5::public.invitation_capacity, $3,
+               case when $3::uuid is null then $6::uuid end, $6, $4)
+       returning id`,
+      [eventId, seasonId, membershipId, personId, capacity, personId],
     );
 
     const invitation = await observer.query<{ id: string }>(
       `insert into public.invitations
-         (event_id, event_status, season_id, capacity, season_membership_id,
+         (event_id, event_status, season_id, capacity, season_membership_id, person_id,
           status, expires_at, audience_member_id)
-       values ($1, 'approved', $2, 'player', $3, 'pending',
+       values ($1, 'approved', $2, $6::public.invitation_capacity, $3,
+               case when $3::uuid is null then $7::uuid end, 'pending',
                now() + ($5 || ' hours')::interval, $4)
        returning id`,
-      [eventId, seasonId, membership.rows[0].id, audience.rows[0].id, String(deadlineHours)],
+      [
+        eventId,
+        seasonId,
+        membershipId,
+        audience.rows[0].id,
+        String(deadlineHours),
+        capacity,
+        personId,
+      ],
     );
     const invitationId = invitation.rows[0].id;
 
@@ -325,6 +387,33 @@ describe("the queue itself", () => {
     const row = personRow(events, "Invitee");
     expect(row?.status).toBe("delivery_problem");
     expect(row?.chasePosition).toBeNull();
+  });
+
+  it("shows an expired delivery as a failure rather than as still being sent — LAN-288", async () => {
+    // Meta never says a message expired: it drops one it could not deliver
+    // inside the validity period and sends no webhook at all, so an accepted
+    // attempt sat here reading **Attempted** for ever. `concludeExpiredDeliveries`
+    // turns that silence into the queue's own last-delivery line, which is
+    // what an operator actually looks at.
+    const target = await fixture();
+    await dispatchJob(target.jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.lastDelivery?.state).toBe("attempted");
+
+    await observer.query(
+      `update public.delivery_attempts set accepted_at = now() - interval '31 days'
+        where notification_job_id = $1`,
+      [target.jobId],
+    );
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED_WITH_EMAIL })).toBeGreaterThan(0);
+
+    const row = personRow(await readFollowUpsQueue(), "Invitee");
+    expect(row?.lastDelivery?.state).toBe("retryable");
+    // Still a chase, not a delivery_problem: there was a route, and the repair
+    // for a dropped message is to send it again.
+    expect(row?.status).toBe("chasing");
   });
 
   /**
@@ -513,5 +602,177 @@ describe("the automatic email fallback is excluded from the queue's own reads", 
     // than throwing or double-counting because two jobs (the original and
     // its fallback) exist for the same invitation.
     expect(row?.status).toBe("chasing");
+  });
+});
+
+/**
+ * The queue's own chase — LAN-322.
+ *
+ * Against the real database, because what is load-bearing is the row it
+ * writes: a `reminder` job on this invitation's own ladder, one rung above
+ * what the ladder has already reached, with no new job type and no new table.
+ * A mock of `notification_jobs` could not show that.
+ */
+describe("chasing from the queue — LAN-322", () => {
+  it("adds one reminder rung above the ladder and sends it", async () => {
+    const target = await fixture();
+
+    const results = await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    expect(results).toEqual([
+      { invitationId: target.invitationId, outcome: "accepted", reason: null },
+    ]);
+
+    const jobs = await observer.query<{
+      job_type: string;
+      ladder_rung: number | null;
+      channel: string;
+    }>(
+      `select job_type::text as job_type, ladder_rung, channel::text as channel
+         from public.notification_jobs
+        where invitation_id = $1 and job_type = 'reminder'`,
+      [target.invitationId],
+    );
+    expect(jobs.rows).toHaveLength(1);
+    expect(jobs.rows[0].channel).toBe("whatsapp");
+    // The fixture's invitation job carries no rung, so the first chase is 1.
+    expect(jobs.rows[0].ladder_rung).toBe(1);
+
+    const audit = await observer.query<{ actor_person_id: string | null }>(
+      `select actor_person_id
+         from public.audit_events
+        where entity_table = 'notification_jobs'
+          and action = 'delivery.chase_requested'
+          and entity_id in (select id from public.notification_jobs where invitation_id = $1)`,
+      [target.invitationId],
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].actor_person_id).toBe(anchorPersonId);
+  });
+
+  it("shows on the queue afterwards, so a second operator sees a chase has gone", async () => {
+    const target = await fixture();
+    await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    const row = personRow(await readFollowUpsQueue(), "Invitee");
+    // Meta accepting is not Meta delivering, so the job stays `processing` and
+    // the row reads **Attempted** — `DELIVERY_STATE_EXPRESSION`'s own word.
+    expect(row?.lastDelivery?.state).toBe("attempted");
+    expect(row?.lastDelivery?.channel).toBe("whatsapp");
+    expect(row?.lastDelivery?.at).not.toBeNull();
+  });
+
+  it("refuses a person with no reachable channel rather than skipping them silently", async () => {
+    const target = await fixture({ phone: null, email: null });
+
+    const results = await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    // LAN-322's walk: the queue's notice can only name a next action if the
+    // refusal carries the delivery path's own recorded sentence out with it.
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ invitationId: target.invitationId, outcome: "refused" });
+    expect(results[0].reason).toMatch(/no usable mobile number/i);
+  });
+
+  it("chases the reachable people in a mixed selection, and refuses the rest", async () => {
+    const reachable = await fixture();
+    const unreachable = await fixture({ phone: null, email: null });
+
+    const results = await sendEventChases(
+      anchorPersonId,
+      [reachable.invitationId, unreachable.invitationId],
+      { source: CONFIGURED_WITH_EMAIL, transport: acceptsEverything() },
+    );
+
+    expect(results).toEqual([
+      { invitationId: reachable.invitationId, outcome: "accepted", reason: null },
+      {
+        invitationId: unreachable.invitationId,
+        outcome: "refused",
+        reason: expect.stringMatching(/no usable mobile number/i),
+      },
+    ]);
+  });
+
+  it("refuses a recruit outright, and writes neither a job nor a chase", async () => {
+    // `REQ-never-harsh`: a recruit gets one invitation and at most one
+    // follow-up, and an operator batch is not a door around that. The refusal
+    // is decided before anything is written, so the proof is that the two rows
+    // a chase always leaves -- the reminder job and its audit row -- are
+    // absent, not merely that the returned word is right.
+    const target = await fixture({ capacity: "recruit" });
+
+    const results = await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    expect(results).toEqual([
+      { invitationId: target.invitationId, outcome: "not_chaseable", reason: null },
+    ]);
+
+    const jobs = await observer.query<{ id: string; job_type: string }>(
+      `select id, job_type::text as job_type
+         from public.notification_jobs where invitation_id = $1`,
+      [target.invitationId],
+    );
+    // Only the fixture's own invitation job, which was there before the press.
+    expect(jobs.rows.map((row) => row.job_type)).toEqual(["invitation"]);
+
+    const audit = await observer.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.audit_events
+        where entity_table = 'notification_jobs'
+          and action = 'delivery.chase_requested'
+          and entity_id = any($1::uuid[])`,
+      [jobs.rows.map((row) => row.id)],
+    );
+    expect(audit.rows[0].count).toBe("0");
+  });
+
+  it("enqueues nothing for an invitation that is no longer outstanding", async () => {
+    const target = await fixture();
+    // Answered between the page being drawn and the button being pressed: the
+    // row has left `nonresponse_queue`, which is the club's own definition of
+    // who has not answered.
+    await observer.query(
+      `insert into public.rsvp_responses (invitation_id, response, responded_at, source)
+       values ($1, 'yes', now(), 'operator')`,
+      [target.invitationId],
+    );
+
+    const results = await sendEventChases(anchorPersonId, [target.invitationId], {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    expect(results).toEqual([
+      { invitationId: target.invitationId, outcome: "not_outstanding", reason: null },
+    ]);
+    const jobs = await observer.query(
+      "select id from public.notification_jobs where invitation_id = $1 and job_type = 'reminder'",
+      [target.invitationId],
+    );
+    expect(jobs.rows).toHaveLength(0);
+  });
+
+  it("enqueues nothing at all when nobody is named", async () => {
+    const before = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.notification_jobs",
+    );
+    await expect(sendEventChases(anchorPersonId, [])).resolves.toEqual([]);
+    const after = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.notification_jobs",
+    );
+    expect(after.rows[0].count).toBe(before.rows[0].count);
   });
 });

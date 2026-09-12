@@ -11,6 +11,7 @@ import {
   validateEmailAddress,
   validatePhoneNumber,
 } from "./person-validation";
+import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import { recordRecruitmentSignupCodeUseIn } from "./recruitment-signup-codes";
 
 /**
@@ -379,6 +380,11 @@ export async function signUpAnonymouslyIn(
   await applyQuestionnaireAAnswersIn(tx, personId, givenName, params.submission, mobileE164);
   const prospect = await ensureProspectIn(tx, personId, params.seasonId, SELF_ENTRY_SOURCE);
   await grantSeasonMessagingConsentIn(tx, personId, params.seasonId);
+  // LAN-305: every capture door reaches the same declarer. This one's grant
+  // completes the welcome track by definition, so what it declares is the
+  // interest ask and its reminder — and nothing at all once Questionnaire B
+  // is answered, which is the declarer's own rule, not a second copy of it.
+  await declareRecruitmentCycleJobsIn(tx, personId, params.seasonId);
   await recordRecruitmentSignupCodeUseIn(tx, params.code);
 
   await recordAudit(tx, {
@@ -414,6 +420,7 @@ export async function signUpWithTokenIn(
   await applyQuestionnaireAAnswersIn(tx, params.personId, givenName, params.submission, mobileE164);
   const prospect = await ensureProspectIn(tx, params.personId, params.seasonId, SELF_ENTRY_SOURCE);
   await grantSeasonMessagingConsentIn(tx, params.personId, params.seasonId);
+  await declareRecruitmentCycleJobsIn(tx, params.personId, params.seasonId); // LAN-305, as the QR door above.
 
   await recordAudit(tx, {
     actorLabel: "recruit: WhatsApp sign-up link",

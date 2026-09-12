@@ -24,6 +24,7 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import {
   applyProviderCallback,
+  concludeExpiredDeliveries,
   JOB_HELD_MESSAGE,
   JOB_HELD_RULE,
   JOB_NOT_FOUND_RULE,
@@ -54,26 +55,14 @@ const PROVIDER_MESSAGE_NAMESPACE = "wamid.LAN78.";
 const PROVIDER_MESSAGE_PREFIX = `${PROVIDER_MESSAGE_NAMESPACE}${crypto.randomUUID().slice(0, 8)}.`;
 
 /**
- * Every number this suite's fixtures use, all of them in Ofcom's reserved
- * drama range. LAN-124 made the allowlist a required outbound variable, so a
- * suite that omitted it would resolve to `{ configured: false }` and prove
- * nothing about dispatch at all.
- *
- * Listed explicitly rather than derived, so that a fixture given a new number
- * fails loudly here instead of quietly exercising the refusal path while
- * looking like it tests a send.
+ * Every number this suite's fixtures use is in Ofcom's reserved drama range,
+ * which can never be dialled.
  */
-const ALLOWLISTED = ["07700 900123", "07700 900444", "07700 900111", "07700 900222"].join(",");
-
-/** A number no fixture uses, for the tests that prove the refusal. */
-const NOT_ALLOWLISTED = "07700 900555";
-
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED,
 };
 
 let observer: Client;
@@ -335,11 +324,11 @@ async function fixture(
 /**
  * A second invitee on the same event, for the batch-isolation test.
  *
- * `phone` is a parameter rather than a constant since LAN-124: proving that the
- * allowlist discriminates *between* two people on one event needs the two to
- * differ in exactly that respect.
+ * `phone` is a parameter rather than a constant, and `null` records no contact
+ * point at all: proving that a refusal discriminates *between* two people on
+ * one event needs the two to differ in exactly that respect.
  */
-async function addInvitee(tag: string, phone = "07700 900444") {
+async function addInvitee(tag: string, phone: string | null = "07700 900444") {
   const person = await observer.query<{ id: string }>(
     `insert into public.people (given_name, family_name, created_at)
      values ($1, $2, now() + interval '100 years') returning id`,
@@ -347,11 +336,13 @@ async function addInvitee(tag: string, phone = "07700 900444") {
   );
   const personId = person.rows[0].id;
 
-  await observer.query(
-    `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
-     values ($1, 'phone', $2, true)`,
-    [personId, phone],
-  );
+  if (phone !== null) {
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+       values ($1, 'phone', $2, true)`,
+      [personId, phone],
+    );
+  }
 
   const membership = await observer.query<{ id: string }>(
     `insert into public.season_memberships
@@ -695,17 +686,39 @@ describe("dispatching after approval", () => {
   });
 
   /**
-   * LAN-124. The hosted database holds the club's real roster and the deployed
-   * application holds a live provider credential; this is what stands between
-   * an approval and forty real students being messaged.
+   * LAN-287, Brian's LAN-168 decision of 2 September 2026. The deployment-wide
+   * recipient allowlist is gone: who may be messaged is a fact about the
+   * person — membership, recorded season consent, withdrawal, departure — and
+   * every one of those boundaries is enforced where the job is created, not in
+   * an environment variable.
    *
-   * The property that matters is not "the send was refused" — it is that a
-   * person outside the allowlist never has a live RSVP link in existence. A
-   * refusal at the send would leave a token issued, recorded, and having
-   * superseded whatever came before it.
+   * What the allowlist tests proved and this block still has to prove is the
+   * token property: an invitee the dispatcher will not send to must never have
+   * a live RSVP link in existence. Minting one and then refusing at the send
+   * would leave a token issued, recorded, and having superseded whatever came
+   * before it. The refusal that remains is a real one — no usable number.
    */
-  it("refuses an invitee outside the allowlist, without burning a token", async () => {
-    const { eventId, invitationId } = await fixture({ phone: NOT_ALLOWLISTED });
+  it("delivers to an invitee whose number no deployment setting names", async () => {
+    const { eventId, invitationId } = await fixture({ phone: "07700 900555" });
+    const transport = accepts();
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    expect(transport).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      (transport.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
+    );
+    expect(body.to).toBe("447700900555");
+
+    const tokens = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
+      [invitationId],
+    );
+    expect(tokens.rows[0].count).toBe("1");
+  });
+
+  it("refuses an invitee with no usable number, without burning a token", async () => {
+    const { eventId, invitationId } = await fixture({ phone: null });
     const transport = accepts();
 
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
@@ -713,9 +726,9 @@ describe("dispatching after approval", () => {
     expect(transport).not.toHaveBeenCalled();
 
     const current = await row(eventId);
-    expect(current.failureReason).toMatch(/approved list of recipients/i);
-    // The reason is rendered on the delivery screen. The numbers behind this
-    // control are private and none of them belongs in it.
+    expect(current.failureReason).toMatch(/no usable mobile number/i);
+    // The reason is rendered on the delivery screen, and a telephone number
+    // does not belong on it.
     expect(current.failureReason).not.toMatch(/\d{4,}/);
 
     const tokens = await observer.query<{ count: string }>(
@@ -725,29 +738,12 @@ describe("dispatching after approval", () => {
     expect(tokens.rows[0].count).toBe("0");
   });
 
-  it("still delivers to an invitee who is on the allowlist", async () => {
-    // The counterpart, so that a control which refused everybody would fail
-    // here rather than passing the test above and looking correct.
-    const { eventId, invitationId } = await fixture({ phone: "07700 900123" });
-    const transport = accepts();
-
-    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
-
-    expect(transport).toHaveBeenCalledTimes(1);
-
-    const tokens = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
-      [invitationId],
-    );
-    expect(tokens.rows[0].count).toBe("1");
-  });
-
-  it("sends to the listed invitee and refuses the unlisted one in the same event", async () => {
-    // The showcase's actual shape: one audience, most of it real roster, two
-    // people who may be reached. A control that worked per-deployment but not
-    // per-recipient would pass both tests above and fail this one.
+  it("sends to the reachable invitee and refuses the unreachable one in the same event", async () => {
+    // One audience, two people, one of whom has no number on file. A refusal
+    // that worked per-deployment rather than per-recipient would pass both
+    // tests above and fail this one.
     const { eventId } = await fixture({ phone: "07700 900123" });
-    const stranger = await addInvitee("unlisted", NOT_ALLOWLISTED);
+    const stranger = await addInvitee("unreachable", null);
     const transport = accepts();
 
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
@@ -963,7 +959,7 @@ describe("revoke and reissue", () => {
    */
   it("refuses a held job, and its live token survives", async () => {
     const { eventId, invitationId, jobId } = await fixture();
-    // A failed attempt with a usable, allowlisted number still mints a
+    // A failed attempt with a usable number still mints a
     // token before the provider is asked — see `claimJobIn`.
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
@@ -1275,6 +1271,191 @@ describe("provider callbacks", () => {
     const current = await row(eventId);
     expect(current.state).toBe("retryable");
     expect(current.failureReason).toContain("could not deliver");
+  });
+});
+
+/**
+ * LAN-288 — a message WhatsApp dropped.
+ *
+ * Read from Meta's own documentation before any of this was written, because
+ * the historical ticket wording assumed a literal `expired` webhook status and
+ * there is no such thing. What the Cloud API actually documents:
+ *
+ *   * the status webhook's `status` field takes exactly `sent`, `delivered`,
+ *     `read`, `played` and `failed`
+ *     (developers.facebook.com/docs/whatsapp/cloud-api/webhooks/reference/messages/status/);
+ *   * a message has a validity period, or TTL — thirty days for everything
+ *     except authentication templates — and "the platform drops messages that
+ *     cannot be delivered within the default or customized TTL"
+ *     (developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages/);
+ *   * and the instruction that follows from it: "If you do not receive a
+ *     status messages webhook with `status` set to `delivered` before the TTL
+ *     is exceeded, assume the message was dropped."
+ *
+ * So expiry is an **absence**, not an event, and these tests stage it the only
+ * way it occurs: an accepted attempt with no callback, aged past the window.
+ */
+describe("LAN-288 — an expired delivery becomes an actionable failure", () => {
+  async function attemptRow(eventId: string) {
+    const result = await observer.query<{
+      id: string;
+      provider_message_id: string;
+      concluded_at: Date | null;
+      failure_reason: string | null;
+    }>(
+      `select a.id, a.provider_message_id, a.concluded_at, a.failure_reason
+         from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    return result.rows[0];
+  }
+
+  async function resultCount(eventId: string): Promise<number> {
+    const result = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.delivery_results r
+         join public.notification_jobs j on j.id = r.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    return Number(result.rows[0].count);
+  }
+
+  /** Ages the accepted attempt past the window, which is what a month passing looks like. */
+  async function ageBeyondTheWindow(eventId: string) {
+    await observer.query(
+      `update public.delivery_attempts a
+          set accepted_at = now() - interval '31 days'
+        from public.notification_jobs j
+       where j.id = a.notification_job_id and j.event_id = $1`,
+      [eventId],
+    );
+  }
+
+  it("concludes an accepted message the provider never confirmed, and offers the repair", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}TTL`),
+    });
+    // Before: apparently sent, and an operator is told to keep waiting.
+    expect((await row(eventId)).state).toBe("attempted");
+
+    await ageBeyondTheWindow(eventId);
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(1);
+
+    const current = await row(eventId);
+    // `retryable` is **Needs attention** on the delivery screen and the
+    // Follow-ups queue's own last-delivery line: the existing actionable
+    // failure path, with no new state invented for this.
+    expect(current.state).toBe("retryable");
+    expect(current.failureReason).toContain("delivery window");
+    // Provider-neutral, and no telephone number in what an operator reads.
+    expect(current.failureReason).not.toMatch(/\d{4,}/);
+
+    const attempt = await attemptRow(eventId);
+    expect(attempt.concluded_at).not.toBeNull();
+    // The raw evidence this attempt already held is preserved, not rewritten:
+    // the provider's own message identifier still matches its callbacks.
+    expect(attempt.provider_message_id).toContain(PROVIDER_MESSAGE_PREFIX);
+    expect(await resultCount(eventId)).toBe(1);
+  });
+
+  it("leaves an attempt still inside its window alone", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}YOUNG`),
+    });
+
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+    expect((await row(eventId)).state).toBe("attempted");
+    expect(await resultCount(eventId)).toBe(0);
+  });
+
+  it("never downgrades a confirmed delivery, however old it is", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}DONE`),
+    });
+    const messageId = (await attemptRow(eventId)).provider_message_id;
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId}:delivered`,
+        providerMessageId: messageId,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    await ageBeyondTheWindow(eventId);
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+
+    expect((await row(eventId)).state).toBe("delivered");
+    expect(await resultCount(eventId)).toBe(1);
+  });
+
+  it("creates no second repair row, however many times it runs", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}TWICE`),
+    });
+    await ageBeyondTheWindow(eventId);
+
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(1);
+    // A second tick, and a third: an attempt this already concluded is no
+    // longer a candidate, so the counts cannot climb.
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+    expect(await resultCount(eventId)).toBe(1);
+  });
+
+  it("keeps the expiry authoritative when a stale callback arrives afterwards", async () => {
+    // Out of order, and the documented shape of it: Meta says a message "might
+    // trigger status message webhooks with `status` set to `delivered`, and
+    // another webhook with `status` set to `failed`" when somebody is signed
+    // in on two devices, and that a failed webhook can be delayed. Invariant
+    // M4 already decides this — the first recorded result per attempt stays
+    // authoritative — and the expiry conclusion is a recorded result like any
+    // other.
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}LATE`),
+    });
+    const messageId = (await attemptRow(eventId)).provider_message_id;
+    await ageBeyondTheWindow(eventId);
+    await concludeExpiredDeliveries({ source: CONFIGURED });
+
+    const applied = await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId}:delivered`,
+        providerMessageId: messageId,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    expect(applied).toBe("superseded");
+    expect(await resultCount(eventId)).toBe(1);
+    // And the callback is still stored as evidence, which is the whole point
+    // of `delivery_callbacks`: it records what arrived and why it moved
+    // nothing.
+    const stored = await observer.query<{ ignored_reason: string | null }>(
+      `select ignored_reason from public.delivery_callbacks
+        where provider_event_id = $1`,
+      [`${messageId}:delivered`],
+    );
+    expect(stored.rows[0].ignored_reason).toContain("already has a recorded outcome");
   });
 });
 
@@ -1664,7 +1845,6 @@ const CONFIGURED_WITH_EMAIL: EnvironmentSource = {
   ...CONFIGURED,
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: "lan173.fallback@example.test",
 };
 
 async function addEmail(personId: string, email = "lan173.fallback@example.test") {
@@ -1753,9 +1933,9 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
   });
 
   it("never sends the fallback on a channel the person has not consented to: no email on file", async () => {
-    // The consent gate the fallback shares with every other email job:
-    // `selectEmailAddress` -> `emailPermitted`, exactly the path an ordinary
-    // email rung takes. No email contact_points row means nothing to send to.
+    // The same route selection every other email job takes:
+    // `selectEmailAddress`. No email contact_points row means nothing to
+    // send to.
     const { eventId, jobId } = await fixture();
 
     await dispatchJob(jobId, {
@@ -1782,9 +1962,14 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
     expect(attempt.rows[0].outcome).toBe("rejected");
   });
 
-  it("never sends the fallback to an email outside this deployment's allowlist", async () => {
+  it("sends the fallback to whatever address the person has on file — LAN-287", async () => {
+    // The email allowlist is gone (Brian, LAN-168, 2 September 2026). The
+    // fallback is a rung of the same ladder as the WhatsApp attempt that
+    // failed, so it reaches the same person at the address their record
+    // carries; a second restriction governing only this channel would have
+    // meant one person eligible on WhatsApp and ineligible by email.
     const { eventId, jobId, personId } = await fixture();
-    await addEmail(personId, "not-allowlisted@example.test");
+    await addEmail(personId, "someone.else@example.test");
 
     await dispatchJob(jobId, {
       source: CONFIGURED_WITH_EMAIL,
@@ -1793,8 +1978,15 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
 
     const fallbacks = await fallbackJobFor(eventId);
     expect(fallbacks).toHaveLength(1);
-    expect(fallbacks[0].status).toBe("failed");
-    expect(fallbacks[0].last_error).toMatch(/restricted to an approved list/i);
+    expect(fallbacks[0].status).toBe("processing");
+
+    const attempt = await observer.query<{ channel: string }>(
+      `select channel::text as channel from public.delivery_attempts
+        where notification_job_id = $1`,
+      [fallbacks[0].id],
+    );
+    expect(attempt.rows).toHaveLength(1);
+    expect(attempt.rows[0].channel).toBe("email");
   });
 
   it("creates at most one fallback row, however many times the original job is retried", async () => {

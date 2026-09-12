@@ -38,6 +38,7 @@ import { readSeasonImportContext, type SeasonImportContext } from "@/lib/service
 import { planImport, type ImportableEvent, type ImportPlanResult } from "@/lib/services/event-csv";
 import { importEventsAction } from "./actions";
 import { EMPTY_IMPORT_STATE, type ImportScreenState } from "./import-state";
+import { describePlanMoved } from "./presentation";
 import BulkImportPage from "./page";
 import ImportScreen, { type ImportScreenProps } from "./import-screen";
 
@@ -112,6 +113,19 @@ describe("the page before anything is imported", () => {
     );
   });
 
+  it("LAN-317: states both date shapes where the file is chosen", async () => {
+    // Excel rewrites the template's date column on a UK machine, so the shapes
+    // the importer reads are on the screen that hands out the template.
+    signedIn();
+    vi.mocked(readSeasonImportContext).mockResolvedValue(context({ total: 0 }));
+
+    render(await BulkImportPage());
+
+    expect(screen.getByTestId("import-date-shapes")).toHaveTextContent(
+      "Dates · DD/MM/YYYY or YYYY-MM-DD",
+    );
+  });
+
   it("renders the service's own refusal rather than a page nobody wrote", async () => {
     signedIn();
     vi.mocked(readSeasonImportContext).mockRejectedValue(new NotFound("No current season."));
@@ -156,11 +170,14 @@ const PRACTICE_TEMPLATE_ID = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
 const CHALK_TEMPLATE_ID = "b547e0b3-f48c-5601-9dc6-e8725fc434f9";
 
 /** A real plan, from the pure planner — never hand-authored. */
-function proposalFor(csvText: string): ImportPlanResult {
+function proposalFor(
+  csvText: string,
+  events: readonly ImportableEvent[] = [EXISTING, APPROVED],
+): ImportPlanResult {
   return planImport({
     csvText,
     fileName: "michaelmas-2026.csv",
-    events: [EXISTING, APPROVED],
+    events,
     // LAN-265. The `type` column names a template, so the planner is handed the
     // ones this fixture's events belong to.
     templates: [
@@ -266,6 +283,93 @@ describe("W3-03 — the proposal", () => {
     expect(applyButton).toBeDisabled();
   });
 
+  it("LAN-316: says why there is nothing to apply, with the refused rows below it", async () => {
+    // "Nothing to apply" on a disabled button, beside a screen of rows, read to
+    // the tester as a fault in the importer rather than as the file's refusals.
+    const refusedOnly = [
+      HEADER,
+      `${APPROVED.id},,,,,,,A different venue,,,`,
+      ",Whatever this is,Training,2026-11-05,,,,,,,",
+    ].join("\r\n");
+    const planned = proposalFor(refusedOnly);
+    if (!planned.ok) throw new Error(`Fixture CSV was refused: ${planned.reason}`);
+    expect(planned.plan.totals).toMatchObject({ new: 0, updated: 0, refused: 2 });
+
+    vi.mocked(importEventsAction).mockResolvedValue({
+      error: null,
+      plan: planned.plan,
+      csvText: refusedOnly,
+      fileName: "refused.csv",
+      applied: null,
+    } satisfies ImportScreenState);
+
+    render(<ImportScreen {...BASE_PROPS} />);
+    await chooseFile(refusedOnly, "refused.csv");
+
+    expect(await screen.findByTestId("import-nothing-to-apply")).toHaveTextContent(
+      "Nothing to apply — 2 rows refused, with the reason on each.",
+    );
+
+    // The rows are on screen, in their own section, and none of them is in a
+    // section that reads as something about to be written.
+    const refused = screen.getByTestId("import-refused-table");
+    expect(screen.getByTestId("section-import-refused")).toHaveTextContent(
+      "Refused · 2 rows · nothing will be written for them",
+    );
+    expect(screen.queryByTestId("import-table")).not.toBeInTheDocument();
+    for (const row of planned.plan.rows) {
+      expect(within(refused).getByTestId(`import-row-${row.line}`)).toHaveTextContent("Refused");
+    }
+    expect(screen.getByTestId("apply-import")).toBeDisabled();
+  });
+
+  it("LAN-316: keeps the refused row out of the rows that would be written", async () => {
+    const planned = proposalFor(MIXED_CSV);
+    if (!planned.ok) throw new Error(`Fixture CSV was refused: ${planned.reason}`);
+    vi.mocked(importEventsAction).mockResolvedValue({
+      error: null,
+      plan: planned.plan,
+      csvText: MIXED_CSV,
+      fileName: "michaelmas-2026.csv",
+      applied: null,
+    } satisfies ImportScreenState);
+
+    render(<ImportScreen {...BASE_PROPS} />);
+    await chooseFile(MIXED_CSV);
+
+    const writable = await screen.findByTestId("import-table");
+    const refused = screen.getByTestId("import-refused-table");
+    const refusedLine = planned.plan.rows.find((row) => row.outcome === "refused")!.line;
+
+    expect(within(refused).getByTestId(`import-row-${refusedLine}`)).toBeInTheDocument();
+    expect(within(writable).queryByTestId(`import-row-${refusedLine}`)).not.toBeInTheDocument();
+    // The reason stays on its own row rather than moving to a banner.
+    expect(within(refused).getByText(/amend it on its own page/)).toBeInTheDocument();
+    // And nothing is said about having nothing to apply, because there is.
+    expect(screen.queryByTestId("import-nothing-to-apply")).not.toBeInTheDocument();
+  });
+
+  it("LAN-317: reads each date back in words beside the row", async () => {
+    const dayFirst = [HEADER, ",Chalk — new,Chalk,05/11/2026,18:00,19:00,yes,Teams,,,no"].join(
+      "\r\n",
+    );
+    const planned = proposalFor(dayFirst);
+    if (!planned.ok) throw new Error(`Fixture CSV was refused: ${planned.reason}`);
+
+    vi.mocked(importEventsAction).mockResolvedValue({
+      error: null,
+      plan: planned.plan,
+      csvText: dayFirst,
+      fileName: "day-first.csv",
+      applied: null,
+    } satisfies ImportScreenState);
+
+    render(<ImportScreen {...BASE_PROPS} />);
+    await chooseFile(dayFirst, "day-first.csv");
+
+    expect(await screen.findByTestId("import-date-echo-2")).toHaveTextContent("5 November 2026");
+  });
+
   it("shows a file-level refusal without ever reaching a proposal", async () => {
     vi.mocked(importEventsAction).mockResolvedValue({
       ...EMPTY_IMPORT_STATE,
@@ -303,9 +407,15 @@ describe("W3-05 — what happened", () => {
     expect(screen.getByText("Bulk import")).toBeInTheDocument();
   });
 
-  it("keeps the proposal on screen when the apply itself is refused", async () => {
+  it("LAN-310: replaces the stale proposal with the current one, naming what moved", async () => {
     const planned = proposalFor(MIXED_CSV);
     if (!planned.ok) throw new Error(`Fixture CSV was refused: ${planned.reason}`);
+    // Somebody approved the draft this file updates while the proposal was on
+    // screen, so the row that was an update is now a refusal.
+    const fresh = proposalFor(MIXED_CSV, [{ ...EXISTING, status: "approved" }, APPROVED]);
+    if (!fresh.ok) throw new Error(`Fixture CSV was refused: ${fresh.reason}`);
+    const movedLine = planned.plan.rows.find((row) => row.eventId === EXISTING.id)!.line;
+
     const proposedState: ImportScreenState = {
       error: null,
       plan: planned.plan,
@@ -317,8 +427,10 @@ describe("W3-05 — what happened", () => {
       .mockResolvedValueOnce(proposedState)
       .mockResolvedValueOnce({
         ...proposedState,
-        error:
-          "The season changed while you were reading this, so what would be written is no longer what you were shown. Nothing has been changed — import the file again to see the current proposal.",
+        plan: fresh.plan,
+        error: describePlanMoved([
+          { line: movedLine, name: EXISTING.name, before: "updated", after: "refused" },
+        ]),
       });
 
     render(<ImportScreen {...BASE_PROPS} />);
@@ -329,8 +441,17 @@ describe("W3-05 — what happened", () => {
       fireEvent.click(screen.getByTestId("apply-import"));
     });
 
-    expect(await screen.findByTestId("import-error")).toHaveTextContent("Nothing has been changed");
-    // Refused, not emptied: the operator can still read the rows they saw.
-    expect(screen.getByTestId("import-table")).toBeInTheDocument();
+    const error = await screen.findByTestId("import-error");
+    expect(error).toHaveTextContent("Nothing was changed.");
+    expect(error).toHaveTextContent(`Line ${movedLine} — was Updated, now Refused.`);
+
+    // Not emptied and not stale: the rows on screen are the current plan's, and
+    // the row that moved is now among the refusals.
+    expect(
+      within(screen.getByTestId("import-refused-table")).getByTestId(`import-row-${movedLine}`),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("apply-import")).toHaveTextContent(
+      `Apply ${fresh.plan.applicableCount} change`,
+    );
   });
 });

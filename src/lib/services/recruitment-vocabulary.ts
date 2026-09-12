@@ -66,9 +66,9 @@ export const RECRUITMENT_ADD_OPT_IN_OPTIONS: readonly { value: string; label: st
     { value: "other", label: "Something else — written below" },
   ]);
 
-/** V-10: the one explicit, scoped exception to the no-narrative-text rule on this surface — replaces "How we came by this number" and "In your own words". */
+/** V-10: the one explicit, scoped exception to the no-narrative-text rule on this surface — replaces "How we came by this number" and "In your own words". LAN-305 corrected the last sentence: a blank answer never stopped the first ask, and since LAN-305 it no longer stops the message either. */
 export const RECRUITMENT_ADD_EXPLANATION =
-  "Why we ask: added this way, this recruit did not hand over their own number through a form, so the club needs a record of how it reached you before messaging them. Answer below and the welcome message goes out; leave it blank and they are still added, but nothing is sent.";
+  "Why we ask: added this way, this recruit did not hand over their own number through a form, so the club needs a record of how it reached you before messaging them. Answer below and the club records their agreement; leave it blank and they are still added, and the welcome still goes out. Only a recorded refusal stops it.";
 
 export const RECRUITMENT_ADD_OPT_IN_LABEL = "How did their contact details reach you?";
 

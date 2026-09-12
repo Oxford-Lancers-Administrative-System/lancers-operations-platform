@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
-import { Field, ChoiceField } from "@/components/field";
+import { Field, ChoiceField, preventImplicitSubmit } from "@/components/field";
 import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -167,7 +167,15 @@ export default function EventForm({
   }, [state.issues]);
 
   return (
-    <Box component="form" action={formAction} ref={formRef} data-testid="event-form">
+    // LAN-313: Enter in a question (or any other single-line field) must not
+    // save the draft and navigate away mid-edit.
+    <Box
+      component="form"
+      action={formAction}
+      ref={formRef}
+      onKeyDown={preventImplicitSubmit}
+      data-testid="event-form"
+    >
       {eventId ? <input type="hidden" name="eventId" value={eventId} /> : null}
 
       <Stack spacing={3} sx={{ maxWidth: 760 }}>

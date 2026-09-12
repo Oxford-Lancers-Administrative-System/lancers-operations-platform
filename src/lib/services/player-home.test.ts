@@ -504,6 +504,34 @@ describe("the durable page's own view", () => {
     expect(home.stillNeedAnswer.map((e) => e.invitationId)).toEqual([chased.invitationId]);
   });
 
+  // LAN-323. Clint, on this page: "EVENTS DO NOT SHOW THE DESCRIPTION, I THINK
+  // THEY SHOULD." Each row carried the template name and the time and nothing
+  // else, so neither field could be shown however the screen was written.
+  it("carries the event's description and required equipment on every row", async () => {
+    const { personId, eventId, invitationId } = await fixture(48, "-facts");
+    await observer.query(
+      `update public.events set description = $2, required_equipment = $3 where id = $1`,
+      [eventId, "Full pads.\nMeet at the clubhouse.", "Gumshield\nStuds"],
+    );
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    const entry = home.newInvitations.find((e) => e.invitationId === invitationId);
+
+    // Two fields, never one joined string — that fold is the calendar feed's.
+    expect(entry?.description).toBe("Full pads.\nMeet at the clubhouse.");
+    expect(entry?.requiredEquipment).toBe("Gumshield\nStuds");
+  });
+
+  it("reports both as null for an event the operator left them empty on", async () => {
+    const { personId, invitationId } = await fixture(48, "-no-facts");
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    const entry = home.newInvitations.find((e) => e.invitationId === invitationId);
+
+    expect(entry?.description).toBeNull();
+    expect(entry?.requiredEquipment).toBeNull();
+  });
+
   it("moves a standing No's unreplaced default reason to Follow-up needed, not the answered archive", async () => {
     const { invitationId, personId } = await fixture(48, "-default");
     await answer(invitationId, "no", NO_REASON_GIVEN_DEFAULT);

@@ -1,23 +1,27 @@
 import "server-only";
 
-import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
+import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { requireCapability } from "@/lib/auth/guards";
 import { todayInClubZone } from "@/lib/club-time";
 import { recordAudit } from "./audit";
 import { createEventDraft, updateEventDraft } from "./events";
 import {
+  digestOf,
   exportFileName,
   formatSeasonExport,
   importTemplateCsv,
   MAX_IMPORT_BYTES,
   planImport,
   plannedWrites,
+  planMovements,
   type ExportableEvent,
   type ImportApplied,
   type ImportableEvent,
   type ImportableTemplate,
   type ImportPlan,
   type ImportPlanResult,
+  type PlanMovement,
+  type PlannedRow,
 } from "./event-csv";
 import { toMinutePrecision, type EventDeliveryMode, type EventStatus } from "./event-input";
 import {
@@ -36,21 +40,18 @@ import { listTermWindows, readCurrentSeasonIn, type Season } from "./seasons";
  * this is the half that touches the database. Authorisation lives here, not
  * in the route (slice-ux.md § 4, W3) — every exported function opens with
  * requireCapability. Applying is one transaction with the plan recomputed
- * inside it against a locked read, refused if the digest has moved — the
- * uploaded file itself is never retained as a record. An import can only
+ * inside it against a locked read; where the digest has moved nothing is
+ * written and the fresh proposal comes back to be confirmed again (LAN-310) —
+ * the uploaded file itself is never retained as a record. An import can only
  * create and update drafts (REQ-upsert-only) — no delete, approval,
  * cancellation, audience, invitation or notification. See relocations.md.
  */
 
 export const IMPORT_TOO_LARGE_MESSAGE = `That file is larger than ${Math.round(MAX_IMPORT_BYTES / 1024)} KB. A season's events are a few tens of kilobytes, so this is not a term card.`;
 
-export const IMPORT_PLAN_MOVED_MESSAGE =
-  "The season changed while you were reading this, so what would be written is no longer what you were shown. Nothing has been changed — import the file again to see the current proposal.";
-
 export const IMPORT_NOTHING_TO_APPLY_MESSAGE =
   "There is nothing to apply. Every row in that file either matches what is already in the season or was refused.";
 
-const IMPORT_PLAN_MOVED_RULE = "event_import_plan_moved";
 const IMPORT_FILE_REFUSED_RULE = "event_import_file_refused";
 
 // A count, not a list (Brian, 2026-08-21) — the Events page is one click away; the count states
@@ -161,12 +162,28 @@ function refuseOversized(csvText: string): string | null {
 
 export interface ApplyRequest extends PlanRequest {
   digest: string; // the digest of the plan the operator confirmed
+  /**
+   * The rows of that same plan, so a refusal can name what moved (LAN-310).
+   * Optional, and never trusted: the digest recomputed from them has to match
+   * the digest being confirmed, or they are ignored. Nothing here decides
+   * whether the apply proceeds — that is the recomputed plan's digest alone.
+   */
+  confirmedRows?: readonly PlannedRow[] | null;
 }
+
+/**
+ * Either the import ran, or the season moved under it and the fresh proposal
+ * comes back to be read and confirmed again — LAN-310. A moved plan is not an
+ * error the operator can do anything about by retrying; it is a new proposal.
+ */
+export type ImportApplyResult =
+  | { ok: true; applied: ImportApplied }
+  | { ok: false; reason: "plan_moved"; plan: ImportPlan; movements: readonly PlanMovement[] };
 
 // One withTransaction, joined (not nested) by createEventDraft/updateEventDraft, so a failure on
 // row forty rolls back the thirty-nine before it and no second copy of their write rules exists.
 // The season is read for update, so a racing approval waits rather than slipping through.
-export async function applySeasonImport(request: ApplyRequest): Promise<ImportApplied> {
+export async function applySeasonImport(request: ApplyRequest): Promise<ImportApplyResult> {
   const operator = await requireCapability("event_calendar_management");
 
   const oversized = refuseOversized(request.csvText);
@@ -192,8 +209,16 @@ export async function applySeasonImport(request: ApplyRequest): Promise<ImportAp
     const plan: ImportPlan = planned.plan;
 
     if (plan.digest !== request.digest) {
-      // rebuilt against the season as it is *now* differs — the operator agreed to something else
-      throw new InvalidTransition(IMPORT_PLAN_MOVED_MESSAGE, { rule: IMPORT_PLAN_MOVED_RULE });
+      // Rebuilt against the season as it is *now* differs — the operator agreed to something else,
+      // so nothing is written. The fresh plan goes back instead of a dead end (LAN-310): the
+      // rows that moved are named from the confirmed ones, which are only believed if they
+      // still digest to what is being confirmed.
+      const confirmed = request.confirmedRows ?? null;
+      const movements =
+        confirmed !== null && digestOf(confirmed) === request.digest
+          ? planMovements(confirmed, plan.rows)
+          : [];
+      return { ok: false, reason: "plan_moved", plan, movements };
     }
 
     const writes = plannedWrites(plan);
@@ -228,10 +253,13 @@ export async function applySeasonImport(request: ApplyRequest): Promise<ImportAp
     });
 
     return {
-      created: plan.totals.new,
-      updated: plan.totals.updated,
-      unchanged: plan.totals.unchanged,
-      refused: plan.totals.refused,
+      ok: true,
+      applied: {
+        created: plan.totals.new,
+        updated: plan.totals.updated,
+        unchanged: plan.totals.unchanged,
+        refused: plan.totals.refused,
+      },
     };
   });
 }

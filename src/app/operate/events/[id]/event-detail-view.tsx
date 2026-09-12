@@ -451,6 +451,19 @@ export function EventDetailView({
             </Button>
           ) : null}
 
+          {/* LAN-318, amending D41: approval no longer freezes the questions. Nothing is sent when they change, and none can be removed. */}
+          {mayManage && event.status === "approved" ? (
+            <Button
+              variant="outlined"
+              href={`/operate/events/${event.id}/edit`}
+              fullWidth
+              sx={{ minHeight: 44 }}
+              data-testid="edit-questions"
+            >
+              Edit questions
+            </Button>
+          ) : null}
+
           {/* D39: duplicate prefills the create form; nothing is written until saved. */}
           {mayManage ? (
             <Button

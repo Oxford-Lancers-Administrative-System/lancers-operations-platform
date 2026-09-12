@@ -29,6 +29,18 @@ vi.mock("@/lib/services/person-record", () => ({ readPersonRecord: vi.fn() }));
 vi.mock("@/lib/auth/person-authority", () => ({
   redactPersonRecord: vi.fn((record: Record<string, unknown>) => record),
 }));
+// LAN-307: the page now draws the canonical record's remaining sections, from
+// the same readers the person page calls. Mocked here for the same reason
+// every other reader on this page is — this file proves the gate, not the
+// content, and the unit project may not reach the database at all.
+vi.mock("@/lib/services/people-directory", () => ({
+  listPersonRoleAssignments: vi.fn().mockResolvedValue([]),
+  listPersonSeasons: vi.fn().mockResolvedValue([]),
+  readPersonHistory: vi.fn().mockResolvedValue([]),
+}));
+vi.mock("@/lib/services/seasons", () => ({
+  readCurrentSeason: vi.fn().mockResolvedValue({ id: "season", label: "2026-27" }),
+}));
 // Both send buttons and the notes card call into this record's own actions —
 // mocked so rendering the admitted-role case never reaches a service. The
 // writes themselves are proved for real in `recruitment-prospect.test.ts`,

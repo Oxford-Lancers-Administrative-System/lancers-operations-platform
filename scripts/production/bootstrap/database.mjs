@@ -30,20 +30,15 @@
  * sends it.
  */
 
+import { personDisplayNameSql } from "../../lib/person-display-name-sql.mjs";
+
 /**
- * The display form of a name, matching `NAME_EXPRESSION` in
- * `src/lib/services/administration-audit.ts`. `family_name` is nullable by
- * design, so this must not produce a trailing space.
+ * The display form of a name. `src/lib/services/administration-audit.ts` reads
+ * it through `personDisplayNameSql`, and so does this — LAN-306 made the rule
+ * the formal given and family name, and the copy that used to stand here still
+ * substituted the Known-as alias.
  */
-const NAME_EXPRESSION = (alias) => `case when ${alias}.family_name is null
-          then coalesce(nullif(btrim((select da.alias from public.person_aliases da
-                                     where da.person_id = ${alias}.id and da.is_display_name
-                                     limit 1)), ''), ${alias}.given_name)
-        else coalesce(nullif(btrim((select da.alias from public.person_aliases da
-                                     where da.person_id = ${alias}.id and da.is_display_name
-                                     limit 1)), ''), ${alias}.given_name)
-             || ' ' || ${alias}.family_name
-   end`;
+const NAME_EXPRESSION = personDisplayNameSql;
 
 /** What the founding assignments record about themselves. */
 export const BOOTSTRAP_ASSIGNMENT_NOTE =

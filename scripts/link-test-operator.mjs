@@ -30,6 +30,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { connectLocal, resolveLocalDatabaseUrl } from "./lib/local-db.mjs";
 import { LOCAL_REVIEW_EMAIL } from "./lib/local-review-account.mjs";
+import { personDisplayNameSql } from "./lib/person-display-name-sql.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: resolve(root, ".env.local"), quiet: true });
@@ -53,13 +54,6 @@ try {
 
 const client = await connectLocal(databaseUrl);
 
-/** Formats a seeded person for display. `family_name` is nullable by design. */
-function displayName(person) {
-  const first = person.display_alias?.trim() || person.given_name.trim();
-  const last = person.family_name?.trim();
-  return last ? `${first} ${last}` : first;
-}
-
 try {
   await client.query("begin");
 
@@ -79,11 +73,7 @@ try {
 
   // Already linked? Report it and stop. This is the second-run path.
   const existing = await client.query(
-    `select oa.id, oa.is_active, p.given_name, p.family_name,
-            (select da.alias
-              from public.person_aliases da
-             where da.person_id = p.id and da.is_display_name
-             limit 1) as display_alias
+    `select oa.id, oa.is_active, ${personDisplayNameSql("p")} as display_name
        from public.operator_accounts oa
        join public.people p on p.id = oa.person_id
       where oa.auth_user_id = $1`,
@@ -101,12 +91,12 @@ try {
         [row.id],
       );
       await client.query("commit");
-      console.log(`Reactivated the existing operator account for ${email} -> ${displayName(row)}.`);
+      console.log(`Reactivated the existing operator account for ${email} -> ${row.display_name}.`);
       process.exit(0);
     }
 
     await client.query("rollback");
-    console.log(`${email} is already linked to ${displayName(row)}. Nothing to do.`);
+    console.log(`${email} is already linked to ${row.display_name}. Nothing to do.`);
     process.exit(0);
   }
 
@@ -118,11 +108,7 @@ try {
         order by starts_on desc
         limit 1
      )
-     select p.id, p.given_name, p.family_name,
-            (select da.alias
-              from public.person_aliases da
-             where da.person_id = p.id and da.is_display_name
-             limit 1) as display_alias,
+     select p.id, ${personDisplayNameSql("p")} as display_name,
             string_agg(distinct r.code, ', ') as codes
        from public.role_assignments ra
        join current_year cy on cy.id = ra.committee_year_id
@@ -159,7 +145,7 @@ try {
   );
   await client.query("commit");
 
-  console.log(`Linked ${email} -> ${displayName(person)}`);
+  console.log(`Linked ${email} -> ${person.display_name}`);
   console.log(`Currently-effective roles: ${person.codes}`);
   console.log(
     `Sign in at http://localhost:${process.env.PORT ?? "3000"}/login and open /dashboard.`,

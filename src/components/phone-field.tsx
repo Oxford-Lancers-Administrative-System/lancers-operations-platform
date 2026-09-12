@@ -5,6 +5,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 
+import { NO_AUTOFILL } from "@/components/field";
 import { CALLING_COUNTRIES, joinPhoneParts, splitPhoneNumber } from "@/lib/services/phone-parts";
 
 /**
@@ -96,7 +97,15 @@ export function PhoneField({
           label={label}
           type="tel"
           inputMode="tel"
-          autoComplete="tel-national"
+          // LAN-332. Was `tel-national`, and Chrome duly offered the operator
+          // their own mobile on the invite form — the same autofill that put
+          // the operator's name into "Event name" (LAN-324). Most numbers this
+          // control takes are about somebody else: a recruit being added, a
+          // walk-up, an emergency contact, an invited operator. The two
+          // self-entry doors (`/join/[code]`, `/me/[token]/details`) lose a
+          // convenience; every other caller stops recording the wrong person's
+          // number, which is the trade the kit takes.
+          autoComplete={NO_AUTOFILL}
           value={nationalNumber}
           onChange={(event) => update(callingCode, event.target.value)}
           required={required}

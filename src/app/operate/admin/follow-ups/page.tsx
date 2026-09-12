@@ -2,22 +2,22 @@ import { EmptyState } from "@/components/empty-state";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
+import { operatorHasCapability } from "@/lib/auth/guards";
 import { EVENT_PERIODS, periodBounds, type EventPeriod } from "@/lib/services/event-periods";
 import { countPeople, readFollowUpsQueue, type FollowUpEvent } from "@/lib/services/follow-ups";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import AdminPageHeading from "../page-heading";
 import FollowUpsFilter from "./follow-ups-filter";
-import FollowUpsTable from "./follow-ups-table";
-import FollowUpsCards from "./follow-ups-cards";
+import FollowUpsBoard from "./follow-ups-board";
 import {
-  currentTermBounds,
   dayParam,
   flatten,
   isFollowUpsSort,
   sortFilteredRows,
   type FollowUpsFilters,
 } from "./queue-filters";
+import { currentTermBounds } from "./term-bounds";
 import { EMPTY_QUEUE, PAGE_HEADING, subheading } from "./presentation";
 
 const FOLLOW_UPS_PATH = "/operate/admin/follow-ups";
@@ -93,10 +93,12 @@ export default async function FollowUpsPage({
           action={rows.length > 0 ? { href: FOLLOW_UPS_PATH, label: "Clear filters" } : undefined}
         />
       ) : (
-        <>
-          <FollowUpsTable filters={filters} rows={sorted} />
-          <FollowUpsCards rows={sorted} />
-        </>
+        <FollowUpsBoard
+          filters={filters}
+          rows={sorted}
+          mayChase={operatorHasCapability(gate.operator, "delivery_administration")}
+          mayOpenPerson={operatorHasCapability(gate.operator, "person_record_authority")}
+        />
       )}
     </Stack>
   );

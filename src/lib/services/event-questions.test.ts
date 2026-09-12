@@ -27,8 +27,10 @@ import {
   deleteEventDraft,
   readEventQuestions,
   updateEventDraft,
+  updateEventQuestions,
   type EventDraftInput,
 } from "./events";
+import { cancelEvent } from "./event-amendment";
 import {
   approveEvent,
   describeMissingForApproval,
@@ -99,6 +101,10 @@ afterEach(async () => {
     scope,
   ]);
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
+  // LAN-318's tests answer a question before changing it, and an answer points at both.
+  await observer.query(`delete from public.question_responses where event_id in ${events}`, [
+    scope,
+  ]);
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
     scope,
@@ -157,6 +163,7 @@ function futureDate(days: number): string {
 
 function question(overrides: Partial<EventQuestionInput> = {}): EventQuestionInput {
   return {
+    id: null,
     prompt: "Can you get yourself to the ground?",
     answerType: "boolean",
     isRequired: false,
@@ -307,10 +314,12 @@ describe("questions are authored on the event (amendment W4-A1)", () => {
   });
 
   it("refuses to edit the questions of anything that is not a draft", async () => {
-    // A question is part of the event, so changing one after approval is W5's
-    // amendment path like any other change. F-C1, Q-31: approval now refuses
-    // an event with no start time, so this fixture needs one — unrelated to
-    // what this test is actually about.
+    // The whole-event edit is still draft-only: the facts of an approved event
+    // change through W5's amendment path, which tells people. LAN-318 changed
+    // nothing here — it added `updateEventQuestions` beside this, for the
+    // questions alone, which is the next describe block down. F-C1, Q-31:
+    // approval now refuses an event with no start time, so this fixture needs
+    // one — unrelated to what this test is actually about.
     const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }), []);
     await giveAudience(event.id);
     await approveEvent(actorPersonId, event.id);
@@ -321,6 +330,254 @@ describe("questions are authored on the event (amendment W4-A1)", () => {
 
     expect(error.kind).toBe("invalid_transition");
     expect(await readEventQuestions(event.id)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// An approved event's questions — LAN-318, amending D41
+// ---------------------------------------------------------------------------
+
+/**
+ * Brian, 2026-09-11: approval no longer freezes the questions. They can be
+ * added to, reworded, retyped, re-optioned, re-required and reordered on an
+ * approved event, silently — nothing goes out. The one thing approval takes
+ * away is removal, because `question_responses.event_question_id` points at
+ * the row and an answer already given must not be left dangling.
+ */
+describe("an approved event's questions change in place, and nothing goes out (LAN-318)", () => {
+  /** An approved event asking exactly these questions, with invitations behind it. */
+  async function approvedAsking(questions: readonly EventQuestionInput[]) {
+    const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }), questions);
+    await giveAudience(event.id);
+    await approveEvent(actorPersonId, event.id);
+    return event;
+  }
+
+  /** How many notification jobs this event has — the proof that a change sent nothing. */
+  async function jobCount(eventId: string): Promise<string> {
+    const result = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.notification_jobs where event_id = $1",
+      [eventId],
+    );
+    return result.rows[0].count;
+  }
+
+  /** An answer already given, against the first invitation on the event. */
+  async function answerChoice(eventId: string, questionId: string, choice: string) {
+    await observer.query(
+      `insert into public.question_responses (invitation_id, event_id, event_question_id, answer_choice)
+       select id, $1, $2, $3 from public.invitations where event_id = $1 order by id limit 1`,
+      [eventId, questionId, choice],
+    );
+  }
+
+  /** As stored, in the order a player is asked — id included, which is the point here. */
+  async function asked(eventId: string) {
+    return (await readEventQuestions(eventId)).map((entry) => ({
+      id: entry.id,
+      prompt: entry.prompt,
+      answerType: entry.answerType,
+      choices: entry.choices,
+      isRequired: entry.isRequired,
+    }));
+  }
+
+  it("rewords, retypes, re-options, re-requires and reorders — keeping the same rows", async () => {
+    const event = await approvedAsking([
+      question({ prompt: "Are you fit?", answerType: "boolean" }),
+      question({ prompt: "Shirt size?", answerType: "choice", choices: ["S", "M"] }),
+    ]);
+    const [fit, size] = await asked(event.id);
+
+    await updateEventQuestions(actorPersonId, event.id, [
+      question({
+        id: size.id,
+        prompt: "Which shirt size?",
+        answerType: "choice",
+        choices: ["S", "M", "L"],
+        isRequired: true,
+      }),
+      question({ id: fit.id, prompt: "Are you fit to play?", answerType: "text" }),
+    ]);
+
+    // Same two rows, in the other order, saying different things — an update,
+    // never a delete-and-reinsert, which is what keeps an answer attached.
+    expect(await asked(event.id)).toEqual([
+      {
+        id: size.id,
+        prompt: "Which shirt size?",
+        answerType: "choice",
+        choices: ["S", "M", "L"],
+        isRequired: true,
+      },
+      {
+        id: fit.id,
+        prompt: "Are you fit to play?",
+        answerType: "text",
+        choices: null,
+        isRequired: false,
+      },
+    ]);
+  });
+
+  it("lets two questions swap their wording, which the uniqueness constraint would otherwise catch mid-way", async () => {
+    const event = await approvedAsking([
+      question({ prompt: "Coming by car?" }),
+      question({ prompt: "Coming by coach?" }),
+    ]);
+    const [car, coach] = await asked(event.id);
+
+    await updateEventQuestions(actorPersonId, event.id, [
+      question({ id: car.id, prompt: "Coming by coach?" }),
+      question({ id: coach.id, prompt: "Coming by car?" }),
+    ]);
+
+    expect((await asked(event.id)).map((entry) => entry.prompt)).toEqual([
+      "Coming by coach?",
+      "Coming by car?",
+    ]);
+  });
+
+  it("adds a question without disturbing the ones already there", async () => {
+    const event = await approvedAsking([question({ prompt: "Are you fit?" })]);
+    const [fit] = await asked(event.id);
+
+    await updateEventQuestions(actorPersonId, event.id, [
+      question({ id: fit.id, prompt: "Are you fit?" }),
+      question({ prompt: "Need a lift?", answerType: "text" }),
+    ]);
+
+    const now = await asked(event.id);
+    expect(now.map((entry) => entry.prompt)).toEqual(["Are you fit?", "Need a lift?"]);
+    expect(now[0].id).toBe(fit.id);
+  });
+
+  it("refuses to remove one, and leaves every question where it was", async () => {
+    const event = await approvedAsking([
+      question({ prompt: "Are you fit?" }),
+      question({ prompt: "Need a lift?" }),
+    ]);
+    const before = await asked(event.id);
+
+    const error = await refusalFrom(() =>
+      updateEventQuestions(actorPersonId, event.id, [
+        question({ id: before[0].id, prompt: "Are you fit?" }),
+      ]),
+    );
+
+    expect(error.kind).toBe("constraint_violated");
+    expect(error.rule).toBe("event_question_removal_after_approval");
+    expect(await asked(event.id)).toEqual(before);
+  });
+
+  it("refuses a question that belongs to another event", async () => {
+    const mine = await approvedAsking([question({ prompt: "Are you fit?" })]);
+    const theirs = await approvedAsking([question({ prompt: "Are you fit?" })]);
+    const [ours] = await asked(mine.id);
+    const [stranger] = await asked(theirs.id);
+
+    const error = await refusalFrom(() =>
+      updateEventQuestions(actorPersonId, mine.id, [
+        question({ id: ours.id, prompt: "Are you fit?" }),
+        question({ id: stranger.id, prompt: "Smuggled in" }),
+      ]),
+    );
+
+    expect(error.rule).toBe("event_question_belongs_to_event");
+  });
+
+  it("queues nothing — no job, no invitation, no delivery attempt", async () => {
+    const event = await approvedAsking([question({ prompt: "Are you fit?" })]);
+    const [fit] = await asked(event.id);
+    const jobsBefore = await jobCount(event.id);
+    const invitationsBefore = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.invitations where event_id = $1",
+      [event.id],
+    );
+
+    await updateEventQuestions(actorPersonId, event.id, [
+      question({ id: fit.id, prompt: "Are you fit to play?" }),
+      question({ prompt: "Need a lift?", answerType: "text" }),
+    ]);
+
+    expect(await jobCount(event.id)).toBe(jobsBefore);
+    const invitationsAfter = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.invitations where event_id = $1",
+      [event.id],
+    );
+    expect(invitationsAfter.rows[0].count).toBe(invitationsBefore.rows[0].count);
+  });
+
+  it("leaves an answer already given exactly as it was, option withdrawn or not", async () => {
+    const event = await approvedAsking([
+      question({ prompt: "Shirt size?", answerType: "choice", choices: ["S", "M", "L"] }),
+    ]);
+    const [size] = await asked(event.id);
+    await answerChoice(event.id, size.id, "L");
+
+    // "L" is taken off the list after somebody has already answered "L".
+    await updateEventQuestions(actorPersonId, event.id, [
+      question({ id: size.id, prompt: "Shirt size?", answerType: "choice", choices: ["S", "M"] }),
+    ]);
+
+    const stored = await observer.query<{ answer_choice: string; event_question_id: string }>(
+      "select answer_choice, event_question_id from public.question_responses where event_id = $1",
+      [event.id],
+    );
+    expect(stored.rows).toHaveLength(1);
+    expect(stored.rows[0].answer_choice).toBe("L");
+    expect(stored.rows[0].event_question_id).toBe(size.id);
+  });
+
+  it("records the change, and what is now asked, in the audit trail", async () => {
+    const event = await approvedAsking([question({ prompt: "Are you fit?" })]);
+    const [fit] = await asked(event.id);
+
+    await updateEventQuestions(actorPersonId, event.id, [
+      question({ id: fit.id, prompt: "Are you fit to play?" }),
+    ]);
+
+    const audit = await observer.query<{ context: { prompts: string[] } }>(
+      `select context from public.audit_events
+        where entity_table = 'events' and entity_id = $1 and action = 'event.questions_updated'`,
+      [event.id],
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].context.prompts).toEqual(["Are you fit to play?"]);
+  });
+
+  it("refuses on a draft, which has the whole-event edit instead", async () => {
+    const event = await newDraft(actorPersonId, draftInput(), [
+      question({ prompt: "Are you fit?" }),
+    ]);
+    const [fit] = await asked(event.id);
+
+    const error = await refusalFrom(() =>
+      updateEventQuestions(actorPersonId, event.id, [
+        question({ id: fit.id, prompt: "Are you fit to play?" }),
+      ]),
+    );
+
+    expect(error.kind).toBe("invalid_transition");
+    expect(error.rule).toBe("event_questions_edit_requires_approved");
+  });
+
+  it("refuses on a cancelled event, which is asking nobody anything", async () => {
+    const event = await approvedAsking([question({ prompt: "Are you fit?" })]);
+    const [fit] = await asked(event.id);
+    await cancelEvent(actorPersonId, event.id, {
+      reason: "The pitch is frozen.",
+      notify: false,
+      silenceConfirmed: true,
+    });
+
+    const error = await refusalFrom(() =>
+      updateEventQuestions(actorPersonId, event.id, [
+        question({ id: fit.id, prompt: "Are you fit to play?" }),
+      ]),
+    );
+
+    expect(error.rule).toBe("event_questions_edit_requires_approved");
   });
 });
 

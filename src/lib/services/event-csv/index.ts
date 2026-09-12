@@ -19,5 +19,7 @@ export {
   importTemplateCsv,
 } from "./prompt";
 export { planImport, plannedWrites } from "./plan";
-export { formatSeasonExport, exportFileName } from "./export";
+export { planMovements } from "./movement";
+export type { PlanMovement } from "./movement";
+export { formatSeasonExport, exportFileName, digestOf } from "./export";
 export type { ExportableEvent } from "./export";

@@ -24,7 +24,7 @@ import {
 
 // Audience members with no usable WhatsApp route right now (W1's D8, LAN-171) — reads the same
 // contact points, same order, through the same selectMobileNumber the dispatcher uses at send time,
-// so this count and W6's failures can't disagree. Independent of DELIVERY_RECIPIENT_ALLOWLIST — see relocations.md.
+// so this count and W6's failures can't disagree. It answers "has a usable number", nothing more.
 async function resolveUnreachableIn(
   tx: Tx,
   members: readonly AudienceMember[],

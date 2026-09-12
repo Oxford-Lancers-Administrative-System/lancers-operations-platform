@@ -5,9 +5,11 @@
  * The same two properties `/auth/recovery` is held to, and one more that is
  * specific to this route:
  *
- *   * **One destination.** Whatever happened, the browser is sent to
- *     `/reset-password`. This route mints a session; a caller-supplied
- *     destination on it would be an open redirect with credentials attached.
+ *   * **Two destinations, both of them this module's own.** An exchanged token
+ *     lands on `/reset-password`; anything else lands on `/invitation-link`
+ *     (LAN-311). Neither is caller-supplied: this route mints a session, and a
+ *     destination read off the query string would be an open redirect with
+ *     credentials attached.
  *
  *   * **The token does not survive the hop.** It is in the request URL and must
  *     not appear in `Location`, because the next page has a password field.
@@ -157,32 +159,75 @@ describe("anything else is refused before the auth server is contacted", () => {
     ["a malformed token", "?token_hash=not-a-token&type=invite"],
     ["an upper-case token", `?token_hash=${TOKEN.toUpperCase()}&type=invite`],
     ["an injected token", "?token_hash=abc'+or+'1'%3D'1&type=invite"],
-  ])("%s never reaches Supabase, and still lands on the password screen", async (_name, query) => {
+  ])("%s never reaches Supabase, and lands on the invitation screen", async (_name, query) => {
     const response = await GET(requestFor(query));
 
     expect(verifyOtp).not.toHaveBeenCalled();
     expect(response.status).toBe(303);
-    expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/reset-password`);
+    // LAN-311: not `/reset-password`. Nothing was exchanged, so there is no
+    // session for that screen to use, and the sentence it renders without one
+    // is about a password reset this visitor never asked for.
+    expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/invitation-link`);
   });
 });
 
-describe("a spent or expired invitation is indistinguishable from a good one", () => {
-  it("lands in the same place, saying nothing about why", async () => {
-    verifyOtp.mockResolvedValue({
-      data: { session: null },
-      error: { message: "Email link is invalid or has expired" },
-    });
+describe("an invitation that cannot be exchanged — LAN-311", () => {
+  /**
+   * Clint's failure, as assertions. His token could not verify — LAN-309
+   * decision 12 records why: the address already had an account — and the
+   * screen he was handed told him his *password-reset* link was no longer
+   * valid and to request a new one. He did, on an account that has never had a
+   * password, and got the same error. This route is where that loop begins.
+   *
+   * Three shapes of "no", because only one of them is an `error`. `verifyOtp`
+   * can answer without one and still mint no session, and it is the session,
+   * not the absence of an error, that `/reset-password` needs.
+   */
+  const noSession = [
+    [
+      "a spent or expired token",
+      { data: { session: null }, error: { message: "Email link is invalid or has expired" } },
+    ],
+    ["a token that exchanged into nothing", { data: { session: null }, error: null }],
+    ["an auth server that answers with nothing at all", { data: null, error: null }],
+  ] as const;
+
+  it.each(noSession)(
+    "%s lands on the invitation screen, not the password one",
+    async (_n, answer) => {
+      verifyOtp.mockResolvedValue(answer);
+
+      const response = await GET(requestFor(`?token_hash=${TOKEN}&type=invite`));
+      const location = new URL(locationOf(response));
+
+      expect(response.status).toBe(303);
+      expect(location.origin).toBe(PUBLIC_ORIGIN);
+      expect(location.pathname).toBe("/invitation-link");
+      // Still no error code, no reason, no query at all: expired, spent and
+      // wrong-type share one screen and one sentence. Which journey the visitor
+      // is on is not an account oracle; why their token failed would be.
+      expect(location.search).toBe("");
+    },
+  );
+
+  it("keeps the token out of the failure redirect too", async () => {
+    verifyOtp.mockResolvedValue({ data: { session: null }, error: { message: "expired" } });
 
     const response = await GET(requestFor(`?token_hash=${TOKEN}&type=invite`));
-    const location = new URL(locationOf(response));
 
-    // No error code, no reason, no query at all. "This invitation was already
-    // used" is an account oracle, and the destination renders its own generic
-    // message for a request that arrives with no session.
-    expect(response.status).toBe(303);
-    expect(location.origin).toBe(PUBLIC_ORIGIN);
-    expect(location.pathname).toBe("/reset-password");
-    expect(location.search).toBe("");
+    for (const [, value] of response.headers) expect(value).not.toContain(TOKEN);
+  });
+
+  it("falls back to a relative invitation screen rather than an untrusted host", async () => {
+    vi.stubEnv("APP_BASE_URL", "");
+    verifyOtp.mockResolvedValue({ data: { session: null }, error: { message: "expired" } });
+
+    const response = await GET(
+      requestFor(`?token_hash=${TOKEN}&type=invite`, "https://evil.example"),
+    );
+
+    expect(locationOf(response)).toBe("/invitation-link");
+    expect(locationOf(response)).not.toContain("evil.example");
   });
 });
 

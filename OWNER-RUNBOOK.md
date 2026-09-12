@@ -507,9 +507,12 @@ node scripts/production/showcase.mjs verify --confirm-target fggbgeraiadetyiyjlv
 - **`DELIVERY_DEFAULT_CALLING_CODE` must be `44`**, or unset.
 - **The delivery page never shows "Delivered"** without an inbound webhook.
   Accepted is the provider taking the message, not the phone receiving it.
-- **`DELIVERY_RECIPIENT_ALLOWLIST`** stays the control that limits who the
-  application can message. During tester week it does not matter — nothing is
-  configured to send — but set it to the numbers you intend before LAN-168.
+- **There is no recipient allowlist.** LAN-287 removed
+  `DELIVERY_RECIPIENT_ALLOWLIST` and `DELIVERY_EMAIL_ALLOWLIST` on your LAN-168
+  decision of 2 September. Who the application may message is now decided by
+  membership, recorded season consent, withdrawal and departure — nothing to
+  set, and nothing to forget to set. Production still sends nothing until
+  `WHATSAPP_PHONE_NUMBER_ID` is configured at cutover.
 
 ---
 

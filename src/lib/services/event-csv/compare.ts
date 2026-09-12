@@ -1,4 +1,5 @@
 import { trimmed, type EventDeliveryMode, type EventDraftInput } from "../event-input";
+import { formatCalendarDate, parseCalendarDate } from "./dates";
 import type { FieldChange, ImportableEvent, ImportColumn, PlanCell } from "./shared";
 import { IMPORT_COLUMNS } from "./shared";
 
@@ -72,6 +73,19 @@ export function changesBetween(before: CompareShape, after: CompareShape): Field
   return changes;
 }
 
+/**
+ * LAN-317: a date cell carries its own value in words. The confirmation is the
+ * only place a day-first file can be caught before it is written, and
+ * `2026-12-03` beside `3 December 2026` is a check an operator can actually
+ * make. Reads the cell's own text, so it holds for the ISO a plan computes and
+ * for the raw `03/12/2026` a refused row shows.
+ */
+function echoed(column: ImportColumn, cell: PlanCell): PlanCell {
+  if (column !== "date") return cell;
+  const day = parseCalendarDate(cell.value);
+  return day === null ? cell : { ...cell, echo: formatCalendarDate(day) };
+}
+
 function blankCells(): Record<ImportColumn, PlanCell> {
   const cells = {} as Record<ImportColumn, PlanCell>;
   for (const column of IMPORT_COLUMNS) cells[column] = { value: "", previous: null };
@@ -81,7 +95,7 @@ function blankCells(): Record<ImportColumn, PlanCell> {
 export function newCells(input: PlannedInput): Record<ImportColumn, PlanCell> {
   const cells = blankCells();
   for (const column of COMPARED_COLUMNS)
-    cells[column] = { value: valueOf(input, column), previous: null };
+    cells[column] = echoed(column, { value: valueOf(input, column), previous: null });
   return cells;
 }
 
@@ -89,7 +103,7 @@ export function currentCells(event: ImportableEvent): Record<ImportColumn, PlanC
   const cells = blankCells();
   cells.id = { value: event.id, previous: null };
   for (const column of COMPARED_COLUMNS)
-    cells[column] = { value: valueOf(event, column), previous: null };
+    cells[column] = echoed(column, { value: valueOf(event, column), previous: null });
   return cells;
 }
 
@@ -103,9 +117,12 @@ export function updatedCells(
   cells.id = { value: before.id, previous: null };
   for (const column of COMPARED_COLUMNS) {
     const change = changed.get(column);
-    cells[column] = change
-      ? { value: change.to, previous: change.from }
-      : { value: valueOf(after, column), previous: null };
+    cells[column] = echoed(
+      column,
+      change
+        ? { value: change.to, previous: change.from }
+        : { value: valueOf(after, column), previous: null },
+    );
   }
   return cells;
 }
@@ -113,6 +130,6 @@ export function updatedCells(
 export function rawCells(cells: Record<ImportColumn, string>): Record<ImportColumn, PlanCell> {
   const shown = blankCells();
   for (const column of IMPORT_COLUMNS)
-    shown[column] = { value: trimmed(cells[column]), previous: null };
+    shown[column] = echoed(column, { value: trimmed(cells[column]), previous: null });
   return shown;
 }

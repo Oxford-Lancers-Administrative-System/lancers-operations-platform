@@ -13,10 +13,25 @@ export interface OperatorIdentityPort {
   deleteLogin(authUserId: string): Promise<void>;
 }
 
+/**
+ * LAN-311. The backstop behind `refuseTakenEmail`, and the one that catches an
+ * address the Auth server knows and this application's `operator_accounts` does
+ * not — a login left behind by an invitation whose rows failed to write, say.
+ * It names no record to open, because in this case there is not one: the
+ * address the Auth server holds belongs to nobody the club has on its books,
+ * and clearing it is not something the invite form can do. `refuseTakenEmail`
+ * is the other half, and only it can name whose account an address is.
+ *
+ * It fires **before** anything is written or sent, which is the point: an
+ * `invite` token cannot verify against an address that already has an account,
+ * so an invitation minted here would be dead on arrival and its holder would
+ * land on `/invitation-link` with nothing to do. Refusing costs the
+ * administrator one sentence; sending cost Clint a tester week's item 8.
+ */
 const DUPLICATE_LOGIN_MESSAGE =
-  "That email address already has an operator login. One person has one login, so if this is " +
-  "the same person, open their operator record instead of inviting them again — and if it is " +
-  "somebody else, invite them with their own address.";
+  "That email address already has a sign-in account, and the club's records hold no operator " +
+  "for it. An invitation sent to it could never be used, and nothing on this screen can " +
+  "change that. Invite a different address.";
 
 const DUPLICATE_LOGIN_RULE = "operator_login_email_taken";
 

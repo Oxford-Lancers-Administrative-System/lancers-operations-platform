@@ -25,8 +25,19 @@ vi.mock("../status-cell", () => ({
   default: () => null,
 }));
 
-import type { PersonRecord } from "@/lib/services/person-record";
+import type { PersonRecord, PersonContactValue } from "@/lib/services/person-record";
 import type { RecruitmentProspectRecord } from "@/lib/services/recruitment-prospect";
+import { selectMobileNumber } from "@/lib/delivery/phone-shape";
+import { DEFAULT_CALLING_CODE } from "@/lib/services/person-validation";
+import {
+  ContactSection,
+  IdentitySection,
+} from "@/app/operate/people/[personId]/identity-contact-sections";
+import {
+  AcademicSection,
+  RestrictedSection,
+} from "@/app/operate/people/[personId]/academic-restricted-sections";
+import StatusSection from "@/app/operate/people/[personId]/status-section";
 import RecruitmentRecordView from "./record-view";
 import { sendRecruitmentQuestionnaireAction } from "./actions";
 
@@ -59,6 +70,259 @@ const BASE_RECORD: RecruitmentProspectRecord = {
 };
 
 const NO_PERSON: Partial<PersonRecord> = {};
+
+/** Everything `readPersonRecord` assembles, populated, for the parity test below. */
+const FULL_PERSON: PersonRecord = {
+  personId: "person-1",
+  givenName: "Ambrose",
+  givenNameSource: "Rowan Ashdown",
+  familyName: "Kittiwake",
+  familyNameSource: null,
+  aliases: [
+    { id: "alias-1", alias: "Bram", isDisplayName: true, source: null, notedAt: new Date() },
+  ],
+  displayName: "Ambrose Kittiwake",
+  knownAs: "Bram",
+  status: "recruit",
+  college: "Kestrelhall",
+  collegeSource: null,
+  matriculationYear: 2026,
+  matriculationYearSource: null,
+  expectedGraduationYear: 2029,
+  expectedGraduationYearSource: null,
+  degreeField: "Human Sciences",
+  degreeFieldSource: null,
+  studentNumber: "1234567",
+  studentNumberSource: null,
+  bafaRegistrationNumber: "BAFA-9",
+  bafaRegistrationNumberSource: null,
+  dateOfBirth: "2006-04-12",
+  dateOfBirthSource: null,
+  emergencyContact: {
+    givenName: "Rosalind",
+    familyName: "Kittiwake",
+    relationship: "Mother",
+    phone: "07700 900555",
+    email: "rosalind@example.test",
+  },
+  contacts: [
+    {
+      id: "contact-1",
+      kind: "phone",
+      scope: null,
+      rawValue: "07700 900321",
+      normalisedValue: "+447700900321",
+      isPreferred: true,
+      source: "sign-up form",
+      validFrom: new Date(),
+      validUntil: null,
+    },
+    {
+      id: "contact-2",
+      kind: "email",
+      scope: "personal",
+      rawValue: "bram@example.test",
+      normalisedValue: null,
+      isPreferred: true,
+      source: null,
+      validFrom: new Date(),
+      validUntil: null,
+    },
+  ],
+  isPastMember: false,
+  standingIsOverridden: false,
+  isUnder18: false,
+  halfBlueCount: 0,
+  fullBlueCount: 0,
+  mergedIntoPersonId: null,
+  missingRequiredFields: [],
+};
+
+/** Every labelled fact the render put on the page, in order. */
+function labelsOf(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll("[data-label]")).map(
+    (node) => node.getAttribute("data-label") ?? "",
+  );
+}
+
+/**
+ * LAN-307. Brian opened an identified recruit before sending the personal
+ * questionnaire and found four academic fields where the person record holds
+ * everything: no phone number, so no way to check the destination, and no link
+ * to the canonical page either. The fix is not "add a phone field" — it is that
+ * this page renders the person page's own sections, from the same record under
+ * the same redaction, so the two cannot drift again.
+ *
+ * Parity is asserted against those components rather than against a list
+ * written out here: a field added to the person record appears on both surfaces
+ * or this fails.
+ */
+describe("LAN-307 — the recruit record shows the whole person record", () => {
+  it("renders every labelled fact the canonical person sections render", () => {
+    const canonical = render(
+      <div>
+        <IdentitySection record={FULL_PERSON} />
+        <ContactSection record={FULL_PERSON} currentSeasonLabel="2026-27" />
+        <AcademicSection record={FULL_PERSON} />
+        <RestrictedSection record={FULL_PERSON} />
+        <StatusSection record={FULL_PERSON} roles={[]} alumniLabel="Never a member" />
+      </div>,
+    );
+    const expected = labelsOf(canonical.container);
+    expect(expected.length).toBeGreaterThan(10);
+    canonical.unmount();
+
+    const recruit = render(
+      <RecruitmentRecordView
+        record={BASE_RECORD}
+        person={FULL_PERSON}
+        currentSeasonLabel="2026-27"
+      />,
+    );
+    const shown = new Set(labelsOf(recruit.container));
+    expect([...expected].filter((label) => !shown.has(label))).toEqual([]);
+  });
+
+  it("shows the recorded destination beside the questionnaire actions", () => {
+    render(<RecruitmentRecordView record={BASE_RECORD} person={FULL_PERSON} />);
+    const person = screen.getByTestId("section-person");
+    expect(person.textContent).toContain("Sends to");
+    expect(person.textContent).toContain(
+      `+${selectMobileNumber(FULL_PERSON.contacts, DEFAULT_CALLING_CODE)!}`,
+    );
+    // The action it qualifies is in the same card, not a section away.
+    expect(person.querySelector('[data-testid="recruitment-send-personal"]')).not.toBeNull();
+  });
+
+  /**
+   * R7-1. "Sends to" ordered the contacts the way the dispatcher does and then
+   * printed the chosen contact's raw string. The dispatcher does not stop at
+   * the first candidate — it stops at the first one `toE164` can convert — so a
+   * preferred number nothing could be sent to was displayed as the destination
+   * of a message that would in fact go somewhere else entirely.
+   */
+  describe("the destination is the one a send would use", () => {
+    const phone = (over: Partial<PersonContactValue>): PersonContactValue => ({
+      id: "c",
+      kind: "phone",
+      scope: null,
+      rawValue: "07700 900321",
+      normalisedValue: null,
+      isPreferred: false,
+      source: null,
+      validFrom: new Date(),
+      validUntil: null,
+      ...over,
+    });
+
+    /** The row read out of the "Sends to" field, whatever it says. */
+    function sendsTo(): string {
+      const row = screen
+        .getAllByTestId("record-row")
+        .find((node) => node.getAttribute("data-label") === "Sends to")!;
+      return row.textContent ?? "";
+    }
+
+    it("skips a preferred number the dispatcher could not convert", () => {
+      // "7700 900321" carries no trunk zero and no calling code: `toE164`
+      // refuses it rather than guessing, so the send falls through to the
+      // second contact. Preferred, and still not the destination.
+      const contacts = [
+        phone({ id: "unconvertible", rawValue: "7700 900321", isPreferred: true }),
+        phone({ id: "reachable", rawValue: "07700 900987" }),
+      ];
+      render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
+
+      const chosen = selectMobileNumber(contacts, DEFAULT_CALLING_CODE);
+      expect(chosen).toBe("447700900987");
+      expect(sendsTo()).toContain(`+${chosen!}`);
+      expect(sendsTo()).not.toContain("7700 900321");
+    });
+
+    it("reads not recorded when no recorded number converts", () => {
+      const contacts = [
+        phone({ id: "short", rawValue: "07700 90012", isPreferred: true }),
+        phone({ id: "words", rawValue: "ask Sam" }),
+      ];
+      expect(selectMobileNumber(contacts, DEFAULT_CALLING_CODE)).toBeNull();
+
+      render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
+      expect(sendsTo()).toContain("not recorded");
+    });
+
+    it("ignores a number that stopped being theirs", () => {
+      // `valid_until` is how the club records that. The dispatcher never sees
+      // such a row, so neither may the field that claims to name its choice.
+      const contacts = [
+        phone({ id: "old", rawValue: "07700 900111", isPreferred: true, validUntil: new Date() }),
+        phone({ id: "current", rawValue: "07700 900987" }),
+      ];
+      render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
+      expect(sendsTo()).toContain("+447700900987");
+    });
+
+    /**
+     * LAN-307's walk: the Mobile phone fact on the person record renders
+     * `+447700900873` and this field rendered `447700900873` for the same
+     * number, so an operator checking one against the other was comparing two
+     * strings that did not look alike. E.164 is written with its `+`; the bare
+     * digits are the provider's wire format, not the club's.
+     */
+    it("writes the destination the way the record writes the number", () => {
+      const contacts = [phone({ id: "current", rawValue: "+447700900873" })];
+      render(<RecruitmentRecordView record={BASE_RECORD} person={{ ...FULL_PERSON, contacts }} />);
+      expect(sendsTo()).toContain("+447700900873");
+    });
+  });
+
+  it("offers the canonical record, so a correction is still made in one place", () => {
+    render(<RecruitmentRecordView record={BASE_RECORD} person={FULL_PERSON} />);
+    const link = screen.getByTestId("open-person-record");
+    expect(link.getAttribute("href")).toBe("/operate/people/person-1");
+  });
+
+  it("names a missing fact rather than hiding it", () => {
+    const partial: Partial<PersonRecord> = {
+      ...FULL_PERSON,
+      college: null,
+      knownAs: null,
+      degreeField: null,
+    };
+    render(<RecruitmentRecordView record={BASE_RECORD} person={partial} />);
+    const academic = screen
+      .getAllByTestId("record-row")
+      .find((row) => row.getAttribute("data-label") === "College")!;
+    expect(academic.textContent).toContain("not recorded");
+    // And the contact that is recorded is still shown — a partly complete
+    // recruit must not lose the number the send needs.
+    expect(screen.getByTestId("recruitment-record").textContent).toContain("07700 900321");
+  });
+
+  it("draws no restricted section for an operator whose payload does not carry one", () => {
+    // What `redactPersonRecord` hands a role without the restricted category:
+    // the fields are absent, not null. Nothing below may re-derive them.
+    const identityOnly: Partial<PersonRecord> = {
+      personId: FULL_PERSON.personId,
+      givenName: FULL_PERSON.givenName,
+      familyName: FULL_PERSON.familyName,
+      aliases: FULL_PERSON.aliases,
+      displayName: FULL_PERSON.displayName,
+      knownAs: FULL_PERSON.knownAs,
+    };
+    render(<RecruitmentRecordView record={BASE_RECORD} person={identityOnly} />);
+
+    const shown = new Set(labelsOf(screen.getByTestId("recruitment-record")));
+    expect(shown.has("Date of birth")).toBe(false);
+    expect(shown.has("Emergency contact")).toBe(false);
+    expect(shown.has("Mobile phone")).toBe(false);
+    expect(shown.has("College")).toBe(false);
+    // Identity still renders, and so does the recruitment half of the page.
+    expect(shown.has("Known as")).toBe(true);
+    expect(screen.getByTestId("section-recruitment")).toBeTruthy();
+    // No destination is claimed when no contact was supplied.
+    expect(screen.getByTestId("section-person").textContent).toContain("not recorded");
+  });
+});
 
 describe("the top-of-record banner — one of W2-04's three redundant places", () => {
   // LAN-204, item 9 (the consent deadlock, fixed): a never-asked recruit is

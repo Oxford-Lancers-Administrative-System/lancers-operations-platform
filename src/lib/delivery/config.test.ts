@@ -14,9 +14,11 @@ vi.mock("server-only", () => ({}));
 
 import {
   describeMissingConfiguration,
+  EMAIL_ENVIRONMENT_VARIABLES,
   isLoopbackBaseUrl,
   OUTBOUND_ENVIRONMENT_VARIABLES,
   resolveLocalTestOverrides,
+  resolveMessageTtlHours,
   resolveOutboundConfig,
   resolveWebhookConfig,
   rsvpUrl,
@@ -29,8 +31,6 @@ const DEPLOYED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "1234567890",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  // LAN-124. Ofcom's reserved drama range, which can never be dialled.
-  DELIVERY_RECIPIENT_ALLOWLIST: "447700900001,447700900002",
 };
 
 describe("outbound configuration", () => {
@@ -93,67 +93,36 @@ describe("outbound configuration", () => {
     });
   });
 
-  describe("LAN-124 — the recipient allowlist is required, and its absence is a refusal", () => {
-    it("resolves the allowlist onto the configuration", () => {
+  describe("LAN-287 — neither allowlist is configuration any more", () => {
+    // Brian's LAN-168 decision of 2 September 2026. The two variables are gone
+    // from the deployment, so the only honest assertions left are that nothing
+    // asks for them and that a deployment which still carries them in its
+    // environment behaves exactly as one that does not.
+    it("requires neither variable to configure sending", () => {
+      expect(OUTBOUND_ENVIRONMENT_VARIABLES).not.toContain("DELIVERY_RECIPIENT_ALLOWLIST");
+      expect(EMAIL_ENVIRONMENT_VARIABLES).not.toContain("DELIVERY_EMAIL_ALLOWLIST");
+    });
+
+    it("configures sending with both variables absent", () => {
       const resolution = resolveOutboundConfig(DEPLOYED);
       expect(resolution.configured).toBe(true);
-      if (!resolution.configured) return;
-      expect(resolution.config.recipientAllowlist).toEqual(["447700900001", "447700900002"]);
+      expect(Object.keys(DEPLOYED)).not.toContain("DELIVERY_RECIPIENT_ALLOWLIST");
     });
 
-    it("refuses the whole outbound path when the allowlist is absent", () => {
-      // Not "sends to everybody", which is what an allowlist bolted on as an
-      // optional filter would do. This is the single most important assertion
-      // in the file: it is the difference between an unconfigured deployment
-      // sending nothing and an unconfigured deployment messaging the roster.
-      const resolution = resolveOutboundConfig({
+    it("ignores a stale value left behind in the environment", () => {
+      // A deployment that set these once must not behave differently from one
+      // that never did: the resolved configuration has to be identical.
+      const stale = resolveOutboundConfig({
         ...DEPLOYED,
-        DELIVERY_RECIPIENT_ALLOWLIST: "",
+        DELIVERY_RECIPIENT_ALLOWLIST: "447700900001",
+        DELIVERY_EMAIL_ALLOWLIST: "someone@example.test",
       });
-      expect(resolution.configured).toBe(false);
-      if (resolution.configured) return;
-      expect(resolution.missing).toContain("DELIVERY_RECIPIENT_ALLOWLIST");
-    });
-
-    it("refuses a value that is present but parses to nobody", () => {
-      // Present as a string, absent as a control. A deployment that reported
-      // itself configured here would refuse every recipient at send time, which
-      // looks like a provider fault rather than a missing setting.
-      for (const raw of ["   ", ",", ",,;", "not-a-number"]) {
-        const resolution = resolveOutboundConfig({
-          ...DEPLOYED,
-          DELIVERY_RECIPIENT_ALLOWLIST: raw,
-        });
-        expect(resolution.configured, JSON.stringify(raw)).toBe(false);
-        if (resolution.configured) return;
-        expect(resolution.missing).toContain("DELIVERY_RECIPIENT_ALLOWLIST");
-      }
-    });
-
-    it("keeps one usable number when another entry is unparseable", () => {
-      const resolution = resolveOutboundConfig({
-        ...DEPLOYED,
-        DELIVERY_RECIPIENT_ALLOWLIST: "nonsense, 07700900001",
-      });
-      expect(resolution.configured).toBe(true);
-      if (!resolution.configured) return;
-      expect(resolution.config.recipientAllowlist).toEqual(["447700900001"]);
-    });
-
-    it("normalises against the deployment's own calling code", () => {
-      const resolution = resolveOutboundConfig({
-        ...DEPLOYED,
-        DELIVERY_DEFAULT_CALLING_CODE: "1",
-        DELIVERY_RECIPIENT_ALLOWLIST: "05550100",
-      });
-      expect(resolution.configured).toBe(true);
-      if (!resolution.configured) return;
-      expect(resolution.config.recipientAllowlist).toEqual(["15550100"]);
+      expect(stale).toEqual(resolveOutboundConfig(DEPLOYED));
     });
 
     it("never names a number in the sentence an operator reads", () => {
-      const sentence = describeMissingConfiguration(["DELIVERY_RECIPIENT_ALLOWLIST"]);
-      expect(sentence).toContain("DELIVERY_RECIPIENT_ALLOWLIST");
+      const sentence = describeMissingConfiguration(["WHATSAPP_ACCESS_TOKEN"]);
+      expect(sentence).toContain("WHATSAPP_ACCESS_TOKEN");
       expect(sentence).not.toMatch(/\d{6,}/);
     });
   });
@@ -330,5 +299,30 @@ describe("the local test affordances", () => {
     const overrides = resolveLocalTestOverrides("http://localhost:3010", {});
     expect(overrides.messageMode).toBe("template");
     expect(overrides.recipientOverride).toBeNull();
+  });
+});
+
+describe("LAN-288 — the message validity period", () => {
+  it("defaults to Meta's own documented thirty days", () => {
+    // "All messages except authentication templates: 30 days", and the club
+    // sends Utility-category templates. Not a number this repository chose.
+    expect(resolveMessageTtlHours({})).toBe(720);
+  });
+
+  it("takes a deployment's customised TTL, which Meta permits for utility templates", () => {
+    expect(resolveMessageTtlHours({ WHATSAPP_MESSAGE_TTL_HOURS: "12" })).toBe(12);
+  });
+
+  it("falls back to the documented default rather than to nothing", () => {
+    // The dangerous direction is zero: a TTL of nothing would conclude every
+    // accepted message dropped the instant it was sent, turning a working
+    // deployment's whole outbox into failures an operator is asked to repair.
+    for (const raw of ["", "   ", "nonsense", "0", "-5"]) {
+      expect(resolveMessageTtlHours({ WHATSAPP_MESSAGE_TTL_HOURS: raw }), raw).toBe(720);
+    }
+  });
+
+  it("is not required configuration — it has a safe default", () => {
+    expect(OUTBOUND_ENVIRONMENT_VARIABLES).not.toContain("WHATSAPP_MESSAGE_TTL_HOURS");
   });
 });

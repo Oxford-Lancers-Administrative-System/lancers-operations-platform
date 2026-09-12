@@ -7,6 +7,7 @@ import {
   type RequiredField,
   missingRequiredFields,
 } from "./person-required";
+import { knownAsOf, personDisplayName } from "./person-name";
 import { isOxfordCollegeEmail } from "./person-validation";
 import {
   escapeLikePattern,
@@ -67,8 +68,10 @@ export interface PersonRecord {
   familyName: string | null;
   familyNameSource: string | null;
   aliases: PersonAlias[];
-  /** The alias flagged `is_display_name`, if there is one; else `givenName`, plus `familyName`. */
+  /** The formal given and family name — LAN-306. Never the Known-as alias. */
   displayName: string;
+  /** The alias flagged `is_display_name`, shown as its own labelled value beside the name. `null` when there is none, or it only repeats the given name. */
+  knownAs: string | null;
   /** The six-rung ladder. `null` for a person on neither the prospect nor the membership record. */
   status: AssembledStatus;
   college: string | null;
@@ -139,16 +142,6 @@ interface PersonRow {
   is_under_18: boolean | null;
   half_blue_count: string | null;
   full_blue_count: string | null;
-}
-
-function displayNameOf(row: {
-  given_name: string;
-  family_name: string | null;
-  display_alias: string | null;
-}): string {
-  const trimmedAlias = row.display_alias?.trim();
-  const first = trimmedAlias ? trimmedAlias : row.given_name;
-  return row.family_name ? `${first} ${row.family_name}` : first;
 }
 
 async function readPersonRowIn(tx: Tx, personId: string): Promise<PersonRow> {
@@ -339,12 +332,14 @@ function presenceFrom(
 /** Transaction-scoped read, exported so `person-write.ts` can read back a record it just changed inside the same transaction. */
 export async function readPersonRecordIn(tx: Tx, personId: string): Promise<PersonRecord> {
   const row = await readPersonRowIn(tx, personId);
-  const [aliases, contacts, emergencyContact, fieldProvenance] = await Promise.all([
-    readAliasesIn(tx, personId),
-    readContactsIn(tx, personId),
-    readEmergencyContactIn(tx, personId),
-    readFieldProvenanceIn(tx, personId),
-  ]);
+  // Sequential, not `Promise.all` (LAN-301): these four share one transaction
+  // client, and `pg` serialises concurrent `client.query` calls on one client
+  // anyway — under a deprecation warning that reached Brian's console on the
+  // person page. Nothing is lost by awaiting them in turn.
+  const aliases = await readAliasesIn(tx, personId);
+  const contacts = await readContactsIn(tx, personId);
+  const emergencyContact = await readEmergencyContactIn(tx, personId);
+  const fieldProvenance = await readFieldProvenanceIn(tx, personId);
 
   const presence = presenceFrom(row, contacts, emergencyContact);
 
@@ -355,7 +350,8 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
     familyName: row.family_name,
     familyNameSource: fieldProvenance.family_name,
     aliases,
-    displayName: displayNameOf(row),
+    displayName: personDisplayName(row.given_name, row.family_name),
+    knownAs: knownAsOf(row.given_name, row.display_alias),
     status: row.status,
     college: row.college,
     collegeSource: fieldProvenance.college,
@@ -424,7 +420,7 @@ function toSummary(row: SummaryRow): PersonSummary {
     givenName: row.given_name,
     familyName: row.family_name,
     displayAlias: row.display_alias,
-    displayName: displayNameOf(row),
+    displayName: personDisplayName(row.given_name, row.family_name),
     status: row.status,
     hasMobile: row.has_mobile,
     hasPersonalEmail: row.has_personal_email,

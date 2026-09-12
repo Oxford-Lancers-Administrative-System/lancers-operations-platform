@@ -28,6 +28,8 @@ export interface SignedRsvpPage {
   readonly startsAt: string | null;
   readonly endsAt: string | null;
   readonly venue: string | null;
+  /** LAN-323. What the operator wrote about the event — its own field, never folded into the equipment. */
+  readonly description: string | null;
   readonly requiredEquipment: string | null;
   readonly eventStartsAt: Date;
   readonly playerName: string;
@@ -53,6 +55,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     starts_at: string | null;
     ends_at: string | null;
     venue: string | null;
+    description: string | null;
     required_equipment: string | null;
     event_starts_at: Date;
     player_name: string;
@@ -71,6 +74,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
             to_char(e.starts_at, 'HH24:MI') as starts_at,
             to_char(e.ends_at, 'HH24:MI') as ends_at,
             e.venue,
+            e.description,
             e.required_equipment,
             (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
               at time zone 'Europe/London' as event_starts_at,
@@ -114,6 +118,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     venue: row.venue,
+    description: row.description,
     requiredEquipment: row.required_equipment,
     eventStartsAt: row.event_starts_at,
     playerName: row.player_name,
@@ -142,7 +147,17 @@ export const NO_REQUIRES_A_REASON_RULE = "rsvp_responses_no_requires_a_reason";
 export const RESPONSE_WINDOW_CLOSED_RULE = "rsvp_response_window_closed";
 export const INVITATION_WITHDRAWN_RULE = "rsvp_invitation_withdrawn";
 
-const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
+/**
+ * Why a queued reminder stops existing once its invitee answers.
+ *
+ * Exported because two paths write it and they must write the same sentence.
+ * This one cancels the reminder the moment the answer is recorded; the other
+ * (`claimJobIn`, `delivery.ts`) withholds a reminder whose answer arrived
+ * after the job was created and before it could be dispatched — LAN-292. An
+ * operator reading either row is reading about the same thing that happened,
+ * so it is one sentence rather than two that nearly agree.
+ */
+export const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
 const FLAG_RESOLVED_BY_ANSWER = "The invitee answered.";
 
 /** Stops chasing one person about one event (LAN-169, `REQ-chase-stopped`); one function every answer path calls. */

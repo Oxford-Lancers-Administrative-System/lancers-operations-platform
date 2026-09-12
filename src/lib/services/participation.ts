@@ -23,6 +23,7 @@ import {
   type DeliveryState,
 } from "./delivery";
 import { readEventIn } from "./events";
+import { JOB_CANCELLED_REASON } from "./rsvp";
 import { personDisplayNameSql as displayName } from "./sql-text";
 import {
   discrepancyFor,
@@ -56,18 +57,37 @@ interface PersonRow {
   delivery_channel: string | null;
   delivery_failure_reason: string | null;
   delivery_fallback_status: string | null;
+  /** LAN-296. Which job the delivery state is about, and why it was cancelled where it was. */
+  delivery_job_type: string | null;
+  delivery_cancelled_reason: string | null;
 }
 
 /**
  * The delivery column, operator tier only — a lateral over the most recent
  * job (`notification_jobs` has no unique constraint on `invitation_id`).
  * `j.id is null` guard keeps a never-queued invitee from reading as Failed.
+ *
+ * ## Why the job's own type and cancellation reason come back too — LAN-296
+ *
+ * Brian read a **Cancelled** chip beside a recorded **Yes** and could not tell
+ * what had been cancelled: the invitation, the answer, the reminder or the
+ * event. Every one of those is a thing that can be cancelled, this column
+ * names none of them, and the chip is drawn from whichever job the recency
+ * order picked — which, once somebody answers, is commonly the reminder their
+ * answer stopped.
+ *
+ * The state was never wrong. What was missing is what it is *about*, so the
+ * job's own `job_type` and `cancelled_reason` are read alongside it and the
+ * cell says so. Nothing about which job wins changes, and neither do the
+ * filters or the counts: this is a label, not a different answer.
  */
 const DELIVERY_LATERAL = `
   left join lateral (
     select case when j.id is null then null else ${DELIVERY_STATE_EXPRESSION} end as state,
            j.channel::text as channel,
            j.last_error as failure_reason,
+           j.job_type::text as job_type,
+           j.cancelled_reason,
            (select f.status::text
               from public.notification_jobs f
              where f.idempotency_key = j.idempotency_key || '${EMAIL_FALLBACK_SUFFIX}'
@@ -122,7 +142,9 @@ function participantQuery(tier: ParticipationTier): string {
              ? ",\n         delivery.state as delivery_state" +
                ",\n         delivery.channel as delivery_channel" +
                ",\n         delivery.failure_reason as delivery_failure_reason" +
-               ",\n         delivery.fallback_status as delivery_fallback_status"
+               ",\n         delivery.fallback_status as delivery_fallback_status" +
+               ",\n         delivery.job_type as delivery_job_type" +
+               ",\n         delivery.cancelled_reason as delivery_cancelled_reason"
              : ""
          }
     from invited inv
@@ -363,6 +385,19 @@ async function readPeopleIn(
       noUsableRoute,
       whatsappUnresponsive,
       chasePosition,
+      // LAN-296. Set only when the state the chip is about belongs to a
+      // reminder this person's own answer stopped — the one case the bare word
+      // **Cancelled** could not be read. Compared against the sentence both
+      // writers share (`stopChasingIn`, and `claimJobIn`'s LAN-292 withhold)
+      // rather than inferred from the job type alone, because a reminder
+      // cancelled with the event or dropped by a rescheduled runway is a
+      // different fact and must keep reading differently.
+      remindersStoppedReason:
+        row.delivery_state === "cancelled" &&
+        row.delivery_job_type === "reminder" &&
+        row.delivery_cancelled_reason === JOB_CANCELLED_REASON
+          ? row.delivery_cancelled_reason
+          : null,
     };
   });
 }

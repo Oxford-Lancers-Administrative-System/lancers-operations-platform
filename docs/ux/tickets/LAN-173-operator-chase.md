@@ -62,6 +62,15 @@ Four workflows, none of which share files with each other:
   person; **Chase stopped** for an answered person whose chase was actually running; **Escalated to
   the President** for an escalated person, with no further rung named. `null` (no line at all) for
   a walk-up, an ordinary answered row, or a no-channel person.
+- **Reminders stopped** (LAN-296) is a third named exception, for the reason the two above exist. A
+  bare **Cancelled** beside a recorded Yes named nothing — the invitation, the answer, the reminder
+  and the event can each be cancelled, and the chip is drawn from whichever job the recency order
+  picked, which after an answer is commonly the reminder that answer stopped. The state is
+  unchanged, so the filters and counts are too; the chip says which job it is about, and the club's
+  own recorded reason — "The invitee responded, so this reminder is no longer needed." — sits
+  beneath it. Matched on that exact sentence, which `stopChasingIn` and LAN-292's dispatch-time
+  withhold both write, so a reminder cancelled with the event or dropped by a rescheduled runway
+  keeps its own reason and still reads **Cancelled**.
 - The Delivery filter gains **Needs attention**, matching exactly the failed and retryable people
   — the same predicate `delivery/presentation.ts`'s own filter of the same name uses, so the two
   screens' filter agrees.
@@ -91,6 +100,62 @@ Four workflows, none of which share files with each other:
 - A search box (name only) filters the flat table; no Status/Entry dropdown filters are offered —
   a deliberate scope trim from the mockup's three-control filter bar, recorded under Known
   deviations below.
+
+#### The queue became a worklist — LAN-329 and LAN-322 (Clint and Brian, 2026-09-11)
+
+Clint, testing week one: _"I CANT ACTUALLY INTERACT ON THE FOLLOW-UPS LIST, IS THAT INTENDED?"_
+Nothing in a row was clickable, so a screen that named six overdue people offered no way to reach
+any of them. Both halves of the repair ship together, on Brian's decision, and both work on the
+desktop table and on the phone card:
+
+- **The person's name links to their record** (`/operate/people/[personId]`), where the phone
+  number is. `person_record_authority` gates that page, so a seat without it sees the name as
+  plain text rather than a link into a refusal — the one place this screen's own floor
+  (`capability: null`) and a destination's disagree.
+- **The event's name links to the event** (`/operate/events/[eventId]`), where the answer can be
+  recorded for a silent person. That page is open to every seated operator, so the link always
+  stands. Coming back from either is the browser's own Back: both are ordinary links off a URL
+  that already carries the search, the filters, the range and the sort.
+- **Several rows can be selected and chased in one action**, following
+  `/operate/people/missing`'s existing selection-and-nudge shape rather than a second one —
+  accepted and refused counted, refusals named on the row, and nothing sent without the
+  operator's own press. Each row's checkbox is named for the person **and the event**, because a
+  queue row is a person on an event and one silent person has as many boxes as they have events —
+  every box announcing the same name told a screen-reader operator nothing about what they had
+  ticked. The "Chase N people" bar is **sticky** at both widths, below the phone
+  shell's own top bar: ticking a card scrolls the page to that card, so a bar fixed to the top of
+  the board left a live selection with no control on screen to act on it. Each refusal carries
+  **why** beside the name — the delivery path's own
+  recorded sentence off `notification_jobs.last_error`, the same one the event's repair panel
+  shows, or the queue's own recruit wording where no job was ever written. A count alone left an
+  operator unable to tell a roster fix from a deployment the club's administrator has not
+  configured yet. Refusals that share a reason share a line — one press nearly always produces one
+  refusal, and repeating the sentence under each name rebuilds the wall of text the five-name cap
+  exists to prevent. Five names per reason, then the rest are counted.
+- A chase is **another `reminder` rung on that invitation's own ladder**, one rung above what the
+  ladder has reached, dispatched through the same path every automated rung takes
+  (`sendEventChases`, `messaging-scheduler.ts`). No new job type, no new table, and therefore the
+  same fallback, consent refusal and recorded result.
+- **Chasing is gated on `delivery_administration`**, not on the page's own floor: reading who is
+  silent harms nobody, but this sends real messages about a real event, which is the act
+  `retryDeliveryAction` and `revokeAndReissueAction` already require that capability for. The
+  checkboxes are hidden from a seat without it; the action itself is what refuses.
+- **A recruit is never chased from here** (`REQ-never-harsh`, `REQ-two-ladders`): the recruitment
+  ladder sends one invitation and at most one follow-up, and an operator batch is not a door
+  around it. The row says so and `sendEventChases` refuses it, named rather than skipped.
+- **An invitation that has left `nonresponse_queue`** — answered, or its event stood down, between
+  the page being drawn and the button being pressed — is refused for that reason and named.
+- **A reminder whose invitee has answered is withheld at dispatch** (LAN-292, `claimJobIn`).
+  Recording an answer cancels the queued rungs (`stopChasingIn`); this is the second half, for a
+  rung already claimed, already selected by a sweep, or created after the answer by a path that
+  never ran that cancellation. The job is left **cancelled**, carrying the same sentence — "The
+  invitee responded, so this reminder is no longer needed." — with no attempt row, because nothing
+  was attempted and nothing failed. It applies to the ordinary event reminder alone: the nudge is
+  the contract for a yes with the event's questions unanswered, and the recruit follow-up is the
+  other ladder's single contact.
+- A **Last message** column (the desktop table) and fact (the card) read the latest delivery this
+  query already joined, in the delivery screen's own vocabulary, so a second operator can see a
+  chase has already gone.
 
 ### W6 — repair affordances become real, and diagnostics is a page
 
@@ -193,6 +258,12 @@ Restated from `acceptance/W4.md`, `W5.md`, `W6.md` and `W8.md` as what was built
   neither field.
 - The Follow-ups queue lists every unanswered and undeliverable person across approved events,
   under one status vocabulary, reachable by any seated operator and by nobody else.
+- From a queue row, the overdue person's record and the event they are silent about are each one
+  click away, on desktop and at 375px, and no row renders a link into a refusal (LAN-329).
+- Several people can be selected and chased in one action from either rendering; a person with no
+  reachable channel, a recruit, and somebody who has answered since the page was drawn are each
+  refused by name **and by reason** rather than silently skipped; and nothing is sent without the
+  press (LAN-322).
 - The delivery page's counts are real; retries and the email fallback offer no operator action;
   only **Not dispatched — no channel** requires a person, and what it requires is a roster fix
   (linked) — retry stays available for exactly the reason `delivery.test.ts` already settled.

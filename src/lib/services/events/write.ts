@@ -7,7 +7,12 @@ import {
   templateAudienceKeys,
   type NewEventInheritance,
 } from "../event-templates";
-import { writeEventQuestionsIn, type EventQuestionInput } from "../event-questions";
+import {
+  readEventQuestionsIn,
+  upsertEventQuestionsIn,
+  writeEventQuestionsIn,
+  type EventQuestionInput,
+} from "../event-questions";
 import {
   deriveTermCoordinate,
   OPERATOR_CREATED_ORIGIN,
@@ -226,6 +231,95 @@ export async function updateEventDraft(
         isMandatory: input.isMandatory,
         weekNumber: term.weekNumber,
         ...(questions === undefined ? {} : { questionCount: questions.length }),
+      },
+    });
+
+    return readEventIn(tx, eventId);
+  });
+}
+
+// Not exported: nothing above the service names either of these. The screen shows what the
+// refusal said, and the tests assert on `rule`, which is what actually identifies the refusal.
+const QUESTIONS_EDIT_REFUSAL_MESSAGE = "Only an approved event's questions can be changed.";
+
+const QUESTION_REMOVAL_REFUSAL_MESSAGE =
+  "A question can be reworded or reordered, but not removed, once the event has been approved.";
+
+/**
+ * Changes the questions an approved event asks — LAN-318, amending D41 (Brian, 2026-09-11).
+ * Approval used to freeze them; it no longer does. Add one, reword one, change how it is answered
+ * or what it offers, make it required or not, put them in a different order — all in place, in one
+ * transaction, against the ids the event already has.
+ *
+ * Two things it deliberately does not do. It removes nothing: `question_responses` points at
+ * `event_questions.id`, and an answer already given must never be left pointing at a row that is
+ * gone. And it sends nothing — no notification job, no queue entry, no delivery — because this is
+ * the operator tidying what is asked, not the club telling anyone something new. Whoever answers
+ * after the change meets the questions as they now stand; answers already given are untouched,
+ * including a choice answer that is no longer among the options.
+ *
+ * Guarded on `approved` rather than on "not a draft": the vocabulary is exactly draft / approved /
+ * cancelled (`event-input.ts`), a cancelled event is not being asked anything, and naming the one
+ * status that may change means a status added later refuses until somebody decides it may.
+ */
+export async function updateEventQuestions(
+  actorPersonId: string,
+  eventId: string,
+  questions: readonly EventQuestionInput[],
+): Promise<EventDetail> {
+  requireActor(actorPersonId);
+
+  return withTransaction(async (tx) => {
+    const before = await lockEventIn(tx, eventId);
+
+    if (before.status !== "approved") {
+      throw new InvalidTransition(
+        `${QUESTIONS_EDIT_REFUSAL_MESSAGE} ${describeState(before.status)}`,
+        { rule: "event_questions_edit_requires_approved" },
+      );
+    }
+
+    const stored = await readEventQuestionsIn(tx, eventId);
+    const storedIds = new Set(stored.map((question) => question.id));
+    const submittedIds = new Set(
+      questions
+        .map((question) => question.id)
+        .filter((id): id is string => id !== null && id !== undefined),
+    );
+
+    // The Remove control is absent on this screen, so a missing id is a crafted post or a stale
+    // form, never an operator's choice — refused rather than silently obeyed.
+    const dropped = stored.filter((question) => !submittedIds.has(question.id));
+    if (dropped.length > 0) {
+      throw new ConstraintViolated(QUESTION_REMOVAL_REFUSAL_MESSAGE, {
+        rule: "event_question_removal_after_approval",
+      });
+    }
+
+    // An id this event never had would otherwise update nothing and read as a success.
+    for (const id of submittedIds) {
+      if (!storedIds.has(id)) {
+        throw new ConstraintViolated("That question does not belong to this event.", {
+          rule: "event_question_belongs_to_event",
+        });
+      }
+    }
+
+    await upsertEventQuestionsIn(tx, eventId, questions);
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: "event.questions_updated",
+      entityTable: "events",
+      entityId: eventId,
+      fromState: before.status,
+      toState: before.status,
+      context: {
+        questionCount: questions.length,
+        addedCount: questions.length - stored.length,
+        // The prompts as they now stand — the audit row is the only record that the wording
+        // changed, since the question row itself keeps no history.
+        prompts: questions.map((question) => question.prompt),
       },
     });
 

@@ -10,10 +10,8 @@ import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
 import {
   ATTENDANCE_LABEL,
   CONSENT_LABELS,
-  PROSPECT_STATUS_LABELS,
   RSVP_LABEL,
 } from "@/lib/services/recruitment-vocabulary";
-import { StatusPill } from "../board-filter-controls";
 import { bandColour, rawValue, type ColumnDef } from "./board-columns";
 import { displayOf, NOT_RECORDED, optionListLabel } from "./board-data";
 import StatusCell from "./status-cell";
@@ -123,8 +121,23 @@ export function RecruitCell({
 /**
  * The phone card — `W1-01`'s own approved mockup, and `../roster/roster-board.tsx`'s
  * `PlayerCard` (LAN-186, item 15) it is modelled on.
+ *
+ * LAN-319 (Clint, 2026-09-11: "THIS ONLY WORKS ON DESKTOP, NOT ON PHONE"): the
+ * card carries the table's own status control, not a static pill. Recruitment
+ * is the workflow most likely to be run from a phone — at a taster, on the
+ * touchline — and a board that is read-only there sends the operator round
+ * through each individual record with nothing saying so. The control sits
+ * outside the card's own link, because a `Select` inside an anchor is neither
+ * valid nor operable.
  */
-export function RecruitCard({ row }: { row: RecruitmentBoardRow }) {
+export function RecruitCard({
+  row,
+  seasonLabel,
+}: {
+  row: RecruitmentBoardRow;
+  /** `W14`'s interruption names the season it would create a membership for. */
+  seasonLabel: string;
+}) {
   return (
     <Card
       variant="outlined"
@@ -138,6 +151,7 @@ export function RecruitCard({ row }: { row: RecruitmentBoardRow }) {
         sx={{
           display: "block",
           p: 2,
+          pb: 1,
           pr: 8,
           minHeight: 44,
           textDecoration: "none",
@@ -155,17 +169,21 @@ export function RecruitCard({ row }: { row: RecruitmentBoardRow }) {
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             {row.displayName}
           </Typography>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            <StatusPill
-              domain="recruitment"
-              status={row.status}
-              label={PROSPECT_STATUS_LABELS[row.status]}
-            />
-          </Stack>
           <Typography variant="body2" color="text.secondary">
             {row.college ?? NOT_RECORDED} · {CONSENT_LABELS[row.consent]}
           </Typography>
         </Stack>
+      </Box>
+
+      <Box sx={{ px: 2, pb: 2 }}>
+        <StatusCell
+          prospectId={row.prospectId}
+          status={row.status}
+          displayName={row.displayName}
+          seasonLabel={seasonLabel}
+          size="medium"
+          testIdPrefix="recruitment-card-status"
+        />
       </Box>
 
       <Box

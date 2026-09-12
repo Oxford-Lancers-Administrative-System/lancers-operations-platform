@@ -136,6 +136,9 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
     familyNameSource: "identity",
     aliases: "identity",
     displayName: "identity",
+    // LAN-306. The Known-as alias, shown beside the name: the same category as
+    // the name and the alias list it is drawn from, never a wider one.
+    knownAs: "identity",
     status: "standing",
     isPastMember: "standing",
     standingIsOverridden: "standing",

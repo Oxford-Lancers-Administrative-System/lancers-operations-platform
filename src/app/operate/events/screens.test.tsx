@@ -13,7 +13,7 @@
  * test gets to reading the screen.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("server-only", () => ({}));
@@ -145,6 +145,7 @@ import {
 } from "@/lib/services/participation";
 import type { OperatorParticipation } from "@/lib/services/participation-view";
 import { todayInClubZone } from "@/lib/club-time";
+import { NO_AUTOFILL } from "@/components/field";
 import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
@@ -289,23 +290,48 @@ function flatten(text: string | null): string {
 }
 
 /**
- * C1/C2 — types digits into one section of a MUI X `DatePicker`/`TimePicker`
- * field, the way an operator does: click the section, then type.
+ * C1/C2 — the sections of a MUI X `DatePicker`/`TimePicker` field, in the order
+ * the operator meets them.
  *
  * The field renders as an accessible `role="group"` (named by its label —
- * "Date", "Start", "End") holding one `role="spinbutton"` span per section
- * ("Day", "Hours", …), so `groupLabel` disambiguates the Start and End
- * TimePickers, which would otherwise both answer to "Hours". Digits fill the
- * focused section and the field auto-advances, exactly as typing
- * "24082026" fills Day, Month then Year in that order — which is itself
- * part of what these tests are proving: a day-first sequence lands as a
- * day-first date, not a month-first one.
+ * "Date", "Start", "End") holding one `role="spinbutton"` span per section, so
+ * the group disambiguates the Start and End TimePickers, which would otherwise
+ * both answer to "Hours". The order of those sections *is* C1: day, then
+ * month, then year, whatever locale the machine runs.
  */
-async function typeIntoField(groupLabel: string, firstSection: string, digits: string) {
-  const user = userEvent.setup();
-  const group = screen.getByRole("group", { name: groupLabel });
-  within(group).getByRole("spinbutton", { name: firstSection }).focus();
-  await user.keyboard(digits);
+function sectionsOf(groupLabel: string): HTMLElement[] {
+  return within(screen.getByRole("group", { name: groupLabel })).getAllByRole("spinbutton");
+}
+
+/** Each section's own name, in DOM order — "Day", "Month", "Year". */
+function sectionNames(groupLabel: string): string[] {
+  return sectionsOf(groupLabel).map((section) => section.getAttribute("aria-label") ?? "");
+}
+
+/**
+ * Fills a picker field's sections in order, one paste each.
+ *
+ * An operator types the digits one keystroke at a time, and that is what these
+ * tests used to do — but it is not a thing a test can safely depend on. MUI
+ * holds the digits entered so far in a per-section character query and drops it
+ * five seconds after the last keystroke (`QUERY_LIFE_DURATION_MS` in
+ * `useFieldState`), so on a loaded runner a keystroke gap that long makes every
+ * digit after it read on its own: "24082026" arrived on CI as 04/08/0026, each
+ * pair's second digit overwriting the first. A paste carries a whole section in
+ * one event and clears that query outright (`useFieldSectionContentProps`), so
+ * what these tests measure stays the field's own behaviour rather than the
+ * machine's speed. Which section receives which digits is never assumed: the
+ * order comes from the DOM, and `sectionNames` pins it.
+ */
+function fillSections(groupLabel: string, values: string[]) {
+  sectionsOf(groupLabel).forEach((section, index) => {
+    const digits = values[index];
+    if (digits === undefined) return;
+    // Focus tells the field which section a paste lands in, and its handler
+    // reads that from React state — so it has to be flushed before the paste.
+    act(() => section.focus());
+    fireEvent.paste(section, { clipboardData: { getData: () => digits } });
+  });
 }
 
 /** The raw string a named form control would post — including a hidden one. */
@@ -1502,6 +1528,39 @@ describe("an approved event, which this screen never edits", () => {
     expect(screen.queryByRole("link", { name: /choose audience/i })).toBeNull();
   });
 
+  it("offers Edit questions, which is the one thing it does now edit (LAN-318)", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    const edit = screen.getByTestId("edit-questions");
+    expect(edit).toBeVisible();
+    expect(edit).toHaveAttribute("href", `/operate/events/${EVENT_ID}/edit`);
+  });
+
+  it("offers it on nothing else — not a draft, not a cancelled event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    const draft = render(await EventDetailPage(detailProps()));
+    expect(draft.queryByTestId("edit-questions")).toBeNull();
+    draft.unmount();
+
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
+    render(await EventDetailPage(detailProps()));
+    expect(screen.queryByTestId("edit-questions")).toBeNull();
+  });
+
+  it("offers it to nobody who cannot manage the calendar", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("edit-questions")).toBeNull();
+  });
+
   it("drops the no-invitations statement once the event is approved", async () => {
     // It used to be kept for `pending_approval` too. LAN-151 removed that
     // status from the enum, so `draft` is the only state the rule applies to —
@@ -1620,15 +1679,86 @@ describe("the edit view — UX-31 against an existing draft", () => {
     );
   });
 
-  it("refuses to open an editor for an event that is not a draft", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+  it("refuses to open an editor for a cancelled event", async () => {
+    // LAN-318 opened this route to an approved event's questions; a cancelled
+    // event is asking nobody anything, so it is still refused outright.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
 
     render(await EditEventPage(editProps()));
 
     expect(flatten(screen.getByTestId("edit-refused").textContent)).toContain(
-      "Only a draft can be edited. This event is approved.",
+      "Only a draft can be edited. This event is cancelled.",
     );
     expect(screen.queryByTestId("event-form")).toBeNull();
+    expect(screen.queryByTestId("event-questions-form")).toBeNull();
+  });
+});
+
+describe("LAN-318 — an approved event's questions are edited, and nothing else is", () => {
+  /**
+   * Brian, 2026-09-11, amending D41: approval used to freeze the questions, so
+   * this route refused an approved event outright. It now answers with the
+   * question editor alone — the event's own facts still change only through
+   * the amend path, which tells people, and this one tells nobody.
+   */
+  beforeEach(() => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+    vi.mocked(readEventQuestions).mockResolvedValue([
+      {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        prompt: "Are you fit?",
+        answerType: "boolean",
+        choices: null,
+        isRequired: false,
+        sortOrder: 0,
+        fromTemplate: false,
+      },
+    ]);
+  });
+
+  it("opens the question editor rather than refusing", async () => {
+    render(await EditEventPage(editProps()));
+
+    expect(screen.queryByTestId("edit-refused")).toBeNull();
+    expect(screen.getByTestId("event-questions-form")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Edit questions" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save questions" })).toBeVisible();
+  });
+
+  it("carries each stored question's id, so the set is updated and not rewritten", async () => {
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(container.querySelector<HTMLInputElement>('input[name="questionId"]')?.value).toBe(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
+    expect(container.querySelector<HTMLInputElement>('input[name="eventId"]')?.value).toBe(
+      EVENT_ID,
+    );
+  });
+
+  it("offers no Remove, because an answer already given points at the question", async () => {
+    render(await EditEventPage(editProps()));
+
+    expect(screen.queryByTestId("remove-question")).toBeNull();
+    // Everything else about a question is still editable, and one can be added.
+    expect(screen.getByTestId("add-question")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: /^Question$/ })).toHaveValue("Are you fit?");
+  });
+
+  it("edits nothing but the questions — no name, no date, no audience", async () => {
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(container.querySelector('input[name="name"]')).toBeNull();
+    expect(container.querySelector('input[name="scheduledOn"]')).toBeNull();
+    expect(container.querySelector('input[name="venue"]')).toBeNull();
+  });
+
+  it("still offers Remove on a draft, where nobody has been asked anything", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EditEventPage(editProps()));
+
+    expect(screen.getByTestId("remove-question")).toBeVisible();
   });
 });
 
@@ -2834,9 +2964,9 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     );
     render(await NewEventPage(newProps()));
 
-    // 8:00 PM — Q-27's 12-hour AM/PM control. The derivation reads the
-    // stored 24-hour value regardless of which clock face typed it.
-    await typeTwelveHourTime("Start", "08", "00", "PM");
+    // 20:00 — LAN-326's 24-hour control. The derivation reads the stored
+    // value regardless of which clock face typed it.
+    typeTime("Start", "20", "00");
 
     expect(valueOf("endsAt")).toBe("22:00");
   });
@@ -2857,57 +2987,170 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     );
     render(await NewEventPage(newProps()));
 
-    await typeTwelveHourTime("End", "09", "00", "PM");
-    await typeTwelveHourTime("Start", "08", "00", "PM");
+    typeTime("End", "21", "00");
+    typeTime("Start", "20", "00");
 
     expect(valueOf("endsAt")).toBe("21:00");
   });
 });
 
 /**
- * Types a 12-hour time into a `TimePicker` field: two digits for the hour
- * (1-12), two for the minute — which auto-advance exactly as `typeIntoField`
- * describes — then AM/PM typed as a letter into the Meridiem section, the way
- * an operator with a keyboard sets it rather than an arrow-key toggle.
+ * Puts a 24-hour time into a `TimePicker` field: two digits for the hour
+ * (00-23), two for the minute, section by section as `fillSections` describes.
+ * There is no Meridiem section to set since LAN-326 — that absence is itself
+ * asserted below.
  */
-async function typeTwelveHourTime(
-  groupLabel: string,
-  hour12: string,
-  minute: string,
-  meridiem: "AM" | "PM",
-) {
-  const user = userEvent.setup();
-  const group = screen.getByRole("group", { name: groupLabel });
-  within(group).getByRole("spinbutton", { name: "Hours" }).focus();
-  await user.keyboard(hour12 + minute);
-  within(group).getByRole("spinbutton", { name: "Meridiem" }).focus();
-  await user.keyboard(meridiem[0]);
+function typeTime(groupLabel: string, hour24: string, minute: string) {
+  expect(sectionNames(groupLabel)).toEqual(["Hours", "Minutes"]);
+  fillSections(groupLabel, [hour24, minute]);
 }
 
-describe("C1 + C2 — day-month-year, and (Q-27) a deliberate 12-hour AM/PM clock, not the browser's (D86)", () => {
+describe("LAN-313 — Enter while writing a question does not save the event", () => {
+  /**
+   * The whole editor is one `<form>` and `QuestionEditor` renders inside it, so
+   * the browser's implicit submission turned "I have finished typing this
+   * question" into "Save draft", which saves and navigates away mid-task.
+   * Enter there now does nothing at all — Brian's decision; there is no "add
+   * the next option" behaviour to replace it.
+   */
+  it("submits nothing, and leaves what was typed where it was typed", async () => {
+    const user = userEvent.setup();
+    render(await NewEventPage(newProps()));
+    fireEvent.click(screen.getByTestId("add-question"));
+
+    const submitted = vi.fn();
+    screen.getByTestId("event-form").addEventListener("submit", submitted);
+
+    const written = screen.getAllByRole("textbox", { name: /^Question$/ });
+    const prompt = written[written.length - 1];
+    await user.click(prompt);
+    // Pasted rather than typed a character at a time: every keystroke
+    // re-renders the whole editor, and 22 of them overran the runner's
+    // five-second budget. Only the Enter has to be a real keystroke, because
+    // Enter is the whole defect.
+    await user.paste("Bringing a gumshield?");
+    await user.keyboard("{Enter}");
+
+    // The submit event is the whole defect: React's action, the save and the
+    // redirect all hang off it.
+    expect(submitted).not.toHaveBeenCalled();
+    expect(screen.getByTestId("event-form")).toBeInTheDocument();
+    expect(prompt).toHaveValue("Bringing a gumshield?");
+  });
+
+  it("submits nothing from the Options field either", async () => {
+    const user = userEvent.setup();
+    render(await NewEventPage(newProps()));
+    fireEvent.click(screen.getByTestId("add-question"));
+
+    const answer = screen.getAllByRole("combobox", { name: "Answer" });
+    fireEvent.mouseDown(answer[answer.length - 1]);
+    fireEvent.click(screen.getByRole("option", { name: "Pick from a list" }));
+
+    const submitted = vi.fn();
+    screen.getByTestId("event-form").addEventListener("submit", submitted);
+
+    await user.click(screen.getByRole("textbox", { name: "Options" }));
+    await user.paste("S, M, L");
+    await user.keyboard("{Enter}");
+
+    expect(submitted).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Options" })).toHaveValue("S, M, L");
+  });
+
+  it("still saves when the operator means to — Enter on Save draft", async () => {
+    // The guard must not cost the keyboard its way out of the form.
+    const user = userEvent.setup();
+    render(await NewEventPage(newProps()));
+
+    const submitted = vi.fn((event: Event) => event.preventDefault());
+    screen.getByTestId("event-form").addEventListener("submit", submitted);
+
+    screen.getByRole("button", { name: "Save draft" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(submitted).toHaveBeenCalled();
+  });
+
+  it("still puts a newline in Description, which is what Enter means there", async () => {
+    const user = userEvent.setup();
+    render(await NewEventPage(newProps()));
+
+    const submitted = vi.fn();
+    screen.getByTestId("event-form").addEventListener("submit", submitted);
+
+    const description = screen.getByRole("textbox", { name: "Description" });
+    await user.click(description);
+    await user.paste("Bring boots");
+    await user.keyboard("{Enter}");
+    await user.paste("and a gumshield");
+
+    expect(submitted).not.toHaveBeenCalled();
+    expect(description).toHaveValue("Bring boots\nand a gumshield");
+  });
+});
+
+describe("LAN-324 — the browser does not autofill a person into the event", () => {
+  /**
+   * Chrome put the operator's own name into "Event name". `autocomplete="off"`
+   * is the value Chrome ignores on a field its heuristics read as a person's
+   * name or an address, so these assert the *unrecognised* token that it does
+   * honour. Whether Chrome's own popup appears is not provable here, or in
+   * Playwright — only in Chrome.
+   */
+  it("marks the event's name, venue and joining link as nothing about the operator", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    const autofillOf = (name: string) =>
+      container
+        .querySelector<HTMLInputElement>(`input[name="${name}"]`)
+        ?.getAttribute("autocomplete");
+
+    expect(autofillOf("name")).toBe(NO_AUTOFILL);
+    expect(autofillOf("name")).not.toBe("off");
+    // Venue is the Autocomplete combobox, which sets `autocomplete="off"` of
+    // its own accord — exactly the value that does not work.
+    expect(autofillOf("venue")).toBe(NO_AUTOFILL);
+  });
+
+  it("marks a question's own text fields too", async () => {
+    render(await NewEventPage(newProps()));
+    fireEvent.click(screen.getByTestId("add-question"));
+
+    const written = screen.getAllByRole("textbox", { name: /^Question$/ });
+    expect(written[written.length - 1].getAttribute("autocomplete")).toBe(NO_AUTOFILL);
+  });
+});
+
+describe("C1 + C2 — day-month-year, and (LAN-326) a deliberate 24-hour clock, not the browser's (D86)", () => {
   /**
    * W154C-F1's crash and Brian's C1/C2 findings share one root cause: a
    * native `<input type="date">`/`<input type="time">` renders in the
    * browser/OS locale and ignores the page entirely. These prove the
    * replacement `DatePicker`/`TimePicker` do not — typing a day-first date
-   * and a 12-hour time the way an operator would produces exactly the value
-   * the server action expects, regardless of what locale this machine runs.
+   * and a time the way an operator would produces exactly the value the
+   * server action expects, regardless of what locale this machine runs.
    *
-   * D2 (round 2, Q-27) reversed which clock face C2 draws — 12-hour with
-   * AM/PM, not 24-hour — but not the reason C1/C2 exist: the control must
-   * still draw itself the same way on every machine. The trap named in the
-   * correction brief is a control that goes back to answering to the
-   * browser's own locale; the test below this one is aimed at exactly that,
-   * proving the control still offers AM/PM and the five-minute step on a
-   * machine whose own locale would natively show a 24-hour clock.
+   * Which clock face C2 draws has now been settled twice: D2 (round 2, Q-27)
+   * made it 12-hour with AM/PM, and LAN-326 (Brian, 2026-09-11) reverses that
+   * to 24-hour, so the editor asks for a time in the notation every other
+   * screen already shows one in. Neither reversal touches the reason C1/C2
+   * exist: the control must still draw itself the same way on every machine.
+   * The trap is a control that goes back to answering to the browser's own
+   * locale; the test below this one is aimed at exactly that, on a machine
+   * whose own locale natively shows a 12-hour clock.
    */
   it("accepts a day-month-year typed date intact — 24/08/2026 becomes 2026-08-24", async () => {
     render(await NewEventPage(newProps()));
 
-    // Typed exactly as an operator reading a British date would say it: day,
-    // then month, then year. A month-first control would reject "24" as
-    // month 24 or silently misread the sequence; this one does neither.
-    await typeIntoField("Date", "Day", "24082026");
+    // The sections an operator meets, in the order they meet them: a British
+    // date said the way a British operator says it. A month-first control
+    // would put Month first here and read "24" as month 24.
+    expect(sectionNames("Date")).toEqual(["Day", "Month", "Year"]);
+
+    // Filled in that same DOM order, so the sequence is day-first because the
+    // field is, not because the test said so.
+    fillSections("Date", ["24", "08", "2026"]);
 
     expect(valueOf("scheduledOn")).toBe("2026-08-24");
     // The group's accessible name (its own label, "Date") is a descendant
@@ -2918,40 +3161,40 @@ describe("C1 + C2 — day-month-year, and (Q-27) a deliberate 12-hour AM/PM cloc
     );
   });
 
-  it("accepts a 12-hour AM/PM time in a five-minute step intact — 8:05 PM stays 20:05", async () => {
+  it("accepts a 24-hour time in a five-minute step intact — 20:05 stays 20:05", async () => {
     render(await NewEventPage(newProps()));
 
-    await typeTwelveHourTime("Start", "08", "05", "PM");
+    typeTime("Start", "20", "05");
 
-    // The stored value behind the form is unaffected by D2 — still plain
-    // 24-hour `HH:mm`, exactly as `date-time-controls.ts` always spoke it.
+    // The stored value behind the form is untouched by either reversal —
+    // still plain `HH:mm`, exactly as `date-time-controls.ts` always spoke it.
     expect(valueOf("startsAt")).toBe("20:05");
-    // What the operator actually sees is the 12-hour face the helper text
-    // now promises, not the 24-hour one the D2 correction retired.
-    expect(flatten(screen.getByRole("group", { name: "Start" }).textContent)).toContain("08:05 PM");
+    // What the operator actually sees is the 24-hour face LAN-326 restored,
+    // reading back in the notation it was typed in.
+    expect(flatten(screen.getByRole("group", { name: "Start" }).textContent)).toContain("20:05");
   });
 
   /**
-   * D2's own trap, proved rather than assumed: this locks the JSDOM/ICU
+   * LAN-326's own trap, proved rather than assumed: this locks the JSDOM/ICU
    * default locale — the one `Intl`/`navigator.language` would answer with if
    * nothing overrode it, and the one a real British operator's machine could
-   * easily NOT be — to `de-DE`, which natively renders a 24-hour clock with no
-   * AM/PM at all. If the control ever fell back to answering the browser's own
-   * locale (the reversal `date-time-controls.ts` and the D2 correction both
-   * warn against), the Meridiem section would not exist here and the value
-   * below would round-trip as a 24-hour "20:05" typed as such rather than as
-   * "08:05 PM". A run of this suite on an en-GB machine would not catch that
-   * regression; forcing a 24-hour-native locale here does.
+   * easily NOT be — to `en-US`, which natively renders a 12-hour clock with
+   * AM/PM. If the control ever fell back to answering the browser's own locale
+   * (the reversal `date-time-controls.ts` has always warned against), a
+   * Meridiem section would appear here and the value below would round-trip as
+   * "08:05 PM" rather than as the "20:05" it was typed as. A run of this suite
+   * on an en-GB machine would not catch that regression; forcing a
+   * 12-hour-native locale here does.
    */
-  it("offers a 12-hour AM/PM clock and the five-minute step even on a 24-hour-native locale", async () => {
+  it("offers a 24-hour clock and the five-minute step even on a 12-hour-native locale", async () => {
     const originalLanguage = window.navigator.language;
     const originalLanguages = window.navigator.languages;
     Object.defineProperty(window.navigator, "language", {
-      value: "de-DE",
+      value: "en-US",
       configurable: true,
     });
     Object.defineProperty(window.navigator, "languages", {
-      value: ["de-DE"],
+      value: ["en-US"],
       configurable: true,
     });
 
@@ -2959,26 +3202,26 @@ describe("C1 + C2 — day-month-year, and (Q-27) a deliberate 12-hour AM/PM cloc
       render(await NewEventPage(newProps()));
 
       const start = screen.getByRole("group", { name: "Start" });
-      // Only present at all when `ampm` renders true — a 24-hour field has no
-      // Meridiem section to find.
-      expect(within(start).getByRole("spinbutton", { name: "Meridiem" })).toBeInTheDocument();
+      // Present only when `ampm` renders true — a 24-hour field has no
+      // Meridiem section at all, which is exactly what LAN-326 changed.
+      expect(within(start).queryByRole("spinbutton", { name: "Meridiem" })).toBeNull();
 
-      await typeTwelveHourTime("Start", "08", "00", "PM");
+      typeTime("Start", "20", "00");
 
       expect(valueOf("startsAt")).toBe("20:00");
-      expect(flatten(start.textContent)).toContain("08:00 PM");
-      expect(flatten(start.textContent)).not.toContain("20:00");
+      expect(flatten(start.textContent)).toContain("20:00");
+      expect(flatten(start.textContent)).not.toContain("PM");
 
       // The five-minute step holds too, regardless of locale. MUI enforces
       // `timeSteps={{ minutes: 5 }}` on the minute section's up/down arrows —
       // typed digits are free text and are not where the step lives — so
       // this steps the Minutes section by keyboard and checks it lands on
-      // 05, not 01, confirming D2 left C3/C5-C7's five-minute step intact
-      // while proving AM/PM independently of locale in the same render.
+      // 05, not 01, confirming LAN-326 left C3/C5-C7's five-minute step
+      // intact while proving the clock face independently of locale.
       within(start).getByRole("spinbutton", { name: "Minutes" }).focus();
       await userEvent.setup().keyboard("{ArrowUp}");
       expect(valueOf("startsAt")).toBe("20:05");
-      expect(flatten(start.textContent)).toContain("08:05 PM");
+      expect(flatten(start.textContent)).toContain("20:05");
     } finally {
       Object.defineProperty(window.navigator, "language", {
         value: originalLanguage,

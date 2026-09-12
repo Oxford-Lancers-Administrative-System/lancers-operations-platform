@@ -4,12 +4,7 @@ import { LEADERSHIP_TIER_SEATS } from "@/lib/auth/capabilities";
 import { withTransaction, type Tx } from "@/lib/db";
 import { resolveDeliveryProvider, type Transport } from "@/lib/delivery";
 import type { EnvironmentSource } from "@/lib/delivery/config";
-import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "@/lib/delivery/allowlist";
-import {
-  EMAIL_NOT_PERMITTED_REASON,
-  NO_USABLE_EMAIL_REASON,
-  emailPermitted,
-} from "@/lib/delivery/email";
+import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { OutboundMessage } from "@/lib/delivery/provider";
 
@@ -19,6 +14,7 @@ import {
   EMAIL_FALLBACK_SUFFIX,
   EVENT_HAS_NO_START_TIME_REASON,
   MAX_ATTEMPTS,
+  concludeExpiredDeliveries,
   dispatchJob,
 } from "./delivery";
 import {
@@ -110,6 +106,12 @@ export interface SweepSummary {
   readonly onboardingEscalationsCreated: number;
   /** LAN-218. Onboarding exhaustions held because the escalation office is vacant. */
   readonly onboardingEscalationsHeld: number;
+  /**
+   * LAN-288. Accepted messages the provider never confirmed, whose delivery
+   * window has passed — concluded as failures this tick rather than left
+   * reading **Attempted** for ever.
+   */
+  readonly deliveriesExpired: number;
 }
 
 /**
@@ -339,8 +341,8 @@ export async function currentPresidentIn(tx: Tx): Promise<string | null> {
  *
  * Deliberately the same, cheap existence check `dispatchEscalationJob`'s own
  * recipient lookup repeats and can still disagree with: a phone recorded here
- * as "present" can still fail to convert to E.164, or fail the deployment's
- * allowlist, once dispatch actually reads it with `selectMobileNumber`. That
+ * as "present" can still fail to convert to E.164 once dispatch actually reads
+ * it with `selectMobileNumber`. That
  * disagreement is not a bug to close here — it is exactly what
  * `dispatchEscalationJob`'s new fallback-to-email exists to recover from, the
  * same shape `scheduleWhatsAppFallbackIn` already gives a player-facing job.
@@ -722,6 +724,14 @@ export async function runMessagingSweep(
   const declaredChases = await declareDueOnboardingChasesIn();
   const onboardingEscalations = await raiseDueOnboardingChaseEscalations();
 
+  // LAN-288. Before the tick dispatches anything, it closes the books on
+  // messages WhatsApp dropped: Meta sends no callback for those, so the only
+  // way the club ever learns is by noticing that a `delivered` webhook never
+  // arrived. Run here rather than on its own schedule because a tick is the
+  // only clock this application has, and it costs one indexed read when there
+  // is nothing to conclude.
+  const deliveriesExpired = await concludeExpiredDeliveries(options);
+
   const due = await readDueJobs(options.limit ?? SWEEP_BATCH_LIMIT);
 
   let accepted = 0;
@@ -776,6 +786,7 @@ export async function runMessagingSweep(
     onboardingChasesExhausted: onboardingEscalations.newlyExhausted,
     onboardingEscalationsCreated: onboardingEscalations.escalationsCreated,
     onboardingEscalationsHeld: onboardingEscalations.escalationsHeld,
+    deliveriesExpired,
   };
 }
 
@@ -973,25 +984,6 @@ export async function dispatchEscalationJob(
           tx,
           jobId,
           context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
-          job.attempt_count,
-          context.channel,
-          context.provider.name,
-        );
-        const fallbackId =
-          channel === "whatsapp" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
-        return { outcome: { kind: "no-send" }, fallbackId };
-      }
-
-      const permitted =
-        context.channel === "email"
-          ? emailPermitted(recipient, context.emailAllowlist)
-          : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
-
-      if (!permitted) {
-        await failClaimTerminallyIn(
-          tx,
-          jobId,
-          context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
           job.attempt_count,
           context.channel,
           context.provider.name,
@@ -1465,18 +1457,6 @@ export async function dispatchRecruitmentCycleJob(
       return { kind: "no-send" };
     }
 
-    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        RECIPIENT_NOT_PERMITTED_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return { kind: "no-send" };
-    }
-
     // Minted here, at dispatch, never persisted at declaration —
     // `player-answer-tokens.ts`'s own rule (a previously issued plaintext
     // cannot be recovered), the same reason `claimJobIn` mints the
@@ -1779,18 +1759,6 @@ export async function dispatchOnboardingWelcomeJob(
         tx,
         jobId,
         NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return { kind: "no-send" };
-    }
-
-    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        RECIPIENT_NOT_PERMITTED_REASON,
         job.attempt_count,
         context.channel,
         context.provider.name,
@@ -2223,23 +2191,6 @@ export async function dispatchOnboardingChaseEscalationJob(
       return { kind: "no-send" };
     }
 
-    const permitted =
-      context.channel === "email"
-        ? emailPermitted(recipient, context.emailAllowlist)
-        : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
-
-    if (!permitted) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return { kind: "no-send" };
-    }
-
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
          (notification_job_id, attempt_number, channel, provider)
@@ -2523,18 +2474,6 @@ export async function dispatchOnboardingChaseJob(
       return { kind: "no-send" };
     }
 
-    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        RECIPIENT_NOT_PERMITTED_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return { kind: "no-send" };
-    }
-
     // Every later ask re-sends the same link, compiled to whatever remains
     // outstanding (`REQ-one-link`, `person_access_tokens_one_live_per_person_season`).
     // Minted here, at dispatch, never earlier — the identical reasoning the
@@ -2690,6 +2629,178 @@ export async function sendOnboardingNudges(
     const outcome = await dispatchOnboardingChaseJob(membership.jobId, options);
     results.push({ personId: membership.personId, membershipId, outcome });
   }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// The Follow-ups queue's own chase — LAN-322
+// ---------------------------------------------------------------------------
+
+export type EventChaseOutcome =
+  | "accepted"
+  | "refused"
+  | "not_outstanding"
+  /** Recruit capacity: `REQ-never-harsh` allows one invitation and one follow-up, and no more. */
+  | "not_chaseable";
+
+export interface EventChaseResult {
+  readonly invitationId: string;
+  readonly outcome: EventChaseOutcome;
+  /**
+   * Why nothing was sent, in the delivery path's own recorded words, or `null`
+   * where the outcome is the whole answer.
+   *
+   * Only a `refused` result carries one. The reason is read straight back off
+   * `notification_jobs.last_error` — the same sentence the event's delivery
+   * repair panel shows for the same failure — rather than re-derived here, so
+   * the queue cannot come to disagree with the delivery screens about why one
+   * message did not go. `accepted` and `not_outstanding` carry none because
+   * nothing failed and the word already says everything; `not_chaseable` is
+   * decided before any job exists, so it has no job row to read and the queue
+   * says the rule in its own vocabulary instead.
+   */
+  readonly reason: string | null;
+}
+
+/** This chase's own job, one per press, so two operators produce two rows rather than colliding on one key (invariant M1 keys on facts that do not change; the nonce is this press). */
+function operatorChaseIdempotencyKey(eventId: string, invitationId: string, nonce: string): string {
+  return `event:${eventId}:chase:${invitationId}:${nonce}`;
+}
+
+/**
+ * Chases one or several silent invitees on an operator's own instruction —
+ * `LAN-322`, the Follow-ups queue's only action.
+ *
+ * It invents no job type and no table: a chase is another `reminder` rung on
+ * the invitation's own ladder, one rung above whatever the ladder has already
+ * reached, dispatched through the same `dispatchJob` every automated rung and
+ * every operator Retry already takes. So the WhatsApp-to-email fallback, the
+ * consent refusal, the attempt ceiling and the recorded delivery result are
+ * all exactly what they are for an automatic rung.
+ *
+ * Each invitation runs in its own transaction, then dispatches, for
+ * `sendOnboardingNudges`'s reason: one person's unreachable number must not
+ * roll back another's send.
+ *
+ * Three refusals, all of them named rather than silent (`LAN-322`: "a person
+ * with no reachable channel is not silently skipped"):
+ *
+ *   * `not_outstanding` — the invitation has left `nonresponse_queue` since
+ *     the page was drawn. Somebody answered, or the event was cancelled, and
+ *     chasing them now would be the club's own list being out of date.
+ *   * `not_chaseable` — recruit capacity. `scheduleEventLadderIn` gives a
+ *     recruit one invitation and at most one follow-up on purpose
+ *     (`REQ-never-harsh`, `REQ-two-ladders`), and an operator batch is not a
+ *     door around a decided rule.
+ *   * `refused` — everything `dispatchJob` refuses: no usable number or
+ *     address, an unpermitted recipient, no consent, a provider that declined.
+ *     The reason is on the job row, where the delivery screens read it, and
+ *     LAN-322's walk found that a count of refusals with no reason beside it
+ *     leaves an operator nothing to act on — so it is carried back out on
+ *     {@link EventChaseResult.reason} for the queue to name per person.
+ */
+export async function sendEventChases(
+  actorPersonId: string,
+  invitationIds: readonly string[],
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<readonly EventChaseResult[]> {
+  const results: EventChaseResult[] = [];
+
+  for (const invitationId of invitationIds) {
+    const prepared = await withTransaction(async (tx) => {
+      // `nonresponse_queue` is the club's own definition of "has not
+      // answered" — the same view the queue screen reads — so "still
+      // outstanding" is not a second opinion written here.
+      const outstanding = await tx.query<{
+        event_id: string;
+        capacity: string;
+        person_id: string;
+        top_rung: number;
+      }>(
+        `select q.event_id, q.capacity::text as capacity,
+                coalesce(i.person_id, m.person_id) as person_id,
+                coalesce((select max(j.ladder_rung)
+                            from public.notification_jobs j
+                           where j.invitation_id = i.id
+                             and j.job_type in ('invitation', 'reminder')), 0) as top_rung
+           from public.nonresponse_queue q
+           join public.invitations i on i.id = q.invitation_id
+           left join public.season_memberships m on m.id = i.season_membership_id
+          where q.invitation_id = $1::uuid`,
+        [invitationId],
+      );
+
+      const row = outstanding.rows[0];
+      if (!row) return { outcome: "not_outstanding" as const };
+      if (row.capacity === "recruit") return { outcome: "not_chaseable" as const };
+
+      const rung = row.top_rung + 1;
+      const job = await tx.query<{ id: string }>(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+            channel, scheduled_for, ladder_rung, template_variables)
+         values ($1, 'reminder', 'pending', $2::uuid, $3::uuid, $4::uuid,
+                 'whatsapp'::public.notification_channel, now(), $5::smallint, '{}'::jsonb)
+         returning id`,
+        [
+          operatorChaseIdempotencyKey(row.event_id, invitationId, crypto.randomUUID()),
+          invitationId,
+          row.event_id,
+          row.person_id,
+          rung,
+        ],
+      );
+
+      await recordAudit(tx, {
+        actorPersonId,
+        action: "delivery.chase_requested",
+        entityTable: "notification_jobs",
+        entityId: job.rows[0].id,
+        context: { invitationId, ladderRung: rung, source: "follow-ups queue" },
+      });
+
+      return { outcome: "prepared" as const, jobId: job.rows[0].id };
+    });
+
+    if (prepared.outcome !== "prepared") {
+      results.push({ invitationId, outcome: prepared.outcome, reason: null });
+      continue;
+    }
+
+    // `dispatchJob` records its own failures and rarely throws, but
+    // `issueTokenIn` refuses an event that has started or been cancelled and
+    // that refusal travels out through the claim transaction — one such
+    // invitation must be one refusal, not the end of the batch.
+    let outcome: "accepted" | "refused" | "skipped";
+    try {
+      outcome = await dispatchJob(prepared.jobId, options);
+    } catch {
+      outcome = "refused";
+    }
+    if (outcome === "accepted") {
+      results.push({ invitationId, outcome: "accepted", reason: null });
+      continue;
+    }
+
+    // Read after the dispatch, not during it: `dispatchJob` records its own
+    // failure in its own transaction, so the sentence only exists once that
+    // has committed. A `null` here is a refusal that recorded nothing — the
+    // `catch` above, where the claim itself threw — and the queue says so in
+    // its own words rather than showing an empty reason.
+    const recorded = await withTransaction(async (tx) =>
+      tx.query<{ last_error: string | null }>(
+        "select last_error from public.notification_jobs where id = $1",
+        [prepared.jobId],
+      ),
+    );
+
+    results.push({
+      invitationId,
+      outcome: "refused",
+      reason: recorded.rows[0]?.last_error ?? null,
+    });
+  }
+
   return results;
 }
 
@@ -2867,23 +2978,6 @@ export async function dispatchNoticeJob(
         tx,
         jobId,
         context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return null;
-    }
-
-    const permitted =
-      context.channel === "email"
-        ? emailPermitted(recipient, context.emailAllowlist)
-        : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
-
-    if (!permitted) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
         job.attempt_count,
         context.channel,
         context.provider.name,

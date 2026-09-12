@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Autocomplete from "@mui/material/Autocomplete";
 import ListItemText from "@mui/material/ListItemText";
-import { Field } from "@/components/field";
+import { Field, NO_AUTOFILL } from "@/components/field";
 
 import { MIN_QUERY_LENGTH, type VenueSuggestion } from "@/lib/venue-search/suggestion";
 
@@ -177,7 +177,14 @@ export default function VenueField({
           name={name}
           error={Boolean(errorMessage)}
           helperText={<span data-testid="venue-search-status">{help}</span>}
-          slotProps={{ ...params.slotProps, formHelperText: { "aria-live": "polite" } }}
+          slotProps={{
+            ...params.slotProps,
+            // LAN-324: a venue reads as an address, and Chrome would offer the
+            // operator's own. Autocomplete sets `autocomplete="off"` here
+            // itself, which is the value Chrome ignores; this replaces it.
+            htmlInput: { ...params.slotProps.htmlInput, autoComplete: NO_AUTOFILL },
+            formHelperText: { "aria-live": "polite" },
+          }}
         />
       )}
       fullWidth

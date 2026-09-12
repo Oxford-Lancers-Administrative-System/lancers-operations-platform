@@ -41,9 +41,9 @@ let seasonId: string;
 let operatorPersonId: string;
 
 // Every test recruit's mobile is drawn from this fixed pool rather than a
-// generated one, so it is always inside CONFIGURED's own allowlist below —
-// a recipient a dispatch test needs to actually be permitted to send to.
-const ALLOWLISTED_PHONES = [
+// generated one: Ofcom's reserved drama range, synthetic and unroutable by
+// design, so no fixture can name a number somebody actually answers.
+const DRAMA_RANGE_PHONES = [
   "07700 900322",
   "07700 900323",
   "07700 900324",
@@ -55,7 +55,7 @@ const ALLOWLISTED_PHONES = [
 ];
 let phoneCounter = 0;
 function uniquePhone(): string {
-  const phone = ALLOWLISTED_PHONES[phoneCounter % ALLOWLISTED_PHONES.length];
+  const phone = DRAMA_RANGE_PHONES[phoneCounter % DRAMA_RANGE_PHONES.length];
   phoneCounter += 1;
   return phone;
 }
@@ -65,10 +65,8 @@ const CONFIGURED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test",
 };
 
 function acceptingTransport() {
@@ -834,7 +832,12 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
     expect(attempt.rows[0]?.accepted_at).not.toBeNull();
   });
 
-  it("with no opt-in evidence: the recruit is created and nothing is sent, even after a sweep", async () => {
+  // LAN-305 turned this case around: a blank contact-source field left the
+  // recruit with no job at all, so the sweep had nothing to claim and the
+  // personal questionnaire was unreachable. Unknown consent is not refused
+  // consent, so the welcome now goes out — through the same sweep, on the
+  // same template, with no consent row invented to authorise it.
+  it("LAN-305 — with no opt-in evidence the welcome still reaches the sink, and no consent is fabricated", async () => {
     const created = await createPerson({
       actorPersonId: operatorPersonId,
       input: { givenName: MARKER, familyName: "NoEvidenceSweep", mobile: uniquePhone() },
@@ -849,10 +852,62 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
         academic: {},
       }),
     );
+    await withTransaction((tx) =>
+      tx.query(
+        "update public.notification_jobs set scheduled_for = now() - interval '100 years' where person_id = $1::uuid",
+        [created.personId],
+      ),
+    );
+
+    const sinkRecords: SinkRecord[] = [];
+    const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
+    await runMessagingSweep({ source: CONFIGURED, transport: sink });
+
+    const welcome = sinkRecords.find(
+      (r) =>
+        (r.payload as { template: { name: string } }).template.name ===
+        TEMPLATE_NAMES.recruit_welcome,
+    );
+    expect(welcome).toBeDefined();
+
+    const consent = await withTransaction((tx) =>
+      tx.query("select 1 from public.season_messaging_consents where person_id = $1::uuid", [
+        created.personId,
+      ]),
+    );
+    expect(consent.rows).toHaveLength(0);
+  });
+
+  it("LAN-305 — a recruit who refused receives nothing, blank evidence or not", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "RefusedSweep", mobile: uniquePhone() },
+      decision: { kind: "create_new", overrideReason: "LAN-206 fixture" },
+    });
+    await withTransaction((tx) =>
+      tx.query(
+        `insert into public.season_messaging_consents
+           (person_id, season_id, state, source, changed_at, recorded_by_person_id)
+         values ($1::uuid, $2::uuid, 'refused', 'operator_recorded', now(), $3::uuid)`,
+        [created.personId, seasonId, operatorPersonId],
+      ),
+    );
+    await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        givenName: MARKER,
+        seasonId,
+        academic: {},
+      }),
+    );
 
     const { transport } = acceptingTransport();
     await runMessagingSweep({ source: CONFIGURED, transport });
 
+    // Nothing exists to claim, so the sweep can send this recruit nothing —
+    // asserted on their own rows, not on the sink, which other fixtures in
+    // this suite also feed.
     const jobs = await withTransaction((tx) =>
       tx.query("select 1 from public.notification_jobs where person_id = $1::uuid", [
         created.personId,

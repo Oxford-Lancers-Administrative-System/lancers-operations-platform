@@ -6,8 +6,8 @@
  * asserting is the same short list the WhatsApp adapter's suite pins:
  *
  *   * the exact request body, because a rendered email is what a player reads;
- *   * the allowlist at the egress, because this is the **automatic** fallback
- *     and nobody presses anything before it sends;
+ *   * the refusal of anything that is not an address, because this is the
+ *     **automatic** fallback and nobody presses anything before it sends;
  *   * the retryable/terminal split, because `retryable` decides whether the
  *     scheduler burns the attempt ceiling on something a human has to fix.
  */
@@ -17,11 +17,9 @@ vi.mock("server-only", () => ({}));
 
 import type { EmailConfig } from "./config";
 import {
-  EMAIL_NOT_PERMITTED_REASON,
   NO_USABLE_EMAIL_REASON,
   buildEmailBody,
   createEmailProvider,
-  emailPermitted,
   interpretEmailResponse,
   looksLikeAnEmailAddress,
 } from "./email";
@@ -32,7 +30,6 @@ const CONFIG: EmailConfig = {
   apiKey: "test-key-not-a-real-one",
   fromAddress: "Oxford Lancers <events@lancers.example>",
   replyToAddress: null,
-  recipientAllowlist: ["jamie@example.com"],
   recipientOverride: null,
 };
 
@@ -112,29 +109,22 @@ describe("the request body", () => {
   });
 });
 
-describe("the allowlist at the egress", () => {
-  it("permits nobody when it is empty", () => {
-    // The fail-closed case, written as its own branch rather than left to
-    // `includes` returning false: the two are the same answer for very
-    // different reasons and only one of them should ever happen.
-    expect(emailPermitted("jamie@example.com", [])).toBe(false);
-  });
-
-  it("refuses a recipient off the list, and sends nothing", async () => {
+describe("the egress", () => {
+  it("sends to any address the dispatcher addressed it to — LAN-287", async () => {
+    // The deployment-wide address allowlist is gone (Brian, LAN-168,
+    // 2 September 2026). Who may be emailed is decided where the job is
+    // created — membership, recorded consent, withdrawal, departure — and this
+    // transport carries out the send it was given.
     const { calls, transport } = transportReturning(200, { id: "re_1" });
     const provider = createEmailProvider(CONFIG, transport);
 
     const outcome = await provider.send({ ...MESSAGE, recipient: "someone@elsewhere.example" });
 
-    expect(outcome).toEqual({
-      status: "refused",
-      reason: EMAIL_NOT_PERMITTED_REASON,
-      retryable: false,
+    expect(outcome.status).toBe("accepted");
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(String(calls[0]?.init.body))).toMatchObject({
+      to: ["someone@elsewhere.example"],
     });
-    // Enforced twice — the dispatcher refuses before a token is minted, and
-    // again here — because a deployment restricted to two addresses must not be
-    // one code path away from messaging forty.
-    expect(calls).toHaveLength(0);
   });
 
   it("refuses a recipient that is not an address at all", async () => {

@@ -9,7 +9,7 @@ import { RowCard, RowCardList } from "@/components/row-card";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import { Field } from "@/components/field";
+import { Field, NO_AUTOFILL, preventImplicitSubmit } from "@/components/field";
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
@@ -37,7 +37,12 @@ export default function CreatePersonForm() {
       : "Check for duplicates";
 
   return (
-    <Box component="form" action={formAction} sx={{ maxWidth: 880 }}>
+    <Box
+      component="form"
+      action={formAction}
+      onKeyDown={preventImplicitSubmit}
+      sx={{ maxWidth: 880 }}
+    >
       <Stack spacing={3}>
         <PageHeader
           title="Add a person"
@@ -90,6 +95,7 @@ export default function CreatePersonForm() {
             <Field
               name="givenName"
               label="First name"
+              autoComplete={NO_AUTOFILL}
               required
               defaultValue={values.givenName}
               error={Boolean(errors.givenName)}
@@ -99,6 +105,7 @@ export default function CreatePersonForm() {
             <Field
               name="familyName"
               label="Last name"
+              autoComplete={NO_AUTOFILL}
               required
               defaultValue={values.familyName}
               error={Boolean(errors.familyName)}
@@ -115,6 +122,7 @@ export default function CreatePersonForm() {
             <Field
               name="personalEmail"
               label="Personal email"
+              autoComplete={NO_AUTOFILL}
               defaultValue={values.personalEmail}
               error={Boolean(errors.personalEmail)}
               helperText={errors.personalEmail}

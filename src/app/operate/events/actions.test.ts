@@ -36,6 +36,7 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     ...actual,
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
+    updateEventQuestions: vi.fn(),
   };
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
@@ -64,7 +65,7 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { createEventDraft, updateEventDraft } from "@/lib/services/events";
+import { createEventDraft, updateEventDraft, updateEventQuestions } from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { EMPTY_AUDIENCE_MESSAGE } from "@/lib/services/audience-selection";
 import {
@@ -72,6 +73,7 @@ import {
   createEventDraftAction,
   saveEventAudienceAction,
   updateEventDraftAction,
+  updateEventQuestionsAction,
 } from "./actions";
 import { revalidatePath } from "next/cache";
 import { dispatchEventInvitations } from "@/lib/services/delivery";
@@ -162,7 +164,32 @@ const ACTIONS = [
     call: () => approveEventAction(EMPTY_TRANSITION_STATE, approvalForm()),
     service: approveEvent,
   },
+  {
+    name: "updateEventQuestionsAction",
+    call: () => updateEventQuestionsAction(EMPTY_FORM_STATE, questionsForm()),
+    service: updateEventQuestions,
+  },
 ] as const;
+
+/**
+ * The questions-only form an approved event posts — LAN-318. One card, carrying
+ * the id of the stored question it stands for, which is what turns the write
+ * into an update rather than a rewrite.
+ */
+function questionsForm(overrides: { id?: string; prompt?: string } = {}): FormData {
+  const form = new FormData();
+  form.set("eventId", EVENT_ID);
+  form.set("questionsPresent", "1");
+  form.append("questionId", overrides.id ?? STORED_QUESTION_ID);
+  form.append("questionPrompt", overrides.prompt ?? "Are you fit to play?");
+  form.append("questionAnswerType", "boolean");
+  form.append("questionRequired", "optional");
+  form.append("questionChoices", "");
+  form.append("questionFromTemplate", "false");
+  return form;
+}
+
+const STORED_QUESTION_ID = "44444444-4444-4444-8444-444444444444";
 
 /** A confirmed audience, as the builder posts it: repeated `audienceKey` fields. */
 function approvalForm(keys: string[] = [PLAYER_KEY, COACH_KEY]): FormData {
@@ -180,6 +207,7 @@ beforeEach(() => {
   vi.mocked(createEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(updateEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(approveEvent).mockResolvedValue({ event: { id: EVENT_ID } } as never);
+  vi.mocked(updateEventQuestions).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(saveEventAudience).mockResolvedValue([] as never);
 });
 
@@ -683,6 +711,75 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
       approveEventAction(EMPTY_TRANSITION_STATE, approvalForm()),
     );
     expect(error).toBeInstanceOf(NotPermitted);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-318 — changing what an approved event asks
+// ---------------------------------------------------------------------------
+
+describe("an approved event's questions are changed without anything being sent", () => {
+  beforeEach(() => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+  });
+
+  it("passes each stored question's id through, so the set is updated and not rewritten", async () => {
+    await expect(updateEventQuestionsAction(EMPTY_FORM_STATE, questionsForm())).rejects.toThrow(
+      /^REDIRECT:/,
+    );
+
+    expect(vi.mocked(updateEventQuestions).mock.calls[0][1]).toBe(EVENT_ID);
+    expect(vi.mocked(updateEventQuestions).mock.calls[0][2]).toEqual([
+      {
+        id: STORED_QUESTION_ID,
+        prompt: "Are you fit to play?",
+        answerType: "boolean",
+        isRequired: false,
+        choices: null,
+        fromTemplate: false,
+      },
+    ]);
+  });
+
+  it("reads a card with no id as a new question", async () => {
+    await expect(
+      updateEventQuestionsAction(EMPTY_FORM_STATE, questionsForm({ id: "" })),
+    ).rejects.toThrow(/^REDIRECT:/);
+
+    expect(vi.mocked(updateEventQuestions).mock.calls[0][2][0].id).toBeNull();
+  });
+
+  it("dispatches nothing — this is not an approval", async () => {
+    await expect(updateEventQuestionsAction(EMPTY_FORM_STATE, questionsForm())).rejects.toThrow(
+      /^REDIRECT:/,
+    );
+
+    expect(dispatchEventInvitations).not.toHaveBeenCalled();
+  });
+
+  it("shows a refused removal as a sentence rather than a crash", async () => {
+    vi.mocked(updateEventQuestions).mockRejectedValue(
+      new ConstraintViolated(
+        "A question can be reworded or reordered, but not removed, once the event has been approved.",
+        { rule: "event_question_removal_after_approval" },
+      ),
+    );
+
+    const state = await updateEventQuestionsAction(EMPTY_FORM_STATE, questionsForm());
+
+    expect(state.error).toContain("not removed");
+  });
+
+  it("says which question is wrong rather than reaching the service", async () => {
+    const state = await updateEventQuestionsAction(
+      EMPTY_FORM_STATE,
+      questionsForm({ prompt: "  " }),
+    );
+
+    expect(state.questionIssues).toEqual([
+      { index: 0, message: "Write the question, or remove it." },
+    ]);
+    expect(updateEventQuestions).not.toHaveBeenCalled();
   });
 });
 

@@ -151,6 +151,33 @@ rate-limited us), or unavailable (down, timed out, or answering with something
 unusable). None of them blocks filling in or saving the draft, and the club's
 own pitches, which no geocoder indexes, are typed rather than searched.
 
+## Optional: the three club links
+
+Three surfaces offer a destination that lives outside this application. Each is
+absent until a link is configured, and absent is the correct state locally, in
+CI, and on any deployed revision nobody has configured — nothing is invented
+and nothing half-works.
+
+| Variable                          | Read by                                  | What it turns on                                                                |
+| --------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
+| `RECRUITMENT_WHATSAPP_GROUP_LINK` | `src/lib/services/recruitment-config.ts` | The rookies-group button on the recruit sign-up form's saved page (LAN-202)     |
+| `PLAYER_WHATSAPP_GROUP_LINK`      | `src/lib/services/player-config.ts`      | The club's main group, offered on the player's own page `/me/[token]` (LAN-327) |
+| `HUDL_JOIN_LINK`                  | `src/lib/services/player-config.ts`      | The join link in step 5 of the player questionnaire (LAN-333)                   |
+
+Unset, each resolves to `null`: the two group offers are not rendered at all,
+and the Hudl step keeps its instructions while stating that the link is not
+published yet.
+
+**The real values never enter this repository.** It is public, and a WhatsApp
+invite link is joinable by anyone holding it. To exercise a surface locally,
+put any URL in `.env.local` — these resolvers only trim and hand the value on —
+and restart `npm run dev`; they are read server-side, per request.
+
+```bash
+PLAYER_WHATSAPP_GROUP_LINK=https://chat.example.invalid/group
+HUDL_JOIN_LINK=https://www.example.invalid/hudl-join
+```
+
 ## Everyday commands
 
 | Command                                                                      | What it does                                      |
@@ -225,24 +252,19 @@ SCHEDULER_TRIGGER_TOKEN=local-only-not-a-secret
 WHATSAPP_PHONE_NUMBER_ID=local-stub
 WHATSAPP_ACCESS_TOKEN=local-stub-not-a-secret
 WHATSAPP_TEMPLATE_NAME=event_invitation
-DELIVERY_RECIPIENT_ALLOWLIST=07700 900901
 EMAIL_API_KEY=local-stub-not-a-secret
 EMAIL_FROM_ADDRESS=Oxford Lancers <events@lancers.example.org>
-DELIVERY_EMAIL_ALLOWLIST=nobody@example.test
 ```
 
 `3000` is the primary slot's port; an overflow or mission slot's `.env.local`
 already carries a different `PORT` from `db:start` — match `APP_BASE_URL` to
-that value. `DELIVERY_RECIPIENT_ALLOWLIST` is the
-one line worth reading rather than pasting: it has to hold the phone number of
-whoever you want the club to be able to message, in the same free-text shape
-you would type on a roster form — § 4's walkthrough has you create
-"Runbook Walker" at `07700 900901` for exactly this reason. A seeded person's
-own number works too; find one with
-`select raw_value from public.contact_points where kind = 'phone' limit 1;`.
-`DELIVERY_EMAIL_ALLOWLIST` only matters once a reminder reaches the email rung
-or the WhatsApp-unresponsive fallback; a placeholder that matches nobody is
-fine until you need to see one of those.
+that value. Every line above is a placeholder you can paste unchanged.
+
+There is no recipient allowlist to configure. LAN-287 removed
+`DELIVERY_RECIPIENT_ALLOWLIST` and `DELIVERY_EMAIL_ALLOWLIST`, so anybody the
+domain says is eligible — a confirmed member, a recruit with recorded season
+consent — is messaged, and locally every message lands in the delivery sink
+rather than on a handset.
 
 Two things make the loop reviewable with no Meta account and no Resend key:
 
@@ -444,7 +466,9 @@ either. This is the whole first-access journey, end to end.
    Lancers operations account**.
 3. The link lands on `/auth/invitation`, which exchanges the one-time invite
    token and sends the browser to `/reset-password` with the token stripped from
-   the URL.
+   the URL. A token that does **not** exchange goes to `/invitation-link`
+   instead — LAN-311. Both destinations are fixed in `src/lib/auth/invitation.ts`
+   and neither is ever read from the query string.
 4. Choose a password. The account is recorded as activated at that moment — not
    when the link was opened — and Administration moves it from **Invitation
    pending** to **Active**.
@@ -453,6 +477,27 @@ either. This is the whole first-access journey, end to end.
 An expired link is normal and is not an error: ask for a resend. **Delivery
 failed** is what an account shows when the send itself failed; the person, the
 account and their role assignment are all still there, and Resend is offered.
+
+`/invitation-link` says only that the link cannot be used, and points at the one
+remedy that works — the club sends the invitation again. It never says which of
+expired, spent or wrong-type it was, and it never offers `/forgot-password`:
+until LAN-311 it did both by accident, because a failed invitation shared
+`/reset-password` with password recovery, and an invited operator sent to
+request a password reset for an account that has never had a password gets the
+same failure a second time.
+
+**An address that already has an account cannot be invited at all**, and the
+invite form refuses it rather than sending a link that could not work: an
+`invite` token does not verify against a user the Auth server has already
+confirmed. To see it, invite an address you have already invited — the refusal
+names whose account it is and what state their access is in. Give the second
+seat on the existing operator record instead.
+
+The other half is an address the Auth server holds and this application's
+records do not — a login left behind by an invitation whose rows never wrote.
+There is no operator record to open, so the refusal does not send anyone
+looking for one: it says the records hold no operator for the address, that
+nothing on the screen changes that, and to invite a different address.
 
 ### The Auth configuration this depends on
 

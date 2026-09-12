@@ -19,6 +19,7 @@ import {
   CURRENT_ANSWER_NOTE,
   DEADLINE_LABEL,
   DEADLINE_NOTE,
+  DESCRIPTION_LABEL,
   EQUIPMENT_LABEL,
   INVITATION_LABEL,
   NOT_ATTENDING,
@@ -115,6 +116,21 @@ export function Invitation({
             value={page.requiredEquipment}
             multiline
             testId="rsvp-equipment"
+          />
+        ) : null}
+        {/*
+          LAN-323. The equipment has been here since LAN-264; what the operator
+          wrote about the event never was, so a player deciding on this screen
+          could not read it. Two separately labelled things, never folded
+          together — that fold belongs to the calendar feed alone, which has
+          nowhere else to put the equipment.
+        */}
+        {page.description ? (
+          <Fact
+            label={DESCRIPTION_LABEL}
+            value={page.description}
+            multiline
+            testId="rsvp-description"
           />
         ) : null}
         {deadline ? <Fact label={DEADLINE_LABEL} value={deadline} note={DEADLINE_NOTE} /> : null}

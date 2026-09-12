@@ -8,7 +8,7 @@
  * other-invitations notice — Q-21's "same answer surface, opened in place").
  * The service layer is mocked; what is under test is the screen.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
@@ -68,6 +68,8 @@ import {
   SAVE_QUESTIONS,
   SAVE_REASON,
   STILL_NEED_ANSWER_HEADING,
+  JOIN_WHATSAPP_GROUP,
+  WHATSAPP_GROUP_HEADING,
 } from "./presentation";
 
 const TOKEN = "durable-token-plaintext-000000000000000000000";
@@ -85,6 +87,8 @@ function invitation(overrides: Partial<PlayerHomeInvitation>): PlayerHomeInvitat
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
+    description: null,
+    requiredEquipment: null,
     responseDeadline: new Date("2026-10-13T17:00:00Z"),
     attendingCount: 0,
     reminderSent: false,
@@ -551,5 +555,131 @@ describe("OWNER-LAN172-11 — the row's secondary control reads 'Change answer'"
     expect(text).not.toContain("Change to No");
     // The paired affirmative control keeps its own wording and filled treatment.
     expect(container.querySelector(".MuiButton-contained.MuiButton-colorPrimary")).not.toBeNull();
+  });
+});
+
+describe("LAN-323 — the event's description and equipment on the player's own page", () => {
+  const DETAILED = invitation({
+    invitationId: "66666666-6666-4666-8666-666666666666",
+    eventName: "Padded practice",
+    description: "Full pads.\nMeet at the clubhouse.",
+    requiredEquipment: "Gumshield\nStuds",
+  });
+
+  function givenFocused(entry: PlayerHomeInvitation) {
+    givenHome({ ...HOME, newInvitations: [entry], nextInvitationId: entry.invitationId });
+  }
+
+  it("shows both, separately labelled, on the focused panel", async () => {
+    givenFocused(DETAILED);
+    const { container } = await renderPage({ open: DETAILED.invitationId });
+
+    const description = container.querySelector('[data-testid="player-event-description"]');
+    expect(description?.textContent).toContain("Description");
+    expect(description?.textContent).toContain("Full pads.");
+    expect(description?.querySelector("dd p")).toHaveStyle({ whiteSpace: "pre-line" });
+
+    const equipment = container.querySelector('[data-testid="player-event-equipment"]');
+    expect(equipment?.textContent).toContain("What to bring");
+    expect(equipment?.textContent).toContain("Gumshield");
+
+    // Two facts, never one folded string — that fold is the calendar feed's alone.
+    expect(equipment?.textContent).not.toContain("Full pads.");
+    expect(description?.textContent).not.toContain("Gumshield");
+  });
+
+  it("renders neither label when the operator left both empty", async () => {
+    const bare = invitation({ invitationId: "77777777-7777-4777-8777-777777777777" });
+    givenFocused(bare);
+    const { container } = await renderPage({ open: bare.invitationId });
+
+    expect(container.querySelector('[data-testid="player-event-description"]')).toBeNull();
+    expect(container.querySelector('[data-testid="player-event-equipment"]')).toBeNull();
+    expect(container.textContent).not.toContain("Description");
+    expect(container.textContent).not.toContain("What to bring");
+  });
+
+  /**
+   * The walk found both facts stopped at the focused panel: the list a player
+   * actually lands on showed neither, and nothing on a card led to the panel
+   * that had them. Brian's ticket says every player surface, and a list card
+   * is the surface a player reads first.
+   */
+  it("shows both on the list card, not only on the focused panel", async () => {
+    givenHome({ ...HOME, newInvitations: [DETAILED], nextInvitationId: DETAILED.invitationId });
+    const { container } = await renderPage();
+
+    const card = container.querySelector('[data-testid="row-card"]')!;
+    expect(card.querySelector('[data-testid="summary-equipment"]')?.textContent).toContain(
+      "What to bring",
+    );
+    expect(card.querySelector('[data-testid="summary-equipment"]')?.textContent).toContain(
+      "Gumshield",
+    );
+    expect(card.querySelector('[data-testid="summary-description"]')?.textContent).toContain(
+      "Description",
+    );
+    expect(card.querySelector('[data-testid="summary-description"]')?.textContent).toContain(
+      "Full pads.",
+    );
+  });
+
+  it("leaves the card's facts off entirely when the operator left both empty", async () => {
+    const bare = invitation({ invitationId: "88888888-8888-4888-8888-888888888888" });
+    givenHome({ ...HOME, newInvitations: [bare], nextInvitationId: bare.invitationId });
+    const { container } = await renderPage();
+
+    expect(container.querySelector('[data-testid="summary-description"]')).toBeNull();
+    expect(container.querySelector('[data-testid="summary-equipment"]')).toBeNull();
+  });
+
+  it("points the card's own title at the focused view that carries the rest", async () => {
+    givenHome({ ...HOME, newInvitations: [DETAILED], nextInvitationId: DETAILED.invitationId });
+    const { container } = await renderPage();
+
+    const title = container.querySelector('[data-testid="row-card"] a')!;
+    expect(title.textContent).toBe("Padded practice");
+    expect(title.getAttribute("href")).toBe(
+      `/me/${encodeURIComponent(TOKEN)}?open=${DETAILED.invitationId}`,
+    );
+  });
+});
+
+describe("LAN-327 — the club's WhatsApp group on the player's own page", () => {
+  /** A dummy. The club's real invite link is configuration and never enters this repository. */
+  const DUMMY_GROUP = "https://chat.example.invalid/group";
+
+  afterEach(() => {
+    delete process.env.PLAYER_WHATSAPP_GROUP_LINK;
+    delete process.env.RECRUITMENT_WHATSAPP_GROUP_LINK;
+  });
+
+  it("offers the group when the link is configured", async () => {
+    process.env.PLAYER_WHATSAPP_GROUP_LINK = DUMMY_GROUP;
+    givenHome();
+    const { container } = await renderPage();
+
+    const link = container.querySelector('[data-testid="player-whatsapp-group-link"]');
+    expect(link).not.toBeNull();
+    expect(link).toHaveAttribute("href", DUMMY_GROUP);
+    expect(container.textContent).toContain(WHATSAPP_GROUP_HEADING);
+    expect(container.textContent).toContain(JOIN_WHATSAPP_GROUP);
+  });
+
+  it("shows nothing at all when no link is configured — no heading, no dead button", async () => {
+    givenHome();
+    const { container } = await renderPage();
+
+    expect(container.querySelector('[data-testid="player-whatsapp-group"]')).toBeNull();
+    expect(container.textContent).not.toContain(WHATSAPP_GROUP_HEADING);
+    expect(container.textContent).not.toContain(JOIN_WHATSAPP_GROUP);
+  });
+
+  it("does not read the recruits' variable — the two groups are different destinations", async () => {
+    process.env.RECRUITMENT_WHATSAPP_GROUP_LINK = DUMMY_GROUP;
+    givenHome();
+    const { container } = await renderPage();
+
+    expect(container.querySelector('[data-testid="player-whatsapp-group-link"]')).toBeNull();
   });
 });

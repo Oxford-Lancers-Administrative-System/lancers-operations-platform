@@ -11,8 +11,24 @@ import { assertAdministrationCapability, blankToNull } from "./shared";
  * body has been touched by the split.
  */
 
-/** Why a candidate surfaced. Same vocabulary the returner intake uses. */
-type CandidateMatch = "given name" | "family name" | "known as" | "email" | "phone";
+/**
+ * Which record a candidate surfaced on.
+ *
+ * `"email"` used to cover both addresses the club can hold for one human, and
+ * the screen then printed the person's *contact* email beside the word — so a
+ * search for somebody's sign-in address produced a row captioned with a
+ * different address and read as a wrong match. The two are separate here
+ * because only the SQL knows which one the term hit.
+ */
+export type CandidateMatchField =
+  "given name" | "family name" | "known as" | "sign-in address" | "contact email" | "phone";
+
+/** Why a candidate surfaced, and the value the search term actually hit. */
+export interface CandidateMatch {
+  readonly field: CandidateMatchField;
+  /** The matched value as the club holds it; `null` only if the record lost it between match and read. */
+  readonly value: string | null;
+}
 
 export interface OperatorCandidate {
   readonly personId: string;
@@ -27,6 +43,7 @@ export interface OperatorCandidate {
     readonly loginEmail: string | null;
     readonly state: OperatorAccountState;
   } | null;
+  /** Every record the search term hit, in a fixed order, each with its value. */
   readonly matchedOn: CandidateMatch[];
 }
 
@@ -52,10 +69,16 @@ interface CandidateRow {
   operator_delivery_failed_at: Date | null;
   operator_email_rehome_pending_at: Date | null;
   matched_given: boolean;
+  matched_given_value: string | null;
   matched_family: boolean;
+  matched_family_value: string | null;
   matched_known_as: boolean;
-  matched_email: boolean;
+  matched_known_as_value: string | null;
+  matched_login_email: boolean;
+  matched_contact_email: boolean;
+  matched_contact_email_value: string | null;
   matched_phone: boolean;
+  matched_phone_value: string | null;
 }
 
 /**
@@ -85,7 +108,13 @@ export async function findOperatorCandidates(
          select a.person_id,
                 bool_or(lower(btrim(a.alias)) = w.given_name)  as by_given,
                 bool_or(lower(btrim(a.alias)) = w.family_name) as by_family,
-                bool_or(lower(btrim(a.alias)) = w.known_as)    as by_known_as
+                bool_or(lower(btrim(a.alias)) = w.known_as)    as by_known_as,
+                -- The alias as the club spells it, not as the search spelled
+                -- it: the caption names the record that matched and shows what
+                -- is in it, so an operator can see the two are the same human.
+                max(a.alias) filter (where lower(btrim(a.alias)) = w.given_name)  as given_alias,
+                max(a.alias) filter (where lower(btrim(a.alias)) = w.family_name) as family_alias,
+                max(a.alias) filter (where lower(btrim(a.alias)) = w.known_as)    as known_as_alias
            from public.person_aliases a
            cross join wanted w
           group by a.person_id
@@ -93,11 +122,22 @@ export async function findOperatorCandidates(
        contact_match as (
          select c.person_id,
                 bool_or(c.kind = 'email' and lower(btrim(c.raw_value)) = w.email) as by_email,
+                max(c.raw_value) filter (
+                  where c.kind = 'email' and lower(btrim(c.raw_value)) = w.email
+                ) as email_value,
                 bool_or(
                   c.kind = 'phone'
                   and w.phone_tail is not null
                   and nullif(right(regexp_replace(c.raw_value, '\\D', '', 'g'), 9), '') = w.phone_tail
-                ) as by_phone
+                ) as by_phone,
+                -- The number the club holds, in the club's formatting; the
+                -- search matches on the last nine digits, so the term itself
+                -- is frequently not what the record says.
+                max(c.raw_value) filter (
+                  where c.kind = 'phone'
+                    and w.phone_tail is not null
+                    and nullif(right(regexp_replace(c.raw_value, '\\D', '', 'g'), 9), '') = w.phone_tail
+                ) as phone_value
            from public.contact_points c
            cross join wanted w
           group by c.person_id
@@ -130,20 +170,32 @@ export async function findOperatorCandidates(
          oa.email_rehome_pending_at as operator_email_rehome_pending_at,
          coalesce(lower(btrim(p.given_name)) = w.given_name
                   or am.by_given, false)    as matched_given,
+         case when lower(btrim(p.given_name)) = w.given_name
+              then p.given_name else am.given_alias end  as matched_given_value,
          coalesce(lower(btrim(p.family_name)) = w.family_name
                   or am.by_family, false)   as matched_family,
+         case when lower(btrim(p.family_name)) = w.family_name
+              then p.family_name else am.family_alias end as matched_family_value,
          -- No known-as arm: LAN-182 moved that value into person_aliases,
          -- which the alias_match CTE above already scans, so am.by_known_as
          -- catches what the struck column used to catch.
          coalesce(lower(btrim(p.given_name)) = w.known_as
                   or am.by_known_as, false) as matched_known_as,
-         -- An address already in use as a login is a match on the address,
-         -- and says so in the same word the other matches use. Without the
-         -- second half of this the search could see the row, print the login
-         -- it had just read, and still report that nobody matched.
-         coalesce(cm.by_email
-                  or lower(btrim(oa.login_email)) = w.email, false) as matched_email,
-         coalesce(cm.by_phone, false)       as matched_phone
+         case when lower(btrim(p.given_name)) = w.known_as
+              then p.given_name else am.known_as_alias end as matched_known_as_value,
+         -- An address already in use as a login is a match on the address.
+         -- Without this arm the search could see the row, print the login it
+         -- had just read, and still report that nobody matched. It is reported
+         -- apart from a contact-email match because they are different records
+         -- holding different addresses, and the caption has to name which one
+         -- the operator's term hit — the screen used to print the contact
+         -- address under either, so a search for somebody's sign-in address
+         -- produced a row showing an address they had not typed.
+         coalesce(lower(btrim(oa.login_email)) = w.email, false) as matched_login_email,
+         coalesce(cm.by_email, false)       as matched_contact_email,
+         cm.email_value                     as matched_contact_email_value,
+         coalesce(cm.by_phone, false)       as matched_phone,
+         cm.phone_value                     as matched_phone_value
        from public.people p
        cross join wanted w
        left join alias_match   am on am.person_id = p.id
@@ -185,11 +237,15 @@ export async function findOperatorCandidates(
 
 function toCandidate(row: CandidateRow): OperatorCandidate {
   const matchedOn: CandidateMatch[] = [];
-  if (row.matched_given) matchedOn.push("given name");
-  if (row.matched_family) matchedOn.push("family name");
-  if (row.matched_known_as) matchedOn.push("known as");
-  if (row.matched_email) matchedOn.push("email");
-  if (row.matched_phone) matchedOn.push("phone");
+  if (row.matched_given) matchedOn.push({ field: "given name", value: row.matched_given_value });
+  if (row.matched_family) matchedOn.push({ field: "family name", value: row.matched_family_value });
+  if (row.matched_known_as)
+    matchedOn.push({ field: "known as", value: row.matched_known_as_value });
+  if (row.matched_login_email)
+    matchedOn.push({ field: "sign-in address", value: row.operator_login_email });
+  if (row.matched_contact_email)
+    matchedOn.push({ field: "contact email", value: row.matched_contact_email_value });
+  if (row.matched_phone) matchedOn.push({ field: "phone", value: row.matched_phone_value });
 
   return {
     personId: row.person_id,

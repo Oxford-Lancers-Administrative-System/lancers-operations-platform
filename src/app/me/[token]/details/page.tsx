@@ -19,6 +19,7 @@ import {
   withUniformTerminalTiming,
 } from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
+import { resolveHudlJoinLink } from "@/lib/services/player-config";
 import {
   readQuestionnaireViewIn,
   STEP_ORDER,
@@ -126,7 +127,8 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
         ) : page === "bucs_play" ? (
           <BucsStepPage view={view} token={token} />
         ) : (
-          <HudlStepPage view={view} token={token} />
+          // LAN-333. Configuration, never a literal: `null` until HUDL_JOIN_LINK is set.
+          <HudlStepPage view={view} token={token} joinLink={resolveHudlJoinLink()} />
         )}
       </Stack>
     </PublicShell>

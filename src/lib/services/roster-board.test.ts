@@ -14,9 +14,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import type { Client } from "pg";
+import { Client as PgClient, type Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
+import { readPersonRecord } from "./person-record";
+import { readPlayerRecord } from "./player-record";
 import { resolveOpenSeason } from "./roster";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import {
@@ -591,5 +593,78 @@ describe("onboardingItems — the roster board's own onboarding columns", () => 
         reason: "Handed over informally",
       }),
     ).rejects.toMatchObject({ kind: "constraint_violated" });
+  });
+});
+
+/**
+ * LAN-301. `pg` warned on every roster load that `client.query()` was being
+ * called while that client was already executing one. It is a warning, not an
+ * error, because `pg` queues the second call and runs it afterwards — so the
+ * `Promise.all`s that caused it never overlapped a single round trip and only
+ * bought a deprecation notice in Brian's console, on a driver that says it
+ * will stop accepting this at pg@9.
+ *
+ * Asserted by counting overlaps rather than by catching the warning:
+ * `util.deprecate` fires once per process for the life of that closure, so a
+ * suite that merely listens for it passes for free the moment anything else
+ * has already triggered it.
+ */
+describe("LAN-301 — no read overlaps a query already running on its own client", () => {
+  async function overlapsDuring(work: () => Promise<unknown>): Promise<number> {
+    const inFlight = new WeakMap<object, number>();
+    let overlaps = 0;
+    const original = PgClient.prototype.query;
+
+    PgClient.prototype.query = function patched(this: object, ...args: unknown[]) {
+      const running = inFlight.get(this) ?? 0;
+      if (running > 0) overlaps += 1;
+      inFlight.set(this, running + 1);
+      const settle = () => inFlight.set(this, (inFlight.get(this) ?? 1) - 1);
+      // The callback form never reaches this codebase, but returning its
+      // undefined through `Promise.resolve` would silently drop the query.
+      const result = (original as (...a: unknown[]) => unknown).apply(this, args);
+      if (result && typeof (result as Promise<unknown>).then === "function") {
+        return (result as Promise<unknown>).then(
+          (value) => {
+            settle();
+            return value;
+          },
+          (error) => {
+            settle();
+            throw error;
+          },
+        );
+      }
+      settle();
+      return result;
+    } as typeof PgClient.prototype.query;
+
+    try {
+      await work();
+    } finally {
+      PgClient.prototype.query = original;
+    }
+    return overlaps;
+  }
+
+  it("loads the whole roster board without one", async () => {
+    expect(await overlapsDuring(() => listRosterBoard())).toBe(0);
+  });
+
+  it("assembles a person record without one", async () => {
+    expect(await overlapsDuring(() => readPersonRecord(personId))).toBe(0);
+  });
+
+  it("assembles a membership record without one", async () => {
+    expect(await overlapsDuring(() => readPlayerRecord(membershipId))).toBe(0);
+  });
+
+  it("counts an overlap when one really happens, so the three above are not vacuous", async () => {
+    const overlaps = await overlapsDuring(() =>
+      withTransaction((tx) =>
+        Promise.all([tx.query("select 1"), tx.query("select 2"), tx.query("select 3")]),
+      ),
+    );
+    expect(overlaps).toBeGreaterThan(0);
   });
 });

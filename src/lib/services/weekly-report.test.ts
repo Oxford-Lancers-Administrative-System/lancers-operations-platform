@@ -43,6 +43,7 @@ import { createEventDraft, type EventDraftInput } from "./events";
  * the report. The gate itself is `attendance.test.ts`'s subject and is proved
  * there, against dates that test owns.
  */
+import { personDisplayName } from "./person-name";
 import { readCurrentSeason } from "./seasons";
 import {
   computeReportContent,
@@ -61,6 +62,9 @@ import {
 } from "./weekly-report";
 
 const NAME_MARKER = "LAN81ReportSuite";
+
+/** Namesakes carry somebody else's name, so the hook cannot find them by one. */
+const namesakePersonIds: string[] = [];
 
 /**
  * A reporting date whose window contains this suite's events and **nothing
@@ -174,9 +178,14 @@ afterEach(async () => {
   await observer.query("delete from public.people where family_name = $1", [NAME_MARKER]);
 
   // The namesakes `namesakeInvitation` mints, whose whole point is that their
-  // *display* name is somebody else's — so they are found by their own
-  // `given_name`, which carries this suite's marker. Their alias cascades.
-  await observer.query("delete from public.people where given_name like $1", [scope]);
+  // name is somebody else's — so nothing about their own row identifies this
+  // suite, and they are deleted by the ids the helper collected.
+  if (namesakePersonIds.length > 0) {
+    await observer.query("delete from public.people where id = any($1::uuid[])", [
+      namesakePersonIds,
+    ]);
+    namesakePersonIds.length = 0;
+  }
 });
 
 afterAll(async () => {
@@ -287,19 +296,29 @@ async function answer(invitationId: string, response: "yes" | "no", reason: stri
 }
 
 /** The display name an invitation's invitee is shown under. */
-async function displayNameFor(invitationId: string): Promise<string> {
-  const named = await observer.query<{ display_name: string }>(
-    `select coalesce(nullif(btrim((select da.alias from public.person_aliases da
-                 where da.person_id = p.id and da.is_display_name limit 1)), ''), p.given_name)
-            || case when p.family_name is null then '' else ' ' || p.family_name end
-              as display_name
+// LAN-306: the formal given and family name, which is now what every surface
+// composes — the alias no longer substitutes for the given name anywhere.
+async function nameOf(
+  invitationId: string,
+): Promise<{ givenName: string; familyName: string | null; displayName: string }> {
+  const named = await observer.query<{ given_name: string; family_name: string | null }>(
+    `select p.given_name, p.family_name
        from public.invitations i
        join public.season_memberships m on m.id = i.season_membership_id
        join public.people p on p.id = m.person_id
       where i.id = $1`,
     [invitationId],
   );
-  return named.rows[0].display_name;
+  const row = named.rows[0];
+  return {
+    givenName: row.given_name,
+    familyName: row.family_name,
+    displayName: personDisplayName(row.given_name, row.family_name),
+  };
+}
+
+async function displayNameFor(invitationId: string): Promise<string> {
+  return (await nameOf(invitationId)).displayName;
 }
 
 /**
@@ -325,21 +344,22 @@ async function namesakeInvitation(
   invitationId: string,
   id?: string,
 ): Promise<string> {
-  const displayName = await displayNameFor(invitationId);
+  const target = await nameOf(invitationId);
 
-  // A distinct person carrying the suite's marker in their own name, wearing
-  // the target's display name as their display alias — so the grid sees one
-  // name and the database sees two people.
+  // A distinct person who genuinely shares the target's name — two humans the
+  // club calls the same thing, which is the case the merge exists for and the
+  // one a display name cannot tell apart.
+  //
+  // LAN-306 changed how this fixture has to be built, not what it proves: the
+  // namesake used to wear the target's name as a display alias, and an alias no
+  // longer composes anybody's display name. Their own row carries no marker, so
+  // the hook cleans them up by the ids collected here.
   const person = await observer.query<{ id: string }>(
     `insert into public.people (given_name, family_name)
-     values ($1, null) returning id`,
-    [`${NAME_MARKER} Namesake`],
+     values ($1, $2) returning id`,
+    [target.givenName, target.familyName],
   );
-  await observer.query(
-    `insert into public.person_aliases (person_id, alias, is_display_name)
-     values ($1, $2, true)`,
-    [person.rows[0].id, displayName],
-  );
+  namesakePersonIds.push(person.rows[0].id);
 
   const audience = await observer.query<{ id: string }>(
     `insert into public.event_audience_members

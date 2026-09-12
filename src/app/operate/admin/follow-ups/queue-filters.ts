@@ -1,7 +1,5 @@
-import { readEventYear } from "@/app/calendar/year";
 import type { EventPeriod } from "@/lib/services/event-periods";
 import { sortColumnHref, sortColumnState, stableSortRows } from "@/lib/services/participation-view";
-import { readCurrentSeason } from "@/lib/services/seasons";
 import type { FollowUpEvent, FollowUpRow } from "@/lib/services/follow-ups";
 
 /** Query params, sorting and date-range filtering for the Follow-ups queue — W5, LAN-281. */
@@ -75,6 +73,8 @@ export function followUpsSortState(
 
 /** One flat row — the table's own shape, an event repeated across its people. */
 export interface QueueRow extends FollowUpRow {
+  /** LAN-329: kept through the flattening, so the row can link to the event it is silent about. */
+  readonly eventId: string;
   readonly eventName: string;
   readonly scheduledOn: string | null;
 }
@@ -83,6 +83,7 @@ export function flatten(events: readonly FollowUpEvent[]): readonly QueueRow[] {
   return events.flatMap((event) =>
     event.people.map((person) => ({
       ...person,
+      eventId: event.eventId,
       eventName: event.eventName,
       scheduledOn: event.scheduledOn,
     })),
@@ -118,26 +119,6 @@ function withinBounds(
   if (bounds.startsOn !== null && day < bounds.startsOn) return false;
   if (bounds.endsOn !== null && day > bounds.endsOn) return false;
   return true;
-}
-
-/** "This term"'s boundary, read like Events/Calendar do (`@/app/calendar/year`, docs/ux/standards.md rule 7); degrades to no boundary rather than failing the page. */
-export async function currentTermBounds(
-  today: string,
-): Promise<{ startsOn: string | null; endsOn: string | null }> {
-  try {
-    const season = await readCurrentSeason();
-    const year = await readEventYear([], {
-      today,
-      seasonStartsOn: season.startsOn,
-      seasonEndsOn: season.endsOn,
-    });
-    return {
-      startsOn: year?.currentSegmentStartsOn ?? null,
-      endsOn: year?.currentSegmentEndsOn ?? null,
-    };
-  } catch {
-    return { startsOn: null, endsOn: null };
-  }
 }
 
 /** Filtered, sorted rows for the queue, from the already-flattened rows. */

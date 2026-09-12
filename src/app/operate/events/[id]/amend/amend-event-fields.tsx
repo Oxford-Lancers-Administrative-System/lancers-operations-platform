@@ -1,7 +1,7 @@
 "use client";
 
 import { Section } from "@/components/section";
-import { Field, ChoiceField, DateField, TimeField } from "@/components/field";
+import { Field, ChoiceField, DateField, TimeField, NO_AUTOFILL } from "@/components/field";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { FieldIssue, RawEventDraft } from "@/lib/services/event-input";
@@ -58,6 +58,8 @@ export function AmendEventFields({
         <Field
           name="name"
           label="Name"
+          // LAN-324: the event's name, never the operator's.
+          autoComplete={NO_AUTOFILL}
           defaultValue={value("name")}
           error={Boolean(issueFor(issues, "name"))}
           helperText={issueFor(issues, "name")}
@@ -131,6 +133,7 @@ export function AmendEventFields({
           <Field
             name="joiningUrl"
             label="Joining link"
+            autoComplete={NO_AUTOFILL}
             defaultValue={value("joiningUrl")}
             error={Boolean(issueFor(issues, "joiningUrl"))}
             helperText={issueFor(issues, "joiningUrl") ?? JOINING_URL_IS_PUBLIC_WARNING}

@@ -1,10 +1,15 @@
 /**
  * `Add to your calendar` — the two screens, and nothing beyond them. LAN-158.
  *
- * `W2-01` (the pick screen) and `W2-02` (Done) are one `Dialog` switched on
- * local state, and this file is what proves there is no third: every provider
- * choice and the copy action are exercised, and each leaves the dialog in one
- * of exactly the two known states.
+ * `W2-01` (the pick screen) and `W2-02` (what was opened) are one `Dialog`
+ * switched on local state, and this file is what proves there is no third:
+ * every provider choice and the copy action are exercised, and each leaves
+ * the dialog in one of exactly the two known states.
+ *
+ * LAN-320 pins the URL every destination is handed — all three `webcal:`,
+ * because Google subscribes to an external feed only when `cid` carries that
+ * scheme — and that the second screen states what was opened rather than
+ * claiming a subscription it cannot observe.
  */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,7 +45,7 @@ describe("Add to your calendar", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Add to your calendar")).toBeInTheDocument();
     expect(screen.getByTestId("subscribe-pick")).toBeInTheDocument();
-    expect(screen.queryByTestId("subscribe-done")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("subscribe-opened")).not.toBeInTheDocument();
 
     expect(within(dialog).getByTestId("subscribe-provider-google")).toHaveTextContent(
       "Google Calendar",
@@ -60,7 +65,12 @@ describe("Add to your calendar", () => {
     expect(screen.queryByText(/copy this event/i)).not.toBeInTheDocument();
   });
 
-  it("choosing Google opens Google's add-by-URL endpoint and moves straight to Done — no third screen", async () => {
+  /** The one `webcal:` address every destination is built from, in this test environment. */
+  function webcalFeedUrl(): string {
+    return `${window.location.origin}${PUBLIC_CALENDAR_FEED_PATH}`.replace(/^https?:/, "webcal:");
+  }
+
+  it("hands Google a webcal: cid, never the https one — LAN-320", async () => {
     render(<SubscribeToCalendarButton />);
     openDialog();
     await screen.findByRole("dialog");
@@ -70,16 +80,17 @@ describe("Add to your calendar", () => {
     });
 
     const url = openedUrl();
-    expect(url).toContain("calendar.google.com");
-    expect(url).toContain(encodeURIComponent(PUBLIC_CALENDAR_FEED_PATH));
+    expect(url).toBe(
+      `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalFeedUrl())}`,
+    );
+    // The defect: an https cid is read as one of the reader's own calendar ids.
+    expect(url).not.toContain(encodeURIComponent("https://"));
 
-    expect(screen.getByTestId("subscribe-done")).toBeInTheDocument();
+    expect(screen.getByTestId("subscribe-opened")).toBeInTheDocument();
     expect(screen.queryByTestId("subscribe-pick")).not.toBeInTheDocument();
-    expect(screen.getByText(/Google Calendar has opened/)).toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toHaveTextContent("Done");
   });
 
-  it("Apple gets a webcal: address rather than the HTTPS one", async () => {
+  it("Apple gets the same webcal: address, unwrapped", async () => {
     render(<SubscribeToCalendarButton />);
     openDialog();
     await screen.findByRole("dialog");
@@ -88,11 +99,10 @@ describe("Add to your calendar", () => {
       fireEvent.click(screen.getByTestId("subscribe-provider-apple"));
     });
 
-    expect(openedUrl().startsWith("webcal:")).toBe(true);
-    expect(screen.getByText(/Apple Calendar has opened/)).toBeInTheDocument();
+    expect(openedUrl()).toBe(webcalFeedUrl());
   });
 
-  it("Outlook gets its own add-by-URL endpoint", async () => {
+  it("Outlook gets the documented addfromweb endpoint, with the webcal address", async () => {
     render(<SubscribeToCalendarButton />);
     openDialog();
     await screen.findByRole("dialog");
@@ -101,8 +111,29 @@ describe("Add to your calendar", () => {
       fireEvent.click(screen.getByTestId("subscribe-provider-outlook"));
     });
 
-    expect(openedUrl()).toContain("outlook.live.com");
-    expect(screen.getByText(/Outlook has opened/)).toBeInTheDocument();
+    expect(openedUrl()).toBe(
+      `https://outlook.live.com/calendar/0/addfromweb/?url=${encodeURIComponent(
+        webcalFeedUrl(),
+      )}&name=${encodeURIComponent("Oxford Lancers")}`,
+    );
+  });
+
+  it("states what was opened and what to check there, and claims no success — LAN-320", async () => {
+    render(<SubscribeToCalendarButton />);
+    openDialog();
+    await screen.findByRole("dialog");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("subscribe-provider-google"));
+    });
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Opened in Google Calendar");
+    expect(dialog).toHaveTextContent("Confirm there");
+    expect(dialog).toHaveTextContent("Oxford Lancers listed under Other calendars");
+    // The old screen said "Done" over a green tick for a subscription nothing here can see.
+    expect(dialog).not.toHaveTextContent(/\bDone\b/);
+    expect(dialog).not.toHaveTextContent(/has opened\. Confirm there and/);
   });
 
   it("copying the address gives feedback on the same pick screen, not a third one", async () => {
@@ -119,7 +150,7 @@ describe("Add to your calendar", () => {
     );
     expect(screen.getByTestId("subscribe-copy")).toHaveTextContent("Copied");
     expect(screen.getByTestId("subscribe-pick")).toBeInTheDocument();
-    expect(screen.queryByTestId("subscribe-done")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("subscribe-opened")).not.toBeInTheDocument();
   });
 
   it("closing and reopening always returns to the pick screen", async () => {
@@ -130,11 +161,11 @@ describe("Add to your calendar", () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("subscribe-provider-google"));
     });
-    expect(screen.getByTestId("subscribe-done")).toBeInTheDocument();
+    expect(screen.getByTestId("subscribe-opened")).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(
-        within(screen.getByTestId("subscribe-done")).getByRole("button", { name: "Close" }),
+        within(screen.getByTestId("subscribe-opened")).getByRole("button", { name: "Close" }),
       );
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

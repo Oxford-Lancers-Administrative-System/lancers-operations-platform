@@ -314,6 +314,8 @@ export default function PlayerRecordView({
         }
       >
         <RecordField label="Name" value={person.displayName ?? null} />
+        {/* LAN-306: the formal name above, the alias here, never one inside the other. */}
+        <RecordField label="Known as" value={person.knownAs ?? null} />
         <RecordField label="Aliases" value={joinAliases(person.aliases)} />
         <RecordField label="Mobile phone" value={mobile} />
         <RecordField label="Personal email" value={personalEmail} />

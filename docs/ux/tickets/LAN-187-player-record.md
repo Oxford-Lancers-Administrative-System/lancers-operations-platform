@@ -152,6 +152,16 @@ survivor's own membership for the same season, or to the survivor's person
 record when they never held one that season — the same resolution `W1-09`
 gives a merged person id directly.
 
+**LAN-301 closed the list half of the same invariant.** Opening such a
+membership resolved correctly, but `listCurrentSeasonRoster` had no
+`merged_into_person_id is null` predicate at all, so the roster and the board
+both listed the merged-away person beside the survivor and counted them in
+`totalInSeason` — the same person, twice, with nothing on either row to say
+which was which. `Q-16` guarantees the row exists: an overlap season the
+operator archived to clear the refusal is deliberately left behind rather than
+re-pointed. The people directory and the recruitment board already excluded
+these; the roster now does too.
+
 ## Delegated decisions, taken here and recorded
 
 `acceptance/W6.md`'s Core Decisions table delegates "which of Mission 9's

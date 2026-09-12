@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   INVITATION_DESTINATION_PATH,
   INVITATION_LINK_TYPE,
+  INVITATION_UNUSABLE_PATH,
   isPlausibleInvitationTokenHash,
 } from "@/lib/auth/invitation";
 import { emailLinkRedirectDestination } from "@/lib/auth/recovery";
@@ -17,11 +18,29 @@ import { createClient } from "@/lib/supabase/server";
  * gone from the address bar, out of the browser history entry for the page that
  * shows a password field, and out of any `Referer` a later request carries.
  *
- * It has exactly one destination, `/reset-password`, whatever happened. No
- * `next`, no `redirect_to`, no error code in the query string: a caller-supplied
- * destination on a route that has just minted a session is an open redirect with
- * a session attached, and an error code would be a chattier second copy of the
- * message that page already renders for a request arriving with no session.
+ * It has exactly two destinations, both of them module constants:
+ * `/reset-password` when the token was exchanged, `/invitation-link` when it
+ * was not. No `next`, no `redirect_to`, no error code in the query string — a
+ * caller-supplied destination on a route that has just minted a session is an
+ * open redirect with a session attached, and an error code would be a chattier
+ * second copy of the message the destination already renders.
+ *
+ * ## Why there are two, since LAN-311
+ *
+ * There was one, and the reasoning was that a failed exchange leaves no session
+ * and no session is exactly what `/reset-password` renders its invalid-link
+ * screen for. That is true, and it produced the wrong screen anyway: the
+ * sentence that screen renders is `INVALID_RECOVERY_LINK_MESSAGE`, written for
+ * somebody who asked for a **password reset**, telling them to request another
+ * one. An invited operator has never had a password and cannot get in that way,
+ * so the screen sent them round a loop that could not terminate.
+ *
+ * Branching on the exchange therefore does not weaken the no-oracle rule that
+ * paragraph was protecting. Expired, spent, wrong-type and malformed all land
+ * on the same screen reading the same sentence; nothing here tells an
+ * unauthenticated visitor whether any account exists. What it distinguishes is
+ * which journey the visitor is on — and they already know that, because they
+ * are holding the email that sent them.
  *
  * ## What it does *not* do, and this is the part worth reading
  *
@@ -40,14 +59,19 @@ export async function GET(request: NextRequest) {
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type");
 
+  let exchanged = false;
+
   if (type === INVITATION_LINK_TYPE && isPlausibleInvitationTokenHash(tokenHash)) {
     const supabase = await createClient();
-    // The result is not read, for the reason `/auth/recovery` gives: a failed
-    // exchange leaves no session, and no session is exactly what the
-    // destination renders its generic invalid-link screen for. Branching here
-    // could only produce a more specific message than that screen is allowed to
-    // give — and "this invitation was already used" is an account oracle.
-    await supabase.auth.verifyOtp({ type: "invite", token_hash: tokenHash });
+    // Read for one bit only — did a session come back — and never for the
+    // reason it did not. The session is the honest test: `verifyOtp` can
+    // answer without an `error` and still mint nothing, and it is the session,
+    // not the absence of an error, that `/reset-password` needs.
+    const { data, error } = await supabase.auth.verifyOtp({
+      type: "invite",
+      token_hash: tokenHash,
+    });
+    exchanged = !error && Boolean(data?.session);
   }
 
   // LAN-141. Not `request.nextUrl.origin`: behind Cloud Run that is the
@@ -61,7 +85,7 @@ export async function GET(request: NextRequest) {
   // session cookies `verifyOtp` wrote went to the request's cookie store, not
   // to this object.
   const destination = emailLinkRedirectDestination({
-    path: INVITATION_DESTINATION_PATH,
+    path: exchanged ? INVITATION_DESTINATION_PATH : INVITATION_UNUSABLE_PATH,
     appBaseUrl: process.env.APP_BASE_URL,
     requestOrigin: request.nextUrl.origin,
   });

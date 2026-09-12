@@ -22,7 +22,9 @@ import {
   grantSeasonMessagingConsentIn,
   withdrawSeasonMessagingConsentIn,
 } from "./messaging-consent";
+import { readMembership } from "./membership";
 import { runMessagingSweep } from "./messaging-scheduler";
+import { readPersonRecord } from "./person-record";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import {
   addRecruitmentProspectNoteIn,
@@ -42,7 +44,8 @@ let observer: Client;
 let seasonId: string;
 let actorPersonId: string;
 
-const ALLOWLISTED_PHONES = [
+// Ofcom's reserved drama range: synthetic, and unroutable by design.
+const DRAMA_RANGE_PHONES = [
   "07700 900342",
   "07700 900343",
   "07700 900344",
@@ -52,7 +55,7 @@ const ALLOWLISTED_PHONES = [
 ];
 let phoneCounter = 0;
 function uniquePhone(): string {
-  const phone = ALLOWLISTED_PHONES[phoneCounter % ALLOWLISTED_PHONES.length];
+  const phone = DRAMA_RANGE_PHONES[phoneCounter % DRAMA_RANGE_PHONES.length];
   phoneCounter += 1;
   return phone;
 }
@@ -62,10 +65,8 @@ const CONFIGURED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED_PHONES.join(","),
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test",
 };
 
 function acceptingTransport() {
@@ -197,6 +198,8 @@ afterEach(async () => {
     MARKER,
   ]);
   await observer.query(`delete from public.contact_points where person_id in ${people}`, [MARKER]);
+  // LAN-306's conversion test writes a Known-as alias.
+  await observer.query(`delete from public.person_aliases where person_id in ${people}`, [MARKER]);
   await observer.query(`delete from public.audit_events where entity_id in ${people}`, [MARKER]);
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
 });
@@ -501,6 +504,57 @@ describe("flipRecruitmentProspectToJoinedIn — W14", () => {
       [prospectId],
     );
     expect(audits.rows[0].n).toBe(1);
+  });
+
+  /**
+   * LAN-306's second acceptance. Brian read the conversion as having rewritten
+   * the record, because the two screens named the person differently. They did
+   * not: the flip writes a membership and touches `people`, `person_aliases`
+   * and `contact_points` not at all. Proved rather than argued, and proved
+   * through the readers the two screens actually call.
+   */
+  it("changes nothing about the person — name, Known as, contacts and academic facts all survive", async () => {
+    const { personId, prospectId } = await newProspect("committed");
+    await observer.query(
+      `update public.people
+          set family_name = 'Ashcombe', college = 'Kestrelhall', matriculation_year = 2026,
+              degree_field = 'Human Sciences'
+        where id = $1::uuid`,
+      [personId],
+    );
+    await observer.query(
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1::uuid, 'Jonty', 'test fixture', true)`,
+      [personId],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', null, '07700900321', true, 'test fixture')`,
+      [personId],
+    );
+
+    const before = await readPersonRecord(personId);
+    const result = await withTransaction((tx) =>
+      flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+    );
+    const after = await readPersonRecord(personId);
+
+    expect(after.displayName).toBe(`${MARKER} Ashcombe`);
+    expect(after.knownAs).toBe("Jonty");
+    expect(after.aliases.map((alias) => alias.alias)).toEqual(before.aliases.map((a) => a.alias));
+    expect(after.contacts.map((c) => c.rawValue)).toEqual(before.contacts.map((c) => c.rawValue));
+    expect(after.college).toBe("Kestrelhall");
+    expect(after.matriculationYear).toBe(2026);
+    expect(after.degreeField).toBe("Human Sciences");
+    // What was never recorded is still not recorded — the flip invents nothing.
+    expect(after.expectedGraduationYear).toBeNull();
+    expect(after.dateOfBirth).toBeNull();
+    expect(after.emergencyContact).toBeNull();
+
+    // And the membership names the same person the same way (LAN-306).
+    const membership = await readMembership(result.membershipId);
+    expect(membership.displayName).toBe(after.displayName);
+    expect(membership.knownAs).toBe(after.knownAs);
   });
 
   it("refuses a second flip attempt — the one-membership-per-season invariant", async () => {
@@ -866,19 +920,17 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       // originally flagged as an unresolved discrepancy against a green
       // exact-head CI. A generous explicit `limit` makes the sweep walk the
       // whole due backlog in one call, exactly as a real ticker eventually
-      // would across enough ticks: every one of those other jobs is
-      // `refused` before any transport call (their recipients are real
-      // synthetic numbers, never on `CONFIGURED`'s allowlist), so `sent`
-      // still holds only this job's own message, in ordinary FIFO order.
+      // would across enough ticks. Since LAN-287 those other jobs are no
+      // longer refused at the egress, so `sent` may hold their messages
+      // too; this test finds its own by template name rather than by
+      // position, which is a direct claim either way.
       const summary = await runMessagingSweep({ source: CONFIGURED, transport, limit: 5_000 });
       expect(summary.accepted).toBeGreaterThan(0);
       expect(sent.length).toBeGreaterThan(0);
       // The welcome template, the one due at offset zero — found by name
-      // rather than assumed to be `sent[0]`: the backlog above is refused
-      // before any transport call (none of its real synthetic numbers are
-      // on `CONFIGURED`'s allowlist), so nothing else in this run reaches
-      // `sent` at all, but asserting on the one template this test can ever
-      // cause is a direct claim rather than one resting on queue order.
+      // rather than assumed to be `sent[0]`, so that whatever else the
+      // backlog puts through this transport, the assertion is about the one
+      // message this test can ever cause rather than about queue order.
       const own = sent.find(
         (message) =>
           (message.body as { template?: { name?: string } }).template?.name ===
@@ -887,8 +939,8 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       expect(own).toBeDefined();
       const payload = own!.body as { to: string; template: { name: string } };
       expect(payload.template.name).toBe("recruit_welcome_v1");
-      // The allowlisted number this test itself inserted, WhatsApp's own
-      // E.164-without-plus shape (`recipientPermitted`'s normalisation) —
+      // The number this test itself inserted, in WhatsApp's own
+      // E.164-without-plus shape —
       // proof this message really is the one this test's own job caused,
       // not merely a same-named template from an unrelated row.
       expect(payload.to.endsWith(recruitPhone.replace(/\D/g, "").replace(/^0/, ""))).toBe(true);

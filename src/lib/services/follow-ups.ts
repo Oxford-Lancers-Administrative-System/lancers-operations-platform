@@ -21,12 +21,25 @@ import { personDisplayNameSql as displayName } from "./sql-text";
 
 type FollowUpStatus = "delivery_problem" | "escalated" | "escalation_held" | "chasing";
 
+/** The most recent message this invitation has — LAN-322, so a second operator can see one has already gone. `state` is `DELIVERY_STATE_EXPRESSION`'s own vocabulary. */
+export interface FollowUpDelivery {
+  readonly state: string;
+  readonly channel: string | null;
+  readonly at: Date | null;
+}
+
 export interface FollowUpRow {
   readonly invitationId: string;
+  /** LAN-329: the row's link to the person's own record. */
+  readonly personId: string;
   readonly personName: string;
   readonly deadline: Date | null;
   readonly chasePosition: string | null;
   readonly status: FollowUpStatus;
+  /** LAN-322: what was last sent, from the delivery this query already joins. */
+  readonly lastDelivery: FollowUpDelivery | null;
+  /** `REQ-never-harsh`: a recruit is never chased a second time, so the queue says the row cannot be. */
+  readonly chaseable: boolean;
 }
 
 export interface FollowUpEvent {
@@ -42,11 +55,14 @@ interface QueueRow {
   invitation_id: string;
   event_id: string;
   event_name: string;
+  person_id: string;
+  capacity: string;
   scheduled_on: string | null;
   expires_at: Date | null;
   display_name: string | null;
   delivery_state: string | null;
   delivery_channel: string | null;
+  delivery_at: Date | null;
   delivery_failure_reason: string | null;
   escalation_job_id: string | null;
   /** F-B1: the escalation job's own `notification_jobs.status`; null when the office was vacant. */
@@ -58,10 +74,11 @@ interface QueueRow {
 async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
   const result = await tx.query<QueueRow>(
     `select q.invitation_id, q.event_id, q.event_name, q.scheduled_on::text as scheduled_on,
-            q.expires_at,
+            q.expires_at, q.capacity::text as capacity, p.id as person_id,
             ${displayName("p")} as display_name,
             delivery.state as delivery_state,
             delivery.channel as delivery_channel,
+            delivery.at as delivery_at,
             delivery.failure_reason as delivery_failure_reason,
             f.escalation_job_id,
             ej.status::text as escalation_status,
@@ -73,6 +90,9 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
        left join lateral (
          select case when j.id is null then null else ${DELIVERY_STATE_EXPRESSION} end as state,
                 j.channel::text as channel,
+                -- LAN-322. When that message was last acted on, so the row can
+                -- say a chase has already gone rather than only that one has.
+                j.updated_at as at,
                 j.last_error as failure_reason
            from public.notification_jobs j
            ${DELIVERY_LATEST_RESULT_JOIN}
@@ -177,10 +197,24 @@ export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
 
       const person: FollowUpRow = {
         invitationId: row.invitation_id,
+        personId: row.person_id,
         personName: row.display_name ?? "Unnamed participant",
         deadline: row.expires_at,
         chasePosition,
         status,
+        lastDelivery:
+          row.delivery_state === null
+            ? null
+            : {
+                state: row.delivery_state,
+                channel: row.delivery_channel,
+                at: row.delivery_at,
+              },
+        // W11/`REQ-never-harsh`: the recruitment ladder sends one invitation and
+        // at most one follow-up, so the queue offers no operator chase for a
+        // recruit either — `sendEventChases` refuses one, and this is the same
+        // fact said on the row rather than a second rule.
+        chaseable: row.capacity !== "recruit",
       };
 
       const existing = byEvent.get(row.event_id);

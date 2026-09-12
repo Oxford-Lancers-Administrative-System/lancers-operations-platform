@@ -359,19 +359,16 @@ SCHEDULER_TRIGGER_TOKEN=local-only-not-a-secret
 WHATSAPP_PHONE_NUMBER_ID=local-stub
 WHATSAPP_ACCESS_TOKEN=local-stub-not-a-secret
 WHATSAPP_TEMPLATE_NAME=event_invitation
-DELIVERY_RECIPIENT_ALLOWLIST=07700 900901
 EMAIL_API_KEY=local-stub-not-a-secret
 EMAIL_FROM_ADDRESS=Oxford Lancers <events@lancers.example.org>
-DELIVERY_EMAIL_ALLOWLIST=nobody@example.test
 ```
 
 `APP_BASE_URL`'s port has to match the one `db:start` printed for your slot —
-`3000` above is the primary slot's. `DELIVERY_RECIPIENT_ALLOWLIST` has to hold
-the exact phone number § 4 had you type for Runbook Walker, `07700 900901` —
-the allowlist is the one control standing between an operator's press and a
-real person receiving a message (LAN-124), and it refuses everybody it is not
-told about, including this walk's own player. Restart `npm run dev` after
-editing `.env.local`: it is read once, at startup.
+`3000` above is the primary slot's. There is no recipient allowlist to set:
+LAN-287 removed both, so this walk's own player is messaged because the domain
+says they are eligible, and locally the message lands in the delivery sink
+rather than on a handset. Restart `npm run dev` after editing `.env.local`: it
+is read once, at startup.
 
 Now press **Retry delivery** on the repair screen.
 

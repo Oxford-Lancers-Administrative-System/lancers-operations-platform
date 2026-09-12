@@ -38,10 +38,6 @@ const config = (overrides: Partial<OutboundConfig> = {}): OutboundConfig => ({
   accessToken: "not-a-real-token",
   templateName: "event_invitation",
   templateLanguage: "en_GB",
-  // Permits `MESSAGE.recipient`, so that every test below exercises the send
-  // path rather than the LAN-124 refusal. The refusal has its own describe
-  // block, which narrows this deliberately.
-  recipientAllowlist: ["447700900123"],
   templateParameters: "invitation",
   localTest: { recipientOverride: null, messageMode: "template" },
   ...overrides,
@@ -224,6 +220,23 @@ describe("interpreting a response", () => {
     expect(outcome.status === "refused" && outcome.retryable).toBe(false);
   });
 
+  /**
+   * 131050 says the recipient opted out of **marketing** messages, and nothing
+   * more. The sentence used to say "messages", which an operator reads as a
+   * total opt-out — so they would stop chasing somebody a Utility reminder
+   * still reaches. It stays terminal: this send is over either way.
+   */
+  it("scopes the opt-out to marketing, and stays terminal", () => {
+    const outcome = interpretResponse(400, { error: { code: 131050 } });
+    expect(outcome.status).toBe("refused");
+    if (outcome.status !== "refused") return;
+    expect(outcome.retryable).toBe(false);
+    expect(outcome.reason).toMatch(/marketing messages/i);
+    expect(outcome.reason).toMatch(/reminders may still reach them/i);
+    // The claim the old sentence made, and the reason it was wrong.
+    expect(outcome.reason).not.toMatch(/stop receiving messages/i);
+  });
+
   it("explains the window failure the live test produced", () => {
     // 131047 is what an out-of-window free-form message becomes. The sentence
     // has to be one an operator can act on without knowing what a window is.
@@ -286,83 +299,42 @@ describe("LAN-124 — a template that takes no parameters", () => {
   });
 });
 
-describe("LAN-124 — the allowlist at the egress", () => {
+describe("LAN-287 — the egress carries out the send it was given", () => {
   /**
-   * The service layer refuses an unlisted recipient before it mints a token,
-   * and that is where the workflow behaves well. This block is about the other
-   * half: the adapter is the only code in the repository that opens a
-   * connection to Meta, so it refuses on its own account rather than trusting
-   * that every future caller came through `claimNextJobIn`.
+   * The adapter used to hold a second copy of a deployment-wide recipient
+   * allowlist. Brian removed both allowlists on 2 September 2026 (LAN-168):
+   * whether a person may be messaged is a fact about the person — membership,
+   * recorded season consent, withdrawal, departure — established where the
+   * job is created, and it is not something an environment variable on one
+   * deployment should be able to disagree with.
    *
-   * Each of these asserts the transport was **never called**. "Returned
-   * refused" is not the property under test — not sending is.
+   * What remains here is the property that replaced it: the adapter dials the
+   * number it was handed, and dials the local override where one is set.
    */
-  it("refuses a recipient outside the allowlist without contacting the provider", async () => {
+  it("sends to whatever recipient the dispatcher addressed", async () => {
     const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
-    const provider = createWhatsAppCloudProvider(
-      config({ recipientAllowlist: ["447700900999"] }),
-      transport,
-    );
+    const provider = createWhatsAppCloudProvider(config(), transport);
 
-    const outcome = await provider.send(MESSAGE);
+    const outcome = await provider.send({ ...MESSAGE, recipient: "447700900999" });
 
-    expect(transport).not.toHaveBeenCalled();
-    expect(outcome.status).toBe("refused");
-    expect(outcome.status === "refused" && outcome.retryable).toBe(false);
-  });
-
-  it("refuses everybody when the allowlist is empty", async () => {
-    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
-    const provider = createWhatsAppCloudProvider(config({ recipientAllowlist: [] }), transport);
-
-    await provider.send(MESSAGE);
-
-    expect(transport).not.toHaveBeenCalled();
-  });
-
-  it("checks the number that would actually be dialled, not the invitation's", async () => {
-    // A local test override redirects the send. Checking `message.recipient`
-    // while dialling the override would leave a hole exactly the shape of a
-    // test affordance: an allowlisted invitee whose message goes elsewhere.
-    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
-    const provider = createWhatsAppCloudProvider(
-      config({
-        recipientAllowlist: ["447700900123"],
-        localTest: { recipientOverride: "447700900999", messageMode: "text" },
-      }),
-      transport,
-    );
-
-    const outcome = await provider.send(MESSAGE);
-
-    expect(transport).not.toHaveBeenCalled();
-    expect(outcome.status).toBe("refused");
-  });
-
-  it("sends when the override itself is allowlisted", async () => {
-    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
-    const provider = createWhatsAppCloudProvider(
-      config({
-        recipientAllowlist: ["447700900999"],
-        localTest: { recipientOverride: "447700900999", messageMode: "text" },
-      }),
-      transport,
-    );
-
-    const outcome = await provider.send(MESSAGE);
-
-    expect(transport).toHaveBeenCalledTimes(1);
     expect(outcome.status).toBe("accepted");
+    expect(transport).toHaveBeenCalledTimes(1);
+    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string).to).toBe("447700900999");
   });
 
-  it("names no telephone number in the reason it records", async () => {
+  it("dials the local override rather than the invitation's own number", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
     const provider = createWhatsAppCloudProvider(
-      config({ recipientAllowlist: ["447700900999"] }),
-      vi.fn(async () => respond(200, {})),
+      config({ localTest: { recipientOverride: "447700900999", messageMode: "text" } }),
+      transport,
     );
 
     const outcome = await provider.send(MESSAGE);
-    expect(outcome.status === "refused" && outcome.reason).not.toMatch(/\d{4,}/);
+
+    expect(outcome.status).toBe("accepted");
+    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string).to).toBe("447700900999");
   });
 });
 
@@ -523,6 +495,51 @@ describe("parsing a callback", () => {
     // Keying on the message alone would make the second look like a duplicate
     // of the first and silently drop every delivery confirmation.
     expect(new Set(events.map((event) => event.providerEventId)).size).toBe(2);
+  });
+
+  /**
+   * LAN-288. Meta's own documented failed-status shape, copied from the status
+   * webhook reference rather than imagined: `errors[]` carries `code`, `title`,
+   * `message`, `error_data.details` and an `href`, and `played` joins `sent`,
+   * `delivered`, `read` and `failed` as the fifth status value. There is no
+   * `expired` status — a message the platform drops produces no webhook at all
+   * — so nothing here may be built to expect one.
+   */
+  it("reads Meta's documented failed shape, and quotes none of it back", () => {
+    const events = parseCallbackPayload(
+      payload([
+        {
+          id: "wamid.HBgLMTY1MDM4Nzk0MzkVAgARGBI0QUQ2MjA4NEYyRkExNjMyREUA",
+          status: "failed",
+          timestamp: "1751142888",
+          recipient_id: "16505551234",
+          errors: [
+            {
+              code: 131026,
+              title: "Message undeliverable.",
+              message: "Message undeliverable.",
+              error_data: { details: "Message Undeliverable." },
+              href: "/documentation/business-messaging/whatsapp/support/error-codes",
+            },
+          ],
+        },
+      ]),
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0].outcome).toBe("failed");
+    expect(events[0].providerStatus).toBe("failed");
+    // The operator's sentence is the club's own, not the provider's, and the
+    // recipient's number appeared in this payload: none of it may survive.
+    expect(events[0].detail).toMatch(/not be a WhatsApp account/i);
+    expect(events[0].detail).not.toMatch(/\d{4,}/);
+  });
+
+  it("keeps `played`, Meta's fifth status, as evidence with no outcome", () => {
+    const events = parseCallbackPayload(payload([{ id: "wamid.P", status: "played" }]));
+    expect(events).toHaveLength(1);
+    expect(events[0].providerStatus).toBe("played");
+    expect(events[0].outcome).toBeNull();
   });
 
   it("yields nothing for a shape it does not recognise, and never throws", () => {

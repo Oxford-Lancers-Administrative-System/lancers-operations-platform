@@ -16,11 +16,17 @@ import { listTermWindows } from "@/lib/services/seasons";
 import { readEventFormDefaults, type EventTypeFormDefaults } from "@/lib/services/event-templates";
 import { gateShellPage } from "../../../gate";
 import EventForm from "../../event-form";
+import QuestionEditForm from "./question-edit-form";
 
 /**
  * UX-31 in edit mode — LAN-76's "edit view", against `/operate/events/[id]`'s
- * "Edit draft" action. Not a new nav destination. Only a draft is editable;
- * the refusal renders here too, not just thrown by the service.
+ * "Edit draft" action. Not a new nav destination.
+ *
+ * A draft is editable whole. An approved event is not — its facts change
+ * through the amend path (W5), which tells people — but since LAN-318 (Brian,
+ * 2026-09-11, amending D41) its *questions* are, so this route answers "Edit
+ * questions" with the question editor alone. A cancelled event is still
+ * refused outright: nobody is being asked anything.
  */
 export default async function EditEventPage({ params }: PageProps<"/operate/events/[id]/edit">) {
   const gate = await gateShellPage("/operate/events", "event_calendar_management");
@@ -40,6 +46,38 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <Refusal message={error.message} />;
+  }
+
+  // Questions as stored, not the template's — an operator who removed one (D42) must not find it
+  // back. Carries the id since LAN-318, so an approved event's set is updated rather than rewritten.
+  const initialQuestions: RawEventQuestion[] = (await readEventQuestions(event.id)).map(
+    (question) => ({
+      id: question.id,
+      prompt: question.prompt,
+      answerType: question.answerType,
+      required: question.isRequired ? "required" : "optional",
+      choices: joinQuestionChoices(question.choices),
+      fromTemplate: question.fromTemplate ? "true" : "false",
+    }),
+  );
+
+  if (event.status === "approved") {
+    return (
+      <Stack spacing={3}>
+        <PageHeader
+          title="Edit questions"
+          subtitle={event.name}
+          back={{ href: `/operate/events/${event.id}`, label: "Back to event" }}
+        />
+
+        <QuestionEditForm
+          eventId={event.id}
+          eventTypeLabel={event.templateName}
+          initialQuestions={initialQuestions}
+          cancelHref={`/operate/events/${event.id}`}
+        />
+      </Stack>
+    );
   }
 
   if (event.status !== "draft") {
@@ -64,17 +102,6 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
     joiningUrl: event.joiningUrl ?? "",
     attendance: event.isMandatory ? "mandatory" : "optional",
   };
-
-  // Questions as stored, not the template's — an operator who removed one (D42) must not find it back.
-  const initialQuestions: RawEventQuestion[] = (await readEventQuestions(event.id)).map(
-    (question) => ({
-      prompt: question.prompt,
-      answerType: question.answerType,
-      required: question.isRequired ? "required" : "optional",
-      choices: joinQuestionChoices(question.choices),
-      fromTemplate: question.fromTemplate ? "true" : "false",
-    }),
-  );
 
   return (
     <Stack spacing={3}>

@@ -431,6 +431,70 @@ describe("readPersonRecord — derived provenance (Q-13)", () => {
   });
 });
 
+/**
+ * LAN-306. Brian added a recruit with a Known as, flipped them onto the roster,
+ * and the roster row and the detail page named two different people. The record
+ * had not changed: this module substituted the alias for the given name and the
+ * roster did not. The name is the formal one everywhere; Known as is its own
+ * value, and `searchPeople` must agree with `readPersonRecord` about both.
+ */
+describe("one name rule — the formal name, with Known as beside it", () => {
+  it("keeps the formal name and returns the alias separately", async () => {
+    const givenName = unique("Formal");
+    const personId = await insertPerson({ givenName, familyName: "Ashcombe" });
+    await insertAlias(personId, "Jonty", { isDisplayName: true });
+
+    const record = await readPersonRecord(personId);
+    expect(record.displayName).toBe(`${givenName} Ashcombe`);
+    expect(record.knownAs).toBe("Jonty");
+
+    // The list row composes the same name — this is the pair that disagreed.
+    const summary = (await searchPeople(givenName)).find((r) => r.personId === personId)!;
+    expect(summary.displayName).toBe(record.displayName);
+    expect(summary.displayAlias).toBe("Jonty");
+  });
+
+  it("keeps a multi-word alias whole, and out of the name", async () => {
+    const givenName = unique("MultiWord");
+    const personId = await insertPerson({ givenName, familyName: "Thistlewood" });
+    await insertAlias(personId, "Big Jonty", { isDisplayName: true });
+
+    const record = await readPersonRecord(personId);
+    expect(record.displayName).toBe(`${givenName} Thistlewood`);
+    expect(record.knownAs).toBe("Big Jonty");
+  });
+
+  it("records no Known as for a person who has none", async () => {
+    const givenName = unique("NoAlias");
+    const personId = await insertPerson({ givenName, familyName: "Marchmont" });
+
+    const record = await readPersonRecord(personId);
+    expect(record.displayName).toBe(`${givenName} Marchmont`);
+    expect(record.knownAs).toBeNull();
+  });
+
+  it("records no Known as for an alias that only repeats the given name", async () => {
+    const givenName = unique("SameAsGiven");
+    const personId = await insertPerson({ givenName, familyName: "Netherby" });
+    await insertAlias(personId, givenName, { isDisplayName: true });
+
+    const record = await readPersonRecord(personId);
+    expect(record.knownAs).toBeNull();
+    // The alias itself is still on the record; it is only not a second name.
+    expect(record.aliases.map((alias) => alias.alias)).toEqual([givenName]);
+  });
+
+  it("names a person with no family name by their given name alone", async () => {
+    const givenName = unique("FirstOnly");
+    const personId = await insertPerson({ givenName });
+    await insertAlias(personId, "Sandy", { isDisplayName: true });
+
+    const record = await readPersonRecord(personId);
+    expect(record.displayName).toBe(givenName);
+    expect(record.knownAs).toBe("Sandy");
+  });
+});
+
 describe("searchPeople", () => {
   it("finds a person by an alias that is not their display name", async () => {
     const givenName = unique("AliasSearch");

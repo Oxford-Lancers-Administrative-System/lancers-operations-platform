@@ -41,15 +41,29 @@ maintain.
 One `Dialog` component (`src/app/calendar/subscribe-dialog.tsx`), switched on
 local state, with exactly two states:
 
-| Screen  | Shows                                                                                        |
-| ------- | -------------------------------------------------------------------------------------------- |
-| `W2-01` | The season line, three destination buttons (Google, Apple, Outlook), and the address to copy |
-| `W2-02` | A tick, "`<Provider>` has opened…", and Close                                                |
+| Screen  | Shows                                                                                                       |
+| ------- | ----------------------------------------------------------------------------------------------------------- |
+| `W2-01` | The season line, three destination buttons (Google, Apple, Outlook), and the address to copy                |
+| `W2-02` | "Opened in `<Provider>`" over four facts — Destination, Status, Confirm there, Calendar address — and Close |
 
-Picking a destination opens it (`window.open`, a `webcal:` address for Apple
-and each provider's own HTTPS add-by-URL endpoint for Google and Outlook) and
-moves straight to `W2-02` — this control's job ends at handing off to the
-reader's own calendar app; the confirmation there belongs to that app.
+Picking a destination opens it (`window.open`) and moves straight to `W2-02` —
+this control's job ends at handing off to the reader's own calendar app; the
+confirmation there belongs to that app.
+
+**Every destination is handed the `webcal:` address** (LAN-320). Apple always
+was; Google was given `cid=https://…`, which Google reads as one of the
+reader's own calendar ids rather than an external feed to subscribe to, so
+nothing happened. Outlook goes to the documented `addfromweb` endpoint with
+the same address. `outlook.live.com` is the personal-account host — a
+university Microsoft 365 account lives on `outlook.office.com` and is
+untested.
+
+`W2-02` **states what was opened and what to look for in that app, and claims
+nothing else** (LAN-320). Nothing on this page can observe whether the
+subscription was added, so the screen that said "Done" over a green tick was
+reporting a success it had not seen. Its Status fact now reads "Opened — this
+page cannot see whether it was added", and Confirm there names the calendar
+the reader should find listed.
 Copying the address gives inline feedback ("Copied") on the **same** `W2-01`
 screen rather than a screen of its own, because the workflow names it as an
 alternative to picking a destination, not a third step. There is no per-event
@@ -172,7 +186,9 @@ desktop and 375px.
 
 Everything local-provable is proved by test — see `receipt.json` for the
 exact commands and results. **Subscribing successfully from Google, Microsoft
-and Apple** needs a publicly reachable URL this worker does not have; the
+and Apple** needs a publicly reachable URL and real accounts no worker has —
+Apple and Outlook in particular are confirmable only by a human holding
+those accounts; the
 document's RFC 5545 conformance is proved by a structural parser
 (`tests/helpers/icalendar-validate.ts`) instead, and live provider
 subscription is Brian's to confirm after deployment.

@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
-import { Field } from "@/components/field";
+import { Field, NO_AUTOFILL, preventImplicitSubmit } from "@/components/field";
 import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -180,9 +180,11 @@ export default function TemplateEditor({
         </Notice>
       ) : null}
 
+      {/* LAN-313: Enter in a question field must not submit the whole template. */}
       <Box
         component="form"
         action={creatingNew ? createAction : previewAction}
+        onKeyDown={preventImplicitSubmit}
         data-testid="template-form"
       >
         {templateId === null ? null : <input type="hidden" name="templateId" value={templateId} />}
@@ -193,6 +195,8 @@ export default function TemplateEditor({
               label="Name"
               name="name"
               data-field="name"
+              // LAN-324: the type's name, not the operator's.
+              autoComplete={NO_AUTOFILL}
               value={name}
               onChange={(event) => setName(event.target.value)}
               error={Boolean(issueFor(state, "name"))}

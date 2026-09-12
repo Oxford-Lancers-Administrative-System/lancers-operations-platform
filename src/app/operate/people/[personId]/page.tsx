@@ -168,18 +168,20 @@ export default async function PersonRecordPage({
         </Notice>
       ) : null}
 
-      <IdentitySection record={record} visible={visible} />
+      {/* LAN-307: every section takes the redacted record, and the recruit
+          record renders these same components from the same shape. */}
+      <IdentitySection record={visible} />
 
       {visible.contacts !== undefined ? (
-        <ContactSection record={record} currentSeasonLabel={currentSeason?.label ?? null} />
+        <ContactSection record={visible} currentSeasonLabel={currentSeason?.label ?? null} />
       ) : null}
 
-      {visible.college !== undefined ? <AcademicSection record={record} /> : null}
+      {visible.college !== undefined ? <AcademicSection record={visible} /> : null}
 
-      {visible.dateOfBirth !== undefined ? <RestrictedSection record={record} /> : null}
+      {visible.dateOfBirth !== undefined ? <RestrictedSection record={visible} /> : null}
 
       {visible.status !== undefined ? (
-        <StatusSection record={record} roles={roles} alumniLabel={alumniLabel} />
+        <StatusSection record={visible} roles={roles} alumniLabel={alumniLabel} />
       ) : null}
 
       <SeasonsSection seasons={seasons} />

@@ -85,6 +85,20 @@ heard · Anything else · one RSVP/Attendance pair per event.
   offered and no transition through this control is ever refused
   (`Q-every-status-reachable`); reaching `joined` is intercepted into `W14`'s
   confirmation rather than written directly.
+- **The phone card carries that same status control** — LAN-319, reversing
+  this package's own correction round 1 (`F-LAN204-004`), which had made the
+  card's status a static chip on the approved mockup's drawing. Clint found
+  the consequence in week one of testing: _"THIS ONLY WORKS ON DESKTOP, NOT ON
+  PHONE"_ — at 375px the board rendered thirteen status selects, all of them
+  inside the hidden desktop table, so the board was read-only on the one
+  device recruitment is actually run from (at a taster, on the touchline, in a
+  bar) with nothing saying the control lived on each individual record
+  instead. The card now opens the identical `Select`, with `joined`'s
+  interruption and `void`'s reason dialog unchanged. It sits below the card's
+  own link rather than inside it, because a `Select` nested in an anchor is
+  neither valid nor operable, and it names itself separately
+  (`recruitment-card-status-*`) so the two renderings are not one control with
+  two places to be.
 - **"Personal sent" / "Recruitment sent" read `delivery_attempts.accepted_at`**
   for that track's jobs, never `notification_jobs.status` alone and never an
   optimistic field this package writes — see "The send machinery" below.
@@ -140,13 +154,52 @@ than a lookalike `Card`/`CardHeader` layout (the 2026-09-02 correction; the
 first shipped version built its own cards). Every card is a shipped card
 with its content replaced, per `W2`'s own table:
 
-| Card                   | Colour | Holds                                                                                                                                                                                                                                                                        |
-| ---------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Person**             | slate  | Person facts, read-only, no "open the person record" link — Brian, 2026-09-01. The personal questionnaire's send line sits here.                                                                                                                                             |
-| **Recruitment**        | teal   | Status (the roster's own click-to-edit status pill, `StatusCell`), source, first contact, committed on, WhatsApp consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
-| **Recruitment events** | blue   | The shipped attendance table's own shape, reused: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events).                                                                                                                 |
-| **Notes**              | slate  | Prose, attributed and dated, with a place to write the next one.                                                                                                                                                                                                             |
-| **Status history**     | slate  | Recruitment's own status changes, not membership's.                                                                                                                                                                                                                          |
+| Card                       | Colour | Holds                                                                                                                                                                                                                                                                        |
+| -------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Personal questionnaire** | slate  | The personal questionnaire's send line and the number it sends to. Was **Person**, four academic fields — **superseded by LAN-307** (Brian, 2026-09-11); see below.                                                                                                          |
+| **Recruitment**            | teal   | Status (the roster's own click-to-edit status pill, `StatusCell`), source, first contact, committed on, WhatsApp consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
+| **Recruitment events**     | blue   | The shipped attendance table's own shape, reused: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events).                                                                                                                 |
+| **Notes**                  | slate  | Prose, attributed and dated, with a place to write the next one.                                                                                                                                                                                                             |
+| **Status history**         | slate  | Recruitment's own status changes, not membership's.                                                                                                                                                                                                                          |
+
+### The Person card — LAN-307, superseding the four-field summary
+
+This card shipped as four academic fields, and Brian opened an identified
+recruit on 2026-09-11 to send them the personal questionnaire and found no
+phone number on the page at all: no way to check where the message was going,
+and no way through to the record that held it. The original "no open the
+person record link" ruling (2026-09-01) went with it.
+
+The card now renders the canonical person page's own section components —
+identity and Known as, contacts, academic, restricted, standing, seasons and a
+collapsed change history — from the same `readPersonRecord` and the same
+`redactPersonRecord` this page already called. Not a copy of them: the same
+components, so a field added to the person record appears on both surfaces or
+`record-view.test.tsx`'s parity assertion fails.
+
+Nothing about authority changed. The page gates on `person_record_authority`
+as it always did, each section is drawn only when the redacted payload carries
+its category, and a field this operator may not see is absent rather than
+null — which is why the sections take `Partial<PersonRecord>`. Lists, boards
+and queues are untouched.
+
+The card that used to be called **Person** keeps the personal questionnaire's
+send line and gains **Sends to** — the one current mobile a send would actually
+pick, so the destination is readable beside the action that uses it. It is the
+dispatcher's own `selectMobileNumber` choice, converted, and so it is the number
+that would be handed to the provider rather than the raw string of whichever
+contact happens to be preferred; it is written in full E.164 with its `+`, the
+same shape the Mobile phone fact shows, so the two can be read against each
+other without translation; and where nothing recorded can be converted it
+reads "not recorded", the same as any other absent fact. It is
+retitled **Personal questionnaire**, because five sections that really are the
+person now follow it and two headings called Person would be a worse page than
+the one this ticket is fixing.
+
+**Open the person record** sits in the page header, beside "Joined — view on
+the roster", which is where the person page puts its own record actions. The
+change history is collapsed on this page and its "Show all" opens the canonical
+one, which owns the filter form and the query string it reads.
 
 The header keeps a glance-only status pill beside the recruit's name — the
 same read-only-summary-plus-editable-Section-field duality the roster

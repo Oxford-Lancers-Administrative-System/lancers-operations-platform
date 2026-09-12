@@ -541,6 +541,7 @@ function planDraftQuestions(
     }
 
     next.push({
+      id: null, // a plan rewrites the draft's whole set (D41); ids are the approved path's (LAN-318)
       prompt: question.prompt,
       answerType: question.answerType,
       isRequired: question.isRequired,

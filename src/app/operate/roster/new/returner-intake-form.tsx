@@ -16,11 +16,12 @@ import { Surface } from "@/components/surface";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
-import { Field as InputField } from "@/components/field";
+import { Field as InputField, NO_AUTOFILL } from "@/components/field";
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
 import type { PersonCandidate } from "@/lib/services/roster";
+import { personDisplayName } from "@/lib/services/person-name";
 import { submitReturnerIntake } from "./actions";
 import { INITIAL_INTAKE_STATE, type IntakeState } from "./intake-state";
 import { firstInvalidField, type IntakeFormValues } from "./validation";
@@ -105,9 +106,10 @@ function DetailsStep({
 
       {/* Four fields, in this order, no others — Brian's departures from the wireframe, 12 August 2026. */}
       <Stack spacing={2.5}>
-        {field("givenName", "First name", { autoComplete: "off" })}
-        {field("familyName", "Last name", { autoComplete: "off" })}
-        {field("email", "Email", { type: "email", autoComplete: "off" })}
+        {/* LAN-324: the player's details, not the operator's own — and `"off"` is the value Chrome ignores. */}
+        {field("givenName", "First name", { autoComplete: NO_AUTOFILL })}
+        {field("familyName", "Last name", { autoComplete: NO_AUTOFILL })}
+        {field("email", "Email", { type: "email", autoComplete: NO_AUTOFILL })}
         {phoneField("phone", "Phone")}
       </Stack>
 
@@ -260,9 +262,10 @@ function CandidatesStep({
  * this person is refused, so it is never the field dropped for phone.
  */
 function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
-  const name = candidate.familyName
-    ? `${candidate.givenName} ${candidate.familyName}`
-    : candidate.givenName;
+  // The one function that composes a person's name (LAN-306, rule 8). This said
+  // the same thing in its own words, which is how the four implementations that
+  // rule replaced came to disagree in the first place.
+  const name = personDisplayName(candidate.givenName, candidate.familyName);
 
   return (
     <Surface testId="candidate">

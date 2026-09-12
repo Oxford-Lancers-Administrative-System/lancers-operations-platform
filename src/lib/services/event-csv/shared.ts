@@ -138,6 +138,8 @@ export interface FieldChange {
 export interface PlanCell {
   value: string;
   previous: string | null; // the value being replaced, on a changed cell only
+  /** LAN-317: a date read back in words — "3 December 2026". Date cells only, and only where the cell holds a date. */
+  echo?: string;
 }
 
 export interface PlannedRow {

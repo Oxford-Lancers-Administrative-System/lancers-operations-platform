@@ -41,13 +41,19 @@ import {
   applySeasonImport,
   exportSeasonEvents,
   IMPORT_NOTHING_TO_APPLY_MESSAGE,
-  IMPORT_PLAN_MOVED_MESSAGE,
   IMPORT_TOO_LARGE_MESSAGE,
   planSeasonImport,
   readSeasonImportContext,
   type ApplyRequest,
 } from "./event-import";
-import { IMPORT_COLUMNS, MAX_IMPORT_BYTES, type ImportColumn, type ImportPlan } from "./event-csv";
+import {
+  IMPORT_COLUMNS,
+  MAX_IMPORT_BYTES,
+  type ImportApplied,
+  type ImportColumn,
+  type ImportPlan,
+  type PlannedRow,
+} from "./event-csv";
 import { formatCsv } from "./csv";
 import { createEventDraft, updateEventDraft, type EventDraftInput } from "./events";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
@@ -185,9 +191,20 @@ async function plan(csvText: string): Promise<ImportPlan> {
   return result.plan;
 }
 
-function apply(csvText: string, digest: string): ReturnType<typeof applySeasonImport> {
-  const request: ApplyRequest = { csvText, digest, fileName: FILE_NAME };
+function applyResult(
+  csvText: string,
+  digest: string,
+  confirmedRows: readonly PlannedRow[] | null = null,
+): ReturnType<typeof applySeasonImport> {
+  const request: ApplyRequest = { csvText, digest, fileName: FILE_NAME, confirmedRows };
   return applySeasonImport(request);
+}
+
+/** Applies and returns the totals. The moved-plan branch is `applyResult`'s to assert (LAN-310). */
+async function apply(csvText: string, digest: string): Promise<ImportApplied> {
+  const result = await applyResult(csvText, digest);
+  if (!result.ok) throw new Error("Expected the apply to run, but the plan had moved under it.");
+  return result.applied;
 }
 
 /** Runs `attempt`, and returns the `ServiceError` it was supposed to throw. */
@@ -444,7 +461,7 @@ describe("REQ-import-confirmation", () => {
     expect(await countByName(name)).toBe(0);
   });
 
-  it("recomputes the plan inside the transaction and refuses a stale confirmation", async () => {
+  it("recomputes the plan inside the transaction and re-proposes a stale confirmation", async () => {
     const event = await seedDraft({ venue: "Original venue", description: "Before." });
     // The file only says something about `venue` — `description` is blank, so
     // the plan inherits whatever the event currently holds for it. That is the
@@ -462,13 +479,60 @@ describe("REQ-import-confirmation", () => {
       draft({ venue: "Original venue", description: "Somebody else's edit" }),
     );
 
-    const error = await refusalFrom(() => apply(csvText, proposed.digest));
-    expect(error.message).toBe(IMPORT_PLAN_MOVED_MESSAGE);
+    const result = await applyResult(csvText, proposed.digest, proposed.rows);
 
     // Refused, not merged and not overwritten — the intervening edit stands.
     const row = await eventRow(event.id);
     expect(row.description).toBe("Somebody else's edit");
     expect(row.venue).toBe("Original venue");
+
+    // LAN-310: and the operator is handed the current proposal rather than a
+    // dead end. The fresh plan carries its own digest, so confirming again
+    // confirms what is on screen now.
+    if (result.ok) throw new Error("Expected the moved plan to be refused.");
+    expect(result.reason).toBe("plan_moved");
+    expect(result.plan.digest).not.toBe(proposed.digest);
+    expect(result.plan.rows).toHaveLength(1);
+
+    // The row that moved is named, by line and by outcome. Its outcome did not
+    // change — it is still an update — but what it would write did.
+    expect(result.movements).toEqual([
+      { line: 2, name: row.name, before: "updated", after: "updated" },
+    ]);
+  });
+
+  it("re-proposes without naming a row when the confirmed plan is not the digest's", async () => {
+    // The confirmed rows arrive from the screen, so they are believed only
+    // when they still digest to the confirmation being applied.
+    const event = await seedDraft({ venue: "Original venue", description: "Before." });
+    const csvText = csvOf([{ id: event.id, venue: "Proposed venue" }]);
+    const proposed = await plan(csvText);
+    await updateEventDraft(
+      actorPersonId,
+      event.id,
+      draft({ venue: "Original venue", description: "Somebody else's edit" }),
+    );
+
+    const result = await applyResult(csvText, proposed.digest, [
+      { ...proposed.rows[0], outcome: "new", line: 99 },
+    ]);
+
+    if (result.ok) throw new Error("Expected the moved plan to be refused.");
+    expect(result.movements).toEqual([]);
+    expect((await eventRow(event.id)).description).toBe("Somebody else's edit");
+  });
+
+  it("applies a confirmation the season has not moved under", async () => {
+    // The other side of the guard: the same call, with nothing editing the
+    // event underneath it, still writes.
+    const event = await seedDraft({ venue: "Original venue" });
+    const csvText = csvOf([{ id: event.id, venue: "Proposed venue" }]);
+    const proposed = await plan(csvText);
+
+    const result = await applyResult(csvText, proposed.digest, proposed.rows);
+
+    expect(result).toMatchObject({ ok: true, applied: { updated: 1 } });
+    expect((await eventRow(event.id)).venue).toBe("Proposed venue");
   });
 
   it("refuses a file over the size limit, whole, before any row is read", async () => {

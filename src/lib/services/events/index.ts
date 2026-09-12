@@ -51,4 +51,5 @@ export {
   deleteEventDraft,
   EDIT_REFUSAL_MESSAGE,
   updateEventDraft,
+  updateEventQuestions,
 } from "./write";

@@ -2,7 +2,7 @@ import { formatCsv } from "../csv";
 import { EXPORT_COLUMNS, TYPE_TOKEN_LIST } from "./shared";
 
 // The copyable prompt an operator runs the term card through — LAN-155.
-export const IMPORT_PROMPT_VERSION = 1; // bumped whenever IMPORT_PROMPT changes, shown beside it
+export const IMPORT_PROMPT_VERSION = 2; // bumped whenever IMPORT_PROMPT changes, shown beside it
 
 // The worked example below is asserted by event-csv.test.ts to parse into two clean New rows —
 // this text is the one part of the workflow that runs where nobody can see it fail.
@@ -15,7 +15,7 @@ id,name,type,date,start,end,online,venue,description,required_equipment,mandator
 Rules
 - id: leave EMPTY for every event. The system assigns identifiers.
 - type: exactly one of ${TYPE_TOKEN_LIST}.
-- date: YYYY-MM-DD.
+- date: YYYY-MM-DD, or DD/MM/YYYY. 03/12/2026 is 3 December 2026 — the day comes first, and the month-first order is never read.
 - start / end: HH:MM, 24-hour, in five-minute steps. All times are UK local time.
 - online: yes or no. Use yes for anything on Teams, Zoom or similar.
 - venue: the street address when in person; the meeting destination when online.

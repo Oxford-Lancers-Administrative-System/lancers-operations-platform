@@ -116,7 +116,7 @@ export default function EventFormPreview({
                 name="startsAt"
                 value={startsAt}
                 onChange={setStartsAt}
-                helperText="12-hour clock, five-minute steps, e.g. 08:00 PM."
+                helperText="24-hour clock, five-minute steps, e.g. 20:00."
               />
             </Stack>
             <Stack sx={{ flex: 1, minWidth: 0 }}>

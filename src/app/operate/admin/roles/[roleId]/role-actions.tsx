@@ -22,6 +22,7 @@ import {
   searchCandidatesAction,
 } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../../action-state";
+import { candidateCaption } from "../../candidate-caption";
 import {
   Outcome as AdminOutcome,
   OutcomeSlotProvider,
@@ -261,14 +262,15 @@ function PersonPanel({
                       <Box>
                         <Typography variant="body2">{candidate.name}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {[
-                            candidate.email,
+                          {/* The same search feeds the invitation door, and
+                              both are the operator deciding whether this is
+                              the same human — so both read the same caption. */}
+                          {candidateCaption(
+                            candidate,
                             candidate.operatorState
                               ? `Operator account: ${candidate.operatorState}`
                               : "No operator account",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
+                          )}
                         </Typography>
                       </Box>
                     }

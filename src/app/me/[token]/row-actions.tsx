@@ -69,6 +69,16 @@ function ChangeToYesButton({ token, invitationId }: { token: string; invitationI
   );
 }
 
+/**
+ * Where one invitation's own full detail is — the focused panel `page.tsx`
+ * renders for `?open=`. One builder, because LAN-323 gave the summary card's
+ * title the same destination these buttons have always had, and two places
+ * writing the same query key is how they come to disagree.
+ */
+export function openHref(token: string, invitationId: string): string {
+  return `/me/${encodeURIComponent(token)}?open=${encodeURIComponent(invitationId)}`;
+}
+
 function OpenLink({
   token,
   invitationId,
@@ -82,7 +92,7 @@ function OpenLink({
 }) {
   return (
     <Button
-      href={`/me/${encodeURIComponent(token)}?open=${encodeURIComponent(invitationId)}`}
+      href={openHref(token, invitationId)}
       variant={emphasis ? "contained" : "outlined"}
       color={emphasis ? "primary" : "inherit"}
       fullWidth

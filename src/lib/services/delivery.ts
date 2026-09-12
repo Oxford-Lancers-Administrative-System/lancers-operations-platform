@@ -16,17 +16,13 @@ import {
   type DeliveryContext,
   type Transport,
 } from "@/lib/delivery";
-import type { EnvironmentSource } from "@/lib/delivery/config";
-import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "@/lib/delivery/allowlist";
-import {
-  EMAIL_NOT_PERMITTED_REASON,
-  NO_USABLE_EMAIL_REASON,
-  emailPermitted,
-} from "@/lib/delivery/email";
+import { resolveMessageTtlHours, type EnvironmentSource } from "@/lib/delivery/config";
+import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
 import { recordAudit } from "./audit";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
+import { JOB_CANCELLED_REASON } from "./rsvp";
 import { issueAnswerTokenIn } from "./player-answer-tokens";
 import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
 import { personDisplayAliasSql } from "./sql-text";
@@ -259,7 +255,13 @@ type ClaimOutcome =
   // season is not a channel problem — falling back to email would still
   // reach someone who has not consented to being contacted at all, on any
   // channel, which is the one thing this refusal exists to prevent.
-  | { readonly claimed: false; readonly reason: "not_consented"; readonly detail: string };
+  | { readonly claimed: false; readonly reason: "not_consented"; readonly detail: string }
+  // LAN-292. The invitee answered. Distinct from every refusal above, because
+  // nothing is wrong: the message is not undeliverable, not unschedulable and
+  // not refused — it is unnecessary, and the job is cancelled rather than
+  // failed. Never a fallback trigger, for the plainest possible reason: the
+  // email rung would carry the same unnecessary reminder.
+  | { readonly claimed: false; readonly reason: "answered"; readonly detail: string };
 
 /**
  * Claims one job and prepares its message, or explains why it cannot.
@@ -335,9 +337,18 @@ async function claimJobIn(
     changed_starts_at: boolean | null;
     changed_ends_at: boolean | null;
     changed_venue: boolean | null;
+    current_response: string | null;
   }>(
     `select i.id as invitation_id,
             i.capacity::text as capacity,
+            -- LAN-292. The standing answer as it is at THIS moment, read
+            -- inside the claiming transaction rather than assumed from the
+            -- job's existence. A reminder is queued days ahead; the answer
+            -- that makes it unnecessary can arrive at any point in between,
+            -- and did.
+            (select r.response::text
+               from public.current_rsvp r
+              where r.invitation_id = i.id) as current_response,
             e.id as event_id,
             e.season_id,
             e.name as event_name,
@@ -406,6 +417,33 @@ async function claimJobIn(
 
   const kind = messageKindFor(job.job_type, detail.capacity);
 
+  // LAN-292. An ordinary event reminder is a chase, and there is nothing left
+  // to chase once the invitee has said yes or no.
+  //
+  // Cancelling the queued rungs at the moment the answer is recorded
+  // (`stopChasingIn`) is the first half of that and it works. This is the
+  // second half, and it is the half the 38 captured post-response reminders
+  // needed: a job already claimed, already selected by a sweep, or created
+  // before the answer arrived by some path that never ran that cancellation,
+  // is checked here — at the last moment before a message is built, inside
+  // the transaction that claims it. An answer recorded one second earlier is
+  // seen; an answer recorded one second later cancels the rung that follows.
+  //
+  // Scoped to `reminder` deliberately, and to nothing else:
+  //
+  //   * the NUDGE (`other`, `kind === "nudge"`) is the opposite contract — it
+  //     exists precisely FOR a player who answered yes and has not finished
+  //     the event's questions, so withholding it on a recorded yes would
+  //     delete the only message that case has;
+  //   * an INVITATION is how a person comes to have an answer at all;
+  //   * a CHANGE NOTICE or CANCELLATION tells somebody the event moved or is
+  //     off, which matters most to the people who said they were coming; and
+  //   * the recruit FOLLOW-UP (`recruit_event_followup`) is LAN-203's single
+  //     contact on a different ladder, not a rung of the player chase.
+  if (kind === "reminder" && detail.current_response !== null) {
+    return { claimed: false, reason: "answered", detail: JOB_CANCELLED_REASON };
+  }
+
   // F-C1. `starts_at` is nullable, and `approveEvent`'s new guard (Q-31) is
   // forward-only — it cannot reach an event that was approved, or slipped
   // through some earlier code path, before it existed. `when_label` above is
@@ -466,7 +504,7 @@ async function claimJobIn(
   // deliberately the only one. Everything below — the token, the attempt row,
   // the message — is identical on both channels, because a rung carried by
   // email is the same message as the rung carried by WhatsApp. What differs is
-  // only what counts as a usable route and which allowlist governs it.
+  // only what counts as a usable route.
   const route =
     context.channel === "email"
       ? selectEmailAddress(contacts.rows, context)
@@ -627,14 +665,6 @@ function selectWhatsAppRoute(rows: readonly ContactRow[], context: DeliveryConte
 
   if (!recipient) return { ok: false, reason: NO_USABLE_NUMBER_REASON };
 
-  // LAN-124. Before a token is minted, and for a stronger reason than tidiness:
-  // a person this deployment may not message must not have a live RSVP link in
-  // existence at all. Refusing at the send would leave a working link that had
-  // been issued, recorded and superseded whatever came before it.
-  if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
-    return { ok: false, reason: RECIPIENT_NOT_PERMITTED_REASON };
-  }
-
   return { ok: true, recipient };
 }
 
@@ -654,10 +684,6 @@ function selectEmailAddress(rows: readonly ContactRow[], context: DeliveryContex
   if (!candidate) return { ok: false, reason: NO_USABLE_EMAIL_REASON };
 
   const recipient = (candidate.normalised_value ?? candidate.raw_value).trim().toLowerCase();
-
-  if (!emailPermitted(recipient, context.emailAllowlist)) {
-    return { ok: false, reason: EMAIL_NOT_PERMITTED_REASON };
-  }
 
   return { ok: true, recipient };
 }
@@ -754,6 +780,46 @@ async function recordUndeliverableIn(
     entityId: jobId,
     reason: detail,
     context: { attemptNumber: row.attempt_count, provider: context.provider.name },
+  });
+}
+
+/**
+ * Records a reminder withheld because its invitee had already answered —
+ * LAN-292.
+ *
+ * Cancelled, not failed, and that distinction is the whole point. A failure
+ * says something went wrong and invites a repair; nothing went wrong here, and
+ * pressing Retry would only reach this same check again. `cancelled` with this
+ * reason is exactly the state `stopChasingIn` leaves a rung in when the answer
+ * arrives while the rung is still queued, so the two paths that reach the same
+ * conclusion leave the same row behind and the delivery surface has one thing
+ * to render rather than two.
+ *
+ * No attempt row and no delivery result: nothing was attempted. The claim's
+ * own increment is given back for the same reason the unconfigured path never
+ * takes one — the attempt ceiling exists to stop a message being tried
+ * forever, and this message was never tried at all.
+ */
+async function recordReminderWithheldIn(tx: Tx, jobId: string, detail: string): Promise<void> {
+  await tx.query(
+    `update public.notification_jobs
+        set status = 'cancelled',
+            cancelled_reason = $2,
+            attempt_count = greatest(attempt_count - 1, 0),
+            claimed_at = null,
+            claimed_by = null,
+            updated_at = now()
+      where id = $1`,
+    [jobId, detail],
+  );
+
+  await recordAudit(tx, {
+    actorLabel: DISPATCH_ACTOR_LABEL,
+    action: "delivery.reminder_withheld",
+    entityTable: "notification_jobs",
+    entityId: jobId,
+    toState: "cancelled",
+    reason: detail,
   });
 }
 
@@ -983,6 +1049,11 @@ export async function dispatchJob(
       // never a fallback trigger: the email channel would fail identically,
       // since the fact missing is the event's, not the recipient's.
       await recordUndeliverableIn(tx, jobId, outcome.detail, context);
+    } else if (!outcome.claimed && outcome.reason === "answered") {
+      // LAN-292. Not `recordUndeliverableIn`: that records a failure, and a
+      // reminder nobody needs is not one. Never a fallback trigger either —
+      // the email rung would carry the same unnecessary message.
+      await recordReminderWithheldIn(tx, jobId, outcome.detail);
     } else if (!outcome.claimed && outcome.reason === "not_consented") {
       // LAN-203. Same visible, retryable recording — an operator sees "no
       // consent recorded" and a granted consent record then makes Retry
@@ -1615,6 +1686,135 @@ export async function applyProviderCallback(
     });
 
     return "applied";
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Messages the provider never delivered and never reported — LAN-288
+// ---------------------------------------------------------------------------
+
+/**
+ * What an operator is told about a message WhatsApp dropped.
+ *
+ * Provider-neutral like every other reason on this screen, and phrased as the
+ * fact rather than as a diagnosis: the club knows the message was accepted and
+ * never confirmed delivered, and it does not know why. Retrying is a real
+ * repair — the message was dropped, so sending it again is exactly the thing
+ * that might work — which is why this is a `failed` outcome with attempts
+ * remaining (**Retryable**) and not a `rejected` one.
+ */
+export const DELIVERY_EXPIRED_REASON =
+  "WhatsApp accepted this message and never confirmed it reached the phone, and its delivery " +
+  "window has now passed, so it will not arrive. Nothing was delivered and nothing was recalled.";
+
+/**
+ * Concludes every accepted attempt the provider has gone silent on — LAN-288.
+ *
+ * ## What Meta actually does
+ *
+ * There is no `expired` callback. Meta's five status values are `sent`,
+ * `delivered`, `read`, `played` and `failed`, and a message that never reached
+ * a phone produces **no webhook at all** — the platform "drops messages that
+ * cannot be delivered within the default or customized TTL", and tells
+ * businesses: "If you do not receive a status messages webhook with `status`
+ * set to `delivered` before the TTL is exceeded, assume the message was
+ * dropped." Expiry is therefore an absence, and absence is the one thing a
+ * callback handler can never observe. Hence a sweep.
+ *
+ * Without this, such an attempt sat `accepted` forever and the operator read
+ * **Attempted — waiting for the provider to confirm delivery** about a message
+ * that had already been thrown away. That state is honest for an hour and a
+ * lie after a month, and it carries no repair.
+ *
+ * ## Why it cannot downgrade a delivery
+ *
+ * It only ever touches an attempt with `accepted_at` set, `concluded_at` null,
+ * and no `delivery_results` row — an attempt nothing has concluded. A
+ * delivered, failed or superseded attempt is concluded by definition, so a
+ * confirmed **Delivered** is out of reach here, and so is a second repair row
+ * for an attempt that already has one. Running it twice changes nothing the
+ * first run did not: the second pass finds no unconcluded attempt.
+ *
+ * The job itself moves only when this is still its current attempt —
+ * `applyProviderCallback`'s own fencing rule, for the same reason: a later
+ * attempt's claim must not be stamped by an older attempt's conclusion.
+ *
+ * Meta notes that a `failed` webhook "could be a minor delay", so the cut-off
+ * is deliberately the full TTL rather than the TTL minus a margin.
+ */
+export async function concludeExpiredDeliveries(
+  options: { source?: EnvironmentSource } = {},
+): Promise<number> {
+  const ttlHours = resolveMessageTtlHours(options.source ?? process.env);
+
+  return withTransaction(async (tx) => {
+    const stale = await tx.query<{
+      id: string;
+      notification_job_id: string;
+      attempt_number: number;
+      channel: string;
+      provider: string;
+    }>(
+      `select a.id, a.notification_job_id, a.attempt_number, a.channel::text as channel, a.provider
+         from public.delivery_attempts a
+        where a.accepted_at is not null
+          and a.concluded_at is null
+          and a.accepted_at < now() - ($1 || ' hours')::interval
+          and not exists (
+            select 1 from public.delivery_results r
+             where r.notification_job_id = a.notification_job_id
+               and r.attempt_number = a.attempt_number
+          )
+        order by a.accepted_at
+        for update of a`,
+      [String(ttlHours)],
+    );
+
+    for (const attempt of stale.rows) {
+      await tx.query(
+        `update public.delivery_attempts
+            set concluded_at = now(), failure_reason = $2
+          where id = $1`,
+        [attempt.id, DELIVERY_EXPIRED_REASON],
+      );
+
+      await tx.query(
+        `insert into public.delivery_results
+           (notification_job_id, attempt_number, outcome, channel, provider, detail)
+         values ($1, $2, 'failed', $3::public.notification_channel, $4, $5)
+         on conflict (notification_job_id, attempt_number) do nothing`,
+        [
+          attempt.notification_job_id,
+          attempt.attempt_number,
+          attempt.channel,
+          attempt.provider,
+          DELIVERY_EXPIRED_REASON,
+        ],
+      );
+
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2,
+                claimed_at = null, claimed_by = null, updated_at = now()
+          where id = $1 and attempt_count = $3`,
+        [attempt.notification_job_id, DELIVERY_EXPIRED_REASON, attempt.attempt_number],
+      );
+
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.failed",
+        entityTable: "notification_jobs",
+        entityId: attempt.notification_job_id,
+        reason: DELIVERY_EXPIRED_REASON,
+        context: {
+          attemptNumber: attempt.attempt_number,
+          provider: attempt.provider,
+          expiredAfterHours: ttlHours,
+        },
+      });
+    }
+
+    return stale.rows.length;
   });
 }
 

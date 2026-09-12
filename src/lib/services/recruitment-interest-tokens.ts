@@ -2,6 +2,7 @@ import "server-only";
 
 import { type Tx } from "@/lib/db";
 import { hashToken, mintToken, TOKEN_PATTERN } from "./rsvp-tokens";
+import { personDisplayName } from "./person-name";
 
 /**
  * The credential Questionnaire B's ask and reminder carry — LAN-206.
@@ -96,7 +97,7 @@ export async function resolveRecruitmentInterestTokenIn(
       personId: row.person_id,
       seasonId: row.season_id,
       prospectId: row.prospect_id,
-      displayName: [row.given_name, row.family_name].filter(Boolean).join(" "),
+      displayName: personDisplayName(row.given_name, row.family_name),
     },
   };
 }

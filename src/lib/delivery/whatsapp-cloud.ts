@@ -2,7 +2,6 @@ import "server-only";
 
 import crypto from "node:crypto";
 
-import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "./allowlist";
 import type { OutboundConfig, WebhookConfig } from "./config";
 import type {
   DeliveryProvider,
@@ -99,6 +98,22 @@ const PROVIDER_REASONS: Readonly<Record<number, string>> = {
     "conversation with this person and the message was not an approved template.",
   131026: "WhatsApp could not deliver to this number — it may not be a WhatsApp account.",
   131030: "This number is not on the provider's permitted recipient list.",
+  // LAN-288. Both documented under "Unable to deliver the message" and both
+  // terminal: one is the recipient's own choice and the other is the club's
+  // own account having blocked them. Neither is fixed by sending again.
+  //
+  // 131050 is narrower than it reads. Meta documents it as the recipient
+  // having opted out of **marketing** messages, and that is the only category
+  // it stops: a Utility template — a reminder, a nudge, an RSVP — still
+  // delivers to the same number. The sentence said "messages", which reads as
+  // a total opt-out and would have an operator stop chasing somebody the club
+  // can still reach. It does not say the reminder *will* arrive, because
+  // whether a given template is Utility is Meta's classification and not the
+  // club's (see the template-category record).
+  131050:
+    "This person has chosen to stop receiving marketing messages from the club " +
+    "on WhatsApp; reminders may still reach them.",
+  130403: "WhatsApp would not deliver this message because this person is blocked by the club.",
   132000: "The approved message template did not match what was sent.",
   132001: "The message template named for invitations does not exist on the club's account.",
   132015: "The message template named for invitations has been paused by the provider.",
@@ -309,29 +324,6 @@ export function createWhatsAppCloudProvider(
     channel: "whatsapp",
 
     async send(message: InvitationMessage): Promise<SendOutcome> {
-      // LAN-124. The service layer refuses a recipient outside the allowlist
-      // before it mints a token, and this is the same refusal at the last point
-      // it can be made: the statement immediately below opens a connection to
-      // Meta. The duplication is deliberate — the check above protects the
-      // workflow, and this one protects the egress from any future caller that
-      // reaches the adapter without going through `claimNextJobIn`.
-      //
-      // `localTest.recipientOverride` is checked rather than `message.recipient`
-      // where one is set, because the override is the number that would
-      // actually be dialled; allowing an unlisted override would be a hole in
-      // the shape of a test affordance.
-      const dialled = config.localTest.recipientOverride ?? message.recipient;
-      if (!recipientPermitted(dialled, config.recipientAllowlist, config.defaultCallingCode)) {
-        return {
-          status: "refused",
-          reason: RECIPIENT_NOT_PERMITTED_REASON,
-          // Not retryable: retrying changes nothing until the allowlist does,
-          // and a retryable refusal would put the job back in the queue to be
-          // refused again on a schedule.
-          retryable: false,
-        };
-      }
-
       let response: Response;
       try {
         response = await transport(messagesEndpoint(config), {

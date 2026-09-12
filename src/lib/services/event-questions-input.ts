@@ -23,6 +23,14 @@ export const MAX_QUESTION_CHOICES = 20; // a bound, not a product rule — far a
 export const MAX_QUESTION_PROMPT_LENGTH = 200; // same reasoning: a bound, not a rule
 
 export interface RawEventQuestion {
+  /**
+   * The stored `event_questions.id` this entry stands for, or absent/empty for
+   * one the operator has just written. LAN-318: once an event is approved its
+   * questions are updated in place rather than rewritten, so the form has to
+   * say which stored question each card is, and a card with no id is the only
+   * thing that becomes an insert.
+   */
+  id?: string | null;
   prompt?: string | null;
   answerType?: string | null;
   required?: string | null; // "required" or anything else, which is optional
@@ -31,6 +39,8 @@ export interface RawEventQuestion {
 }
 
 export interface EventQuestionInput {
+  /** The stored question this replaces, or `null` for a new one — LAN-318. */
+  id: string | null;
   prompt: string;
   answerType: QuestionAnswerType;
   isRequired: boolean;
@@ -113,6 +123,7 @@ export function validateEventQuestions(raw: readonly RawEventQuestion[]): EventQ
     }
 
     value.push({
+      id: trimmed(question.id) === "" ? null : trimmed(question.id),
       prompt,
       answerType,
       isRequired: trimmed(question.required) === "required",

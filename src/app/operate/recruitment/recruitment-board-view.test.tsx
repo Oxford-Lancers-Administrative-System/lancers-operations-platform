@@ -1,21 +1,29 @@
 // @vitest-environment jsdom
 /**
- * `RecruitmentBoardView`'s phone card — `W1-01`'s approved mockup, and
- * correction round 1 (F-LAN204-004): the shipped card replaced the approved
- * mockup's static chip with a live, editable status control, and dropped the
- * roster board's own voice-call quick action entirely. jsdom renders both
- * the desktop table and the phone card at once (breakpoints are not
- * evaluated), so this queries inside the phone card's own test id rather
- * than asserting on the whole document.
+ * `RecruitmentBoardView`'s phone card — `W1-01`'s approved mockup, its
+ * correction round 1 (F-LAN204-004: the shipped card had dropped the roster
+ * board's own voice-call quick action), and LAN-319.
+ *
+ * LAN-319 reverses round 1's other half. That correction made the card's
+ * status a static chip, on the mockup's own drawing; Clint then found the
+ * consequence in use — "THIS ONLY WORKS ON DESKTOP, NOT ON PHONE" — because
+ * the board is where a status is changed and the phone is where recruitment
+ * is run. The card now carries the same control the table's cell does, with
+ * the same interrupt and the same confirm.
+ *
+ * jsdom renders both the desktop table and the phone card at once
+ * (breakpoints are not evaluated), so this queries inside the phone card's
+ * own test id rather than asserting on the whole document.
  */
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 vi.mock("./board-actions", () => ({
   setRecruitmentStatusAction: vi.fn(),
   flipRecruitmentProspectAction: vi.fn(),
 }));
 
+import { flipRecruitmentProspectAction, setRecruitmentStatusAction } from "./board-actions";
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
 import type { Season } from "@/lib/services/seasons";
 import RecruitmentBoardView from "./recruitment-board-view";
@@ -76,12 +84,55 @@ function renderBoard(rows: readonly RecruitmentBoardRow[]) {
 }
 
 describe("the phone card", () => {
-  it("shows the status as a static chip, not an editable control", () => {
+  it("carries the table's own status control, not a chip that cannot be changed — LAN-319", () => {
     renderBoard([row()]);
     const card = screen.getByTestId("recruitment-card-prospect-1");
     expect(within(card).getByText("Engaged")).toBeInTheDocument();
-    // A live status control renders an MUI Select, exposed as role="combobox".
-    expect(within(card).queryByRole("combobox")).toBeNull();
+
+    fireEvent.click(within(card).getByTestId("recruitment-card-status-select-prospect-1"));
+    // Clicking opens the same `Select` the desktop cell opens, every value
+    // offered — `Q-every-status-reachable`.
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Identified",
+      "Engaged",
+      "Committed",
+      "Joined",
+      "Declined",
+      "Disengaged",
+      "Void",
+    ]);
+  });
+
+  it("interrupts a join from the card exactly as the record does, and writes nothing on cancel", () => {
+    renderBoard([row()]);
+    const card = screen.getByTestId("recruitment-card-prospect-1");
+
+    fireEvent.click(within(card).getByTestId("recruitment-card-status-select-prospect-1"));
+    fireEvent.click(screen.getByRole("option", { name: "Joined" }));
+
+    expect(screen.getByText("Join Clementine Varrow?")).toBeInTheDocument();
+    expect(screen.getByText("Create a season membership for 2026-27")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(flipRecruitmentProspectAction).not.toHaveBeenCalled();
+    expect(setRecruitmentStatusAction).not.toHaveBeenCalled();
+  });
+
+  it("commits an uninterrupted status straight from the card", async () => {
+    vi.mocked(setRecruitmentStatusAction).mockResolvedValue({ error: null });
+    renderBoard([row()]);
+    const card = screen.getByTestId("recruitment-card-prospect-1");
+
+    fireEvent.click(within(card).getByTestId("recruitment-card-status-select-prospect-1"));
+    fireEvent.click(screen.getByRole("option", { name: "Committed" }));
+
+    await waitFor(() =>
+      expect(setRecruitmentStatusAction).toHaveBeenCalledWith({
+        prospectId: "prospect-1",
+        toStatus: "committed",
+        reason: undefined,
+      }),
+    );
   });
 
   it("carries its own separate call action, wired to the recruit's own number", () => {

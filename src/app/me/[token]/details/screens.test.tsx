@@ -4,7 +4,7 @@
  * test is the screen and the token-resolution/throttle wiring around it —
  * acceptance criteria 1–4, 9, 10, 12.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
@@ -49,12 +49,16 @@ import {
   BUCS_CONTINUE_ANYWAY_NOTE,
   BUCS_STATUS_CONFIRMED_BY,
   BUCS_STATUS_INSTRUCTIONS,
+  bucsLeagueYear,
   CLOSE,
   CONSENT_ALREADY_GRANTED,
   CONSENT_HEADING,
   CONSENT_LABEL,
   DETAILS_HEADING,
   DISPUTED_NOTICE,
+  HUDL_CLAIM_LABEL,
+  HUDL_LEAD,
+  HUDL_LINK_NOT_PUBLISHED,
   IF_SOMETHING_WRONG_HEADING,
   R3G_REASSURANCE,
   stepLabel,
@@ -75,6 +79,7 @@ function personRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     familyNameSource: null,
     aliases: [],
     displayName: "Jordan Ashworth",
+    knownAs: null,
     status: "onboarding",
     college: null,
     collegeSource: null,
@@ -565,5 +570,123 @@ describe("LAN-289 — the navigator's label and its chip agree", () => {
     expect(text).not.toContain("Outstanding");
     expect(text).toContain("Confirmed");
     expect(text).toContain("Claimed");
+  });
+});
+
+/**
+ * LAN-333. Steps 4 and 5 carried four and three invented placeholder lines,
+ * and Hudl's assumed an email invitation an operator never sends. These are
+ * the club's own steps now; what this file pins is that no placeholder
+ * survived, that the league's year is derived rather than typed, and that the
+ * Hudl join link is configuration whose absence is a stated state.
+ */
+describe("LAN-333 — the real BUCS Play and Hudl steps", () => {
+  /** A dummy. The club's own join link is configuration and never enters this repository. */
+  const DUMMY_HUDL = "https://www.example.invalid/hudl-join";
+
+  afterEach(() => {
+    delete process.env.HUDL_JOIN_LINK;
+  });
+
+  async function bucsScreen(seasonLabel: string | null = "2026-27") {
+    givenValid(view({ nextStep: "bucs_play", seasonLabel }));
+    return (await renderPage({ step: "bucs_play" })).container;
+  }
+
+  async function hudlScreen() {
+    givenValid(view({ nextStep: "hudl" }));
+    return (await renderPage({ step: "hudl" })).container;
+  }
+
+  it("carries the club's five BUCS Play steps, with the app and website destinations", async () => {
+    const container = await bucsScreen();
+    const steps = container.querySelector('[data-testid="bucs-steps"]');
+    const text = steps?.textContent ?? "";
+
+    expect(text).toContain("Download the BucsPlay app");
+    expect(text).toContain("Create an account using your college email address.");
+    expect(text).toContain("Join the BUCS general community first");
+    expect(text).toContain("Oxford Open 1 American Football");
+    expect(steps?.querySelectorAll("li")).toHaveLength(5);
+
+    const hrefs = [...(steps?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"));
+    expect(hrefs).toContain("https://apps.apple.com/gb/app/bucs-play/id1379011950");
+    expect(hrefs).toContain("https://play.google.com/store/apps/details?id=com.playwaze.bucscore");
+    expect(hrefs).toContain("https://bucs.playwaze.com");
+  });
+
+  it("stamps the league with the open season's own year, never a constant", async () => {
+    expect(bucsLeagueYear("2026-27")).toBe("26-27");
+    expect(bucsLeagueYear("2026/27")).toBe("26-27");
+    expect(bucsLeagueYear("2027-28")).toBe("27-28");
+    // Unreadable drops the year rather than guessing one.
+    expect(bucsLeagueYear(null)).toBeNull();
+    expect(bucsLeagueYear("Michaelmas")).toBeNull();
+
+    expect((await bucsScreen("2026-27")).textContent).toContain(
+      "BUCS American Football 26-27 league",
+    );
+    expect((await bucsScreen("2027/28")).textContent).toContain(
+      "BUCS American Football 27-28 league",
+    );
+    const unlabelled = await bucsScreen(null);
+    expect(unlabelled.textContent).toContain("BUCS American Football league for this season");
+    expect(unlabelled.textContent).not.toContain("undefined");
+  });
+
+  it("carries the club's four Hudl steps and the join link when one is configured", async () => {
+    process.env.HUDL_JOIN_LINK = DUMMY_HUDL;
+    const container = await hudlScreen();
+    const steps = container.querySelector('[data-testid="hudl-steps"]');
+    const text = steps?.textContent ?? "";
+
+    expect(text).toContain("Go to the club's Hudl join link.");
+    expect(text).toContain("Follow the steps to create an account");
+    expect(text).toContain("press submit");
+    expect(text).toContain("The phone number field can be left alone.");
+    expect(steps?.querySelectorAll("li")).toHaveLength(4);
+
+    const hrefs = [...(steps?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"));
+    expect(hrefs).toContain(DUMMY_HUDL);
+    expect(hrefs).toContain("https://apps.apple.com/us/app/hudl/id412223222");
+    expect(hrefs).toContain("https://play.google.com/store/apps/details?id=com.hudl.hudroid");
+    expect(container.querySelector('[data-testid="hudl-link-missing"]')).toBeNull();
+  });
+
+  it("keeps the steps and states the missing link when none is configured", async () => {
+    const container = await hudlScreen();
+    const steps = container.querySelector('[data-testid="hudl-steps"]');
+
+    expect(steps?.querySelectorAll("li")).toHaveLength(4);
+    expect(steps?.textContent).toContain("Go to the club's Hudl join link.");
+    expect(container.querySelector('[data-testid="hudl-link-missing"]')?.textContent).toBe(
+      HUDL_LINK_NOT_PUBLISHED,
+    );
+    // No invented destination for the step that has no link.
+    expect(steps?.querySelector('a[href*="hudl.com"]')).toBeNull();
+  });
+
+  it("describes joining, not accepting an invitation the club never sends", async () => {
+    process.env.HUDL_JOIN_LINK = DUMMY_HUDL;
+    const text = (await hudlScreen()).textContent ?? "";
+
+    expect(text).toContain(HUDL_LEAD);
+    expect(text).not.toMatch(/invitation/i);
+    expect(text).toContain(HUDL_CLAIM_LABEL);
+  });
+
+  it("offers no second Hudl checkbox — the no-invitation control is gone", async () => {
+    const container = await hudlScreen();
+    expect(container.querySelector('input[name="no_invitation"]')).toBeNull();
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(1);
+  });
+
+  it("says PLACEHOLDER or 'Owed' nowhere on either step", async () => {
+    for (const container of [await bucsScreen(), await hudlScreen()]) {
+      const text = container.textContent ?? "";
+      expect(text).not.toContain("PLACEHOLDER");
+      expect(text).not.toContain("Owed — not written");
+      expect(text).not.toMatch(/LAN-213/);
+    }
   });
 });

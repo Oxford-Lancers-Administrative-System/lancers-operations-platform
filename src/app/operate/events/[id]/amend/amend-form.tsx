@@ -3,6 +3,7 @@
 import { Section } from "@/components/section";
 import { Notice } from "@/components/notice";
 import { ActionBar } from "@/components/action-bar";
+import { preventImplicitSubmit } from "@/components/field";
 import { Metric, MetricRow } from "@/components/metric";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
@@ -230,7 +231,13 @@ export default function AmendForm({
   );
 
   return (
-    <Box component="form" action={formAction} ref={formRef} data-testid="amend-form">
+    <Box
+      component="form"
+      action={formAction}
+      ref={formRef}
+      onKeyDown={preventImplicitSubmit}
+      data-testid="amend-form"
+    >
       <input type="hidden" name="eventId" value={eventId} />
       {/* LAN-244: the version this form opened on, posted with the fields, so a second tab's save can't silently revert the first tab's write. */}
       <input

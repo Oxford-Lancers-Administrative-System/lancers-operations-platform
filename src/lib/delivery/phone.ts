@@ -13,47 +13,22 @@ import "server-only";
  * This module stays `server-only` because its own job — turning a recorded
  * contact into what gets handed to Meta — must never run in a browser, even
  * though the conversion it delegates to no longer lives in this file.
+ *
+ * `selectMobileNumber` followed `toE164` there for LAN-307 (R7-1), for the same
+ * reason and with the same re-export; see the note on the export below.
  */
 
-import { toE164 } from "./phone-shape";
-
-export { toE164 };
+import { selectMobileNumber, toE164, type ContactPointRow } from "./phone-shape";
 
 /**
- * The number to send an invitation to, from a person's recorded contact points.
- *
- * Prefers the contact the club marked preferred, then the most recently
- * recorded current one — the same precedence a human would apply. Only current
- * contact points are considered: `valid_until` is how the club records that a
- * number stopped being that person's.
+ * `selectMobileNumber` — the number to send an invitation to, from a person's
+ * recorded contact points — moved to `./phone-shape.ts` for LAN-307 (R7-1) and
+ * is re-exported here unchanged, exactly as `toE164` already was. The reason is
+ * the same one: the surface that shows an operator where a send will go is a
+ * client component, and it has to ask this module's question rather than a
+ * second copy of it. Every existing caller of this module sees no difference.
  */
-export interface ContactPointRow {
-  readonly kind: string;
-  readonly rawValue: string;
-  readonly normalisedValue: string | null;
-  readonly isPreferred: boolean;
-}
-
-export function selectMobileNumber(
-  contacts: readonly ContactPointRow[],
-  defaultCallingCode: string,
-): string | null {
-  const phones = contacts.filter((contact) => contact.kind === "phone");
-  const ordered = [...phones].sort((a, b) => Number(b.isPreferred) - Number(a.isPreferred));
-
-  for (const contact of ordered) {
-    // `normalised_value` is the club's own cleaned form where intake produced
-    // one; `raw_value` is what was actually supplied. Both go through the same
-    // conversion, so a stored "normalised" value that is not E.164 is still
-    // checked rather than trusted.
-    const converted =
-      toE164(contact.normalisedValue ?? "", defaultCallingCode) ??
-      toE164(contact.rawValue, defaultCallingCode);
-    if (converted) return converted;
-  }
-
-  return null;
-}
+export { selectMobileNumber, toE164, type ContactPointRow };
 
 /** What an operator is told when nobody can send to this person. */
 export const NO_USABLE_NUMBER_REASON =

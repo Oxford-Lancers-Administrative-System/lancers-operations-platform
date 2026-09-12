@@ -94,12 +94,12 @@ export async function readOnboardingSendStatusIn(
   tx: Tx,
   membershipId: string,
 ): Promise<OnboardingSendStatus> {
-  const [settings, candidates, lastContact, lastAsk] = await Promise.all([
-    readOnboardingChaseSettingsIn(tx),
-    readOnboardingChaseCandidatesForMembershipsIn(tx, [membershipId]),
-    readOnboardingLastContactIn(tx, membershipId),
-    readLatestOnboardingAskIn(tx, membershipId),
-  ]);
+  // Sequential, not `Promise.all` (LAN-301): one transaction client, which `pg`
+  // serialises anyway — loudly, since pg@8.
+  const settings = await readOnboardingChaseSettingsIn(tx);
+  const candidates = await readOnboardingChaseCandidatesForMembershipsIn(tx, [membershipId]);
+  const lastContact = await readOnboardingLastContactIn(tx, membershipId);
+  const lastAsk = await readLatestOnboardingAskIn(tx, membershipId);
 
   const candidate = candidates.get(membershipId);
   if (!candidate) {

@@ -16,7 +16,6 @@ import {
   agreeOnboardingDocument,
   claimTrustItem,
   readQuestionnaireView,
-  recordHudlNoInvitation,
   saveDetailsStep,
   STEP_ORDER,
   type DetailsStepInput,
@@ -236,14 +235,6 @@ export async function submitTrustStep(form: FormData): Promise<void> {
       seasonId: resolution.seasonId,
       membershipId: resolution.membershipId,
       code,
-    });
-  }
-
-  if (code === "hudl_access" && checked(form, "no_invitation")) {
-    await recordHudlNoInvitation({
-      personId: resolution.personId,
-      seasonId: resolution.seasonId,
-      membershipId: resolution.membershipId,
     });
   }
 

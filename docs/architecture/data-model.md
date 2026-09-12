@@ -847,6 +847,18 @@ nobody has edited it, and no approved or past event ever changes.
 either: `from_template` marks a question that arrived with the type and is what
 makes removing one per event safe (D42).
 
+**LAN-318 (Brian, 2026-09-11) amends D41 for this one table.** Approval no
+longer freezes an event's questions. While the event is a draft the whole set
+is still rewritten — delete then insert, since nothing points at a draft's
+questions. Once it is approved the set is **updated in place** by id
+(`upsertEventQuestionsIn`): added to, reworded, retyped, re-optioned,
+re-required and reordered, with nothing sent to anybody. Rows are never
+deleted there, because `question_responses.event_question_id` references them
+and an answer already given must not be orphaned — the service refuses a
+submission that drops one, and the screen offers no Remove. No wording is
+snapshotted on the answer, so `question_responses` tells you what was answered
+and not what the question said at the time.
+
 Still untouched by any workflow: `event_type_settings`, which stores D75 and
 D77's chase thresholds for Mission 4 to consume, and `club_link_tokens`.
 

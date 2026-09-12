@@ -14,7 +14,7 @@ whatever it does?" — and that is why it is separate. Its rules are not scoped 
 the slice, they do not expire when the slice ships, and none of them was
 invented. Every one below was written down because a screen in this repository
 broke it, a human found it, and the same shape then turned up somewhere else.
-That is the bar for adding an eighth: a rule earns its place by having already
+That is the bar for adding a ninth: a rule earns its place by having already
 cost something.
 
 > Nothing here supersedes anything. The authority order in
@@ -26,7 +26,7 @@ cost something.
 
 ## How to use this
 
-Read it with the ticket contract, before writing the screen. Six of the seven
+Read it with the ticket contract, before writing the screen. Seven of the eight
 are cheap while the component is being written and expensive afterwards, because
 each of them is a shape rather than a string: they are about what the screen
 does when something is missing, stale, refused, or already on the page.
@@ -202,22 +202,69 @@ wrong: a holder whose access is deactivated, an assignment that ended earlier in
 the year, and a successor who has not started. Pin the readers the **pages**
 call. An agreement test against a reader no screen uses proves the wrong pair.
 
+## 8. A person's name is their formal name; Known as is its own value
+
+A given name and a family name are what the record holds, and that is the name
+every surface prints. An alias a person prefers is a separate, labelled value
+shown beside the name wherever the person is identified in detail. It is never
+substituted into the name, however it is flagged in the database.
+
+**What it cost.** Brian added a recruit with a first name, a surname and a
+different Known as, flipped them onto the roster, and compared the two screens.
+The roster row showed the formal name. The membership detail showed the alias
+with the surname appended, labelled simply "Name", and then repeated the alias
+underneath as an alias. The same person read as two people, and the obvious
+reading — that conversion had rewritten their record — was wrong: nothing had
+changed, and the alias came from the recruitment add door months earlier
+(LAN-306).
+
+Three separate implementations of "display name" had drifted apart, plus a
+fourth in SQL. Each was individually defensible; the disagreement was the
+defect.
+
+**In practice.** One function composes a person's name (`personDisplayName` in
+`src/lib/services/person-name.ts`), one SQL fragment mirrors it
+(`personDisplayNameSql`), and no caller composes its own. A surface that
+identifies somebody in detail — the person record, the membership record, the
+recruit record — shows Known as as its own field, "Not recorded" included, so
+its absence is as legible as its presence. Lists, boards and queues show the
+name only. An alias that merely repeats the given name is not a Known as and is
+not shown as one.
+
+A duplicate check is the exception that proves the rule rather than a list: a
+candidate can surface _because_ the search matched the Known as, and the whole
+question being asked is whether this row and that person page name the same
+human. So those rows carry Known as beside the formal name — its own value,
+with its own word — and never spliced into it.
+
+For the same reason a candidate row says _which record_ the search term hit and
+_what is in it_ — "Sign-in address matches: …", "Contact email matches: …",
+"Phone matches: …", "Known as matches: …", "Name matches" — rather than a bare
+field name. The club can hold two addresses for one human, and the operator
+invitation door reported both as "email" while printing the contact address
+beside the word: a search for somebody's sign-in address returned the right
+person under an address nobody had typed, and read as a wrong match (LAN-309).
+A value the clause already carries is not printed a second time in the same
+caption.
+
 ---
 
 ## What binds these
 
-A rule that only holds by inspection is a rule that drifts, so each of the seven
+A rule that only holds by inspection is a rule that drifts, so each of the eight
 is carried by a test rather than by this page:
 
-| Rule | Bound by                                                                                  |
-| ---- | ----------------------------------------------------------------------------------------- |
-| 1    | `src/app/operate/admin/outcome.test.tsx` — one slot, claimed on start                     |
-| 2    | `src/app/operate/admin/presentation.test.ts` — holders before cycle, in both directions   |
-| 3    | `src/app/operate/admin/presentation.test.ts` — the three shapes, and the unreadable value |
-| 4    | `src/app/operate/admin/screens.test.tsx` — the enabling sentence, in both its states      |
-| 5    | `src/app/operate/admin/screens.test.tsx` — the empty result names its terms and its route |
-| 6    | `src/app/operate/admin/screens.test.tsx` — a missing cycle renders content, not an error  |
-| 7    | `src/lib/services/administration-directory.test.ts` — the readers the pages actually call |
+| Rule | Bound by                                                                                    |
+| ---- | ------------------------------------------------------------------------------------------- |
+| 1    | `src/app/operate/admin/outcome.test.tsx` — one slot, claimed on start                       |
+| 2    | `src/app/operate/admin/presentation.test.ts` — holders before cycle, in both directions     |
+| 3    | `src/app/operate/admin/presentation.test.ts` — the three shapes, and the unreadable value   |
+| 4    | `src/app/operate/admin/screens.test.tsx` — the enabling sentence, in both its states        |
+| 5    | `src/app/operate/admin/screens.test.tsx` — the empty result names its terms and its route   |
+| 6    | `src/app/operate/admin/screens.test.tsx` — a missing cycle renders content, not an error    |
+| 7    | `src/lib/services/administration-directory.test.ts` — the readers the pages actually call   |
+| 8    | `src/lib/services/person-name.test.ts`, and `person-record.test.ts` — record and list agree |
+| 8    | `src/app/operate/admin/actions.test.ts` and both `screens.test.tsx` — the duplicate checks  |
 
 This page is the reasoning; those files are the enforcement. If one of them is
 deleted, the rule it carries is unbound however clearly it is written here.

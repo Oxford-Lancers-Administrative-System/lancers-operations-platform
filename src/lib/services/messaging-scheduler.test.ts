@@ -79,11 +79,31 @@ const CONFIGURED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
-  DELIVERY_RECIPIENT_ALLOWLIST: PHONE,
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
-  DELIVERY_EMAIL_ALLOWLIST: EMAIL,
 };
+
+/** `PHONE` as the adapter dials it: E.164 digits, no plus. */
+const DIALLED_PHONE = PHONE.replace(/\D/g, "").replace(/^0/, "44");
+
+/**
+ * Was this request caused by this suite's own fixture?
+ *
+ * LAN-287. Until the delivery allowlists were removed, `CONFIGURED` narrowed
+ * them to this file's own `PHONE`/`EMAIL`, and that is what kept the ambient
+ * due jobs LAN-181's F-W1 describes out of `sent`: the adapter refused them
+ * before the transport was ever called. Scoping a test's own bookkeeping was
+ * never that control's job, though, and now it is done here instead — ambient
+ * jobs are accepted exactly as a real provider would accept them, and simply
+ * do not enter `sent`.
+ */
+function addressedToThisSuite(url: string, body: Record<string, unknown>): boolean {
+  if (url.endsWith("/emails")) {
+    const to = body.to;
+    return Array.isArray(to) && to.some((address) => String(address).toLowerCase() === EMAIL);
+  }
+  return String(body.to ?? "") === DIALLED_PHONE;
+}
 
 /**
  * LAN-181, F-W1. `runMessagingSweep()` is global by design — it is `readDueJobs`
@@ -117,10 +137,10 @@ const CONFIGURED: EnvironmentSource = {
  * job into `due` in the first place, so those keep the ordinary `-1` hour
  * default.
  *
- * `CONFIGURED`'s allowlist is narrowed to this file's own `PHONE`/`EMAIL`
- * (LAN-124), so ambient jobs claimed alongside a fixture can never reach
- * `sent` — the delivery adapter refuses them before the transport is ever
- * called. `sent` and per-fixture database reads (`jobsFor`, `jobRow`,
+ * `acceptingTransport` records only what is addressed to this file's own
+ * `PHONE`/`EMAIL` (see `addressedToThisSuite`), so ambient jobs claimed
+ * alongside a fixture can never reach
+ * `sent`. `sent` and per-fixture database reads (`jobsFor`, `jobRow`,
  * `escalationStateFor`) are therefore already scoped to this suite's own
  * fixture once the fixture's job is claimed, which is exactly what the
  * ordering guarantee above delivers.
@@ -149,7 +169,7 @@ function acceptingTransport() {
   const sent: { url: string; body: Record<string, unknown> }[] = [];
   const transport = async (url: string, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : "{}");
-    sent.push({ url, body });
+    if (addressedToThisSuite(url, body)) sent.push({ url, body });
     const id = `wamid.${MARKER}.${crypto.randomUUID()}`;
     return new Response(
       JSON.stringify(
@@ -561,7 +581,7 @@ describe("a due rung", () => {
     const { sent, transport } = acceptingTransport();
     await runMessagingSweep({ source: CONFIGURED, transport });
 
-    // `sent` stays scoped to this fixture's own allowlisted contact (LAN-124),
+    // `sent` stays scoped to this fixture's own contact (`addressedToThisSuite`),
     // so this proves nothing was sent *to this invitee* regardless of ambient
     // volume. `summary.refused` is deliberately not asserted here — LAN-181,
     // F-W1: the repaired seed (F-A1) means this same sweep call also claims
@@ -1298,6 +1318,161 @@ describe("an answer, from any source", () => {
 
     expect(second.clearedFlags).toBe(0);
     expect(second.cancelledJobs).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-292 — a reminder is withheld once the invitee has answered
+// ---------------------------------------------------------------------------
+
+/**
+ * Records an answer the way `stopChasingIn` never saw it.
+ *
+ * Deliberately a bare insert rather than `recordAnswerIn`: the whole of
+ * LAN-292 is the case where a response exists and the queued rungs were NOT
+ * cancelled — a job created before the cancellation path existed, one already
+ * selected by a sweep, or an answer that arrived through a door that did not
+ * run it. Answering through the ordinary path and then asserting the reminder
+ * is withheld would prove only that the cancellation works, which was never
+ * in doubt: the fresh path was the contrasting evidence on the ticket.
+ */
+async function answerDirectly(invitationId: string, response: "yes" | "no") {
+  await observer.query(
+    `insert into public.rsvp_responses (invitation_id, response, reason, source, responded_at)
+     values ($1, $2::public.rsvp_value, $3, 'signed_link', now())`,
+    [invitationId, response, response === "no" ? "Away that weekend." : null],
+  );
+}
+
+/** This fixture's first WhatsApp reminder rung, due and claimable. */
+async function firstReminderJob(eventId: string): Promise<string> {
+  const jobs = await jobsFor(eventId);
+  const reminder = jobs.find((job) => job.job_type === "reminder" && job.channel === "whatsapp");
+  expect(reminder, "the fixture must carry a WhatsApp reminder rung").toBeDefined();
+  return reminder!.id;
+}
+
+describe("LAN-292 — a reminder is withheld once the invitee has answered", () => {
+  it.each(["yes", "no"] as const)(
+    "withholds the reminder when a %s was recorded after the job was created",
+    async (response) => {
+      const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+      const reminderId = await firstReminderJob(target.eventId);
+      await answerDirectly(target.invitationId, response);
+
+      const { sent, transport } = acceptingTransport();
+      const outcome = await dispatchJob(reminderId, { source: CONFIGURED, transport });
+
+      // Nothing was sent, and nothing failed: the message was unnecessary.
+      expect(outcome).toBe("skipped");
+      expect(sent).toHaveLength(0);
+
+      const job = (await jobsFor(target.eventId)).find((row) => row.id === reminderId)!;
+      expect(job.status).toBe("cancelled");
+      expect(job.cancelled_reason).toBe(
+        "The invitee responded, so this reminder is no longer needed.",
+      );
+      // The claim's own increment is given back — nothing was attempted, so
+      // the attempt ceiling is not spent on it.
+      expect(job.attempt_count).toBe(0);
+
+      const attempts = await observer.query<{ count: string }>(
+        "select count(*)::text as count from public.delivery_attempts where notification_job_id = $1",
+        [reminderId],
+      );
+      expect(attempts.rows[0].count).toBe("0");
+    },
+  );
+
+  it("withholds it on a retry too, not only on the first dispatch", async () => {
+    // The ticket's own wording: "including retry". A job that failed once and
+    // is tried again takes the same claim, so the recheck is the same recheck.
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    const reminderId = await firstReminderJob(target.eventId);
+
+    await dispatchJob(reminderId, { source: CONFIGURED, transport: failingTransport() });
+    const afterFailure = (await jobsFor(target.eventId)).find((row) => row.id === reminderId)!;
+    expect(afterFailure.status).toBe("failed");
+
+    await answerDirectly(target.invitationId, "yes");
+
+    const { sent, transport } = acceptingTransport();
+    const outcome = await dispatchJob(reminderId, { source: CONFIGURED, transport });
+
+    expect(outcome).toBe("skipped");
+    expect(sent).toHaveLength(0);
+    const job = (await jobsFor(target.eventId)).find((row) => row.id === reminderId)!;
+    expect(job.status).toBe("cancelled");
+  });
+
+  it("withholds it when the answer predates the job", async () => {
+    // The 38 captured reminders' own shape: a response already standing when
+    // the rung was created, by seeding or by a path that created the ladder
+    // afterwards. The check reads the answer as it is now, so how it came to
+    // be there does not matter.
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    await answerDirectly(target.invitationId, "yes");
+
+    const late = await observer.query<{ id: string }>(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+          channel, scheduled_for, ladder_rung)
+       values ($1, 'reminder', 'pending', $2, $3, $4, 'whatsapp', now() - interval '1 hour', 4)
+       returning id`,
+      [
+        `${MARKER}:${target.eventId}:reminder:late`,
+        target.invitationId,
+        target.eventId,
+        target.personId,
+      ],
+    );
+
+    const { sent, transport } = acceptingTransport();
+    const outcome = await dispatchJob(late.rows[0].id, { source: CONFIGURED, transport });
+
+    expect(outcome).toBe("skipped");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("still sends the reminder to a silent invitee", async () => {
+    // The counterpart, and the one that would fail if the recheck were wrong
+    // in the other direction: a withhold that fired on everybody would pass
+    // every test above and silence the whole chase.
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    const reminderId = await firstReminderJob(target.eventId);
+
+    const { sent, transport } = acceptingTransport();
+    const outcome = await dispatchJob(reminderId, { source: CONFIGURED, transport });
+
+    expect(outcome).toBe("accepted");
+    expect(sent).toHaveLength(1);
+    const job = (await jobsFor(target.eventId)).find((row) => row.id === reminderId)!;
+    expect(job.status).toBe("processing");
+  });
+
+  it("leaves the nudge alone, because a nudge is for somebody who said yes", async () => {
+    // The separately specified contract the ticket protects: a yes with the
+    // event's questions unanswered is exactly who the nudge is for, so a
+    // withhold that read "any answered invitation" would delete the only
+    // message that case has. `job_type = 'other'` is the nudge in the frozen
+    // vocabulary (`messageKindFor`).
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    await answerDirectly(target.invitationId, "yes");
+
+    const nudge = await observer.query<{ id: string }>(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+          channel, scheduled_for)
+       values ($1, 'other', 'pending', $2, $3, $4, 'whatsapp', now() - interval '1 hour')
+       returning id`,
+      [`${MARKER}:${target.eventId}:nudge`, target.invitationId, target.eventId, target.personId],
+    );
+
+    const { sent, transport } = acceptingTransport();
+    const outcome = await dispatchJob(nudge.rows[0].id, { source: CONFIGURED, transport });
+
+    expect(outcome).toBe("accepted");
+    expect(sent).toHaveLength(1);
   });
 });
 

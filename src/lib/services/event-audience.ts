@@ -28,6 +28,7 @@ export {
   type AudienceCatalogue,
   type AudienceGroupSummary,
 } from "./audience-selection";
+import { personDisplayName } from "./person-name";
 
 interface CandidateRow {
   capacity: AudienceCapacity;
@@ -42,11 +43,9 @@ interface CandidateRow {
   is_bps: boolean;
 }
 
-/** Known-as where there is one, matching how the roster names people. */
+/** LAN-306: one rule, in `person-name.ts`, and this list obeys it like every other surface. */
 function displayNameOf(row: CandidateRow): string {
-  const known = row.display_alias?.trim();
-  const first = known && known !== "" ? known : row.given_name;
-  return row.family_name ? `${first} ${row.family_name}` : first;
+  return personDisplayName(row.given_name, row.family_name);
 }
 
 /** A player's playing unit, from position assignments effective on the day (UX-40). */

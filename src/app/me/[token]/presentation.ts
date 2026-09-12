@@ -71,6 +71,14 @@ export function answeredSentence(standingAnswer: "yes" | "no", reason: string | 
 export const NO_OUTSTANDING_EVENTS = "No outstanding events";
 export const PUBLIC_CALENDAR_LINK = "See the public calendar";
 
+// The club's main WhatsApp group — LAN-327. Rendered only when the link is
+// configured; the recruits' sign-up form has had the equivalent since LAN-202,
+// and a recruit flipped to joined moved from a flow that offered a group to
+// one that never mentioned it.
+
+export const WHATSAPP_GROUP_HEADING = "The club's WhatsApp group";
+export const JOIN_WHATSAPP_GROUP = "Join the WhatsApp group";
+
 // Further out — Q-20's 21-day horizon
 
 export const FURTHER_OUT_HEADING = "Further ahead";

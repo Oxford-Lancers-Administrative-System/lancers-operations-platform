@@ -1,7 +1,15 @@
 /**
- * Every word `/me/[token]/details` says — LAN-216, W4 and W5. The Code of
- * Conduct, photo release, BUCS Play steps and Hudl's steps are all labelled
- * placeholder text in a real versioned slot — LAN-213 owes the real wording.
+ * Every word `/me/[token]/details` says — LAN-216, W4 and W5.
+ *
+ * The Code of Conduct and the photo release are still labelled placeholder
+ * text in a real versioned slot; LAN-213 owes that wording. **The BUCS Play
+ * and Hudl steps are the club's own, since LAN-333** — Brian gave them on
+ * 2026-09-11, and they replaced four and three invented placeholder lines
+ * whose assumed Hudl email-invite flow was simply wrong. Two things in them
+ * are not copy and must not become copy: the BUCS league is season-stamped,
+ * so its year is derived from the open season's label rather than typed; and
+ * the Hudl join link is configuration (`HUDL_JOIN_LINK`, read through
+ * `src/lib/services/player-config.ts`), because this repository is public.
  * Nothing below is invented club policy.
  */
 
@@ -119,14 +127,57 @@ export const PLACEHOLDER_LABEL = "PLACEHOLDER WORDING — the real text is owed 
 
 export const BUCS_HEADING = "Register on BUCS Play";
 export const BUCS_LEAD = "Step 4 of 5 · Do these, then tell us";
-export const BUCS_STEPS: readonly string[] = [
-  "PLACEHOLDER STEP. Download the BUCS Play app. The real copy names the store and carries the link.",
-  "PLACEHOLDER STEP. Register with your Oxford email address, not a personal one.",
-  "PLACEHOLDER STEP. Search for Oxford Lancers and select the club.",
-  "PLACEHOLDER STEP. Complete whatever BUCS asks you for. This has to be done again every year.",
-];
-export const BUCS_OWED_NOTE =
-  "PLACEHOLDER. These steps stand in for instruction copy this mission owes and nobody has written yet (LAN-213). They block no build and no walk; they block a real send.";
+
+/** One numbered instruction, and whatever destinations it names. A link is rendered as a link, never pasted into the sentence. */
+export interface InstructionStep {
+  readonly text: string;
+  readonly links?: readonly { readonly label: string; readonly href: string }[];
+}
+
+/** Public store listings for both products — not club configuration, and safe as literals. */
+const BUCS_PLAY_APPLE = "https://apps.apple.com/gb/app/bucs-play/id1379011950";
+const BUCS_PLAY_ANDROID = "https://play.google.com/store/apps/details?id=com.playwaze.bucscore";
+const BUCS_PLAY_WEB = "https://bucs.playwaze.com";
+const HUDL_APPLE = "https://apps.apple.com/us/app/hudl/id412223222";
+const HUDL_ANDROID = "https://play.google.com/store/apps/details?id=com.hudl.hudroid";
+
+/**
+ * The league's own year, as BUCS stamps it: "26-27" from the open season's
+ * "2026-27" (or "2026/27" — both spellings appear). Derived rather than typed,
+ * because a constant would name last year's league from the first day of the
+ * next season and nobody would be looking. A label it cannot read drops the
+ * year from the sentence rather than guessing one; the league is still
+ * findable without it.
+ */
+export function bucsLeagueYear(seasonLabel: string | null): string | null {
+  const years = seasonLabel?.match(/\d{2,4}/g);
+  if (!years || years.length < 2) return null;
+  return `${years[0].slice(-2)}-${years[1].slice(-2)}`;
+}
+
+/** The club's own BUCS Play steps (Brian, 2026-09-11 — LAN-333). */
+export function bucsSteps(seasonLabel: string | null): readonly InstructionStep[] {
+  const year = bucsLeagueYear(seasonLabel);
+  return [
+    {
+      text: "Download the BucsPlay app, or use the website instead.",
+      links: [
+        { label: "Apple", href: BUCS_PLAY_APPLE },
+        { label: "Android", href: BUCS_PLAY_ANDROID },
+        { label: "bucs.playwaze.com", href: BUCS_PLAY_WEB },
+      ],
+    },
+    { text: "Create an account using your college email address." },
+    { text: "Join the BUCS general community first, filling in your details." },
+    { text: "Then search “Oxford Open 1 American Football”." },
+    {
+      text: year
+        ? `Request to join Oxford Open 1, making sure it is in the BUCS American Football ${year} league.`
+        : "Request to join Oxford Open 1, making sure it is the BUCS American Football league for this season.",
+    },
+  ];
+}
+
 export const BUCS_HAVE_YOU_DONE_IT = "Have you done it?";
 export const BUCS_CLAIM_LABEL = "Yes — I have registered on BUCS Play and selected Oxford Lancers.";
 export const CONTINUE = "Continue";
@@ -135,7 +186,8 @@ export const CONTINUE = "Continue";
 export const BUCS_STATUS_CONFIRMED_BY_LABEL = "Confirmed by";
 export const BUCS_STATUS_CONFIRMED_BY = "You, then the club";
 export const BUCS_STATUS_INSTRUCTIONS_LABEL = "Instructions";
-export const BUCS_STATUS_INSTRUCTIONS = "Owed — not written";
+/** LAN-333 wrote them. The row read "Owed — not written", which was true and is not any more. */
+export const BUCS_STATUS_INSTRUCTIONS = "On this page";
 export const BUCS_CLAIM_SUBNOTE =
   "This records claimed, not complete. The compliance owner confirms it against the BUCS roster, and W6 is where that happens.";
 export const BUCS_CONTINUE_ANYWAY_NOTE =
@@ -144,19 +196,38 @@ export const BUCS_CONTINUE_ANYWAY_NOTE =
 // Step 5 — Hudl
 
 export const HUDL_HEADING = "Get into Hudl";
-export const HUDL_LEAD = "Step 5 of 5 · Accept your invitation";
-export const HUDL_TWO_PARTS_NOTE =
-  "This one has two halves and the club owns the first. An operator sends your invitation; you accept it. If it never arrived, say so below rather than working around it.";
-export const HUDL_STEPS: readonly string[] = [
-  "PLACEHOLDER STEP. Look for an invitation email from Hudl, sent to the address the club holds for you.",
-  "PLACEHOLDER STEP. Follow the link in it and set up your Hudl account.",
-  "PLACEHOLDER STEP. Confirm you can see the Oxford Lancers team once you are in.",
-];
-export const HUDL_OWED_NOTE =
-  "PLACEHOLDER. The email-invite method is assumed. The real instruction copy is owed under LAN-213 and nobody has written it.";
+/** LAN-333 reversed the assumed flow: Hudl is self-serve from a join link and the club sends nothing, so there is no invitation to accept. */
+export const HUDL_LEAD = "Step 5 of 5 · Join the team, then tell us";
+
+/** The link's own words, used only by `hudlSteps` below; the step text never carries a bare URL. */
+const HUDL_JOIN_LINK_LABEL = "Join the Oxford Lancers on Hudl";
+/** The one state an unconfigured deployment shows. The steps stay; only the link is absent, and it is named rather than invented. */
+export const HUDL_LINK_NOT_PUBLISHED =
+  "The join link is not published yet. Ask anybody at the club.";
+
+/** The club's own Hudl steps (Brian, 2026-09-11 — LAN-333). `joinLink` is `null` until the deployment is configured. */
+export function hudlSteps(joinLink: string | null): readonly InstructionStep[] {
+  return [
+    {
+      text: "Go to the club's Hudl join link.",
+      links: joinLink ? [{ label: HUDL_JOIN_LINK_LABEL, href: joinLink }] : undefined,
+    },
+    { text: "Follow the steps to create an account if you do not have one." },
+    {
+      text: "On the “about your info” screen, enter what you have and press submit. The phone number field can be left alone.",
+    },
+    {
+      text: "For convenience, download the app.",
+      links: [
+        { label: "Apple", href: HUDL_APPLE },
+        { label: "Android", href: HUDL_ANDROID },
+      ],
+    },
+  ];
+}
+
 export const HUDL_ARE_YOU_IN = "Are you in?";
-export const HUDL_CLAIM_LABEL = "Yes — I have accepted the invitation and I can see the team.";
-export const HUDL_NO_INVITATION_LABEL = "No invitation has reached me.";
+export const HUDL_CLAIM_LABEL = "Yes — I have joined and I can see the team.";
 export const FINISH = "Finish";
 
 // Done — outstanding by section

@@ -155,6 +155,7 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
         { id: "alias-1", alias: "Avery", isDisplayName: true, source: null, notedAt: new Date() },
       ],
       displayName: "Avery Fielding",
+      knownAs: null,
       status: "active",
       college: null,
       collegeSource: null,

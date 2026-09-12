@@ -28,10 +28,14 @@ import {
   changeSummary,
   COLUMN_HEADINGS,
   describeApplied,
+  describeNothingToApply,
   describeProposal,
+  echoText,
   OUTCOME_LABELS,
   previousText,
+  refusedSectionTitle,
   SHOWN_COLUMNS,
+  writableSectionTitle,
 } from "./presentation";
 
 /**
@@ -210,6 +214,18 @@ function StartHere(
         <CopyPromptButton prompt={props.prompt} />
       </Box>
 
+      {/* LAN-317: Excel rewrites the template's date column on a UK machine, so the
+          two shapes the importer reads are stated where the file is chosen. */}
+      <Typography
+        variant="overline"
+        color="text.secondary"
+        component="p"
+        sx={{ mt: 1 }}
+        data-testid="import-date-shapes"
+      >
+        Dates · DD/MM/YYYY or YYYY-MM-DD
+      </Typography>
+
       <PromptBlock prompt={props.prompt} version={props.promptVersion} />
 
       {empty ? null : (
@@ -324,6 +340,13 @@ function Confirmation({
   formAction: (formData: FormData) => void;
   pending: boolean;
 }) {
+  // LAN-316: what would be written and what was refused are two groups, never
+  // one list — a refused row on screen must never read as a row about to be
+  // created. The refusals keep their reason on the row, in their own section.
+  const refused = plan.rows.filter((row) => row.outcome === "refused");
+  const writable = plan.rows.filter((row) => row.outcome !== "refused");
+  const nothingToApply = describeNothingToApply(plan.totals);
+
   return (
     <>
       <MetricRow columns={4}>
@@ -333,68 +356,32 @@ function Confirmation({
         <Metric value={plan.totals.refused} label="Refused" />
       </MetricRow>
 
-      <RowCardList testId="import-cards">
-        {plan.rows.map((row) => (
-          <ImportRowCard key={row.line} row={row} />
-        ))}
-      </RowCardList>
+      {nothingToApply === null ? null : (
+        <Notice severity="warning" testId="import-nothing-to-apply">
+          {nothingToApply}
+        </Notice>
+      )}
 
-      <DesktopOnly>
-        <TableFrame testId="import-table">
-          <Table size="small" sx={{ minWidth: 1460 }}>
-            <TableHead>
-              <TableRow>
-                <TableCell>Outcome</TableCell>
-                <TableCell>{COLUMN_HEADINGS.name}</TableCell>
-                {SHOWN_COLUMNS.map((column) => (
-                  <TableCell key={column}>{COLUMN_HEADINGS[column]}</TableCell>
-                ))}
-                <TableCell>Status</TableCell>
-                <TableCell sx={{ minWidth: 230 }}>What changes</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {plan.rows.map((row) => (
-                <TableRow key={row.line} data-testid={`import-row-${row.line}`}>
-                  <TableCell>{OUTCOME_LABELS[row.outcome]}</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
-                  {SHOWN_COLUMNS.map((column) => {
-                    const cell = row.cells[column];
-                    const previous = previousText(cell);
-                    return (
-                      <TableCell
-                        key={column}
-                        sx={previous === null ? undefined : { bgcolor: "action.hover" }}
-                      >
-                        {cellText(cell)}
-                        {previous === null ? null : (
-                          <Typography
-                            variant="caption"
-                            component="span"
-                            color="text.secondary"
-                            sx={{ display: "block", textDecoration: "line-through" }}
-                          >
-                            {previous}
-                          </Typography>
-                        )}
-                      </TableCell>
-                    );
-                  })}
-                  <TableCell>{row.status}</TableCell>
-                  <TableCell
-                    sx={{
-                      minWidth: 230,
-                      color: row.outcome === "refused" ? "error.main" : undefined,
-                    }}
-                  >
-                    {changeSummary(row)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableFrame>
-      </DesktopOnly>
+      {writable.length === 0 ? null : (
+        <Section title={writableSectionTitle(plan.totals)} testId="import-writable">
+          <PlanRows rows={writable} tableTestId="import-table" cardsTestId="import-cards" />
+        </Section>
+      )}
+
+      {refused.length === 0 ? null : (
+        <Section
+          title={refusedSectionTitle(refused.length)}
+          variant="banded"
+          band="history"
+          testId="import-refused"
+        >
+          <PlanRows
+            rows={refused}
+            tableTestId="import-refused-table"
+            cardsTestId="import-refused-cards"
+          />
+        </Section>
+      )}
 
       <Box component="form" action={formAction}>
         <input type="hidden" name="csvText" value={state.csvText ?? ""} />
@@ -425,6 +412,99 @@ function Confirmation({
 }
 
 /**
+ * One group of planned rows, as a table on desktop and one card each at 375px.
+ * Rendered twice (LAN-316): the rows an apply would write, then the refusals.
+ */
+function PlanRows({
+  rows,
+  tableTestId,
+  cardsTestId,
+}: {
+  rows: readonly PlannedRow[];
+  tableTestId: string;
+  cardsTestId: string;
+}) {
+  return (
+    <>
+      <RowCardList testId={cardsTestId}>
+        {rows.map((row) => (
+          <ImportRowCard key={row.line} row={row} />
+        ))}
+      </RowCardList>
+
+      <DesktopOnly>
+        <TableFrame testId={tableTestId}>
+          <Table size="small" sx={{ minWidth: 1460 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Outcome</TableCell>
+                <TableCell>{COLUMN_HEADINGS.name}</TableCell>
+                {SHOWN_COLUMNS.map((column) => (
+                  <TableCell key={column}>{COLUMN_HEADINGS[column]}</TableCell>
+                ))}
+                <TableCell>Status</TableCell>
+                <TableCell sx={{ minWidth: 230 }}>What changes</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.line} data-testid={`import-row-${row.line}`}>
+                  <TableCell>{OUTCOME_LABELS[row.outcome]}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
+                  {SHOWN_COLUMNS.map((column) => {
+                    const cell = row.cells[column];
+                    const previous = previousText(cell);
+                    const echo = echoText(cell);
+                    return (
+                      <TableCell
+                        key={column}
+                        sx={previous === null ? undefined : { bgcolor: "action.hover" }}
+                      >
+                        {cellText(cell)}
+                        {echo === null ? null : (
+                          <Typography
+                            variant="caption"
+                            component="span"
+                            color="text.secondary"
+                            sx={{ display: "block" }}
+                            data-testid={`import-date-echo-${row.line}`}
+                          >
+                            {echo}
+                          </Typography>
+                        )}
+                        {previous === null ? null : (
+                          <Typography
+                            variant="caption"
+                            component="span"
+                            color="text.secondary"
+                            sx={{ display: "block", textDecoration: "line-through" }}
+                          >
+                            {previous}
+                          </Typography>
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell>{row.status}</TableCell>
+                  <TableCell
+                    sx={{
+                      minWidth: 230,
+                      color: row.outcome === "refused" ? "error.main" : undefined,
+                    }}
+                  >
+                    {changeSummary(row)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableFrame>
+      </DesktopOnly>
+    </>
+  );
+}
+
+/**
  * The same row at 375px — states the row, then only the fields that
  * changed, matching the highlighted cells in the desktop table.
  */
@@ -436,7 +516,13 @@ function ImportRowCard({ row }: { row: PlannedRow }) {
       trailing={row.status}
       sublines={[
         OUTCOME_LABELS[row.outcome],
-        [cellText(row.cells.type), cellText(row.cells.date), cellText(row.cells.venue)].join(" · "),
+        // The date reads in words here (LAN-317): at 375px there is room for one
+        // form of it, and the unambiguous one is the form that catches a misread.
+        [
+          cellText(row.cells.type),
+          echoText(row.cells.date) ?? cellText(row.cells.date),
+          cellText(row.cells.venue),
+        ].join(" · "),
         changeSummary(row),
         ...row.changes.map((change) => (
           <Box key={change.column}>

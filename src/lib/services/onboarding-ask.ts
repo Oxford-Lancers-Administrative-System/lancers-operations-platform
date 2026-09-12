@@ -45,19 +45,19 @@ export async function readCompiledOutstandingAskIn(
   const membershipId = membership.rows[0]?.id;
   if (!membershipId) return null;
 
-  const [person, items, hasGrantedConsent] = await Promise.all([
-    readPersonRecordIn(tx, personId),
-    tx.query<OutstandingItemRow>(
-      `select i.id, t.code, t.label, i.status::text as status
+  // Sequential, not `Promise.all` (LAN-301): one transaction client, which `pg`
+  // serialises anyway — loudly, since pg@8.
+  const person = await readPersonRecordIn(tx, personId);
+  const items = await tx.query<OutstandingItemRow>(
+    `select i.id, t.code, t.label, i.status::text as status
          from public.onboarding_items i
          join public.onboarding_item_types t on t.id = i.item_type_id
         where i.season_membership_id = $1::uuid
           and i.status in ('pending', 'invited', 'claimed')
         order by t.sort_order, t.label`,
-      [membershipId],
-    ),
-    hasGrantedSeasonMessagingConsentIn(tx, personId, seasonId),
-  ]);
+    [membershipId],
+  );
+  const hasGrantedConsent = await hasGrantedSeasonMessagingConsentIn(tx, personId, seasonId);
 
   return {
     personId,

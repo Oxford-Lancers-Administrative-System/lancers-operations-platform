@@ -76,9 +76,12 @@ duplicated. Two additions, both `W6-01.js`'s own:
   select exists on the cloned route to photograph one from — the written
   intent is text, and that is what shipped).
 - **"How we came by this number"** — a select, genuinely a fixed set, this
-  door's own opt-in evidence, plus a default "Not recorded" — the ticket's
-  own Done-when requires: _"With no opt-in evidence the recruit is created
-  and no message is sent."_ **Correction round 1 (F-206-02):** the four
+  door's own opt-in evidence, plus a default "Not recorded". The ticket's
+  own Done-when originally required: _"With no opt-in evidence the recruit is
+  created and no message is sent."_ **Superseded by LAN-305** (Brian,
+  2026-09-11): the recruit is created and the welcome still goes out, because
+  unknown consent is not refused consent; see "The send machinery" below.
+  **Correction round 1 (F-206-02):** the four
   options are now `add-recruit.tsx`'s own literal list — "They gave it to
   us themselves", "A member passed it on with their agreement", "It is
   publicly listed and they expect to hear from clubs", "Something else —
@@ -166,11 +169,22 @@ With opt-in evidence recorded, `finishRecruitmentAddIn` grants
 `season_messaging_consents` (`state: granted`, `source: operator_recorded`,
 the same raw-insert idiom `authoriseWalkUpMessagingIn` already uses for
 `walk_up_read_back` — `messaging-consent.ts` deliberately never writes either
-source itself) and calls `declareRecruitmentCycleJobsIn` (LAN-203), in the
-same transaction as the prospect row. With no evidence, neither ever runs —
-the recruit is created, and nothing is declared, so nothing is ever sent; no
-new "why" indicator was built because the shipped SEND/RESEND dialog on the
-record already answers it (`not_consented`).
+source itself). The consent write is still the evidence branch's own: a
+recorded grant is a claim about what the recruit agreed to, and only evidence
+supports it.
+
+**LAN-305 (Brian, 2026-09-11) separated the second half from the first.**
+`declareRecruitmentCycleJobsIn` (LAN-203) is now called on every add, in the
+same transaction as the prospect row, whether or not evidence was supplied.
+Gating it on evidence stranded every blank-field recruit: no welcome, no
+personal questionnaire, and no way to reach either, because the declarer is
+the only thing that mints the job the sweep dispatches. Unknown or
+never-asked consent is not refused consent —
+`mayReceiveWelcomeContactIn` already draws exactly that line, and the
+declarer already applies it — so the first ask goes out and an explicit
+`refused` or `withdrawn` still stops everything. No consent row is fabricated
+to make it send. The shipped SEND/RESEND dialog on the record still answers
+"why not" (`not_consented`) for a recruit the declarer does refuse.
 
 Declaring a job is not sending one — the existing scheduler sweep claims and
 dispatches it, on the welcome step's own offset, unchanged. Proved end to end

@@ -11,6 +11,7 @@ import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
 import { Fact, FactGrid } from "@/components/fact";
 import { Field } from "@/components/field";
+import { DESCRIPTION_LABEL, EQUIPMENT_LABEL } from "@/lib/services/event-vocabulary";
 
 import type { PlayerAnswerLanding, PlayerHomeInvitation } from "@/lib/services/player-home";
 
@@ -73,9 +74,34 @@ export function FocusedPanel({
       description={[invitation.templateName, when(invitation)].filter(Boolean).join(" · ")}
     >
       <Stack spacing={2}>
+        {/*
+          LAN-323. Clint, on this page: "EVENTS DO NOT SHOW THE DESCRIPTION, I
+          THINK THEY SHOULD." Both fields now appear, separately labelled and
+          labelled as the public event page labels them, and neither renders at
+          all when the operator left it empty — `Fact` would otherwise say "not
+          recorded" for a field that is optional by design.
+        */}
         <FactGrid>
           <Fact label="Venue" value={invitation.venue} />
           <Fact label="Response deadline" value={deadline} />
+          {invitation.requiredEquipment ? (
+            <Fact
+              label={EQUIPMENT_LABEL}
+              value={invitation.requiredEquipment}
+              multiline
+              testId="player-event-equipment"
+            />
+          ) : null}
+          {invitation.description ? (
+            <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
+              <Fact
+                label={DESCRIPTION_LABEL}
+                value={invitation.description}
+                multiline
+                testId="player-event-description"
+              />
+            </Box>
+          ) : null}
         </FactGrid>
 
         {invitation.standingAnswer === "yes" ? (

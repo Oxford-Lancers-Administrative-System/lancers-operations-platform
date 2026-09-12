@@ -344,13 +344,18 @@ describe("a row that cannot be read", () => {
     expect(planned.reasons.join(" ")).toContain("Practice, S&C, Chalk, Game, Social");
   });
 
-  it("refuses a date in the wrong shape", () => {
-    const planned = only(plan(file(row({ id: DRAFT.id, date: "14/10/2026" }))));
-    expect(planned.reasons.join(" ")).toContain("Dates are YYYY-MM-DD");
+  it("refuses a date in neither accepted shape, naming both", () => {
+    const planned = only(plan(file(row({ id: DRAFT.id, date: "14 Oct 2026" }))));
+    expect(planned.reasons.join(" ")).toContain("“date” reads “14 Oct 2026”");
+    expect(planned.reasons.join(" ")).toContain("DD/MM/YYYY or YYYY-MM-DD");
   });
 
   it("refuses a date that is not a real day", () => {
     expect(only(plan(file(row({ id: DRAFT.id, date: "2026-02-30" })))).outcome).toBe("refused");
+  });
+
+  it("refuses a two-digit year, which names no century", () => {
+    expect(only(plan(file(row({ id: DRAFT.id, date: "03/12/26" })))).outcome).toBe("refused");
   });
 
   it("refuses a time that is not a time", () => {
@@ -486,6 +491,91 @@ describe("what the confirmation states", () => {
   it("shows a refused row the cells the operator typed", () => {
     const planned = only(plan(file(row({ id: DRAFT.id, type: "Training" }))));
     expect(planned.cells.type.value).toBe("Training");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The date column, after Excel has been at it — LAN-317
+// ---------------------------------------------------------------------------
+
+describe("a date the file wrote day-first", () => {
+  /** The same three events, once in each accepted shape. */
+  function termCard(dates: readonly [string, string, string]): string {
+    return file(
+      row({ name: "Practice — week 1", type: "Practice", date: dates[0] }),
+      row({ name: "Chalk — week 1", type: "Chalk", date: dates[1] }),
+      row({ id: DRAFT.id, date: dates[2] }),
+    );
+  }
+
+  it("reads DD/MM/YYYY as the day first", () => {
+    const planned = only(
+      plan(file(row({ name: "Alumni game", type: "Social", date: "03/12/2026" }))),
+    );
+    expect(planned.outcome).toBe("new");
+    expect(planned.write).toMatchObject({ input: { scheduledOn: "2026-12-03" } });
+  });
+
+  it("reads 01/02/2026 as the first of February, not the second of January", () => {
+    // Brian, 2026-09-11: never guess from whether a number exceeds twelve.
+    const planned = only(plan(file(row({ name: "Meeting", type: "Meeting", date: "01/02/2026" }))));
+    expect(planned.write).toMatchObject({ input: { scheduledOn: "2026-02-01" } });
+  });
+
+  it("refuses the American order rather than reinterpreting it", () => {
+    // 10/14/2026 is day 10 of a fourteenth month, which is no date at all.
+    const planned = only(plan(file(row({ id: DRAFT.id, date: "10/14/2026" }))));
+    expect(planned.outcome).toBe("refused");
+    expect(planned.reasons.join(" ")).toContain("DD/MM/YYYY or YYYY-MM-DD");
+  });
+
+  it("reads a single-digit day and month", () => {
+    const planned = only(plan(file(row({ name: "Social", type: "Social", date: "3/2/2026" }))));
+    expect(planned.write).toMatchObject({ input: { scheduledOn: "2026-02-03" } });
+  });
+
+  it("refuses a day-first date that is not a real day", () => {
+    expect(only(plan(file(row({ id: DRAFT.id, date: "30/02/2026" })))).outcome).toBe("refused");
+  });
+
+  it("plans a day-first file exactly as it plans the same file in ISO", () => {
+    // The round trip the club's first file takes: written once, opened in
+    // Excel, saved back with the date column rewritten. Same plan, same
+    // digest — so the confirmation and the apply cannot disagree about it.
+    const dayFirst = plan(termCard(["14/10/2026", "13/10/2026", "05/11/2026"]));
+    const iso = plan(termCard(["2026-10-14", "2026-10-13", "2026-11-05"]));
+
+    expect(dayFirst.totals).toEqual(iso.totals);
+    expect(plannedWrites(dayFirst)).toEqual(plannedWrites(iso));
+    expect(dayFirst.digest).toBe(iso.digest);
+  });
+
+  it("echoes each date it read in words, beside the row", () => {
+    const planned = only(
+      plan(file(row({ name: "Alumni game", type: "Social", date: "24/12/2026" }))),
+    );
+    expect(planned.cells.date.value).toBe("2026-12-24");
+    expect(planned.cells.date.echo).toBe("24 December 2026");
+  });
+
+  it("echoes the date on a row refused for something else", () => {
+    // The date was understood; the type was not. The operator still has to be
+    // able to check the date before fixing the row and importing again.
+    const planned = only(plan(file(row({ name: "X", type: "Training", date: "03/12/2026" }))));
+    expect(planned.outcome).toBe("refused");
+    expect(planned.cells.date.value).toBe("03/12/2026"); // what they typed
+    expect(planned.cells.date.echo).toBe("3 December 2026");
+  });
+
+  it("leaves a cell that is not a date without an echo", () => {
+    const planned = only(plan(file(row({ id: DRAFT.id, date: "next Tuesday" }))));
+    expect(planned.cells.date.echo).toBeUndefined();
+    expect(planned.cells.venue.echo).toBeUndefined();
+  });
+
+  it("tells the conversion prompt both shapes, and which way round the day goes", () => {
+    expect(IMPORT_PROMPT).toContain("DD/MM/YYYY");
+    expect(IMPORT_PROMPT).toContain("3 December 2026");
   });
 });
 
