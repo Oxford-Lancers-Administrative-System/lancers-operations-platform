@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { Notice } from "@/components/notice";
 import { PublicShell } from "@/components/public-shell";
@@ -24,7 +24,7 @@ import {
   type PlayerAnswer,
 } from "@/lib/services/player-answer-tokens";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
-import { TOKEN_PATTERN } from "@/lib/services/rsvp-tokens";
+import { TOKEN_PATTERN, resolveRsvpTokenIn } from "@/lib/services/rsvp-tokens";
 import { resolveRecruitmentInterestTokenIn } from "@/lib/services/recruitment-interest-tokens";
 import { readRecruitmentProspectIn } from "@/lib/services/recruitment-prospect";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
@@ -143,7 +143,16 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
     firstValue(query.edit) === "1",
   );
   if (questionnaireB) {
-    if (!questionnaireB.found) notFound();
+    if (!questionnaireB.found) {
+      // LAN-336. The approved nudge and change-notice buttons share `/a/` as
+      // their fixed prefix (LAN-335) but carry the player's RSVP token, whose
+      // page is `/rsvp/[token]`. Same opaque shape as Questionnaire B's
+      // credential, so it is tried here, after that one misses, and sent on
+      // by redirect — a GET that still writes nothing on this route.
+      const rsvp = await withTransaction((tx) => resolveRsvpTokenIn(tx, token));
+      if (rsvp.invitation !== null) redirect(`/rsvp/${encodeURIComponent(token)}`);
+      notFound();
+    }
     return questionnaireB.screen;
   }
 

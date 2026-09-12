@@ -129,6 +129,21 @@ try {
     opened_at: stamp,
     opened_by_person_id: actor,
   });
+  // Brian, 2026-09-12: the real testers are humans and every fresh run starts
+  // with them as recruits, exactly as an operator add without opt-in evidence
+  // leaves them — a prospect row, no consent, no queued message. Brian triggers
+  // their first real send himself from the app.
+  const realProspects = new Map();
+  for (const person of realPeople) {
+    const prospect = uuid();
+    await insert("recruitment_prospects", {
+      id: prospect,
+      person_id: person.id,
+      season_id: season,
+      source: "Operator add",
+    });
+    realProspects.set(person.id, prospect);
+  }
   await insert("committee_years", {
     id: committee,
     label: "2026-27",
@@ -305,8 +320,16 @@ try {
     const contact = realContacts.find(
       (c) => c.person_id === person.id && c.kind === "phone" && c.valid_until === null,
     );
+    // Their delivery choice survives the reset: once Brian has selected a real
+    // tester for actual WhatsApp delivery, a fresh run keeps that selection
+    // rather than silently reverting it to interception.
     state.people[person.id] = validatePersonSettings(
-      { identity: "real", delivery: "intercepted", responder: "none", completion: "none" },
+      {
+        identity: "real",
+        delivery: previousState.people[person.id]?.delivery ?? "intercepted",
+        responder: "none",
+        completion: "none",
+      },
       { phone: contact?.normalised_value ?? contact?.raw_value ?? null },
     );
   }
@@ -319,7 +342,12 @@ try {
     seasonId: season,
     actor,
     people: roster,
-    realPeople: realPeople.map((p) => ({ id: p.id, given: p.given_name, family: p.family_name })),
+    realPeople: realPeople.map((p) => ({
+      id: p.id,
+      given: p.given_name,
+      family: p.family_name,
+      prospectId: realProspects.get(p.id),
+    })),
     events,
     schedules: before.messaging_schedules,
     archive,

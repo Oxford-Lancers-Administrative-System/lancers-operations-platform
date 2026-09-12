@@ -2,7 +2,7 @@ import { readSinkRecords } from "./count.mjs";
 import { readPanelState, effectivePersonSettings } from "./panel-state.mjs";
 import path from "node:path";
 import fs from "node:fs";
-import { templateNames } from "./configure.mjs";
+import { templateNames, testTemplateName } from "./configure.mjs";
 
 export function jobKind(row) {
   const key = row.idempotency_key ?? "";
@@ -74,7 +74,7 @@ export async function snapshot(
         kind:
           r.kind ??
           Object.entries(names).find(
-            ([, name]) => r.payload?.template?.name === name + "_test",
+            ([, name]) => r.payload?.template?.name === testTemplateName(name),
           )?.[0],
       },
     ]),

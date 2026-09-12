@@ -1,0 +1,397 @@
+[
+  {
+    "name": "lancers_event_invitation_v2_test",
+    "kind": "invitation",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, you are on the team sheet for {{2}} on {{3}}.\n\nVenue: {{4}}.\n\nPlease respond by {{5}}. Thank you.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      },
+      {
+        "slot": "{{4}}",
+        "meaning": "venue"
+      },
+      {
+        "slot": "{{5}}",
+        "meaning": "deadlineLabel"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Yes view details",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/a/yes/{{1}}"
+      },
+      {
+        "label": "No give reason",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/a/no/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "lancers_event_reminder_v2_test",
+    "kind": "reminder",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, your response for {{2}} on {{3}} is still outstanding.\n\nVenue: {{4}}.\n\nPlease respond below so the coaches can plan.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      },
+      {
+        "slot": "{{4}}",
+        "meaning": "venue"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Yes view details",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/a/yes/{{1}}"
+      },
+      {
+        "label": "No give reason",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/a/no/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "lancers_event_nudge_v3_test",
+    "kind": "nudge",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, you are attending {{2}} on {{3}}, but there are still some outstanding questions.\n\nPlease answer them below.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Answer questions",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/questions/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "lancers_event_change_notice_v3_test",
+    "kind": "change_notice",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, the arrangements for {{2}} on {{3}} have changed.\n\n{{4}}\n\nYour response still stands. Please use the link below if you need to change it.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      },
+      {
+        "slot": "{{4}}",
+        "meaning": "changeSummary"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Change your answer",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/rsvp/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "lancers_event_cancellation_v2_test",
+    "kind": "cancellation",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, {{2}} on {{3}} has been cancelled.\n\nReason: {{4}}.\n\nNo action is needed. Thank you.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      },
+      {
+        "slot": "{{4}}",
+        "meaning": "cancellationReason"
+      }
+    ],
+    "buttons": []
+  },
+  {
+    "name": "lancers_nonresponse_escalation_v2_test",
+    "kind": "escalation",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Attendance follow-up needed. {{1}} people have not answered for {{2}} on {{3}}.\n\nThe response deadline passed at {{4}}.\n\nPlease use the link below to review and follow up: https://marvel-indiscernible-daxton.ngrok-free.dev/operate/admin/follow-ups",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "outstandingCount"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      },
+      {
+        "slot": "{{4}}",
+        "meaning": "deadlineLabel"
+      }
+    ],
+    "buttons": []
+  },
+  {
+    "name": "recruit_event_followup_v2_test",
+    "kind": "recruit_event_followup",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, your response for {{2}} on {{3}} is still outstanding.\n\nVenue: {{4}}.\n\nPlease let us know below whether you would like to attend.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      },
+      {
+        "slot": "{{4}}",
+        "meaning": "venue"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Yes I can come",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/a/yes/{{1}}"
+      },
+      {
+        "label": "No thanks",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/a/no/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "recruit_welcome_v3_test",
+    "kind": "recruit_welcome",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, your answers for {{2}} on {{3}} are still outstanding.\n\nPlease complete the remaining questions below.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "subject"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "openedOn"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Answer questions",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/signup/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "recruit_details_reminder_v3_test",
+    "kind": "recruit_details_reminder",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, your answers for {{2}} on {{3}} are still outstanding.\n\nPlease complete the remaining questions below.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "subject"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "openedOn"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Answer questions",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/signup/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "recruit_interest_ask_v3_test",
+    "kind": "recruit_interest_ask",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, your answers for {{2}} on {{3}} are still outstanding.\n\nPlease complete the remaining questions below.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "subject"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "openedOn"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Answer questions",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/background/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "recruit_interest_reminder_v3_test",
+    "kind": "recruit_interest_reminder",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, your answers for {{2}} on {{3}} are still outstanding.\n\nPlease answer them below when you have a moment.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "subject"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "openedOn"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Answer questions",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/background/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "onboarding_welcome_v3_test",
+    "kind": "onboarding_welcome",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, welcome to the team. Your answers for {{2}} on {{3}} are still outstanding.\n\nIt takes a few minutes. Please complete the remaining questions below.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "subject"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "openedOn"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Answer questions",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/onboarding/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "onboarding_chase_v3_test",
+    "kind": "onboarding_chase",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "Hello {{1}}, your answers for {{2}} on {{3}} are still outstanding.\n\nPlease complete the remaining questions below.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "subject"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "openedOn"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Answer questions",
+        "url": "https://marvel-indiscernible-daxton.ngrok-free.dev/onboarding/{{1}}"
+      }
+    ]
+  },
+  {
+    "name": "onboarding_chase_escalation_v2_test",
+    "kind": "onboarding_chase_escalation",
+    "category": "UTILITY",
+    "environment": "Test",
+    "body": "The automated chase has finished for {{1}} players who still have onboarding answers outstanding.\n\nPlease use the link below to review and follow up: https://marvel-indiscernible-daxton.ngrok-free.dev/operate/people/missing",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "outstandingCount"
+      }
+    ],
+    "buttons": []
+  }
+]

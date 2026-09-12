@@ -43,6 +43,13 @@ const expected = [
       /TERMINAL: TokenState\[\] = \["unknown", "expired", "revoked", "superseded", "event_started"\]/,
   },
   {
+    // LAN-336: the nudge and change-notice buttons carry an RSVP token on the
+    // `/a/` prefix, so this page resolves that shape and sends it on.
+    source: "src/app/a/[token]/page.tsx",
+    test: "src/app/a/[token]/screens.test.tsx",
+    refusal: /refuses an anonymous injected RSVP-shaped token[\s\S]*NEXT_NOT_FOUND/,
+  },
+  {
     source: "src/app/a/[token]/actions.ts",
     test: "src/app/a/[token]/actions.test.ts",
     refusal:

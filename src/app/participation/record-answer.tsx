@@ -59,7 +59,12 @@ import {
  * operator's machine thinks the time is — the same trick `club-time.ts` plays
  * for calendar days, one level more specific.
  */
-function nowInClubZoneAsLocalDate(): Date {
+function nowInClubZoneAsLocalDate(clockOffsetMs = 0): Date {
+  // LAN-340. `clockOffsetMs` is the server's own "now" minus the real clock
+  // — zero in production, and the advanced test clock's lead on the LAN-222
+  // test box, where the invitations this answer is judged against were
+  // stamped in test time. Adding it here keeps "now" live on reopen while
+  // reading the same clock the server will compare the answer to.
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     year: "numeric",
@@ -68,7 +73,7 @@ function nowInClubZoneAsLocalDate(): Date {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(new Date());
+  }).formatToParts(new Date(Date.now() + clockOffsetMs));
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((one) => one.type === type)?.value ?? "0");
   // Floored to the TimePicker's own five-minute step (`minutesStep`/
@@ -244,11 +249,14 @@ export function RecordAnswerControl({
   invitationId,
   displayName,
   questions,
+  clockOffsetMs = 0,
 }: {
   event: Pick<EventFactsBase, "id" | "name" | "scheduledOn" | "startsAt" | "endsAt">;
   invitationId: string;
   displayName: string;
   questions: readonly ParticipationQuestion[];
+  /** Server "now" minus real "now", in milliseconds. Zero outside the test box. */
+  clockOffsetMs?: number;
 }) {
   const eventId = event.id;
   const [state, formAction, pending] = useActionState(
@@ -258,7 +266,7 @@ export function RecordAnswerControl({
   const [open, setOpen] = useState(false);
   const [response, setResponse] = useState<"yes" | "no" | null>(null);
   const [reason, setReason] = useState("");
-  const [when, setWhen] = useState<Date>(() => nowInClubZoneAsLocalDate());
+  const [when, setWhen] = useState<Date>(() => nowInClubZoneAsLocalDate(clockOffsetMs));
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
 
   const scheduledOn = useMemo(() => scheduledOnFromDate(when), [when]);
@@ -276,13 +284,13 @@ export function RecordAnswerControl({
       setOpen(false);
       setResponse(null);
       setReason("");
-      setWhen(nowInClubZoneAsLocalDate());
+      setWhen(nowInClubZoneAsLocalDate(clockOffsetMs));
       setQuestionAnswers({});
     }
   }
 
   function openDialog() {
-    setWhen(nowInClubZoneAsLocalDate());
+    setWhen(nowInClubZoneAsLocalDate(clockOffsetMs));
     setOpen(true);
   }
 

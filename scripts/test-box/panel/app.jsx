@@ -79,7 +79,11 @@ function PersonCard({ person, capabilities, onSave }) {
     setSettings((current) => ({
       ...current,
       [key]: value,
-      ...(key === "identity" ? { delivery: "intercepted", responder: "none" } : {}),
+      ...(key === "identity"
+        ? { delivery: "intercepted", responder: "none", repeat: "never" }
+        : {}),
+      // Repeat answering needs a responder; dropping the responder drops it too.
+      ...(key === "responder" && !["prompt", "late"].includes(value) ? { repeat: "never" } : {}),
     }));
   return (
     <Card variant="outlined">
@@ -160,6 +164,15 @@ function PersonCard({ person, capabilities, onSave }) {
               ["no", "Not attending"],
             ]}
           />
+          <Picker
+            label="Repeat answering"
+            value={settings.repeat ?? "never"}
+            onChange={(v) => update("repeat", v)}
+            options={[
+              ["never", "Answers each invitation once"],
+              ["after_reminder", "Changes answer once, after a reminder"],
+            ]}
+          />
           {settings.responder === "late" && (
             <TextField
               size="small"
@@ -171,6 +184,9 @@ function PersonCard({ person, capabilities, onSave }) {
           )}
         </Stack>
         <Typography variant="body2" sx={{ mt: 1 }}>
+          Each invitation is answered once, at the profile delay after its first delivered message;
+          later reminders for the same invitation schedule nothing. Repeat answering is the only way
+          to record a second answer, and it records the opposite answer once, after one reminder.
           Synthetic responses use the application’s form actions. Partial completes half of missing
           onboarding details, two football-background answers, or half of event questions. Existing
           answers are preserved. Minimum fills required fields and player checklist steps; office
@@ -529,8 +545,12 @@ function App() {
                           {r.person} · {words(r.kind)}
                         </Typography>
                         <Chip size="small" label={r.result?.status ?? "Scheduled"} />
+                        {r.stage === "change" && (
+                          <Chip size="small" color="warning" label="Change of answer" />
+                        )}
                         <Typography>
-                          Due: {when(r.at)} · {words(r.profile)} · {words(r.completion)}
+                          Due: {when(r.at)} · {words(r.profile)} · {words(r.completion)} ·{" "}
+                          {r.answer === "no" ? "Not attending" : "Attending"}
                         </Typography>
                         {r.result && (
                           <Typography>

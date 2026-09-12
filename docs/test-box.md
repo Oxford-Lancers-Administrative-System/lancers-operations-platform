@@ -16,7 +16,9 @@ to run setup commands once the environment is ready.
    defaults to **Intercept locally**, including for routable phone numbers.
 2. For a synthetic person choose a response profile: prompt (one minute after
    simulated delivery), late (chosen hours), or non-responder. Choose attending
-   or not attending for events, and all/partial/minimum/no event question answers. Save.
+   or not attending for events, and all/partial/minimum/no event question answers.
+   Leave **Repeat answering** at “Answers each invitation once” unless the scenario
+   under test is a change of mind. Save.
 3. In the normal app, create/approve an event or start a recruitment/onboarding
    workflow. The panel processes due messages every ten seconds.
 4. In **Message timeline**, filter by person or event. Inspect the actual
@@ -34,6 +36,37 @@ to run setup commands once the environment is ready.
    work, failures, reminders after an answer, and correctly cancelled reminders.
    Other workflow families retain an explicit owner checklist; they are not
    automatically marked passed from captured messages alone.
+
+### One answer per invitation — LAN-298
+
+A simulated person answers each invitation **once**. The profile delay is measured
+from the first delivered intercepted capture for that invitation; every later
+capture for the same invitation — a reminder, a repeated invitation, a recruit
+event follow-up — schedules nothing. The invitation is read from the answer
+token each Yes/No button carries, so two rungs of the same ladder are recognised
+as one invitation without a database lookup. A capture whose buttons name no
+invitation is treated on its own.
+
+Before this, each delivered capture scheduled its own action: a 14-invitee
+mandatory practice advanced through 84 hours produced 10 current responses but
+13 RSVP history rows, because the three late responders each answered their own
+invitation twice. Runs recorded before this change keep that history; the
+Responses tab now lists one plan per invitation, and an invitation any earlier
+capture already answered reads as answered rather than being answered again.
+
+**Repeat answering** is the only way to get a second answer, it is off by
+default, and it is per person:
+
+| Setting                               | Effect                                                                                                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Answers each invitation once          | The default. One answer per invitation, whatever arrives afterwards.                                                                    |
+| Changes answer once, after a reminder | One further answer, the opposite of the person's event answer, the profile delay after the **first** reminder for that same invitation. |
+
+It requires a prompt or late response profile — the panel refuses it otherwise —
+and it is one change, not an oscillation: a second reminder adds nothing. The
+change uses that reminder's own fresh answer link, which is what a real invitee
+tapping the newer message does, and the Responses tab labels the plan
+“Change of answer” with the answer it will record.
 
 Partial completion preserves existing answers: half of missing onboarding detail
 fields, two football-background answers, half of event questions, or the recruit
@@ -213,8 +246,9 @@ When real panel identities exist, the small-squad reset requires
 `--replace-local-data --preserve-real-people`. It archives the completed run and
 preserves their person IDs, names, person fields, aliases and contact rows in the
 same reset transaction. It clears workflow history for the new season. Real
-identities remain real, with actual delivery intercepted and automatic responses
-disabled. Add their new-season player memberships through normal roster intake;
+identities remain real, their delivery choice is kept, automatic responses stay
+disabled, and each starts the new season as a recruit. Add their new-season
+player memberships through normal roster intake;
 leave missing facts and onboarding items for humans to complete. Onboarding
 players do not automatically qualify for the active-player event audience.
 
@@ -276,6 +310,56 @@ marketing-delivery refusal, but is not uniquely specific to the US pause.
 Private diagnostic evidence is in `.lancers-runtime/brian-delivery-diagnosis.json`.
 No other recipient was messaged by this diagnostic.
 
+## Utility templates — LAN-335 / LAN-336 / LAN-344
+
+The fourteen test templates are Utility, so a US number can receive them
+(Marketing templates to US numbers have been blocked by Meta since April 2025).
+The sender follows their contract exactly: five, four, three, four, four and
+four positional body parameters on the player ladder, then name, subject and
+"opened on" date on the six person-following templates, and a bare count on the
+onboarding escalation. Neither escalation sends the queue link as a parameter;
+Meta refuses a body variable holding a URL, so it is hardcoded in each approved
+body. The event escalation links to `/operate/admin/follow-ups` and the
+onboarding one to `/operate/people/missing`.
+
+`configure.mjs` derives the test names with `testTemplateName()`. LAN-344
+(2026-09-12) rebuilt the eight templates with a single dynamic button as
+`<production name without _v1>_v3_test`, bodies unchanged, each button base
+naming its destination; the six with Yes/No buttons or no button stay
+`_v2_test`. The eight replaced `_v2_test` names were deleted and stay locked at
+Meta until roughly 12 October 2026, as the earlier `_test` names do until
+roughly 11 October. The matching submission records are checked in at
+`scripts/test-box/templates-test.json` and loaded with
+`node scripts/test-box/import-submissions.mjs scripts/test-box/templates-test.json`.
+
+| Template                                                            | Button             | Base           |
+| ------------------------------------------------------------------- | ------------------ | -------------- |
+| `lancers_event_nudge_v3_test`                                       | Answer questions   | `/questions/`  |
+| `lancers_event_change_notice_v3_test`                               | Change your answer | `/rsvp/`       |
+| `recruit_welcome_v3_test`, `recruit_details_reminder_v3_test`       | Answer questions   | `/signup/`     |
+| `recruit_interest_ask_v3_test`, `recruit_interest_reminder_v3_test` | Answer questions   | `/background/` |
+| `onboarding_welcome_v3_test`, `onboarding_chase_v3_test`            | Answer questions   | `/onboarding/` |
+
+Until LAN-343 adds those routes, every button except the change notice's
+lands on a 404; the LAN-336 sniffing redirects on `/a/[token]` and `/me/[token]`
+no longer receive these buttons and are deleted by LAN-343.
+
+The six person-following templates carry the day the person was added
+(`recruitment_prospects.created_at` for recruits, `season_memberships.created_at`
+for onboarding) as their date and a fixed subject: "your recruitment, opened",
+"your football background questionnaire, opened", or "your onboarding, opened".
+
+Buttons are dynamic URL buttons. Meta refuses two dynamic buttons on one base
+URL, so the Yes and No buttons resolve at `/a/yes/<token>` and `/a/no/<token>`,
+both pass-throughs to `/a/[token]`; the token itself encodes the answer. The
+single-button templates each carry the base in the table above and the token
+the route expects: the RSVP token for the nudge and change notice, the durable
+person token for sign-up and onboarding, and Questionnaire B's own token for
+the two interest templates. No recruit template carries an opt-out button — Meta will not
+classify one as Utility — so `/me/stop/<token>` is reachable only from the email
+bodies until LAN-337 lands. That is acceptable for a closed test on known
+handsets and is not acceptable for production.
+
 ## Analysis handoff — 11 September 2026
 
 Brian paused the session for analysis and requested the work be saved on
@@ -311,10 +395,11 @@ Restart the preserved run with `node scripts/test-box/app.mjs` and
 `node scripts/test-box/panel-server.mjs`. Read the new panel URL from
 `.lancers-runtime/panel-runtime.json` and regenerate the HTML guide with
 `node scripts/test-box/build-small-guide.mjs`. Do not run a database reset to
-resume this saved state. The generic small-squad reset preserves identities
-but defaults real delivery back to interception and does not recreate the
-four recruitment records; inspect those settings explicitly after any future
-reset. Rewinding simulation time must also account for preserved contact
+resume this saved state. The small-squad reset with `--preserve-real-people`
+keeps each real tester's identity, contacts, aliases and delivery choice, and
+starts them as recruits in the new season (a prospect row with source
+"Operator add", no consent and no queued message — Brian triggers their first
+real send from the app). Rewinding simulation time must also account for preserved contact
 validity dates.
 
 Checkpoint verification: 243 targeted delivery/test-box unit tests passed,

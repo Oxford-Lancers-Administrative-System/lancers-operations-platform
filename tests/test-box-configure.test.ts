@@ -1,7 +1,12 @@
 // @vitest-environment node
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
-import { settingsFor, templateNames, TEST_HOST } from "../scripts/test-box/configure.mjs";
+import {
+  settingsFor,
+  templateNames,
+  testTemplateName,
+  TEST_HOST,
+} from "../scripts/test-box/configure.mjs";
 import { verificationEnvironment } from "../scripts/test-box/verify.mjs";
 
 const names = templateNames(fs.readFileSync("src/lib/delivery/templates.ts", "utf8"));
@@ -19,7 +24,7 @@ describe("LAN-222 private test configuration", () => {
   it("keeps leased database settings but prevents runtime messaging configuration leaking into verification", () => {
     const local = {
       SUPABASE_DB_URL: "leased-local-db",
-      WHATSAPP_TEMPLATE_RECRUIT_WELCOME: "recruit_welcome_v1_test",
+      WHATSAPP_TEMPLATE_RECRUIT_WELCOME: "recruit_welcome_v2_test",
       WHATSAPP_APP_SECRET: "private-placeholder",
       APP_BASE_URL: TEST_HOST,
     };
@@ -34,7 +39,7 @@ describe("LAN-222 private test configuration", () => {
     expect(result.EMAIL_API_KEY).toBe("");
     expect(local.WHATSAPP_APP_SECRET).toBe("private-placeholder");
   });
-  it("uses every declared template with a test suffix and no optional egress overrides", () => {
+  it("uses every declared template's Utility test name and no optional egress overrides", () => {
     const result = settingsFor("sink", current, {}, "http://127.0.0.1:3101", names, contacts);
     expect(Object.keys(names)).toHaveLength(14);
     expect(result.APP_BASE_URL).toBe("http://127.0.0.1:3101");
@@ -44,14 +49,18 @@ describe("LAN-222 private test configuration", () => {
     expect(result.EMAIL_API_BASE_URL).toBeUndefined();
     expect(result.WHATSAPP_GRAPH_BASE_URL).toBeUndefined();
     expect(result.SUPABASE_DB_URL).toBe(current.SUPABASE_DB_URL);
-    expect(result.WHATSAPP_TEMPLATE_ONBOARDING_CHASE).toBe("onboarding_chase_v1_test");
-    expect(result.WHATSAPP_TEMPLATE_NAME).toBe("lancers_event_invitation_test");
+    expect(result.WHATSAPP_TEMPLATE_ONBOARDING_CHASE).toBe("onboarding_chase_v3_test");
+    expect(result.WHATSAPP_TEMPLATE_NAME).toBe("lancers_event_invitation_v2_test");
+    // LAN-335: the production `_v1` suffix is replaced, never stacked.
+    // LAN-344: the eight rebuilt templates are `_v3_test`; the six others stay `_v2_test`.
+    expect(result.WHATSAPP_TEMPLATE_RECRUIT_WELCOME).toBe("recruit_welcome_v3_test");
+    expect(result.WHATSAPP_TEMPLATE_RECRUIT_EVENT_FOLLOWUP).toBe("recruit_event_followup_v2_test");
     for (const [kind, name] of Object.entries(names)) {
       const key =
         kind === "invitation"
           ? "WHATSAPP_TEMPLATE_NAME"
           : `WHATSAPP_TEMPLATE_${kind.toUpperCase()}`;
-      expect(result[key]).toBe(`${name}_test`);
+      expect(result[key]).toBe(testTemplateName(name));
     }
   });
   it("requires private WhatsApp credentials and explicit test recipients before selecting the tunnel", () => {

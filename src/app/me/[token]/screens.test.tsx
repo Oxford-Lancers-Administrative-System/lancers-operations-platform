@@ -16,6 +16,9 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  redirect: (target: string) => {
+    throw new Error(`NEXT_REDIRECT:${target}`);
+  },
 }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
@@ -36,8 +39,19 @@ vi.mock("@/lib/services/player-home", async (importOriginal) => {
     readPlayerAnswerLandingIn: vi.fn(),
   };
 });
+vi.mock("@/lib/services/recruitment-prospect", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/recruitment-prospect")>();
+  return { ...actual, isRecruitWithoutMembershipIn: vi.fn() };
+});
+vi.mock("@/lib/services/recruitment-interest-tokens", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/services/recruitment-interest-tokens")>();
+  return { ...actual, resolveRecruitmentInterestTokenIn: vi.fn() };
+});
 
 import { withTransaction } from "@/lib/db";
+import { isRecruitWithoutMembershipIn } from "@/lib/services/recruitment-prospect";
+import { resolveRecruitmentInterestTokenIn } from "@/lib/services/recruitment-interest-tokens";
 import { resetRsvpRateLimit } from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import {
@@ -160,6 +174,34 @@ beforeEach(() => {
   vi.mocked(withTransaction).mockImplementation(async (work: (tx: never) => unknown) =>
     work({ query: vi.fn() } as never),
   );
+  vi.mocked(isRecruitWithoutMembershipIn).mockResolvedValue(false);
+  vi.mocked(resolveRecruitmentInterestTokenIn).mockResolvedValue({
+    state: "unknown",
+    resolved: null,
+  });
+});
+
+describe("LAN-336 — the /me/ prefix every recruit and onboarding button shares", () => {
+  it("sends a recruit's durable token on to the sign-up form rather than an empty home", async () => {
+    givenHome();
+    vi.mocked(isRecruitWithoutMembershipIn).mockResolvedValue(true);
+    await expect(renderPage()).rejects.toThrow(`NEXT_REDIRECT:/me/join/${TOKEN}`);
+    expect(readPlayerHomeIn).not.toHaveBeenCalled();
+  });
+
+  it("sends Questionnaire B's own token on to /a/[token] rather than 404ing it", async () => {
+    vi.mocked(resolvePersonTokenIn).mockResolvedValue({ state: "unknown", resolved: null });
+    vi.mocked(resolveRecruitmentInterestTokenIn).mockResolvedValue({
+      state: "valid",
+      resolved: { prospectId: "p", personId: PERSON_ID, seasonId: SEASON_ID },
+    } as never);
+    await expect(renderPage()).rejects.toThrow(`NEXT_REDIRECT:/a/${TOKEN}`);
+  });
+
+  it("still 404s a token nothing resolves", async () => {
+    vi.mocked(resolvePersonTokenIn).mockResolvedValue({ state: "unknown", resolved: null });
+    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
+  });
 });
 
 describe("OWNER-LAN172-02 — the four approved sections, in order", () => {

@@ -502,8 +502,8 @@ async function claimJobIn(
       issueAnswerTokenIn(tx, job.invitation_id, "yes"),
       issueAnswerTokenIn(tx, job.invitation_id, "no"),
     ]);
-    yesUrl = playerAnswerUrl(context.appBaseUrl, yes.token);
-    noUrl = playerAnswerUrl(context.appBaseUrl, no.token);
+    yesUrl = playerAnswerUrl(context.appBaseUrl, yes.token, "yes");
+    noUrl = playerAnswerUrl(context.appBaseUrl, no.token, "no");
   }
 
   const attempt = await tx.query<{ id: string }>(
