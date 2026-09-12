@@ -92,7 +92,7 @@ function provisionReviewState(lease, account) {
     // terminal delivery failure, left mid-onboarding. See its own module note
     // for why a `chase_count` of zero is proved on the admin form instead.
     "scripts/seed-onboarding-chase.mjs",
-    // LAN-229. A live `/me/<token>/details` link (Lysander Croft) and an
+    // LAN-229. A live `/onboarding/<token>` link (Lysander Croft) and an
     // exhausted-but-reachable chase (Isolde Thistlewood) — the two
     // player-facing end states a local environment could not otherwise
     // reach at all, since a real token is minted only at successful message

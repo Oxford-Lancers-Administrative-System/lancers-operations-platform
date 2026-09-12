@@ -1102,7 +1102,7 @@ export function buildPeople(ctx, reference) {
   // Every seat is a player, because every seat walks the player's own pages
   // ---------------------------------------------------------------------------
   //
-  // `/me/<token>/details` resolves the token to a person and then compiles that
+  // `/onboarding/<token>` resolves the token to a person and then compiles that
   // person's outstanding ask; `readCompiledOutstandingAskIn` returns null when
   // they hold no membership this season, and the page 404s. Every tester walks
   // W4 and W5, and `verify` refuses a live player link for anybody who is not a

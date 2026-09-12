@@ -43,16 +43,37 @@ const expected = [
       /TERMINAL: TokenState\[\] = \["unknown", "expired", "revoked", "superseded", "event_started"\]/,
   },
   {
-    source: "src/app/a/[token]/actions.ts",
-    test: "src/app/a/[token]/actions.test.ts",
+    source: "src/app/a/[answer]/[token]/actions.ts",
+    test: "src/app/a/[answer]/[token]/actions.test.ts",
     refusal:
       /refuses an anonymous injected token[\s\S]*consumeAnswerTokenIn\)\.toHaveBeenCalledWith/,
   },
   {
-    source: "src/app/me/[token]/actions.ts",
-    test: "src/app/me/[token]/actions.test.ts",
+    source: "src/app/events/[token]/actions.ts",
+    test: "src/app/events/[token]/actions.test.ts",
     refusal:
       /refuses an anonymous injected token[\s\S]*resolvePersonTokenIn\)\.toHaveBeenCalledWith/,
+  },
+  // LAN-343. Three more routes reach a credential from a form, so three more
+  // entries: the nudge's page and its write, and Questionnaire B's write, which
+  // was `interest-actions.ts` and slipped this inventory on its filename alone
+  // until it became its own route's `actions.ts`.
+  {
+    source: "src/app/questions/[token]/actions.ts",
+    test: "src/app/questions/[token]/actions.test.ts",
+    refusal: /refuses an anonymous injected token[\s\S]*resolveRsvpTokenIn\)\.toHaveBeenCalledWith/,
+  },
+  {
+    source: "src/app/questions/[token]/page.tsx",
+    test: "src/app/questions/[token]/screens.test.tsx",
+    refusal:
+      /TERMINAL: TokenState\[\] = \[[\s\S]*"unknown"[\s\S]*"expired"[\s\S]*"revoked"[\s\S]*"superseded"[\s\S]*"event_started"[\s\S]*"cancelled"/,
+  },
+  {
+    source: "src/app/background/[token]/actions.ts",
+    test: "src/app/background/[token]/actions.test.ts",
+    refusal:
+      /refuses an anonymous injected token[\s\S]*resolveRecruitmentInterestTokenIn\)\.toHaveBeenCalledWith/,
   },
 ];
 

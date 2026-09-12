@@ -17,24 +17,24 @@ the theme instead of the page's own local components. Reads are real; writes
 are drawn, not wired — except the roster board, which is the real component
 inside the proposed shell.
 
-| Route                              | Mirrors                                    | Screen |
-| ---------------------------------- | ------------------------------------------ | ------ |
-| `/design-preview`                  | index, decisions taken                     | —      |
-| `/design-preview/roster`           | `/operate/roster` (tokens only)            | S1     |
-| `/design-preview/player`           | `/operate/roster/[membershipId]`           | S2     |
-| `/design-preview/event`            | `/operate/events/[id]` (approved)          | S3     |
-| `/design-preview/event-new`        | `/operate/events/new`                      | S4     |
-| `/design-preview/rsvp`             | `/rsvp/[token]` (UX-60)                    | S5     |
-| `/design-preview/rsvp-unusable`    | `/rsvp/[token]` not-found (UX-63/64/65)    | S5     |
-| `/design-preview/report`           | `/operate/report`                          | S6     |
-| `/design-preview/login`            | `/login`                                   | S7     |
-| `/design-preview/operators`        | `/operate/admin/operators`                 | S8     |
-| `/design-preview/operator`         | `/operate/admin/operators/[operatorId]`    | S8     |
-| `/design-preview/player-home`      | `/me/[token]`                              | S9     |
-| `/design-preview/player-details`   | `/me/[token]/details` (step 1)             | S10    |
-| `/design-preview/player-agreement` | `/me/[token]/details?step=code_of_conduct` | S10b   |
-| `/design-preview/answer`           | `/a/[token]` (a Yes already taken)         | S11    |
-| `/design-preview/kit`              | every kit component once                   | K      |
+| Route                              | Mirrors                                    | Screen                             |
+| ---------------------------------- | ------------------------------------------ | ---------------------------------- |
+| `/design-preview`                  | index, decisions taken                     | —                                  |
+| `/design-preview/roster`           | `/operate/roster` (tokens only)            | S1                                 |
+| `/design-preview/player`           | `/operate/roster/[membershipId]`           | S2                                 |
+| `/design-preview/event`            | `/operate/events/[id]` (approved)          | S3                                 |
+| `/design-preview/event-new`        | `/operate/events/new`                      | S4                                 |
+| `/design-preview/rsvp`             | `/rsvp/[token]` (UX-60)                    | S5                                 |
+| `/design-preview/rsvp-unusable`    | `/rsvp/[token]` not-found (UX-63/64/65)    | S5                                 |
+| `/design-preview/report`           | `/operate/report`                          | S6                                 |
+| `/design-preview/login`            | `/login`                                   | S7                                 |
+| `/design-preview/operators`        | `/operate/admin/operators`                 | S8                                 |
+| `/design-preview/operator`         | `/operate/admin/operators/[operatorId]`    | S8                                 |
+| `/design-preview/player-home`      | `/events/[token]`                          | S9                                 |
+| `/design-preview/player-details`   | `/onboarding/[token]` (step 1)             | S10                                |
+| `/design-preview/player-agreement` | `/onboarding/[token]?step=code_of_conduct` | S10b                               |
+| `/design-preview/answer`           | `/a/<yes                                   | no>/[token]` (a Yes already taken) | S11 |
+| `/design-preview/kit`              | every kit component once                   | K                                  |
 
 `picks.ts` chooses which seeded record each screen shows, deterministically,
 so `visual:preflight` can be pointed at fixed paths on any reseed.

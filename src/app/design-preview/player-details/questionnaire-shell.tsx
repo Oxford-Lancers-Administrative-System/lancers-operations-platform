@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { PublicShell } from "@/components/public-shell";
 import { Section } from "@/components/section";
 import { StepTrail, type TrailStep } from "@/components/step-trail";
-import { PRIVACY_NOTE, stepLabel } from "@/app/me/[token]/details/presentation";
+import { PRIVACY_NOTE, stepLabel } from "@/app/onboarding/[token]/presentation";
 
 /** The frame both questionnaire previews share — LAN-225's player-surfaces addendum. Words unchanged from the real page (player-surfaces finding P6). */
 function trailFor(view: QuestionnaireView): readonly TrailStep[] {

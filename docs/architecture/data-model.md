@@ -286,7 +286,7 @@ These are physical necessities, not new product scope.
 | `club_link_tokens`                    | D2's signed club link: one event's participation table, for coaches who hold no operator account. A separate table from `rsvp_access_tokens` because that token names one **invitation** and this one names one **event**; stored as a digest, same shape check.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `messaging_schedules`                 | The club's messaging policy, **one row per template since LAN-265** (`template_id` primary key, cascading with its template): RSVP-by days, invitation lead, reminder cadence, rung counts and escalation hours, plus the Recruitment row's own `recruit_invitation_lead_days`/`recruit_follow_up_cadence_hours` (LAN-201). Reference data, complete with **no default arm** — the primary key gives every template exactly one row and the cascade removes it with its template, so a template with no cadence is unrepresentable rather than merely refused at approval. A template an operator creates gets `DEFAULT_MESSAGING_SCHEDULE` in the same transaction. See [below](#the-messaging-schedule-and-the-chase).                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `event_messaging_plans`               | That policy frozen onto one event at approval, because a schedule change is never retroactive. A **copy** of what was decided, never a place to decide something different. Five `recruit_*` columns (LAN-203) carry the recruit ladder's own frozen anchor and one follow-up beside the player columns, null together on every event with no recruit audience.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `person_access_tokens`                | The player's season-scoped credential for their own page, on the `club_link_tokens` pattern: digest only, revocable per person without waiting for a season close. Not a club concept — the mechanism that reaches one.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `person_access_tokens`                | The season-scoped credential behind every private link a message carries, on the `club_link_tokens` pattern: digest only, revocable per person without waiting for a season close. `purpose` says which one page a row opens, and a route accepts no other (LAN-343). Not a club concept — the mechanism that reaches one.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `nonresponse_flags`                   | One flag per invitation per crossed chase threshold, so the same exception is never raised twice however often the scheduler reruns. The typed home invariant P7's exception stream needed once something began chasing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `recruitment_prospect_notes`          | LAN-201. `recruitment_prospects.notes` was one unattributed prose column; W2 needs a note's author and date, which is a repeating attribute and therefore a table. Migrated the prior column's content rather than dropping it silently. Append-only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `recruitment_prospect_status_events`  | LAN-201. How a recruit reached its current rung (W2), and proof that an exit changed only the status (REQ-exit-is-a-status-change, W13) — the `season_membership_status_events` shape, including its has-an-actor check. `void` must be explained (Addendum A); nothing else need be.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -544,8 +544,20 @@ Notification Job that carries a message. What it had no home for was **when**.
   the same 64-hex check `rsvp_access_tokens` and `club_link_tokens` carry.
   Season scope is a **live read of `seasons`**, never a stamped expiry, so
   closing a season early really does close its credentials; `revoked_at` makes
-  one person revocable without waiting for one. At most one live durable
-  credential per person per season, as a partial unique index.
+  one person revocable without waiting for one.
+
+  **Several live durable credentials per person and season coexist** (LAN-343).
+  There used to be a partial unique index allowing exactly one,
+  `person_access_tokens_one_live_per_person_season`, and it forced every mint to
+  revoke first — so a link the club had already sent died the moment the next
+  message was sent, and a September link was dead by October. A plaintext can
+  never be recovered from a digest, so a later mint cannot re-send an earlier
+  link; keeping the earlier link alive is the only mechanism that makes the
+  club's own promise ("you can come back to this link") true. Brian, 2026-09-11,
+  decided that trade explicitly, including its cost: a leaked link stays live
+  until the season closes. The invariant is now **a credential resolves until
+  its season closes or it is revoked by name**, and `person_access_tokens_hash_unique`
+  is the only uniqueness a digest needs.
 
   `WP-player-answer` (LAN-172) is the table's first consumer, and it consumes
   both shapes without a schema change. The table has no `invitation_id` column
@@ -560,17 +572,40 @@ Notification Job that carries a message. What it had no home for was **when**.
   handed to the caller that minted it, the same as `rsvp_access_tokens`.
 
   `WP-recruit-forms` (LAN-206) adds `purpose`, a nullable closed vocabulary
-  (`person_access_token_purpose`; one value today, `recruit_interest_request`,
-  for Questionnaire B's own ask and reminder). Every row this migration does
-  not mint — every durable player-page credential and every RSVP one-time
-  answer token — keeps `purpose is null` and is untouched by it. A second
-  partial unique index, `person_access_tokens_one_open_purpose_request` on
-  `(person_id, purpose)` where the row is single-use, tagged, unrevoked and
-  unconsumed, is the substrate for "at most one open request per person,
-  ever" (`REQ-two-questionnaires`, W4's own core-decisions table) — enforced
-  once, here, rather than by each caller remembering to check, so Missions 7
-  and 8 inherit it for their own signed-link asks by adding their own
-  `purpose` value rather than re-deriving the rule.
+  (`person_access_token_purpose`). LAN-343 extends it to four values, one per
+  page a message can send somebody to:
+
+  | `purpose`                  | The page it opens | Minted by                                      |
+  | -------------------------- | ----------------- | ---------------------------------------------- |
+  | `null`                     | `/events/<t>`     | the answer link's POST, and `/me`'s own button |
+  | `onboarding_details`       | `/onboarding/<t>` | the onboarding welcome and chase               |
+  | `recruit_signup`           | `/signup/<t>`     | the recruit welcome and details reminder       |
+  | `messaging_stop`           | `/stop/<t>`       | every message that carries an opt-out          |
+  | `recruit_interest_request` | `/background/<t>` | Questionnaire B's ask and reminder             |
+
+  **Each route resolves exactly one purpose and refuses every other credential**
+  — collapsed to the same `unknown` an invented token gets, so nothing about
+  which journey a credential belongs to is learnable from a refusal. That is
+  what closes the gap `/me/join/[token]` carried: it accepted any durable token,
+  including the one that opens somebody's events page. It is also why the
+  scheduler no longer puts one plaintext into both a form link and an opt-out
+  link, which it did for the whole recruit cycle and both onboarding messages.
+  `null` stays the player's own events-page credential — the credential
+  `REQ-person-token` was written for, and the value every row that already
+  exists carries.
+
+  `person_access_tokens_one_open_interest_request` on `(person_id)` — where the
+  row is tagged `recruit_interest_request` and unrevoked — is the substrate for
+  "at most one open request per person, ever" (`REQ-two-questionnaires`, W4's
+  own core-decisions table). It carries no season predicate on purpose: the
+  request is the recruit's, not one season's. LAN-343 narrowed it to that one
+  purpose (it was `person_access_tokens_one_open_purpose_request`, keyed on
+  `(person_id, purpose)`), because inherited unchanged it would have given the
+  three new purposes "one open ever" as well — which is precisely the rule that
+  made the onboarding chase kill the welcome's link.
+  `person_access_tokens_live_purpose_idx` on `(person_id, season_id, purpose)`
+  where unrevoked is the lookup `revokePersonTokenIn` reads, season-scoped where
+  the interest index deliberately is not.
 
 - **`nonresponse_flags`** — `unique (invitation_id, threshold)` is what makes
   the escalation idempotent under reruns, and it has to be the constraint rather

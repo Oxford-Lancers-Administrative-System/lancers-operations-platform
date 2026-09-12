@@ -53,6 +53,74 @@ export interface PlayerAnswerLanding {
   readonly outstandingRequiredQuestions: number;
 }
 
+/** Who one invitation belongs to, and in what capacity. */
+export interface InvitationOwner {
+  readonly personId: string;
+  readonly seasonId: string;
+  /** `recruit`, or one of the other three `invitation_capacity` values. */
+  readonly capacity: string;
+}
+
+/**
+ * The person, season and capacity one invitation resolves to — LAN-343.
+ *
+ * Two links carry an invitation rather than a person: the nudge (`/questions/
+ * <t>`, on the per-invitation RSVP token) and the answer link's own "See all
+ * your events." Both have to reach a person without taking one from a request,
+ * and this is the one query that makes that step explicit. `capacity` comes
+ * back with it because a recruit has no events page at all
+ * (`REQ-recruit-sees-public-only`), so every caller has to be able to refuse
+ * one.
+ */
+export async function readInvitationOwnerIn(
+  tx: Tx,
+  invitationId: string,
+): Promise<InvitationOwner | null> {
+  const result = await tx.query<{
+    person_id: string | null;
+    season_id: string;
+    capacity: string;
+  }>(
+    `select coalesce(i.person_id, m.person_id) as person_id,
+            e.season_id,
+            i.capacity::text as capacity
+       from public.invitations i
+       join public.events e on e.id = i.event_id
+       left join public.season_memberships m on m.id = i.season_membership_id
+      where i.id = $1`,
+    [invitationId],
+  );
+
+  const row = result.rows[0];
+  if (!row || !row.person_id) return null;
+  return { personId: row.person_id, seasonId: row.season_id, capacity: row.capacity };
+}
+
+/**
+ * Saves one event's questions for an invitation whose person the caller has
+ * not resolved — the nudge's own page, LAN-343.
+ *
+ * `/questions/<t>` carries a per-invitation RSVP token, so the credential
+ * proves the *invitation* and the person follows from it. Delegates to
+ * `answerEventQuestionsIn` rather than repeating its rules, so the
+ * person-owns-this-invitation proof still runs — here it can only ever
+ * succeed, which is the point: one code path, one set of rules, and no second
+ * insert path to keep in step.
+ */
+export async function answerInvitationQuestionsIn(
+  tx: Tx,
+  invitationId: string,
+  submissions: readonly QuestionAnswerSubmission[],
+): Promise<void> {
+  const owner = await readInvitationOwnerIn(tx, invitationId);
+  if (owner === null) {
+    throw new ConstraintViolated("That invitation no longer exists.", {
+      rule: "event_question_answer_requires_an_invitation",
+    });
+  }
+  await answerEventQuestionsIn(tx, owner.personId, invitationId, submissions);
+}
+
 /** Everything `readSignedRsvpPageIn` does not return: live Yes count, other outstanding invitations, and the event's questions. Zero Yes is `0`, not omitted. */
 export async function readPlayerAnswerLandingIn(
   tx: Tx,
@@ -158,7 +226,7 @@ export interface QuestionAnswerSubmission {
   readonly choice?: string | null;
 }
 
-/** Reads every `q_<questionId>`/`qkind_<questionId>` pair a `QuestionField` put on a form — shared by `/a/[token]` and `/me/[token]`. */
+/** Reads every `q_<questionId>`/`qkind_<questionId>` pair a `QuestionField` put on a form — shared by `/a/<yes|no>/[token]`, `/events/[token]` and `/questions/[token]`. */
 export function parseQuestionSubmissions(form: FormData): QuestionAnswerSubmission[] {
   const submissions: QuestionAnswerSubmission[] = [];
   for (const [key, value] of form.entries()) {

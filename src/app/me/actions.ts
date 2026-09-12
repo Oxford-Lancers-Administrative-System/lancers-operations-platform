@@ -32,7 +32,7 @@ export async function openMyPage(): Promise<void> {
     const issued = await issuePersonTokenIn(tx, operator.personId, season.id, {
       actorPersonId: operator.personId,
     });
-    return `/me/${encodeURIComponent(issued.token)}`;
+    return `/events/${encodeURIComponent(issued.token)}`;
   });
 
   redirect(destination);

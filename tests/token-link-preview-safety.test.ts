@@ -53,6 +53,7 @@ import type { Client } from "pg";
 import { closePool, withTransaction } from "@/lib/db";
 import { hashClubLinkToken, issueClubLinkIn } from "@/lib/services/club-link";
 import { issueAnswerTokenIn, issuePersonTokenIn } from "@/lib/services/player-answer-tokens";
+import { issueRecruitmentInterestTokenIn } from "@/lib/services/recruitment-interest-tokens";
 import {
   mintRecruitmentSignupCodeIn,
   readLiveRecruitmentSignupCodeIn,
@@ -61,10 +62,20 @@ import { hashToken, issueTokenIn } from "@/lib/services/rsvp-tokens";
 import { resetRsvpRateLimit } from "@/lib/rsvp/public-surface";
 
 import RsvpPage from "@/app/rsvp/[token]/page";
-import PlayerHomePage from "@/app/me/[token]/page";
-import AnswerPage from "@/app/a/[token]/page";
+import PlayerHomePage from "@/app/events/[token]/page";
+import AnswerPage from "@/app/a/[answer]/[token]/page";
 import ClubLinkPage from "@/app/e/[token]/page";
 import JoinPage from "@/app/join/[code]/page";
+// LAN-343. The four routes that used to live under `/me`, plus the two the same
+// ticket added. Every message the club sends now has its own route, and every
+// one of those routes is reached by a link pasted into WhatsApp — so the rule
+// this file exists for applies to each of them and not only to the four it was
+// written against.
+import EventQuestionsPage from "@/app/questions/[token]/page";
+import OnboardingPage from "@/app/onboarding/[token]/page";
+import SignupPage from "@/app/signup/[token]/page";
+import StopPage from "@/app/stop/[token]/page";
+import RecruitBackgroundPage from "@/app/background/[token]/page";
 import { noteRsvpLinkOpened } from "@/app/rsvp/[token]/actions";
 import { noteClubLinkOpened } from "@/app/e/[token]/actions";
 
@@ -128,6 +139,11 @@ interface Subjects {
   readonly personToken: string;
   readonly answerToken: string;
   readonly signupCode: string;
+  /** LAN-343's three purpose-tagged durable credentials, and Questionnaire B's. */
+  readonly onboardingToken: string;
+  readonly signupToken: string;
+  readonly stopToken: string;
+  readonly interestToken: string;
 }
 
 let subjects: Subjects;
@@ -175,12 +191,26 @@ beforeAll(async () => {
     const code =
       (await readLiveRecruitmentSignupCodeIn(tx, row.season_id)) ??
       (await mintRecruitmentSignupCodeIn(tx, row.season_id));
+    const onboarding = await issuePersonTokenIn(tx, row.person_id, row.season_id, {
+      purpose: "onboarding_details",
+    });
+    const signup = await issuePersonTokenIn(tx, row.person_id, row.season_id, {
+      purpose: "recruit_signup",
+    });
+    const stop = await issuePersonTokenIn(tx, row.person_id, row.season_id, {
+      purpose: "messaging_stop",
+    });
+    const interest = await issueRecruitmentInterestTokenIn(tx, row.person_id, row.season_id);
     return {
       rsvpToken: rsvp.token,
       clubToken: club.token,
       personToken: person.token,
       answerToken: answer.token,
       signupCode: code.code,
+      onboardingToken: onboarding.token,
+      signupToken: signup.token,
+      stopToken: stop.token,
+      interestToken: interest.token,
     };
   });
 });
@@ -213,7 +243,7 @@ describe("a preview crawler's GET of a token link", () => {
         RsvpPage({ params: Promise.resolve({ token: subjects.rsvpToken }), searchParams: noQuery }),
     ],
     [
-      "/me/[token]",
+      "/events/[token]",
       () =>
         PlayerHomePage({
           params: Promise.resolve({ token: subjects.personToken }),
@@ -221,10 +251,39 @@ describe("a preview crawler's GET of a token link", () => {
         }),
     ],
     [
-      "/a/[token]",
+      "/a/yes/[token]",
       () =>
         AnswerPage({
-          params: Promise.resolve({ token: subjects.answerToken }),
+          params: Promise.resolve({ answer: "yes", token: subjects.answerToken }),
+          searchParams: noQuery,
+        }),
+    ],
+    [
+      "/questions/[token]",
+      () =>
+        EventQuestionsPage({
+          params: Promise.resolve({ token: subjects.rsvpToken }),
+          searchParams: noQuery,
+        }),
+    ],
+    [
+      "/onboarding/[token]",
+      () =>
+        OnboardingPage({
+          params: Promise.resolve({ token: subjects.onboardingToken }),
+          searchParams: noQuery,
+        }),
+    ],
+    [
+      "/signup/[token]",
+      () => SignupPage({ params: Promise.resolve({ token: subjects.signupToken }) }),
+    ],
+    ["/stop/[token]", () => StopPage({ params: Promise.resolve({ token: subjects.stopToken }) })],
+    [
+      "/background/[token]",
+      () =>
+        RecruitBackgroundPage({
+          params: Promise.resolve({ token: subjects.interestToken }),
           searchParams: noQuery,
         }),
     ],

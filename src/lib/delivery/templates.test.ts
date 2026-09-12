@@ -50,6 +50,9 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     eventName: "Michaelmas week 3",
     whenLabel: "Wednesday 14 October, 20:00",
     rsvpUrl: "https://lancers.example/rsvp/abc",
+    // LAN-343. The nudge's own link: one event's outstanding questions, not
+    // the answer page `rsvpUrl` reaches.
+    questionsUrl: "https://lancers.example/questions/abc",
     yesUrl: "https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
     noUrl: "https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
     venue: "Iffley Road Sports Centre",
@@ -59,8 +62,8 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     cancellationReason: "The pitch is waterlogged.",
     outstandingCount: 6,
     queueUrl: "https://lancers.example/operate/follow-ups",
-    formUrl: "https://lancers.example/me/abc",
-    stopUrl: "https://lancers.example/me/abc/stop",
+    formUrl: "https://lancers.example/onboarding/abc",
+    stopUrl: "https://lancers.example/stop/def",
     ...overrides,
   };
 }
@@ -252,7 +255,7 @@ describe("the onboarding chase", () => {
     const body = MESSAGE_TEMPLATES.onboarding_chase
       .body(message({ kind: "onboarding_chase" }))
       .join("\n");
-    expect(body).toContain("https://lancers.example/me/abc");
+    expect(body).toContain("https://lancers.example/onboarding/abc");
     // OD7-no-targeted-ask: never a one-fact ask, so the body cannot single
     // out one required field or checklist item by name.
     expect(body).not.toMatch(/college|matriculation|degree|emergency contact/i);
@@ -263,8 +266,8 @@ describe("the onboarding chase", () => {
       message({ kind: "onboarding_chase" }),
     );
     expect(buttons).toEqual([
-      "https://lancers.example/me/abc",
-      "https://lancers.example/me/abc/stop",
+      "https://lancers.example/onboarding/abc",
+      "https://lancers.example/stop/def",
     ]);
   });
 });
@@ -420,8 +423,8 @@ describe("the recruitment cycle's four templates", () => {
     ] as const) {
       const buttons = MESSAGE_TEMPLATES[kind].buttonUrls?.(message({ kind }));
       expect(buttons).toEqual([
-        "https://lancers.example/me/abc",
-        "https://lancers.example/me/abc/stop",
+        "https://lancers.example/onboarding/abc",
+        "https://lancers.example/stop/def",
       ]);
     }
   });
@@ -485,13 +488,13 @@ describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
     const rendered = MESSAGE_TEMPLATES.onboarding_welcome.buttonUrls?.(
       message({
         kind: "onboarding_welcome",
-        formUrl: "https://lancers.example/me/abc",
-        stopUrl: "https://lancers.example/me/stop/abc",
+        formUrl: "https://lancers.example/onboarding/abc",
+        stopUrl: "https://lancers.example/stop/def",
       }),
     );
     expect(rendered).toEqual([
-      "https://lancers.example/me/abc",
-      "https://lancers.example/me/stop/abc",
+      "https://lancers.example/onboarding/abc",
+      "https://lancers.example/stop/def",
     ]);
   });
 

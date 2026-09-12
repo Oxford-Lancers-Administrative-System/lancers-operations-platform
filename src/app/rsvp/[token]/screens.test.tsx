@@ -58,6 +58,10 @@ vi.mock("./actions", () => ({
   noteRsvpLinkOpened: vi.fn(),
   submitAttending: vi.fn(),
   submitNotAttending: vi.fn(),
+  // LAN-343. "See all your events." on the saved page — a form, because that
+  // page needs a durable credential and this route's GET must keep writing
+  // nothing.
+  openEventsPage: vi.fn(),
 }));
 
 import { withTransaction } from "@/lib/db";

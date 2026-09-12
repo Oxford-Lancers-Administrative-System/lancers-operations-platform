@@ -50,6 +50,7 @@ const MESSAGE: InvitationMessage = {
   eventName: "Team Practice",
   whenLabel: "Wednesday 19 November, 19:00",
   rsvpUrl: "https://lancers.example.org/rsvp/abc123",
+  questionsUrl: "https://lancers.example.org/questions/abc123",
   yesUrl: "https://lancers.example.org/a/y.11111111-1111-1111-1111-111111111111.abc",
   noUrl: "https://lancers.example.org/a/n.11111111-1111-1111-1111-111111111111.xyz",
 };
