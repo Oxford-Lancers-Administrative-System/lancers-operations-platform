@@ -136,7 +136,10 @@ export function PhotoReleaseForm({
           <Notice severity="error">{PHOTO_RELEASE_MUST_AGREE_ERROR}</Notice>
         ) : null}
         <CheckField name="agree" label={line("agree")} />
-        {box("printedName", { required: true, defaultValue: values.printedName })}
+        {/* Never prefilled, whatever the record holds — decision 5. It stands
+            where a signature would, so the player types it themselves; only a
+            refused submission brings back what they had already typed. */}
+        {box("printedName", { required: true })}
         <Typography variant="body2" color="text.secondary">
           {line("print-name-tail")}
         </Typography>

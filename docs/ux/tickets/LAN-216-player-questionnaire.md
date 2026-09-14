@@ -145,17 +145,25 @@ own order and under the form's own labels; where it has printed text, the step
 prints it.
 
 - **No signature.** The tick is the model (LAN-213). A **Print name** field is
-  added beside it, prefilled and stored as typed, and is never called or
+  added beside it, always empty and stored as typed, and is never called or
   treated as a signature.
 - **Event and Date are derived, not typed.** Event reads "Oxford Lancers
   activities, ⟨season⟩ season" from the open season's own label
   (`photoReleaseEventLine`), the way `bucsLeagueYear` derives its year below;
   Date is today in the club's time zone, read-only.
-- **Address and post code are collected here and are required**, along with
-  the printed name and the tick; a refusal names the box it belongs to.
-  Everything else — name, phone, email — is prefilled from the record and
-  editable in place, and saves through the same service the contact step uses.
-  What the player typed is saved even when the agreement is refused (F1).
+- **The form writes nothing to the person record** (decision 4, Brian
+  2026-09-14). Everything submitted — name, address, post code, tel, email,
+  printed name — is stored with the agreement as the document they submitted.
+  A different number or email here is simply what they wrote on the form; the
+  record's own name, phone and email do not move, whatever is typed.
+- **Address and post code are required**, along with the printed name and the
+  tick; a refusal names the box it belongs to, and a refused submission stores
+  nothing at all, because there is nothing left to store.
+- **Prefill is a starting value, never a write-back.** Name, tel and email
+  start from the record. Address and post code start empty the first time and,
+  on a reopen, start from the form this person last submitted this season.
+  **Print name always starts empty**: it stands where a signature would, so it
+  is the one box the player types themselves.
 - **The form's office-use block** (description of photo, stored image number,
   event reference) and its second, signature-side Date are not rendered: they
   are the University's own filing, not the player's.

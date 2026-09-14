@@ -53,7 +53,8 @@ const PREFILLED: PhotoReleaseFormValues = {
   postcode: "",
   tel: "07700 900000",
   email: "jordan@example.com",
-  printedName: "Jordan Ashworth",
+  // Never prefilled — the one box the player has to type (decision 5).
+  printedName: "",
 };
 
 const EVENT_LINE = photoReleaseEventLine("2026-27");
@@ -156,12 +157,24 @@ describe("what the record fills in", () => {
     expect(screen.getByText(EVENT_LINE)).toBeInTheDocument();
   });
 
-  it("prefills the name, phone, email and printed name, all editable in place", () => {
+  it("prefills the name, phone and email, all editable in place", () => {
     renderForm();
     expect(screen.getByLabelText(labelStartingWith("Name"))).toHaveValue("Jordan Ashworth");
     expect(screen.getByLabelText(labelStartingWith("Tel:"))).toHaveValue("07700 900000");
     expect(screen.getByLabelText(labelStartingWith("Email:"))).toHaveValue("jordan@example.com");
-    expect(screen.getByLabelText(labelStartingWith("Print name"))).toHaveValue("Jordan Ashworth");
+  });
+
+  // Decision 5. It stands where a signature would, so it is never filled in for
+  // the player — not from the record, and not from the form they last
+  // submitted. Everything else on this form starts filled.
+  it("leaves Print name empty, whatever else the record fills in", () => {
+    renderForm();
+    expect(screen.getByLabelText(labelStartingWith("Print name"))).toHaveValue("");
+  });
+
+  it("leaves Print name empty on a reopened form too", () => {
+    renderForm({ ...PREFILLED, address: "12 Turl Street\nOxford", postcode: "OX1 3DH" });
+    expect(screen.getByLabelText(labelStartingWith("Print name"))).toHaveValue("");
   });
 
   it("prefills the address a reopened form was previously given (LAN-240)", () => {

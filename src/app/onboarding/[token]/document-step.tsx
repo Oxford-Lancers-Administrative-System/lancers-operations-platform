@@ -116,7 +116,7 @@ export function DocumentStepPage({
           <PhotoReleaseForm
             token={token}
             sections={sections}
-            initialValues={photoReleasePrefill(view.person)}
+            initialValues={photoReleasePrefill(view.person, view.lastPhotoReleaseForm)}
             eventLine={photoReleaseEventLine(view.seasonLabel)}
             dateLine={formatDay(todayInClubZone())}
           />
