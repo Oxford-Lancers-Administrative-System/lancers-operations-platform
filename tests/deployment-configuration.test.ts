@@ -274,12 +274,46 @@ describe("the deploy turns on what the code refuses to run without", () => {
 
     const maskIndex = step.indexOf("::add-mask::");
     const headersIndex = step.indexOf("--headers=");
+    const updateHeadersIndex = step.indexOf("--update-headers=");
     expect(maskIndex, "the scheduler trigger token is never masked with ::add-mask::").not.toBe(-1);
     expect(headersIndex, "the scheduler step never passes the token via --headers").not.toBe(-1);
+    expect(
+      updateHeadersIndex,
+      "the scheduler step never passes the token via --update-headers",
+    ).not.toBe(-1);
     expect(
       maskIndex,
       "the token must be masked before it reaches --headers, which can appear in gcloud's own error output",
     ).toBeLessThan(headersIndex);
+    expect(
+      maskIndex,
+      "the token must be masked before it reaches --update-headers, which can appear in gcloud's own error output",
+    ).toBeLessThan(updateHeadersIndex);
+
+    // `gcloud scheduler jobs update http` rejects `--headers=` outright
+    // ("unrecognized arguments") — it only accepts `--update-headers=`,
+    // `--clear-headers` or `--remove-headers`, because update is a
+    // partial-merge operation. So the two flags must be on the right branch
+    // of the create/update decision, not just present somewhere in the step.
+    const branches = /if \[ "\$\{ACTION\}" = "update" \]; then([\s\S]*?)else([\s\S]*?)fi/.exec(
+      step,
+    );
+    expect(
+      branches,
+      "the step does not branch --headers vs --update-headers on ACTION",
+    ).not.toBeNull();
+    const [, updateBranch, createBranch] = branches!;
+    expect(updateBranch, "the update branch must use --update-headers, not --headers").toMatch(
+      /--update-headers=/,
+    );
+    expect(
+      updateBranch,
+      "the update branch must not use the create-only --headers flag",
+    ).not.toMatch(/--headers=/);
+    expect(createBranch, "the create branch must use --headers").toMatch(/--headers=/);
+    expect(createBranch, "the create branch must not use --update-headers").not.toMatch(
+      /--update-headers=/,
+    );
 
     // Never a bare echo of the token variable.
     expect(step).not.toMatch(/echo\s+"?\$\{?TOKEN\}?"?\s*$/m);
