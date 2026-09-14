@@ -179,7 +179,7 @@ agreement row exists" — and the step's own "Already agreed" panel read the row
 alone. So when an operator reopened Photo release from the record (setting it
 back to `No`, the shipped mechanism), the row survived, the sequence skipped
 the step, and a direct load of it printed "Already agreed" beneath a navigator
-reading "Outstanding". The reopen now removes that row
+reading "Outstanding". The reopen now stamps that row `reopened_at` and keeps it as history (LAN-347)
 (`LAN-217-operator-record.md`), and the item's status is what both the
 navigator and the panel read whenever the item exists. The row remains the
 fallback for the one case it was introduced for — a membership with no
