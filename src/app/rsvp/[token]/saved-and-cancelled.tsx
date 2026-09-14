@@ -2,13 +2,16 @@
  * UX-62 (saved) and UX-66 (a valid link to a cancelled event). Split from
  * `page.tsx` (LAN-300).
  */
+import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { PageHeader } from "@/components/page-header";
 
 import type { SignedRsvpPage } from "@/lib/services/rsvp";
+import { SEE_ALL_YOUR_EVENTS } from "@/app/events/[token]/presentation";
 
+import { openEventsPage } from "./actions";
 import {
   CANCELLED_HEADING,
   CANCELLED_NOTE,
@@ -51,6 +54,29 @@ export function ResponseSaved({ page, token }: { page: SignedRsvpPage; token: st
           {CLOSE}
         </Button>
       </Stack>
+
+      {/*
+        LAN-343. Both controls above point back at this same page, so this was
+        a closed loop with no way to the player's own events page — and no
+        message the club sends carries one either. A form rather than an `<a>`:
+        that page needs a durable credential, a credential's plaintext cannot
+        be recovered, and this route's GET must keep writing nothing for the
+        link-preview crawler that fetches it first. A recruit has no events
+        page at all (`REQ-recruit-sees-public-only`), so they are not offered
+        one.
+      */}
+      {page.capacity === "recruit" ? null : (
+        <Box component="form" action={openEventsPage} sx={{ mt: 2 }}>
+          <input type="hidden" name="token" value={token} />
+          <Button
+            type="submit"
+            variant="text"
+            sx={{ minHeight: MIN_TOUCH_TARGET, textTransform: "none" }}
+          >
+            {SEE_ALL_YOUR_EVENTS}
+          </Button>
+        </Box>
+      )}
     </Shell>
   );
 }

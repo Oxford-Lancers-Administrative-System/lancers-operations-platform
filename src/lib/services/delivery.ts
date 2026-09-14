@@ -10,6 +10,7 @@ import {
   type Tx,
 } from "@/lib/db";
 import {
+  eventQuestionsUrl,
   playerAnswerUrl,
   resolveDeliveryProvider,
   rsvpUrl,
@@ -539,8 +540,8 @@ async function claimJobIn(
       issueAnswerTokenIn(tx, job.invitation_id, "yes"),
       issueAnswerTokenIn(tx, job.invitation_id, "no"),
     ]);
-    yesUrl = playerAnswerUrl(context.appBaseUrl, yes.token);
-    noUrl = playerAnswerUrl(context.appBaseUrl, no.token);
+    yesUrl = playerAnswerUrl(context.appBaseUrl, "yes", yes.token);
+    noUrl = playerAnswerUrl(context.appBaseUrl, "no", no.token);
   }
 
   // The upsert is LAN-252's other half. A job that failed before the provider
@@ -596,8 +597,13 @@ async function claimJobIn(
         // gets `undefined`, exactly as before.
         changeSummary: kind === "change_notice" ? describeScheduleChange(detail) : undefined,
         // The one place the plaintext token becomes a URL, and the last place
-        // it exists at all.
+        // it exists at all. Two URLs on one token, deliberately: the change
+        // notice sends a player to the answer page and the nudge sends them to
+        // the same invitation's outstanding questions (LAN-343), and both are
+        // the same invitation's own credential. Only the template that
+        // declares a field ever reads it.
         rsvpUrl: rsvpUrl(context.appBaseUrl, token.token),
+        questionsUrl: eventQuestionsUrl(context.appBaseUrl, token.token),
         yesUrl,
         noUrl,
       },
@@ -1849,6 +1855,14 @@ export interface DeliveryRow {
   readonly attemptCount: number;
   /** Safe, provider-neutral. Never raw provider text. */
   readonly failureReason: string | null;
+  /**
+   * The club's own recorded reason for standing this message down — LAN-296's
+   * answered reminder, LAN-156's cancelled event, LAN-341's recruit status
+   * change. `null` unless this row is `cancelled`, because it says nothing
+   * about any other state. A cancellation nobody recorded a reason for stays
+   * `null` and reads as the bare state.
+   */
+  readonly cancelledReason: string | null;
   readonly tokenState: "live" | "revoked" | "none";
   readonly responseState: string;
   readonly retryable: boolean;
@@ -2025,6 +2039,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
       last_attempt_at: Date | null;
       next_attempt_at: Date | null;
       failure_reason: string | null;
+      cancelled_reason: string | null;
       token_state: "live" | "revoked" | "none";
       response_state: string | null;
       fallback_status: string | null;
@@ -2041,6 +2056,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
                 where a.notification_job_id = j.id) as last_attempt_at,
               j.next_attempt_at,
               j.last_error as failure_reason,
+              j.cancelled_reason,
               case
                 when exists (
                   select 1 from public.rsvp_access_tokens t
@@ -2090,6 +2106,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         nextAttemptAt: row.next_attempt_at,
         attemptCount: row.attempt_count,
         failureReason: row.failure_reason,
+        cancelledReason: row.state === "cancelled" ? row.cancelled_reason : null,
         tokenState: row.token_state,
         responseState: row.response_state ?? "not_solicited",
         noUsableRoute,

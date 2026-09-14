@@ -25,6 +25,7 @@ import {
   type ParticipationPerson,
   type ParticipationQuestion,
 } from "@/lib/services/participation-view";
+import { questionAppliesToCapacity } from "@/lib/services/question-applicability";
 
 import {
   answerLabel,
@@ -108,7 +109,12 @@ function AnswerCell({
         event={event}
         invitationId={invitationId}
         displayName={person.displayName}
-        questions={questions}
+        // LAN-339: only the questions this invitation's capacity is ever asked —
+        // a recruit is asked Yes or No and nothing more, so the dialog offers an
+        // operator nothing to record on their behalf either.
+        questions={questions.filter((question) =>
+          questionAppliesToCapacity(question.appliesToCapacities, person.capacity),
+        )}
       />
     );
   }
@@ -133,7 +139,7 @@ function deliveryChipLabel(person: OperatorParticipationPerson, state: string): 
   if (person.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
   // LAN-296's exception: what was cancelled was this person's reminders, and
   // the bare word could equally have meant the invitation or the event.
-  if (person.remindersStoppedReason) return REMINDERS_STOPPED;
+  if (person.remindersStopped) return REMINDERS_STOPPED;
   return DELIVERY_LABELS[state] ?? state;
 }
 
@@ -170,13 +176,14 @@ function DeliveryCell({
         </Typography>
       ) : null}
       {/*
-        LAN-296. The club's own recorded reason, beneath the chip that now
-        names the reminder. A reminder cancelled with the event or dropped by a
-        rescheduled runway carries neither, and still reads Cancelled.
+        LAN-296, widened by LAN-341. The club's own recorded reason for the
+        cancellation, whatever it was, beneath the chip. A cancellation nothing
+        recorded a reason for still reads as the bare state, because there is
+        nothing to say about it.
       */}
-      {person.remindersStoppedReason ? (
-        <Typography variant="caption" color="text.secondary" data-testid="reminders-stopped">
-          {person.remindersStoppedReason}
+      {person.cancelledReason ? (
+        <Typography variant="caption" color="text.secondary" data-testid="cancelled-reason">
+          {person.cancelledReason}
         </Typography>
       ) : null}
     </Stack>

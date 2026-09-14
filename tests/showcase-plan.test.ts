@@ -183,7 +183,11 @@ describe("nothing deliverable to a real person", () => {
         !row.columns.single_use &&
         row.columns.revoked_at === null,
     ) as Row[];
-    expect(durable.map((row) => row.columns.person_id)).toEqual([seatPersonId]);
+    // One person, not one row: LAN-343 gave the events page and the onboarding
+    // questionnaire a credential each, and dropped the index that used to allow
+    // only one live durable row per person and season. What this still proves is
+    // the thing that matters — no live link belongs to anybody but the seat.
+    expect([...new Set(durable.map((row) => row.columns.person_id))]).toEqual([seatPersonId]);
     const singleUse = plan.rows.filter(
       (row: Row) => row.table === "public.person_access_tokens" && row.columns.single_use,
     ) as Row[];

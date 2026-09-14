@@ -494,9 +494,13 @@ describe("the club link is public, unauthenticated, and carries its own headers"
 
   it("does not swallow a path that merely starts with the same letter", async () => {
     // `/e` is a one-character prefix, and a naive `startsWith` would take
-    // `/events` — and, worse, `/edit` — out of session handling entirely.
+    // everything beginning with an `e` out of session handling entirely.
+    // `/events` was this test's own example until LAN-343 made it a private
+    // link in its own right, for its own reason; `/edit` is the point either
+    // way, and it is a path the application does not serve, which is exactly
+    // why it must still reach the ordinary session path.
     givenSignedIn(true);
-    await proxy(requestFor("/events/something"));
+    await proxy(requestFor("/edit/something"));
     expect(createServerClient).toHaveBeenCalled();
   });
 });
@@ -564,65 +568,103 @@ describe("the answer link is public, unauthenticated, and gates its own POST", (
 });
 
 /**
- * The player's durable page — LAN-172.
+ * Every private link a message carries — LAN-172, and LAN-343's own five.
  *
- * Same three headers as every other unauthenticated link surface. No cookie
- * gate: unlike `/a`, nothing here is single-use, so there is nothing a
- * GET/POST split needs to protect.
+ * Same three headers as every other unauthenticated link surface, for every
+ * route in the bucket rather than for one of them: LAN-343 gave each of the
+ * eight messages its own route, so the guarantee is only as good as its
+ * narrowest member. Only `/a` and `/background` also carry the cookie gate
+ * (nothing on the other four is single-use, so there is nothing a GET/POST
+ * split needs to protect there).
  */
-describe("the durable player page is public and unauthenticated", () => {
-  const HOME = "/me/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123";
+describe("every private-link route is public, unauthenticated and uncached", () => {
+  const TOKEN = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123";
+  const ROUTES = [
+    `/events/${TOKEN}`,
+    `/questions/${TOKEN}`,
+    `/onboarding/${TOKEN}`,
+    `/signup/${TOKEN}`,
+    `/stop/${TOKEN}`,
+    `/background/${TOKEN}`,
+  ];
 
-  it("is matched by the proxy, or none of the below would run at all", () => {
-    expect(matcherRuns("/me")).toBe(true);
-    expect(matcherRuns(HOME)).toBe(true);
+  it.each(ROUTES)("%s is matched by the proxy, or none of the below would run at all", (route) => {
+    expect(matcherRuns(route)).toBe(true);
   });
 
-  it("stops the token leaving in a Referer header", async () => {
+  it.each(ROUTES)("%s stops the token leaving in a Referer header", async (route) => {
     givenSignedIn(false);
-    const response = await proxy(requestFor(HOME));
+    const response = await proxy(requestFor(route));
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
   });
 
-  it("lets nothing keep a copy of a page that lists a player's own events", async () => {
+  it.each(ROUTES)("%s lets nothing keep a copy of it", async (route) => {
     givenSignedIn(false);
-    const response = await proxy(requestFor(HOME));
+    const response = await proxy(requestFor(route));
     const cacheControl = response.headers.get("cache-control") ?? "";
     expect(cacheControl).toContain("no-store");
     expect(cacheControl).toContain("private");
   });
 
-  it("keeps a durable link out of search results", async () => {
+  it.each(ROUTES)("%s stays out of search results", async (route) => {
     givenSignedIn(false);
-    const response = await proxy(requestFor(HOME));
+    const response = await proxy(requestFor(route));
     expect(response.headers.get("x-robots-tag")).toContain("noindex");
   });
 
-  it("never redirects a player to sign in — they have no account", async () => {
-    givenSignedIn(false);
-    const response = await proxy(requestFor(HOME));
-    expect(response.headers.get("location")).toBeNull();
+  it.each(ROUTES)(
+    "%s never redirects a player to sign in — they have no account",
+    async (route) => {
+      givenSignedIn(false);
+      const response = await proxy(requestFor(route));
+      expect(response.headers.get("location")).toBeNull();
+    },
+  );
+
+  it.each(ROUTES)(
+    "%s does no Supabase work, so a player's page load cannot rotate an operator's cookie",
+    async (route) => {
+      givenSignedIn(true);
+      await proxy(requestFor(route));
+      expect(createServerClient).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sets the gate cookie on Questionnaire B's GET — its POST refuses without one", async () => {
+    const response = await proxy(requestFor(`/background/${TOKEN}`, { method: "GET" }));
+    const cookie = response.cookies.get("lo_pa_gate");
+    expect(cookie?.value).toBe("1");
+    expect(cookie?.path).toBe(`/background/${TOKEN}`);
   });
 
-  it("does no Supabase work, so a player's page load cannot rotate an operator's cookie", async () => {
-    givenSignedIn(true);
-    await proxy(requestFor(HOME));
-    expect(createServerClient).not.toHaveBeenCalled();
+  it("sets no gate cookie on the four routes whose writes are not single-use", async () => {
+    for (const route of [
+      `/events/${TOKEN}`,
+      `/questions/${TOKEN}`,
+      `/onboarding/${TOKEN}`,
+      `/signup/${TOKEN}`,
+      `/stop/${TOKEN}`,
+    ]) {
+      const response = await proxy(requestFor(route, { method: "GET" }));
+      expect(response.cookies.get("lo_pa_gate")).toBeUndefined();
+    }
   });
 });
 
 /**
- * F-A3, LAN-180. The signed-in entry point at bare `/me` — distinct from
- * `/me/[token]` above, which stays public and token-authorized, entirely
- * unaffected. This is the one path in the whole `/me` prefix whose
- * authorization is a session, and it is what a club member with a login and
- * no WhatsApp/email answer history now reaches their own page through.
+ * F-A3, LAN-180. The signed-in entry point at bare `/me` — what a club member
+ * with a login and no WhatsApp/email answer history reaches their own page
+ * through.
  *
- * Written the same shape as "row 1"'s own suite, on purpose: this is that
- * same guarantee, extended to a fourth path, and diverging test shapes for
- * the identical property would itself be a maintenance trap.
+ * LAN-343 simplified this: `/me` used to be one session-gated path inside a
+ * prefix that was otherwise public and token-authorized, and the proxy needed a
+ * special case to keep the two apart. Every one of those token routes now has
+ * its own path, so `/me` is an ordinary protected prefix and the whole prefix
+ * is session-gated. The suite stays, because what it proves — that this path
+ * really does get the session work and the login redirect — is the guarantee
+ * the special case existed to deliver.
  */
-describe("F-A3 — the signed-in entry point /me is protected, and /me/[token] is unaffected", () => {
+describe("F-A3 — the signed-in entry point /me is protected", () => {
   it("redirects an anonymous request for bare /me to /login with its destination intact", async () => {
     givenSignedIn(false);
 
@@ -643,12 +685,11 @@ describe("F-A3 — the signed-in entry point /me is protected, and /me/[token] i
     expect(response.status).toBe(200);
   });
 
-  it("does real Supabase session work for bare /me, unlike /me/[token]", async () => {
-    // The regression this proves: before the fix, bare `/me` fell into the
-    // same early return `/me/[token]` does — no session refresh, and no
-    // redirect for an anonymous request either, which would have made the
-    // "redirects an anonymous request" test above the one that actually
-    // caught it.
+  it("does real Supabase session work for bare /me", async () => {
+    // The regression this proves: before F-A3's fix, bare `/me` fell into the
+    // private-link early return — no session refresh, and no redirect for an
+    // anonymous request either, which would have made the "redirects an
+    // anonymous request" test above the one that actually caught it.
     givenSignedIn(true);
 
     await proxy(requestFor("/me"));
@@ -665,13 +706,18 @@ describe("F-A3 — the signed-in entry point /me is protected, and /me/[token] i
     expect(location.pathname).toBe("/reset-password");
   });
 
-  it("leaves /me/[token] public even though bare /me is now protected", async () => {
+  it("protects everything under /me too, now that nothing public lives there", async () => {
+    // LAN-343 moved the player's own page to `/events/<t>` and left no public
+    // path under this prefix. A path here that still answered 200 to an
+    // anonymous request would be a route somebody added back into a prefix
+    // whose whole point is now a session.
     givenSignedIn(false);
 
-    const response = await proxy(requestFor("/me/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123"));
+    const response = await proxy(requestFor("/me/anything-at-all"));
+    const location = new URL(response.headers.get("location") ?? "");
 
-    expect(response.headers.get("location")).toBeNull();
-    expect(response.headers.get("cache-control") ?? "").toContain("no-store");
+    expect(response.status).toBe(307);
+    expect(location.pathname).toBe("/login");
   });
 
   it("does not protect a path that merely starts with the same letters", async () => {

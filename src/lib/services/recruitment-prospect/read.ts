@@ -27,6 +27,15 @@ interface RecruitmentQuestionnaireSendState {
   readonly lastSentAt: string | null;
   /** V-6: the soonest not-yet-accepted `scheduled_for` for this track. `null` once `lastSentAt` is set, or when no job exists. */
   readonly queuedFor: string | null;
+  /**
+   * LAN-341, walk finding F3. The club's own recorded reason for standing this
+   * track's most recently cancelled step down — "Recruit joined the roster." or
+   * "Recruit moved to declined." The recruitment cycle has no operator list of
+   * its own, so this caption is the only place a cancelled cycle step is
+   * visible at all, and without the reason it reads as nothing ever having
+   * happened. `null` when no step was cancelled with a reason.
+   */
+  readonly cancelledReason: string | null;
 }
 
 export interface RecruitmentProspectNote {
@@ -145,14 +154,40 @@ async function readSendStateIn(
     return new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString();
   };
 
+  // LAN-341: why this track stopped, when it did. Ordered newest first so the
+  // first row seen for a step is the one that still describes it.
+  const cancelled = await tx.query<{ idempotency_key: string; cancelled_reason: string }>(
+    `select nj.idempotency_key, nj.cancelled_reason
+       from public.notification_jobs nj
+      where nj.idempotency_key = any($1::text[])
+        and nj.status = 'cancelled'
+        and nj.cancelled_reason is not null
+      order by nj.updated_at desc`,
+    [keys],
+  );
+  const cancelledByStep = new Map<string, string>();
+  for (const row of cancelled.rows) {
+    const step = row.idempotency_key.split(":")[1];
+    if (!cancelledByStep.has(step)) cancelledByStep.set(step, row.cancelled_reason);
+  }
+  const cancelledReason = (steps: readonly string[]): string | null => {
+    for (const step of steps) {
+      const reason = cancelledByStep.get(step);
+      if (reason) return reason;
+    }
+    return null;
+  };
+
   return {
     personal: {
       lastSentAt: latest(SENT_STEP_KEYS.personal),
       queuedFor: soonestQueued(SENT_STEP_KEYS.personal),
+      cancelledReason: cancelledReason(SENT_STEP_KEYS.personal),
     },
     recruitment: {
       lastSentAt: latest(SENT_STEP_KEYS.recruitment),
       queuedFor: soonestQueued(SENT_STEP_KEYS.recruitment),
+      cancelledReason: cancelledReason(SENT_STEP_KEYS.recruitment),
     },
   };
 }

@@ -1251,7 +1251,7 @@ const STATE_ROWS = [
   ],
   // `token.durable.live` above is the credential itself; this is the credential
   // pointed at somebody whose questionnaire still has something to ask, which
-  // is what makes `/me/<token>/details` open onto the form rather than the
+  // is what makes `/onboarding/<token>` open onto the form rather than the
   // already-complete page (`readCompiledOutstandingAskIn` returns null without
   // a membership, and the page 404s).
   [
@@ -1566,7 +1566,7 @@ export const WORKFLOWS = Object.freeze([
     "Answer an invitation",
     "The invited player",
     "tester5",
-    ["/rsvp/{link.rsvp.player}", "/rsvp/{link.rsvp.expired}", "/me/{link.me.player}"],
+    ["/rsvp/{link.rsvp.player}", "/rsvp/{link.rsvp.expired}", "/events/{link.me.player}"],
     ["token.rsvp.live", "token.rsvp.expired", "token.durable.live"],
     "Your own live link answers and lands on the saved page; an expired link shows the dead-link page; your player page lists your invitations.",
   ),
@@ -1812,7 +1812,7 @@ export const WORKFLOWS = Object.freeze([
     "Fill in your details",
     "The recruit",
     "tester5",
-    ["/a/{link.interest.answered}"],
+    ["/background/{link.interest.answered}"],
     ["token.interest.answered", "questionnaire.answered"],
     "The link opens on the already-completed page listing what they answered, and offers to change any of it — answering again supersedes the earlier answer rather than being refused.",
   ),
@@ -1965,7 +1965,7 @@ export const WORKFLOWS = Object.freeze([
     "Say yes and fill in your details",
     "The player",
     "tester5",
-    ["/me/{link.me.player}"],
+    ["/onboarding/{link.onboarding.player}"],
     ["token.durable.live", "token.onboarding.live", "onboarding.ask.submitted"],
     "Your own link opens the five-step questionnaire with values pre-filled; consent is the first field; BUCS and Hudl record claimed.",
   ),
@@ -1975,7 +1975,7 @@ export const WORKFLOWS = Object.freeze([
     "Fix something the club has wrong",
     "The player",
     "tester5",
-    ["/me/{link.me.player}"],
+    ["/onboarding/{link.onboarding.player}"],
     ["dispute.open"],
     "Returning through the same link shows everything held. Changing a value the club recorded takes effect immediately — last write wins, decided 2026-09-04 (Q-9) — and the person record's audit history carries the old value, the new one and who supplied it. No dispute is raised and no contested-value notice appears; that mechanism was withdrawn before the build shipped.",
   ),

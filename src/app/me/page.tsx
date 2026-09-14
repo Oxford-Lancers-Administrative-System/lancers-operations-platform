@@ -14,7 +14,7 @@ import { OPEN_MY_PAGE, PAGE_HEADING, PAGE_HELP } from "./presentation";
 export const dynamic = "force-dynamic";
 
 /**
- * F-A3. The signed-in entry point `/me/[token]` never had. Session-gated,
+ * F-A3. The signed-in entry point `/events/[token]` never had. Session-gated,
  * resolves to the signed-in person's identity, hands off to `openMyPage` to
  * mint the credential and redirect on click, not on render. No wireframe:
  * Q-32 (Brian, 2026-08-27) put the finding in scope without prescribing a

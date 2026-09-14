@@ -54,8 +54,8 @@ const BASE_RECORD: RecruitmentProspectRecord = {
   convertedMembershipId: null,
   consent: "never_asked",
   consentSource: null,
-  personal: { lastSentAt: null, queuedFor: null },
-  recruitment: { lastSentAt: null, queuedFor: null },
+  personal: { lastSentAt: null, queuedFor: null, cancelledReason: null },
+  recruitment: { lastSentAt: null, queuedFor: null, cancelledReason: null },
   answers: {
     playedBefore: null,
     watchedBefore: null,
@@ -616,7 +616,11 @@ describe("V-6, correction round 2 — sending says something happened", () => {
       <RecruitmentRecordView
         record={{
           ...BASE_RECORD,
-          personal: { lastSentAt: null, queuedFor: "2099-09-05T12:00:00.000Z" },
+          personal: {
+            lastSentAt: null,
+            queuedFor: "2099-09-05T12:00:00.000Z",
+            cancelledReason: null,
+          },
         }}
         person={NO_PERSON}
       />,
@@ -633,7 +637,7 @@ describe("V-6, correction round 2 — sending says something happened", () => {
         <RecruitmentRecordView
           record={{
             ...BASE_RECORD,
-            [track]: { lastSentAt: null, queuedFor: "2000-01-01T00:00:00Z" },
+            [track]: { lastSentAt: null, queuedFor: "2000-01-01T00:00:00Z", cancelledReason: null },
           }}
           person={NO_PERSON}
         />,
@@ -652,7 +656,11 @@ describe("V-6, correction round 2 — sending says something happened", () => {
         <RecruitmentRecordView
           record={{
             ...BASE_RECORD,
-            personal: { lastSentAt: null, queuedFor: "2026-09-08T12:00:01Z" },
+            personal: {
+              lastSentAt: null,
+              queuedFor: "2026-09-08T12:00:01Z",
+              cancelledReason: null,
+            },
           }}
           person={NO_PERSON}
         />,
@@ -676,6 +684,7 @@ describe("V-6, correction round 2 — sending says something happened", () => {
           recruitment: {
             lastSentAt: "2026-09-01T09:00:00.000Z",
             queuedFor: "2026-09-08T09:00:00.000Z",
+            cancelledReason: null,
           },
         }}
         person={NO_PERSON}
@@ -689,6 +698,50 @@ describe("V-6, correction round 2 — sending says something happened", () => {
     render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
     expect(screen.getByTestId("personal-send-caption").textContent).toBe("Not sent");
     expect(screen.getByTestId("recruitment-send-caption").textContent).toBe("Not sent");
+  });
+
+  /**
+   * LAN-341, walk finding F3. The flip and the exits cancel this track's queued
+   * steps with a recorded reason, and the recruitment cycle has no operator list
+   * of its own — so without this the caption falls back to "Not sent" and the
+   * only trace of the cancellation is in the database.
+   */
+  it("says why the track stopped when its queued step was cancelled", () => {
+    render(
+      <RecruitmentRecordView
+        record={{
+          ...BASE_RECORD,
+          personal: {
+            lastSentAt: null,
+            queuedFor: null,
+            cancelledReason: "Recruit joined the roster.",
+          },
+        }}
+        person={NO_PERSON}
+      />,
+    );
+    expect(screen.getByTestId("personal-send-caption").textContent).toBe(
+      "Not sent — Recruit joined the roster.",
+    );
+    // And the other track, which nothing cancelled, is untouched.
+    expect(screen.getByTestId("recruitment-send-caption").textContent).toBe("Not sent");
+  });
+
+  it("prefers a real send to a cancellation that came before it", () => {
+    render(
+      <RecruitmentRecordView
+        record={{
+          ...BASE_RECORD,
+          recruitment: {
+            lastSentAt: "2026-09-01T09:00:00.000Z",
+            queuedFor: null,
+            cancelledReason: "Recruit moved to declined.",
+          },
+        }}
+        person={NO_PERSON}
+      />,
+    );
+    expect(screen.getByTestId("recruitment-send-caption").textContent).toMatch(/^Sent — last sent/);
   });
 });
 

@@ -104,8 +104,8 @@ function givenRecord(overrides: Partial<RecruitmentProspectRecord> = {}): void {
     convertedMembershipId: null,
     consent: "never_asked",
     consentSource: null,
-    personal: { lastSentAt: null, queuedFor: null },
-    recruitment: { lastSentAt: null, queuedFor: null },
+    personal: { lastSentAt: null, queuedFor: null, cancelledReason: null },
+    recruitment: { lastSentAt: null, queuedFor: null, cancelledReason: null },
     answers: {
       playedBefore: null,
       watchedBefore: null,

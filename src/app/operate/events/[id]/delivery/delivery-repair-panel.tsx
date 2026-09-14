@@ -41,9 +41,14 @@ export function RepairPanel({
             label="Latest result"
             value={deliveryRowLabel(row)}
             note={
-              row.failureReason
-                ? `${SAFE_REASON_PREFIX}: ${row.failureReason}`
-                : formatAttemptTime(row.lastAttemptAt)
+              // LAN-341, walk finding F3. A cancelled message's reason outranks
+              // whatever the last attempt said: the club stood this message
+              // down, and why it did is the only thing the state leaves open.
+              row.cancelledReason
+                ? row.cancelledReason
+                : row.failureReason
+                  ? `${SAFE_REASON_PREFIX}: ${row.failureReason}`
+                  : formatAttemptTime(row.lastAttemptAt)
             }
             testId="latest-result"
           />

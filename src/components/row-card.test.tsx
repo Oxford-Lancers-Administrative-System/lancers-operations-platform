@@ -30,7 +30,7 @@ describe("RowCard with its own actions", () => {
       <RowCardList at="all">
         <RowCard
           title="Practice — michaelmas week 1"
-          href="/me/abc?open=i1"
+          href="/events/abc?open=i1"
           sublines={["Answer by 12 Sep 2026"]}
           actions={
             <>

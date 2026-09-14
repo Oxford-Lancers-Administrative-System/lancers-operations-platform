@@ -352,7 +352,7 @@ export function logThrottledPlayerAnswerRequest(reason: ThrottleReason): void {
   );
 }
 
-/** `/me/[token]` — LAN-172's durable, season-scoped player page. */
+/** `/events/[token]` — LAN-172's durable, season-scoped player page, and the onboarding, sign-up and opt-out surfaces beside it. */
 export function allowPlayerHomeRequest(
   address: string,
   token: string,
