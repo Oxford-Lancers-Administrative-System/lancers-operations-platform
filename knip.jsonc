@@ -18,10 +18,18 @@
     "src/lib/delivery/**",
     "src/lib/services/delivery.ts",
     "src/lib/services/messaging-scheduler.ts",
+    // LAN-349: the test box is a separate pair of local processes, entered by
+    // `node scripts/test-box/<name>.mjs` and by a Turbopack loader and two
+    // esbuild bundles that knip cannot follow. Nothing in the application
+    // imports it, which is the point; a dead-export finder reading this tree
+    // would ask for exactly the entry points to be deleted.
+    "scripts/test-box/**",
   ],
   "entry": ["scripts/*.mjs", "scripts/telemetry/*.mjs", "tests/**/*.ts"],
   "project": ["src/**", "scripts/**", "tests/**"],
   // Reached transitively through @playwright/test and @mui/material; sharp is a one-off
   // asset generator's own requirement, installed by hand when the crest changes.
-  "ignoreDependencies": ["playwright", "@mui/utils", "sharp"],
+  // `esbuild` bundles the test box's panel and its domain bridge at run time,
+  // inside the ignored tree above.
+  "ignoreDependencies": ["playwright", "@mui/utils", "sharp", "esbuild"],
 }
