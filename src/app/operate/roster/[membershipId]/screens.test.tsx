@@ -591,6 +591,67 @@ describe("D-002 — Subscription paid is blank until Subscription invoiced is co
   });
 });
 
+// LAN-347. The two document items are backed by an agreement row, and the
+// operator's record prints that row's own facts — the date it was agreed and,
+// where the University's form asked for one, the name the player printed under
+// the tick. Values, never a sentence.
+describe("LAN-347 — the Photo release row carries the agreement's date and printed name", () => {
+  it("shows Yes with the date agreed and the printed name", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          code: "photo_release",
+          label: "Photo release",
+          status: "complete",
+          completedOn: "2026-09-14",
+          agreement: {
+            agreedAt: new Date("2026-09-14T10:00:00Z"),
+            printedName: "Lysander Croft",
+          },
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("Photo release")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    expect(row.textContent).toContain("Yes");
+    expect(row.textContent).toContain("Agreed 14 Sept 2026");
+    expect(row.textContent).toContain("printed name Lysander Croft");
+  });
+
+  it("prints the date alone for an agreement recorded before the wording asked for a name", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          code: "code_of_conduct",
+          label: "Code of Conduct",
+          status: "complete",
+          agreement: { agreedAt: new Date("2026-09-14T10:00:00Z"), printedName: null },
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("Code of Conduct")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    expect(row.textContent).toContain("Agreed 14 Sept 2026");
+    expect(row.textContent).not.toContain("printed name");
+  });
+
+  it("says nothing extra on an item that has no agreement behind it", async () => {
+    givenRecord({ onboardingItems: [historyItem({ status: "pending" })] });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("BUCS Play registration")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    expect(row.textContent).not.toContain("Agreed");
+  });
+});
+
 describe("W6 — provenance: who and when, from the item's own history", () => {
   it("renders claimed in the row's own idiom, naming the player and that nobody has confirmed", async () => {
     givenRecord({
