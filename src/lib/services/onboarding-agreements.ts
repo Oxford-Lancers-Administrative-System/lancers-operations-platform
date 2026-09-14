@@ -28,7 +28,7 @@ export interface SubmittedAgreementForm {
   email: string | null;
 }
 
-export const EMPTY_SUBMITTED_FORM: SubmittedAgreementForm = Object.freeze({
+const EMPTY_SUBMITTED_FORM: SubmittedAgreementForm = Object.freeze({
   name: null,
   address: null,
   postcode: null,

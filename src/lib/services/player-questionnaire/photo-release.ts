@@ -69,7 +69,7 @@ export const POSTCODE_REQUIRED_MESSAGE = "Post code is required.";
  * character nothing ever wants to read back — least of all the next open of
  * this form, which prints it straight back into the box.
  */
-export function normaliseAddressLines(value: string): string {
+function normaliseAddressLines(value: string): string {
   return value.replace(/\r\n?/g, "\n");
 }
 
