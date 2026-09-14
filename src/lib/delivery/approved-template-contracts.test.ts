@@ -26,7 +26,12 @@ import type { MessageKind, OutboundMessage } from "./provider";
 
 /**
  * Body parameters in order, and the number of indexed URL buttons, for each of
- * the fourteen `_v2` templates approved on the club's WhatsApp Business Account.
+ * the fourteen Utility templates approved on the club's WhatsApp Business
+ * Account — thirteen `_v2` and, since LAN-348's rebuild, one `_v3`.
+ *
+ * The invitation's `2` below is the reason that rebuild happened at all: the
+ * approved `lancers_event_invitation_v2` carries one button, not two, and Meta
+ * will not let buttons be edited on an approved template.
  */
 const expected = {
   invitation: [["inviteeName", "eventName", "whenLabel", "venue", "deadlineLabel"], 2],
