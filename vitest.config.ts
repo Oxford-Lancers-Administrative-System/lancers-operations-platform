@@ -145,6 +145,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/slice-walkthrough.test.ts",
   "tests/synthetic-seed-messiness.test.ts",
   "tests/synthetic-seed.test.ts",
+  "tests/test-box-fast-forward.test.ts",
   "tests/token-link-preview-safety.test.ts",
 ];
 

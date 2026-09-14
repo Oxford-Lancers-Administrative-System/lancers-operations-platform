@@ -20,6 +20,34 @@ const current = {
   WHATSAPP_GRAPH_BASE_URL: "https://old.example.com",
 };
 const contacts = { phones: ["447700900901"], emails: ["walker@example.test"] };
+
+/**
+ * Does `src/app` serve this approved button prefix, with one more dynamic
+ * segment for the token Meta appends? Literal segments match a directory of
+ * that name; anything else has to be the route's own `[param]`. LAN-349: the
+ * eight single-button bases were approved against routes LAN-343 had not
+ * built yet, and half of them landed on a 404 for a day.
+ */
+function routeExists(base: string): boolean {
+  let directory = "src/app";
+  for (const segment of base.split("/").filter(Boolean)) {
+    const entries = fs.readdirSync(directory, { withFileTypes: true });
+    const match =
+      entries.find((entry) => entry.isDirectory() && entry.name === segment) ??
+      entries.find((entry) => entry.isDirectory() && /^\[[^.\]]+\]$/.test(entry.name));
+    if (!match) return false;
+    directory = `${directory}/${match.name}`;
+  }
+  // The token itself: one dynamic segment with a page under this prefix.
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .some(
+      (entry) =>
+        entry.isDirectory() &&
+        /^\[[^.\]]+\]$/.test(entry.name) &&
+        fs.existsSync(`${directory}/${entry.name}/page.tsx`),
+    );
+}
 describe("LAN-222 private test configuration", () => {
   it("keeps leased database settings but prevents runtime messaging configuration leaking into verification", () => {
     const local = {
@@ -51,7 +79,9 @@ describe("LAN-222 private test configuration", () => {
     expect(result.SUPABASE_DB_URL).toBe(current.SUPABASE_DB_URL);
     expect(result.WHATSAPP_TEMPLATE_ONBOARDING_CHASE).toBe("onboarding_chase_v3_test");
     expect(result.WHATSAPP_TEMPLATE_NAME).toBe("lancers_event_invitation_v2_test");
-    // LAN-335: the production `_v1` suffix is replaced, never stacked.
+    // LAN-335/349: the production version suffix is replaced, never stacked —
+    // production is on `_v2` with the invitation on `_v3`, and neither moves
+    // the approved test names.
     // LAN-344: the eight rebuilt templates are `_v3_test`; the six others stay `_v2_test`.
     expect(result.WHATSAPP_TEMPLATE_RECRUIT_WELCOME).toBe("recruit_welcome_v3_test");
     expect(result.WHATSAPP_TEMPLATE_RECRUIT_EVENT_FOLLOWUP).toBe("recruit_event_followup_v2_test");
@@ -61,6 +91,31 @@ describe("LAN-222 private test configuration", () => {
           ? "WHATSAPP_TEMPLATE_NAME"
           : `WHATSAPP_TEMPLATE_${kind.toUpperCase()}`;
       expect(result[key]).toBe(testTemplateName(name));
+    }
+  });
+  // LAN-349. The box sends against the fourteen templates that are actually
+  // approved at Meta, and its only link to them is `testTemplateName()`. A
+  // production rename that this derivation does not absorb would send a name
+  // Meta has never seen, so the derivation is checked against the checked-in
+  // submission records rather than against itself.
+  it("derives exactly the fourteen approved test template names, each on a route this app serves", () => {
+    const records = JSON.parse(fs.readFileSync("scripts/test-box/templates-test.json", "utf8")) as {
+      name: string;
+      kind: string;
+      buttons?: { url: string }[];
+    }[];
+    expect(new Set(Object.values(names).map(testTemplateName))).toEqual(
+      new Set(records.map((record) => record.name)),
+    );
+    for (const record of records) {
+      expect(testTemplateName(names[record.kind as keyof typeof names])).toBe(record.name);
+      for (const button of record.buttons ?? []) {
+        // The fixed prefix Meta approved, minus the host and the `{{1}}` the
+        // send fills in. Read off the raw string: `URL.pathname` escapes the
+        // braces and the base stops matching a route.
+        const base = button.url.replace(/^https?:\/\/[^/]+/, "").replace(/\{\{1\}\}$/, "");
+        expect(routeExists(base)).toBe(true);
+      }
     }
   });
   it("requires private WhatsApp credentials and explicit test recipients before selecting the tunnel", () => {

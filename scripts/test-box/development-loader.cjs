@@ -7,5 +7,5 @@ module.exports = function localTestRuntime(source) {
     process.env.NODE_ENV === "production"
   )
     return source;
-  return 'export { testRecipientsUnrestricted, testTransport, testSource, applicationNow, applicationSql, testTransaction } from "../../scripts/test-box/app-hooks.mjs";';
+  return 'export { testTransport, testSource, applicationNow, applicationSql, testTransaction } from "../../scripts/test-box/app-hooks.mjs";';
 };

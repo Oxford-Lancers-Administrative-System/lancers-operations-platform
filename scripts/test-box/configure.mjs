@@ -12,13 +12,23 @@ export const TEST_HOST = "https://marvel-indiscernible-daxton.ngrok-free.dev";
 
 /**
  * The test-box template name for one production name. LAN-335 created the
- * fourteen `<production name without its _v1>_v2_test` Utility templates on
+ * fourteen `<production name, unversioned>_v2_test` Utility templates on
  * 2026-09-11. LAN-344 rebuilt the eight with a person-following or single
  * button as `_v3_test` on 2026-09-12, identical bodies, one button base per
  * destination (`/questions/`, `/rsvp/`, `/signup/`, `/background/`,
  * `/onboarding/`); the eight `_v2_test` names were deleted and stay locked
  * until roughly 12 October 2026. The six with Yes/No buttons or no button
  * remain `_v2_test`.
+ *
+ * LAN-349: the version suffix is stripped rather than matched against `_v1`.
+ * Production's own names moved to `_v2` (LAN-348, PR 174) and the invitation
+ * to `_v3` (PR 176); the fourteen approved *test* templates at Meta did not
+ * move with them, and the suffix a test name carries records which rebuild
+ * created it, not which production name it mirrors. Stripping any `_v<n>`
+ * keeps `lancers_event_invitation_v3` pointing at the approved
+ * `lancers_event_invitation_v2_test`, whose body and two buttons are still
+ * exactly the production contract. `tests/test-box-configure.test.ts` asserts
+ * all fourteen against `scripts/test-box/templates-test.json`.
  */
 const REBUILT_V3 = new Set([
   "lancers_event_nudge",
@@ -31,7 +41,7 @@ const REBUILT_V3 = new Set([
   "onboarding_chase",
 ]);
 export function testTemplateName(productionName) {
-  const base = productionName.replace(/_v1$/, "");
+  const base = productionName.replace(/_v\d+$/, "");
   return `${base}_${REBUILT_V3.has(base) ? "v3" : "v2"}_test`;
 }
 

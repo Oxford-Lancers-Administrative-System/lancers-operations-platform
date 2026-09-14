@@ -125,7 +125,6 @@ describe("LAN-222 production exclusion", () => {
       APP_BASE_URL: "http://localhost:3101",
     };
     expect(hooks.testTransport(env)).toBeNull();
-    expect(hooks.testRecipientsUnrestricted()).toBe(false);
     expect(hooks.testSource(env)).toBe(env);
     expect(hooks.applicationSql("select now()")).toBe("select now()");
   });

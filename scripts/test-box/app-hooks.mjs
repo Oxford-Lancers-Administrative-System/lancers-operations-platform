@@ -50,15 +50,10 @@ export function applicationSql(sql) {
 }
 export function testSource(source) {
   active();
-  // The app still validates configuration and eligibility. Recipient membership
-  // is bypassed separately by the guarded local-testing hook below.
+  // The app still validates configuration, eligibility and recipient
+  // membership. `configure.mjs` writes the local contacts into the allowlist;
+  // the box adds nothing to the delivery boundary itself.
   return source;
-}
-// Brian: remove recipient allowlists from the local testing apparatus.
-// active() still verifies development mode and the matching local database.
-export function testRecipientsUnrestricted() {
-  active();
-  return true;
 }
 function recordEvidence(entry) {
   const target = path.join(directory, "transport-evidence");
