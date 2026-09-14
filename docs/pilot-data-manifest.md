@@ -19,9 +19,31 @@ up anything it lists. A manifest that lags reality is worse than no manifest.
 
 ## Status
 
-**Nothing has been provisioned or applied to the hosted database yet.** Every
-row below is the approved _design_, awaiting Brian's execution. This is the
-expected state until he chooses to act.
+**The tester-week dataset (LAN-221) is installed on hosted.** The LAN-124 Monday
+showcase that preceded it has been rolled back. Everything else below — the
+durable pilot identities, and every `scripts/pilot/` scenario — remains the
+approved _design_, awaiting Brian's execution.
+
+> **This file is a register, not an observation.** A load or rollback Brian runs
+> by hand produces no commit, so a row here can only be as current as the last
+> change that touched it. Two rows below were stale for four days and were read
+> as fact during the 12 September deploy analysis. Before relying on a row,
+> confirm it against the database.
+
+### Known defect in the installed rows
+
+The installed tester-week dataset was written by the loader as it stood **before
+LAN-293**, which on 10 September 2026 corrected
+`scripts/production/showcase/plan/calendar.mjs` to write one audience row per
+human rather than one per capacity. Three players who also hold seats — loader
+keys `p02`, `p09` and `p20` — therefore carry **two** `event_audience_members`
+rows and two invitations on every event in the term.
+
+Migration `20260917090000_event_audience_one_row_per_human.sql` creates a total
+`unique (event_id, invitee_person_id)` and **will refuse to apply while those
+rows exist**. The resolution is a rollback and a reload with the current loader,
+which writes `invitee_person_id` and `events.template_id` directly; it is not a
+migration that can be made to tolerate them, and that is deliberate.
 
 ## Durable pilot identities and access
 
@@ -86,7 +108,7 @@ approval.
 | **Rows created**      | ~1,140. Reference data where hosted has none (`roles`, `terms`, `committee_years`, `position_vocabularies`, `positions`, `seasons`, `onboarding_item_types`), then 42 real players and their `contact_points`, two seasons of `season_memberships` each, `position_assignments`, `onboarding_items`, `availability_statuses`, 53 `events`, `event_audience_members`, `invitations`, `rsvp_responses`, `attendance_records`, 2 `recruitment_prospects`, and `role_assignments` for the walkthrough identities |
 | **Ownership marker**  | Deterministic UUIDv5 under a fixed namespace declared in `scripts/production/showcase/ids.mjs`, **and no sentinel**. LAN-124 forbids a visible `PILOT-` marker in a player or event name — the showcase has to look like a living football operation. The identifiers are computable without reading the database, so rollback names exactly what the loader would create and can name nothing else                                                                                                          |
 | **Real data**         | **Yes — 42 real players' names**, ahead of the LAN-86 gate, by Brian's explicit decision of 15 August 2026. No real contact detail is imported: every player gets an Ofcom drama-range stand-in. The only real telephone numbers are Brian's and Stewart's, supplied at execution time in a private file that is never committed                                                                                                                                                                             |
-| **Applied to hosted** | **Yes — 17 August 2026**, and still installed as of 3 September 2026 by Brian's choice. `OWNER-RUNBOOK.md` § 4 removes it before the tester-week dataset below is loaded                                                                                                                                                                                                                                                                                                                                     |
+| **Applied to hosted** | **Was — 17 August 2026. Removed.** Rolled back by Brian before the tester-week dataset below was loaded, per `OWNER-RUNBOOK.md` § 4. Confirmed absent on 12 September 2026 by the duplicate-audience sweep, whose every hit resolved to a tester-week identifier and none to a LAN-124 one                                                                                                                                                                                                                   |
 | **Retention**         | Until tester week. Rollback is targeted and repeatable, and refuses when rows the application created during the demonstration are attached to rows it would delete                                                                                                                                                                                                                                                                                                                                          |
 
 **Why this is recorded here.** The showcase carries no sentinel, so
@@ -106,7 +128,7 @@ invented one. Same ownership convention, same reason, same register.
 | **Ownership marker**  | Deterministic UUIDv5 under the same namespace as LAN-124, **and no sentinel**. Every token is an HMAC over its key with a secret in the private parameter file, stored only as its SHA-256 digest                                                                                                                                                                                                                                          |
 | **Real data**         | **No.** Every name is invented (Brian, 2026-09-03). Every telephone number is in the Ofcom drama range or the North American fiction range; every email address is under a reserved `.example` domain. The only real values are the testers' own, supplied privately at execution time and never committed                                                                                                                                 |
 | **Live rows**         | **None the sweep would dispatch, and no live link for anybody the parameters do not name.** `showcase verify` fails closed on either, across the whole hosted database. The named testers (Brian and Stewart by default) each hold one live RSVP link and Brian one live player-page link, so the player-side surfaces can be tested                                                                                                       |
-| **Applied to hosted** | **No**, until Brian runs it for tester week per `OWNER-RUNBOOK.md`                                                                                                                                                                                                                                                                                                                                                                         |
+| **Applied to hosted** | **Yes.** Loaded by Brian for the first tester run, after LAN-221 merged on 8 September 2026 and **before LAN-293 merged on 10 September 2026** — the load therefore came from the pre-LAN-293 loader, and carries that loader's duplicate audience rows (see **Known defect in the installed rows** below). Still installed as of 12 September 2026                                                                                        |
 | **Retention**         | His choice at the end of tester week, recorded on LAN-221. Rollback is targeted and repeatable, refuses when application-created rows are attached, keeps history the application wrote and whatever it names, and writes residue SQL for the tables the application's login may not delete from — see `docs/pilot-data-runbook.md` § Rollback residue                                                                                     |
 | **Strays**            | Also removes, on rollback, the Person rows the parameter file names in `strays.personIds` — the rows created on 2026-08-21 while testing operator invitations (LAN-196 item 2). Preflight hints at candidates; the loader never guesses and never removes an operator                                                                                                                                                                      |
 
