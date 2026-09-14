@@ -507,11 +507,11 @@ run for this analysis checkpoint. It is not merge-ready evidence.
 The apparatus above was carried onto `main` and adapted; the product changes the
 old branch carried were dropped because `main` now has their final form. The
 walkthrough sections above still describe how the box is operated — only the
-base and the five points under "Base" changed.
+base and the points under "Base" changed.
 
 Verified on the rebuilt branch, against a freshly reset local database:
 
-- `npm run verify` passed — 335 test files, 9,121 tests, production build.
+- `npm run verify` passed — 336 test files, 9,136 tests, production build.
 - `node scripts/test-box/app.mjs` and `node scripts/test-box/panel-server.mjs`
   both started; the panel served its page and its snapshot, and the app wrote
   `app-hooks-active.json`, so the seam was live (`routing` and `clock` both
@@ -523,6 +523,19 @@ Verified on the rebuilt branch, against a freshly reset local database:
   kinds a clock advance reaches on this dataset; see "Which kinds a Session A
   reaches on its own" for why, and for the fourteen-kind check that does not
   need a walkthrough.
+- The small-squad reset seeds 15 people, 13 players and 12 draft events, and
+  re-running it with `--preserve-real-people` keeps the four real testers and
+  starts each as a recruit with no queued message.
+
+The box is left in that state: sink mode, the fourteen submission records
+loaded, the small squad plus the four real testers, and both processes stopped.
+
+One ordering trap, hit while rebuilding it. `npm run db:reset` removes the real
+testers' person rows but not the panel state that names them, and the
+small-squad reset then refuses — correctly — because a real panel identity has
+no person record. After a full `db:reset`, clear `panel-state.json` before the
+small-squad reset and re-add the testers afterwards; `--preserve-real-people` is
+for resetting a run whose people are still there.
 
 ### Session B — the real sends, which are Brian's
 
