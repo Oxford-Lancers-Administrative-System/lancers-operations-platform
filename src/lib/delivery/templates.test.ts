@@ -575,14 +575,21 @@ describe("the button labels", () => {
 });
 
 describe("the fourteen canonical template names", () => {
-  // LAN-348. Every name carries `_v2`, and that is not decoration: the
-  // unsuffixed and `_v1` names are the club's original Marketing submissions,
-  // which Meta will not reclassify and will not let anyone edit into Utility.
-  // A new name was the only route, so a name here losing its suffix is a name
-  // pointing at a deleted Marketing template.
-  it("are the _v2 Utility generation, on the club's own account", () => {
+  // LAN-348. Every name carries `_v2` or `_v3`, and that is not decoration:
+  // the unsuffixed and `_v1` names are the club's original Marketing
+  // submissions, which Meta will not reclassify and will not let anyone edit
+  // into Utility. A new name was the only route, so a name here losing its
+  // suffix is a name pointing at a deleted Marketing template.
+  //
+  // The invitation is the single `_v3`. Its `_v2` was submitted before the
+  // second button had been added and Meta approved it with one button only,
+  // and buttons are no more editable on an approved template than a category
+  // is — so it too had to be rebuilt under a new name. That is why the suffix
+  // check below accepts either: sending this two-button invitation against
+  // `_v2` would be refused with `132000`.
+  it("are the approved Utility generation, on the club's own account", () => {
     expect(Object.values(TEMPLATE_NAMES)).toEqual([
-      "lancers_event_invitation_v2",
+      "lancers_event_invitation_v3",
       "lancers_event_reminder_v2",
       "lancers_event_nudge_v2",
       "lancers_event_change_notice_v2",
@@ -597,7 +604,7 @@ describe("the fourteen canonical template names", () => {
       "onboarding_chase_v2",
       "onboarding_chase_escalation_v2",
     ]);
-    for (const name of Object.values(TEMPLATE_NAMES)) expect(name).toMatch(/_v2$/);
+    for (const name of Object.values(TEMPLATE_NAMES)) expect(name).toMatch(/_v[23]$/);
   });
 });
 

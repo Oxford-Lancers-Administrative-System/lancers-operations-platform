@@ -77,13 +77,23 @@ import type { MessageKind, OutboundMessage } from "./provider";
  * edited into one (`docs/whatsapp-template-categories.md`), so the only route
  * to Utility was a new template under a new name. Those originals are deleted.
  *
+ * The invitation alone is `_v3`, and for the same reason one step further on.
+ * `lancers_event_invitation_v2` was submitted by accident before its second
+ * button had been added, and Meta approved it carrying only `Yes view details`.
+ * Buttons cannot be edited on an approved template any more than a category
+ * can, so the invitation was rebuilt from scratch under a new name again —
+ * identical body, identical five samples, identical labels, and this time both
+ * buttons. A suffix here is never decoration; it is the record of a template
+ * Meta would not let the club correct in place. Sending the two-button
+ * invitation against `_v2` would be refused with `132000`.
+ *
  * A deployment may override any of them — a sandbox number carries different
  * approved templates than the club's own — but the *default* is the club's
  * name rather than a guess assembled from a prefix, because a name assembled
  * at runtime is a name nobody ever approved.
  */
 export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.freeze({
-  invitation: "lancers_event_invitation_v2",
+  invitation: "lancers_event_invitation_v3",
   reminder: "lancers_event_reminder_v2",
   nudge: "lancers_event_nudge_v2",
   change_notice: "lancers_event_change_notice_v2",
