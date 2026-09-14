@@ -220,7 +220,7 @@ describe("dispatchOnboardingWelcomeJob", () => {
   });
 
   it("carries the questionnaire and the opt-out as two different credentials", async () => {
-    const { membershipId } = await createArrival();
+    const { personId, membershipId } = await createArrival();
     const jobId = await jobIdFor(membershipId);
 
     const { sent, transport } = acceptingTransport();
@@ -228,23 +228,40 @@ describe("dispatchOnboardingWelcomeJob", () => {
 
     // Meta's button component carries only the URL's dynamic suffix — the
     // token itself — never the full link (`whatsapp-cloud.ts`'s own
-    // `suffixOf`), so this proves the mechanism (two url buttons, each a
-    // non-empty token) rather than the literal path.
+    // `suffixOf`), so this proves the mechanism rather than the literal path.
+    //
+    // LAN-348: one button, not two. The approved Utility template carries the
+    // questionnaire link alone, because Meta will not classify a template
+    // carrying an opt-out button as Utility — tested three ways on
+    // 2026-09-11, including renaming the label and changing the URL. The
+    // opt-out still travels, on the email rung, until LAN-337 lands.
     const buttons = sent[0].body.template as {
       components: { type: string; sub_type?: string; parameters?: { text?: string }[] }[];
     };
     const urlButtons = buttons.components.filter(
       (c) => c.type === "button" && c.sub_type === "url",
     );
-    expect(urlButtons).toHaveLength(2);
-    for (const button of urlButtons) {
-      expect(button.parameters?.[0]?.text).toBeTruthy();
-    }
-    // LAN-343. The two suffixes are two different credentials. They used to be
-    // one token on two paths, so these two assertions were the same assertion
-    // and the defect read as correct: `suffixOf` takes the last path segment,
-    // which `/me/<t>` and `/me/stop/<t>` shared.
-    expect(urlButtons[0].parameters?.[0]?.text).not.toBe(urlButtons[1].parameters?.[0]?.text);
+    expect(urlButtons).toHaveLength(1);
+    expect(urlButtons[0].parameters?.[0]?.text).toBeTruthy();
+
+    // LAN-343's claim survives the button's removal, and is asserted where it
+    // is still true: the dispatcher mints *two* credentials for this message,
+    // one per purpose. They used to be one token on two paths, so the old
+    // pair of assertions were the same assertion and the defect read as
+    // correct — `suffixOf` takes the last path segment, which `/me/<t>` and
+    // `/me/stop/<t>` shared. Asserting on the minted rows rather than on the
+    // payload keeps that covered now that only one of them rides a button.
+    const credentials = await observer.query<{ purpose: string; token_hash: string }>(
+      `select purpose::text as purpose, token_hash
+         from public.person_access_tokens
+        where person_id = $1::uuid
+          and purpose in ('onboarding_details', 'messaging_stop')`,
+      [personId],
+    );
+    const byPurpose = new Map(credentials.rows.map((row) => [row.purpose, row.token_hash]));
+    expect(byPurpose.get("onboarding_details")).toBeTruthy();
+    expect(byPurpose.get("messaging_stop")).toBeTruthy();
+    expect(byPurpose.get("onboarding_details")).not.toBe(byPurpose.get("messaging_stop"));
   });
 
   it("refuses at claim time when consent was withdrawn after the job was declared", async () => {
