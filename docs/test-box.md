@@ -39,6 +39,12 @@ further down:
   with a new number, re-run it and restart the app.
 - **Template names still derive**, and still land on the same fourteen approved
   test templates — see "Utility templates" below for the one rule that changed.
+- **The small-squad seed follows two schema changes it predates.** LAN-347 gave
+  the photo release a second agreement version, and a person agrees to one
+  version per type, so the seeder now takes the current version of each type
+  rather than every row. LAN-265 made `events.template_id` required, so each
+  seeded event hangs off the existing club template for its own type; the
+  seeder invents no template.
 
 ## Owner walkthrough
 

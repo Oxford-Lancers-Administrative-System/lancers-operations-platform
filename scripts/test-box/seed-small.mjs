@@ -7,6 +7,17 @@ import { runtime } from "./runtime.mjs";
 import { connectLocal } from "../lib/local-db.mjs";
 import { validatePersonSettings, readPanelState, writePanelState } from "./panel-state.mjs";
 
+/** The newest version of each agreement type — the one a person agrees to. */
+function currentAgreementVersions(versions) {
+  const current = new Map();
+  for (const version of versions) {
+    const held = current.get(version.agreement_type);
+    if (!held || Date.parse(version.effective_from) >= Date.parse(held.effective_from))
+      current.set(version.agreement_type, version);
+  }
+  return [...current.values()];
+}
+
 if (!process.argv.includes("--replace-local-data"))
   throw new Error("Explicit --replace-local-data is required. Stop the app and panel first.");
 const active = await runtime();
@@ -235,7 +246,12 @@ try {
           reason: "Established synthetic player; LAN-297 starting state",
         });
       }
-      for (const version of before.onboarding_agreement_versions)
+      // LAN-349: the current version of each type, not every version of each.
+      // A person agrees to one version per type — `onboarding_agreements` says
+      // so with a unique key — and since LAN-347 replaced the photo release
+      // with the Oxford consent form there are two `photo_release` versions,
+      // so iterating the whole table now inserts the same agreement twice.
+      for (const version of currentAgreementVersions(before.onboarding_agreement_versions))
         await insert("onboarding_agreements", {
           person_id: p.id,
           season_id: season,
@@ -254,14 +270,26 @@ try {
     [32, "social", "Optional squad social", false],
     [45, "strength_and_conditioning", "Optional conditioning", false],
   ].sort((a, b) => a[0] - b[0]);
+  // LAN-349: LAN-265 made an event's template the row it hangs off, and
+  // `events.template_id` is not nullable. The templates are club configuration,
+  // not walkthrough data — one per type, already present — so each event is
+  // hung off the one for its own type rather than a new one being invented.
+  const templateIds = new Map(
+    (
+      await db.query("select id, event_type::text as event_type from public.event_templates")
+    ).rows.map((row) => [row.event_type, row.id]),
+  );
   for (const [offset, eventType, name, mandatory] of schedule) {
     const e = { id: uuid(), name, eventType, scheduledOn: day(offset), mandatory };
     events.push(e);
+    const templateId = templateIds.get(eventType);
+    if (!templateId) throw new Error(`No event template for "${eventType}".`);
     await insert("events", {
       id: e.id,
       season_id: season,
       name,
       event_type: eventType,
+      template_id: templateId,
       status: "draft",
       scheduled_on: e.scheduledOn,
       starts_at: "18:00",
