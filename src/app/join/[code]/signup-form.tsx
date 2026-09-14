@@ -23,7 +23,7 @@ import {
  * The sign-up gate's one form — LAN-202. Two doors render this exact
  * component: `mode="anonymous"` (`/join/[code]`, the QR door — asks "have you
  * signed up before?" on a mobile match) and `mode="prefilled"`
- * (`/me/join/[token]`, no duplicate question). Required: first name, last
+ * (`/signup/[token]`, no duplicate question). Required: first name, last
  * name, mobile, college email, consent — enforced here (disabled `Save`,
  * standards rule 4) and authoritatively by `recruitment-signup.ts`'s
  * `validateSignupSubmission`. Format checks reuse `person-validation.ts`'s

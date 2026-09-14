@@ -4,6 +4,7 @@ import type { EventDetail } from "../events";
 import type { MessagingPlan } from "../messaging-schedule";
 import type { ResolvedResponseDeadline } from "../response-deadline";
 import { personDisplayAliasSql } from "../sql-text";
+import { EXIT_STATUSES } from "../recruitment-vocabulary";
 import { joinWithAnd } from "../event-vocabulary";
 import type { EventQuestion } from "../event-questions";
 import type { AudienceGroupSummary } from "../event-audience";
@@ -20,6 +21,13 @@ export interface AudienceMember {
   displayName: string;
   standing: string; // the membership status or seats held, as at the time of reading
   stillSelectable: boolean; // false once they go inactive
+  /**
+   * LAN-341: a recruit-capacity member whose prospect has left recruitment.
+   * Approval mints no invitation for them, so the approver must not be shown
+   * them as an invitee — `!stillSelectable` alone cannot say that, because an
+   * inactive player is still invited (R4).
+   */
+  exitedRecruit: boolean;
 }
 
 // W1's panel (D8) — "every user is expected to have WhatsApp" (Brian); an error, never a workaround.
@@ -68,6 +76,8 @@ export function describeMissingForApproval(missing: readonly string[]): string {
 }
 
 // stillSelectable is computed, not stored — approval does not act on it, but the approver sees it.
+// exitedRecruit is computed here too, and approval DOES act on it (LAN-341): reading both in one
+// place is what keeps "who will be invited" on the screen and in the write from disagreeing.
 export async function readAudienceIn(
   tx: Tx,
   eventId: string,
@@ -82,6 +92,7 @@ export async function readAudienceIn(
     family_name: string | null;
     display_alias: string | null;
     standing: string | null;
+    exited_recruit: boolean;
   }>(
     `select a.id,
             a.capacity::text as capacity,
@@ -89,12 +100,18 @@ export async function readAudienceIn(
             coalesce(a.person_id, m.person_id) as person_id,
             p.given_name, p.family_name,
               ${personDisplayAliasSql("p")} as display_alias,
-            case when a.capacity = 'player' then initcap(m.status::text) end as standing
+            case when a.capacity = 'player' then initcap(m.status::text) end as standing,
+            (a.capacity = 'recruit'
+               and exists (select 1
+                             from public.recruitment_prospects rp
+                            where rp.person_id = a.person_id
+                              and rp.season_id = a.season_id
+                              and rp.status = any($2::public.prospect_status[]))) as exited_recruit
        from public.event_audience_members a
        left join public.season_memberships m on m.id = a.season_membership_id
        join public.people p on p.id = coalesce(a.person_id, m.person_id)
       where a.event_id = $1`,
-    [eventId],
+    [eventId, [...EXIT_STATUSES]],
   );
 
   const selectable = new Map(
@@ -114,6 +131,7 @@ export async function readAudienceIn(
         displayName: row.family_name ? `${first} ${row.family_name}` : first,
         standing: row.standing ?? candidate?.standing ?? "No longer listed",
         stillSelectable: candidate !== undefined,
+        exitedRecruit: row.exited_recruit,
       };
     })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));

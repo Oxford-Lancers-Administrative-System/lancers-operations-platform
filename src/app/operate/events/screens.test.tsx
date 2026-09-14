@@ -132,7 +132,12 @@ import {
   readEventAudienceGroupSummary,
   type AudienceMember,
 } from "@/lib/services/event-approval";
-import { summariseAudienceGroups, type AudienceCandidate } from "@/lib/services/audience-selection";
+import {
+  EMPTY_AUDIENCE_MESSAGE,
+  summariseAudienceGroups,
+  type AudienceCandidate,
+} from "@/lib/services/audience-selection";
+import type { MessagingPlan, MessagingSchedule } from "@/lib/services/messaging-schedule";
 import {
   readEventAttendanceSummary,
   summariseAttendance,
@@ -146,7 +151,13 @@ import {
 import type { OperatorParticipation } from "@/lib/services/participation-view";
 import { todayInClubZone } from "@/lib/club-time";
 import { NO_AUTOFILL } from "@/components/field";
-import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
+import {
+  DERIVED_STATE_LABELS,
+  labelFor,
+  RECRUIT_QUESTIONS_NOTICE,
+  STATUS_LABELS,
+  TYPE_LABELS,
+} from "./presentation";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
@@ -503,6 +514,8 @@ function givenAudience(
   },
   /** The audience already stored against the draft. Empty until one is saved. */
   audience: AudienceMember[] = [],
+  /** LAN-171: read for the plan disclosure. `null` for the screens that are not about it. */
+  plan: MessagingPlan | null = null,
 ) {
   vi.mocked(readEventAudience).mockResolvedValue(audience);
   vi.mocked(readApprovalPreview).mockResolvedValue({
@@ -518,18 +531,22 @@ function givenAudience(
       },
     },
     deadline: deadline ? { ...deadline, rule: { daysBefore: 2 } } : null,
-    // LAN-171. `null` here reads exactly as "no date yet" does for `deadline` —
-    // these screen tests are not about the messaging plan, which has its own
-    // coverage, so they stay off rather than fabricating a plan nothing here
-    // asserts on.
-    plan: null,
+    // LAN-171. `null` by default reads exactly as "no date yet" does for
+    // `deadline` — most of these screen tests are not about the messaging plan,
+    // which has its own coverage, so it stays off rather than fabricating a
+    // plan nothing asserts on.
+    plan,
     unreachable: [],
     // LAN-154. The review reads all three: the questions it shows as a player
     // will meet them, the group shape it leads with, and the completeness gate.
     questions: [],
+    // LAN-341: the shape counts who will be asked, so `readApprovalPreview`
+    // leaves an exited recruit out of it. Mirrored here, not invented.
     groupSummary: summariseAudienceGroups(
       candidates,
-      audience.map((member) => `${member.capacity}:${member.anchorId}`),
+      audience
+        .filter((member) => !member.exitedRecruit)
+        .map((member) => `${member.capacity}:${member.anchorId}`),
       "practice",
     ),
     missing: [],
@@ -1919,8 +1936,70 @@ function member(overrides: Partial<AudienceMember> = {}): AudienceMember {
     displayName: "Avery Fielding",
     standing: "Active",
     stillSelectable: true,
+    exitedRecruit: false,
     ...overrides,
   };
+}
+
+/**
+ * A plan carrying both ladders — LAN-341 only needs the recruit block, whose
+ * "all N recruits" headcount is the other place the review counted an exited
+ * recruit as somebody who would be messaged.
+ */
+function planWithRecruitLadder(): MessagingPlan {
+  const at = new Date("2026-10-07T17:00:00Z");
+  const schedule: MessagingSchedule = {
+    templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+    templateName: "Recruitment",
+    eventType: "recruitment",
+    rsvpByDays: 2,
+    invitationLeadDays: 5,
+    reminderCadenceHours: 24,
+    whatsappReminderCount: 0,
+    emailReminderCount: 0,
+    escalationHours: 12,
+    recruitInvitationLeadDays: 5,
+    recruitFollowUpCadenceHours: 72,
+    updatedAt: new Date("2026-08-25T00:00:00Z"),
+  };
+  return {
+    templateId: schedule.templateId,
+    schedule,
+    eventStartsAt: new Date("2026-10-14T18:00:00Z"),
+    responseDeadlineAt: new Date("2026-10-12T17:00:00Z"),
+    configuredDeadlineAt: new Date("2026-10-12T17:00:00Z"),
+    deadlineClamped: false,
+    invitationAt: at,
+    configuredInvitationAt: at,
+    dispatchesImmediately: false,
+    lateApproval: false,
+    rungs: [{ rung: 0, kind: "invitation", channel: "whatsapp", at }],
+    escalationAt: null,
+    recruitLadder: {
+      invitationAt: at,
+      configuredInvitationAt: at,
+      dispatchesImmediately: false,
+      followUpAt: null,
+    },
+  };
+}
+
+/**
+ * A recruit confirmed into the audience who has since left recruitment —
+ * LAN-341. The catalogue drops them, so they read as no longer listed, and
+ * approval mints them no invitation.
+ */
+function exitedRecruitMember(overrides: Partial<AudienceMember> = {}): AudienceMember {
+  return member({
+    capacity: "recruit",
+    anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp8",
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp8",
+    displayName: "Barnaby Quince",
+    standing: "No longer listed",
+    stillSelectable: false,
+    exitedRecruit: true,
+    ...overrides,
+  });
 }
 
 const SAVED_AUDIENCE: AudienceMember[] = [
@@ -2287,9 +2366,10 @@ describe("UX-41 — confirming exactly who will be asked", () => {
   async function reachReview(
     audience: AudienceMember[] = SAVED_AUDIENCE,
     deadline?: Parameters<typeof givenAudience>[1],
+    plan: MessagingPlan | null = null,
   ) {
     vi.mocked(readEvent).mockResolvedValue(detail());
-    givenAudience(AUDIENCE, deadline, audience);
+    givenAudience(AUDIENCE, deadline, audience, plan);
     return render(await EventDetailPage(detailProps({ step: "review" })));
   }
 
@@ -2355,6 +2435,60 @@ describe("UX-41 — confirming exactly who will be asked", () => {
     );
     expect(flatten(screen.getByTestId("audience-defects").textContent)).toBe("1No longer active");
     expect(screen.getByRole("button", { name: "Approve event" })).toBeEnabled();
+  });
+
+  /**
+   * LAN-341, walk finding F2. Approval mints no invitation for a recruit who
+   * has left recruitment, and the screen whose whole job is to say what
+   * approval will send was counting them as an invitee and promising them a
+   * message. Every number here is one approval will actually produce.
+   */
+  it("says an exited recruit will not be invited, and counts them nowhere", async () => {
+    await reachReview(
+      [...SAVED_AUDIENCE, exitedRecruitMember()],
+      undefined,
+      planWithRecruitLadder(),
+    );
+
+    expect(flatten(screen.getByTestId("exited-audience-note").textContent)).toContain(
+      "One recruit in this audience is no longer listed in recruitment. They will not be invited.",
+    );
+    // The confirmed list is still the confirmed list — four people were chosen.
+    expect(flatten(screen.getByTestId("audience-total").textContent)).toBe("4Confirmed audience");
+    expect(flatten(screen.getByTestId("audience-exited").textContent)).toBe("1No longer listed");
+    // …but three of them are invitees, and the recruit ladder reaches nobody.
+    const review = flatten(screen.getByTestId("section-approval-review").textContent);
+    expect(review).toContain("3 named invitees");
+    expect(review).not.toContain("4 named invitees");
+    expect(flatten(screen.getByTestId("recruit-plan-rows").textContent)).toContain(
+      "Automated 1:1 message to all 0 recruits.",
+    );
+    // "No longer active" belongs to somebody who is still invited, and nobody
+    // here is: the count stays at nought and the sentence never appears.
+    expect(flatten(screen.getByTestId("audience-defects").textContent)).toBe("0No longer active");
+    expect(screen.queryByTestId("stale-audience-note")).toBeNull();
+    expect(review).not.toContain("They will still be invited");
+    // The named list says which fact applies to them.
+    expect(
+      within(screen.getByTestId("resolved-audience")).getByText("No longer listed"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Approve event" })).toBeEnabled();
+  });
+
+  it("offers no approval at all when every confirmed person has left recruitment", async () => {
+    await reachReview([exitedRecruitMember()]);
+
+    // The contradiction F2 found: "1 named invitee … They will still be
+    // invited" beside a refusal. Approval would be refused by E1b, so the
+    // refusal is what the screen says, once, before the press.
+    const review = flatten(screen.getByTestId("section-approval-review").textContent);
+    expect(review).toContain("0 named invitees");
+    expect(review).toContain("They will not be invited");
+    expect(review).not.toContain("They will still be invited");
+    expect(flatten(screen.getByTestId("nobody-to-invite-refusal").textContent)).toContain(
+      EMPTY_AUDIENCE_MESSAGE,
+    );
+    expect(screen.queryByRole("button", { name: "Approve event" })).toBeNull();
   });
 
   it("says delivery is automated and begins only after approval", async () => {
@@ -3407,5 +3541,86 @@ describe("the approval review leads with the audience's shape", () => {
     expect(
       within(screen.getByTestId("resolved-audience")).getByText("Avery Fielding"),
     ).toBeVisible();
+  });
+});
+
+/**
+ * LAN-339 — who a Recruitment event's questions reach, said on the screen that
+ * writes them (Brian, 2026-09-12, verbatim copy).
+ *
+ * A recruit's answer is Yes or No and nothing more, so a question written on a
+ * Recruitment event reaches the enlisted players in its audience and nobody
+ * else. The notice is a fact about the event, so it stands whether or not this
+ * one asks anything yet, and on all three surfaces that show its questions.
+ */
+describe("LAN-339 — the Recruitment event notice", () => {
+  it("stands beside the questions on the event's own page", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ eventType: "recruitment", templateId: SEEDED_TEMPLATE_IDS.recruitment }),
+    );
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
+      RECRUIT_QUESTIONS_NOTICE,
+    );
+  });
+
+  it("is absent on every other type of event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("recruit-questions-notice")).toBeNull();
+  });
+
+  it("stands in the create form once the Recruitment type is the one selected", async () => {
+    // `?from=` opens the create form on the source event's own template (D39),
+    // which is how a Recruitment draft is reached without driving the Type
+    // control — the notice is keyed off the selected template's class.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ eventType: "recruitment", templateId: SEEDED_TEMPLATE_IDS.recruitment }),
+    );
+
+    render(await NewEventPage(newProps({ from: EVENT_ID })));
+
+    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
+      RECRUIT_QUESTIONS_NOTICE,
+    );
+  });
+
+  it("is absent in a create form opening on Practice", async () => {
+    render(await NewEventPage(newProps()));
+
+    expect(screen.queryByTestId("recruit-questions-notice")).toBeNull();
+  });
+
+  it("stands in the edit form of a Recruitment draft", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ eventType: "recruitment", templateId: SEEDED_TEMPLATE_IDS.recruitment }),
+    );
+
+    render(await EditEventPage(editProps()));
+
+    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
+      RECRUIT_QUESTIONS_NOTICE,
+    );
+  });
+
+  it("stands in the questions-only editor of an approved Recruitment event — LAN-318's route", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({
+        status: "approved",
+        eventType: "recruitment",
+        templateId: SEEDED_TEMPLATE_IDS.recruitment,
+      }),
+    );
+
+    render(await EditEventPage(editProps()));
+
+    expect(screen.getByTestId("event-questions-form")).toBeInTheDocument();
+    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
+      RECRUIT_QUESTIONS_NOTICE,
+    );
   });
 });

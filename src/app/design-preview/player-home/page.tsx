@@ -54,14 +54,14 @@ import {
   formatEventTime,
   otherOutstandingSentence,
   pageHeading,
-} from "@/app/me/[token]/presentation";
+} from "@/app/events/[token]/presentation";
 import { gateShellPage } from "@/app/operate/gate";
 import { pickFocusedInvitation, pickPlayerHomeSubject } from "../picks";
 
 /**
- * S9 — the player's own page (`/me/[token]`), on the public shell. LAN-225's
+ * S9 — the player's own page (`/events/[token]`), on the public shell. LAN-225's
  * player-surfaces addendum. Read by person id through the operator tier,
- * never by token. Copy is `/me/[token]`'s `presentation.ts`, unchanged; only
+ * never by token. Copy is `/events/[token]`'s `presentation.ts`, unchanged; only
  * chrome and components change. Buttons are drawn, not wired. F2 not fixed
  * here: `Your answers` stays unbounded, a product change nobody has taken
  * (finding P1, `player-surfaces.md`).
@@ -77,7 +77,7 @@ function when(entry: PlayerHomeInvitation): string | null {
   return [date, time].filter(Boolean).join(" · ") || null;
 }
 
-/** `/me/[token]`'s own `rowSentence`, unchanged. */
+/** `/events/[token]`'s own `rowSentence`, unchanged. */
 function rowSentence(entry: PlayerHomeInvitation): string | null {
   if (entry.standingAnswer === null) {
     if (entry.reminderSent) return STILL_NEED_ANSWER_SENTENCE;
@@ -112,7 +112,7 @@ function AnswerChip({ entry, dominant }: { entry: PlayerHomeInvitation; dominant
   );
 }
 
-/** `/me/[token]`'s `RowActions`, in the kit's shapes. Contained primary, not green `color="success"` — design-system.md §1: the club palette has no green, and a filled green on fourteen rows is not a status. Listed as a delta on the review page. */
+/** `/events/[token]`'s `RowActions`, in the kit's shapes. Contained primary, not green `color="success"` — design-system.md §1: the club palette has no green, and a filled green on fourteen rows is not a status. Listed as a delta on the review page. */
 function RowActions({ entry }: { entry: PlayerHomeInvitation }) {
   const yes = (
     <Button type="button" variant="contained" sx={{ minHeight: TOUCH, flex: 1 }}>
@@ -349,7 +349,7 @@ export default async function PlayerHomePreviewPage() {
           </Section>
         ) : null}
 
-        {/* Closed on arrival, like `/me/[token]` today — opening it turned the first draft into a 9,676px page against 3,269px. */}
+        {/* Closed on arrival, like `/events/[token]` today — opening it turned the first draft into a 9,676px page against 3,269px. */}
         {furtherOut.length > 0 ? (
           <Section
             title={FURTHER_OUT_HEADING}

@@ -388,12 +388,17 @@ ls -t .lancers-runtime/delivery-sink/ | head -1 | xargs -I{} cat .lancers-runtim
 
 Its `payload.template.components` array carries two `button` entries, index
 `0` (**I'm attending**) and index `1` (**I'm not attending**), each with one
-`parameters[0].text` — a token suffix, `y.…` or `n.…`. § 8 needs the Yes one:
-prepend `APP_BASE_URL` and `/a/` to get the link a player's phone would have
-shown as a button:
+`parameters[0].text` — a token suffix, `y.…` or `n.…`. A Meta URL button sends
+only that suffix; the approved template holds the fixed base in front of it, and
+LAN-343 made that base say which answer it is: `/a/yes/` for button `0` and
+`/a/no/` for button `1`. The token's own first character picks the same one — a
+`y.` token belongs under `/a/yes/`, an `n.` token under `/a/no/`, and presenting
+either at the other base resolves to nothing. § 8 needs the Yes one, so prepend
+`APP_BASE_URL` and `/a/yes/` to the `y.` suffix to get the link a player's phone
+would have shown as a button:
 
 ```
-http://localhost:3000/a/y.9c5ed16b-eef2-49ae-b871-27e0766bbde9.8wgtsjuzY6y9…
+http://localhost:3000/a/yes/y.9c5ed16b-eef2-49ae-b871-27e0766bbde9.8wgtsjuzY6y9…
 ```
 
 The phone number the operator typed as `07700 900901` was normalised to E.164
@@ -417,30 +422,44 @@ conforming to it.
 
 ## 8. Answer as a player
 
-Open the Yes link § 7a extracted from the delivery sink file. It is the link a
-player would have received; it is not recoverable from any screen, and nobody
-reads it out of the application.
+Open the Yes link § 7a built from the delivery sink file. It is the link a player
+would have received; it is not recoverable from any screen, and nobody reads it
+out of the application.
 
-**Expected, and it is designed for a phone.** A card headed with the event type,
-the event name, the date and time, then Player, Venue, Response deadline —
-"Monday, 12 October at 18:00 · Late responses accepted until start" — and Current
-answer — "No response · Only you can see this". Two buttons: **I'm attending**
-and **I'm not attending**.
+**Expected, and it is designed for a phone.** The page does not ask the question
+again — the player already answered it by pressing a button in WhatsApp, so this
+is a confirmation. A card headed with the event type, then **You're attending**,
+the event name with its date and time, then Player, Venue, Response deadline —
+"Monday, 12 October at 18:00 · Late responses accepted until start" — and Your
+answer — "You're attending". Under "This secure page records only your response.
+Other players' responses are never visible." come the event's own questions, if
+it asks any, under **A couple of questions for this event**; then one full-width
+button — **Save options** when there are questions, **Go see other events** when
+there are none — and beneath it, quietly, **Plans changed? You can change your
+answer.**
 
-There is no login. The link is the credential.
+There is no login. The link is the credential. Opening it writes nothing at all,
+which is what makes it safe to paste into WhatsApp: the button below is the write.
 
-1. Press **I'm not attending**.
+1. Press that button.
 
-**Expected.** A **Not attending** step with "Choose a reason before saving Not
-attending" and a required **Reason** field. A blank or whitespace-only reason is
-refused.
+**Expected.** The answer and any options are recorded in one go, and the player
+is handed their own events page for the season — `/events/<durable token>`,
+minted by that press — with this event's panel already open and its standing
+answer reading **Attending**.
 
-2. Type a reason and press **Save not attending**.
+2. Now open the **No** link from the same sink file: the `n.` suffix, under
+   `/a/no/`. It is a second, separate credential, so the Yes above did not
+   consume it.
 
-**Expected.** **Your response is saved** — "You can change this answer until the
-event starts, including after the stated response deadline."
+**Expected.** **You're not attending — no reason given** — the press already
+recorded the No, and the page never suggests otherwise. Then "The club plans
+numbers, transport and coaching from these responses. Tell the club why if you
+can.", a **Reason** field, and two controls: **Give a reason and continue**, and
+**Change to Yes** carrying the emphasis. A blank reason is accepted, not refused;
+the recorded reason stays "No reason given" until the player types one.
 
-At 375px every field stacks, both buttons run the full width, and nothing is
+At 375px every field stacks, the buttons run the full width, and nothing is
 clipped or needs sideways scrolling.
 
 ---

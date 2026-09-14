@@ -248,11 +248,15 @@ const REMINDER: MessageTemplate = {
 
 const NUDGE: MessageTemplate = {
   kind: "nudge",
-  parameterNames: ["inviteeName", "eventName", "rsvpUrl"],
+  // LAN-343 replaced `rsvpUrl` with `questionsUrl`. This message asks for the
+  // event's own questions and linked at the RSVP page, which does not ask
+  // them: the questions were reachable only by expanding a row on the
+  // player's events page, so the one message about them did not lead to them.
+  parameterNames: ["inviteeName", "eventName", "questionsUrl"],
   parameters: (message) => [
     required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
-    required(message.rsvpUrl, "link"),
+    required(message.questionsUrl, "link"),
   ],
   // W2's single nudge, and it is deliberately not a chase. The player has
   // already said yes; what is outstanding is the event's own questions, and W5
@@ -263,7 +267,7 @@ const NUDGE: MessageTemplate = {
     `${message.inviteeName}, thank you for answering ${message.eventName}.`,
     "There are still a couple of questions to finish, and the coaches need them to plan.",
     "Finish here:",
-    message.rsvpUrl,
+    required(message.questionsUrl, "link"),
   ],
 };
 
@@ -460,10 +464,15 @@ const RECRUIT_INTEREST_REMINDER: MessageTemplate = {
 
 /**
  * LAN-215, `REQ-one-welcome`. The two URL buttons this template carries — the
- * durable per-person page, and its own opt-out, on the same
- * "at most two URL buttons" limit the recruit templates already spend.
- * Both resolve the same durable credential `issuePersonTokenIn` mints —
- * `/me/<token>` for the page itself, `/me/stop/<token>` to withdraw.
+ * onboarding questionnaire, and the opt-out, on the same "at most two URL
+ * buttons" limit the recruit templates already spend.
+ *
+ * LAN-343: two credentials, not one. These used to be `/me/<t>` and
+ * `/me/stop/<t>` on the *same* minted token, so one leaked link opened both
+ * the questionnaire and the button that stops every message. They are
+ * `/onboarding/<t>` and `/stop/<t>` now, each on its own purpose-tagged
+ * credential, and the questionnaire link goes to the questionnaire rather than
+ * to the events page it used to land on.
  */
 function onboardingWelcomeButtonUrls(message: OutboundMessage): readonly [string, string] {
   return [required(message.formUrl, "link"), required(message.stopUrl, "opt-out link")];

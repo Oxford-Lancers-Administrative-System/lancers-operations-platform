@@ -102,7 +102,7 @@ export function PhoneField({
           // the operator's name into "Event name" (LAN-324). Most numbers this
           // control takes are about somebody else: a recruit being added, a
           // walk-up, an emergency contact, an invited operator. The two
-          // self-entry doors (`/join/[code]`, `/me/[token]/details`) lose a
+          // self-entry doors (`/join/[code]`, `/onboarding/[token]`) lose a
           // convenience; every other caller stops recording the wrong person's
           // number, which is the trade the kit takes.
           autoComplete={NO_AUTOFILL}

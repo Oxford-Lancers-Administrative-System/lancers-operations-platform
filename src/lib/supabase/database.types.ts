@@ -4965,7 +4965,11 @@ export type Database = {
         | "not_applicable"
         | "claimed"
       onboarding_item_verification_class: "direct" | "trust"
-      person_access_token_purpose: "recruit_interest_request"
+      person_access_token_purpose:
+        | "recruit_interest_request"
+        | "onboarding_details"
+        | "recruit_signup"
+        | "messaging_stop"
       person_fact_dispute_status:
         | "open"
         | "resolved_kept_club"
@@ -5235,7 +5239,12 @@ export const Constants = {
         "claimed",
       ],
       onboarding_item_verification_class: ["direct", "trust"],
-      person_access_token_purpose: ["recruit_interest_request"],
+      person_access_token_purpose: [
+        "recruit_interest_request",
+        "onboarding_details",
+        "recruit_signup",
+        "messaging_stop",
+      ],
       person_fact_dispute_status: [
         "open",
         "resolved_kept_club",

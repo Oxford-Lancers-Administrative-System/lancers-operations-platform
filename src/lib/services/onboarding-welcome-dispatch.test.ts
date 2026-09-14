@@ -185,7 +185,7 @@ describe("dispatchOnboardingWelcomeJob", () => {
     expect(attempt.rows[0].accepted_at).not.toBeNull();
   });
 
-  it("mints the durable link at dispatch — nothing minted at declaration", async () => {
+  it("mints both links at dispatch — nothing minted at declaration", async () => {
     const { personId, membershipId } = await createArrival();
 
     const before = await observer.query(
@@ -198,16 +198,28 @@ describe("dispatchOnboardingWelcomeJob", () => {
     const { transport } = acceptingTransport();
     await dispatchOnboardingWelcomeJob(jobId, { source: CONFIGURED, transport });
 
-    const after = await observer.query<{ single_use: boolean; revoked_at: Date | null }>(
-      "select single_use, revoked_at from public.person_access_tokens where person_id = $1::uuid",
+    // LAN-343. Two rows, not one: the questionnaire and the opt-out are
+    // separate pages and each gets its own purpose-tagged credential. One
+    // credential in both URLs meant a leaked questionnaire link also stopped
+    // every message the club sends.
+    const after = await observer.query<{
+      single_use: boolean;
+      revoked_at: Date | null;
+      purpose: string | null;
+    }>(
+      `select single_use, revoked_at, purpose::text as purpose
+         from public.person_access_tokens where person_id = $1::uuid
+        order by purpose`,
       [personId],
     );
-    expect(after.rows).toHaveLength(1);
-    expect(after.rows[0].single_use).toBe(false);
-    expect(after.rows[0].revoked_at).toBeNull();
+    expect(after.rows.map((row) => row.purpose)).toEqual(["messaging_stop", "onboarding_details"]);
+    for (const row of after.rows) {
+      expect(row.single_use).toBe(false);
+      expect(row.revoked_at).toBeNull();
+    }
   });
 
-  it("carries the durable page and its own opt-out as the message's two URL buttons", async () => {
+  it("carries the questionnaire and the opt-out as two different credentials", async () => {
     const { membershipId } = await createArrival();
     const jobId = await jobIdFor(membershipId);
 
@@ -228,11 +240,11 @@ describe("dispatchOnboardingWelcomeJob", () => {
     for (const button of urlButtons) {
       expect(button.parameters?.[0]?.text).toBeTruthy();
     }
-    // The two tokens are different credentials' suffixes... actually the
-    // same durable token, on two different destination paths — so the two
-    // button parameters are equal (`suffixOf` reads only the last path
-    // segment, which both `/me/<token>` and `/me/stop/<token>` share).
-    expect(urlButtons[0].parameters?.[0]?.text).toBe(urlButtons[1].parameters?.[0]?.text);
+    // LAN-343. The two suffixes are two different credentials. They used to be
+    // one token on two paths, so these two assertions were the same assertion
+    // and the defect read as correct: `suffixOf` takes the last path segment,
+    // which `/me/<t>` and `/me/stop/<t>` shared.
+    expect(urlButtons[0].parameters?.[0]?.text).not.toBe(urlButtons[1].parameters?.[0]?.text);
   });
 
   it("refuses at claim time when consent was withdrawn after the job was declared", async () => {

@@ -143,7 +143,7 @@ export async function approveEvent(
       before.scheduledOn,
       before.eventType,
     );
-    const members = await readAudienceIn(tx, eventId, catalogue);
+    const confirmed = await readAudienceIn(tx, eventId, catalogue);
 
     const missing = missingForApproval(before); // D16, checked first — no date means no deadline and no week
     if (missing.length > 0) {
@@ -151,6 +151,21 @@ export async function approveEvent(
         rule: APPROVAL_INCOMPLETE_RULE,
       });
     }
+
+    // LAN-341. The audience freeze is honoured against the live roster — a
+    // player who went inactive since is still invited, deliberately (R4) — but
+    // a recruit who has left recruitment is a different fact: inviting them
+    // would be the club chasing somebody it has recorded as declined. Read
+    // through `readAudienceIn`'s own `exitedRecruit`, the same field the
+    // approval screen reads, so what the approver was told and what this write
+    // does cannot drift apart. Read here rather than at `saveEventAudience`
+    // because the exit happens between the two, which is the whole defect. The
+    // audience row itself is never rewritten — the record of what the approver
+    // confirmed stays — so all that changes is that no invitation is minted for
+    // them, which also withholds every rung of the ladder, since
+    // `scheduleEventLadderIn` builds each one by selecting from `invitations`.
+    const exited = confirmed.filter((member) => member.exitedRecruit).map((member) => member.id);
+    const members = confirmed.filter((member) => !member.exitedRecruit);
 
     if (members.length === 0) {
       throw new ConstraintViolated(EMPTY_AUDIENCE_MESSAGE, { rule: EMPTY_AUDIENCE_RULE }); // invariant E1b, refused before anything is written
@@ -193,8 +208,9 @@ export async function approveEvent(
               a.season_membership_id, a.person_id, 'pending', $2::timestamptz, a.id
          from public.event_audience_members a
         where a.event_id = $1
+          and not (a.id = any($3::uuid[]))
        returning id`,
-      [eventId, deadline.at],
+      [eventId, deadline.at, exited],
     );
 
     const jobs = await tx.query<{ id: string }>( // idempotency_key derives from facts that never change (invariant M1) — a retry can't double-send
@@ -228,6 +244,7 @@ export async function approveEvent(
         audienceSize: members.length,
         byCapacity,
         noLongerSelectable: members.filter((member) => !member.stillSelectable).length, // approval honours the confirmed list even if since-inactive
+        exitedRecruitsSkipped: exited.length, // LAN-341: confirmed, then left recruitment before approval
       },
     });
 
@@ -241,6 +258,7 @@ export async function approveEvent(
       context: {
         audienceSize: members.length,
         byCapacity,
+        exitedRecruitsSkipped: exited.length,
         invitationsCreated: invitations.rowCount,
         notificationJobsCreated: (jobs.rowCount ?? 0) + ladder.reminders,
         responseDeadlineAt: deadline.at.toISOString(),

@@ -11,7 +11,10 @@ import Typography from "@mui/material/Typography";
 import { describeMissingForApproval } from "@/lib/services/event-approval";
 import type { AudienceMember, UnreachableAudienceMember } from "@/lib/services/event-approval";
 import type { EventDetail, EventQuestion } from "@/lib/services/events";
-import type { AudienceGroupSummary } from "@/lib/services/audience-selection";
+import {
+  EMPTY_AUDIENCE_MESSAGE,
+  type AudienceGroupSummary,
+} from "@/lib/services/audience-selection";
 import type { MessagingPlan } from "@/lib/services/messaging-schedule";
 import { ApproveEventForm } from "../event-actions";
 import { MessagingPlanDisclosure, planForDisplay, WhatsAppErrorsAlert } from "./messaging-plan";
@@ -129,7 +132,16 @@ export function ApprovalReview({
   plan: MessagingPlan | null;
   unreachable: readonly UnreachableAudienceMember[];
 }) {
-  const stale = audience.filter((member) => !member.stillSelectable).length;
+  // LAN-341, F2. Two different facts, and the screen said one of them twice.
+  // A player who went inactive since the audience was confirmed is still
+  // invited (R4), so "they will still be invited" is true of them. A recruit
+  // who has left recruitment is not invited at all, so counting them as an
+  // invitee — or telling the approver they will be messaged — describes an
+  // approval that will not happen.
+  const invitees = audience.filter((member) => !member.exitedRecruit);
+  const exited = audience.length - invitees.length;
+  const stale = invitees.filter((member) => !member.stillSelectable).length;
+  const nobodyToInvite = invitees.length === 0;
 
   return (
     <Section title={`${APPROVAL_HEADLINE_PREFIX} ${event.name}`} testId="approval-review">
@@ -157,6 +169,9 @@ export function ApprovalReview({
             testId="audience-total"
           />
           <Metric value={String(stale)} label="No longer active" testId="audience-defects" />
+          {exited > 0 ? (
+            <Metric value={String(exited)} label="No longer listed" testId="audience-exited" />
+          ) : null}
         </Box>
 
         {stale > 0 ? (
@@ -165,6 +180,14 @@ export function ApprovalReview({
             {stale === 1
               ? "One person in this audience is no longer active. They will still be invited."
               : `${stale} people in this audience are no longer active. They will still be invited.`}
+          </Notice>
+        ) : null}
+
+        {exited > 0 ? (
+          <Notice severity="info" testId="exited-audience-note">
+            {exited === 1
+              ? "One recruit in this audience is no longer listed in recruitment. They will not be invited."
+              : `${exited} recruits in this audience are no longer listed in recruitment. They will not be invited.`}
           </Notice>
         ) : null}
 
@@ -185,7 +208,7 @@ export function ApprovalReview({
           />
           <Fact
             label="Audience"
-            value={`${audience.length} named ${audience.length === 1 ? "invitee" : "invitees"}`}
+            value={`${invitees.length} named ${invitees.length === 1 ? "invitee" : "invitees"}`}
             note="Explicitly resolved"
           />
           <Fact
@@ -233,13 +256,26 @@ export function ApprovalReview({
           <MessagingPlanDisclosure
             display={planForDisplay(plan)}
             // REQ-approval-shows-both-ladders: audienceSize excludes recruits, shown in their own block below.
-            audienceSize={audience.filter((member) => member.capacity !== "recruit").length}
-            recruitAudienceSize={audience.filter((member) => member.capacity === "recruit").length}
+            audienceSize={invitees.filter((member) => member.capacity !== "recruit").length}
+            recruitAudienceSize={invitees.filter((member) => member.capacity === "recruit").length}
             approved={false}
           />
         ) : null}
 
-        {approvable ? <ApproveEventForm eventId={event.id} /> : null}
+        {/*
+          LAN-341, F2. A confirmed audience of nothing but exited recruits
+          leaves approval nothing to invite, and E1b refuses it. The refusal is
+          named here rather than left to the press (`docs/ux/standards.md`
+          rules 4/5), so the screen never offers a button it knows will be
+          turned down — and never says "will still be invited" beside it.
+        */}
+        {nobodyToInvite ? (
+          <Notice variant="refusal" testId="nobody-to-invite-refusal">
+            {EMPTY_AUDIENCE_MESSAGE}
+          </Notice>
+        ) : approvable ? (
+          <ApproveEventForm eventId={event.id} />
+        ) : null}
       </Stack>
     </Section>
   );

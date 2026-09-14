@@ -171,6 +171,37 @@ describe("summariseQuestion", () => {
     expect(summary.answers).toEqual([]);
   });
 
+  it("leaves out a recruit, whatever the stored capacities say — LAN-339", () => {
+    // Brian, 2026-09-12: recruits are never asked an event's questions. Every
+    // question stored today carries `recruit` in `applies_to_capacities` (a
+    // hidden database default the question form never offered a choice about),
+    // so honouring that column alone counted a recruit's Yes as having left the
+    // question unanswered — the operator told to chase something nobody asked.
+    const summary = summariseQuestion(
+      [...players, person({ displayName: "R", key: "recruit:R", capacity: "recruit" })],
+      LIFT,
+    );
+    expect(summary.applicable).toBe(4);
+    expect(summary.noAnswer).toBe(1);
+  });
+
+  it("leaves out a recruit who did answer, so a stored answer is never tallied for them", () => {
+    const summary = summariseQuestion(
+      [
+        person({
+          displayName: "R",
+          key: "recruit:R",
+          capacity: "recruit",
+          answers: { [LIFT.id]: "Yes" },
+        }),
+      ],
+      LIFT,
+    );
+    expect(summary.applicable).toBe(0);
+    expect(summary.answers).toEqual([]);
+    expect(summary.noAnswer).toBe(0);
+  });
+
   it("leaves out a walk-up, who was asked nothing", () => {
     const summary = summariseQuestion(
       [...players, person({ displayName: "F", key: "player:walk", isWalkUp: true })],

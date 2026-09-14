@@ -38,13 +38,13 @@ import {
   SECTION_WHERE_YOU_STUDY,
   SECTION_WHO_YOU_ARE,
   sourceLine,
-} from "@/app/me/[token]/details/presentation";
+} from "@/app/onboarding/[token]/presentation";
 import { gateShellPage } from "@/app/operate/gate";
 import { pickQuestionnaireSubject } from "../picks";
 import { QuestionnaireShell } from "./questionnaire-shell";
 
 /**
- * S10 — step 1 of the player's questionnaire (`/me/[token]/details`), on the
+ * S10 — step 1 of the player's questionnaire (`/onboarding/[token]`), on the
  * public shell. LAN-225's player-surfaces addendum. Read by person id through
  * the operator tier, never by token. Copy is `presentation.ts`, unchanged;
  * only chrome and components change. Drawn, not wired — the real form is a

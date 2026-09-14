@@ -12,6 +12,7 @@ import {
   EMAIL_FALLBACK_SUFFIX,
   NOTIFICATION_JOB_RECENCY_ORDER,
 } from "./delivery";
+import { EXIT_STATUSES } from "./recruitment-vocabulary";
 import { personDisplayNameSql as displayName } from "./sql-text";
 
 /**
@@ -106,7 +107,20 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
        -- F-B1, mechanism 4. The escalation job's own state, not merely
        -- whether one was created.
        left join public.notification_jobs ej on ej.id = f.escalation_job_id
+      -- LAN-341. This queue is people who owe an answer and can be chased. A
+      -- recruit who has left recruitment is neither: LAN-341 cancelled every
+      -- message they were holding and nothing more will be sent, so a row
+      -- reading "Chasing" against them is work an operator cannot do. The
+      -- invitation itself stays exactly as it is — the record of what was sent —
+      -- and only this list drops them.
+      where not (i.capacity = 'recruit'
+                 and exists (select 1
+                               from public.recruitment_prospects rp
+                              where rp.person_id = i.person_id
+                                and rp.season_id = i.season_id
+                                and rp.status = any($1::public.prospect_status[])))
       order by q.scheduled_on nulls last, q.event_name, display_name`,
+    [[...EXIT_STATUSES]],
   );
   return result.rows;
 }

@@ -43,13 +43,13 @@ reflects all of it.
 ## M4 — Messaging, reminders and recovery (tag `M4W`)
 
 `/operate/admin/messaging`, `/operate/admin/follow-ups`, delivery statuses on
-events, the answer link (`/a/[token]`), the stop link (`/me/stop/[token]`),
-recording an answer in person, chase and escalation, the player home (`/me`,
-`/me/[token]`).
+events, the answer link (`/a/[answer]/[token]`), the stop link
+(`/stop/[token]`), recording an answer in person, chase and escalation, the
+player home (`/events/[token]`, reached by a signed-in operator through `/me`).
 
 **Journey:** an approved seeded event with unanswered invitations → the
 follow-ups queue → record one answer in person → the player answers another on
-`/a/[token]` → a third player uses the stop link → the delivery page, the
+`/a/[answer]/[token]` → a third player uses the stop link → the delivery page, the
 follow-ups queue and the event record all agree on who answered, who was chased
 and who stopped → the Monday report agrees.
 
@@ -79,8 +79,8 @@ roster.
 
 ## M7 — Onboarding (tag `M7W`)
 
-The three arrival doors, the player questionnaire (`/me/[token]`, five steps, at
-375 above all), the operator record (each item's own state list, claimed,
+The three arrival doors, the player questionnaire (`/onboarding/[token]`, five
+steps, at 375 above all), the operator record (each item's own state list, claimed,
 history, activity log), the chase queue and cadence, agreements, the
 missing-data nudge.
 

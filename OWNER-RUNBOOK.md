@@ -56,6 +56,13 @@ in one command (§ 10), apart from the residue § 10 explains.
 
 ## 2. Before you load — in this order
 
+> **§ 4 now runs FIRST, before the migrations below.** The installed tester-week
+> dataset carries duplicate audience rows (see § 4), and migration
+> `20260917090000_event_audience_one_row_per_human.sql` refuses to apply while
+> they exist. Migrating before the rollback aborts the push. This reversal is
+> new as of 12 September 2026; the order the rest of this section assumes was
+> written when hosted held only the LAN-124 showcase.
+
 - [ ] **Mission 7 merged** (`/finish-mission M-ONBOARDING-AND-INFORMATION-COMPLETION`),
       and the LAN-221 draft PR's follow-up commit for the Mission 7 states is
       in. Until then the loader still runs and § 10 lists what is missing.
@@ -199,10 +206,27 @@ how many candidates it can see, and § 10 removes exactly the ids you list.
 
 ---
 
-## 4. Remove the Monday showcase first
+## 4. Remove the installed dataset first — before the migrations
 
-The 17 August dataset is still installed. It shares reference rows with the
-new one and must go before the new load.
+The LAN-124 Monday showcase is gone; you rolled it back before the first tester
+run. What is installed now is the **tester-week dataset**, and it has to go
+before this load for a reason the Monday showcase never had.
+
+**Why it cannot simply be reloaded over.** The dataset was loaded after LAN-221
+merged (8 September) and before LAN-293 merged (10 September), so it was written
+by the loader as it stood before LAN-293 corrected
+`scripts/production/showcase/plan/calendar.mjs`. Three players who also hold
+seats — loader keys `p02`, `p09` and `p20` — carry two `event_audience_members`
+rows and two invitations on every event in the term. Migration
+`20260917090000_event_audience_one_row_per_human.sql` builds a total
+`unique (event_id, invitee_person_id)` and **refuses to apply while they exist**.
+
+Confirm it for yourself first — this must return nothing once the rollback is
+done, and it is the gate on the whole sequence:
+
+```
+select a.event_id, coalesce(a.person_id, m.person_id) as human, count(*) from public.event_audience_members a left join public.season_memberships m on m.id = a.season_membership_id group by 1, 2 having count(*) > 1;
+```
 
 - [ ] Get the connection string into your shell without it reaching history:
 
@@ -210,20 +234,19 @@ new one and must go before the new load.
 export DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)"
 ```
 
-- [ ] Roll it back with the **previous** loader, from the commit before
-      LAN-221 merged, using your old parameter file and the two workbooks:
+- [ ] Roll it back with the **current** loader — not a worktree of an older
+      commit — using the tester-week parameter file:
 
 ```
-git worktree add /tmp/showcase-lan124 4a3efa9 && node /tmp/showcase-lan124/scripts/production/showcase.mjs rollback --force --confirm-target fggbgeraiadetyiyjlvb --roster "$HOME/Downloads/OULAFC Master Table.xlsx" --termcard "$HOME/Downloads/260720 OULAFC MT26 Term Card v0.xlsx" --params ~/lancers-showcase-params.json
+node scripts/production/showcase.mjs rollback --force --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json
 ```
 
-      If it stops with `permission denied for table …`, the old runbook's
-      § 11 "Three tables `--force` cannot remove" applies: delete those rows
-      as the owner in the SQL editor, then re-run. Finish with
+      Rollback only issues DELETEs, so it runs correctly against the old schema;
+      that is why it comes before the migrations rather than after. If it stops
+      with `permission denied for table …`, § 10's residue applies: run the
+      residue SQL as the owner in the SQL editor, then re-run.
 
-```
-git worktree remove /tmp/showcase-lan124
-```
+- [ ] Re-run the duplicate query above. **Zero rows before you migrate.**
 
 - [ ] **Snapshot.** Supabase dashboard → Database → Backups → take a manual
       backup, or confirm today's exists. Note the time. This is your recovery

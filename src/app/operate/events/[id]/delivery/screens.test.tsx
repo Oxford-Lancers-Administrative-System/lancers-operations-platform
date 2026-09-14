@@ -77,6 +77,7 @@ function row(overrides: Partial<DeliveryRow> = {}): DeliveryRow {
     invitationId: "invitation-1",
     inviteeName: "Leo Hartwell",
     channel: "whatsapp",
+    cancelledReason: null,
     state: "retryable",
     lastAttemptAt: new Date("2026-10-12T17:04:00Z"),
     nextAttemptAt: null,
@@ -959,6 +960,34 @@ describe("UX-52 — the repair panel offers exactly two controls", () => {
     expect(container.querySelector('[data-testid="latest-result"]')?.textContent).toContain(
       "Safe provider reason",
     );
+  });
+
+  /**
+   * LAN-341, walk finding F3. A cancelled message's own reason was written and
+   * shown nowhere, so an operator reading **Cancelled** could not tell a
+   * recruit's status change from a called-off event.
+   */
+  it("says why a cancelled message was stood down, in the club's own words", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({
+        rows: [
+          row({
+            state: "cancelled",
+            retryable: false,
+            cancelledReason: "Recruit moved to declined.",
+            failureReason: "Provider rejected the recipient.",
+          }),
+        ],
+      }),
+    );
+    const { container } = await renderPage({ invitation: "invitation-1" });
+
+    const result = container.querySelector('[data-testid="latest-result"]')?.textContent ?? "";
+    expect(result).toContain("Cancelled");
+    expect(result).toContain("Recruit moved to declined.");
+    // The cancellation outranks whatever the last attempt said: the club stood
+    // this message down, and that is the fact the state leaves open.
+    expect(result).not.toContain("Safe provider reason");
   });
 
   it("disables retry once the attempt ceiling is reached", async () => {

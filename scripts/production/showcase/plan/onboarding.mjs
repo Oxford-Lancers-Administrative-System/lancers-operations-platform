@@ -252,7 +252,7 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
           when,
         );
         // `signed link` is the channel `player-questionnaire.ts` writes for
-        // every step a player saves through `/me/<token>/details`, and the
+        // every step a player saves through `/onboarding/<token>`, and the
         // channel it reads back to decide whether the player claimed a thing
         // themselves. An operator recording the same fact writes `web`, so the
         // two have to stay distinguishable — half of these are each.
@@ -680,11 +680,41 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
       "illustrative",
       { source: `the player-side link handed out with ${operator.key}'s list` },
       // `token.onboarding.live` as well: each seat holds a membership at
-      // `onboarding` with a checklist still open (`people.mjs`), so the link
-      // lands on the five-step form rather than the already-complete page.
+      // `onboarding` with a checklist still open (`people.mjs`), so the
+      // questionnaire link below lands on the five-step form rather than the
+      // already-complete page.
       ["token.durable.live", "token.onboarding.live"],
     );
     ctx.example("link.me.player", minted.plaintext);
+
+    // LAN-343. The questionnaire is its own page on its own credential, so one
+    // link no longer opens both it and the events list. Two rows per seat now,
+    // which the schema allows because that ticket dropped
+    // `person_access_tokens_one_live_per_person_season`: a link the club has
+    // sent keeps resolving until the season closes.
+    const onboarding = ctx.mintToken("person_access_tokens", "onboarding", operator.key);
+    add(
+      "public.person_access_tokens",
+      {
+        id: id("person_access_tokens", labels.currentSeason, "onboarding", operator.key),
+        person_id: operator.personId,
+        season_id: seasonId,
+        token_hash: onboarding.hash,
+        single_use: false,
+        single_use_at: null,
+        issued_at: at(-10, "09:00"),
+        issued_by_person_id: actorPersonId,
+        revoked_at: null,
+        revoked_reason: null,
+        last_used_at: null,
+        use_count: 0,
+        purpose: "onboarding_details",
+      },
+      "illustrative",
+      { source: `the onboarding questionnaire link sent to ${operator.key}` },
+      ["token.durable.live", "token.onboarding.live"],
+    );
+    ctx.example("link.onboarding.player", onboarding.plaintext);
   }
 
   return { memberships };

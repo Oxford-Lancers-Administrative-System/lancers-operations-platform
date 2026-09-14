@@ -385,19 +385,25 @@ async function readPeopleIn(
       noUsableRoute,
       whatsappUnresponsive,
       chasePosition,
-      // LAN-296. Set only when the state the chip is about belongs to a
-      // reminder this person's own answer stopped — the one case the bare word
-      // **Cancelled** could not be read. Compared against the sentence both
+      // LAN-296, widened by LAN-341 (walk finding F3). Whatever the club
+      // recorded as the reason for cancelling this job, shown as-is. LAN-296
+      // closed this readability gap for one sentence only, and LAN-341 then
+      // wrote two more of its own ("Recruit moved to declined.", "Recruit
+      // joined the roster.") that no screen could show, leaving an operator
+      // reading a bare **Cancelled** that could equally have meant the event,
+      // the runway or a status change.
+      cancelledReason:
+        row.delivery_state === "cancelled" ? (row.delivery_cancelled_reason ?? null) : null,
+      // LAN-296's own exception, unchanged, and a label rather than a reason:
+      // the chip says what was cancelled. Compared against the sentence both
       // writers share (`stopChasingIn`, and `claimJobIn`'s LAN-292 withhold)
       // rather than inferred from the job type alone, because a reminder
       // cancelled with the event or dropped by a rescheduled runway is a
-      // different fact and must keep reading differently.
-      remindersStoppedReason:
+      // different fact and keeps reading as a plain Cancelled.
+      remindersStopped:
         row.delivery_state === "cancelled" &&
         row.delivery_job_type === "reminder" &&
-        row.delivery_cancelled_reason === JOB_CANCELLED_REASON
-          ? row.delivery_cancelled_reason
-          : null,
+        row.delivery_cancelled_reason === JOB_CANCELLED_REASON,
     };
   });
 }

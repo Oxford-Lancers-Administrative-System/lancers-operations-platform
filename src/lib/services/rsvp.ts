@@ -10,6 +10,7 @@ import {
 } from "@/lib/db";
 
 import { recordAudit } from "./audit";
+import { capacityIsAskedQuestions } from "./question-applicability";
 import { resolveRsvpTokenIn, type TokenState } from "./rsvp-tokens";
 import { personDisplayAliasSql } from "./sql-text";
 
@@ -320,9 +321,10 @@ export async function recordOperatorRsvpResponse(
     const invitation = await tx.query<{
       status: string;
       event_id: string;
+      capacity: string;
       created_at: Date;
     }>(
-      `select status::text as status, event_id, created_at
+      `select status::text as status, event_id, capacity::text as capacity, created_at
          from public.invitations
         where id = $1
         for update`,
@@ -423,9 +425,14 @@ export async function recordOperatorRsvpResponse(
       resolvedByPersonId: operatorPersonId,
     });
 
-    const answeredQuestionIds = Object.entries(submission.questionAnswers ?? {})
-      .filter(([, value]) => value.trim() !== "")
-      .map(([questionId]) => questionId);
+    // LAN-339: a recruit-capacity invitation has no applicable question, so an
+    // operator recording their Yes records the Yes and nothing else. The same
+    // rule the reads apply (`question-applicability.ts`), on the write.
+    const answeredQuestionIds = capacityIsAskedQuestions(invitationRow.capacity)
+      ? Object.entries(submission.questionAnswers ?? {})
+          .filter(([, value]) => value.trim() !== "")
+          .map(([questionId]) => questionId)
+      : [];
 
     if (answeredQuestionIds.length > 0) {
       const questions = await tx.query<{

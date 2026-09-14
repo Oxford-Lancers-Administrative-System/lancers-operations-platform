@@ -21,7 +21,7 @@ import { readFieldSuppliedByIn } from "./provenance";
 import { TRUST_ITEM_CODES, type QuestionnaireStep } from "./types";
 
 /**
- * The read model — the one whole read `/me/[token]/details` needs, and the
+ * The read model — the one whole read `/onboarding/[token]` needs, and the
  * item-completion writer both it and steps 2-5 share.
  * `WP-player-questionnaire`, LAN-216, W4 and W5.
  */
@@ -134,7 +134,7 @@ async function readAgreementsByTypeIn(
   return byType;
 }
 
-/** The one whole read `/me/[token]/details` needs, assembled from substrate the mission already built. */
+/** The one whole read `/onboarding/[token]` needs, assembled from substrate the mission already built. */
 export async function readQuestionnaireViewIn(
   tx: Tx,
   personId: string,

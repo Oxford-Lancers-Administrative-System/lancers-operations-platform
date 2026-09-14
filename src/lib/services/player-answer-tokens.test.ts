@@ -4,9 +4,12 @@
  *
  * Against the real local database, for the same reason `rsvp-tokens.test.ts`
  * is: the guarantees under test are PostgreSQL's — the shape check that makes
- * storing anything but a digest impossible, the partial unique index that
- * permits one live durable credential per person per season, and the
- * comparison against `now()` that decides whether an event has started.
+ * storing anything but a digest impossible, the `purpose` column that decides
+ * which single page a credential opens, and the comparison against `now()`
+ * that decides whether an event has started. LAN-343 removed the index that
+ * permitted one live durable credential per person and season; what replaced
+ * it is an absence, and "every link the club sent still resolves" is asserted
+ * below rather than enforced by a constraint.
  *
  * Every row hangs off a person whose `given_name` is `MARKER`, deleted in
  * `afterEach`.
@@ -494,11 +497,14 @@ describe("consuming an answer token", () => {
 });
 
 describe("the durable person credential", () => {
+  /** The events page's own resolution — the untagged purpose (LAN-343). */
+  const resolvePersonTokenForEvents = (token: string) => resolvePersonToken(token, null);
+
   it("stores only the digest and resolves back to the person and season", async () => {
     const { personId } = await fixture(48);
     const issued = await withTransaction((tx) => issuePersonTokenIn(tx, personId, seasonId));
 
-    const resolution = await resolvePersonToken(issued.token);
+    const resolution = await resolvePersonTokenForEvents(issued.token);
     expect(resolution.state).toBe("valid");
     expect(resolution.resolved).toEqual({ personId, seasonId });
 
@@ -508,21 +514,68 @@ describe("the durable person credential", () => {
     expect(JSON.stringify(raw.rows[0])).not.toContain(issued.token);
   });
 
-  it("reissuing supersedes the previous durable token — it cannot be recovered, only replaced", async () => {
+  it("keeps every link it has issued live — LAN-343's new invariant", async () => {
     const { personId } = await fixture(48);
     const first = await withTransaction((tx) => issuePersonTokenIn(tx, personId, seasonId));
     const second = await withTransaction((tx) => issuePersonTokenIn(tx, personId, seasonId));
 
-    expect((await resolvePersonToken(first.token)).state).toBe("unknown");
-    expect((await resolvePersonToken(second.token)).state).toBe("valid");
+    // Brian, 2026-09-11: a link that was sent keeps resolving until the season
+    // closes. Before LAN-343 the first of these two was revoked by the second,
+    // so a September link was dead by October — and no mint can ever re-send
+    // the earlier plaintext, because only its digest was kept.
+    expect((await resolvePersonTokenForEvents(first.token)).state).toBe("valid");
+    expect((await resolvePersonTokenForEvents(second.token)).state).toBe("valid");
 
-    // Never two live durable credentials for the same person and season at once.
     const live = await observer.query(
       `select count(*) as count from public.person_access_tokens
         where person_id = $1 and season_id = $2 and not single_use and revoked_at is null`,
       [personId, seasonId],
     );
-    expect(Number(live.rows[0].count)).toBe(1);
+    expect(Number(live.rows[0].count)).toBe(2);
+  });
+
+  it("resolves only for its own purpose, so one journey's link never opens another's page", async () => {
+    const { personId } = await fixture(48);
+    const events = await withTransaction((tx) => issuePersonTokenIn(tx, personId, seasonId));
+    const onboarding = await withTransaction((tx) =>
+      issuePersonTokenIn(tx, personId, seasonId, { purpose: "onboarding_details" }),
+    );
+    const stop = await withTransaction((tx) =>
+      issuePersonTokenIn(tx, personId, seasonId, { purpose: "messaging_stop" }),
+    );
+
+    expect((await resolvePersonToken(events.token, null)).state).toBe("valid");
+    expect((await resolvePersonToken(events.token, "onboarding_details")).state).toBe("unknown");
+    expect((await resolvePersonToken(onboarding.token, "onboarding_details")).state).toBe("valid");
+    expect((await resolvePersonToken(onboarding.token, null)).state).toBe("unknown");
+    expect((await resolvePersonToken(onboarding.token, "messaging_stop")).state).toBe("unknown");
+    expect((await resolvePersonToken(stop.token, "messaging_stop")).state).toBe("valid");
+    expect((await resolvePersonToken(stop.token, null)).state).toBe("unknown");
+  });
+
+  it("revokes every purpose by default, and only one when named", async () => {
+    const { personId } = await fixture(48);
+    const events = await withTransaction((tx) => issuePersonTokenIn(tx, personId, seasonId));
+    const onboarding = await withTransaction((tx) =>
+      issuePersonTokenIn(tx, personId, seasonId, { purpose: "onboarding_details" }),
+    );
+
+    const narrow = await withTransaction((tx) =>
+      revokePersonTokenIn(tx, personId, seasonId, "Reported lost.", {
+        purpose: "onboarding_details",
+      }),
+    );
+    expect(narrow).toBe(1);
+    expect((await resolvePersonToken(onboarding.token, "onboarding_details")).state).toBe(
+      "unknown",
+    );
+    expect((await resolvePersonTokenForEvents(events.token)).state).toBe("valid");
+
+    const all = await withTransaction((tx) =>
+      revokePersonTokenIn(tx, personId, seasonId, "Reported lost."),
+    );
+    expect(all).toBe(1);
+    expect((await resolvePersonTokenForEvents(events.token)).state).toBe("unknown");
   });
 
   it("is revocable per person without waiting for a season close", async () => {
@@ -533,7 +586,7 @@ describe("the durable person credential", () => {
       revokePersonTokenIn(tx, personId, seasonId, "Reported lost."),
     );
     expect(revokedCount).toBe(1);
-    expect((await resolvePersonToken(issued.token)).state).toBe("unknown");
+    expect((await resolvePersonTokenForEvents(issued.token)).state).toBe("unknown");
   });
 
   it("refuses a revocation with no reason, so the decision stays reviewable", async () => {
@@ -549,11 +602,11 @@ describe("the durable person credential", () => {
   it("stops resolving the moment its season closes", async () => {
     const { personId } = await fixture(48);
     const issued = await withTransaction((tx) => issuePersonTokenIn(tx, personId, seasonId));
-    expect((await resolvePersonToken(issued.token)).state).toBe("valid");
+    expect((await resolvePersonTokenForEvents(issued.token)).state).toBe("valid");
 
     await observer.query("update public.seasons set closed_at = now() where id = $1", [seasonId]);
     try {
-      expect((await resolvePersonToken(issued.token)).state).toBe("unknown");
+      expect((await resolvePersonTokenForEvents(issued.token)).state).toBe("unknown");
     } finally {
       await observer.query("update public.seasons set closed_at = null where id = $1", [seasonId]);
     }
@@ -563,8 +616,8 @@ describe("the durable person credential", () => {
     const { personId } = await fixture(48);
     const issued = await withTransaction((tx) => issuePersonTokenIn(tx, personId, seasonId));
 
-    await resolvePersonToken(issued.token);
-    await resolvePersonToken(issued.token);
+    await resolvePersonTokenForEvents(issued.token);
+    await resolvePersonTokenForEvents(issued.token);
 
     const row = await observer.query<{ last_used_at: Date | null; use_count: number }>(
       "select last_used_at, use_count from public.person_access_tokens where id = $1",

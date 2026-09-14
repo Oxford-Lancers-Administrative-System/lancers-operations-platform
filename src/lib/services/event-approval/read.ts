@@ -97,9 +97,14 @@ export async function readApprovalPreview(eventId: string): Promise<ApprovalPrev
       plan,
       unreachable: await resolveUnreachableIn(tx, audience),
       questions: await readEventQuestionsIn(tx, eventId),
+      // LAN-341: "Who will be asked" counts only who will be asked. An exited
+      // recruit stays in `audience` — the confirmed list is the record — but
+      // approval mints them no invitation, so they are not in this shape.
       groupSummary: summariseAudienceGroups(
         catalogue.candidates,
-        audience.map((member) => `${member.capacity}:${member.anchorId}`),
+        audience
+          .filter((member) => !member.exitedRecruit)
+          .map((member) => `${member.capacity}:${member.anchorId}`),
         event.eventType,
       ),
       missing: missingForApproval(event),

@@ -41,9 +41,11 @@ import { CLUB_NAME, SITE_DESCRIPTION, TOKEN_LINK_METADATA } from "@/lib/brand";
 import { metadata as rootMetadata } from "@/app/layout";
 import manifest from "@/app/manifest";
 import { metadata as rsvpMetadata } from "@/app/rsvp/[token]/page";
-import { metadata as answerMetadata } from "@/app/a/[token]/page";
+import { metadata as answerMetadata } from "@/app/a/[answer]/[token]/page";
 import { metadata as clubLinkMetadata } from "@/app/e/[token]/page";
-import { metadata as meMetadata } from "@/app/me/layout";
+import { metadata as eventsMetadata } from "@/app/events/[token]/page";
+import { metadata as questionsMetadata } from "@/app/questions/[token]/page";
+import { metadata as backgroundMetadata } from "@/app/background/[token]/page";
 import { metadata as joinMetadata } from "@/app/join/[code]/page";
 import { metadata as privacyMetadata } from "@/app/(policies)/privacy/page";
 import { metadata as calendarMetadata } from "@/app/calendar/page";
@@ -75,11 +77,18 @@ describe("the club-wide card", () => {
 });
 
 describe("token routes say nothing", () => {
+  // LAN-343 gave every message its own route. `/me` left this list with the
+  // layout that carried its card: nothing under `/me` is a token route any
+  // more, and the three that took its place are named here individually rather
+  // than by a prefix, so adding a fourth cannot quietly inherit a card nobody
+  // checked.
   const routes: [string, Metadata][] = [
     ["/rsvp/[token]", rsvpMetadata],
-    ["/a/[token]", answerMetadata],
+    ["/a/<yes|no>/[token]", answerMetadata],
     ["/e/[token]", clubLinkMetadata],
-    ["/me/**", meMetadata],
+    ["/events/[token]", eventsMetadata],
+    ["/questions/[token]", questionsMetadata],
+    ["/background/[token]", backgroundMetadata],
   ];
 
   it.each(routes)("%s shows the generic club card", (_route, metadata) => {
@@ -115,9 +124,11 @@ describe("token routes say nothing", () => {
     // put LAN-90's uniform terminal response into a chat bubble.
     for (const file of [
       "src/app/rsvp/[token]/page.tsx",
-      "src/app/a/[token]/page.tsx",
+      "src/app/a/[answer]/[token]/page.tsx",
       "src/app/e/[token]/page.tsx",
-      "src/app/me/layout.tsx",
+      "src/app/events/[token]/page.tsx",
+      "src/app/questions/[token]/page.tsx",
+      "src/app/background/[token]/page.tsx",
     ]) {
       expect(await readFile(path.join(REPO, file), "utf8")).not.toContain("generateMetadata");
     }

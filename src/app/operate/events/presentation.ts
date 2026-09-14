@@ -208,6 +208,15 @@ export const QUESTIONS_FORM_DETAIL =
 
 export const QUESTIONS_REVIEW_DETAIL = "Exactly as they will appear on the RSVP page.";
 
+/**
+ * LAN-339, Brian's own words, used verbatim — shown beside the questions of a
+ * Recruitment event, on the page and in both forms. A recruit's answer is Yes or
+ * No and nothing more, so an operator writing a question on a Recruitment event
+ * is told who it will and will not reach before they write it.
+ */
+export const RECRUIT_QUESTIONS_NOTICE =
+  "Questions only go out to enlisted players. They do not go out to recruits.";
+
 export const RSVP_FIRST_QUESTION = "Are you coming?";
 
 export const RSVP_FIRST_QUESTION_ANSWER = "Yes · No — a reason is asked on No";

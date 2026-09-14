@@ -94,7 +94,7 @@ describe("a signed-in request", () => {
   it("redirects to the durable page carrying the freshly minted token", async () => {
     const target = await redirectFrom(() => openMyPage());
 
-    expect(target).toBe("/me/durable-token-plaintext-000000000000000000000");
+    expect(target).toBe("/events/durable-token-plaintext-000000000000000000000");
   });
 
   it("never trusts a stored identity — it resolves the session itself, every call", async () => {

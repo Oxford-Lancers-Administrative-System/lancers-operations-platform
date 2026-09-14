@@ -495,12 +495,19 @@ describe("checklists", () => {
 
     const playerLinks = new Map<string, string>();
     for (const [file, text] of lists) {
-      const found = [...text.matchAll(/\/me\/([A-Za-z0-9_-]{43})/g)].map((match) => match[1]);
+      // LAN-343: the player's own pages are `/events/<t>` and `/onboarding/<t>`,
+      // on a credential each. Both are matched here, because "no seat holds
+      // another seat's link" has to hold for every one of them, not for
+      // whichever happened to be checked.
+      const found = [...text.matchAll(/\/(?:events|onboarding)\/([A-Za-z0-9_-]{43})/g)].map(
+        (match) => match[1],
+      );
       expect(new Set(found).size, `${file} carries no player link`).toBeGreaterThan(0);
       for (const link of new Set(found)) playerLinks.set(link, file);
     }
-    // Five distinct links across five lists, each on exactly one.
-    expect(playerLinks.size).toBe(files.length);
+    // Two distinct links per seat — the events page and the questionnaire —
+    // across five lists, each on exactly one.
+    expect(playerLinks.size).toBe(files.length * 2);
     for (const [link, owner] of playerLinks) {
       for (const [file, text] of lists) {
         if (file === owner) continue;
