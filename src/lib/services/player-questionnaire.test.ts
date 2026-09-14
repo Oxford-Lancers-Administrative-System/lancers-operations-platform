@@ -21,17 +21,24 @@ import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { closePool, withTransaction } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import { generateOnboardingItems, resolveOnboardingItem } from "./membership";
-import { readOnboardingAgreements } from "./onboarding-agreements";
+import { PRINTED_NAME_REQUIRED_MESSAGE, readOnboardingAgreements } from "./onboarding-agreements";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { resolveOpenSeason } from "./roster";
+import { readPersonRecord } from "./person-record";
 import { updatePersonField } from "./person-write";
 import {
+  ADDRESS_REQUIRED_MESSAGE,
   agreeOnboardingDocument,
   claimTrustItem,
   emergencyContactIsComplete,
+  photoReleasePrefill,
+  POSTCODE_REQUIRED_MESSAGE,
+  readLastPhotoReleaseForm,
   readQuestionnaireView,
   saveDetailsStep,
+  savePhotoRelease,
   type DetailsStepInput,
+  type PhotoReleaseInput,
 } from "./player-questionnaire";
 
 const MARKER = "LAN216PlayerQuestionnaire";
@@ -111,6 +118,18 @@ async function givenPlayerWithNoItems(): Promise<{ personId: string; membershipI
   );
 
   return { personId, membershipId };
+}
+
+/** One onboarding item's own id, for the tests that drive an operator's resolution of it. */
+async function onboardingItemId(membershipId: string, code: string): Promise<string> {
+  const result = await observer.query<{ id: string }>(
+    `select i.id
+       from public.onboarding_items i
+       join public.onboarding_item_types t on t.id = i.item_type_id
+      where i.season_membership_id = $1::uuid and t.code = $2`,
+    [membershipId, code],
+  );
+  return result.rows[0].id;
 }
 
 async function itemStatus(membershipId: string, code: string): Promise<string> {
@@ -674,6 +693,7 @@ describe("agreeOnboardingDocument", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     expect(coc.agreementVersionId).not.toBe(release.agreementVersionId);
 
@@ -735,6 +755,252 @@ describe("agreeOnboardingDocument", () => {
   });
 });
 
+describe("savePhotoRelease — the University's consent form, LAN-347", () => {
+  /** Everything the form posts, all of it valid, overridable per test. */
+  function submission(
+    personId: string,
+    membershipId: string,
+    overrides: Partial<PhotoReleaseInput> = {},
+  ): PhotoReleaseInput {
+    return {
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      name: "Jordan Ashworth",
+      address: "12 Turl Street\nOxford",
+      postcode: "OX1 3DH",
+      tel: "07700 900000",
+      email: "jordan@example.com",
+      printedName: "Jordan Ashworth",
+      agreed: true,
+      ...overrides,
+    };
+  }
+
+  /**
+   * Everything this person *is*, as the database holds it — decision 4's
+   * subject. The whole `people` row and every contact point, read through the
+   * observer and compared as one string, so the comparison is byte-for-byte
+   * rather than field-by-field: a column this test never heard of is caught
+   * too.
+   */
+  async function personState(personId: string): Promise<string> {
+    const person = await observer.query<{ row: unknown }>(
+      "select to_jsonb(p.*) as row from public.people p where p.id = $1::uuid",
+      [personId],
+    );
+    const contacts = await observer.query<{ row: unknown }>(
+      `select to_jsonb(c.*) as row from public.contact_points c
+        where c.person_id = $1::uuid order by c.id`,
+      [personId],
+    );
+    return JSON.stringify([person.rows[0]?.row, contacts.rows.map((r) => r.row)]);
+  }
+
+  /** The submitted form as the agreement row actually holds it. */
+  async function storedForm(personId: string): Promise<Record<string, unknown>> {
+    const result = await observer.query<Record<string, unknown>>(
+      `select printed_name, form_name, form_address, form_postcode, form_tel, form_email
+         from public.onboarding_agreements
+        where person_id = $1::uuid and agreement_type = 'photo_release'
+        order by agreed_at desc limit 1`,
+      [personId],
+    );
+    return result.rows[0];
+  }
+
+  it("records the agreement and stores the whole form beside it", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(submission(personId, membershipId));
+
+    expect(result.errors).toEqual({});
+    expect(result.agreement?.printedName).toBe("Jordan Ashworth");
+    expect(result.agreement?.agreedAt).toBeInstanceOf(Date);
+    expect(await itemStatus(membershipId, "photo_release")).toBe("complete");
+
+    expect(await storedForm(personId)).toEqual({
+      printed_name: "Jordan Ashworth",
+      form_name: "Jordan Ashworth",
+      form_address: "12 Turl Street\nOxford",
+      form_postcode: "OX1 3DH",
+      form_tel: "07700 900000",
+      form_email: "jordan@example.com",
+    });
+  });
+
+  /**
+   * Decision 4, and the whole point of the rework: "nothing in this form should
+   * change anything else… it's just a record". The submission below carries a
+   * different name, a different phone and a different email from the record,
+   * and the record is identical afterwards, byte for byte.
+   */
+  it("leaves the person record byte-for-byte unchanged, whatever is typed", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    const before = await personState(personId);
+
+    const result = await savePhotoRelease(
+      submission(personId, membershipId, {
+        name: "Someone Else Entirely",
+        tel: "07700 900999",
+        email: "someone.else@example.com",
+      }),
+    );
+
+    expect(result.agreement).not.toBeNull();
+    expect(await personState(personId)).toBe(before);
+
+    // Nor by the side door: no person fact was audited as changed.
+    const audits = await observer.query(
+      `select action from public.audit_events
+        where entity_table in ('people', 'contact_points') and entity_id = $1::uuid`,
+      [personId],
+    );
+    expect(audits.rows).toEqual([]);
+
+    // What they typed is on the form, which is the only place it goes.
+    const form = await storedForm(personId);
+    expect(form.form_name).toBe("Someone Else Entirely");
+    expect(form.form_tel).toBe("07700 900999");
+    expect(form.form_email).toBe("someone.else@example.com");
+  });
+
+  it("stores a phone and an email of any shape, because nothing will ever send to them", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(
+      submission(personId, membershipId, { tel: "398393", email: "not-an-email" }),
+    );
+
+    expect(result.errors).toEqual({});
+    const form = await storedForm(personId);
+    expect(form.form_tel).toBe("398393");
+    expect(form.form_email).toBe("not-an-email");
+  });
+
+  it("stores a box left blank as not given, rather than as a blank", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    await savePhotoRelease(submission(personId, membershipId, { tel: "", email: "   " }));
+
+    const form = await storedForm(personId);
+    expect(form.form_tel).toBeNull();
+    expect(form.form_email).toBeNull();
+  });
+
+  it("stores the address on the lines it was written on, without a browser's carriage returns", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    // What a textarea actually posts.
+    await savePhotoRelease(
+      submission(personId, membershipId, { address: "12 Turl Street\r\nOxford" }),
+    );
+
+    expect((await storedForm(personId)).form_address).toBe("12 Turl Street\nOxford");
+  });
+
+  it("refuses a blank address, and says which box is missing", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    const before = await personState(personId);
+
+    const result = await savePhotoRelease(submission(personId, membershipId, { address: "  " }));
+
+    expect(result.errors.address).toBe(ADDRESS_REQUIRED_MESSAGE);
+    expect(result.agreement).toBeNull();
+    // A refusal records nothing at all: the step is still outstanding, no
+    // agreement exists, and the person record never moved.
+    expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+    expect(await personState(personId)).toBe(before);
+  });
+
+  it("refuses a blank post code, and says which box is missing", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(submission(personId, membershipId, { postcode: "" }));
+
+    expect(result.errors.postcode).toBe(POSTCODE_REQUIRED_MESSAGE);
+    expect(result.agreement).toBeNull();
+    expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+  });
+
+  it("refuses a blank printed name", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(submission(personId, membershipId, { printedName: "" }));
+
+    expect(result.errors.printedName).toBe(PRINTED_NAME_REQUIRED_MESSAGE);
+    expect(result.agreement).toBeNull();
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+  });
+
+  it("refuses an unticked form and records nothing", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    const before = await personState(personId);
+
+    const result = await savePhotoRelease(submission(personId, membershipId, { agreed: false }));
+
+    expect(result.agreeError).toBe(true);
+    expect(result.errors).toEqual({});
+    expect(result.agreement).toBeNull();
+    expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+    expect(await personState(personId)).toBe(before);
+  });
+
+  it("starts empty, except for what the record already holds", async () => {
+    const { personId } = await givenPlayer();
+
+    const prefill = photoReleasePrefill(await readPersonRecord(personId), null);
+
+    expect(prefill.address).toBe("");
+    expect(prefill.postcode).toBe("");
+    expect(prefill.printedName).toBe("");
+  });
+
+  it("prefills a reopened form with the address and post code it was given (LAN-240)", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await savePhotoRelease(submission(personId, membershipId));
+
+    // The operator sets the item back off complete, which is LAN-240's reopen.
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: await onboardingItemId(membershipId, "photo_release"),
+      status: "pending",
+      reason: "Reopened so the player can agree again.",
+    });
+
+    // The document is outstanding again …
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+    // … and the form comes back as it was written, except the printed name.
+    const record = await readPersonRecord(personId);
+    const previous = await readLastPhotoReleaseForm(personId, openSeasonId);
+    const prefill = photoReleasePrefill(record, previous);
+    expect(prefill.address).toBe("12 Turl Street\nOxford");
+    expect(prefill.postcode).toBe("OX1 3DH");
+    expect(prefill.printedName).toBe("");
+    // Name, tel and email are the record's, not the reopened form's.
+    expect(prefill.name).toBe(record.displayName);
+
+    // And it can genuinely be agreed again.
+    const again = await savePhotoRelease(submission(personId, membershipId));
+    expect(again.agreement).not.toBeNull();
+  });
+
+  it("puts the printed name and the date on the view the operator's record reads", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await savePhotoRelease(submission(personId, membershipId));
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.agreements.photo_release?.printedName).toBe("Jordan Ashworth");
+    expect(view?.documentAgreed.photo_release).toBe(true);
+    // The step renders the version it was agreed against, not a literal.
+    expect(view?.agreementVersions.photo_release.versionLabel).toBe("oxford-consent-form-v1");
+  });
+});
+
 describe("claimTrustItem", () => {
   it("records claimed, not complete, with player provenance", async () => {
     const { personId, membershipId } = await givenPlayer();
@@ -792,6 +1058,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "hudl_access" });
@@ -822,6 +1089,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "hudl_access" });
@@ -861,6 +1129,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     const after = await readQuestionnaireView(personId, openSeasonId);
     expect(after?.nothingOutstanding).toBe(true);
@@ -981,6 +1250,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
 
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
@@ -1009,6 +1279,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
 
@@ -1034,6 +1305,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
 

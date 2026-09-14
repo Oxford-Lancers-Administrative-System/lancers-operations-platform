@@ -16,6 +16,7 @@ import {
   agreeOnboardingDocument,
   claimTrustItem,
   readQuestionnaireView,
+  savePhotoRelease,
   saveDetailsStep,
   STEP_ORDER,
   type DetailsStepInput,
@@ -25,8 +26,10 @@ import type { OnboardingAgreementType } from "@/lib/services/onboarding-agreemen
 import {
   mapServiceErrors,
   readDetailsValues,
+  readPhotoReleaseValues,
   validateRequiredDetails,
   type DetailsFormState,
+  type PhotoReleaseFormState,
 } from "./validation";
 
 /**
@@ -208,6 +211,65 @@ export async function agreeDocument(form: FormData): Promise<void> {
     ) {
       return refuse(detailsUrl(token), startedAt);
     }
+  }
+
+  redirect(await nextStepUrl(token, resolution));
+}
+
+/**
+ * Step 3 — the University's consent form (LAN-347). Unlike the Code of
+ * Conduct's bare tick, this step collects fields, so its refusals have to come
+ * back against the boxes they belong to rather than as a query parameter: the
+ * same `useActionState` shape step 1 uses. The service decides what is
+ * required and what is written; this only re-resolves the token, hands the
+ * form over, and routes.
+ */
+export async function agreePhotoRelease(
+  _previous: PhotoReleaseFormState,
+  form: FormData,
+): Promise<PhotoReleaseFormState> {
+  const startedAt = startUniformClock();
+  const token = str(form, "token");
+  const values = readPhotoReleaseValues(form);
+
+  if (await throttled(token)) await refuse(detailsUrl(token), startedAt);
+
+  let resolution: Resolution;
+  try {
+    resolution = await resolveOrThrow(token);
+  } catch {
+    return refuse(detailsUrl(token), startedAt);
+  }
+
+  let result;
+  try {
+    result = await savePhotoRelease({
+      personId: resolution.personId,
+      seasonId: resolution.seasonId,
+      membershipId: resolution.membershipId,
+      name: values.name,
+      address: values.address,
+      postcode: values.postcode,
+      tel: values.tel,
+      email: values.email,
+      printedName: values.printedName,
+      agreed: checked(form, "agree"),
+    });
+  } catch (error) {
+    // Already agreed this season (resubmitted or double-clicked) is not a
+    // failure — the step is already done, exactly as it is for the Code of
+    // Conduct above.
+    if (
+      !isServiceError(error) ||
+      error.rule !== "onboarding_agreements_one_per_person_season_type"
+    ) {
+      return refuse(detailsUrl(token), startedAt);
+    }
+    redirect(await nextStepUrl(token, resolution));
+  }
+
+  if (Object.keys(result.errors).length > 0 || result.agreeError) {
+    return { values, errors: result.errors, agreeError: result.agreeError };
   }
 
   redirect(await nextStepUrl(token, resolution));
