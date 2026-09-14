@@ -86,9 +86,16 @@ function templateBody(
   });
 }
 
-// LAN-172: the invitation's body carries three parameters now — the link left
-// body copy entirely and travels on the two buttons `answerButtons()` adds.
-const THREE = ["Jamie", "Michaelmas week 3", "Wednesday 14 October, 20:00"];
+// LAN-348: the approved invitation's body carries five parameters — name,
+// event, when, venue, deadline. The link left body copy entirely and travels
+// on the two buttons `answerButtons()` adds.
+const FIVE = [
+  "Jamie",
+  "Michaelmas week 3",
+  "Wednesday 14 October, 20:00",
+  "Iffley Road Sports Centre",
+  "Tuesday 13 October, 20:00",
+];
 
 function collecting() {
   const written: SinkRecord[] = [];
@@ -140,7 +147,7 @@ describe("validating against the declared registry", () => {
 
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, THREE),
+      body: templateBody(TEMPLATE_NAMES.invitation, FIVE),
     });
 
     expect(response.status).toBe(200);
@@ -162,7 +169,7 @@ describe("validating against the declared registry", () => {
 
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, THREE.slice(0, 2)),
+      body: templateBody(TEMPLATE_NAMES.invitation, FIVE.slice(0, 2)),
     });
 
     expect(response.status).toBe(400);
@@ -171,14 +178,14 @@ describe("validating against the declared registry", () => {
     // that accepted this would let a reordering pass every local test and fail
     // for the first time in front of the club.
     expect(body.error.code).toBe(132_000);
-    expect(body.error.message).toContain("3 body parameters");
+    expect(body.error.message).toContain("5 body parameters");
   });
 
   it("refuses a template nobody has declared", async () => {
     const { sink } = collecting();
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody("some_template_we_invented", THREE),
+      body: templateBody("some_template_we_invented", FIVE),
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: { code: number } }).error.code).toBe(132_001);
@@ -188,7 +195,7 @@ describe("validating against the declared registry", () => {
     const { sink } = collecting();
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, ["Jamie", "", "when"]),
+      body: templateBody(TEMPLATE_NAMES.invitation, ["Jamie", "", "when", "venue", "deadline"]),
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
@@ -196,11 +203,11 @@ describe("validating against the declared registry", () => {
     );
   });
 
-  it("refuses a button missing its dynamic URL suffix", async () => {
+  it("refuses a button count the approved template does not have", async () => {
     const { sink } = collecting();
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, THREE, [
+      body: templateBody(TEMPLATE_NAMES.invitation, FIVE, [
         {
           type: "button",
           sub_type: "url",
@@ -208,20 +215,49 @@ describe("validating against the declared registry", () => {
           parameters: [{ type: "text", text: "y.token" }],
         },
         // Button 1 (No) is missing entirely — Meta would refuse this exactly
-        // as it refuses a missing body parameter.
+        // as it refuses a missing body parameter. LAN-348: the count is read
+        // off the registry, so this catches a one-button payload sent to a
+        // two-button template and the reverse.
       ]),
     });
     expect(response.status).toBe(400);
     const body = (await response.json()) as { error: { code: number; message: string } };
     expect(body.error.code).toBe(132_000);
-    expect(body.error.message).toContain("button 1");
+    expect(body.error.message).toContain("requires exactly 2 URL buttons");
+  });
+
+  it("refuses a button whose dynamic URL suffix is blank", async () => {
+    const { sink } = collecting();
+    const response = await sink(GRAPH, {
+      method: "POST",
+      body: templateBody(TEMPLATE_NAMES.invitation, FIVE, [
+        {
+          type: "button",
+          sub_type: "url",
+          index: "0",
+          parameters: [{ type: "text", text: "y.token" }],
+        },
+        {
+          type: "button",
+          sub_type: "url",
+          index: "1",
+          // Present, correctly indexed, and empty: the button would render as
+          // a link to the template's bare prefix, answering for nobody.
+          parameters: [{ type: "text", text: "" }],
+        },
+      ]),
+    });
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: { code: number; message: string } };
+    expect(body.error.code).toBe(132_000);
+    expect(body.error.message).toContain("1");
   });
 
   it("refuses a Quick Reply where a URL button was declared", async () => {
     const { sink } = collecting();
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, THREE, [
+      body: templateBody(TEMPLATE_NAMES.invitation, FIVE, [
         {
           type: "button",
           sub_type: "quick_reply",

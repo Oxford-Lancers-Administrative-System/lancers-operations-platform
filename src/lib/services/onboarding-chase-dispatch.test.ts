@@ -815,7 +815,7 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
     const rendered = renderedTextOf(escalation!);
     expect(rendered).not.toContain(MARKER);
     expect(rendered).toContain(
-      "The automated chase has finished for 1 players who still have onboarding details " +
+      "The automated chase has finished for 1 players who still have onboarding answers " +
         "outstanding.",
     );
   });
