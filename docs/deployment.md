@@ -107,6 +107,15 @@ None of these are secrets.
 | `SUPABASE_SECRET_KEY_SECRET`           | `supabase-secret-key`                                          |
 | `DATABASE_URL_SECRET`                  | `database-url` (the default; set only to override)             |
 | `CLUB_LINK_SECRET_SECRET`              | `club-link-secret` (the default; set only to override)         |
+| `WHATSAPP_ACCESS_TOKEN_SECRET`         | `whatsapp-access-token` (the default; set only to override)    |
+| `WHATSAPP_APP_SECRET_SECRET`           | `whatsapp-app-secret` (the default; set only to override)      |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET` | `whatsapp-webhook-verify-token` (the default; override only)   |
+| `SCHEDULER_TRIGGER_TOKEN_SECRET`       | `scheduler-trigger-token` (the default; set only to override)  |
+| `EMAIL_API_KEY_SECRET`                 | `resend-api-key` (the default; set only to override)           |
+| `WHATSAPP_PHONE_NUMBER_ID`             | the club's WhatsApp Business phone-number id                   |
+| `WHATSAPP_TEMPLATE_NAME`               | `lancers_event_invitation_v3` (the default; override only)     |
+| `WHATSAPP_TEMPLATE_LANGUAGE`           | `en` (the default; override only)                              |
+| `EMAIL_FROM_ADDRESS`                   | a bare address, e.g. `events@oxfordlancers.com` — see below    |
 | `NEXT_PUBLIC_SUPABASE_URL`             | hosted Supabase URL                                            |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | hosted publishable key                                         |
 
@@ -116,16 +125,21 @@ a notice and skips cleanly rather than failing red.
 
 ## Secrets
 
-Three server-only values, and the first two are **different credentials with
+Eight server-only values, and the first two are **different credentials with
 different reach**. All live in **Secret Manager** and are injected into the
 Cloud Run revision at runtime (`--set-secrets`). None is baked into the image,
 present in the workflow environment, or in the repository.
 
-| Variable              | Secret Manager id     | What it is                                                                                                                                                                                                 | Status                            |
-| --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `SUPABASE_SECRET_KEY` | `supabase-secret-key` | Presented to the Data API. PostgREST connects as `authenticator`, switches to `service_role`. Bypasses RLS.                                                                                                | **Provisioned**                   |
-| `DATABASE_URL`        | `database-url`        | Direct PostgreSQL connection for the service layer's transactions. A PostgreSQL login in its own right — a **second** privileged credential, scoped by ADR 0026 to reach exactly as far as `service_role`. | **Owner-provisioned. See below.** |
-| `CLUB_LINK_SECRET`    | `club-link-secret`    | Signs the club link (LAN-157, D81). Not a database credential and reaches no data: it can only produce and verify one event's share token.                                                                 | **Owner-provisioned. See below.** |
+| Variable                        | Secret Manager id               | What it is                                                                                                                                                                                                 | Status                            |
+| ------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `SUPABASE_SECRET_KEY`           | `supabase-secret-key`           | Presented to the Data API. PostgREST connects as `authenticator`, switches to `service_role`. Bypasses RLS.                                                                                                | **Provisioned**                   |
+| `DATABASE_URL`                  | `database-url`                  | Direct PostgreSQL connection for the service layer's transactions. A PostgreSQL login in its own right — a **second** privileged credential, scoped by ADR 0026 to reach exactly as far as `service_role`. | **Owner-provisioned. See below.** |
+| `CLUB_LINK_SECRET`              | `club-link-secret`              | Signs the club link (LAN-157, D81). Not a database credential and reaches no data: it can only produce and verify one event's share token.                                                                 | **Owner-provisioned. See below.** |
+| `WHATSAPP_ACCESS_TOKEN`         | `whatsapp-access-token`         | The Meta Cloud API bearer token the outbound sender authenticates with (LAN-101). See § Runtime configuration below.                                                                                       | **Provisioned**                   |
+| `WHATSAPP_APP_SECRET`           | `whatsapp-app-secret`           | Verifies `X-Hub-Signature-256` on every inbound Meta callback (LAN-78). Without it `/api/webhooks/whatsapp` answers 503 to Meta's own delivery-status pushes.                                              | **Provisioned**                   |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | `whatsapp-webhook-verify-token` | Echoed back during Meta's webhook subscription handshake (`GET /api/webhooks/whatsapp`). Without it the handshake cannot complete and Meta never subscribes the endpoint.                                  | **Provisioned**                   |
+| `SCHEDULER_TRIGGER_TOKEN`       | `scheduler-trigger-token`       | The shared secret `POST /api/scheduler/messaging` requires. Without it the sweep refuses every call with 503 rather than running unauthenticated. See § Messaging scheduler below.                         | **Provisioned**                   |
+| `EMAIL_API_KEY`                 | `resend-api-key`                | Resend's API key for the email fallback (LAN-169). Without it email delivery records a failed, retryable attempt naming the missing setting.                                                               | **Provisioned**                   |
 
 ### `CLUB_LINK_SECRET`
 
@@ -315,52 +329,70 @@ action's `env_vars:` input, leaves whichever ran last as the only environment th
 revision has — and the variables in the other list are simply absent, which looks
 exactly like the defect below.
 
-| Variable                          | Set by the deploy             | What happens if it is absent                                                                    |
-| --------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| `DATABASE_POOL_MAX`               | **Yes** — `5`                 | The code default of 10 applies: 30 connections over three instances, past the pooler's 15       |
-| `VENUE_SEARCH_PROVIDER`           | **Yes** — `photon`            | Event venue entry degrades to plain text and says "address search is not set up here"           |
-| `VENUE_SEARCH_BASE_URL`           | No, on purpose                | Blank means the free public Photon instance; set it only to point at a self-hosted one          |
-| `APP_BASE_URL`                    | **Yes** — the Cloud Run host  | Recovery and invitation have no trusted origin: no email is sent, and the return hop falls back |
-| `WHATSAPP_*` (two)                | **No — not yet**              | Approval creates invitations and **delivers nothing**, recorded as a configuration failure      |
-| `RECRUITMENT_WHATSAPP_GROUP_LINK` | **Yes** — repository variable | The sign-up form's saved page offers recruits no group; it says so rather than inventing a link |
-| `PLAYER_WHATSAPP_GROUP_LINK`      | **Yes** — repository variable | The player's own page offers no group at all — the section is simply absent (LAN-327)           |
-| `HUDL_JOIN_LINK`                  | **Yes** — repository variable | The questionnaire's Hudl step shows its steps and states that the link is not published yet     |
+| Variable                          | Source                                                               | What happens if it is absent                                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_POOL_MAX`               | **Yes** — literal `5`                                                | The code default of 10 applies: 30 connections over three instances, past the pooler's 15                                     |
+| `VENUE_SEARCH_PROVIDER`           | **Yes** — literal `photon`                                           | Event venue entry degrades to plain text and says "address search is not set up here"                                         |
+| `VENUE_SEARCH_BASE_URL`           | No, on purpose                                                       | Blank means the free public Photon instance; set it only to point at a self-hosted one                                        |
+| `APP_BASE_URL`                    | **Yes** — literal, the Cloud Run host                                | Recovery and invitation have no trusted origin: no email is sent, and the return hop falls back                               |
+| `WHATSAPP_PHONE_NUMBER_ID`        | **Yes** — repository variable                                        | The sender has no phone number to send from; approval queues invitations and delivers nothing                                 |
+| `WHATSAPP_TEMPLATE_NAME`          | **Yes** — repository variable, default `lancers_event_invitation_v3` | Only relevant if a repository variable overrides a bad value; Meta rejects an unrecognised template name                      |
+| `WHATSAPP_TEMPLATE_LANGUAGE`      | **Yes** — repository variable, default `en`                          | Meta resolves a template by name AND language together; a mismatched language fails every send with "template does not exist" |
+| `EMAIL_FROM_ADDRESS`              | **Yes** — repository variable, bare address only                     | The email fallback has no verified sending identity and refuses, naming the missing setting                                   |
+| `RECRUITMENT_WHATSAPP_GROUP_LINK` | **Yes** — repository variable                                        | The sign-up form's saved page offers recruits no group; it says so rather than inventing a link                               |
+| `PLAYER_WHATSAPP_GROUP_LINK`      | **Yes** — repository variable                                        | The player's own page offers no group at all — the section is simply absent (LAN-327)                                         |
+| `HUDL_JOIN_LINK`                  | **Yes** — repository variable                                        | The questionnaire's Hudl step shows its steps and states that the link is not published yet                                   |
 
 `tests/deployment-configuration.test.ts` compares this table's reality against
 the workflow: a feature that refuses to run unconfigured must either be
-configured here or be listed below as knowingly absent. It fails if a new one
-appears and neither happens.
+configured here (as a plain env var or, for a credential, a Secret Manager
+binding — see § Secrets above) or be documented as a deliberate limitation
+with the issue that owns it. It fails if a new one appears and neither
+happens.
 
-**The two remaining WhatsApp variables are knowingly absent.** They are not a
-configuration oversight and cannot be fixed by editing this workflow:
-`WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_TEMPLATE_NAME` name the club's own
-WhatsApp Business Account and an approved message template, which is
-**LAN-101** and is Brian's. Until both are present a deployed approval queues
-delivery jobs that fail with a sentence naming the missing settings, and the
-invitation stays retryable. Nothing is silently lost, and no hand-sent message
-stands in for it.
+**`WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` and
+`WHATSAPP_TEMPLATE_LANGUAGE` are set as of LAN-168 item 0** (2026-09-14),
+**`WHATSAPP_TEMPLATE_LANGUAGE` added by LAN-351**. None is a credential — the
+phone-number id identifies which of the club's WhatsApp Business numbers to
+send from, and the template name and language together pick an
+already-approved message; Meta rejects an unrecognised name or a mismatched
+language outright, so there is nothing here for a stolen value to do.
+`WHATSAPP_PHONE_NUMBER_ID` is a repository variable Brian sets once, from the
+Meta developer console. `WHATSAPP_TEMPLATE_NAME` defaults to
+`lancers_event_invitation_v3`, the rebuilt production Utility invitation
+template approved under LAN-348 (`TEMPLATE_NAMES.invitation` in
+[`src/lib/delivery/templates.ts`](../src/lib/delivery/templates.ts)) — the
+`_v2` submission carried one button by accident and is dead — and is
+overridable by repository variable only if Meta ever requires resubmission
+under a new name. `WHATSAPP_TEMPLATE_LANGUAGE` defaults to `en`, matching the
+club's fourteen approved production templates, which are all `en` rather than
+`en_GB`; Meta resolves a template by name AND language together, so a
+mismatched default here fails every send with "template does not exist".
+`WHATSAPP_ACCESS_TOKEN`, the only _credential_ of the four, is read from
+Secret Manager — see § Secrets above — never appears in this workflow, the
+image or the repository, and is unchanged by this cutover.
+
+**`EMAIL_FROM_ADDRESS` must be a bare address** (`events@oxfordlancers.com`),
+never the `Display Name <address>` form. `flags:` is a folded block whose
+lines are joined by spaces, `--set-env-vars` is deliberately kept to one
+whitespace-free token — the comment above the flag in `deploy.yml` explains
+why, and `tests/deployment-configuration.test.ts` parses that token on
+whitespace — and a display-name value would split the flag mid-value and
+silently drop every setting after it, rather than fail loudly. This is
+enforced by convention rather than by code: Resend accepts a bare address, and
+the message simply carries no display name.
 
 **There is no recipient allowlist, on any deployment.** LAN-287 removed
 `DELIVERY_RECIPIENT_ALLOWLIST` and `DELIVERY_EMAIL_ALLOWLIST` (Brian's LAN-168
 decision of 2 September 2026): membership supplies a player's eligibility, a
 recruit's consent is recorded per season, onboarding consent is enforced where
 it is granted, and a withdrawal, refusal or departure still refuses. Setting
-either variable on a revision now does nothing. Because
-`WHATSAPP_PHONE_NUMBER_ID` is still absent, production sends nothing either
-way, and this removal changes no deployed behaviour until cutover.
-
-**`WHATSAPP_ACCESS_TOKEN` is wired and is not in the table above**, because it
-is a credential: it is read from Secret Manager at runtime through the deploy's
-`secrets:` block, exactly as `SUPABASE_SECRET_KEY` is, and never appears in this
-workflow, the image or the repository. The secret is `whatsapp-access-token`,
-overridable with the `WHATSAPP_ACCESS_TOKEN_SECRET` repository variable. Wiring
-it enables no delivery on its own — the sender refuses until the two variables
-above and the allowlist are set as well. Cloud Run pins secret versions at
-instance start, so adding a new version does nothing until a further deploy
-rolls a revision.
+either variable on a revision now does nothing.
 
 This gap was found by LAN-82's walk: LAN-115's address search had merged and
-worked locally, and no deployed revision had ever been told to enable it.
+worked locally, and no deployed revision had ever been told to enable it. The
+same gap, for WhatsApp and email, is what LAN-168 item 0 closes: shipping the
+code that reads a variable is not the same as the deploy setting it.
 
 **The three club links are wired, and their values are Brian's** — LAN-327 and
 LAN-333. `RECRUITMENT_WHATSAPP_GROUP_LINK` (the rookies group),
@@ -387,12 +419,16 @@ guessing — no group button on either side, and a Hudl step that names the
 missing link rather than linking somewhere wrong. A link containing a comma
 would split the flag; none of these three does.
 
-**`APP_BASE_URL` is the fourth WhatsApp variable and is now set** — LAN-125 needs
-it for password recovery, and the sender still refuses without the other three,
-so setting it enables no delivery. It is in the workflow rather than typed into
-the Cloud Run console because `--set-env-vars` replaces the environment: a value
-set by hand would be erased by the next manual deploy, and recovery would stop
-sending without any error appearing anywhere.
+**`APP_BASE_URL` is one of the variables the outbound sender needs and is set
+alongside the others** — LAN-125 needs it for password recovery independently
+of WhatsApp, and as of LAN-168 item 0 and LAN-351 all five
+(`APP_BASE_URL`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`,
+`WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANGUAGE`) are present on every
+deployed revision — see § Messaging scheduler below for what else the cutover
+still needs before Meta actually delivers anything. It is in the workflow
+rather than typed into the Cloud Run console because `--set-env-vars` replaces
+the environment: a value set by hand would be erased by the next manual
+deploy, and recovery would stop sending without any error appearing anywhere.
 
 **It also decides where an email link lands after the token is spent** — LAN-141.
 `/auth/invitation` and `/auth/recovery` used to build that redirect from the
@@ -404,6 +440,82 @@ A `Host` header is still not evidence. So `APP_BASE_URL` and the Cloud Run
 hostname agreeing matters twice, and the acceptance test for a deploy is to open
 a fresh invitation and a password reset end to end, not just to watch the email
 arrive.
+
+## Messaging scheduler
+
+Cloud Run has no background worker or cron of its own. Nothing advances the
+WhatsApp/email chase ladder — invitation, two WhatsApp reminders, an email
+reminder, then escalation — unless something POSTs
+`/api/scheduler/messaging` on a schedule (`src/app/api/scheduler/messaging/route.ts`).
+Locally that is `npm run messaging:ticker`, beside `npm run dev`; in the
+deployed environment it is a **Cloud Scheduler job**, `lancers-messaging-sweep`,
+which the deploy itself owns.
+
+- **Cadence.** Every five minutes (`*/5 * * * *`), `Europe/London` time zone,
+  a 60-second attempt deadline.
+- **Owned by the deploy.** The _Ensure the messaging scheduler job_ step in
+  `deploy.yml` runs after every successful smoke test and creates the job if
+  it does not exist, or updates it in place if it does — so a job an operator
+  paused in the console is left alone by a re-deploy that only changes the
+  image, and a schedule or URL change here reaches the job on the next deploy
+  rather than needing a separate manual step.
+- **Authenticated the same way a human never could be.** The job carries
+  `Authorization: Bearer <token>`, read at deploy time from the
+  `scheduler-trigger-token` Secret Manager secret (the same one
+  `SCHEDULER_TRIGGER_TOKEN` injects into the running revision) and masked in
+  the workflow log the instant it is read. The route compares it in constant
+  time and answers `401` to anything else, `503` if the revision has no token
+  configured at all.
+
+**Two IAM grants the deploy identity needs, once**, made by Brian — the deploy
+identity is deliberately least-privilege everywhere else in this pipeline, and
+creating scheduler jobs and reading this one secret are both outside what it
+already holds:
+
+```bash
+gcloud projects add-iam-policy-binding oxford-lancers-operations \
+  --member="serviceAccount:${GCP_DEPLOY_SERVICE_ACCOUNT}" \
+  --role="roles/cloudscheduler.admin"
+
+gcloud secrets add-iam-policy-binding scheduler-trigger-token \
+  --member="serviceAccount:${GCP_DEPLOY_SERVICE_ACCOUNT}" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud services enable cloudscheduler.googleapis.com --project=oxford-lancers-operations
+```
+
+`${GCP_DEPLOY_SERVICE_ACCOUNT}` is the same deploy identity named by the
+repository variable of that name — see § Repository variables above.
+
+**Until both grants are made, the deploy still succeeds.** The scheduler step
+cannot fail the deploy: the revision is already serving by the time it runs,
+and a missing scheduler job is a follow-up owner action, not a broken
+revision. A permission-shaped failure — reading the secret, describing,
+creating or updating the job — is caught, printed as one line naming the two
+grants and the API to enable, and turned into a workflow `::warning::`
+annotation rather than a red step. Check the deploy's own run summary for that
+warning to know whether the job needs attention.
+
+**Manual-run check.** Confirm the job actually works with one manual
+invocation, from the Cloud Scheduler console (**Force run**) or:
+
+```bash
+gcloud scheduler jobs run lancers-messaging-sweep --location=europe-west2
+```
+
+Expect an HTTP `200` and, against an empty queue, a body reporting
+`accepted 0, refused 0` — no error, and no message sent. A `401` means the
+token in the job's header does not match the revision's `SCHEDULER_TRIGGER_TOKEN`;
+a `503` means the running revision has no token configured at all.
+
+**Cutover order.** Deploy first, then configure Meta's webhook. Both
+`WHATSAPP_APP_SECRET` and `WHATSAPP_WEBHOOK_VERIFY_TOKEN` must be present on
+the _running_ revision before `/api/webhooks/whatsapp` will do anything but
+answer `503` — see `resolveWebhookConfig` in
+[`src/lib/delivery/config.ts`](../src/lib/delivery/config.ts). Pointing Meta's
+webhook at a revision that predates this deploy, or attempting the
+subscription handshake before it, fails the handshake outright. See
+[`docs/whatsapp-cutover.md`](whatsapp-cutover.md) for the exact owner runbook.
 
 ## Password recovery — hosted Supabase Auth
 
