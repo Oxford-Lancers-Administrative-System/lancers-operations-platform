@@ -1,9 +1,11 @@
 import { withTransaction, type Tx } from "@/lib/db";
 import { RESOLVED_ITEM_STATUSES, type OnboardingItemStatus } from "../membership";
 import {
+  readCurrentOnboardingAgreementVersionIn,
   readOnboardingAgreementsIn,
   type OnboardingAgreement,
   type OnboardingAgreementType,
+  type OnboardingAgreementVersion,
 } from "../onboarding-agreements";
 import { readCompiledOutstandingAskIn } from "../onboarding-ask";
 import { writeOnboardingItemHistoryIn } from "../onboarding-item-history";
@@ -93,6 +95,8 @@ export interface QuestionnaireView {
   /** F4: "you"/"club"/`null` (no row at all) for who last touched each field — see `readFieldSuppliedByIn`. */
   fieldSuppliedBy: Record<DisputedPersonField, "you" | "club" | null>;
   agreements: Record<OnboardingAgreementType, OnboardingAgreement | null>;
+  /** The wording each document is currently asking to be agreed to — LAN-347. The step renders this, never a literal of its own. */
+  agreementVersions: Record<OnboardingAgreementType, OnboardingAgreementVersion>;
   /** Whether each document is settled (LAN-240) — the same fact `outstandingSections`/`nextStep` compute from. */
   documentAgreed: Record<OnboardingAgreementType, boolean>;
   /** `null` means no `onboarding_items` row of this code exists (F2, LAN-230) — never treated as done. */
@@ -134,6 +138,15 @@ async function readAgreementsByTypeIn(
   return byType;
 }
 
+/** The wording each document currently asks to be agreed to — LAN-347. Sequential, for the reason `readPersonRecordIn` gives: one transaction client. */
+async function readCurrentVersionsByTypeIn(
+  tx: Tx,
+): Promise<Record<OnboardingAgreementType, OnboardingAgreementVersion>> {
+  const codeOfConduct = await readCurrentOnboardingAgreementVersionIn(tx, "code_of_conduct");
+  const photoRelease = await readCurrentOnboardingAgreementVersionIn(tx, "photo_release");
+  return { code_of_conduct: codeOfConduct, photo_release: photoRelease };
+}
+
 /** The one whole read `/onboarding/[token]` needs, assembled from substrate the mission already built. */
 export async function readQuestionnaireViewIn(
   tx: Tx,
@@ -153,6 +166,7 @@ export async function readQuestionnaireViewIn(
       readOpenPersonFactDisputesIn(tx, personId),
       readFieldSuppliedByIn(tx, personId),
     ]);
+  const agreementVersions = await readCurrentVersionsByTypeIn(tx);
   const openDisputedFields = new Set(disputes.map((d) => d.field));
 
   const needsConsentStep = ask.hasGrantedConsent === false;
@@ -258,6 +272,7 @@ export async function readQuestionnaireViewIn(
     openDisputedFields,
     fieldSuppliedBy,
     agreements,
+    agreementVersions,
     documentAgreed: { code_of_conduct: codeOfConductDone, photo_release: photoReleaseDone },
     itemStatus,
     nothingOutstanding,

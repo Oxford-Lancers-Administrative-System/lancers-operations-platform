@@ -23,6 +23,17 @@ export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "date_of_birth",
 ]);
 
+/**
+ * LAN-347's two address fields. They take the same `applyDisputableFieldIn`
+ * path as everything above, but they are deliberately **not** in
+ * `DISPUTABLE_FIELDS`: that list is what step 1 iterates over its own form, and
+ * the address is asked for on step 3, by the photo release.
+ */
+export const PHOTO_RELEASE_PERSON_FIELDS: readonly DisputedPersonField[] = Object.freeze([
+  "address",
+  "postcode",
+]);
+
 const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> = Object.freeze({
   given_name: "person_given_name_updated",
   family_name: "person_family_name_updated",
@@ -32,6 +43,8 @@ const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> 
   degree_field: "person_degree_field_updated",
   student_number: "person_student_number_updated",
   bafa_registration_number: "person_bafa_registration_number_updated",
+  address: "person_address_updated",
+  postcode: "person_postcode_updated",
   date_of_birth: "person_date_of_birth_updated",
 });
 
@@ -95,6 +108,8 @@ const PERSON_FIELD_SOURCE_KEY: Readonly<Record<DisputedPersonField, keyof Person
     degree_field: "degreeFieldSource",
     student_number: "studentNumberSource",
     bafa_registration_number: "bafaRegistrationNumberSource",
+    address: "addressSource",
+    postcode: "postcodeSource",
     date_of_birth: "dateOfBirthSource",
   });
 
@@ -108,6 +123,8 @@ const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonR
     degree_field: "degreeField",
     student_number: "studentNumber",
     bafa_registration_number: "bafaRegistrationNumber",
+    address: "address",
+    postcode: "postcode",
     date_of_birth: "dateOfBirth",
   });
 
@@ -126,6 +143,10 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
     case "student_number":
       return { field, value };
     case "bafa_registration_number":
+      return { field, value };
+    case "address":
+      return { field, value };
+    case "postcode":
       return { field, value };
     case "date_of_birth":
       return { field, value };

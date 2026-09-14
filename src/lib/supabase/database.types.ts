@@ -2240,6 +2240,7 @@ export type Database = {
           agreement_version_id: string
           id: string
           person_id: string
+          printed_name: string | null
           season_id: string
         }
         Insert: {
@@ -2248,6 +2249,7 @@ export type Database = {
           agreement_version_id: string
           id?: string
           person_id: string
+          printed_name?: string | null
           season_id: string
         }
         Update: {
@@ -2256,6 +2258,7 @@ export type Database = {
           agreement_version_id?: string
           id?: string
           person_id?: string
+          printed_name?: string | null
           season_id?: string
         }
         Relationships: [
@@ -2579,6 +2582,7 @@ export type Database = {
       }
       people: {
         Row: {
+          address: string | null
           bafa_registration_number: string | null
           college: string | null
           created_at: string
@@ -2594,10 +2598,12 @@ export type Database = {
           merged_by_person_id: string | null
           merged_into_person_id: string | null
           past_member_override: boolean | null
+          postcode: string | null
           student_number: string | null
           updated_at: string
         }
         Insert: {
+          address?: string | null
           bafa_registration_number?: string | null
           college?: string | null
           created_at?: string
@@ -2613,10 +2619,12 @@ export type Database = {
           merged_by_person_id?: string | null
           merged_into_person_id?: string | null
           past_member_override?: boolean | null
+          postcode?: string | null
           student_number?: string | null
           updated_at?: string
         }
         Update: {
+          address?: string | null
           bafa_registration_number?: string | null
           college?: string | null
           created_at?: string
@@ -2632,6 +2640,7 @@ export type Database = {
           merged_by_person_id?: string | null
           merged_into_person_id?: string | null
           past_member_override?: boolean | null
+          postcode?: string | null
           student_number?: string | null
           updated_at?: string
         }

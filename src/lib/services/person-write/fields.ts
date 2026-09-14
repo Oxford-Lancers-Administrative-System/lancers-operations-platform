@@ -25,6 +25,9 @@ export type PersonFieldUpdate =
   | { field: "student_number"; value: string | null }
   /** LAN-267: not questionnaire-only — a coach never sees the questionnaire, so this also has an operator edit. */
   | { field: "bafa_registration_number"; value: string | null }
+  /** LAN-347: the postal address the University's consent form asks for. Multi-line free text, never parsed. */
+  | { field: "address"; value: string | null }
+  | { field: "postcode"; value: string | null }
   | { field: "date_of_birth"; value: string | null };
 
 const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
@@ -36,6 +39,8 @@ const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> 
   degree_field: "the degree field",
   student_number: "the student number",
   bafa_registration_number: "the BAFA registration number",
+  address: "the address",
+  postcode: "the post code",
   date_of_birth: "date of birth",
 });
 
@@ -48,6 +53,8 @@ const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>>
   degree_field: "degree_field",
   student_number: "student_number",
   bafa_registration_number: "bafa_registration_number",
+  address: "address",
+  postcode: "postcode",
   date_of_birth: "date_of_birth",
 });
 

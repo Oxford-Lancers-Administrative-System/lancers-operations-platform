@@ -169,6 +169,10 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
       studentNumberSource: null,
       bafaRegistrationNumber: null,
       bafaRegistrationNumberSource: null,
+      address: null,
+      addressSource: null,
+      postcode: null,
+      postcodeSource: null,
       dateOfBirth: null,
       dateOfBirthSource: null,
       emergencyContact: null,
@@ -328,6 +332,7 @@ describe("Person · Onboarding · Season banding", () => {
           waivedByName: null,
           updatedAt: new Date(),
           history: [],
+          agreement: null,
         },
       ],
     });
@@ -388,6 +393,7 @@ function historyItem(
     waivedByName: null,
     updatedAt: new Date(),
     history: [],
+    agreement: null,
     ...overrides,
   };
 }
@@ -1157,6 +1163,7 @@ describe("the shipped activation control, folded into Status", () => {
           waivedByName: null,
           updatedAt: new Date(),
           history: [],
+          agreement: null,
         },
       ],
       outstandingRequired: [

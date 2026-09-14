@@ -1,13 +1,18 @@
 import "server-only";
 
 import { ConstraintViolated, type Tx, withTransaction } from "@/lib/db";
+import { bodyRequiresPrintedName } from "./onboarding-agreement-body";
 
 // The versioned-agreement mechanism — LAN-214. Version, moment and person: an agreement is "I read
 // version N and agreed" (REQ-policy-at-collection), never a signature image, no object storage.
-// nonblocking_unknowns: the wording is a placeholder until LAN-213 lands the real text — swapping it
-// is a new onboarding_agreement_versions row, nothing about the mechanism changes.
+// The photo release carries the University of Oxford's own consent form since LAN-347; the Code of
+// Conduct is a labelled placeholder until LAN-282 lands Clint's wording. Swapping either is a new
+// onboarding_agreement_versions row, and nothing about the mechanism changes.
 
 export type OnboardingAgreementType = "code_of_conduct" | "photo_release";
+
+/** Named once, so the step's refusal and the service's are the same sentence (LAN-347). */
+export const PRINTED_NAME_REQUIRED_MESSAGE = "Print name is required.";
 
 export interface OnboardingAgreementVersion {
   id: string;
@@ -24,6 +29,8 @@ export interface OnboardingAgreement {
   agreementType: OnboardingAgreementType;
   agreementVersionId: string;
   agreedAt: Date;
+  /** LAN-347: the name as the person typed it under the tick. Never a signature. `null` on rows recorded before the wording asked for one. */
+  printedName: string | null;
 }
 
 interface VersionRow {
@@ -73,6 +80,7 @@ interface AgreementRow {
   agreement_type: OnboardingAgreementType;
   agreement_version_id: string;
   agreed_at: Date;
+  printed_name: string | null;
 }
 
 function toAgreement(row: AgreementRow): OnboardingAgreement {
@@ -83,6 +91,7 @@ function toAgreement(row: AgreementRow): OnboardingAgreement {
     agreementType: row.agreement_type,
     agreementVersionId: row.agreement_version_id,
     agreedAt: row.agreed_at,
+    printedName: row.printed_name,
   };
 }
 
@@ -90,9 +99,25 @@ function toAgreement(row: AgreementRow): OnboardingAgreement {
 // (person, season, type); a second call is refused by onboarding_agreements_one_per_person_season_type.
 export async function recordOnboardingAgreementIn(
   tx: Tx,
-  params: { personId: string; seasonId: string; agreementType: OnboardingAgreementType },
+  params: {
+    personId: string;
+    seasonId: string;
+    agreementType: OnboardingAgreementType;
+    /** LAN-347. Required exactly when the version being agreed declares a printed name; stored as typed. */
+    printedName?: string | null;
+  },
 ): Promise<OnboardingAgreement> {
   const version = await readCurrentOnboardingAgreementVersionIn(tx, params.agreementType);
+
+  // The wording decides what the record must carry. A version whose body has no
+  // print-name section — the Code of Conduct's placeholder, until LAN-282 —
+  // records none; one that declares it cannot be agreed without it.
+  const printedName = params.printedName?.trim() ?? "";
+  if (printedName === "" && bodyRequiresPrintedName(version.body)) {
+    throw new ConstraintViolated(PRINTED_NAME_REQUIRED_MESSAGE, {
+      rule: "onboarding_agreements_printed_name_required",
+    });
+  }
 
   const existing = await tx.query(
     `select 1 from public.onboarding_agreements
@@ -109,11 +134,17 @@ export async function recordOnboardingAgreementIn(
 
   const inserted = await tx.query<AgreementRow>(
     `insert into public.onboarding_agreements
-       (person_id, season_id, agreement_type, agreement_version_id)
-     values ($1::uuid, $2::uuid, $3::public.onboarding_agreement_type, $4::uuid)
+       (person_id, season_id, agreement_type, agreement_version_id, printed_name)
+     values ($1::uuid, $2::uuid, $3::public.onboarding_agreement_type, $4::uuid, $5)
      returning id, person_id, season_id, agreement_type::text as agreement_type,
-               agreement_version_id, agreed_at`,
-    [params.personId, params.seasonId, params.agreementType, version.id],
+               agreement_version_id, agreed_at, printed_name`,
+    [
+      params.personId,
+      params.seasonId,
+      params.agreementType,
+      version.id,
+      printedName === "" ? null : printedName,
+    ],
   );
   return toAgreement(inserted.rows[0] as unknown as AgreementRow);
 }
@@ -126,7 +157,7 @@ export async function readOnboardingAgreementsIn(
 ): Promise<OnboardingAgreement[]> {
   const result = await tx.query<AgreementRow>(
     `select id, person_id, season_id, agreement_type::text as agreement_type,
-            agreement_version_id, agreed_at
+            agreement_version_id, agreed_at, printed_name
        from public.onboarding_agreements
       where person_id = $1::uuid and season_id = $2::uuid
       order by agreement_type`,
