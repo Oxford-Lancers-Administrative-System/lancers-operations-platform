@@ -241,8 +241,9 @@ const DEFAULTS = Object.freeze({
   WHATSAPP_GRAPH_VERSION: "v26.0",
   // LAN-351. Meta resolves a template by name AND language together, and the
   // club's fourteen approved production templates are all `en`, not `en_GB` —
-  // see `scripts/production/whatsapp-templates.json`. A mismatched default
-  // here makes every send fail with "template does not exist".
+  // see the club's production submission records, kept beside the other
+  // owner-run procedures. A mismatched default here makes every send fail
+  // with "template does not exist".
   WHATSAPP_TEMPLATE_LANGUAGE: "en",
   DELIVERY_DEFAULT_CALLING_CODE: "44",
   EMAIL_API_BASE_URL: "https://api.resend.com",
