@@ -12,6 +12,9 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import {
   describeMissingConfiguration,
   EMAIL_ENVIRONMENT_VARIABLES,
@@ -41,7 +44,7 @@ describe("outbound configuration", () => {
 
     expect(resolution.config.appBaseUrl).toBe("https://lancers.example.org");
     expect(resolution.config.graphBaseUrl).toBe("https://graph.facebook.com");
-    expect(resolution.config.templateLanguage).toBe("en_GB");
+    expect(resolution.config.templateLanguage).toBe("en");
     expect(resolution.config.defaultCallingCode).toBe("44");
   });
 
@@ -324,5 +327,36 @@ describe("LAN-288 — the message validity period", () => {
 
   it("is not required configuration — it has a safe default", () => {
     expect(OUTBOUND_ENVIRONMENT_VARIABLES).not.toContain("WHATSAPP_MESSAGE_TTL_HOURS");
+  });
+});
+
+describe("LAN-351 — the template language default cannot drift from the approved templates", () => {
+  // Meta resolves a template by name AND language together: a default here
+  // that does not match what the club actually submitted makes every send
+  // fail with "template does not exist", which is exactly what happened when
+  // this default read `en_GB` against fourteen templates all approved as
+  // `en`. So this test does not hard-code the expected language — it reads
+  // the same checked-in submission record production sends against, and
+  // fails if the two are ever pointed at different values again.
+  interface SubmissionRecord {
+    readonly language: string;
+  }
+
+  const records: SubmissionRecord[] = JSON.parse(
+    readFileSync(join(process.cwd(), "scripts/production/whatsapp-templates.json"), "utf8"),
+  );
+
+  it("has one language across all fourteen approved production templates", () => {
+    const languages = new Set(records.map((record) => record.language));
+    expect(records.length).toBeGreaterThan(0);
+    expect(languages.size).toBe(1);
+  });
+
+  it("defaults the outbound template language to that same value", () => {
+    const [approvedLanguage] = records.map((record) => record.language);
+    const resolution = resolveOutboundConfig(DEPLOYED);
+    expect(resolution.configured).toBe(true);
+    if (!resolution.configured) return;
+    expect(resolution.config.templateLanguage).toBe(approvedLanguage);
   });
 });

@@ -58,7 +58,7 @@ const config: OutboundConfig = {
   phoneNumberId: "12345",
   accessToken: "test-placeholder",
   templateName: TEMPLATE_NAMES.invitation,
-  templateLanguage: "en_GB",
+  templateLanguage: "en",
   templateParameters: "invitation",
   localTest: { recipientOverride: null, messageMode: "template" },
 };

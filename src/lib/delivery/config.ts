@@ -102,7 +102,7 @@ export interface OutboundConfig {
   readonly accessToken: string;
   /** The approved message template's name. */
   readonly templateName: string;
-  /** The approved template's language code, e.g. `en_GB`. */
+  /** The approved template's language code, e.g. `en`. */
   readonly templateLanguage: string;
   /**
    * The shape of the template's body parameters.
@@ -239,7 +239,11 @@ const DEFAULTS = Object.freeze({
   // moved becomes an outage on a date nobody has in a calendar. The value is
   // still a variable, so a deployment that needs to hold a version can.
   WHATSAPP_GRAPH_VERSION: "v26.0",
-  WHATSAPP_TEMPLATE_LANGUAGE: "en_GB",
+  // LAN-351. Meta resolves a template by name AND language together, and the
+  // club's fourteen approved production templates are all `en`, not `en_GB` —
+  // see `scripts/production/whatsapp-templates.json`. A mismatched default
+  // here makes every send fail with "template does not exist".
+  WHATSAPP_TEMPLATE_LANGUAGE: "en",
   DELIVERY_DEFAULT_CALLING_CODE: "44",
   EMAIL_API_BASE_URL: "https://api.resend.com",
   // LAN-288. Meta's own documented default, not a number this repository chose.
