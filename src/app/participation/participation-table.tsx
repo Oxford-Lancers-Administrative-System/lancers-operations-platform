@@ -45,6 +45,7 @@ import {
   TABLE_HEADINGS,
   WHATSAPP_UNRESPONSIVE,
 } from "./presentation";
+import { applicationClockOffsetMs } from "@/lib/application-clock";
 import { RecordAnswerControl } from "./record-answer";
 
 /**
@@ -115,6 +116,10 @@ function AnswerCell({
         questions={questions.filter((question) =>
           questionAppliesToCapacity(question.appliesToCapacities, person.capacity),
         )}
+        // LAN-340: the form's default "now" follows the same clock the server
+        // judges the answer against — the test clock on the test box, and
+        // exactly the real clock everywhere else.
+        clockOffsetMs={applicationClockOffsetMs()}
       />
     );
   }

@@ -1,3 +1,4 @@
+import { applicationNow } from "../test-runtime";
 import "server-only";
 
 import { LEADERSHIP_TIER_SEATS } from "@/lib/auth/capabilities";
@@ -1960,7 +1961,7 @@ async function declareDueOnboardingChasesIn(): Promise<{ declared: number }> {
     if (settings.chaseCount === 0) return { declared: 0 };
 
     const candidates = await listOnboardingChaseCandidatesIn(tx);
-    const now = Date.now();
+    const now = applicationNow().getTime();
     let declared = 0;
 
     for (const candidate of candidates) {

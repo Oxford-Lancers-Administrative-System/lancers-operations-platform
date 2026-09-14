@@ -6,9 +6,24 @@ const nextConfig: NextConfig = {
   output: "standalone",
   turbopack: {
     root: process.cwd(),
+    // The test apparatus is a separate local process. Its integration replaces
+    // only the inert seam module, only in the Node development build. The
+    // production build never runs this loader, even with test variables set.
+    rules: {
+      "test-runtime.ts": {
+        condition: { all: ["development", "node", { not: "browser" }] },
+        loaders: [
+          {
+            loader: "./scripts/test-box/development-loader.cjs",
+            options: { enabled: process.env.LANCERS_TEST_BOX === "1" && !process.env.K_SERVICE },
+          },
+        ],
+        as: "*.js",
+      },
+    },
   },
   /**
-   * The loopback address the review environment is served on — and nothing else.
+   * The loopback review address and the explicitly enabled local test tunnel.
    *
    * `next dev` refuses a request for one of its own `/_next/*` resources when
    * the browser sends an `Origin` whose **hostname** is not allowed, and its
@@ -34,7 +49,12 @@ const nextConfig: NextConfig = {
    * together, so moving the review URL to a host this list does not cover fails
    * a test rather than a browser.
    */
-  allowedDevOrigins: ["127.0.0.1"],
+  allowedDevOrigins: [
+    "127.0.0.1",
+    ...(process.env.LANCERS_TEST_BOX === "1" && !process.env.K_SERVICE
+      ? ["marvel-indiscernible-daxton.ngrok-free.dev"]
+      : []),
+  ],
   // Surfaced on /api/health so a running revision can be tied back to a commit.
   env: {
     GIT_COMMIT_SHA: process.env.GIT_COMMIT_SHA ?? "unknown",

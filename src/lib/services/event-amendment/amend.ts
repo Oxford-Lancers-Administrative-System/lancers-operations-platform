@@ -2,6 +2,7 @@ import "server-only";
 
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
+import { applicationNow } from "@/lib/test-runtime";
 import { recordAudit } from "../audit";
 import { deriveTermCoordinate, type EventDraftInput } from "../event-input";
 import { lockEventIn, readEventIn, type EventDetail } from "../events";
@@ -304,7 +305,7 @@ async function recomputeScheduleOnRescheduleIn(
   const plan = await resolveMessagingPlanIn(
     tx,
     { templateId: input.templateId, scheduledOn: input.scheduledOn, startsAt: input.startsAt },
-    new Date(),
+    applicationNow(),
   );
 
   await tx.query(
