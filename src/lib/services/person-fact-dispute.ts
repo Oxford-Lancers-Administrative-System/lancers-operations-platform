@@ -137,6 +137,10 @@ function updateFor(
       return { ...common, field, value: text };
     case "bafa_registration_number":
       return { ...common, field, value: text };
+    case "address":
+      return { ...common, field, value: text };
+    case "postcode":
+      return { ...common, field, value: text };
     case "date_of_birth":
       return { ...common, field, value: text };
     case "matriculation_year": {

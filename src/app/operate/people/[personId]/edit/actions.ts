@@ -209,6 +209,28 @@ export async function submitPersonEdit(
         expectedVersion: nextExpectedVersion(),
       });
     }
+    // LAN-347: the postal address, corrected here the same way every other
+    // person field is — a change needs a reason, a blank clears it.
+    if (values.address.trim() !== (current.address ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "address",
+        value: values.address.trim() === "" ? null : values.address.trim(),
+        reason: values.addressReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
+    if (values.postcode.trim() !== (current.postcode ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "postcode",
+        value: values.postcode.trim() === "" ? null : values.postcode.trim(),
+        reason: values.postcodeReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
     if (dateOfBirthChanged) {
       await updatePersonField({
         actorPersonId: operator.personId,

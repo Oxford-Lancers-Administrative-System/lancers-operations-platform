@@ -173,6 +173,15 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
     studentNumberSource: "academic",
     bafaRegistrationNumber: "academic",
     bafaRegistrationNumberSource: "academic",
+    // LAN-347's postal address. `contact` rather than `restricted`: it is how
+    // the club reaches this person by post, and LAN-347 places it "beside the
+    // other contact facts" on the record. Every category reads the same
+    // capability today, so this is a statement about which later grant would
+    // carry it, not a widening of who may see it now.
+    address: "contact",
+    addressSource: "contact",
+    postcode: "contact",
+    postcodeSource: "contact",
     dateOfBirth: "restricted",
     dateOfBirthSource: "restricted",
     emergencyContact: "restricted",

@@ -111,6 +111,17 @@ export function ContactSection({
       <Fact label="College email" note={collegeEmail?.source ?? undefined}>
         {collegeEmail ? <>{collegeEmail.rawValue}</> : <NotRecorded />}
       </Fact>
+      {/* LAN-347: collected on the photo release step, because the University's consent form asks for it. */}
+      <Fact label="Address" note={record.addressSource ?? undefined}>
+        {record.address ? (
+          <Box sx={{ whiteSpace: "pre-wrap" }}>{record.address}</Box>
+        ) : (
+          <NotRecorded />
+        )}
+      </Fact>
+      <Fact label="Post code" note={record.postcodeSource ?? undefined}>
+        {record.postcode ? <>{record.postcode}</> : <NotRecorded />}
+      </Fact>
       {/* LAN-257: `contact_points.scope` null means unclassified — the roster's "Email" field leaves it so. */}
       {unclassifiedEmail ? (
         <Fact label="Email · not classified" note={unclassifiedEmail.source ?? undefined}>
