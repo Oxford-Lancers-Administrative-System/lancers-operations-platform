@@ -12,6 +12,63 @@ near production. A procedure that legitimately needs the hosted database is
 therefore a separate, deliberately awkward thing that names its target out loud,
 rather than a flag on a tool used every day.
 
+## `baseline/season-2026-27.sql`
+
+The re-runnable production baseline — LAN-350. It gives an otherwise empty
+production database its 2026–27 season, calendar, position vocabulary and
+committee year: the club's own 18-position vocabulary (`oulafc_2026`,
+transcribed from `scripts/production/showcase/plan/reference.mjs` `POSITIONS`),
+the real Oxford term boundaries for Michaelmas, Hilary and Trinity 2026–27, the
+active `2026–27` season, and the open `2026–27` committee year.
+
+This is not a pilot scenario. It is real reference data — the club's real term
+dates and its real position list, not an invented one — so it carries no
+`PILOT-` sentinel, it is never cleaned up, and it belongs here rather than in
+`scripts/pilot/`.
+
+**It is idempotent and re-runnable.** Every insert is keyed on the table's
+natural unique constraint with `on conflict … do nothing`, never `do update`,
+so running it against a database that already has some or all of these rows
+changes nothing. That also makes it the way to restore the baseline after a
+rollback that took reference data down with it: run the file again and the
+missing rows come back.
+
+**A preflight fails the whole file closed** rather than run partway: it refuses
+if `public.roles` is empty (the role-catalogue migrations are not applied
+yet), if `public.operator_accounts` has no row at all (the season this file
+opens needs an opener), or if an active season already exists under a
+different label (this file never closes or supersedes one for you). The
+season's `opened_by_person_id` is set to the person_id of the
+**earliest-created active** `operator_accounts` row — deterministic, and the
+file carries no personal data to choose it any other way. On the night this
+first ran in production there was exactly one such row, and it recorded that
+account as the opener; if several ever exist when it runs, the earliest one
+wins, which is worth checking before running it rather than after.
+
+### Order
+
+1. Apply the schema migrations, in particular the role catalogue
+   (`20260819090000_role_catalogue_structure.sql`,
+   `20260819090100_role_catalogue.sql`) — see
+   [`docs/migration-runbook.md`](../../docs/migration-runbook.md).
+2. Run `baseline/season-2026-27.sql` (this file).
+3. Run `bootstrap-founding-operators.mjs`, below — it refuses to run without
+   exactly one open committee year, which step 2 is what creates.
+
+### Running it
+
+Paste the whole file, including `begin;` and `commit;`, into the Supabase SQL
+editor for the intended project and run it. Do not paste fragments — the
+transaction is the safety property. The final `select` is the check: it
+reports five counts a human can read at a glance — vocabulary, positions,
+active season, terms, open committee year — expected `1, 18, 1, 3, 1`.
+
+Proved against **local** Supabase by
+[`tests/production-baseline-contract.test.ts`](../../tests/production-baseline-contract.test.ts):
+the five counts after one run, that a second run changes nothing (row counts
+and a content digest), and that the preflight refuses a database with no
+operator account.
+
 ## `bootstrap-founding-operators.mjs` and `bootstrap/`
 
 The one-time founding-operator bootstrap — LAN-135. It gives the club its first

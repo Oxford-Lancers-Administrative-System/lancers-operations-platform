@@ -252,6 +252,11 @@ node scripts/production/showcase.mjs rollback --force --confirm-target fggbgerai
       backup, or confirm today's exists. Note the time. This is your recovery
       point.
 
+If this rollback is not followed by reloading a dataset, run
+[`scripts/production/baseline/season-2026-27.sql`](scripts/production/README.md)
+next — it is the re-runnable step that restores the season, calendar,
+position vocabulary and committee year a rollback took down with it.
+
 ---
 
 ## 5. Preflight — writes nothing
