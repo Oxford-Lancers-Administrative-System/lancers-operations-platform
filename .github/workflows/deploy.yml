@@ -60,11 +60,17 @@ jobs:
       MAX_INSTANCES: ${{ vars.CLOUD_RUN_MAX_INSTANCES || '3' }}
       # Resolved here, with normal spacing, rather than inside the single-token
       # `--set-env-vars` flag below — an `||` fallback needs a space on each
-      # side to parse, and that flag cannot contain one. LAN-348's production
-      # Utility invitation template (`TEMPLATE_NAMES.invitation` in
-      # src/lib/delivery/templates.ts); overridable by repository variable only
-      # if Meta ever requires resubmission under a new name.
-      WHATSAPP_TEMPLATE_NAME: ${{ vars.WHATSAPP_TEMPLATE_NAME || 'lancers_event_invitation_v2' }}
+      # side to parse, and that flag cannot contain one. LAN-348's rebuilt
+      # production Utility invitation template (`TEMPLATE_NAMES.invitation` in
+      # src/lib/delivery/templates.ts) — the `_v2` submission carried one
+      # button by accident and is dead; overridable by repository variable
+      # only if Meta ever requires resubmission under a new name.
+      WHATSAPP_TEMPLATE_NAME: ${{ vars.WHATSAPP_TEMPLATE_NAME || 'lancers_event_invitation_v3' }}
+      # LAN-351. Meta resolves a template by name AND language together, and
+      # the club's approved templates are all `en`, not `en_GB` — a mismatched
+      # default here makes every send fail with "template does not exist".
+      # Matches `DEFAULTS.WHATSAPP_TEMPLATE_LANGUAGE` in src/lib/delivery/config.ts.
+      WHATSAPP_TEMPLATE_LANGUAGE: ${{ vars.WHATSAPP_TEMPLATE_LANGUAGE || 'en' }}
 
     steps:
       - uses: actions/checkout@v5
@@ -129,8 +135,8 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
-            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://app.oxfordlancers.com,RECRUITMENT_WHATSAPP_GROUP_LINK=${{vars.RECRUITMENT_WHATSAPP_GROUP_LINK}},PLAYER_WHATSAPP_GROUP_LINK=${{vars.PLAYER_WHATSAPP_GROUP_LINK}},HUDL_JOIN_LINK=${{vars.HUDL_JOIN_LINK}},WHATSAPP_PHONE_NUMBER_ID=${{vars.WHATSAPP_PHONE_NUMBER_ID}},WHATSAPP_TEMPLATE_NAME=${{env.WHATSAPP_TEMPLATE_NAME}},EMAIL_FROM_ADDRESS=${{vars.EMAIL_FROM_ADDRESS}}
-          # Nine non-secret runtime settings, in one `--set-env-vars` because the
+            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://app.oxfordlancers.com,RECRUITMENT_WHATSAPP_GROUP_LINK=${{vars.RECRUITMENT_WHATSAPP_GROUP_LINK}},PLAYER_WHATSAPP_GROUP_LINK=${{vars.PLAYER_WHATSAPP_GROUP_LINK}},HUDL_JOIN_LINK=${{vars.HUDL_JOIN_LINK}},WHATSAPP_PHONE_NUMBER_ID=${{vars.WHATSAPP_PHONE_NUMBER_ID}},WHATSAPP_TEMPLATE_NAME=${{env.WHATSAPP_TEMPLATE_NAME}},WHATSAPP_TEMPLATE_LANGUAGE=${{env.WHATSAPP_TEMPLATE_LANGUAGE}},EMAIL_FROM_ADDRESS=${{vars.EMAIL_FROM_ADDRESS}}
+          # Ten non-secret runtime settings, in one `--set-env-vars` because the
           # flag REPLACES the revision's environment rather than adding to it —
           # declaring them separately, or mixing this flag with the action's
           # `env_vars` input, would leave whichever ran last as the only one
@@ -198,15 +204,18 @@ jobs:
           # and the surface then offers no link at all rather than a broken one
           # — which is the correct deployed state until Brian sets them.
           #
-          # WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_TEMPLATE_NAME — LAN-168 item 0.
-          # Neither is a credential: the phone-number id identifies which of the
-          # club's WhatsApp Business numbers to send from, and the template name
-          # picks an already-approved message — Meta rejects an unrecognised
-          # name outright, so there is nothing here for a stolen value to do.
-          # WHATSAPP_PHONE_NUMBER_ID is a repository variable Brian sets once
-          # from the Meta developer console. WHATSAPP_TEMPLATE_NAME's default is
-          # resolved above in `env:`, not here — see that comment for why.
-          # `WHATSAPP_ACCESS_TOKEN`, the credential these two work alongside, is
+          # WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_TEMPLATE_NAME and
+          # WHATSAPP_TEMPLATE_LANGUAGE — LAN-168 item 0, WHATSAPP_TEMPLATE_LANGUAGE
+          # added by LAN-351. None is a credential: the phone-number id
+          # identifies which of the club's WhatsApp Business numbers to send
+          # from, and the template name and language together pick an
+          # already-approved message — Meta rejects an unrecognised name or a
+          # mismatched language outright, so there is nothing here for a
+          # stolen value to do. WHATSAPP_PHONE_NUMBER_ID is a repository
+          # variable Brian sets once from the Meta developer console.
+          # WHATSAPP_TEMPLATE_NAME's and WHATSAPP_TEMPLATE_LANGUAGE's defaults
+          # are resolved above in `env:`, not here — see that comment for why.
+          # `WHATSAPP_ACCESS_TOKEN`, the credential these work alongside, is
           # unchanged below: it was already wired by LAN-101 and stays in
           # `secrets:`.
           #
@@ -298,8 +307,18 @@ jobs:
         # including a failed gcloud call's own error text, which the mask
         # still catches because `::add-mask::` matches the literal value
         # anywhere in the log from this point on. It is passed to gcloud only
-        # through `--headers`, never echoed, and never written to a file this
-        # step does not immediately treat as sensitive.
+        # through `--headers` (create) or `--update-headers` (update), never
+        # echoed, and never written to a file this step does not immediately
+        # treat as sensitive.
+        #
+        # The two forms take different flag names for the same thing: `jobs
+        # create http` accepts `--headers=KEY=VALUE`, but `jobs update http`
+        # refuses it ("unrecognized arguments") and needs `--update-headers=
+        # KEY=VALUE` instead, because update is a partial-merge operation with
+        # its own `--clear-headers` and `--remove-headers` counterparts. Every
+        # other flag below — `--uri`, `--http-method`, `--schedule`,
+        # `--time-zone`, `--attempt-deadline` — is accepted by both forms
+        # unchanged.
         #
         # This step must not fail the deploy: the deploy identity may not yet
         # hold Cloud Scheduler permission, and a missing scheduler job is a
@@ -337,12 +356,18 @@ jobs:
             ACTION=create
           fi
 
+          if [ "${ACTION}" = "update" ]; then
+            HEADERS_FLAG="--update-headers=Authorization=Bearer ${TOKEN}"
+          else
+            HEADERS_FLAG="--headers=Authorization=Bearer ${TOKEN}"
+          fi
+
           gcloud scheduler jobs "${ACTION}" http "${JOB}" \
             --location="${REGION}" \
             --schedule="*/5 * * * *" \
             --uri="${JOB_URL}/api/scheduler/messaging" \
             --http-method=POST \
-            --headers="Authorization=Bearer ${TOKEN}" \
+            "${HEADERS_FLAG}" \
             --attempt-deadline=60s \
             --time-zone=Europe/London >/tmp/scheduler-apply 2>&1
           APPLY_STATUS=$?

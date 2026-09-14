@@ -113,7 +113,8 @@ None of these are secrets.
 | `SCHEDULER_TRIGGER_TOKEN_SECRET`       | `scheduler-trigger-token` (the default; set only to override)  |
 | `EMAIL_API_KEY_SECRET`                 | `resend-api-key` (the default; set only to override)           |
 | `WHATSAPP_PHONE_NUMBER_ID`             | the club's WhatsApp Business phone-number id                   |
-| `WHATSAPP_TEMPLATE_NAME`               | `lancers_event_invitation_v2` (the default; override only)     |
+| `WHATSAPP_TEMPLATE_NAME`               | `lancers_event_invitation_v3` (the default; override only)     |
+| `WHATSAPP_TEMPLATE_LANGUAGE`           | `en` (the default; override only)                              |
 | `EMAIL_FROM_ADDRESS`                   | a bare address, e.g. `events@oxfordlancers.com` — see below    |
 | `NEXT_PUBLIC_SUPABASE_URL`             | hosted Supabase URL                                            |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | hosted publishable key                                         |
@@ -328,18 +329,19 @@ action's `env_vars:` input, leaves whichever ran last as the only environment th
 revision has — and the variables in the other list are simply absent, which looks
 exactly like the defect below.
 
-| Variable                          | Source                                                               | What happens if it is absent                                                                             |
-| --------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `DATABASE_POOL_MAX`               | **Yes** — literal `5`                                                | The code default of 10 applies: 30 connections over three instances, past the pooler's 15                |
-| `VENUE_SEARCH_PROVIDER`           | **Yes** — literal `photon`                                           | Event venue entry degrades to plain text and says "address search is not set up here"                    |
-| `VENUE_SEARCH_BASE_URL`           | No, on purpose                                                       | Blank means the free public Photon instance; set it only to point at a self-hosted one                   |
-| `APP_BASE_URL`                    | **Yes** — literal, the Cloud Run host                                | Recovery and invitation have no trusted origin: no email is sent, and the return hop falls back          |
-| `WHATSAPP_PHONE_NUMBER_ID`        | **Yes** — repository variable                                        | The sender has no phone number to send from; approval queues invitations and delivers nothing            |
-| `WHATSAPP_TEMPLATE_NAME`          | **Yes** — repository variable, default `lancers_event_invitation_v2` | Only relevant if a repository variable overrides a bad value; Meta rejects an unrecognised template name |
-| `EMAIL_FROM_ADDRESS`              | **Yes** — repository variable, bare address only                     | The email fallback has no verified sending identity and refuses, naming the missing setting              |
-| `RECRUITMENT_WHATSAPP_GROUP_LINK` | **Yes** — repository variable                                        | The sign-up form's saved page offers recruits no group; it says so rather than inventing a link          |
-| `PLAYER_WHATSAPP_GROUP_LINK`      | **Yes** — repository variable                                        | The player's own page offers no group at all — the section is simply absent (LAN-327)                    |
-| `HUDL_JOIN_LINK`                  | **Yes** — repository variable                                        | The questionnaire's Hudl step shows its steps and states that the link is not published yet              |
+| Variable                          | Source                                                               | What happens if it is absent                                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_POOL_MAX`               | **Yes** — literal `5`                                                | The code default of 10 applies: 30 connections over three instances, past the pooler's 15                                     |
+| `VENUE_SEARCH_PROVIDER`           | **Yes** — literal `photon`                                           | Event venue entry degrades to plain text and says "address search is not set up here"                                         |
+| `VENUE_SEARCH_BASE_URL`           | No, on purpose                                                       | Blank means the free public Photon instance; set it only to point at a self-hosted one                                        |
+| `APP_BASE_URL`                    | **Yes** — literal, the Cloud Run host                                | Recovery and invitation have no trusted origin: no email is sent, and the return hop falls back                               |
+| `WHATSAPP_PHONE_NUMBER_ID`        | **Yes** — repository variable                                        | The sender has no phone number to send from; approval queues invitations and delivers nothing                                 |
+| `WHATSAPP_TEMPLATE_NAME`          | **Yes** — repository variable, default `lancers_event_invitation_v3` | Only relevant if a repository variable overrides a bad value; Meta rejects an unrecognised template name                      |
+| `WHATSAPP_TEMPLATE_LANGUAGE`      | **Yes** — repository variable, default `en`                          | Meta resolves a template by name AND language together; a mismatched language fails every send with "template does not exist" |
+| `EMAIL_FROM_ADDRESS`              | **Yes** — repository variable, bare address only                     | The email fallback has no verified sending identity and refuses, naming the missing setting                                   |
+| `RECRUITMENT_WHATSAPP_GROUP_LINK` | **Yes** — repository variable                                        | The sign-up form's saved page offers recruits no group; it says so rather than inventing a link                               |
+| `PLAYER_WHATSAPP_GROUP_LINK`      | **Yes** — repository variable                                        | The player's own page offers no group at all — the section is simply absent (LAN-327)                                         |
+| `HUDL_JOIN_LINK`                  | **Yes** — repository variable                                        | The questionnaire's Hudl step shows its steps and states that the link is not published yet                                   |
 
 `tests/deployment-configuration.test.ts` compares this table's reality against
 the workflow: a feature that refuses to run unconfigured must either be
@@ -348,20 +350,27 @@ binding — see § Secrets above) or be documented as a deliberate limitation
 with the issue that owns it. It fails if a new one appears and neither
 happens.
 
-**`WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_TEMPLATE_NAME` are set as of
-LAN-168 item 0** (2026-09-14). They are not credentials — the phone-number id
-identifies which of the club's WhatsApp Business numbers to send from, and the
-template name picks an already-approved message; Meta rejects an unrecognised
-name outright, so there is nothing here for a stolen value to do.
+**`WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` and
+`WHATSAPP_TEMPLATE_LANGUAGE` are set as of LAN-168 item 0** (2026-09-14),
+**`WHATSAPP_TEMPLATE_LANGUAGE` added by LAN-351**. None is a credential — the
+phone-number id identifies which of the club's WhatsApp Business numbers to
+send from, and the template name and language together pick an
+already-approved message; Meta rejects an unrecognised name or a mismatched
+language outright, so there is nothing here for a stolen value to do.
 `WHATSAPP_PHONE_NUMBER_ID` is a repository variable Brian sets once, from the
 Meta developer console. `WHATSAPP_TEMPLATE_NAME` defaults to
-`lancers_event_invitation_v2`, the production Utility invitation template
-approved under LAN-348 (`TEMPLATE_NAMES.invitation` in
-[`src/lib/delivery/templates.ts`](../src/lib/delivery/templates.ts)), and is
+`lancers_event_invitation_v3`, the rebuilt production Utility invitation
+template approved under LAN-348 (`TEMPLATE_NAMES.invitation` in
+[`src/lib/delivery/templates.ts`](../src/lib/delivery/templates.ts)) — the
+`_v2` submission carried one button by accident and is dead — and is
 overridable by repository variable only if Meta ever requires resubmission
-under a new name. `WHATSAPP_ACCESS_TOKEN`, the third and only _credential_ of
-the three, is read from Secret Manager — see § Secrets above — never appears
-in this workflow, the image or the repository, and is unchanged by this cutover.
+under a new name. `WHATSAPP_TEMPLATE_LANGUAGE` defaults to `en`, matching the
+club's fourteen approved production templates, which are all `en` rather than
+`en_GB`; Meta resolves a template by name AND language together, so a
+mismatched default here fails every send with "template does not exist".
+`WHATSAPP_ACCESS_TOKEN`, the only _credential_ of the four, is read from
+Secret Manager — see § Secrets above — never appears in this workflow, the
+image or the repository, and is unchanged by this cutover.
 
 **`EMAIL_FROM_ADDRESS` must be a bare address** (`events@oxfordlancers.com`),
 never the `Display Name <address>` form. `flags:` is a folded block whose
@@ -410,16 +419,16 @@ guessing — no group button on either side, and a Hudl step that names the
 missing link rather than linking somewhere wrong. A link containing a comma
 would split the flag; none of these three does.
 
-**`APP_BASE_URL` is the fourth of the four variables the outbound sender needs
-and is set alongside the other three** — LAN-125 needs it for password
-recovery independently of WhatsApp, and as of LAN-168 item 0 all four
+**`APP_BASE_URL` is one of the variables the outbound sender needs and is set
+alongside the others** — LAN-125 needs it for password recovery independently
+of WhatsApp, and as of LAN-168 item 0 and LAN-351 all five
 (`APP_BASE_URL`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`,
-`WHATSAPP_TEMPLATE_NAME`) are present on every deployed revision — see §
-Messaging scheduler below for what else the cutover still needs before Meta
-actually delivers anything. It is in the workflow rather than typed into the
-Cloud Run console because `--set-env-vars` replaces the environment: a value
-set by hand would be erased by the next manual deploy, and recovery would stop
-sending without any error appearing anywhere.
+`WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_TEMPLATE_LANGUAGE`) are present on every
+deployed revision — see § Messaging scheduler below for what else the cutover
+still needs before Meta actually delivers anything. It is in the workflow
+rather than typed into the Cloud Run console because `--set-env-vars` replaces
+the environment: a value set by hand would be erased by the next manual
+deploy, and recovery would stop sending without any error appearing anywhere.
 
 **It also decides where an email link lands after the token is spent** — LAN-141.
 `/auth/invitation` and `/auth/recovery` used to build that redirect from the

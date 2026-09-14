@@ -3,7 +3,8 @@
 LAN-168's remaining items, in click/paste form. Item 0 — wiring
 `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `SCHEDULER_TRIGGER_TOKEN`,
 `EMAIL_API_KEY`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME`,
-`EMAIL_FROM_ADDRESS` and the Cloud Scheduler job into `deploy.yml` — is this
+`WHATSAPP_TEMPLATE_LANGUAGE`, `EMAIL_FROM_ADDRESS` and the Cloud Scheduler job
+into `deploy.yml` — is this
 pull request; everything below it is Brian's, run against the hosted project,
 never an agent's. No command here prints a secret value: presence is checked,
 never contents. See [`docs/deployment.md`](deployment.md) for what each
@@ -18,10 +19,11 @@ runtime service account: `supabase-secret-key`, `database-url`,
 
 **Five repository variables are set:** `WHATSAPP_PHONE_NUMBER_ID`,
 `EMAIL_FROM_ADDRESS`, `RECRUITMENT_WHATSAPP_GROUP_LINK`,
-`PLAYER_WHATSAPP_GROUP_LINK`, `HUDL_JOIN_LINK`. `WHATSAPP_TEMPLATE_NAME` is not
-among them — it uses `deploy.yml`'s default, `lancers_event_invitation_v2`
-(LAN-348), and only needs a variable if Meta ever forces resubmission under a
-new name.
+`PLAYER_WHATSAPP_GROUP_LINK`, `HUDL_JOIN_LINK`. `WHATSAPP_TEMPLATE_NAME` and
+`WHATSAPP_TEMPLATE_LANGUAGE` are not among them — they use `deploy.yml`'s
+defaults, `lancers_event_invitation_v3` (LAN-348) and `en` (LAN-351), and only
+need a variable if Meta ever forces resubmission under a new name or
+language.
 
 Confirm either list yourself, at any time — this only checks names, never
 values:
