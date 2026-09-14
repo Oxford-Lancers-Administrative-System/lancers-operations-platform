@@ -22,6 +22,20 @@ function shortDay(occurredAt: Date): string {
   return formatDay(occurredAt.toISOString().slice(0, 10));
 }
 
+/**
+ * The agreement's own facts, for the two document items — LAN-347. The state
+ * itself already reads "Yes"; this is the date it was agreed and, where the
+ * wording asked for one, the name the player printed under the tick. Values,
+ * not a sentence.
+ */
+function agreementNote(item: OnboardingItemDisplay): string | undefined {
+  if (!item.agreement) return undefined;
+  const agreed = `Agreed ${shortDay(item.agreement.agreedAt)}`;
+  return item.agreement.printedName
+    ? `${agreed} · printed name ${item.agreement.printedName}`
+    : agreed;
+}
+
 /** The row's provenance slot — who and when, per state, never narrative text (W6's acceptance correction). */
 function provenanceNote(item: OnboardingItemDisplay): string | undefined {
   const history = item.history;
@@ -109,8 +123,12 @@ export default function OnboardingRow({
   const states = allowedItemStates(item.code);
   const closedLabel = itemStateLabel(item.code, item.status);
 
+  // The agreement's own date and printed name lead, where there is one; the
+  // item's state history follows it, unchanged.
+  const note = [agreementNote(item), provenanceNote(item)].filter(Boolean).join(" · ") || undefined;
+
   return (
-    <Row label={item.label} note={provenanceNote(item)}>
+    <Row label={item.label} note={note}>
       <Stack
         direction="row"
         spacing={1}

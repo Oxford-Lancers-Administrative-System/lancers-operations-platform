@@ -115,13 +115,36 @@ export const CODE_OF_CONDUCT_AGREE_LABEL = "I have read and I agree to the Code 
 
 export const PHOTO_RELEASE_HEADING = "The photo release";
 export const PHOTO_RELEASE_LEAD = "Step 3 of 5 · Read it, then agree";
-export const PHOTO_RELEASE_AGREE_LABEL =
-  "I have read the photo release and I agree to it for this season.";
+/* The photo release's tick is labelled by the University's form itself since
+   LAN-347 — its `[[agree]]` section — so there is no constant for it here. */
 
 export const AGREE_AND_CONTINUE = "I agree — continue";
 export const MUST_AGREE_ERROR = "Read the document, then tick the box to continue.";
 
 export const PLACEHOLDER_LABEL = "PLACEHOLDER WORDING — the real text is owed under LAN-213";
+
+/**
+ * The photo release step is the University's own consent form since LAN-347.
+ * Every printed word on it comes from the current
+ * `onboarding_agreement_versions` row, so nothing below is copy: these are the
+ * two derived values the form's own boxes take, and the club's privacy contact
+ * is in the version row with the rest of the wording.
+ */
+
+/**
+ * What the form's Event box says. Derived from the season on record so it
+ * names next season by itself (LAN-347 decision 3); the label's own separator
+ * is written as an en dash, the way the issue and the club write a season.
+ * No season label on record leaves the year off rather than inventing one.
+ */
+export function photoReleaseEventLine(seasonLabel: string | null): string {
+  const label = seasonLabel?.trim();
+  if (!label) return "Oxford Lancers activities";
+  return `Oxford Lancers activities, ${label.replace(/\s*[/-]\s*/, "–")} season`;
+}
+
+/** The tick's own error. The form's three required boxes name themselves; the tick belongs to no box. */
+export const PHOTO_RELEASE_MUST_AGREE_ERROR = "Tick the box to agree, then continue.";
 
 // Step 4 — BUCS Play
 

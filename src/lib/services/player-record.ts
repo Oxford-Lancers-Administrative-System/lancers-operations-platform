@@ -15,6 +15,7 @@ import {
   readOnboardingActivityLogBySectionIn,
   type OnboardingActivityKind,
 } from "./onboarding-activity-log";
+import { readOnboardingAgreementsIn } from "./onboarding-agreements";
 import { readOnboardingSendStatusIn, type OnboardingSendStatus } from "./onboarding-chase";
 import type { OnboardingActorKind } from "./onboarding-item-history";
 import { readPersonRecord, type PersonRecord } from "./person-record";
@@ -99,6 +100,16 @@ export interface OnboardingItemHistoryEntry {
 /** One onboarding item, with its full append-only history attached — oldest first. */
 export interface OnboardingItemDisplay extends OnboardingItem {
   history: OnboardingItemHistoryEntry[];
+  /**
+   * The agreement behind this item, for the two documents that have one
+   * (LAN-347). The row is the whole of what "agreed" means — the version, the
+   * moment and, since the University's consent form, the name the player
+   * printed under the tick. `null` on every other item.
+   */
+  agreement: {
+    agreedAt: Date;
+    printedName: string | null;
+  } | null;
 }
 
 /** One entry in the sectioned activity log, with its actor named — `REQ-activity-log`, W6. */
@@ -557,6 +568,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     itemHistoryByItem,
     activityLog,
     send,
+    agreements,
   ] = await withTransaction(async (tx) => {
     // Sequential, not `Promise.all` (LAN-301). Every one of these ten reads
     // borrows the same transaction client — `readPositionOptions` opens its
@@ -576,6 +588,11 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     );
     const activityLog = await readOnboardingActivityLogDisplayIn(tx, membershipId);
     const send = await readOnboardingSendStatusIn(tx, membershipId);
+    const agreements = await readOnboardingAgreementsIn(
+      tx,
+      membership.personId,
+      membership.seasonId,
+    );
     return [
       seasonFacts,
       jerseyHolders,
@@ -587,13 +604,23 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
       itemHistoryByItem,
       activityLog,
       send,
+      agreements,
     ] as const;
   });
 
-  const onboardingItems: OnboardingItemDisplay[] = membership.onboardingItems.map((item) => ({
-    ...item,
-    history: itemHistoryByItem.get(item.id) ?? [],
-  }));
+  // LAN-347: the two document items print the agreement's own date and printed
+  // name. Keyed by `onboarding_item_types.code`, which is the agreement type.
+  const agreementByType = new Map(agreements.map((row) => [row.agreementType as string, row]));
+  const onboardingItems: OnboardingItemDisplay[] = membership.onboardingItems.map((item) => {
+    const agreement = agreementByType.get(item.code) ?? null;
+    return {
+      ...item,
+      history: itemHistoryByItem.get(item.id) ?? [],
+      agreement: agreement
+        ? { agreedAt: agreement.agreedAt, printedName: agreement.printedName }
+        : null,
+    };
+  });
 
   const data: PlayerRecordData = {
     membershipId: membership.membershipId,
