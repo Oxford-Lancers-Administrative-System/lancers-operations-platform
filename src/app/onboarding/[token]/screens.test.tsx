@@ -70,6 +70,54 @@ const PERSON_ID = "00000000-0000-4000-8000-000000000003";
 const SEASON_ID = "00000000-0000-4000-8000-000000000004";
 const MEMBERSHIP_ID = "00000000-0000-4000-8000-000000000005";
 
+/** The Code of Conduct's row, as LAN-214's migration seeded it and LAN-282 still owes. */
+const PLACEHOLDER_BODY =
+  "Placeholder — the Code of Conduct's real wording is Clint's, tracked as LAN-213.";
+
+/**
+ * A photo release row shaped like the real one — enough sections to prove the
+ * step lays the form out in the form's order. The wording actually shipped is
+ * asserted against the migrated row in `photo-release-step.test.tsx`.
+ */
+const CONSENT_FORM_BODY = [
+  "[[heading]]",
+  "Photograph / filming / interview consent form",
+  "[[lead]]",
+  "This is a consent form for photos, film or voice recording for the activities below.",
+  "[[event]]",
+  "Event",
+  "[[date]]",
+  "Date",
+  "[[name]]",
+  "Name",
+  "[[address]]",
+  "Address",
+  "[[postcode]]",
+  "Post code:",
+  "[[tel]]",
+  "Tel:",
+  "[[email]]",
+  "Email:",
+  "[[agree]]",
+  "I agree to the terms",
+  "[[print-name]]",
+  "Print name",
+].join("\n");
+
+function agreementVersion(
+  agreementType: "code_of_conduct" | "photo_release",
+  versionLabel: string,
+  body: string,
+) {
+  return {
+    id: `00000000-0000-4000-8000-00000000000${agreementType === "photo_release" ? "7" : "6"}`,
+    agreementType,
+    versionLabel,
+    body,
+    effectiveFrom: new Date("2026-09-14T00:00:00Z"),
+  } as const;
+}
+
 function personRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
   return {
     personId: PERSON_ID,
@@ -133,6 +181,11 @@ function view(overrides: Partial<QuestionnaireView> = {}): QuestionnaireView {
       date_of_birth: null,
     },
     agreements: { code_of_conduct: null, photo_release: null },
+    agreementVersions: {
+      code_of_conduct: agreementVersion("code_of_conduct", "placeholder-v1", PLACEHOLDER_BODY),
+      photo_release: agreementVersion("photo_release", "oxford-consent-form-v1", CONSENT_FORM_BODY),
+    },
+    lastPhotoReleaseForm: null,
     documentAgreed: { code_of_conduct: false, photo_release: false },
     itemStatus: {
       code_of_conduct: "pending",

@@ -3,7 +3,7 @@ import "server-only";
 import { ConstraintViolated, InvalidTransition, NotFound, withTransaction } from "@/lib/db";
 import { recordAudit } from "../audit";
 import {
-  deleteOnboardingAgreementIn,
+  reopenOnboardingAgreementIn,
   type OnboardingAgreementType,
 } from "../onboarding-agreements";
 import { writeOnboardingItemHistoryIn } from "../onboarding-item-history";
@@ -166,14 +166,17 @@ export async function resolveOnboardingItem(params: {
     });
 
     // LAN-240 (walker M7, finding M7-01): reopening an agreement item (setting it back off
-    // `complete`) removes the onboarding_agreements row in the same transaction, so the player's
+    // `complete`) retires the onboarding_agreements row in the same transaction, so the player's
     // next load actually reads outstanding rather than "Already agreed" — see relocations.md.
+    // LAN-347 stamps `reopened_at` rather than deleting: the row carries the consent form the
+    // player submitted, which the reopened step prefills from, and a consent record is not an
+    // operator's click away from destruction.
     if (
       AGREEMENT_ITEM_TYPES[item.code] !== undefined &&
       item.status === "complete" &&
       toStatus !== "complete"
     ) {
-      const removed = await deleteOnboardingAgreementIn(tx, {
+      const reopened = await reopenOnboardingAgreementIn(tx, {
         personId: item.person_id,
         seasonId: item.season_id,
         agreementType: AGREEMENT_ITEM_TYPES[item.code],
@@ -192,7 +195,7 @@ export async function resolveOnboardingItem(params: {
           person_id: item.person_id,
           season_id: item.season_id,
           agreement_type: AGREEMENT_ITEM_TYPES[item.code],
-          removed_count: removed, // zero is legitimate — recorded, not hidden
+          reopened_count: reopened, // zero is legitimate — recorded, not hidden
         },
       });
     }

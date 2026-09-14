@@ -2238,24 +2238,45 @@ export type Database = {
           agreed_at: string
           agreement_type: Database["public"]["Enums"]["onboarding_agreement_type"]
           agreement_version_id: string
+          form_address: string | null
+          form_email: string | null
+          form_name: string | null
+          form_postcode: string | null
+          form_tel: string | null
           id: string
           person_id: string
+          printed_name: string | null
+          reopened_at: string | null
           season_id: string
         }
         Insert: {
           agreed_at?: string
           agreement_type: Database["public"]["Enums"]["onboarding_agreement_type"]
           agreement_version_id: string
+          form_address?: string | null
+          form_email?: string | null
+          form_name?: string | null
+          form_postcode?: string | null
+          form_tel?: string | null
           id?: string
           person_id: string
+          printed_name?: string | null
+          reopened_at?: string | null
           season_id: string
         }
         Update: {
           agreed_at?: string
           agreement_type?: Database["public"]["Enums"]["onboarding_agreement_type"]
           agreement_version_id?: string
+          form_address?: string | null
+          form_email?: string | null
+          form_name?: string | null
+          form_postcode?: string | null
+          form_tel?: string | null
           id?: string
           person_id?: string
+          printed_name?: string | null
+          reopened_at?: string | null
           season_id?: string
         }
         Relationships: [

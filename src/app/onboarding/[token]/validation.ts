@@ -177,3 +177,66 @@ export function firstInvalidDetailsField(
 ): keyof DetailsFormValues | null {
   return DETAILS_FIELD_ORDER.find((field) => errors[field] !== undefined) ?? null;
 }
+
+/* ------------------------------------------------------------------------ */
+/* Step 3 — the photo release consent form (LAN-347)                          */
+/* ------------------------------------------------------------------------ */
+
+/** Every box the consent form posts, in the order the form prints them. */
+export interface PhotoReleaseFormValues {
+  name: string;
+  address: string;
+  postcode: string;
+  tel: string;
+  email: string;
+  printedName: string;
+}
+
+export type PhotoReleaseFieldErrors = Partial<Record<keyof PhotoReleaseFormValues, string>>;
+
+export interface PhotoReleaseFormState {
+  values: PhotoReleaseFormValues;
+  errors: PhotoReleaseFieldErrors;
+  /** The tick, which belongs to no box. */
+  agreeError: boolean;
+}
+
+export const EMPTY_PHOTO_RELEASE_VALUES: PhotoReleaseFormValues = {
+  name: "",
+  address: "",
+  postcode: "",
+  tel: "",
+  email: "",
+  printedName: "",
+};
+
+/** The form's own top-to-bottom order — what `firstInvalidPhotoReleaseField` focuses. */
+const PHOTO_RELEASE_FIELD_ORDER: readonly (keyof PhotoReleaseFormValues)[] = [
+  "name",
+  "address",
+  "postcode",
+  "tel",
+  "email",
+  "printedName",
+];
+
+export function readPhotoReleaseValues(form: FormData): PhotoReleaseFormValues {
+  const read = (name: keyof PhotoReleaseFormValues): string => {
+    const value = form.get(name);
+    return typeof value === "string" ? value : "";
+  };
+  return {
+    name: read("name"),
+    address: read("address"),
+    postcode: read("postcode"),
+    tel: read("tel"),
+    email: read("email"),
+    printedName: read("printedName"),
+  };
+}
+
+export function firstInvalidPhotoReleaseField(
+  errors: PhotoReleaseFieldErrors,
+): keyof PhotoReleaseFormValues | null {
+  return PHOTO_RELEASE_FIELD_ORDER.find((field) => errors[field] !== undefined) ?? null;
+}

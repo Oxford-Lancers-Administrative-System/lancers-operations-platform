@@ -5,6 +5,7 @@ import {
   recordOnboardingAgreementIn,
   type OnboardingAgreement,
   type OnboardingAgreementType,
+  type SubmittedAgreementForm,
 } from "../onboarding-agreements";
 import { completePlayerOrDerivedItemIn, findOnboardingItemIn, TRUST_SECTION_LABEL } from "./read";
 import { TRUST_ITEM_CODES } from "./types";
@@ -22,12 +23,18 @@ export async function agreeOnboardingDocument(params: {
   seasonId: string;
   membershipId: string;
   agreementType: OnboardingAgreementType;
+  /** LAN-347: passed through to the agreement, which refuses it missing when the version's wording asks for one. */
+  printedName?: string | null;
+  /** LAN-347: the rest of the submitted consent form, stored with the agreement. The Code of Conduct's bare tick passes none. */
+  form?: SubmittedAgreementForm;
 }): Promise<OnboardingAgreement> {
   return withTransaction(async (tx) => {
     const agreement = await recordOnboardingAgreementIn(tx, {
       personId: params.personId,
       seasonId: params.seasonId,
       agreementType: params.agreementType,
+      printedName: params.printedName,
+      form: params.form,
     });
     await completePlayerOrDerivedItemIn(tx, {
       membershipId: params.membershipId,
