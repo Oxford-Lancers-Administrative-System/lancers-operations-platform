@@ -30,8 +30,13 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { OUTBOUND_ENVIRONMENT_VARIABLES } from "@/lib/delivery/config";
+import {
+  EMAIL_ENVIRONMENT_VARIABLES,
+  OUTBOUND_ENVIRONMENT_VARIABLES,
+  WEBHOOK_ENVIRONMENT_VARIABLES,
+} from "@/lib/delivery/config";
 import { BASE_URL_VARIABLE, PROVIDER_VARIABLE } from "@/lib/venue-search/config";
+import { SCHEDULER_TOKEN_VARIABLE } from "@/app/api/scheduler/messaging/route";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const read = (file: string) => readFileSync(path.join(repoRoot, file), "utf8");
@@ -73,8 +78,25 @@ function configuredVariables(): Set<string> {
   return names;
 }
 
+/**
+ * Every credential the Cloud Run deploy injects from Secret Manager, by name.
+ *
+ * Read from the `secrets:` block's own lines, each shaped
+ * `NAME=${{ ... }}:latest`. The trailing `:latest` is the anchor — it is the
+ * one token that only appears on a `secrets:` line, so this does not have to
+ * locate the block by indentation.
+ */
+function configuredSecrets(): Set<string> {
+  const names = new Set<string>();
+  for (const match of deployCode.matchAll(/^\s*([A-Z0-9_]+)=.*:latest\s*$/gm)) {
+    names.add(match[1]);
+  }
+  return names;
+}
+
 describe("the deploy turns on what the code refuses to run without", () => {
   const configured = configuredVariables();
+  const secrets = configuredSecrets();
 
   it("parses the workflow's environment declaration at all", () => {
     // A parser that silently found nothing would pass every test below by
@@ -135,6 +157,18 @@ describe("the deploy turns on what the code refuses to run without", () => {
       "APP_BASE_URL",
       "password recovery has no trusted origin to build a link from and silently sends nobody anything (LAN-125)",
     ],
+    [
+      "WHATSAPP_PHONE_NUMBER_ID",
+      "the sender has no phone number to send from and approval delivers nothing (LAN-168 item 0)",
+    ],
+    [
+      "WHATSAPP_TEMPLATE_NAME",
+      "the sender has no approved template to send and approval delivers nothing (LAN-168 item 0, LAN-348)",
+    ],
+    [
+      "EMAIL_FROM_ADDRESS",
+      "the email fallback has no verified sending identity and refuses (LAN-168 item 0, LAN-169)",
+    ],
   ];
 
   it.each(REQUIRED_ON_EVERY_REVISION)("sets %s on every revision", (name, why) => {
@@ -162,27 +196,99 @@ describe("the deploy turns on what the code refuses to run without", () => {
     expect(configured.has(BASE_URL_VARIABLE)).toBe(false);
   });
 
-  it("records the WhatsApp variables as knowingly absent, with their owner", () => {
-    // These cannot be fixed by editing the workflow: they need the club's Meta
-    // business portfolio and an approved template, which is LAN-101's. What
-    // must never happen is their absence going unrecorded, because the visible
-    // symptom — approval delivering nothing — looks like a code fault.
-    for (const variable of OUTBOUND_ENVIRONMENT_VARIABLES) {
-      // `APP_BASE_URL` is skipped, and the reason changed with LAN-125. It is
-      // the only one of the four that is not a Meta credential, and it is now
-      // set — password recovery needs a trusted origin to build its link from,
-      // and `--set-env-vars` replaces the environment, so a value typed into
-      // the console by hand would be erased by the next deploy. Setting it
-      // still enables no delivery: the three Meta credentials remain absent and
-      // the sender refuses without all four. It is asserted as required above.
-      if (variable === "APP_BASE_URL") continue;
+  /**
+   * Every credential the outbound, callback and email paths refuse to run
+   * without, and the scheduler's own shared secret. LAN-168 item 0 wired all
+   * of these into `secrets:` — none may sit in plain `--set-env-vars` text,
+   * which lands in the workflow file and the revision's own description.
+   */
+  const REQUIRED_SECRETS: readonly (readonly [name: string, why: string])[] = [
+    ["WHATSAPP_ACCESS_TOKEN", "the sender has no credential to call the Graph API with"],
+    [
+      "WHATSAPP_APP_SECRET",
+      "inbound callbacks cannot be verified and the webhook route answers 503 (LAN-78)",
+    ],
+    [
+      "WHATSAPP_WEBHOOK_VERIFY_TOKEN",
+      "Meta's subscription handshake cannot be answered and the webhook route answers 403",
+    ],
+    ["EMAIL_API_KEY", "the email fallback has no provider credential and refuses (LAN-169)"],
+    [
+      SCHEDULER_TOKEN_VARIABLE,
+      "the scheduler route has no trigger token and refuses every sweep with 503",
+    ],
+  ];
+
+  it.each(REQUIRED_SECRETS)("injects %s from Secret Manager", (name, why) => {
+    expect(
+      secrets.has(name),
+      `${name} is not read from Secret Manager in deploy.yml's secrets: block — ${why}`,
+    ).toBe(true);
+    expect(
+      configured.has(name),
+      `${name} is a credential and must not be a plain --set-env-vars entry`,
+    ).toBe(false);
+  });
+
+  it("wires every outbound, callback, email and scheduler variable into the deploy", () => {
+    // LAN-168 item 0. Shipping the code that reads a variable is not the same
+    // as the deploy setting it — the whole reason this file exists — so every
+    // variable each of these four lists names must land somewhere in
+    // deploy.yml, as either a plain env var or a Secret Manager binding, and
+    // be named in docs/deployment.md so a reader can tell which and why.
+    const everyDeliveryVariable = [
+      ...OUTBOUND_ENVIRONMENT_VARIABLES,
+      ...WEBHOOK_ENVIRONMENT_VARIABLES,
+      ...EMAIL_ENVIRONMENT_VARIABLES,
+      SCHEDULER_TOKEN_VARIABLE,
+    ];
+    for (const variable of everyDeliveryVariable) {
       expect(
-        configured.has(variable),
-        `${variable} is set by the deploy, so it is no longer "knowingly absent"`,
-      ).toBe(false);
+        configured.has(variable) || secrets.has(variable),
+        `${variable} is neither a Cloud Run env var nor a Secret Manager binding in deploy.yml`,
+      ).toBe(true);
+      expect(deploymentDoc, `${variable} is not named in docs/deployment.md`).toContain(variable);
     }
-    expect(deploymentDoc).toMatch(/knowingly absent/i);
-    expect(deploymentDoc).toMatch(/LAN-101/);
+  });
+
+  it("creates the messaging scheduler job and masks its trigger token before use", () => {
+    // LAN-168 item 0. Nothing advances the WhatsApp/email chase ladder on a
+    // deployed revision unless something sweeps it — see
+    // src/app/api/scheduler/messaging/route.ts. The step must exist, target
+    // the sweep endpoint on a five-minute cadence, and never let the token it
+    // reads from Secret Manager reach a log line unmasked — including a
+    // failed gcloud call's own error text, which `::add-mask::` still catches
+    // once emitted, because it matches the literal value anywhere afterwards.
+    const stepStart = deployCode.indexOf("Ensure the messaging scheduler job");
+    expect(stepStart, "deploy.yml has no 'Ensure the messaging scheduler job' step").not.toBe(-1);
+    const nextStepStart = deployCode.indexOf("\n      - name:", stepStart + 1);
+    const step = deployCode.slice(stepStart, nextStepStart === -1 ? undefined : nextStepStart);
+
+    expect(step).toMatch(/lancers-messaging-sweep/);
+    expect(step).toMatch(/\*\/5 \* \* \* \*/);
+    expect(step).toMatch(/\/api\/scheduler\/messaging/);
+    expect(step).toMatch(/gcloud scheduler jobs describe/);
+    expect(step).toMatch(/gcloud scheduler jobs "?\$\{ACTION\}"? http/);
+    expect(step).toMatch(/--attempt-deadline=60s/);
+    expect(step).toMatch(/--time-zone=Europe\/London/);
+
+    const maskIndex = step.indexOf("::add-mask::");
+    const headersIndex = step.indexOf("--headers=");
+    expect(maskIndex, "the scheduler trigger token is never masked with ::add-mask::").not.toBe(-1);
+    expect(headersIndex, "the scheduler step never passes the token via --headers").not.toBe(-1);
+    expect(
+      maskIndex,
+      "the token must be masked before it reaches --headers, which can appear in gcloud's own error output",
+    ).toBeLessThan(headersIndex);
+
+    // Never a bare echo of the token variable.
+    expect(step).not.toMatch(/echo\s+"?\$\{?TOKEN\}?"?\s*$/m);
+
+    // Does not fail the deploy on a permission problem — it warns and exits clean.
+    expect(step).toMatch(/::warning title=Messaging scheduler not configured::/);
+    expect(step).toMatch(/roles\/cloudscheduler\.admin/);
+    expect(step).toMatch(/roles\/secretmanager\.secretAccessor/);
+    expect(step).toMatch(/cloudscheduler\.googleapis\.com/);
   });
 
   it("documents every variable the deploy sets", () => {
@@ -194,6 +300,19 @@ describe("the deploy turns on what the code refuses to run without", () => {
         `${variable} is set by the deploy but not in docs/deployment.md`,
       ).toContain(variable);
       expect(envExample, `${variable} is set by the deploy but not in .env.example`).toContain(
+        variable,
+      );
+    }
+  });
+
+  it("documents every secret the deploy injects", () => {
+    // Same failure, the other direction, for Secret Manager bindings.
+    for (const variable of secrets) {
+      expect(
+        deploymentDoc,
+        `${variable} is injected by the deploy but not in docs/deployment.md`,
+      ).toContain(variable);
+      expect(envExample, `${variable} is injected by the deploy but not in .env.example`).toContain(
         variable,
       );
     }

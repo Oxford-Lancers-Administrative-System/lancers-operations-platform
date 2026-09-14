@@ -9,9 +9,8 @@ This is the Oxford Lancers operations platform. Release one covers the eight app
 the first running vertical slice described in `docs/operating-the-slice.md`. Before changing that
 slice, read that walkthrough or `tests/slice-walkthrough.test.ts`.
 
-The frozen conceptual model v1.2 is implemented by PostgreSQL migrations.
-Before touching `supabase/migrations/`, read
-`docs/architecture/data-model.md`; every entity and invariant must map there.
+The frozen conceptual model v1.2 is implemented by PostgreSQL migrations. Before touching
+`supabase/migrations/`, read `docs/architecture/data-model.md`; every entity and invariant must map there.
 
 Do not add or reinterpret club concepts, import real roster/member data, or add
 tidy fixtures. New concepts, vocabulary changes, relaxed invariants, and release
@@ -20,20 +19,21 @@ identities and synthetic scenarios under `docs/pilot-data-runbook.md`.
 
 ## Sources of truth
 
-| Need                         | Read                                   |
-| ---------------------------- | -------------------------------------- |
-| Running behavior             | `docs/operating-the-slice.md`          |
-| Architecture and security    | `docs/architecture.md`                 |
-| Tables and invariants        | `docs/architecture/data-model.md`      |
-| Local setup and commands     | `docs/local-development.md`            |
-| Schema release and recovery  | `docs/migration-runbook.md`            |
-| Hosted pilot procedure       | `docs/pilot-data-runbook.md`           |
-| Hosted non-schema manifest   | `docs/pilot-data-manifest.md`          |
-| Deploy and rollback          | `docs/deployment.md`                   |
-| WhatsApp template categories | `docs/whatsapp-template-categories.md` |
-| Mission operation            | `docs/mission-harness.md`              |
-| Agent session telemetry      | `docs/agent-telemetry.md`              |
-| Decisions                    | `docs/adr/README.md`                   |
+| Need                             | Read                                   |
+| -------------------------------- | -------------------------------------- |
+| Running behavior                 | `docs/operating-the-slice.md`          |
+| Architecture and security        | `docs/architecture.md`                 |
+| Tables and invariants            | `docs/architecture/data-model.md`      |
+| Local setup and commands         | `docs/local-development.md`            |
+| Schema release and recovery      | `docs/migration-runbook.md`            |
+| Hosted pilot procedure           | `docs/pilot-data-runbook.md`           |
+| Hosted non-schema manifest       | `docs/pilot-data-manifest.md`          |
+| Deploy and rollback              | `docs/deployment.md`                   |
+| WhatsApp template categories     | `docs/whatsapp-template-categories.md` |
+| WhatsApp/email/scheduler cutover | `docs/whatsapp-cutover.md`             |
+| Mission operation                | `docs/mission-harness.md`              |
+| Agent session telemetry          | `docs/agent-telemetry.md`              |
+| Decisions                        | `docs/adr/README.md`                   |
 
 The more specific document wins; correct this file when it drifts.
 

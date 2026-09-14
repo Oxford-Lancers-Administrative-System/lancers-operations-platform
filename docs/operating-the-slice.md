@@ -686,9 +686,6 @@ Genuinely absent from the slice today:
 - **No season close.** Nothing archives a season or carries memberships forward.
 - **No real data, anywhere.** Every environment is synthetic until the pre-pilot
   gate in [`migration-runbook.md`](migration-runbook.md) is passed.
-- **No scheduled dispatch.** A job left undispatched stays Queued and is picked
-  up when a person presses Retry; there is no cron, no sweep and no scheduler
-  behind it.
 - **Turnout is wrong on any event with a walk-up** — see § 11. Reported, not
   corrected here.
 
@@ -696,6 +693,13 @@ Genuinely absent from the slice today:
 operator copying, sending, posting or marking a link as sent is not an accepted
 path in any environment, at any stage. What a machine without credentials lacks
 is the credentials, and the application says so in those words.
+
+**Scheduled dispatch is also not on this list.** `POST /api/scheduler/messaging`
+raises what is overdue, dispatches what is due, and answers with counts — see
+§ 7 and `docs/deployment.md`'s § Messaging scheduler. Cloud Scheduler calls it
+every five minutes on a deployed revision (LAN-168 item 0); locally,
+`npm run messaging:ticker` does. A job waiting for someone to press Retry means
+the sweep itself is not running, not that dispatch is unscheduled.
 
 ---
 
