@@ -58,6 +58,13 @@ jobs:
       SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'lancers-operations-platform' }}
       REPOSITORY: ${{ vars.ARTIFACT_REGISTRY_REPO || 'lancers' }}
       MAX_INSTANCES: ${{ vars.CLOUD_RUN_MAX_INSTANCES || '3' }}
+      # Resolved here, with normal spacing, rather than inside the single-token
+      # `--set-env-vars` flag below — an `||` fallback needs a space on each
+      # side to parse, and that flag cannot contain one. LAN-348's production
+      # Utility invitation template (`TEMPLATE_NAMES.invitation` in
+      # src/lib/delivery/templates.ts); overridable by repository variable only
+      # if Meta ever requires resubmission under a new name.
+      WHATSAPP_TEMPLATE_NAME: ${{ vars.WHATSAPP_TEMPLATE_NAME || 'lancers_event_invitation_v2' }}
 
     steps:
       - uses: actions/checkout@v5
@@ -122,8 +129,8 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
-            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://app.oxfordlancers.com,RECRUITMENT_WHATSAPP_GROUP_LINK=${{vars.RECRUITMENT_WHATSAPP_GROUP_LINK}},PLAYER_WHATSAPP_GROUP_LINK=${{vars.PLAYER_WHATSAPP_GROUP_LINK}},HUDL_JOIN_LINK=${{vars.HUDL_JOIN_LINK}}
-          # Six non-secret runtime settings, in one `--set-env-vars` because the
+            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://app.oxfordlancers.com,RECRUITMENT_WHATSAPP_GROUP_LINK=${{vars.RECRUITMENT_WHATSAPP_GROUP_LINK}},PLAYER_WHATSAPP_GROUP_LINK=${{vars.PLAYER_WHATSAPP_GROUP_LINK}},HUDL_JOIN_LINK=${{vars.HUDL_JOIN_LINK}},WHATSAPP_PHONE_NUMBER_ID=${{vars.WHATSAPP_PHONE_NUMBER_ID}},WHATSAPP_TEMPLATE_NAME=${{env.WHATSAPP_TEMPLATE_NAME}},EMAIL_FROM_ADDRESS=${{vars.EMAIL_FROM_ADDRESS}}
+          # Nine non-secret runtime settings, in one `--set-env-vars` because the
           # flag REPLACES the revision's environment rather than adding to it —
           # declaring them separately, or mixing this flag with the action's
           # `env_vars` input, would leave whichever ran last as the only one
@@ -191,6 +198,30 @@ jobs:
           # and the surface then offers no link at all rather than a broken one
           # — which is the correct deployed state until Brian sets them.
           #
+          # WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_TEMPLATE_NAME — LAN-168 item 0.
+          # Neither is a credential: the phone-number id identifies which of the
+          # club's WhatsApp Business numbers to send from, and the template name
+          # picks an already-approved message — Meta rejects an unrecognised
+          # name outright, so there is nothing here for a stolen value to do.
+          # WHATSAPP_PHONE_NUMBER_ID is a repository variable Brian sets once
+          # from the Meta developer console. WHATSAPP_TEMPLATE_NAME's default is
+          # resolved above in `env:`, not here — see that comment for why.
+          # `WHATSAPP_ACCESS_TOKEN`, the credential these two work alongside, is
+          # unchanged below: it was already wired by LAN-101 and stays in
+          # `secrets:`.
+          #
+          # EMAIL_FROM_ADDRESS — LAN-169's verified Resend sending address, a
+          # repository variable Brian sets once. It MUST be a bare address
+          # (`events@oxfordlancers.com`), never the `Display Name <address>`
+          # form: `flags:` is a folded block whose lines are joined by spaces,
+          # `--set-env-vars` is deliberately kept to the one token this comment
+          # already describes, and `tests/deployment-configuration.test.ts`
+          # parses that token on whitespace. A display-name value would split
+          # mid-flag and silently drop every setting after it rather than fail
+          # loudly, so this is enforced by convention and documented in
+          # docs/deployment.md rather than attempted here. Resend accepts a bare
+          # address; the message simply carries no display name.
+          #
           # Written `${{vars.X}}` without inner spaces on purpose: `flags:` is a
           # folded block whose lines are joined by spaces, and
           # `tests/deployment-configuration.test.ts` reads this declaration as
@@ -204,6 +235,10 @@ jobs:
             DATABASE_URL=${{ vars.DATABASE_URL_SECRET || 'database-url' }}:latest
             WHATSAPP_ACCESS_TOKEN=${{ vars.WHATSAPP_ACCESS_TOKEN_SECRET || 'whatsapp-access-token' }}:latest
             CLUB_LINK_SECRET=${{ vars.CLUB_LINK_SECRET_SECRET || 'club-link-secret' }}:latest
+            WHATSAPP_APP_SECRET=${{ vars.WHATSAPP_APP_SECRET_SECRET || 'whatsapp-app-secret' }}:latest
+            WHATSAPP_WEBHOOK_VERIFY_TOKEN=${{ vars.WHATSAPP_WEBHOOK_VERIFY_TOKEN_SECRET || 'whatsapp-webhook-verify-token' }}:latest
+            SCHEDULER_TRIGGER_TOKEN=${{ vars.SCHEDULER_TRIGGER_TOKEN_SECRET || 'scheduler-trigger-token' }}:latest
+            EMAIL_API_KEY=${{ vars.EMAIL_API_KEY_SECRET || 'resend-api-key' }}:latest
 
       - name: Smoke test the deployed revision
         env:
@@ -247,6 +282,82 @@ jobs:
           done
           echo "Health check never succeeded"
           exit 1
+
+      - name: Ensure the messaging scheduler job
+        # LAN-168 item 0. Cloud Run has no background worker or cron of its
+        # own, so nothing advances the WhatsApp/email chase ladder unless
+        # something POSTs /api/scheduler/messaging on a schedule — see
+        # src/app/api/scheduler/messaging/route.ts and § Messaging scheduler in
+        # docs/deployment.md. Create-or-update rather than always-create so a
+        # re-deploy that only changes the image does not touch a job an
+        # operator paused in the console.
+        #
+        # The trigger token is read from Secret Manager, using the same secret
+        # name expression as the SCHEDULER_TRIGGER_TOKEN line above, and masked
+        # the instant it is captured — before any command that could echo it,
+        # including a failed gcloud call's own error text, which the mask
+        # still catches because `::add-mask::` matches the literal value
+        # anywhere in the log from this point on. It is passed to gcloud only
+        # through `--headers`, never echoed, and never written to a file this
+        # step does not immediately treat as sensitive.
+        #
+        # This step must not fail the deploy: the deploy identity may not yet
+        # hold Cloud Scheduler permission, and a missing scheduler job is a
+        # follow-up owner action, not a broken revision that is already
+        # serving traffic. Any permission-shaped failure is caught, printed as
+        # one line naming the two grants and the API to enable, and turned
+        # into a `::warning::` rather than a failed step.
+        env:
+          JOB_URL: ${{ steps.deploy.outputs.url }}
+          SECRET_NAME: ${{ vars.SCHEDULER_TRIGGER_TOKEN_SECRET || 'scheduler-trigger-token' }}
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          set +e
+          JOB=lancers-messaging-sweep
+          OWNER_ACTION="Grant roles/cloudscheduler.admin on the project and roles/secretmanager.secretAccessor on ${SECRET_NAME} to ${DEPLOY_SA}, and enable cloudscheduler.googleapis.com, then re-run this workflow."
+
+          TOKEN="$(gcloud secrets versions access latest --secret="${SECRET_NAME}" 2>/tmp/scheduler-token-error)"
+          TOKEN_STATUS=$?
+          echo "::add-mask::${TOKEN}"
+
+          if [ "${TOKEN_STATUS}" -ne 0 ]; then
+            echo "::warning title=Messaging scheduler not configured::The deploy identity could not read the ${SECRET_NAME} secret, so ${JOB} was not created or updated. ${OWNER_ACTION}"
+            exit 0
+          fi
+
+          gcloud scheduler jobs describe "${JOB}" --location="${REGION}" >/tmp/scheduler-describe 2>&1
+          DESCRIBE_STATUS=$?
+
+          if [ "${DESCRIBE_STATUS}" -eq 0 ]; then
+            ACTION=update
+          elif grep -qiE "PERMISSION_DENIED|does not have permission|SERVICE_DISABLED|has not been used in project|403" /tmp/scheduler-describe; then
+            echo "::warning title=Messaging scheduler not configured::The deploy identity lacks Cloud Scheduler permission, so ${JOB} was not created or updated. ${OWNER_ACTION}"
+            exit 0
+          else
+            ACTION=create
+          fi
+
+          gcloud scheduler jobs "${ACTION}" http "${JOB}" \
+            --location="${REGION}" \
+            --schedule="*/5 * * * *" \
+            --uri="${JOB_URL}/api/scheduler/messaging" \
+            --http-method=POST \
+            --headers="Authorization=Bearer ${TOKEN}" \
+            --attempt-deadline=60s \
+            --time-zone=Europe/London >/tmp/scheduler-apply 2>&1
+          APPLY_STATUS=$?
+
+          if [ "${APPLY_STATUS}" -ne 0 ]; then
+            if grep -qiE "PERMISSION_DENIED|does not have permission|SERVICE_DISABLED|has not been used in project|403" /tmp/scheduler-apply; then
+              echo "::warning title=Messaging scheduler not configured::The deploy identity lacks Cloud Scheduler permission, so ${JOB} was not created or updated. ${OWNER_ACTION}"
+              exit 0
+            fi
+            echo "Failed to ${ACTION} the ${JOB} Cloud Scheduler job:"
+            cat /tmp/scheduler-apply
+            exit 1
+          fi
+
+          echo "${JOB} (${ACTION}d) targets ${JOB_URL}/api/scheduler/messaging every 5 minutes"
 
       - name: Summary
         if: always()

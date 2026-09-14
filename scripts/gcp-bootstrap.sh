@@ -58,6 +58,11 @@ POOL="${WIF_POOL:-github}"
 PROVIDER="${WIF_PROVIDER:-github-oidc}"
 SECRET_NAME="${SUPABASE_SECRET_KEY_SECRET:-supabase-secret-key}"
 MAX_INSTANCES="${CLOUD_RUN_MAX_INSTANCES:-3}"
+# LAN-168 item 0. Provisioned by hand, outside this script, the same way the
+# WhatsApp and Resend secrets are — see docs/whatsapp-cutover.md. Named here
+# only so the deploy identity's grant below (Phase A) targets the same secret
+# `deploy.yml`'s SCHEDULER_TRIGGER_TOKEN line reads.
+SCHEDULER_TOKEN_SECRET="${SCHEDULER_TRIGGER_TOKEN_SECRET:-scheduler-trigger-token}"
 PLACEHOLDER_IMAGE="us-docker.pkg.dev/cloudrun/container/hello"
 
 # Service account IDs are capped at 30 characters by GCP, and
@@ -102,7 +107,8 @@ gcloud services enable \
   iam.googleapis.com \
   sts.googleapis.com \
   logging.googleapis.com \
-  monitoring.googleapis.com
+  monitoring.googleapis.com \
+  cloudscheduler.googleapis.com
 
 say "Artifact Registry repository"
 gcloud artifacts repositories describe "${REPOSITORY}" --location="${REGION}" >/dev/null 2>&1 || \
@@ -142,6 +148,30 @@ gcloud artifacts repositories add-iam-policy-binding "${REPOSITORY}" \
 gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA_EMAIL}" \
   --member="serviceAccount:${DEPLOY_SA_EMAIL}" \
   --role="roles/iam.serviceAccountUser" >/dev/null
+
+# LAN-168 item 0. The deploy's *Ensure the messaging scheduler job* step
+# creates or updates lancers-messaging-sweep and reads the sweep's trigger
+# token to authenticate it — two things nothing above already grants the
+# deploy identity. Project-scoped because Cloud Scheduler jobs have no
+# per-resource IAM to scope this to instead; the deploy identity otherwise
+# holds no other project-wide role.
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${DEPLOY_SA_EMAIL}" \
+  --role="roles/cloudscheduler.admin" >/dev/null
+
+# Scoped to the one secret, the same way the Supabase secret grant above is
+# scoped to that one secret. This secret is provisioned by hand, outside this
+# script — see docs/whatsapp-cutover.md — so the grant is skipped rather than
+# failing the whole bootstrap when it does not exist yet; the deploy's own
+# scheduler step warns and continues in that case, and re-running this script
+# after the secret is created picks the grant up.
+if gcloud secrets describe "${SCHEDULER_TOKEN_SECRET}" >/dev/null 2>&1; then
+  gcloud secrets add-iam-policy-binding "${SCHEDULER_TOKEN_SECRET}" \
+    --member="serviceAccount:${DEPLOY_SA_EMAIL}" \
+    --role="roles/secretmanager.secretAccessor" >/dev/null
+else
+  echo "    ${SCHEDULER_TOKEN_SECRET} does not exist yet — skipping the deploy identity's accessor grant; create it, then re-run this script"
+fi
 
 say "Cloud Run service (created once, from a placeholder image)"
 # The service is created here rather than by the pipeline for two reasons:
