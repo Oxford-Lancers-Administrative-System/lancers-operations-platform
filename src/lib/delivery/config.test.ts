@@ -41,7 +41,7 @@ describe("outbound configuration", () => {
 
     expect(resolution.config.appBaseUrl).toBe("https://lancers.example.org");
     expect(resolution.config.graphBaseUrl).toBe("https://graph.facebook.com");
-    expect(resolution.config.templateLanguage).toBe("en_GB");
+    expect(resolution.config.templateLanguage).toBe("en");
     expect(resolution.config.defaultCallingCode).toBe("44");
   });
 
