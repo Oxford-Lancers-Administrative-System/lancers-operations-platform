@@ -5,12 +5,47 @@ work. Open the separate testing panel to see what sends, to whom, at what time,
 and whether it was intercepted or actually sent. This panel never runs in the
 production application. LAN-263/286/287/288 remain separate application work.
 
+## Base — LAN-349, 14 September 2026
+
+The box lives on `feat/lan-349-test-box`, rebuilt on current `main` (a0162877,
+LAN-348's `_v3` invitation). It is a reading copy and it never merges.
+
+`feat/lan-222-test-box` is its ancestor and is now unmergeable: it is rooted at
+the LAN-222 checkpoint, and `git merge-tree` against `main` reports nine
+conflicts, four of them in files LAN-300 deleted. Nothing below should be read
+back onto that branch.
+
+What changed with the rebase, and why it matters when reading the sections
+further down:
+
+- **Product code is main's.** The old branch carried LAN-335/336/344's registry
+  rewrite, its own `/a/yes` and `/a/no` pass-throughs, and sniffing redirects on
+  `/a/[token]` and `/me/[token]`. All of that has since landed on `main` in its
+  final form (LAN-291, LAN-343, LAN-348), so the box now carries none of it: it
+  sends through `src/lib/delivery/templates.ts` unchanged, and every button
+  lands on a route `main` serves — `/a/[answer]/[token]`, `/questions/`,
+  `/rsvp/`, `/signup/`, `/background/`, `/onboarding/`, `/stop/`, `/events/`.
+- **Only the seam is added.** `src/lib/test-runtime.ts` and the handful of call
+  sites that read it. Every implementation in it is the production one; the
+  apparatus is substituted only by `next dev`, only under `LANCERS_TEST_BOX=1`,
+  and never in a build.
+- **The application port comes from the lease**, not from a fixed 3101. Read it
+  from the app's own startup line, or from `.env.local`'s `PORT`. Where a
+  section below says 3101, it means "this worktree's leased application port".
+- **The recipient allowlist is main's.** The old branch widened
+  `allowlist.ts` and `email.ts` so that a person created after configuration
+  could still be messaged. That is gone. `configure.mjs --sink` writes every
+  local contact into `DELIVERY_RECIPIENT_ALLOWLIST`, so after adding a person
+  with a new number, re-run it and restart the app.
+- **Template names still derive**, and still land on the same fourteen approved
+  test templates — see "Utility templates" below for the one rule that changed.
+
 ## Owner walkthrough
 
-The agent starts both processes and provides their addresses. The app currently
-uses `http://localhost:3101`; the panel binds an automatically allocated loopback
-port, saved in `.lancers-runtime/panel-runtime.json`. Neither requires the owner
-to run setup commands once the environment is ready.
+The agent starts both processes and provides their addresses. The panel binds an
+automatically allocated loopback port, saved in
+`.lancers-runtime/panel-runtime.json`. Neither requires the owner to run setup
+commands once the environment is ready.
 
 1. In **People**, find a person. Identify them as synthetic or real. Delivery
    defaults to **Intercept locally**, including for routable phone numbers.
@@ -99,18 +134,22 @@ mail, omitting optional services to fit alongside other stacks. It does not prov
 Storage/Realtime/Edge Functions. Existing lease and local-target guards apply.
 Do not run the older standalone ticker alongside the panel.
 
-At Brian's request, the local test apparatus permits new valid phone and email
-destinations without a recipient allowlist refresh. The development-only hook
-checks the local database and process before bypassing recipient membership.
-Unselected WhatsApp recipients and all emails remain intercepted; actual
-WhatsApp delivery requires explicit per-person selection in the panel. Normal
-configuration and eligibility checks still apply. Production restrictions and
-LAN-287 are unchanged.
+The box adds nothing to the delivery boundary: recipient membership, eligibility
+and configuration are checked exactly as `main` checks them. `configure.mjs
+--sink` fills `DELIVERY_RECIPIENT_ALLOWLIST` from every phone in
+`contact_points` and `DELIVERY_EMAIL_ALLOWLIST` from every address, so a person
+created _after_ configuration is not yet permitted — re-run `configure.mjs
+--sink` and restart the app after adding one. (LAN-222's own branch bypassed the
+allowlist instead; LAN-349 dropped that so the box exercises production's
+boundary rather than a widened one.) Unselected WhatsApp recipients and all
+emails remain intercepted; actual WhatsApp delivery requires explicit per-person
+selection in the panel. Production restrictions and LAN-287 are unchanged.
 
-Import the actual owner submission records for readable previews:
+Import the approved submission records for readable previews. The fourteen test
+records are checked in, so this is the whole command:
 
 ```bash
-node scripts/test-box/import-submissions.mjs /path/to/templates.json /path/to/onboarding-six.json
+node scripts/test-box/import-submissions.mjs scripts/test-box/templates-test.json
 ```
 
 Later corrected records supersede earlier records by name. Production and held
@@ -324,13 +363,32 @@ onboarding one to `/operate/people/missing`.
 
 `configure.mjs` derives the test names with `testTemplateName()`. LAN-344
 (2026-09-12) rebuilt the eight templates with a single dynamic button as
-`<production name without _v1>_v3_test`, bodies unchanged, each button base
+`<unversioned production name>_v3_test`, bodies unchanged, each button base
 naming its destination; the six with Yes/No buttons or no button stay
 `_v2_test`. The eight replaced `_v2_test` names were deleted and stay locked at
 Meta until roughly 12 October 2026, as the earlier `_test` names do until
 roughly 11 October. The matching submission records are checked in at
 `scripts/test-box/templates-test.json` and loaded with
 `node scripts/test-box/import-submissions.mjs scripts/test-box/templates-test.json`.
+
+LAN-349 changed one rule in that derivation: the version suffix is now stripped
+whatever it is, rather than matched against `_v1`. Production's own names moved
+to `_v2` and then the invitation to `_v3` (LAN-348, PRs 174 and 176); the
+fourteen approved _test_ templates did not move with them, and the suffix a test
+name carries records which rebuild created it, not which production name it
+mirrors. So `lancers_event_invitation_v3` still derives
+`lancers_event_invitation_v2_test`, whose body and two buttons remain exactly
+production's contract. Had the old rule survived the rebase, the box would have
+asked Meta for `lancers_event_invitation_v3_v2_test`, which does not exist.
+
+`tests/test-box-template-contracts.test.ts` is the guard: for each of the
+fourteen it builds the payload the adapter builds, under the overrides
+`configure.mjs` writes, and asserts the name sent is the approved test name, the
+body parameters are the ones that template declares in the order it declares
+them, the buttons match its approved count, and the local sink — which validates
+against `main`'s registry the way Meta validates against the approved template —
+accepts it. `tests/test-box-configure.test.ts` additionally checks every
+approved button prefix against a route `src/app` actually serves.
 
 | Template                                                            | Button             | Base           |
 | ------------------------------------------------------------------- | ------------------ | -------------- |
@@ -340,9 +398,9 @@ roughly 11 October. The matching submission records are checked in at
 | `recruit_interest_ask_v3_test`, `recruit_interest_reminder_v3_test` | Answer questions   | `/background/` |
 | `onboarding_welcome_v3_test`, `onboarding_chase_v3_test`            | Answer questions   | `/onboarding/` |
 
-Until LAN-343 adds those routes, every button except the change notice's
-lands on a 404; the LAN-336 sniffing redirects on `/a/[token]` and `/me/[token]`
-no longer receive these buttons and are deleted by LAN-343.
+LAN-343 has since built all of those routes, and they are on `main`. The LAN-336
+sniffing redirects on `/a/[token]` and `/me/[token]` were deleted with it, and
+LAN-349 does not carry them.
 
 The six person-following templates carry the day the person was added
 (`recruitment_prospects.created_at` for recruits, `season_memberships.created_at`
@@ -356,9 +414,40 @@ single-button templates each carry the base in the table above and the token
 the route expects: the RSVP token for the nudge and change notice, the durable
 person token for sign-up and onboarding, and Questionnaire B's own token for
 the two interest templates. No recruit template carries an opt-out button — Meta will not
-classify one as Utility — so `/me/stop/<token>` is reachable only from the email
+classify one as Utility — so `/stop/<token>` is reachable only from the email
 bodies until LAN-337 lands. That is acceptable for a closed test on known
 handsets and is not acceptable for production.
+
+## Which kinds a Session A reaches on its own — LAN-349
+
+Advancing the shared clock runs the scheduler, and the scheduler only ever
+dispatches the messages a _ladder_ owes: the event invitation and its reminders,
+the nonresponse escalation, and the onboarding welcome, chase and chase
+escalation. On a freshly reset synthetic database a long advance therefore
+produces invitations and reminders in volume, escalations on the channel the
+seeded President is reachable on, and onboarding messages only where a seeded
+membership still has one owing.
+
+The other kinds are operator-initiated and no amount of advancing produces
+them. Each needs its own act in the normal app, and that act is the same one a
+committee officer performs in the real club:
+
+| Kind                        | What produces it                                        |
+| --------------------------- | ------------------------------------------------------- |
+| `nudge`                     | Chase outstanding event questions from the event        |
+| `change_notice`             | Amend an approved event's arrangements                  |
+| `cancellation`              | Cancel an approved event                                |
+| `recruit_event_followup`    | Approve an event whose audience includes a recruit      |
+| `recruit_welcome`           | Add a recruit, or a recruit completing the sign-up form |
+| `recruit_details_reminder`  | The cycle's own reminder on an incomplete sign-up       |
+| `recruit_interest_ask`      | Move a recruit on to the football background questions  |
+| `recruit_interest_reminder` | The cycle's own reminder on an unanswered questionnaire |
+
+So a Session A that has captured every one of the fourteen is a walkthrough,
+not a wait. What is checkable without one — that each of the fourteen builds a
+payload under the box's own template names which the sink accepts against
+`main`'s registry — is `tests/test-box-template-contracts.test.ts`, and it runs
+in `npm run verify`.
 
 ## Analysis handoff — 11 September 2026
 
@@ -406,3 +495,50 @@ Checkpoint verification: 243 targeted delivery/test-box unit tests passed,
 type checking passed, and changed-file formatting and lint checks passed.
 Full `npm run verify`, a fresh database rebuild, and production build were not
 run for this analysis checkpoint. It is not merge-ready evidence.
+
+## Rebuild on current main — LAN-349, 14 September 2026
+
+The apparatus above was carried onto `main` and adapted; the product changes the
+old branch carried were dropped because `main` now has their final form. The
+walkthrough sections above still describe how the box is operated — only the
+base and the five points under "Base" changed.
+
+Verified on the rebuilt branch, against a freshly reset local database:
+
+- `npm run verify` passed — 335 test files, 9,121 tests, production build.
+- `node scripts/test-box/app.mjs` and `node scripts/test-box/panel-server.mjs`
+  both started; the panel served its page and its snapshot, and the app wrote
+  `app-hooks-active.json`, so the seam was live (`routing` and `clock` both
+  true in the panel's capabilities).
+- A `--sink` Session A advanced the shared clock from 14 September to 22
+  December 2026 and captured 604 `lancers_event_invitation_v2_test` and 113
+  `lancers_event_reminder_v2_test` sends through the apparatus transport, each
+  validated against `main`'s registry on the way through. Those are the two
+  kinds a clock advance reaches on this dataset; see "Which kinds a Session A
+  reaches on its own" for why, and for the fourteen-kind check that does not
+  need a walkthrough.
+
+### Session B — the real sends, which are Brian's
+
+Nothing about a real send is automated, and no agent performs one. With the box
+stopped:
+
+1. Start the tunnel on this worktree's leased application port:
+   `.lancers-runtime/bin/ngrok http http://127.0.0.1:<PORT> --url=https://marvel-indiscernible-daxton.ngrok-free.dev --inspect=false`
+2. `node scripts/test-box/configure.mjs --whatsapp` — this reads the private
+   credentials from `.env.test-box.local`, sets `APP_BASE_URL` to the tunnel,
+   and writes the fourteen test template names. No value is displayed.
+3. Start the app and the panel again, in that order, and open the panel URL from
+   `.lancers-runtime/panel-runtime.json`.
+4. In **People**, mark the intended tester **real**, confirm their number, and
+   switch their delivery to **Send for real**. The panel refuses this for anyone
+   who is not a real identity with a current confirmed number, and it refuses it
+   at all unless `APP_BASE_URL` is the tunnel.
+5. Trigger the message from the normal app — add the recruit, approve the event,
+   amend it — exactly as the club would. Everyone else stays intercepted, and
+   every email stays intercepted regardless.
+
+A real send still needs the Meta callback pointed at
+`<tunnel>/api/webhooks/whatsapp` with `messages` subscribed both at the app and
+on the WhatsApp Business Account; both were configured on 11 September and
+neither is re-verified here.

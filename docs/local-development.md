@@ -216,6 +216,22 @@ HUDL_JOIN_LINK=https://www.example.invalid/hudl-join
 
 ### Seeing the messaging ladder advance
 
+The LAN-222 messaging test box starts its acquired stack with a reduced service
+profile:
+
+```bash
+npm run db:start -- --test-box
+```
+
+This starts PostgreSQL, Auth, PostgREST, the API gateway and local mail, and
+excludes Studio, analytics, Realtime, Storage and the other optional services,
+so it fits alongside other local stacks. Lease validation, local targeting,
+health checks, migration verification and synthetic review-account setup all
+still run. Use the same option every time that box is started. The profile does
+not prove Storage, Realtime, Edge Functions or Studio behaviour — use the normal
+full stack for work that needs those. It changes no hosted setting.
+`docs/test-box.md` governs the box itself.
+
 The chase ladder is driven by one request — `POST /api/scheduler/messaging` —
 and nothing in the application makes it. Cloud Scheduler makes it in the deployed
 environment; locally, this does:
