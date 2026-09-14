@@ -45,6 +45,18 @@ rows exist**. The resolution is a rollback and a reload with the current loader,
 which writes `invitee_person_id` and `events.template_id` directly; it is not a
 migration that can be made to tolerate them, and that is deliberate.
 
+## Production reference-data baseline
+
+**From 2026-09-14, production runs on
+[`scripts/production/baseline/season-2026-27.sql`](../scripts/production/baseline/season-2026-27.sql)
+(LAN-350) — no synthetic dataset installed.** That file gives production its
+2026–27 season, calendar, position vocabulary and committee year: real Oxford
+term dates and the club's real 18-position vocabulary, not a scenario. It is
+not a pilot artifact — it carries no `PILOT-` sentinel and is never cleaned
+up — so it is not tracked as a row in the tables below; this note is the
+record that it is what production's reference data now is, and that the
+tester-week dataset described under Status is not layered on top of it.
+
 ## Durable pilot identities and access
 
 Persist between feature tests. Never created or removed by a scenario script.
