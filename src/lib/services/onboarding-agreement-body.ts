@@ -23,7 +23,7 @@
  * is pure text with no data access of its own.
  */
 
-export type AgreementBlockKind = "paragraph" | "subheading" | "bullet" | "numbered";
+type AgreementBlockKind = "paragraph" | "subheading" | "bullet" | "numbered";
 
 export interface AgreementBodyBlock {
   kind: AgreementBlockKind;
@@ -110,7 +110,7 @@ export function agreementLines(
  * a per-document rule hardcoded away from the wording. The Code of Conduct's
  * placeholder declares nothing, so it records none.
  */
-export const PRINT_NAME_SECTION = "print-name";
+const PRINT_NAME_SECTION = "print-name";
 
 export function bodyRequiresPrintedName(body: string): boolean {
   return agreementSection(parseAgreementBody(body), PRINT_NAME_SECTION) !== null;

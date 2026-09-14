@@ -19,10 +19,7 @@ import { formatDay } from "@/app/operate/roster/presentation";
 import { todayInClubZone } from "@/lib/club-time";
 
 import type { OnboardingAgreementType } from "@/lib/services/onboarding-agreements";
-import {
-  isPlaceholderVersion,
-  parseAgreementBody,
-} from "@/lib/services/onboarding-agreement-body";
+import { isPlaceholderVersion, parseAgreementBody } from "@/lib/services/onboarding-agreement-body";
 import { photoReleasePrefill } from "@/lib/services/player-questionnaire";
 import type { QuestionnaireView } from "@/lib/services/player-questionnaire";
 

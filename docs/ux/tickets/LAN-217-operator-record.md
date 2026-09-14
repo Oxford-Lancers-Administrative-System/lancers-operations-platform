@@ -253,6 +253,14 @@ item's list. These are the lists in full:
 Code of Conduct and Photo release are player-signed rather than
 operator-ticked, so they are not board columns; their words are "No"/"Yes"
 like every other binary here, not the "Not signed"/"Signed" round 5 used.
+Each carries the agreement's own facts in the row's note slot (LAN-347) — the
+date it was agreed and, where the wording asked for one, the name the player
+printed under the tick, ahead of the item's own state history. Values, not a
+sentence, like every other note on this page.
+
+The person section carries **Address** and **Post code** beside the other
+contact facts (LAN-347), collected from the player on the photo release step
+and correctable on the person form.
 Hudl access has **three** states, not four — its list ends at Claimed, and
 the fourth, Confirmed, belongs to BUCS Play alone. That is the one place the
 two trust-class items genuinely differ, and it is Brian's own table that

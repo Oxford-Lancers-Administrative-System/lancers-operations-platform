@@ -2,10 +2,7 @@ import { withTransaction } from "@/lib/db";
 import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 import { recordOnboardingActivityIn } from "../onboarding-activity-log";
-import {
-  PRINTED_NAME_REQUIRED_MESSAGE,
-  type OnboardingAgreement,
-} from "../onboarding-agreements";
+import { PRINTED_NAME_REQUIRED_MESSAGE, type OnboardingAgreement } from "../onboarding-agreements";
 import { readPersonRecord, type PersonRecord } from "../person-record";
 import { supersedeContactPoint } from "../person-write";
 import { applyDisputableFieldIn } from "./provenance";
@@ -45,7 +42,7 @@ export interface PhotoReleaseInput {
   agreed: boolean;
 }
 
-export type PhotoReleaseField = "name" | "address" | "postcode" | "tel" | "email" | "printedName";
+type PhotoReleaseField = "name" | "address" | "postcode" | "tel" | "email" | "printedName";
 
 export interface PhotoReleaseResult {
   /** Field name → the sentence shown against it. Empty when the agreement was recorded. */
