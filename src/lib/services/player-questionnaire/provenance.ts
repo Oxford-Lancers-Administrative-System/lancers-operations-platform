@@ -23,16 +23,10 @@ export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "date_of_birth",
 ]);
 
-/**
- * LAN-347's two address fields. They take the same `applyDisputableFieldIn`
- * path as everything above, but they are deliberately **not** in
- * `DISPUTABLE_FIELDS`: that list is what step 1 iterates over its own form, and
- * the address is asked for on step 3, by the photo release.
- */
-export const PHOTO_RELEASE_PERSON_FIELDS: readonly DisputedPersonField[] = Object.freeze([
-  "address",
-  "postcode",
-]);
+// LAN-347's `address` and `postcode` take the same `applyDisputableFieldIn`
+// path as everything above, but are deliberately **not** in the list: it is
+// what step 1 iterates over its own form, and the address is asked for on step
+// 3, by the photo release (`photo-release.ts`).
 
 const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> = Object.freeze({
   given_name: "person_given_name_updated",

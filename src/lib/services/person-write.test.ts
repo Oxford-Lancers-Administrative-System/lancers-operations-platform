@@ -415,6 +415,40 @@ describe("updatePersonField — every other field overwrites, with history in th
     ).rejects.toMatchObject({ rule: "person_field_unchanged" });
   });
 
+  // LAN-347. The postal address the University's consent form asks for, on the
+  // same footing as every other person field: a reason to change it, a blank
+  // clears it, and the database refuses whitespace either way.
+  it("holds a multi-line address exactly as it was typed", async () => {
+    const personId = await insertPerson({ givenName: unique("HasAddress") });
+
+    const record = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "address",
+      value: "12 Turl Street\nOxford",
+    });
+
+    expect(record.address).toBe("12 Turl Street\nOxford");
+    expect((await latestAudit("people", personId))?.action).toBe("person_address_updated");
+  });
+
+  it("clears an address to not recorded rather than to an empty string", async () => {
+    const personId = await insertPerson({ givenName: unique("ClearsAddress") });
+    await updatePersonField({ actorPersonId, personId, field: "postcode", value: "OX1 3DH" });
+
+    const record = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "postcode",
+      value: "   ",
+      reason: "They moved and did not say where.",
+    });
+
+    // `people_postcode_not_blank` would refuse an empty string; the service
+    // normalises a blank to null before it ever reaches the constraint.
+    expect(record.postcode).toBeNull();
+  });
+
   it("refuses a blank first name", async () => {
     const personId = await insertPerson();
 

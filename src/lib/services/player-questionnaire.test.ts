@@ -21,17 +21,24 @@ import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { closePool, withTransaction } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import { generateOnboardingItems, resolveOnboardingItem } from "./membership";
-import { readOnboardingAgreements } from "./onboarding-agreements";
+import { PRINTED_NAME_REQUIRED_MESSAGE, readOnboardingAgreements } from "./onboarding-agreements";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { resolveOpenSeason } from "./roster";
+import { readPersonRecord } from "./person-record";
 import { updatePersonField } from "./person-write";
 import {
+  ADDRESS_REQUIRED_MESSAGE,
   agreeOnboardingDocument,
   claimTrustItem,
   emergencyContactIsComplete,
+  photoReleasePrefill,
+  POSTCODE_REQUIRED_MESSAGE,
   readQuestionnaireView,
   saveDetailsStep,
+  savePhotoRelease,
+  splitTypedName,
   type DetailsStepInput,
+  type PhotoReleaseInput,
 } from "./player-questionnaire";
 
 const MARKER = "LAN216PlayerQuestionnaire";
@@ -674,6 +681,7 @@ describe("agreeOnboardingDocument", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     expect(coc.agreementVersionId).not.toBe(release.agreementVersionId);
 
@@ -735,6 +743,225 @@ describe("agreeOnboardingDocument", () => {
   });
 });
 
+describe("splitTypedName — LAN-347's one Name box, two columns", () => {
+  it("reads the last word as the family name and everything before it as the given name", () => {
+    expect(splitTypedName("Jordan Michael Ashworth")).toEqual({
+      givenName: "Jordan Michael",
+      familyName: "Ashworth",
+    });
+  });
+
+  it("leaves the family name alone for a single word rather than blanking it", () => {
+    expect(splitTypedName("Lysander")).toEqual({ givenName: "Lysander", familyName: null });
+  });
+
+  it("is unbothered by the whitespace a form always carries", () => {
+    expect(splitTypedName("  Jordan   Ashworth  ")).toEqual({
+      givenName: "Jordan",
+      familyName: "Ashworth",
+    });
+  });
+
+  it("asks for nothing to be written when the box is empty", () => {
+    expect(splitTypedName("   ")).toEqual({ givenName: "", familyName: null });
+  });
+});
+
+describe("savePhotoRelease — the University's consent form, LAN-347", () => {
+  /** Everything the form posts, all of it valid, overridable per test. */
+  function submission(
+    personId: string,
+    membershipId: string,
+    overrides: Partial<PhotoReleaseInput> = {},
+  ): PhotoReleaseInput {
+    return {
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      name: "",
+      address: "12 Turl Street\nOxford",
+      postcode: "OX1 3DH",
+      tel: "",
+      email: "",
+      printedName: "Jordan Ashworth",
+      agreed: true,
+      ...overrides,
+    };
+  }
+
+  async function personFacts(personId: string): Promise<{
+    address: string | null;
+    postcode: string | null;
+    given_name: string;
+    family_name: string | null;
+  }> {
+    const result = await observer.query<{
+      address: string | null;
+      postcode: string | null;
+      given_name: string;
+      family_name: string | null;
+    }>("select address, postcode, given_name, family_name from public.people where id = $1::uuid", [
+      personId,
+    ]);
+    return result.rows[0];
+  }
+
+  it("saves the address and post code on the person record and records the agreement", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(submission(personId, membershipId));
+
+    expect(result.errors).toEqual({});
+    expect(result.agreement?.printedName).toBe("Jordan Ashworth");
+    expect(result.agreement?.agreedAt).toBeInstanceOf(Date);
+    expect(await itemStatus(membershipId, "photo_release")).toBe("complete");
+
+    const facts = await personFacts(personId);
+    expect(facts.address).toBe("12 Turl Street\nOxford");
+    expect(facts.postcode).toBe("OX1 3DH");
+  });
+
+  it("refuses a blank address, and says which box is missing", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(submission(personId, membershipId, { address: "  " }));
+
+    expect(result.errors.address).toBe(ADDRESS_REQUIRED_MESSAGE);
+    expect(result.agreement).toBeNull();
+    // Nothing is recorded: the step is still outstanding, and the person's
+    // address is still not on record.
+    expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+    expect((await personFacts(personId)).address).toBeNull();
+  });
+
+  it("refuses a blank post code, and says which box is missing", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(submission(personId, membershipId, { postcode: "" }));
+
+    expect(result.errors.postcode).toBe(POSTCODE_REQUIRED_MESSAGE);
+    expect(result.agreement).toBeNull();
+    expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
+  });
+
+  it("refuses a blank printed name", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(submission(personId, membershipId, { printedName: "" }));
+
+    expect(result.errors.printedName).toBe(PRINTED_NAME_REQUIRED_MESSAGE);
+    expect(result.agreement).toBeNull();
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+  });
+
+  it("refuses an unticked form without losing what was typed", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(submission(personId, membershipId, { agreed: false }));
+
+    expect(result.agreeError).toBe(true);
+    expect(result.errors).toEqual({});
+    expect(result.agreement).toBeNull();
+    expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
+    // F1 (LAN-230): the address they typed is theirs whatever the tick did.
+    expect((await personFacts(personId)).postcode).toBe("OX1 3DH");
+  });
+
+  it("keeps the valid boxes of a refused submission (F1, LAN-230)", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(
+      submission(personId, membershipId, {
+        postcode: "",
+        tel: "07700 900123",
+      }),
+    );
+
+    expect(result.errors.postcode).toBe(POSTCODE_REQUIRED_MESSAGE);
+    // The address and the corrected phone number are saved; only the
+    // agreement is withheld.
+    expect((await personFacts(personId)).address).toBe("12 Turl Street\nOxford");
+    const phone = await observer.query<{ raw_value: string }>(
+      `select raw_value from public.contact_points
+        where person_id = $1::uuid and kind = 'phone' and valid_until is null`,
+      [personId],
+    );
+    expect(phone.rows[0]?.raw_value).toBe("07700 900123");
+  });
+
+  it("says what is wrong with a badly shaped phone or email, and writes neither", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(
+      submission(personId, membershipId, { tel: "398393", email: "not-an-email" }),
+    );
+
+    expect(result.errors.tel).toBe(PHONE_SHAPE);
+    expect(result.errors.email).toBe(EMAIL_SHAPE);
+    const contacts = await observer.query(
+      "select 1 from public.contact_points where person_id = $1::uuid",
+      [personId],
+    );
+    expect(contacts.rows).toHaveLength(0);
+  });
+
+  it("writes an edited name back to the record, split at the last space", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    const before = await personFacts(personId);
+
+    await savePhotoRelease(
+      submission(personId, membershipId, { name: "Jordan Michael Ashworth-Blake" }),
+    );
+
+    const after = await personFacts(personId);
+    expect(after.given_name).toBe("Jordan Michael");
+    expect(after.family_name).toBe("Ashworth-Blake");
+    expect(after.given_name).not.toBe(before.given_name);
+  });
+
+  it("writes nothing for a name box that was not edited", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    const before = await personFacts(personId);
+
+    await savePhotoRelease(
+      submission(personId, membershipId, {
+        name: `${before.given_name} ${before.family_name}`,
+      }),
+    );
+
+    const audits = await observer.query(
+      `select 1 from public.audit_events
+        where entity_table = 'people' and entity_id = $1::uuid
+          and action in ('person_given_name_updated', 'person_family_name_updated')`,
+      [personId],
+    );
+    expect(audits.rows).toHaveLength(0);
+  });
+
+  it("prefills from the record, so a reopened form shows the address it was given", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await savePhotoRelease(submission(personId, membershipId));
+
+    const record = await readPersonRecord(personId);
+    const prefill = photoReleasePrefill(record);
+    expect(prefill.address).toBe("12 Turl Street\nOxford");
+    expect(prefill.postcode).toBe("OX1 3DH");
+    expect(prefill.printedName).toBe(record.displayName);
+  });
+
+  it("puts the printed name and the date on the view the operator's record reads", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await savePhotoRelease(submission(personId, membershipId));
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.agreements.photo_release?.printedName).toBe("Jordan Ashworth");
+    expect(view?.documentAgreed.photo_release).toBe(true);
+    // The step renders the version it was agreed against, not a literal.
+    expect(view?.agreementVersions.photo_release.versionLabel).toBe("oxford-consent-form-v1");
+  });
+});
+
 describe("claimTrustItem", () => {
   it("records claimed, not complete, with player provenance", async () => {
     const { personId, membershipId } = await givenPlayer();
@@ -792,6 +1019,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "hudl_access" });
@@ -822,6 +1050,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "hudl_access" });
@@ -861,6 +1090,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     const after = await readQuestionnaireView(personId, openSeasonId);
     expect(after?.nothingOutstanding).toBe(true);
@@ -981,6 +1211,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
 
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
@@ -1009,6 +1240,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
 
@@ -1034,6 +1266,7 @@ describe("readQuestionnaireView — the finishing sequence", () => {
       seasonId: openSeasonId,
       membershipId,
       agreementType: "photo_release",
+      printedName: "Jordan Ashworth",
     });
     await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
 

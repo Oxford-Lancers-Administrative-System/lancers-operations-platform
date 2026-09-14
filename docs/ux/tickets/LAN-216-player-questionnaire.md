@@ -127,11 +127,43 @@ twice in one season is refused by the schema's own
 refusal as a no-op rather than an error, since a resubmitted or
 double-clicked form is not a failure.
 
-Document text is a labelled placeholder in the real versioned
-`onboarding_agreement_versions` slot the migration already seeded —
-**LAN-213** owes the Code of Conduct's and the photo release's real wording.
-**The BUCS Play and Hudl instructions are no longer placeholders** (LAN-333,
-Brian 2026-09-11); see below. Nothing here invents club policy.
+Document text lives in the real versioned `onboarding_agreement_versions` slot
+the migration seeded, and each step renders the body of the version it is
+asking to be agreed to — never a literal in the component. **The Code of
+Conduct is still a labelled placeholder**; **LAN-282** owes Clint's wording,
+and the placeholder warning is shown whenever the current version's label says
+`placeholder`. **The BUCS Play and Hudl instructions are no longer
+placeholders** (LAN-333, Brian 2026-09-11); see below. Nothing here invents
+club policy.
+
+**Step 3 is the University's own consent form** (LAN-347, Brian 2026-09-14).
+The photo release's current version is `oxford-consent-form-v1`, carrying the
+University of Oxford's "Photograph / filming / interview consent form" and its
+Data Protection Privacy Notice verbatim, so the step shows no placeholder
+warning. Where the paper form has a box the step has a field, in the form's
+own order and under the form's own labels; where it has printed text, the step
+prints it.
+
+- **No signature.** The tick is the model (LAN-213). A **Print name** field is
+  added beside it, prefilled and stored as typed, and is never called or
+  treated as a signature.
+- **Event and Date are derived, not typed.** Event reads "Oxford Lancers
+  activities, ⟨season⟩ season" from the open season's own label
+  (`photoReleaseEventLine`), the way `bucsLeagueYear` derives its year below;
+  Date is today in the club's time zone, read-only.
+- **Address and post code are collected here and are required**, along with
+  the printed name and the tick; a refusal names the box it belongs to.
+  Everything else — name, phone, email — is prefilled from the record and
+  editable in place, and saves through the same service the contact step uses.
+  What the player typed is saved even when the agreement is refused (F1).
+- **The form's office-use block** (description of photo, stored image number,
+  event reference) and its second, signature-side Date are not rendered: they
+  are the University's own filing, not the player's.
+- **The contact block** in the privacy notice names the club and its mailbox;
+  the form's three optional "insert any other…" lines stay empty. Withdrawal
+  is by contacting the club, exactly as the form says — there is no withdrawal
+  control in the application, and an operator setting the item back to `No`
+  (LAN-240's reopen) is what a withdrawal does here.
 
 **The item, not the agreement row, is what these two steps obey** (LAN-240).
 The sequence used to read either signal — "the item is complete **or** an

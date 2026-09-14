@@ -123,7 +123,9 @@ export function PhotoReleaseForm({
         {box("tel")}
         {box("email")}
 
-        <Typography sx={{ fontSize: 13.5, lineHeight: 1.65 }}>{line("activities-intro")}</Typography>
+        <Typography sx={{ fontSize: 13.5, lineHeight: 1.65 }}>
+          {line("activities-intro")}
+        </Typography>
         <TermRow blocksFor={blocks("activities")} />
         <TermRow blocksFor={blocks("purpose")} />
 
