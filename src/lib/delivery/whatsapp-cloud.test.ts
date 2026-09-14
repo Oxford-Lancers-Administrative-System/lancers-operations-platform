@@ -63,7 +63,7 @@ function respond(status: number, body: unknown): Response {
 }
 
 describe("the request body", () => {
-  it("sends the approved template with its three body parameters in order", () => {
+  it("sends the approved template with its five body parameters in order", () => {
     const body = buildMessageBody(config(), MESSAGE) as Record<string, never>;
     expect(body.messaging_product).toBe("whatsapp");
     expect(body.to).toBe("447700900123");
@@ -86,10 +86,16 @@ describe("the request body", () => {
     // Reordering these silently produces "a Wednesday 19 November on Team
     // Practice", which no test of the transport would catch. LAN-172: the
     // link left the body entirely — it is carried by the two buttons below.
+    // LAN-348: name, event, when, venue, deadline — and a venue the club has
+    // not recorded fills its slot with words, because Meta cannot skip one.
     const body_component = template.components.find((c) => c.type === "body");
     expect(body_component?.parameters.map((parameter) => parameter.text)).toEqual([
       "Alex",
       "Team Practice",
+      "Wednesday 19 November, 19:00",
+      "to be confirmed",
+      // No deadline on this fixture either, and the event's own start is the
+      // last moment an answer can matter, so the slot repeats it.
       "Wednesday 19 November, 19:00",
     ]);
   });
@@ -130,8 +136,23 @@ describe("the request body", () => {
     expect(serialised).not.toContain("https://lancers.example.org/a/");
   });
 
-  it("sends no buttons for a kind that carries a single link, not two answers", () => {
+  it("sends exactly one button for a kind whose approved template has one slot", () => {
+    // LAN-344 gave the nudge its own destination and one button. Sending a
+    // second would be `132000` at Meta; the count comes from the registry's
+    // own `buttonCount` rather than from however many URLs it returned.
     const body = buildMessageBody(config(), { ...MESSAGE, kind: "nudge" }) as {
+      template: { components: { type: string; index?: string }[] };
+    };
+    const buttons = body.template.components.filter((c) => c.type === "button");
+    expect(buttons.map((c) => c.index)).toEqual(["0"]);
+  });
+
+  it("sends no buttons at all for a kind whose approved template has none", () => {
+    const body = buildMessageBody(config(), {
+      ...MESSAGE,
+      kind: "cancellation",
+      cancellationReason: "The pitch is waterlogged",
+    }) as {
       template: { components: { type: string }[] };
     };
     expect(body.template.components.some((c) => c.type === "button")).toBe(false);
@@ -277,7 +298,7 @@ describe("LAN-124 — a template that takes no parameters", () => {
     expect(body.template).not.toHaveProperty("components");
   });
 
-  it("still sends the three-parameter body plus two buttons for the club's own template", () => {
+  it("still sends the five-parameter body plus two buttons for the club's own template", () => {
     const body = buildMessageBody(config(), MESSAGE) as {
       template: { components: { type: string; parameters: { text: string }[] }[] };
     };
@@ -286,6 +307,10 @@ describe("LAN-124 — a template that takes no parameters", () => {
     expect(bodyComponent?.parameters.map((p) => p.text)).toEqual([
       "Alex",
       "Team Practice",
+      "Wednesday 19 November, 19:00",
+      "to be confirmed",
+      // No deadline on this fixture either, and the event's own start is the
+      // last moment an answer can matter, so the slot repeats it.
       "Wednesday 19 November, 19:00",
     ]);
     expect(body.template.components.filter((c) => c.type === "button")).toHaveLength(2);

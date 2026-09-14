@@ -209,3 +209,39 @@ summary — needs a declared fallback or the send is refused at render time.
 
 Plan replacements before deleting anything. Replacing the production templates
 means either new names, or a month with no template under the old name.
+
+## What the club actually sends — the `_v2` production generation
+
+LAN-348 registered fourteen Utility templates on the club's own WhatsApp
+Business Account, one per message kind, every name suffixed `_v2`. They carry
+the bodies this document's rules produced, with `https://app.oxfordlancers.com`
+in place of the test tunnel. The Marketing originals they replace — the
+unsuffixed `lancers_event_*` names and the `_v1` recruit and onboarding ones —
+are deleted, and their names stay locked at Meta for about thirty days
+afterwards.
+
+`scripts/production/whatsapp-templates.json` is the record: every name, body,
+positional slot and button base, as submitted. It exists so that WhatsApp
+Manager is no longer the only account of what the club sends.
+`tests/production-whatsapp-templates.test.ts` binds it to
+`src/lib/delivery/templates.ts`, so the record and the sender cannot drift
+apart without a test failing.
+
+Eleven of the fourteen carry URL buttons — three carry a Yes/No pair, eight
+carry one — and each button's base names its own destination:
+
+| Template                                        | Base                |
+| ----------------------------------------------- | ------------------- |
+| invitation, reminder, recruit event follow-up   | `/a/yes/`, `/a/no/` |
+| nudge                                           | `/questions/`       |
+| change notice                                   | `/rsvp/`            |
+| recruit welcome, recruit details reminder       | `/signup/`          |
+| recruit interest ask, recruit interest reminder | `/background/`      |
+| onboarding welcome, onboarding chase            | `/onboarding/`      |
+
+The two escalations and the cancellation carry no button at all. Both
+escalations carry their queue link as hardcoded text inside the approved body,
+because Meta refuses a body variable holding a URL.
+
+No template carries an opt-out button, and none can while they are Utility. The
+opt-out is reachable from the email rung alone until LAN-337 lands.

@@ -934,11 +934,11 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       const own = sent.find(
         (message) =>
           (message.body as { template?: { name?: string } }).template?.name ===
-          "recruit_welcome_v1",
+          "recruit_welcome_v2",
       );
       expect(own).toBeDefined();
       const payload = own!.body as { to: string; template: { name: string } };
-      expect(payload.template.name).toBe("recruit_welcome_v1");
+      expect(payload.template.name).toBe("recruit_welcome_v2");
       // The number this test itself inserted, in WhatsApp's own
       // E.164-without-plus shape —
       // proof this message really is the one this test's own job caused,

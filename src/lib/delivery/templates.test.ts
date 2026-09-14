@@ -21,15 +21,19 @@ vi.mock("server-only", () => ({}));
 
 import type { OutboundMessage } from "./provider";
 import {
+  ANSWER_QUESTIONS_LABEL,
+  CHANGE_ANSWER_LABEL,
+  INTEREST_SUBJECT,
   MESSAGE_KINDS,
   MESSAGE_TEMPLATES,
   NO_BUTTON_LABEL,
-  RECRUIT_ANSWER_QUESTIONS_LABEL,
-  RECRUIT_FILL_IN_DETAILS_LABEL,
+  ONBOARDING_SUBJECT,
+  RECRUITMENT_SUBJECT,
   RECRUIT_NO_LABEL,
   RECRUIT_STOP_MESSAGES_LABEL,
   RECRUIT_YES_LABEL,
   TEMPLATE_NAMES,
+  VENUE_FALLBACK,
   YES_BUTTON_LABEL,
   escalationCarriesNoPersonalData,
   templateFor,
@@ -50,18 +54,18 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     eventName: "Michaelmas week 3",
     whenLabel: "Wednesday 14 October, 20:00",
     rsvpUrl: "https://lancers.example/rsvp/abc",
-    // LAN-343. The nudge's own link: one event's outstanding questions, not
-    // the answer page `rsvpUrl` reaches.
+    // LAN-343. The nudge's own link: one event's outstanding questions,
+    // not the answer page `rsvpUrl` reaches.
     questionsUrl: "https://lancers.example/questions/abc",
-    yesUrl: "https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
-    noUrl: "https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
+    yesUrl: "https://lancers.example/a/yes/y.11111111-1111-1111-1111-111111111111.abc",
+    noUrl: "https://lancers.example/a/no/n.11111111-1111-1111-1111-111111111111.xyz",
     venue: "Iffley Road Sports Centre",
     deadlineLabel: "Tuesday 13 October, 20:00",
     attendingCount: 18,
     changeSummary: "The venue moved to the University Parks.",
     cancellationReason: "The pitch is waterlogged.",
     outstandingCount: 6,
-    queueUrl: "https://lancers.example/operate/admin/follow-ups",
+    queueUrl: "https://lancers.example/operate/follow-ups",
     formUrl: "https://lancers.example/onboarding/abc",
     stopUrl: "https://lancers.example/stop/def",
     ...overrides,
@@ -104,35 +108,52 @@ describe("every declared template", () => {
     // is the honest answer: the job records a failure a human can read rather
     // than the club sending nonsense.
     expect(() =>
-      MESSAGE_TEMPLATES.cancellation.parameters(
-        message({ kind: "cancellation", cancellationReason: null }),
-      ),
-    ).toThrowError(/reason/);
+      MESSAGE_TEMPLATES.cancellation.parameters(message({ kind: "cancellation", eventName: "" })),
+    ).toThrowError(/event name/);
   });
 });
 
 describe("the invitation", () => {
-  it("keeps three body parameters and carries no raw URL in body copy", () => {
-    // LAN-172: the approved W2-01 shape carries no raw link as body text at
-    // all. The two answers are WhatsApp URL buttons, declared through
-    // `buttonUrls`, not template body parameters.
+  it("carries five body parameters in the approved order and no raw URL in body copy", () => {
+    // LAN-335: name, event, when, venue, deadline. The two answers are
+    // WhatsApp URL buttons, declared through `buttonUrls`, not body text.
     expect(MESSAGE_TEMPLATES.invitation.parameterNames).toEqual([
       "inviteeName",
       "eventName",
       "whenLabel",
+      "venue",
+      "deadlineLabel",
     ]);
     expect(MESSAGE_TEMPLATES.invitation.parameters(message({ kind: "invitation" }))).toEqual([
       "Jamie",
       "Michaelmas week 3",
       "Wednesday 14 October, 20:00",
+      "Iffley Road Sports Centre",
+      "Tuesday 13 October, 20:00",
     ]);
+  });
+
+  it("repeats the event's start as the deadline slot when no response deadline was recorded", () => {
+    const rendered = MESSAGE_TEMPLATES.invitation.parameters(
+      message({ kind: "invitation", deadlineLabel: null }),
+    );
+    expect(rendered[4]).toBe("Wednesday 14 October, 20:00");
+  });
+
+  it("fills the venue slot with words rather than a blank when no venue is on file", () => {
+    // Meta's positional parameters cannot skip a slot, and the sink refuses
+    // a blank one. "Venue: to be confirmed." is what the player reads.
+    const rendered = MESSAGE_TEMPLATES.invitation.parameters(
+      message({ kind: "invitation", venue: null }),
+    );
+    expect(rendered[3]).toBe(VENUE_FALLBACK);
   });
 
   it("declares the two answer buttons in Yes-then-No order", () => {
     const buttons = MESSAGE_TEMPLATES.invitation.buttonUrls?.(message({ kind: "invitation" }));
     expect(buttons).toEqual([
-      "https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
-      "https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
+      "https://lancers.example/a/yes/y.11111111-1111-1111-1111-111111111111.abc",
+      "https://lancers.example/a/no/n.11111111-1111-1111-1111-111111111111.xyz",
     ]);
   });
 
@@ -151,7 +172,21 @@ describe("the invitation", () => {
 });
 
 describe("the chase", () => {
-  it("names the count of others on a reminder, and never zero", () => {
+  it("carries name, event, when and venue on WhatsApp, and never the count", () => {
+    // LAN-335: the approved reminder has no slot for social proof; the
+    // email below keeps it.
+    expect(MESSAGE_TEMPLATES.reminder.parameterNames).toEqual([
+      "inviteeName",
+      "eventName",
+      "whenLabel",
+      "venue",
+    ]);
+    expect(MESSAGE_TEMPLATES.reminder.parameters(message({ kind: "reminder" }))).not.toContain(
+      "18 other people have already said yes.",
+    );
+  });
+
+  it("names the count of others on the email reminder, and never zero", () => {
     const withCount = MESSAGE_TEMPLATES.reminder.body(message({ kind: "reminder" })).join("\n");
     expect(withCount).toContain("18 other people have already said yes.");
 
@@ -181,7 +216,15 @@ describe("the cancellation", () => {
   it("offers no link, because there is nothing left to answer", () => {
     const body = MESSAGE_TEMPLATES.cancellation.body(message({ kind: "cancellation" })).join("\n");
     expect(body).not.toContain("https://lancers.example/rsvp/");
-    expect(body).toContain("There is nothing you need to do.");
+    expect(body).toContain("No action is needed. Thank you.");
+    // LAN-335: the reason is the fourth body parameter, and the dispatcher
+    // supplies the fixed generic sentence, never the operator's own note.
+    expect(MESSAGE_TEMPLATES.cancellation.parameterNames).toEqual([
+      "inviteeName",
+      "eventName",
+      "whenLabel",
+      "cancellationReason",
+    ]);
   });
 });
 
@@ -193,7 +236,35 @@ describe("the change notice", () => {
     const body = MESSAGE_TEMPLATES.change_notice
       .body(message({ kind: "change_notice" }))
       .join("\n");
-    expect(body).toContain("Your answer still stands");
+    expect(body).toContain("Your response still stands");
+    expect(body).toContain(`${CHANGE_ANSWER_LABEL}: https://lancers.example/rsvp/abc`);
+    // LAN-335: name, event, new when, summary — the venue left the WhatsApp
+    // body (the summary says whether it changed).
+    expect(MESSAGE_TEMPLATES.change_notice.parameterNames).toEqual([
+      "inviteeName",
+      "eventName",
+      "whenLabel",
+      "changeSummary",
+    ]);
+  });
+});
+
+describe("the nudge", () => {
+  it("carries name, event and when, and one button on the event's questions page", () => {
+    expect(MESSAGE_TEMPLATES.nudge.parameterNames).toEqual([
+      "inviteeName",
+      "eventName",
+      "whenLabel",
+    ]);
+    expect(MESSAGE_TEMPLATES.nudge.buttonCount).toBe(1);
+    // LAN-343 gave this message its own page. It asks for the event's
+    // questions; the RSVP page it used to link at does not ask them.
+    expect(MESSAGE_TEMPLATES.nudge.buttonUrls?.(message({ kind: "nudge" }))).toEqual([
+      "https://lancers.example/questions/abc",
+    ]);
+    expect(MESSAGE_TEMPLATES.nudge.body(message({ kind: "nudge" })).join("\n")).toContain(
+      `${ANSWER_QUESTIONS_LABEL}: https://lancers.example/questions/abc`,
+    );
   });
 });
 
@@ -209,9 +280,21 @@ describe("the escalation", () => {
       "eventName",
       "whenLabel",
       "deadlineLabel",
-      "queueUrl",
     ]);
     expect(MESSAGE_TEMPLATES.escalation.parameterNames).not.toContain("inviteeName");
+  });
+
+  it("never sends the queue link as a parameter — the approved body hardcodes it", () => {
+    // LAN-335: Meta refuses a body variable holding a URL. The WhatsApp
+    // payload carries a bare count; the email still carries the queue link.
+    expect(MESSAGE_TEMPLATES.escalation.parameterNames).not.toContain("queueUrl");
+    expect(MESSAGE_TEMPLATES.escalation.buttonCount).toBeUndefined();
+    expect(MESSAGE_TEMPLATES.escalation.parameters(escalation)).toEqual([
+      "6",
+      "Michaelmas week 3",
+      "Wednesday 14 October, 20:00",
+      "Tuesday 13 October, 20:00",
+    ]);
   });
 
   it("carries no player personal data in its rendered body", () => {
@@ -230,7 +313,7 @@ describe("the escalation", () => {
     expect(body).toContain("6 people have not answered");
     expect(body).toContain("Michaelmas week 3");
     expect(body).toContain("Tuesday 13 October, 20:00");
-    expect(body).toContain("https://lancers.example/operate/admin/follow-ups");
+    expect(body).toContain("https://lancers.example/operate/follow-ups");
   });
 
   it("reads naturally when exactly one person has not answered", () => {
@@ -261,14 +344,11 @@ describe("the onboarding chase", () => {
     expect(body).not.toMatch(/college|matriculation|degree|emergency contact/i);
   });
 
-  it("carries the link and its own opt-out as the message's two URL buttons", () => {
+  it("carries only its personal-page button", () => {
     const buttons = MESSAGE_TEMPLATES.onboarding_chase.buttonUrls?.(
       message({ kind: "onboarding_chase" }),
     );
-    expect(buttons).toEqual([
-      "https://lancers.example/onboarding/abc",
-      "https://lancers.example/stop/def",
-    ]);
+    expect(buttons).toEqual(["https://lancers.example/onboarding/abc"]);
   });
 });
 
@@ -276,9 +356,9 @@ describe("the onboarding chase escalation", () => {
   const escalation = message({ kind: "onboarding_chase_escalation" });
 
   it("declares no name parameter at all", () => {
+    // LAN-335: a bare count. The queue URL is hardcoded in the approved body.
     expect(MESSAGE_TEMPLATES.onboarding_chase_escalation.parameterNames).toEqual([
       "outstandingCount",
-      "queueUrl",
     ]);
     expect(MESSAGE_TEMPLATES.onboarding_chase_escalation.parameterNames).not.toContain(
       "inviteeName",
@@ -297,11 +377,12 @@ describe("the onboarding chase escalation", () => {
     const body = MESSAGE_TEMPLATES.onboarding_chase_escalation
       .body(message({ kind: "onboarding_chase_escalation", outstandingCount: 3 }))
       .join(" ");
+    // LAN-335: "answers", not "details" — `details` is a classifier trigger.
     expect(body).toContain(
-      "The automated chase has finished for 3 players who still have onboarding details " +
+      "The automated chase has finished for 3 players who still have onboarding answers " +
         "outstanding.",
     );
-    expect(body).toContain("https://lancers.example/operate/admin/follow-ups");
+    expect(body).toContain("https://lancers.example/operate/follow-ups");
   });
 });
 
@@ -334,8 +415,9 @@ describe("choosing a template name", () => {
 // ---------------------------------------------------------------------------
 
 describe("the recruit event follow-up", () => {
-  it("carries the event's own three facts and reuses the invitation's yes/no buttons", () => {
+  it("carries the recruit's name and the event's three facts, with LAN-199's yes/no buttons", () => {
     expect(MESSAGE_TEMPLATES.recruit_event_followup.parameterNames).toEqual([
+      "inviteeName",
       "eventName",
       "whenLabel",
       "venue",
@@ -344,14 +426,19 @@ describe("the recruit event follow-up", () => {
       MESSAGE_TEMPLATES.recruit_event_followup.parameters(
         message({ kind: "recruit_event_followup" }),
       ),
-    ).toEqual(["Michaelmas week 3", "Wednesday 14 October, 20:00", "Iffley Road Sports Centre"]);
+    ).toEqual([
+      "Jamie",
+      "Michaelmas week 3",
+      "Wednesday 14 October, 20:00",
+      "Iffley Road Sports Centre",
+    ]);
 
     const buttons = MESSAGE_TEMPLATES.recruit_event_followup.buttonUrls?.(
       message({ kind: "recruit_event_followup" }),
     );
     expect(buttons).toEqual([
-      "https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
-      "https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
+      "https://lancers.example/a/yes/y.11111111-1111-1111-1111-111111111111.abc",
+      "https://lancers.example/a/no/n.11111111-1111-1111-1111-111111111111.xyz",
     ]);
   });
 
@@ -361,16 +448,16 @@ describe("the recruit event follow-up", () => {
     // template with buttonUrls repeats those URLs as text inside body() for
     // exactly this reason; this template must too, or an email recipient
     // whose WhatsApp job fell back to email (the reachable path is an
-    // unconvertible number, see delivery.ts's unconditional
+    // unconvertible or unallowlisted number, see delivery.ts's unconditional
     // scheduleWhatsAppFallbackIn) has no way to answer at all.
     const body = MESSAGE_TEMPLATES.recruit_event_followup
       .body(message({ kind: "recruit_event_followup" }))
       .join("\n");
     expect(body).toContain(
-      "Yes I can come: https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
+      "Yes I can come: https://lancers.example/a/yes/y.11111111-1111-1111-1111-111111111111.abc",
     );
     expect(body).toContain(
-      "No thanks: https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
+      "No thanks: https://lancers.example/a/no/n.11111111-1111-1111-1111-111111111111.xyz",
     );
   });
 
@@ -380,52 +467,77 @@ describe("the recruit event follow-up", () => {
     const body = MESSAGE_TEMPLATES.recruit_event_followup
       .body(message({ kind: "recruit_event_followup" }))
       .join("\n");
-    expect(body).toContain("Come along if you can. No need to decide in advance.");
+    expect(body).toContain("No need to decide in advance.");
     expect(body).not.toMatch(/\d+ (people|others)/);
+    expect(body).not.toMatch(/required|must/i);
   });
 
-  it("repeats the date rather than sending a blank parameter when there is no venue yet", () => {
+  it("fills the venue slot with words rather than sending a blank parameter when there is no venue yet", () => {
     // Meta's positional parameters cannot skip a slot.
     const rendered = MESSAGE_TEMPLATES.recruit_event_followup.parameters(
       message({ kind: "recruit_event_followup", venue: null }),
     );
-    expect(rendered[2]).toBe("Wednesday 14 October, 20:00");
+    expect(rendered[3]).toBe(VENUE_FALLBACK);
   });
 });
 
 describe("the recruitment cycle's four templates", () => {
-  it("carries the recruit's own name, once, on welcome, interest ask and its reminder", () => {
-    for (const kind of [
-      "recruit_welcome",
-      "recruit_interest_ask",
-      "recruit_interest_reminder",
-    ] as const) {
-      expect(MESSAGE_TEMPLATES[kind].parameterNames).toEqual(["inviteeName"]);
-      expect(MESSAGE_TEMPLATES[kind].parameters(message({ kind }))).toEqual(["Jamie"]);
-    }
-  });
+  const FOUR = [
+    "recruit_welcome",
+    "recruit_details_reminder",
+    "recruit_interest_ask",
+    "recruit_interest_reminder",
+  ] as const;
 
-  it("the details reminder carries no variables at all — LAN-199's own draft has none", () => {
-    expect(MESSAGE_TEMPLATES.recruit_details_reminder.parameterNames).toEqual([]);
-    expect(
-      MESSAGE_TEMPLATES.recruit_details_reminder.parameters(
-        message({ kind: "recruit_details_reminder" }),
-      ),
-    ).toEqual([]);
-  });
-
-  it("every one of the four carries the form link and the opt-out link, never a raw Stop template", () => {
-    for (const kind of [
-      "recruit_welcome",
-      "recruit_details_reminder",
-      "recruit_interest_ask",
-      "recruit_interest_reminder",
-    ] as const) {
-      const buttons = MESSAGE_TEMPLATES[kind].buttonUrls?.(message({ kind }));
-      expect(buttons).toEqual([
-        "https://lancers.example/onboarding/abc",
-        "https://lancers.example/stop/def",
+  it("each carries name, a fixed subject and the day the recruit was added — LAN-336", () => {
+    // Meta's classifier requires `for {{thing}} on {{date}}`; Brian chose the
+    // day the person was added as a recruit as the date, and the subject
+    // carries "opened" so the sentence does not read as though the
+    // recruitment were on that day. `whenLabel` carries the date.
+    for (const kind of FOUR) {
+      expect(MESSAGE_TEMPLATES[kind].parameterNames).toEqual([
+        "inviteeName",
+        "subject",
+        "openedOn",
       ]);
+      const rendered = MESSAGE_TEMPLATES[kind].parameters(
+        message({ kind, whenLabel: "11 September" }),
+      );
+      expect(rendered[0]).toBe("Jamie");
+      expect(rendered[2]).toBe("11 September");
+    }
+    expect(MESSAGE_TEMPLATES.recruit_welcome.parameters(message())[1]).toBe(RECRUITMENT_SUBJECT);
+    expect(MESSAGE_TEMPLATES.recruit_details_reminder.parameters(message())[1]).toBe(
+      RECRUITMENT_SUBJECT,
+    );
+    // The two questionnaire asks are told apart from the sign-up pair by the
+    // subject alone — the distinguishing clause was rejected by the classifier.
+    expect(MESSAGE_TEMPLATES.recruit_interest_ask.parameters(message())[1]).toBe(INTEREST_SUBJECT);
+    expect(MESSAGE_TEMPLATES.recruit_interest_reminder.parameters(message())[1]).toBe(
+      INTEREST_SUBJECT,
+    );
+  });
+
+  it("refuses to render without the date the recruit was added", () => {
+    expect(() =>
+      MESSAGE_TEMPLATES.recruit_welcome.parameters(
+        message({ kind: "recruit_welcome", whenLabel: "" }),
+      ),
+    ).toThrowError(/date opened/);
+  });
+
+  it("every one of the four carries exactly one button, the form link — never an opt-out button", () => {
+    // LAN-335: Meta will not classify a template carrying an opt-out button
+    // as Utility, so no recruit template carries one. LAN-337 owns the
+    // replacement surface. The email keeps its opt-out line.
+    for (const kind of FOUR) {
+      expect(MESSAGE_TEMPLATES[kind].buttonCount).toBe(1);
+      expect(MESSAGE_TEMPLATES[kind].buttonUrls?.(message({ kind }))).toEqual([
+        "https://lancers.example/onboarding/abc",
+      ]);
+      const body = MESSAGE_TEMPLATES[kind].body(message({ kind })).join("\n");
+      expect(body).toContain(`${ANSWER_QUESTIONS_LABEL}: https://lancers.example/onboarding/abc`);
+      expect(body).toContain(`${RECRUIT_STOP_MESSAGES_LABEL}: https://lancers.example/stop/def`);
     }
   });
 
@@ -433,44 +545,59 @@ describe("the recruitment cycle's four templates", () => {
     // Consent is obtained in person, at the door — a WhatsApp message asking
     // permission to send WhatsApp messages would itself require consent it
     // does not have (LAN-199's own reasoning for why no such template exists).
-    for (const kind of [
-      "recruit_welcome",
-      "recruit_details_reminder",
-      "recruit_interest_ask",
-      "recruit_interest_reminder",
-    ] as const) {
+    for (const kind of FOUR) {
       const body = MESSAGE_TEMPLATES[kind].body(message({ kind })).join("\n").toLowerCase();
       expect(body).not.toMatch(/permission|opt.?in|consent/);
     }
   });
 });
 
-describe("the recruit button labels", () => {
-  it("are Q-10's alphanumerics-and-spaces shape, no em dashes, exactly as LAN-199 drafted them", () => {
+describe("the button labels", () => {
+  it("are Q-10's alphanumerics-and-spaces shape, no em dashes, exactly as Meta accepted them", () => {
+    // LAN-335: button labels are classified content. "Fill in your details"
+    // and "Finish here" were rejected; these six were accepted.
     const labels = [
-      RECRUIT_FILL_IN_DETAILS_LABEL,
-      RECRUIT_STOP_MESSAGES_LABEL,
-      RECRUIT_ANSWER_QUESTIONS_LABEL,
+      YES_BUTTON_LABEL,
+      NO_BUTTON_LABEL,
+      ANSWER_QUESTIONS_LABEL,
+      CHANGE_ANSWER_LABEL,
       RECRUIT_YES_LABEL,
       RECRUIT_NO_LABEL,
+      RECRUIT_STOP_MESSAGES_LABEL,
     ];
     for (const label of labels) expect(label).toMatch(/^[A-Za-z0-9 ]+$/);
 
-    expect(RECRUIT_FILL_IN_DETAILS_LABEL).toBe("Fill in your details");
-    expect(RECRUIT_STOP_MESSAGES_LABEL).toBe("Stop messages");
-    expect(RECRUIT_ANSWER_QUESTIONS_LABEL).toBe("Answer a few questions");
+    expect(ANSWER_QUESTIONS_LABEL).toBe("Answer questions");
+    expect(CHANGE_ANSWER_LABEL).toBe("Change your answer");
     expect(RECRUIT_YES_LABEL).toBe("Yes I can come");
     expect(RECRUIT_NO_LABEL).toBe("No thanks");
   });
 });
 
-describe("the five recruit template names", () => {
-  it("match LAN-199's own manifest exactly, including the _v1 suffix", () => {
-    expect(TEMPLATE_NAMES.recruit_welcome).toBe("recruit_welcome_v1");
-    expect(TEMPLATE_NAMES.recruit_details_reminder).toBe("recruit_details_reminder_v1");
-    expect(TEMPLATE_NAMES.recruit_interest_ask).toBe("recruit_interest_ask_v1");
-    expect(TEMPLATE_NAMES.recruit_event_followup).toBe("recruit_event_followup_v1");
-    expect(TEMPLATE_NAMES.recruit_interest_reminder).toBe("recruit_interest_reminder_v1");
+describe("the fourteen canonical template names", () => {
+  // LAN-348. Every name carries `_v2`, and that is not decoration: the
+  // unsuffixed and `_v1` names are the club's original Marketing submissions,
+  // which Meta will not reclassify and will not let anyone edit into Utility.
+  // A new name was the only route, so a name here losing its suffix is a name
+  // pointing at a deleted Marketing template.
+  it("are the _v2 Utility generation, on the club's own account", () => {
+    expect(Object.values(TEMPLATE_NAMES)).toEqual([
+      "lancers_event_invitation_v2",
+      "lancers_event_reminder_v2",
+      "lancers_event_nudge_v2",
+      "lancers_event_change_notice_v2",
+      "lancers_event_cancellation_v2",
+      "lancers_nonresponse_escalation_v2",
+      "recruit_event_followup_v2",
+      "recruit_welcome_v2",
+      "recruit_details_reminder_v2",
+      "recruit_interest_ask_v2",
+      "recruit_interest_reminder_v2",
+      "onboarding_welcome_v2",
+      "onboarding_chase_v2",
+      "onboarding_chase_escalation_v2",
+    ]);
+    for (const name of Object.values(TEMPLATE_NAMES)) expect(name).toMatch(/_v2$/);
   });
 });
 
@@ -481,10 +608,18 @@ describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
     // takes a "which door" parameter for the template to branch on.
     const template = MESSAGE_TEMPLATES.onboarding_welcome;
     expect(template.kind).toBe("onboarding_welcome");
-    expect(template.parameterNames).toEqual(["inviteeName"]);
+    // LAN-336: name, the fixed onboarding subject, and the day the person
+    // was added to onboarding.
+    expect(template.parameterNames).toEqual(["inviteeName", "subject", "openedOn"]);
+    expect(
+      template.parameters(message({ kind: "onboarding_welcome", whenLabel: "11 September" })),
+    ).toEqual(["Jamie", ONBOARDING_SUBJECT, "11 September"]);
+    expect(
+      MESSAGE_TEMPLATES.onboarding_chase.parameters(message({ whenLabel: "11 September" })),
+    ).toEqual(["Jamie", ONBOARDING_SUBJECT, "11 September"]);
   });
 
-  it("carries the durable link and its own opt-out as its two URL buttons", () => {
+  it("carries only its durable personal-page button", () => {
     const rendered = MESSAGE_TEMPLATES.onboarding_welcome.buttonUrls?.(
       message({
         kind: "onboarding_welcome",
@@ -492,10 +627,7 @@ describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
         stopUrl: "https://lancers.example/stop/def",
       }),
     );
-    expect(rendered).toEqual([
-      "https://lancers.example/onboarding/abc",
-      "https://lancers.example/stop/def",
-    ]);
+    expect(rendered).toEqual(["https://lancers.example/onboarding/abc"]);
   });
 
   it("refuses to render without the durable link", () => {
@@ -506,7 +638,7 @@ describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
     ).toThrowError(/link/);
   });
 
-  it("carries a canonical, unapproved-so-far template name", () => {
-    expect(TEMPLATE_NAMES.onboarding_welcome).toBe("onboarding_welcome_v1");
+  it("carries the approved production template name", () => {
+    expect(TEMPLATE_NAMES.onboarding_welcome).toBe("onboarding_welcome_v2");
   });
 });

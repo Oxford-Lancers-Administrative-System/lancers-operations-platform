@@ -962,9 +962,10 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
 
     // The provider contract, as `whatsapp-cloud.test.ts` pins it: the Graph
     // messages endpoint for the configured phone number, a bearer token, the
-    // approved template's three body parameters in order, and — LAN-172,
-    // Q-11 — two URL buttons carrying one-time Yes and No answer tokens
-    // rather than a raw link in body copy.
+    // approved template's five body parameters in order — LAN-348: name,
+    // event, when, venue, deadline — and, LAN-172 Q-11, two URL buttons
+    // carrying one-time Yes and No answer tokens rather than a raw link in
+    // body copy.
     for (const request of sent) {
       expect(request.method).toBe("POST");
       expect(request.url).toContain(`/${PROVIDER_ENVIRONMENT.WHATSAPP_PHONE_NUMBER_ID}/messages`);
@@ -978,7 +979,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
       expect(template.name).toBe(PROVIDER_ENVIRONMENT.WHATSAPP_TEMPLATE_NAME);
       const body = template.components.find((c) => c.type === "body");
       const parameters = body!.parameters.map((entry) => entry.text);
-      expect(parameters).toHaveLength(3);
+      expect(parameters).toHaveLength(5);
       expect(parameters[1]).toContain(MARKER);
       expect(parameters.join(" ")).not.toContain("/rsvp/");
 
