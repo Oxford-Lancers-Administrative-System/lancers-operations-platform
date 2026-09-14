@@ -6,7 +6,6 @@ import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   addPersonAlias,
-  normaliseAddressLines,
   removePersonAlias,
   setDisplayNamePersonAlias,
   supersedeContactPoint,
@@ -207,29 +206,6 @@ export async function submitPersonEdit(
         value:
           values.bafaRegistrationNumber.trim() === "" ? null : values.bafaRegistrationNumber.trim(),
         reason: values.bafaRegistrationNumberReason || null,
-        expectedVersion: nextExpectedVersion(),
-      });
-    }
-    // LAN-347: the postal address, corrected here the same way every other
-    // person field is — a change needs a reason, a blank clears it.
-    const address = normaliseAddressLines(values.address).trim();
-    if (address !== (current.address ?? "")) {
-      await updatePersonField({
-        actorPersonId: operator.personId,
-        personId,
-        field: "address",
-        value: address === "" ? null : address,
-        reason: values.addressReason || null,
-        expectedVersion: nextExpectedVersion(),
-      });
-    }
-    if (values.postcode.trim() !== (current.postcode ?? "")) {
-      await updatePersonField({
-        actorPersonId: operator.personId,
-        personId,
-        field: "postcode",
-        value: values.postcode.trim() === "" ? null : values.postcode.trim(),
-        reason: values.postcodeReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }

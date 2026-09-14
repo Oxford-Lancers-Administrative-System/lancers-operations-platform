@@ -15,8 +15,6 @@ export interface EditFieldErrors {
   degreeField?: string;
   studentNumber?: string;
   bafaRegistrationNumber?: string;
-  address?: string;
-  postcode?: string;
   dateOfBirth?: string;
   emergencyGivenName?: string;
   emergencyFamilyName?: string;
@@ -39,9 +37,6 @@ interface CorrectionReasonFormValues {
   /** LAN-267. Same rule as every other person field: required to correct, never to fill. */
   studentNumberReason: string;
   bafaRegistrationNumberReason: string;
-  /** LAN-347. Same rule again: required to correct, never to fill. */
-  addressReason: string;
-  postcodeReason: string;
   dateOfBirthReason: string;
   emergencyGivenNameReason: string;
   emergencyFamilyNameReason: string;
@@ -90,9 +85,6 @@ export interface EditFormValues extends CorrectionReasonFormValues {
   /** LAN-267. Operator-editable, because a coach never sees the player questionnaire. */
   studentNumber: string;
   bafaRegistrationNumber: string;
-  /** LAN-347. Collected from the player on the photo release step; correctable here. */
-  address: string;
-  postcode: string;
   dateOfBirth: string;
   emergencyGivenName: string;
   emergencyFamilyName: string;
@@ -126,10 +118,6 @@ export function readEditFormValues(formData: FormData): EditFormValues {
     studentNumberReason: optional(formData.get("studentNumberReason")),
     bafaRegistrationNumber: optional(formData.get("bafaRegistrationNumber")),
     bafaRegistrationNumberReason: optional(formData.get("bafaRegistrationNumberReason")),
-    address: optional(formData.get("address")),
-    addressReason: optional(formData.get("addressReason")),
-    postcode: optional(formData.get("postcode")),
-    postcodeReason: optional(formData.get("postcodeReason")),
     dateOfBirth: optional(formData.get("dateOfBirth")),
     dateOfBirthReason: optional(formData.get("dateOfBirthReason")),
     emergencyGivenName: optional(formData.get("emergencyGivenName")),

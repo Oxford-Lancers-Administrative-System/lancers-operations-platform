@@ -1,22 +1,40 @@
 -- LAN-347 — the photo release step becomes the University's own consent form.
 --
+-- The form is its own record and it writes to no person fact (Brian,
+-- 2026-09-14, decision 4, superseding the first draft of this issue): "nothing
+-- in this form should change anything else… the only place this goes is into
+-- the onboarding form with the information they put there. It's just a
+-- record." So `people` gains nothing here, and everything the player types on
+-- the consent form is stored beside the agreement it belongs to.
+--
 -- Three things, and nothing else:
 --
---   1. `people.address` / `people.postcode` — the postal address the
---      University's form asks for. Collected from the player on the photo
---      release step, correctable by an operator, printed on the player and
---      recruit records beside the other contact facts. Nullable, because every
---      person already on record has neither; blank is refused outright, so a
---      recorded value is always a value (the `people` table's own idiom —
---      `people_given_name_not_blank`).
+--   1. The submitted form, on `onboarding_agreements`: `printed_name` plus
+--      `form_name`, `form_address`, `form_postcode`, `form_tel` and
+--      `form_email`. All text, all nullable — rows recorded under the
+--      placeholder wording have none, and a recorded agreement is never
+--      rewritten. Blank is refused on every one of them, so a recorded value is
+--      always a value and "not given" is exactly null. Required-ness is a
+--      service rule, not a `not null`: the wording decides, and the wording
+--      lives in the version row. `form_*` rather than bare names because these
+--      are what the person wrote on this form on this day, not facts about
+--      them — the person record keeps its own name, phone and email, and a
+--      different number here is simply what they wrote.
 --
---   2. `onboarding_agreements.printed_name` — the name as the player typed it
---      under the tick. Nullable, because rows already recorded under the
---      placeholder wording have none and history is not rewritten; the service
---      refuses a *new* agreement without one whenever the version's own body
---      asks for a printed name (`onboarding-agreement-body.ts`). Never a
---      signature, and never called one (Brian, 2026-09-14, LAN-347 decision 1;
---      LAN-213 settled that a tick is the model).
+--      `printed_name` is the name typed under the tick. Not a signature and
+--      never treated as one (decision 1; LAN-213 settled that a tick is the
+--      model). It is the one box that is never prefilled.
+--
+--   2. `reopened_at` — LAN-240's reopen stops destroying the agreement.
+--      Reopening the item (an operator setting it back off `complete`) used to
+--      `delete` the row, which was schema-free and lost nothing while the row
+--      held only version, moment and person. It now holds the form the player
+--      submitted, and LAN-347 requires that a reopened form comes back with its
+--      previous address and post code. A consent record is also the last thing
+--      that should be destroyed by an operator's click. So the row is stamped
+--      instead of deleted, the once-per-season rule becomes a partial unique
+--      index over the live rows, and every reader of "what has this person
+--      agreed to" ignores a stamped row exactly as it ignored a deleted one.
 --
 --   3. One new `onboarding_agreement_versions` row for `photo_release`,
 --      carrying the University's wording verbatim — the consent form and its
@@ -38,43 +56,90 @@
 -- form's three optional "insert any other…" lines stay empty — the club adds
 -- nothing to the University's form (LAN-347 decision 2).
 --
--- RLS and grants are unchanged: both tables already enable row level security
--- and already grant only the narrow server need to `service_role`, and a new
--- column on an existing table inherits that table's privileges.
+-- RLS is unchanged: `onboarding_agreements` already enables row level security
+-- and a new column on an existing table inherits that table's privileges. The
+-- one grant change is in section 2 and is narrower than what it replaces.
 
 -- ---------------------------------------------------------------------------
--- 1. The postal address, on the person
--- ---------------------------------------------------------------------------
-
-alter table public.people
-  add column address text,
-  add column postcode text;
-
-alter table public.people
-  add constraint people_address_not_blank
-    check (address is null or btrim(address) <> ''),
-  add constraint people_postcode_not_blank
-    check (postcode is null or btrim(postcode) <> '');
-
-comment on column public.people.address is
-  'Postal address, as the person typed it on the photo release step (LAN-347). Multi-line free text — never parsed, never split into lines here. Blank is refused; not recorded is null.';
-
-comment on column public.people.postcode is
-  'Postal code, as the person typed it (LAN-347). Free text, deliberately unvalidated: a UK postcode rule would refuse the real overseas addresses the club already holds.';
-
--- ---------------------------------------------------------------------------
--- 2. The printed name, on the agreement
+-- 1. The submitted form, on the agreement
 -- ---------------------------------------------------------------------------
 
 alter table public.onboarding_agreements
-  add column printed_name text;
+  add column printed_name text,
+  add column form_name text,
+  add column form_address text,
+  add column form_postcode text,
+  add column form_tel text,
+  add column form_email text;
 
 alter table public.onboarding_agreements
   add constraint onboarding_agreements_printed_name_not_blank
-    check (printed_name is null or btrim(printed_name) <> '');
+    check (printed_name is null or btrim(printed_name) <> ''),
+  add constraint onboarding_agreements_form_name_not_blank
+    check (form_name is null or btrim(form_name) <> ''),
+  add constraint onboarding_agreements_form_address_not_blank
+    check (form_address is null or btrim(form_address) <> ''),
+  add constraint onboarding_agreements_form_postcode_not_blank
+    check (form_postcode is null or btrim(form_postcode) <> ''),
+  add constraint onboarding_agreements_form_tel_not_blank
+    check (form_tel is null or btrim(form_tel) <> ''),
+  add constraint onboarding_agreements_form_email_not_blank
+    check (form_email is null or btrim(form_email) <> '');
 
 comment on column public.onboarding_agreements.printed_name is
-  'The name the person typed under the tick, stored exactly as typed (LAN-347). Not a signature and never treated as one — the agreement is still version, moment and person. Null on rows recorded before the form asked for it.';
+  'The name the person typed under the tick, stored exactly as typed (LAN-347). Not a signature and never treated as one — the agreement is still version, moment and person. Never prefilled. Null on rows recorded before the form asked for it.';
+
+comment on column public.onboarding_agreements.form_name is
+  'The Name box of the submitted consent form, as typed (LAN-347). What this person wrote on this form, never a fact about them: the person record''s own name is untouched by a submission.';
+
+comment on column public.onboarding_agreements.form_address is
+  'The Address box of the submitted consent form, as typed (LAN-347). Multi-line free text, never parsed. Required for a new photo release; nothing on `people` holds a postal address.';
+
+comment on column public.onboarding_agreements.form_postcode is
+  'The Post code box of the submitted consent form, as typed (LAN-347). Deliberately unvalidated: a UK postcode rule would refuse the real overseas addresses the club already holds.';
+
+comment on column public.onboarding_agreements.form_tel is
+  'The Tel box of the submitted consent form, as typed (LAN-347). Stored as submitted, whatever it is, and never checked against or written to `contact_points`.';
+
+comment on column public.onboarding_agreements.form_email is
+  'The Email box of the submitted consent form, as typed (LAN-347). Stored as submitted, whatever it is, and never checked against or written to `contact_points`.';
+
+-- ---------------------------------------------------------------------------
+-- 2. A reopened agreement is stamped, not destroyed
+-- ---------------------------------------------------------------------------
+--
+-- LAN-240 (walker M7, finding M7-01) made reopening an agreement item remove
+-- the `onboarding_agreements` row, so the player's next load reads outstanding
+-- rather than "Already agreed". That stays true, and everything that reads
+-- agreements keeps reading none. What changes is that the row survives: it now
+-- carries the form the player submitted, and LAN-347 requires a reopened form
+-- to come back with its previous address and post code. Nothing else can
+-- supply them, because nothing else stores them.
+--
+-- The once-per-season rule moves from a table constraint to a partial unique
+-- index of the same name, over live rows only: a person may hold several
+-- reopened photo releases for one season and at most one standing agreement.
+
+alter table public.onboarding_agreements
+  add column reopened_at timestamptz;
+
+comment on column public.onboarding_agreements.reopened_at is
+  'When an operator set this document back off complete (LAN-240''s reopen, LAN-347). A stamped row is no longer an agreement — every reader of "what has this person agreed to" ignores it — but it is kept, because it is the record of a consent that was given and of the form it was given on.';
+
+alter table public.onboarding_agreements
+  drop constraint onboarding_agreements_one_per_person_season_type;
+
+create unique index onboarding_agreements_one_per_person_season_type
+  on public.onboarding_agreements (person_id, season_id, agreement_type)
+  where reopened_at is null;
+
+-- Narrower than the `delete` this replaces, and narrower than a table-wide
+-- update: the only column the application may ever change on a recorded
+-- agreement is the stamp that retires it.
+grant update (reopened_at) on table public.onboarding_agreements to service_role;
+
+comment on table public.onboarding_agreements is
+  'Version, moment, person and — since LAN-347 — the form they submitted. Never corrected in place: agreeing again in a later season is a new row, and reopening one stamps reopened_at rather than changing a word of what was agreed.';
 
 -- ---------------------------------------------------------------------------
 -- 3. The University's wording, in the versioned slot

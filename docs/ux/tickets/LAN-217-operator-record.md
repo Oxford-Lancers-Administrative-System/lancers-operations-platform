@@ -258,9 +258,11 @@ date it was agreed and, where the wording asked for one, the name the player
 printed under the tick, ahead of the item's own state history. Values, not a
 sentence, like every other note on this page.
 
-The person section carries **Address** and **Post code** beside the other
-contact facts (LAN-347), collected from the player on the photo release step
-and correctable on the person form.
+The rest of the submitted consent form — the name, address, post code, tel and
+email the player wrote on it — is stored with the agreement and shown on no
+operator surface in this issue (LAN-347). It is not a person fact and the
+person section does not carry it: nothing on the person record holds a postal
+address.
 Hudl access has **three** states, not four — its list ends at Claimed, and
 the fourth, Confirmed, belongs to BUCS Play alone. That is the one place the
 two trust-class items genuinely differ, and it is Brian's own table that

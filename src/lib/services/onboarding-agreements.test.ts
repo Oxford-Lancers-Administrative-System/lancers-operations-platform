@@ -18,8 +18,9 @@ import {
   parseAgreementBody,
 } from "./onboarding-agreement-body";
 import {
-  deleteOnboardingAgreementIn,
   readCurrentOnboardingAgreementVersionIn,
+  readLastSubmittedAgreementFormIn,
+  reopenOnboardingAgreementIn,
   readOnboardingAgreementsIn,
   recordOnboardingAgreementIn,
 } from "./onboarding-agreements";
@@ -261,6 +262,78 @@ describe("recordOnboardingAgreementIn", () => {
     expect(agreement.printedName).toBeNull();
   });
 
+  // LAN-347 decision 4. The consent form is its own record: everything the
+  // player typed is stored beside the agreement, and nothing about it is a fact
+  // about the person. `player-questionnaire.test.ts` proves the person record
+  // does not move; this proves the columns hold what was submitted.
+  it("stores the submitted consent form beside the agreement", async () => {
+    const personId = await insertPerson("form");
+    const recorded = await withTransaction((tx) =>
+      recordOnboardingAgreementIn(tx, {
+        personId,
+        seasonId,
+        agreementType: "photo_release",
+        printedName: PRINTED_NAME,
+        form: {
+          name: "Jordan Ashworth",
+          address: "12 Turl Street\nOxford",
+          postcode: "OX1 3DH",
+          tel: "07700 900000",
+          email: "jordan@example.com",
+        },
+      }),
+    );
+
+    expect(recorded.form).toEqual({
+      name: "Jordan Ashworth",
+      address: "12 Turl Street\nOxford",
+      postcode: "OX1 3DH",
+      tel: "07700 900000",
+      email: "jordan@example.com",
+    });
+
+    const [readBack] = await withTransaction((tx) =>
+      readOnboardingAgreementsIn(tx, personId, seasonId),
+    );
+    expect(readBack.form.address).toBe("12 Turl Street\nOxford");
+    expect(readBack.reopenedAt).toBeNull();
+  });
+
+  it("stores an unanswered box as not given rather than as a blank", async () => {
+    const personId = await insertPerson("blankbox");
+    const recorded = await withTransaction((tx) =>
+      recordOnboardingAgreementIn(tx, {
+        personId,
+        seasonId,
+        agreementType: "photo_release",
+        printedName: PRINTED_NAME,
+        form: {
+          name: "Jordan Ashworth",
+          address: "12 Turl Street",
+          postcode: "OX1 3DH",
+          tel: "   ",
+          email: null,
+        },
+      }),
+    );
+    expect(recorded.form.tel).toBeNull();
+    expect(recorded.form.email).toBeNull();
+  });
+
+  it("records the Code of Conduct's bare tick with no form at all", async () => {
+    const personId = await insertPerson("baretick");
+    const recorded = await withTransaction((tx) =>
+      recordOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "code_of_conduct" }),
+    );
+    expect(recorded.form).toEqual({
+      name: null,
+      address: null,
+      postcode: null,
+      tel: null,
+      email: null,
+    });
+  });
+
   it("keeps the two documents independently agreeable", async () => {
     const personId = await insertPerson("both");
     await withTransaction((tx) =>
@@ -285,8 +358,67 @@ describe("recordOnboardingAgreementIn", () => {
   });
 });
 
-describe("deleteOnboardingAgreementIn — LAN-240's reopen", () => {
-  it("removes the season's row so the same document can be agreed again", async () => {
+// LAN-347. The reopen used to delete the row. It now stamps it, because the row
+// carries the consent form the player filled in and the reopened step prefills
+// from it — and because a consent that was given is not something an operator's
+// click should destroy.
+describe("readLastSubmittedAgreementFormIn — the reopened form comes back", () => {
+  it("returns the last form submitted, agreed or reopened", async () => {
+    const personId = await insertPerson("prefill");
+    await withTransaction((tx) =>
+      recordOnboardingAgreementIn(tx, {
+        personId,
+        seasonId,
+        agreementType: "photo_release",
+        printedName: PRINTED_NAME,
+        form: {
+          name: "Jordan Ashworth",
+          address: "12 Turl Street\nOxford",
+          postcode: "OX1 3DH",
+          tel: null,
+          email: null,
+        },
+      }),
+    );
+
+    const reopened = await withTransaction((tx) =>
+      reopenOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+    );
+    expect(reopened).toBe(1);
+
+    // Outstanding again to everything that asks what has been agreed …
+    expect(
+      await withTransaction((tx) => readOnboardingAgreementsIn(tx, personId, seasonId)),
+    ).toEqual([]);
+
+    // … and still there to the one reader that looks past the stamp.
+    const previous = await withTransaction((tx) =>
+      readLastSubmittedAgreementFormIn(tx, {
+        personId,
+        seasonId,
+        agreementType: "photo_release",
+      }),
+    );
+    expect(previous?.form.address).toBe("12 Turl Street\nOxford");
+    expect(previous?.form.postcode).toBe("OX1 3DH");
+    expect(previous?.reopenedAt).toBeInstanceOf(Date);
+  });
+
+  it("returns nothing for a person who has never submitted one", async () => {
+    const personId = await insertPerson("never");
+    const previous = await withTransaction((tx) =>
+      readLastSubmittedAgreementFormIn(tx, {
+        personId,
+        seasonId,
+        agreementType: "photo_release",
+      }),
+    );
+    expect(previous).toBeNull();
+  });
+});
+
+describe("reopenOnboardingAgreementIn — LAN-240's reopen", () => {
+  it("retires the season's row so the same document can be agreed again", async () => {
     const personId = await insertPerson("reopen");
     await withTransaction((tx) =>
       recordOnboardingAgreementIn(tx, {
@@ -298,14 +430,14 @@ describe("deleteOnboardingAgreementIn — LAN-240's reopen", () => {
     );
 
     const removed = await withTransaction((tx) =>
-      deleteOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+      reopenOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
     );
     expect(removed).toBe(1);
     expect(
       await withTransaction((tx) => readOnboardingAgreementsIn(tx, personId, seasonId)),
     ).toEqual([]);
 
-    // The point of the delete: the player can now genuinely re-agree, where
+    // The point of the reopen: the player can now genuinely re-agree, where
     // before `onboarding_agreements_one_per_person_season_type` refused them.
     const again = await withTransaction((tx) =>
       recordOnboardingAgreementIn(tx, {
@@ -333,7 +465,7 @@ describe("deleteOnboardingAgreementIn — LAN-240's reopen", () => {
     );
 
     await withTransaction((tx) =>
-      deleteOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+      reopenOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
     );
 
     const agreements = await withTransaction((tx) =>
@@ -345,7 +477,7 @@ describe("deleteOnboardingAgreementIn — LAN-240's reopen", () => {
   it("reports zero, rather than failing, when there was nothing on file", async () => {
     const personId = await insertPerson("nothing");
     const removed = await withTransaction((tx) =>
-      deleteOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "code_of_conduct" }),
+      reopenOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "code_of_conduct" }),
     );
     expect(removed).toBe(0);
   });

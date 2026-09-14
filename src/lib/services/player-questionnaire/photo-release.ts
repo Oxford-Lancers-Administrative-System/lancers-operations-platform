@@ -1,11 +1,10 @@
 import { withTransaction } from "@/lib/db";
-import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
-import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
-import { recordOnboardingActivityIn } from "../onboarding-activity-log";
-import { PRINTED_NAME_REQUIRED_MESSAGE, type OnboardingAgreement } from "../onboarding-agreements";
-import { readPersonRecord, type PersonRecord } from "../person-record";
-import { normaliseAddressLines, supersedeContactPoint } from "../person-write";
-import { applyDisputableFieldIn } from "./provenance";
+import {
+  PRINTED_NAME_REQUIRED_MESSAGE,
+  readLastSubmittedAgreementFormIn,
+  type OnboardingAgreement,
+} from "../onboarding-agreements";
+import { type PersonRecord } from "../person-record";
 import { agreeOnboardingDocument } from "./later-steps";
 
 /**
@@ -13,21 +12,29 @@ import { agreeOnboardingDocument } from "./later-steps";
  * Oxford's own "Photograph / filming / interview consent form".
  *
  * The wording is the versioned row's (`onboarding_agreement_versions`), and the
- * page renders it; this module owns everything the page must not: what the
- * fields are required, which record each one lands on, and in what order.
+ * page renders it; this module owns everything the page must not: which boxes
+ * are required, and where the submitted form is kept.
  *
- * Every field goes to the record the contact step already writes to —
- * `applyDisputableFieldIn` for the `people` columns, `supersedeContactPoint`
- * for the phone and the email — so a value typed here is a correction like any
- * other, with the same audit row and the same last-write-wins rule (B-002).
- * The address and post code are new columns, not a new mechanism.
+ * **It writes nothing to the person record** — Brian, 2026-09-14, decision 4:
+ * "Nothing in this form should change anything else. If I add an address, it
+ * shouldn't change anything. If I change my name here, it should prefill that
+ * information, but the only place this goes is into the onboarding form with
+ * the information they put there. It's just a record."
  *
- * F1 (LAN-230, Brian: "whatever a step saved stays saved") applies here too:
- * a submission missing the address still saves the name, phone and email the
- * player corrected, and refuses only the agreement.
+ * So there is no `applyDisputableFieldIn` here and no `supersedeContactPoint`:
+ * a name, phone or email typed on this form is what this person wrote on this
+ * form on this day, stored with the agreement and read back nowhere else. The
+ * record's own name, phone and email are what the contact step wrote and stay
+ * exactly as they are, whatever is typed here.
+ *
+ * That also decides the validation. There is no shape check on the phone or the
+ * email, because nothing downstream will ever send to them: they are stored as
+ * submitted, whatever they are. The three boxes that must be filled are the
+ * ones the University's form leaves no room to skip — the address, the post
+ * code and the printed name — plus the tick.
  */
 
-/** Every field the consent form posts. Blank is legal for all of them here; required-ness is decided below. */
+/** Every field the consent form posts. */
 export interface PhotoReleaseInput {
   personId: string;
   seasonId: string;
@@ -42,7 +49,8 @@ export interface PhotoReleaseInput {
   agreed: boolean;
 }
 
-type PhotoReleaseField = "name" | "address" | "postcode" | "tel" | "email" | "printedName";
+/** The three boxes a refusal can name. `name`, `tel` and `email` are never refused — whatever is typed is what was written. */
+type PhotoReleaseField = "address" | "postcode" | "printedName";
 
 export interface PhotoReleaseResult {
   /** Field name → the sentence shown against it. Empty when the agreement was recorded. */
@@ -56,22 +64,22 @@ export const ADDRESS_REQUIRED_MESSAGE = "Address is required.";
 export const POSTCODE_REQUIRED_MESSAGE = "Post code is required.";
 
 /**
- * Splits the form's single "Name" box back into the two columns the record
- * holds. The paper form prints one box, so the page shows one; `people` has
- * held a first and a last name since LAN-183 and this is not the step to
- * change that.
- *
- * The last whitespace-separated word is the family name and everything before
- * it the given name — the same reading a human gives "Lysander Aurelius
- * Croft". A single word is a given name alone, and leaves the family name
- * untouched rather than blanking it. This only ever runs on a name the player
- * actually changed: an unedited box is equal to the record and writes nothing.
+ * A textarea posts its line breaks as CRLF. The address is the one multi-line
+ * box on the form, and a carriage return stored in the middle of it is a
+ * character nothing ever wants to read back — least of all the next open of
+ * this form, which prints it straight back into the box.
  */
-export function splitTypedName(typed: string): { givenName: string; familyName: string | null } {
-  const parts = typed.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { givenName: "", familyName: null };
-  if (parts.length === 1) return { givenName: parts[0], familyName: null };
-  return { givenName: parts.slice(0, -1).join(" "), familyName: parts[parts.length - 1] };
+export function normaliseAddressLines(value: string): string {
+  return value.replace(/\r\n?/g, "\n");
+}
+
+export interface PhotoReleasePrefill {
+  name: string;
+  address: string;
+  postcode: string;
+  tel: string;
+  email: string;
+  printedName: string;
 }
 
 function currentContactValue(
@@ -85,135 +93,63 @@ function currentContactValue(
   return current?.rawValue ?? "";
 }
 
-/** What the step shows when it is opened — every value the record already holds, ready to be edited in place. */
-export function photoReleasePrefill(record: PersonRecord): {
-  name: string;
-  address: string;
-  postcode: string;
-  tel: string;
-  email: string;
-  printedName: string;
-} {
+/**
+ * What the step shows when it is opened — starting values only, every one of
+ * them editable and none of them written back (decision 5).
+ *
+ * Name, Tel and Email start from the record, because the club already holds
+ * them and the player should not retype what it knows. Address and Post code
+ * start empty the first time — the record holds no postal address at all — and
+ * on a reopen start from the form this person last submitted this season.
+ * Print name always starts empty: it stands where a signature would, and it is
+ * the one box the player has to type themselves.
+ */
+export function photoReleasePrefill(
+  record: PersonRecord,
+  lastSubmitted: OnboardingAgreement | null,
+): PhotoReleasePrefill {
   return {
     name: record.displayName,
-    address: record.address ?? "",
-    postcode: record.postcode ?? "",
+    address: lastSubmitted?.form.address ?? "",
+    postcode: lastSubmitted?.form.postcode ?? "",
     tel: currentContactValue(record, "phone", null),
     email: currentContactValue(record, "email", "personal"),
-    printedName: record.displayName,
+    printedName: "",
   };
 }
 
+/** The form this person last submitted for the photo release this season — the prefill's second source. */
+export async function readLastPhotoReleaseForm(
+  personId: string,
+  seasonId: string,
+): Promise<OnboardingAgreement | null> {
+  return withTransaction((tx) =>
+    readLastSubmittedAgreementFormIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+  );
+}
+
 /**
- * Saves what the consent form collected and records the agreement.
+ * Records the agreement and the form it was given on, and touches nothing else.
  *
  * The three required answers are the address, the post code and the printed
  * name, plus the tick — LAN-347's acceptance ("they cannot continue without
  * address, postcode, printed name and the tick; refusals name what is
- * missing"). The name, phone and email are prefilled conveniences: a player
- * who blanks one is not blocked, and a blank never clears a recorded value.
+ * missing"). A refusal saves nothing at all, which is the whole of decision 4:
+ * a submission that does not complete the form leaves the database exactly
+ * where it found it.
  */
 export async function savePhotoRelease(input: PhotoReleaseInput): Promise<PhotoReleaseResult> {
-  const current = await readPersonRecord(input.personId);
   const errors: PhotoReleaseResult["errors"] = {};
 
   const address = normaliseAddressLines(input.address).trim();
   const postcode = input.postcode.trim();
   const printedName = input.printedName.trim();
-  const tel = input.tel.trim();
-  const email = input.email.trim();
 
   if (address === "") errors.address = ADDRESS_REQUIRED_MESSAGE;
   if (postcode === "") errors.postcode = POSTCODE_REQUIRED_MESSAGE;
   if (printedName === "") errors.printedName = PRINTED_NAME_REQUIRED_MESSAGE;
 
-  // Shape, on the same footing as step 1: checked only for a value that
-  // changed, and a failure leaves that one field unwritten without touching
-  // any other.
-  const telChanged = tel !== "" && tel !== currentContactValue(current, "phone", null);
-  if (telChanged && !looksLikePhone(tel)) errors.tel = PHONE_SHAPE;
-  const emailChanged = email !== "" && email !== currentContactValue(current, "email", "personal");
-  if (emailChanged && !looksLikeEmail(email)) errors.email = EMAIL_SHAPE;
-
-  // Every field that validated is written, whatever else failed (F1).
-  const typedName = splitTypedName(input.name);
-  if (typedName.givenName !== "" && typedName.givenName !== current.givenName) {
-    await withTransaction((tx) =>
-      applyDisputableFieldIn(tx, {
-        personId: input.personId,
-        field: "given_name",
-        currentRecord: current,
-        newValue: typedName.givenName,
-      }),
-    );
-  }
-  if (typedName.familyName !== null && typedName.familyName !== (current.familyName ?? "")) {
-    await withTransaction((tx) =>
-      applyDisputableFieldIn(tx, {
-        personId: input.personId,
-        field: "family_name",
-        currentRecord: current,
-        newValue: typedName.familyName as string,
-      }),
-    );
-  }
-  if (address !== "") {
-    await withTransaction((tx) =>
-      applyDisputableFieldIn(tx, {
-        personId: input.personId,
-        field: "address",
-        currentRecord: current,
-        newValue: address,
-      }),
-    );
-  }
-  if (postcode !== "") {
-    await withTransaction((tx) =>
-      applyDisputableFieldIn(tx, {
-        personId: input.personId,
-        field: "postcode",
-        currentRecord: current,
-        newValue: postcode,
-      }),
-    );
-  }
-  if (telChanged && !errors.tel) {
-    await supersedeContactPoint({
-      actorPersonId: input.personId,
-      personId: input.personId,
-      kind: "phone",
-      rawValue: tel,
-      source: "player self-service",
-      reason: "Player self-service correction.",
-    });
-  }
-  if (emailChanged && !errors.email) {
-    await supersedeContactPoint({
-      actorPersonId: input.personId,
-      personId: input.personId,
-      kind: "email",
-      scope: "personal",
-      rawValue: email,
-      source: "player self-service",
-      reason: "Player self-service correction.",
-    });
-  }
-
-  // What the player typed is saved either way; the agreement itself is not
-  // recorded until the form is complete and ticked.
   if (Object.keys(errors).length > 0 || !input.agreed) {
-    if (Object.keys(errors).length > 0) {
-      await withTransaction((tx) =>
-        recordOnboardingActivityIn(tx, {
-          membershipId: input.membershipId,
-          seasonId: input.seasonId,
-          section: "Photo release",
-          kind: "answer",
-          channel: "signed link",
-          actorPersonId: input.personId,
-        }),
-      );
-    }
     return { errors, agreeError: !input.agreed, agreement: null };
   }
 
@@ -223,6 +159,14 @@ export async function savePhotoRelease(input: PhotoReleaseInput): Promise<PhotoR
     membershipId: input.membershipId,
     agreementType: "photo_release",
     printedName,
+    // As submitted, whatever it is. Blank is "not given" and is stored as null.
+    form: {
+      name: input.name,
+      address,
+      postcode,
+      tel: input.tel,
+      email: input.email,
+    },
   });
 
   return { errors, agreeError: false, agreement };

@@ -849,8 +849,8 @@ kept above the database on purpose, and why.
 | **Date of birth**                     | `people.date_of_birth` is four-role only and never appears on a list, board or queue (REQ-restricted-fields). The derived `person_standing.is_under_18` is what those surfaces may read: a flag, never the date. Mission 8 owns what the club then does about it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **Emergency contact**                 | `person_emergency_contacts` — first name, last name, relationship, phone, email, one row per person. Third-party personal data about somebody who never agreed to be here, so the lockdown is structural: never a `people` row, never a contact point, in no view, and reachable from no audience, messaging or export query. `tests/schema-restricted-fields.test.ts` asserts that against the source.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **Student and BAFA numbers**          | `people.student_number` and `people.bafa_registration_number` (LAN-275). Personal identifiers, held under the same handling as the other durable person facts: shown on the person record to an authorised operator, on no list, board or queue, and named in the privacy notice. Read by one module — `roster-form.ts` — because printing them on the officials' form is the reason the club records them at all. The form is generated on demand and never stored, so no second copy exists.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **Postal address**                    | `people.address` and `people.postcode` (LAN-347). Collected from the player on the photo release step, because the University's consent form asks for it. Held as ordinary contact facts — `contact` in `PERSON_RECORD_FIELD_CATEGORY`, shown on the person, player and recruit records to an authorised operator, on no list, board or queue, and read by no audience, messaging or export query. Free text and deliberately unvalidated: a UK postcode rule would refuse the real overseas addresses the club already holds.                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **A printed name under an agreement** | `onboarding_agreements.printed_name` (LAN-347). The name as the player typed it under the tick on the University's consent form. Not a signature, not an image, and never treated as one — LAN-213 settled that a tick is the model. Shown beside the item on the operator's record with the date it was agreed, and nowhere else.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **A submitted consent form**          | `onboarding_agreements.form_name`, `form_address`, `form_postcode`, `form_tel`, `form_email` (LAN-347). What the player wrote on the University's consent form, stored with the agreement it belongs to and nowhere else. Deliberately **not** person facts: the form writes nothing to `people` or `contact_points`, so a postal address or a different number written here changes nothing about the person and reaches no audience, messaging or export query. Nothing on `people` holds a postal address at all. Read back by one screen — the step itself, to prefill a reopened form — and by no list, board or queue.                                                                                                                                                                                                                                                                                                                |
+| **A printed name under an agreement** | `onboarding_agreements.printed_name` (LAN-347). The name as the player typed it under the tick on the University's consent form. Not a signature, not an image, and never treated as one — LAN-213 settled that a tick is the model. Never prefilled: it is the one box the player types themselves. Shown beside the item on the operator's record with the date it was agreed, and nowhere else.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | **An online event's joining URL**     | `events.joining_url` is **public** (LAN-284, Brian 2026-09-09), reversing the never-public rule the column's own comment still carries. It is selected by `PUBLIC_EVENT_COLUMNS`, rendered on `/calendar/[id]`, and emitted as the `URL` property in `/calendar/feed.ics`. The calendar itself stays open — no password gate, no feed token, no change to the three access tiers — because the protection belongs on the meeting, which requires its own passcode on top of Oxford-domain approval, so the link alone admits nobody. Accepted knowingly: nothing here can verify that a given meeting has a passcode set, so an operator who publishes an open meeting publishes it to the world; the event editor warns them whenever the delivery mode is online. The `comment on column` in `20260822120000_events_target_state.sql` still states the old rule and is corrected by LAN-276's own migration; this row is the current one. |
 | **Notification payloads**             | `template_variables` holds substitution values, not message bodies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | **Legacy staging**                    | `staging` is not exposed to the Data API and holds synthetic fixtures only. No real roster data enters it before the pre-pilot gate in the [migration runbook](../migration-runbook.md).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -1251,28 +1251,39 @@ required-set tiers, not the item catalogue.
 
 **2026-09-19 — the photo release becomes the University's consent form**
 (LAN-347, `20260919090000_photo_release_consent_form.sql`). Three changes, no
-new table.
+new table, and nothing at all on `people`.
 
-`people` gains `address` and `postcode`, both nullable text and both
-blank-checked in the shape every other person fact carries. They are the postal
-address the University's "Photograph / filming / interview consent form" asks
-for, collected from the player on onboarding step 3 and correctable by an
-operator. Columns on `people` rather than `contact_points` rows for the reason
-LAN-275 gives above: `contact_points` is where a _send_ goes and is walked by
-every audience query and the whole delivery path; a postal address is neither a
-send destination nor superseded. Both are `contact` in
-`PERSON_RECORD_FIELD_CATEGORY` — they sit beside the other contact facts on the
-record, and every category reads the same capability today.
+The form is its own record and writes no person fact (Brian, 2026-09-14,
+decision 4): "nothing in this form should change anything else… the only place
+this goes is into the onboarding form with the information they put there. It's
+just a record." So `onboarding_agreements` gains the submitted form —
+`printed_name`, `form_name`, `form_address`, `form_postcode`, `form_tel`,
+`form_email` — all nullable text, all blank-checked, so a recorded value is
+always a value and "not given" is exactly null. The `form_` prefix is the whole
+point: these are what this person wrote on this form on this day, not facts
+about them. The person record keeps its own name, phone and email, and a
+different number written here changes neither.
 
-`onboarding_agreements` gains `printed_name`, nullable text, blank-checked. It
-is the name the player typed under the tick, stored exactly as typed. It is not
-a signature and is never treated as one: LAN-213 settled that a tick is the
-model and LAN-347 decision 1 keeps it that way. Nullable because rows recorded
-under the placeholder wording have none, and a recorded agreement is never
-rewritten. Required-ness is a service rule rather than a `not null`, and the
-rule is read out of the wording: `recordOnboardingAgreementIn` refuses a new
-agreement with no printed name exactly when the version being agreed declares a
-`[[print-name]]` section (`onboarding-agreement-body.ts`).
+Nullable rather than `not null` because rows recorded under the placeholder
+wording have none and a recorded agreement is never rewritten. Required-ness is
+a service rule, and the rule is read out of the wording:
+`recordOnboardingAgreementIn` refuses a new agreement with no printed name
+exactly when the version being agreed declares a `[[print-name]]` section
+(`onboarding-agreement-body.ts`), and `savePhotoRelease` refuses one with no
+address or post code.
+
+`reopened_at` replaces LAN-240's delete. Reopening an agreement item used to
+remove the row, which was schema-free and lost nothing while the row held only
+version, moment and person. The row now holds the form the player filled in,
+which the reopened step prefills from and which nothing else stores — and a
+consent that was given is not something an operator's click should destroy. So
+the row is stamped, `onboarding_agreements_one_per_person_season_type` becomes a
+partial unique index over the live rows (`where reopened_at is null`), and every
+reader of "what has this person agreed to" filters the stamp, so a reopened row
+is as absent as a deleted one ever was. The one reader that looks past it is
+`readLastSubmittedAgreementFormIn`, which supplies the prefill. The grant is
+narrower than the delete it replaces: `update (reopened_at)` and nothing else,
+so `agreed_at`, the version and the form itself stay unchangeable.
 
 One new `onboarding_agreement_versions` row for `photo_release`,
 `oxford-consent-form-v1`, carries the University's consent form and its Data

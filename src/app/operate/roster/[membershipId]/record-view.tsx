@@ -319,9 +319,6 @@ export default function PlayerRecordView({
         <RecordField label="Aliases" value={joinAliases(person.aliases)} />
         <RecordField label="Mobile phone" value={mobile} />
         <RecordField label="Personal email" value={personalEmail} />
-        {/* LAN-347: collected on the photo release step, beside the other contact facts. */}
-        <RecordField label="Address" value={person.address ?? null} />
-        <RecordField label="Post code" value={person.postcode ?? null} />
         <RecordField label="College" value={person.college ?? null} />
         <RecordField
           label="Matriculation year"

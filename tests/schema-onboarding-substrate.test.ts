@@ -286,6 +286,40 @@ describe("onboarding_agreement_versions / onboarding_agreements", () => {
     );
   });
 
+  // LAN-347 decision 4: the submitted form lives here, and nowhere on `people`.
+  // Every box is nullable, because a row recorded before the form existed has
+  // none, and every box refuses a blank, so "not given" is exactly null.
+  it.each([
+    ["form_name", /onboarding_agreements_form_name_not_blank/],
+    ["form_address", /onboarding_agreements_form_address_not_blank/],
+    ["form_postcode", /onboarding_agreements_form_postcode_not_blank/],
+    ["form_tel", /onboarding_agreements_form_tel_not_blank/],
+    ["form_email", /onboarding_agreements_form_email_not_blank/],
+  ])("refuses a blank %s outright", async (column, rule) => {
+    const version = await one<{ id: string }>(
+      client,
+      `select id from public.onboarding_agreement_versions
+        where agreement_type = 'photo_release' and version_label = 'oxford-consent-form-v1'`,
+    );
+    await expectRejected(
+      client,
+      `insert into public.onboarding_agreements
+         (person_id, season_id, agreement_type, agreement_version_id, printed_name, ${column})
+       values ($1, $2, 'photo_release', $3, 'Jordan Ashworth', '   ')`,
+      [base.personId, base.seasonId, version.id],
+      rule,
+    );
+  });
+
+  it("holds no postal address anywhere on people", async () => {
+    const result = await client.query<{ column_name: string }>(
+      `select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = 'people'
+          and column_name in ('address', 'postcode')`,
+    );
+    expect(result.rows).toEqual([]);
+  });
+
   it("accepts an agreement recorded before the wording asked for a printed name", async () => {
     const version = await one<{ id: string }>(
       client,
@@ -319,6 +353,55 @@ describe("onboarding_agreement_versions / onboarding_agreements", () => {
       [base.personId, base.seasonId, version.id],
       "onboarding_agreements_one_per_person_season_type",
     );
+  });
+
+  // LAN-347. The once-per-season rule is now a partial unique index over the
+  // live rows: reopening stamps `reopened_at` rather than destroying the
+  // consent form the player submitted, and a stamped row must not stand in the
+  // way of the agreement that replaces it.
+  it("lets a reopened agreement be replaced, and still refuses two live ones", async () => {
+    const version = await one<{ id: string }>(
+      client,
+      `select id from public.onboarding_agreement_versions
+        where agreement_type = 'photo_release' and version_label = 'oxford-consent-form-v1'`,
+    );
+    const first = await one<{ id: string }>(
+      client,
+      `insert into public.onboarding_agreements
+         (person_id, season_id, agreement_type, agreement_version_id, printed_name, form_address)
+       values ($1, $2, 'photo_release', $3, 'Jordan Ashworth', '12 Turl Street')
+       returning id`,
+      [base.personId, base.seasonId, version.id],
+    );
+
+    await expectRejected(
+      client,
+      `insert into public.onboarding_agreements
+         (person_id, season_id, agreement_type, agreement_version_id, printed_name)
+       values ($1, $2, 'photo_release', $3, 'Jordan Ashworth')`,
+      [base.personId, base.seasonId, version.id],
+      "onboarding_agreements_one_per_person_season_type",
+    );
+
+    await client.query(
+      "update public.onboarding_agreements set reopened_at = now() where id = $1",
+      [first.id],
+    );
+
+    await expectAccepted(
+      client,
+      `insert into public.onboarding_agreements
+         (person_id, season_id, agreement_type, agreement_version_id, printed_name)
+       values ($1, $2, 'photo_release', $3, 'Jordan Ashworth')`,
+      [base.personId, base.seasonId, version.id],
+    );
+
+    // And the reopened row — with the form on it — is still there.
+    const kept = await client.query<{ form_address: string | null }>(
+      "select form_address from public.onboarding_agreements where id = $1",
+      [first.id],
+    );
+    expect(kept.rows[0].form_address).toBe("12 Turl Street");
   });
 
   it("refuses a version id that names the wrong document type", async () => {
@@ -366,6 +449,14 @@ describe("onboarding_agreement_versions / onboarding_agreements", () => {
       "delete from public.onboarding_agreements where id = $1",
       [agreement.id],
       /permission denied/,
+    );
+    // LAN-347: the single exception, and it is column-level. Retiring a
+    // reopened agreement is the only change the application may make to a row
+    // it has already recorded.
+    await expectAccepted(
+      client,
+      "update public.onboarding_agreements set reopened_at = now() where id = $1",
+      [agreement.id],
     );
     await client.query("rollback to savepoint role_switch");
   });

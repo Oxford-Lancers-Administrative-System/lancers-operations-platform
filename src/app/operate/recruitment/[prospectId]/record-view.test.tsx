@@ -96,10 +96,6 @@ const FULL_PERSON: PersonRecord = {
   studentNumberSource: null,
   bafaRegistrationNumber: "BAFA-9",
   bafaRegistrationNumberSource: null,
-  address: null,
-  addressSource: null,
-  postcode: null,
-  postcodeSource: null,
   dateOfBirth: "2006-04-12",
   dateOfBirthSource: null,
   emergencyContact: {

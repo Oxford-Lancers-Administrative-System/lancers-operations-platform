@@ -112,9 +112,6 @@ export function RecordField({
                 textDecoration: editable ? "underline" : "none",
                 textUnderlineOffset: 3,
                 textDecorationColor: "rgba(0,0,0,0.25)",
-                // LAN-347: every value here is one line except the postal
-                // address, which is printed on the lines it was written on.
-                whiteSpace: "pre-wrap",
               }}
             >
               {value}

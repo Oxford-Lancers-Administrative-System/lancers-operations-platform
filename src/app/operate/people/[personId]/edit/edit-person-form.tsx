@@ -167,20 +167,6 @@ export default function EditPersonForm({
               error={state.errors.collegeEmail}
               unchangedHelperText="Their university address — it ends in ox.ac.uk."
             />
-            {/* LAN-347: the postal address the University's consent form asks for. */}
-            <CorrectableField
-              name="address"
-              reasonName="addressReason"
-              label="Address"
-              multiline
-              original={record.address ?? ""}
-            />
-            <CorrectableField
-              name="postcode"
-              reasonName="postcodeReason"
-              label="Post code"
-              original={record.postcode ?? ""}
-            />
           </Stack>
         </Section>
 
@@ -307,7 +293,6 @@ function CorrectableField({
   unchangedHelperText,
   renderExtra,
   phone,
-  multiline,
 }: {
   name: string;
   reasonName: string;
@@ -320,8 +305,6 @@ function CorrectableField({
   renderExtra?: (value: string, changed: boolean) => React.ReactNode;
   /** LAN-211: the shared two-part control in place of one free-text box. */
   phone?: boolean;
-  /** LAN-347: an address is written on several lines, and is kept as typed. */
-  multiline?: boolean;
 }) {
   const [value, setValue] = useState(original);
   const [pickerDate, setPickerDate] = useState<Date | null | undefined>(undefined);
@@ -359,8 +342,6 @@ function CorrectableField({
           label={label}
           type={type}
           required={required}
-          multiline={multiline}
-          minRows={multiline ? 3 : undefined}
           // LAN-324: every field here is about the person on the screen, and
           // Chrome would otherwise offer the operator's own saved profile.
           autoComplete={NO_AUTOFILL}

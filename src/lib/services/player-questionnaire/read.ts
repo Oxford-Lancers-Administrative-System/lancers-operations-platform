@@ -2,6 +2,7 @@ import { withTransaction, type Tx } from "@/lib/db";
 import { RESOLVED_ITEM_STATUSES, type OnboardingItemStatus } from "../membership";
 import {
   readCurrentOnboardingAgreementVersionIn,
+  readLastSubmittedAgreementFormIn,
   readOnboardingAgreementsIn,
   type OnboardingAgreement,
   type OnboardingAgreementType,
@@ -97,6 +98,13 @@ export interface QuestionnaireView {
   agreements: Record<OnboardingAgreementType, OnboardingAgreement | null>;
   /** The wording each document is currently asking to be agreed to — LAN-347. The step renders this, never a literal of its own. */
   agreementVersions: Record<OnboardingAgreementType, OnboardingAgreementVersion>;
+  /**
+   * The consent form this person last submitted this season, agreed or reopened
+   * — LAN-347. The step's Address and Post code start from it, because nothing
+   * on the person record holds a postal address and a reopened form should come
+   * back as it was written. `null` before the first submission.
+   */
+  lastPhotoReleaseForm: OnboardingAgreement | null;
   /** Whether each document is settled (LAN-240) — the same fact `outstandingSections`/`nextStep` compute from. */
   documentAgreed: Record<OnboardingAgreementType, boolean>;
   /** `null` means no `onboarding_items` row of this code exists (F2, LAN-230) — never treated as done. */
@@ -167,6 +175,11 @@ export async function readQuestionnaireViewIn(
       readFieldSuppliedByIn(tx, personId),
     ]);
   const agreementVersions = await readCurrentVersionsByTypeIn(tx);
+  const lastPhotoReleaseForm = await readLastSubmittedAgreementFormIn(tx, {
+    personId,
+    seasonId,
+    agreementType: "photo_release",
+  });
   const openDisputedFields = new Set(disputes.map((d) => d.field));
 
   const needsConsentStep = ask.hasGrantedConsent === false;
@@ -273,6 +286,7 @@ export async function readQuestionnaireViewIn(
     fieldSuppliedBy,
     agreements,
     agreementVersions,
+    lastPhotoReleaseForm,
     documentAgreed: { code_of_conduct: codeOfConductDone, photo_release: photoReleaseDone },
     itemStatus,
     nothingOutstanding,

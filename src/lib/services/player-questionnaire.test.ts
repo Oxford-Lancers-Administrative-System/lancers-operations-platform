@@ -33,10 +33,10 @@ import {
   emergencyContactIsComplete,
   photoReleasePrefill,
   POSTCODE_REQUIRED_MESSAGE,
+  readLastPhotoReleaseForm,
   readQuestionnaireView,
   saveDetailsStep,
   savePhotoRelease,
-  splitTypedName,
   type DetailsStepInput,
   type PhotoReleaseInput,
 } from "./player-questionnaire";
@@ -118,6 +118,18 @@ async function givenPlayerWithNoItems(): Promise<{ personId: string; membershipI
   );
 
   return { personId, membershipId };
+}
+
+/** One onboarding item's own id, for the tests that drive an operator's resolution of it. */
+async function onboardingItemId(membershipId: string, code: string): Promise<string> {
+  const result = await observer.query<{ id: string }>(
+    `select i.id
+       from public.onboarding_items i
+       join public.onboarding_item_types t on t.id = i.item_type_id
+      where i.season_membership_id = $1::uuid and t.code = $2`,
+    [membershipId, code],
+  );
+  return result.rows[0].id;
 }
 
 async function itemStatus(membershipId: string, code: string): Promise<string> {
@@ -743,30 +755,6 @@ describe("agreeOnboardingDocument", () => {
   });
 });
 
-describe("splitTypedName — LAN-347's one Name box, two columns", () => {
-  it("reads the last word as the family name and everything before it as the given name", () => {
-    expect(splitTypedName("Jordan Michael Ashworth")).toEqual({
-      givenName: "Jordan Michael",
-      familyName: "Ashworth",
-    });
-  });
-
-  it("leaves the family name alone for a single word rather than blanking it", () => {
-    expect(splitTypedName("Lysander")).toEqual({ givenName: "Lysander", familyName: null });
-  });
-
-  it("is unbothered by the whitespace a form always carries", () => {
-    expect(splitTypedName("  Jordan   Ashworth  ")).toEqual({
-      givenName: "Jordan",
-      familyName: "Ashworth",
-    });
-  });
-
-  it("asks for nothing to be written when the box is empty", () => {
-    expect(splitTypedName("   ")).toEqual({ givenName: "", familyName: null });
-  });
-});
-
 describe("savePhotoRelease — the University's consent form, LAN-347", () => {
   /** Everything the form posts, all of it valid, overridable per test. */
   function submission(
@@ -778,35 +766,50 @@ describe("savePhotoRelease — the University's consent form, LAN-347", () => {
       personId,
       seasonId: openSeasonId,
       membershipId,
-      name: "",
+      name: "Jordan Ashworth",
       address: "12 Turl Street\nOxford",
       postcode: "OX1 3DH",
-      tel: "",
-      email: "",
+      tel: "07700 900000",
+      email: "jordan@example.com",
       printedName: "Jordan Ashworth",
       agreed: true,
       ...overrides,
     };
   }
 
-  async function personFacts(personId: string): Promise<{
-    address: string | null;
-    postcode: string | null;
-    given_name: string;
-    family_name: string | null;
-  }> {
-    const result = await observer.query<{
-      address: string | null;
-      postcode: string | null;
-      given_name: string;
-      family_name: string | null;
-    }>("select address, postcode, given_name, family_name from public.people where id = $1::uuid", [
-      personId,
-    ]);
+  /**
+   * Everything this person *is*, as the database holds it — decision 4's
+   * subject. The whole `people` row and every contact point, read through the
+   * observer and compared as one string, so the comparison is byte-for-byte
+   * rather than field-by-field: a column this test never heard of is caught
+   * too.
+   */
+  async function personState(personId: string): Promise<string> {
+    const person = await observer.query<{ row: unknown }>(
+      "select to_jsonb(p.*) as row from public.people p where p.id = $1::uuid",
+      [personId],
+    );
+    const contacts = await observer.query<{ row: unknown }>(
+      `select to_jsonb(c.*) as row from public.contact_points c
+        where c.person_id = $1::uuid order by c.id`,
+      [personId],
+    );
+    return JSON.stringify([person.rows[0]?.row, contacts.rows.map((r) => r.row)]);
+  }
+
+  /** The submitted form as the agreement row actually holds it. */
+  async function storedForm(personId: string): Promise<Record<string, unknown>> {
+    const result = await observer.query<Record<string, unknown>>(
+      `select printed_name, form_name, form_address, form_postcode, form_tel, form_email
+         from public.onboarding_agreements
+        where person_id = $1::uuid and agreement_type = 'photo_release'
+        order by agreed_at desc limit 1`,
+      [personId],
+    );
     return result.rows[0];
   }
 
-  it("saves the address and post code on the person record and records the agreement", async () => {
+  it("records the agreement and stores the whole form beside it", async () => {
     const { personId, membershipId } = await givenPlayer();
 
     const result = await savePhotoRelease(submission(personId, membershipId));
@@ -816,9 +819,73 @@ describe("savePhotoRelease — the University's consent form, LAN-347", () => {
     expect(result.agreement?.agreedAt).toBeInstanceOf(Date);
     expect(await itemStatus(membershipId, "photo_release")).toBe("complete");
 
-    const facts = await personFacts(personId);
-    expect(facts.address).toBe("12 Turl Street\nOxford");
-    expect(facts.postcode).toBe("OX1 3DH");
+    expect(await storedForm(personId)).toEqual({
+      printed_name: "Jordan Ashworth",
+      form_name: "Jordan Ashworth",
+      form_address: "12 Turl Street\nOxford",
+      form_postcode: "OX1 3DH",
+      form_tel: "07700 900000",
+      form_email: "jordan@example.com",
+    });
+  });
+
+  /**
+   * Decision 4, and the whole point of the rework: "nothing in this form should
+   * change anything else… it's just a record". The submission below carries a
+   * different name, a different phone and a different email from the record,
+   * and the record is identical afterwards, byte for byte.
+   */
+  it("leaves the person record byte-for-byte unchanged, whatever is typed", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    const before = await personState(personId);
+
+    const result = await savePhotoRelease(
+      submission(personId, membershipId, {
+        name: "Someone Else Entirely",
+        tel: "07700 900999",
+        email: "someone.else@example.com",
+      }),
+    );
+
+    expect(result.agreement).not.toBeNull();
+    expect(await personState(personId)).toBe(before);
+
+    // Nor by the side door: no person fact was audited as changed.
+    const audits = await observer.query(
+      `select action from public.audit_events
+        where entity_table in ('people', 'contact_points') and entity_id = $1::uuid`,
+      [personId],
+    );
+    expect(audits.rows).toEqual([]);
+
+    // What they typed is on the form, which is the only place it goes.
+    const form = await storedForm(personId);
+    expect(form.form_name).toBe("Someone Else Entirely");
+    expect(form.form_tel).toBe("07700 900999");
+    expect(form.form_email).toBe("someone.else@example.com");
+  });
+
+  it("stores a phone and an email of any shape, because nothing will ever send to them", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await savePhotoRelease(
+      submission(personId, membershipId, { tel: "398393", email: "not-an-email" }),
+    );
+
+    expect(result.errors).toEqual({});
+    const form = await storedForm(personId);
+    expect(form.form_tel).toBe("398393");
+    expect(form.form_email).toBe("not-an-email");
+  });
+
+  it("stores a box left blank as not given, rather than as a blank", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    await savePhotoRelease(submission(personId, membershipId, { tel: "", email: "   " }));
+
+    const form = await storedForm(personId);
+    expect(form.form_tel).toBeNull();
+    expect(form.form_email).toBeNull();
   });
 
   it("stores the address on the lines it was written on, without a browser's carriage returns", async () => {
@@ -829,39 +896,22 @@ describe("savePhotoRelease — the University's consent form, LAN-347", () => {
       submission(personId, membershipId, { address: "12 Turl Street\r\nOxford" }),
     );
 
-    expect((await personFacts(personId)).address).toBe("12 Turl Street\nOxford");
-  });
-
-  it("writes nothing for an address resubmitted unchanged", async () => {
-    const { personId, membershipId } = await givenPlayer();
-    await savePhotoRelease(submission(personId, membershipId));
-    // The step is agreed now, so the second call refuses the agreement — what
-    // is under test is that the unchanged address does not audit a change.
-    await savePhotoRelease(
-      submission(personId, membershipId, { address: "12 Turl Street\r\nOxford" }),
-    ).catch(() => undefined);
-
-    const audits = await observer.query(
-      `select 1 from public.audit_events
-        where entity_table = 'people' and entity_id = $1::uuid
-          and action = 'person_address_updated'`,
-      [personId],
-    );
-    expect(audits.rows).toHaveLength(1);
+    expect((await storedForm(personId)).form_address).toBe("12 Turl Street\nOxford");
   });
 
   it("refuses a blank address, and says which box is missing", async () => {
     const { personId, membershipId } = await givenPlayer();
+    const before = await personState(personId);
 
     const result = await savePhotoRelease(submission(personId, membershipId, { address: "  " }));
 
     expect(result.errors.address).toBe(ADDRESS_REQUIRED_MESSAGE);
     expect(result.agreement).toBeNull();
-    // Nothing is recorded: the step is still outstanding, and the person's
-    // address is still not on record.
+    // A refusal records nothing at all: the step is still outstanding, no
+    // agreement exists, and the person record never moved.
     expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
     expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
-    expect((await personFacts(personId)).address).toBeNull();
+    expect(await personState(personId)).toBe(before);
   });
 
   it("refuses a blank post code, and says which box is missing", async () => {
@@ -872,6 +922,7 @@ describe("savePhotoRelease — the University's consent form, LAN-347", () => {
     expect(result.errors.postcode).toBe(POSTCODE_REQUIRED_MESSAGE);
     expect(result.agreement).toBeNull();
     expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
   });
 
   it("refuses a blank printed name", async () => {
@@ -884,8 +935,9 @@ describe("savePhotoRelease — the University's consent form, LAN-347", () => {
     expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
   });
 
-  it("refuses an unticked form without losing what was typed", async () => {
+  it("refuses an unticked form and records nothing", async () => {
     const { personId, membershipId } = await givenPlayer();
+    const before = await personState(personId);
 
     const result = await savePhotoRelease(submission(personId, membershipId, { agreed: false }));
 
@@ -893,90 +945,48 @@ describe("savePhotoRelease — the University's consent form, LAN-347", () => {
     expect(result.errors).toEqual({});
     expect(result.agreement).toBeNull();
     expect(await itemStatus(membershipId, "photo_release")).toBe("pending");
-    // F1 (LAN-230): the address they typed is theirs whatever the tick did.
-    expect((await personFacts(personId)).postcode).toBe("OX1 3DH");
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+    expect(await personState(personId)).toBe(before);
   });
 
-  it("keeps the valid boxes of a refused submission (F1, LAN-230)", async () => {
-    const { personId, membershipId } = await givenPlayer();
+  it("starts empty, except for what the record already holds", async () => {
+    const { personId } = await givenPlayer();
 
-    const result = await savePhotoRelease(
-      submission(personId, membershipId, {
-        postcode: "",
-        tel: "07700 900123",
-      }),
-    );
+    const prefill = photoReleasePrefill(await readPersonRecord(personId), null);
 
-    expect(result.errors.postcode).toBe(POSTCODE_REQUIRED_MESSAGE);
-    // The address and the corrected phone number are saved; only the
-    // agreement is withheld.
-    expect((await personFacts(personId)).address).toBe("12 Turl Street\nOxford");
-    const phone = await observer.query<{ raw_value: string }>(
-      `select raw_value from public.contact_points
-        where person_id = $1::uuid and kind = 'phone' and valid_until is null`,
-      [personId],
-    );
-    expect(phone.rows[0]?.raw_value).toBe("07700 900123");
+    expect(prefill.address).toBe("");
+    expect(prefill.postcode).toBe("");
+    expect(prefill.printedName).toBe("");
   });
 
-  it("says what is wrong with a badly shaped phone or email, and writes neither", async () => {
-    const { personId, membershipId } = await givenPlayer();
-
-    const result = await savePhotoRelease(
-      submission(personId, membershipId, { tel: "398393", email: "not-an-email" }),
-    );
-
-    expect(result.errors.tel).toBe(PHONE_SHAPE);
-    expect(result.errors.email).toBe(EMAIL_SHAPE);
-    const contacts = await observer.query(
-      "select 1 from public.contact_points where person_id = $1::uuid",
-      [personId],
-    );
-    expect(contacts.rows).toHaveLength(0);
-  });
-
-  it("writes an edited name back to the record, split at the last space", async () => {
-    const { personId, membershipId } = await givenPlayer();
-    const before = await personFacts(personId);
-
-    await savePhotoRelease(
-      submission(personId, membershipId, { name: "Jordan Michael Ashworth-Blake" }),
-    );
-
-    const after = await personFacts(personId);
-    expect(after.given_name).toBe("Jordan Michael");
-    expect(after.family_name).toBe("Ashworth-Blake");
-    expect(after.given_name).not.toBe(before.given_name);
-  });
-
-  it("writes nothing for a name box that was not edited", async () => {
-    const { personId, membershipId } = await givenPlayer();
-    const before = await personFacts(personId);
-
-    await savePhotoRelease(
-      submission(personId, membershipId, {
-        name: `${before.given_name} ${before.family_name}`,
-      }),
-    );
-
-    const audits = await observer.query(
-      `select 1 from public.audit_events
-        where entity_table = 'people' and entity_id = $1::uuid
-          and action in ('person_given_name_updated', 'person_family_name_updated')`,
-      [personId],
-    );
-    expect(audits.rows).toHaveLength(0);
-  });
-
-  it("prefills from the record, so a reopened form shows the address it was given", async () => {
+  it("prefills a reopened form with the address and post code it was given (LAN-240)", async () => {
     const { personId, membershipId } = await givenPlayer();
     await savePhotoRelease(submission(personId, membershipId));
 
+    // The operator sets the item back off complete, which is LAN-240's reopen.
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: await onboardingItemId(membershipId, "photo_release"),
+      status: "pending",
+      reason: "Reopened so the player can agree again.",
+    });
+
+    // The document is outstanding again …
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+    // … and the form comes back as it was written, except the printed name.
     const record = await readPersonRecord(personId);
-    const prefill = photoReleasePrefill(record);
+    const previous = await readLastPhotoReleaseForm(personId, openSeasonId);
+    const prefill = photoReleasePrefill(record, previous);
     expect(prefill.address).toBe("12 Turl Street\nOxford");
     expect(prefill.postcode).toBe("OX1 3DH");
-    expect(prefill.printedName).toBe(record.displayName);
+    expect(prefill.printedName).toBe("");
+    // Name, tel and email are the record's, not the reopened form's.
+    expect(prefill.name).toBe(record.displayName);
+
+    // And it can genuinely be agreed again.
+    const again = await savePhotoRelease(submission(personId, membershipId));
+    expect(again.agreement).not.toBeNull();
   });
 
   it("puts the printed name and the date on the view the operator's record reads", async () => {

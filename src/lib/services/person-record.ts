@@ -87,11 +87,6 @@ export interface PersonRecord {
   studentNumberSource: string | null;
   bafaRegistrationNumber: string | null;
   bafaRegistrationNumberSource: string | null;
-  /** LAN-347. The postal address the University's consent form asks for — collected on the photo release step, correctable by an operator. */
-  address: string | null;
-  addressSource: string | null;
-  postcode: string | null;
-  postcodeSource: string | null;
   /** `REQ-restricted-fields`: four-role only, and never on a list, board or queue. */
   dateOfBirth: string | null;
   dateOfBirthSource: string | null;
@@ -138,8 +133,6 @@ interface PersonRow {
   degree_field: string | null;
   student_number: string | null;
   bafa_registration_number: string | null;
-  address: string | null;
-  postcode: string | null;
   date_of_birth: string | null;
   merged_into_person_id: string | null;
   display_alias: string | null;
@@ -156,7 +149,6 @@ async function readPersonRowIn(tx: Tx, personId: string): Promise<PersonRow> {
     `select p.id as person_id, p.given_name, p.family_name,
             p.college, p.matriculation_year, p.expected_graduation_year, p.degree_field,
             p.student_number, p.bafa_registration_number,
-            p.address, p.postcode,
             to_char(p.date_of_birth, 'YYYY-MM-DD') as date_of_birth,
             p.merged_into_person_id,
             ${personDisplayAliasSql("p")} as display_alias,
@@ -270,8 +262,6 @@ const DERIVED_PROVENANCE_FIELDS = [
   "degree_field",
   "student_number",
   "bafa_registration_number",
-  "address",
-  "postcode",
   "date_of_birth",
 ] as const;
 
@@ -375,10 +365,6 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
     studentNumberSource: fieldProvenance.student_number,
     bafaRegistrationNumber: row.bafa_registration_number,
     bafaRegistrationNumberSource: fieldProvenance.bafa_registration_number,
-    address: row.address,
-    addressSource: fieldProvenance.address,
-    postcode: row.postcode,
-    postcodeSource: fieldProvenance.postcode,
     dateOfBirth: row.date_of_birth,
     dateOfBirthSource: fieldProvenance.date_of_birth,
     emergencyContact,

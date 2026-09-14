@@ -25,9 +25,6 @@ export type PersonFieldUpdate =
   | { field: "student_number"; value: string | null }
   /** LAN-267: not questionnaire-only — a coach never sees the questionnaire, so this also has an operator edit. */
   | { field: "bafa_registration_number"; value: string | null }
-  /** LAN-347: the postal address the University's consent form asks for. Multi-line free text, never parsed. */
-  | { field: "address"; value: string | null }
-  | { field: "postcode"; value: string | null }
   | { field: "date_of_birth"; value: string | null };
 
 const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
@@ -39,8 +36,6 @@ const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> 
   degree_field: "the degree field",
   student_number: "the student number",
   bafa_registration_number: "the BAFA registration number",
-  address: "the address",
-  postcode: "the post code",
   date_of_birth: "date of birth",
 });
 
@@ -53,28 +48,11 @@ const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>>
   degree_field: "degree_field",
   student_number: "student_number",
   bafa_registration_number: "bafa_registration_number",
-  address: "address",
-  postcode: "postcode",
   date_of_birth: "date_of_birth",
 });
 
-/**
- * LAN-347. `address` is the only multi-line person field, and a browser posts a
- * textarea's newlines as CRLF — so a line break typed on the consent form would
- * be stored with a carriage return nothing ever wants to read back, and the
- * next unchanged submission would look like a change. Every caller that
- * compares a submitted address with the recorded one normalises through here
- * first; the write path below does it again for anything that does not.
- */
-export function normaliseAddressLines(value: string): string {
-  return value.replace(/\r\n?/g, "\n");
-}
-
 function normalisedFieldValue(update: PersonFieldUpdate): string | number | null {
   if (update.field === "given_name") return update.value.trim();
-  if (update.field === "address" && typeof update.value === "string") {
-    return optional(normaliseAddressLines(update.value));
-  }
   if (typeof update.value === "string") return optional(update.value);
   return update.value;
 }
