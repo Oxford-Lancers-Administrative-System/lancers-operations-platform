@@ -4,7 +4,7 @@ import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 import { recordOnboardingActivityIn } from "../onboarding-activity-log";
 import { PRINTED_NAME_REQUIRED_MESSAGE, type OnboardingAgreement } from "../onboarding-agreements";
 import { readPersonRecord, type PersonRecord } from "../person-record";
-import { supersedeContactPoint } from "../person-write";
+import { normaliseAddressLines, supersedeContactPoint } from "../person-write";
 import { applyDisputableFieldIn } from "./provenance";
 import { agreeOnboardingDocument } from "./later-steps";
 
@@ -117,7 +117,7 @@ export async function savePhotoRelease(input: PhotoReleaseInput): Promise<PhotoR
   const current = await readPersonRecord(input.personId);
   const errors: PhotoReleaseResult["errors"] = {};
 
-  const address = input.address.trim();
+  const address = normaliseAddressLines(input.address).trim();
   const postcode = input.postcode.trim();
   const printedName = input.printedName.trim();
   const tel = input.tel.trim();

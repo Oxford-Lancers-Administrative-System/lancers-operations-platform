@@ -6,6 +6,7 @@ import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   addPersonAlias,
+  normaliseAddressLines,
   removePersonAlias,
   setDisplayNamePersonAlias,
   supersedeContactPoint,
@@ -211,12 +212,13 @@ export async function submitPersonEdit(
     }
     // LAN-347: the postal address, corrected here the same way every other
     // person field is — a change needs a reason, a blank clears it.
-    if (values.address.trim() !== (current.address ?? "")) {
+    const address = normaliseAddressLines(values.address).trim();
+    if (address !== (current.address ?? "")) {
       await updatePersonField({
         actorPersonId: operator.personId,
         personId,
         field: "address",
-        value: values.address.trim() === "" ? null : values.address.trim(),
+        value: address === "" ? null : address,
         reason: values.addressReason || null,
         expectedVersion: nextExpectedVersion(),
       });

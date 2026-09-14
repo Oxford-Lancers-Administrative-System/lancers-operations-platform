@@ -821,6 +821,35 @@ describe("savePhotoRelease — the University's consent form, LAN-347", () => {
     expect(facts.postcode).toBe("OX1 3DH");
   });
 
+  it("stores the address on the lines it was written on, without a browser's carriage returns", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    // What a textarea actually posts.
+    await savePhotoRelease(
+      submission(personId, membershipId, { address: "12 Turl Street\r\nOxford" }),
+    );
+
+    expect((await personFacts(personId)).address).toBe("12 Turl Street\nOxford");
+  });
+
+  it("writes nothing for an address resubmitted unchanged", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await savePhotoRelease(submission(personId, membershipId));
+    // The step is agreed now, so the second call refuses the agreement — what
+    // is under test is that the unchanged address does not audit a change.
+    await savePhotoRelease(
+      submission(personId, membershipId, { address: "12 Turl Street\r\nOxford" }),
+    ).catch(() => undefined);
+
+    const audits = await observer.query(
+      `select 1 from public.audit_events
+        where entity_table = 'people' and entity_id = $1::uuid
+          and action = 'person_address_updated'`,
+      [personId],
+    );
+    expect(audits.rows).toHaveLength(1);
+  });
+
   it("refuses a blank address, and says which box is missing", async () => {
     const { personId, membershipId } = await givenPlayer();
 
