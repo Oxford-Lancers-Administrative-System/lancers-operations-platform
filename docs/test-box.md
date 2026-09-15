@@ -5,10 +5,57 @@ work. Open the separate testing panel to see what sends, to whom, at what time,
 and whether it was intercepted or actually sent. This panel never runs in the
 production application. LAN-263/286/287/288 remain separate application work.
 
+## Start here — the `whatsapp-test-box` branch
+
+This branch **is** the test box. It is `main` plus the apparatus commits and it
+never merges. When a session is told "start the test box", this section is the
+whole answer.
+
+**Refresh rule.** When `main` moves, `git merge origin/main` into this branch,
+run `npm run verify`, push. The apparatus touches no product file, so the merge
+is clean; if it ever conflicts, the conflict is a product change that must be
+dropped from this branch, never carried.
+
+**Private files live outside every worktree**, at
+`~/Documents/Lancers/lancers-test-box-runtime/`: the `.lancers-runtime/`
+contents (real tester numbers, panel state, the small-squad manifest, the ngrok
+binary, manual-audit notes) plus `env.test-box.local` (the Meta test-app
+credentials). They are never committed and never printed. Copy them in; do not
+recreate them.
+
+```bash
+cd ~/Documents/Lancers
+git -C lancers-operations-platform worktree add ../whatsapp-test-box whatsapp-test-box
+cd whatsapp-test-box
+cp -R ~/Documents/Lancers/lancers-test-box-runtime/ .lancers-runtime/
+cp ~/Documents/Lancers/lancers-test-box-runtime/env.test-box.local .env.test-box.local
+rm -f .lancers-runtime/env.test-box.local
+npm ci
+npm run db:acquire -- LAN-349
+npm run db:start -- --test-box
+npm run db:reset
+node scripts/test-box/configure.mjs --sink
+node scripts/test-box/import-submissions.mjs scripts/test-box/templates-test.json
+node scripts/test-box/app.mjs
+```
+
+Second terminal, same directory:
+
+```bash
+node scripts/test-box/panel-server.mjs
+```
+
+The panel address is in `.lancers-runtime/panel-runtime.json`; the app port is
+the leased one, printed on the app's first line. Everything after this point —
+Session A against the sink, the clock, Session B on real handsets through the
+tunnel — is the rest of this document. If the worktree already exists, skip the
+`worktree add` and the two copies.
+
 ## Base — LAN-349, 14 September 2026
 
-The box lives on `feat/lan-349-test-box`, rebuilt on current `main` (a0162877,
-LAN-348's `_v3` invitation). It is a reading copy and it never merges.
+The box lives on `whatsapp-test-box` (created from `feat/lan-349-test-box`,
+rebuilt on current `main` at a0162877, LAN-348's `_v3` invitation). It never
+merges; PR #179 is a reading copy of the diff.
 
 `feat/lan-222-test-box` is its ancestor and is now unmergeable: it is rooted at
 the LAN-222 checkpoint, and `git merge-tree` against `main` reports nine
