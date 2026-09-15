@@ -128,7 +128,7 @@ jobs:
       # Creates a docker-container driver builder. The default `docker` driver
       # cannot export a build cache, so `cache-to: type=gha` below fails without
       # this. The CI container job has always had it; the deploy job did not.
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
