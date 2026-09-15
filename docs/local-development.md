@@ -393,6 +393,16 @@ Run one project on its own with `npx vitest run --project database` or
 [0029](adr/0029-serialized-database-test-suites.md) records what it costs and
 what it bought.
 
+## The WhatsApp test box
+
+Real-message testing does not happen on `main`. It happens on the
+`whatsapp-test-box` branch: current `main` plus the test apparatus (the panel,
+the shared clock, the local sink, the `_test` template names), which never
+merges. Its `docs/test-box.md` opens with a "Start here" section that takes a
+fresh worktree to a running panel, and names where the private runtime files
+live on Brian's machine. When `main` moves, that branch merges `main` in; it
+never carries product code of its own.
+
 ## Building and running the production container locally
 
 The same image CI builds and Cloud Run runs. Worth doing before touching the
