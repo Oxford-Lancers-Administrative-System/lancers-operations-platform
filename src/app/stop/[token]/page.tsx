@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { PublicShell } from "@/components/public-shell";
 
 import { withTransaction } from "@/lib/db";
+import {
+  allowPlayerHomeRequest,
+  clientKeyFrom,
+  logThrottledPlayerHomeRequest,
+  withUniformTerminalTiming,
+} from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import { readSeasonLabelIn } from "@/lib/services/seasons";
 
@@ -21,12 +28,23 @@ interface PageProps {
   params: Promise<{ token: string }>;
 }
 
+/** Throttled and timing-padded exactly like `/onboarding` — the audit (LAN-352) found this and `/signup` were the two token doors without either brake. */
 async function resolveSeasonLabel(token: string): Promise<string | null> {
-  return withTransaction(async (tx) => {
-    const resolved = await resolvePersonTokenIn(tx, token, "messaging_stop");
-    if (resolved.state !== "valid" || !resolved.resolved) return null;
-    return (await readSeasonLabelIn(tx, resolved.resolved.seasonId)) ?? "this season";
-  });
+  return withUniformTerminalTiming<string | null>(
+    async () => {
+      const decision = allowPlayerHomeRequest(clientKeyFrom(await headers()), token);
+      if (!decision.allowed) {
+        logThrottledPlayerHomeRequest(decision.reason!);
+        return null;
+      }
+      return withTransaction(async (tx) => {
+        const resolved = await resolvePersonTokenIn(tx, token, "messaging_stop");
+        if (resolved.state !== "valid" || !resolved.resolved) return null;
+        return (await readSeasonLabelIn(tx, resolved.resolved.seasonId)) ?? "this season";
+      });
+    },
+    (label) => label === null,
+  );
 }
 
 export default async function StopMessagesPage({ params }: PageProps) {

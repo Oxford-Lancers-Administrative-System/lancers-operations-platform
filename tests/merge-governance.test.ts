@@ -50,7 +50,9 @@ describe("merge authority", () => {
     expect(triggers).toMatch(/^ {2}workflow_run:/m);
     expect(triggers).toMatch(/^ {2}workflow_dispatch:/m);
     expect(triggers).not.toMatch(/^ {2}pull_request:/m);
-    expect(workflow).toMatch(/uses: actions\/checkout@v\d+[\s\S]*?ref: main/);
+    // A tag or a commit SHA (LAN-352 pinned every action to a SHA); what
+    // matters here is that the checkout is of main.
+    expect(workflow).toMatch(/uses: actions\/checkout@(?:v\d+|[0-9a-f]{40})[\s\S]*?ref: main/);
     expect(workflow.match(/uses: actions\/checkout@/g)).toHaveLength(1);
     expect(workflow).toContain('git fetch --no-tags origin "pull/$PR/head:refs/merge/head"');
     expect(workflow).not.toMatch(/git (checkout refs\/merge|switch)/);

@@ -132,6 +132,17 @@ export interface SweepSummary {
  */
 export const SWEEP_BATCH_LIMIT = 50;
 
+/**
+ * How long one tick may spend dispatching before it stops claiming jobs.
+ *
+ * The count bounds the ordinary case; this bounds the unhealthy one. Fifty
+ * jobs against a provider that answers only at its fifteen-second deadline is
+ * twelve minutes, and the trigger behind this is a Cloud Run request with a
+ * sixty-second limit (LAN-352). Forty-five seconds leaves room to answer with
+ * the summary. Jobs not reached are still due on the next tick.
+ */
+export const SWEEP_BUDGET_MS = 45_000;
+
 export const SWEEP_ACTOR_LABEL = "system: messaging scheduler";
 
 // ---------------------------------------------------------------------------
@@ -744,8 +755,13 @@ export async function runMessagingSweep(
   let accepted = 0;
   let refused = 0;
   let skipped = 0;
+  const deadline = Date.now() + SWEEP_BUDGET_MS;
 
   for (const job of due) {
+    if (Date.now() >= deadline) {
+      skipped += 1;
+      continue;
+    }
     try {
       const outcome =
         job.jobType === "escalation"

@@ -253,6 +253,35 @@ describe("POST — the body is bounded before it is hashed", () => {
     expect(await callbackCount()).toBe(0);
   });
 
+  it("stops reading a chunked body the moment it passes the cap", async () => {
+    configured();
+    // No content-length at all, which is what a chunked upload looks like: the
+    // route must refuse from the bytes it has read, not after buffering them all.
+    const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+    let served = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        served += 1;
+        controller.enqueue(chunk);
+        if (served > 64) controller.close();
+      },
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/webhooks/whatsapp", {
+        method: "POST",
+        body,
+        duplex: "half",
+        headers: { "content-type": "application/json", "x-hub-signature-256": "sha256=00" },
+      } as RequestInit),
+    );
+
+    expect(response.status).toBe(413);
+    // Five chunks pass the 64 KiB cap; anything near sixty-five means it read to the end.
+    expect(served).toBeLessThan(8);
+    expect(await callbackCount()).toBe(0);
+  });
+
   it("refuses a body whose declared length is oversized", async () => {
     configured();
     const body = payload("declared");

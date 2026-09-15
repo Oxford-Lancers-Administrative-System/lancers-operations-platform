@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { PublicShell } from "@/components/public-shell";
 
 import { withTransaction } from "@/lib/db";
+import {
+  allowPlayerHomeRequest,
+  clientKeyFrom,
+  logThrottledPlayerHomeRequest,
+  withUniformTerminalTiming,
+} from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import { resolveRecruitmentGroupLink } from "@/lib/services/recruitment-config";
 import { readSignupPrefillIn, type SignupPrefill } from "@/lib/services/recruitment-signup";
@@ -36,17 +43,28 @@ interface Resolved {
   readonly prefill: SignupPrefill;
 }
 
+/** Throttled and timing-padded exactly like `/onboarding` — the audit (LAN-352) found this and `/stop` were the two token doors without either brake, and this one prefills a person's contact details. */
 async function resolve(token: string): Promise<Resolved | null> {
-  return withTransaction(async (tx) => {
-    const resolution = await resolvePersonTokenIn(tx, token, "recruit_signup");
-    if (resolution.state !== "valid" || !resolution.resolved) return null;
-    const prefill = await readSignupPrefillIn(tx, resolution.resolved.personId);
-    return {
-      personId: resolution.resolved.personId,
-      seasonId: resolution.resolved.seasonId,
-      prefill,
-    };
-  });
+  return withUniformTerminalTiming<Resolved | null>(
+    async () => {
+      const decision = allowPlayerHomeRequest(clientKeyFrom(await headers()), token);
+      if (!decision.allowed) {
+        logThrottledPlayerHomeRequest(decision.reason!);
+        return null;
+      }
+      return withTransaction(async (tx) => {
+        const resolution = await resolvePersonTokenIn(tx, token, "recruit_signup");
+        if (resolution.state !== "valid" || !resolution.resolved) return null;
+        const prefill = await readSignupPrefillIn(tx, resolution.resolved.personId);
+        return {
+          personId: resolution.resolved.personId,
+          seasonId: resolution.resolved.seasonId,
+          prefill,
+        };
+      });
+    },
+    (resolved) => resolved === null,
+  );
 }
 
 export default async function JoinWithTokenPage({ params }: PageProps) {

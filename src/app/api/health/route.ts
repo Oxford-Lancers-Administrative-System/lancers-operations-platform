@@ -10,18 +10,38 @@ import { getPool } from "@/lib/db";
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * How long one probe's answer stands. This is the one unauthenticated route
+ * that touches the database, and the pool behind it is five connections per
+ * instance (LAN-352). Ten seconds is still fresh for a deploy gate or an
+ * uptime check, and it means a burst of requests costs one query, not one
+ * connection each.
+ */
+export const PROBE_TTL_MS = 10_000;
+
+let probe: { readonly at: number; readonly compatible: boolean } | null = null;
+
+/** Test seam. Never called by the application. */
+export function resetHealthProbe(): void {
+  probe = null;
+}
+
+async function schemaIsCompatible(now: number): Promise<boolean> {
+  if (probe !== null && now - probe.at < PROBE_TTL_MS) return probe.compatible;
+  let compatible = false;
+  try {
+    await getPool().query("select id from public.events limit 1");
+    compatible = true;
+  } catch {
+    // Public endpoint: report the failed capability, never the error that explains it.
+  }
+  probe = { at: now, compatible };
+  return compatible;
+}
+
 export async function GET() {
   const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
-  let schemaCompatible = false;
-
-  if (databaseConfigured) {
-    try {
-      await getPool().query("select id from public.events limit 1");
-      schemaCompatible = true;
-    } catch {
-      // Public endpoint: report the failed capability, never the error that explains it.
-    }
-  }
+  const schemaCompatible = databaseConfigured ? await schemaIsCompatible(Date.now()) : false;
 
   const status = databaseConfigured && !schemaCompatible ? "error" : "ok";
 

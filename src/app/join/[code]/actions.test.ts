@@ -8,10 +8,18 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// The probe is throttled per address now (LAN-352); outside a request there is no address.
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 
 import type { Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
+import {
+  allowPlayerHomeRequest,
+  clientKeyFrom,
+  RATE_LIMIT_MAX_PER_HOME_LINK,
+  resetRsvpRateLimit,
+} from "@/lib/rsvp/public-surface";
 import { mintRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
 import { openObserver, seededIdentityCreatedAt } from "../../../../tests/helpers/service-layer";
 import { checkForExistingQrRecruit, submitQrSignup } from "./actions";
@@ -196,6 +204,41 @@ describe("checkForExistingQrRecruit", () => {
     const code = await mintCode();
     const result = await checkForExistingQrRecruit(code, MARKER, mobile);
     expect(result).toEqual({ found: true });
+  });
+});
+
+describe("checkForExistingQrRecruit — the probe is throttled (LAN-352, finding A5)", () => {
+  afterEach(() => {
+    resetRsvpRateLimit();
+  });
+
+  it("answers found: false once the address has used up its window, even with a real match on file", async () => {
+    const mobile = "07700900333";
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+    const code = await mintCode();
+
+    // Same key the action derives: the mocked request carries no headers, and
+    // the code is the link. Exhaust the per-link window without touching the
+    // database, then the very next probe must be refused as "not found".
+    const address = clientKeyFrom(new Headers());
+    for (let i = 0; i < RATE_LIMIT_MAX_PER_HOME_LINK; i += 1) {
+      expect(allowPlayerHomeRequest(address, code).allowed).toBe(true);
+    }
+    expect(allowPlayerHomeRequest(address, code).allowed).toBe(false);
+
+    expect(await checkForExistingQrRecruit(code, MARKER, mobile)).toEqual({ found: false });
+
+    // And the refusal is the limiter, not the data: a fresh window finds the match.
+    resetRsvpRateLimit();
+    expect(await checkForExistingQrRecruit(code, MARKER, mobile)).toEqual({ found: true });
   });
 });
 

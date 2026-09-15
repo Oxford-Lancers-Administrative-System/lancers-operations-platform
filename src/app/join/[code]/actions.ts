@@ -1,6 +1,13 @@
 "use server";
 
+import { headers } from "next/headers";
+
 import { isServiceError, withTransaction } from "@/lib/db";
+import {
+  allowPlayerHomeRequest,
+  clientKeyFrom,
+  logThrottledPlayerHomeRequest,
+} from "@/lib/rsvp/public-surface";
 import { findPersonMatchingGivenNameAndPhoneIn } from "@/lib/services/person-duplicate";
 import {
   probeExistingRecruitForQrSignup,
@@ -19,6 +26,15 @@ export async function checkForExistingQrRecruit(
   givenName: string,
   mobile: string,
 ): Promise<DuplicateCheckResult> {
+  // The boolean is small on purpose, but unthrottled it is still an oracle for
+  // "is this name on this number a recruit" (LAN-352). Same brake as every
+  // other public door; a throttled probe reads as "not found", which is the
+  // answer that changes nothing.
+  const decision = allowPlayerHomeRequest(clientKeyFrom(await headers()), code);
+  if (!decision.allowed) {
+    logThrottledPlayerHomeRequest(decision.reason!);
+    return { found: false };
+  }
   const resolved = await withTransaction((tx) => resolveRecruitmentSignupCodeIn(tx, code));
   if (resolved.state !== "valid") return { found: false };
   return probeExistingRecruitForQrSignup(givenName, mobile);
@@ -40,6 +56,9 @@ function toSubmission(values: SignupFieldValues & { consent: boolean }): SignupS
   };
 }
 
+const NOT_LIVE = "This code is no longer live. Refresh the page and try again.";
+const GENERIC_FAILURE = "That could not be saved. Try again.";
+
 /**
  * The QR door's one write. `code` is bound by the page before this reaches
  * the client — it never carries the code as its own form data.
@@ -53,11 +72,9 @@ export async function submitQrSignup(
   values: SignupFieldValues & { consent: boolean; confirmedExistingMatch: boolean },
 ): Promise<SignupOutcome> {
   try {
-    await withTransaction(async (tx) => {
+    const refusal = await withTransaction(async (tx) => {
       const resolved = await resolveRecruitmentSignupCodeIn(tx, code);
-      if (resolved.state !== "valid" || !resolved.seasonId) {
-        throw new Error("This code is no longer live. Refresh the page and try again.");
-      }
+      if (resolved.state !== "valid" || !resolved.seasonId) return NOT_LIVE;
       const linkExistingPersonId = values.confirmedExistingMatch
         ? ((await findPersonMatchingGivenNameAndPhoneIn(tx, values.givenName, values.mobile))
             ?.personId ?? null)
@@ -68,11 +85,15 @@ export async function submitQrSignup(
         submission: toSubmission(values),
         linkExistingPersonId,
       });
+      return null;
     });
-    return { ok: true };
+    return refusal === null ? { ok: true } : { ok: false, message: refusal };
   } catch (error) {
+    // A ServiceError's message is written for a person. Anything else is a
+    // defect, and its text belongs in the server log, never in an anonymous
+    // visitor's browser (LAN-352).
     if (isServiceError(error)) return { ok: false, message: error.message };
-    if (error instanceof Error) return { ok: false, message: error.message };
-    return { ok: false, message: "That could not be saved. Try again." };
+    console.error("[join] submitQrSignup failed", error);
+    return { ok: false, message: GENERIC_FAILURE };
   }
 }

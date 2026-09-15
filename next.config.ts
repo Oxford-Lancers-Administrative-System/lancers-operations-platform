@@ -1,6 +1,48 @@
 import type { NextConfig } from "next";
 
+/**
+ * The response headers every page and route carries (LAN-352).
+ *
+ * The production audit found the deployed service sending none of these:
+ * Firebase Hosting adds `Strict-Transport-Security`, and `src/proxy.ts` adds
+ * `Cache-Control`, `Referrer-Policy` and `X-Robots-Tag` to the private-link
+ * pages, but nothing stopped a page being framed, a response being sniffed, or
+ * the browser handing a camera or microphone to a page that never asked.
+ *
+ * Why here and not `src/proxy.ts`: the proxy sets the three headers Next
+ * itself rewrites on a dynamic render (`Cache-Control` above all), because a
+ * `headers()` entry loses that fight. These are not among the headers Next
+ * touches, so the config is the cheaper and more visible home, and it also
+ * covers the static assets and API routes the proxy never runs for.
+ *
+ * The Content-Security-Policy is deliberately the part that cannot break a
+ * page: it forbids framing, base-tag hijack, cross-site form posts and
+ * plugins, and says nothing about scripts or styles. A script policy needs a
+ * per-request nonce, which in Next lives in the proxy — an owner-gated file —
+ * and MUI's Emotion styles need `'unsafe-inline'` until a nonce reaches them
+ * too. That is a separate, deliberate change, not a header to add blind.
+ */
+export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+  },
+  {
+    key: "Content-Security-Policy",
+    value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+  },
+];
+
 const nextConfig: NextConfig = {
+  // `X-Powered-By: Next.js` names the framework to anyone who asks; nothing
+  // legitimate reads it.
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/(.*)", headers: [...SECURITY_HEADERS] }];
+  },
   // Emits .next/standalone with a minimal server and only the traced
   // node_modules. This is what the Cloud Run container ships.
   output: "standalone",
