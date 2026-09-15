@@ -51,6 +51,30 @@ export async function GET(request: Request): Promise<Response> {
   });
 }
 
+/**
+ * Reads the body and stops the moment it passes `limit` bytes, so an
+ * unauthenticated caller who omits or understates `content-length` cannot make
+ * this process buffer a body it was always going to refuse (LAN-352).
+ * `request.text()` would read all of it first and measure afterwards.
+ */
+async function readBodyUpTo(request: Request, limit: number): Promise<string | null> {
+  if (request.body === null) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export async function POST(request: Request): Promise<Response> {
   const webhook = resolveWebhookConfig();
   // A route that cannot verify must not accept: 503, not 200.
@@ -64,10 +88,8 @@ export async function POST(request: Request): Promise<Response> {
     return new NextResponse(null, { status: 413 });
   }
 
-  const raw = await request.text();
-  if (Buffer.byteLength(raw, "utf8") > MAX_CALLBACK_BYTES) {
-    return new NextResponse(null, { status: 413 });
-  }
+  const raw = await readBodyUpTo(request, MAX_CALLBACK_BYTES);
+  if (raw === null) return new NextResponse(null, { status: 413 });
 
   if (!verifyWebhookSignature(raw, request.headers.get("x-hub-signature-256"), webhook.config)) {
     return new NextResponse(null, { status: 403 });

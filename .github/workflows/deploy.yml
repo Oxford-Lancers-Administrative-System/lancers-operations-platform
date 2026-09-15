@@ -23,7 +23,41 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       configured: ${{ steps.check.outputs.configured }}
+    permissions:
+      contents: read
+      checks: read
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Require main and a green CI at the commit being deployed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          SHA: ${{ inputs.image_tag || github.sha }}
+        run: |
+          set -euo pipefail
+          # LAN-352. The dispatch form lets an operator pick any branch, and
+          # nothing else here asked whether the commit had ever passed CI.
+          # Production is built from main, and from a commit whose required
+          # checks — the same names branch protection holds a merge to, read
+          # from .github/merge-rules.json — are green. A rollback names an
+          # image tag, which is a commit SHA, and is held to the same bar.
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error title=Deploy refused::Deploys run from main only; this was dispatched from $REF."
+            exit 1
+          fi
+          CHECKS=$(gh api "repos/$REPO/commits/$SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | {name, conclusion}]')
+          jq -r '.requiredChecks[]' .github/merge-rules.json | while IFS= read -r NAME; do
+            GREEN=$(jq --arg n "$NAME" '[.[] | select(.name == $n and .conclusion == "success")] | length' <<< "$CHECKS")
+            if [ "$GREEN" = "0" ]; then
+              echo "::error title=Deploy refused::Required check \"$NAME\" is not green at $SHA."
+              exit 1
+            fi
+          done
+          echo "Deploying $SHA from main with every required check green." >> "$GITHUB_STEP_SUMMARY"
+
       - id: check
         env:
           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
@@ -73,7 +107,7 @@ jobs:
       WHATSAPP_TEMPLATE_LANGUAGE: ${{ vars.WHATSAPP_TEMPLATE_LANGUAGE || 'en' }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Resolve image tag
         id: tag
@@ -84,17 +118,17 @@ jobs:
           echo "image=${{ vars.GCP_REGION || 'europe-west2' }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO || 'lancers' }}/${{ vars.CLOUD_RUN_SERVICE || 'lancers-operations-platform' }}:$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to Google Cloud (OIDC / Workload Identity Federation)
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
       # Creates a docker-container driver builder. The default `docker` driver
       # cannot export a build cache, so `cache-to: type=gha` below fails without
       # this. The CI container job has always had it; the deploy job did not.
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
@@ -103,7 +137,7 @@ jobs:
         # Skipped on rollback: the tag already exists in Artifact Registry, and
         # rebuilding it would defeat the point of rolling back to a known image.
         if: inputs.image_tag == ''
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           push: true
@@ -117,7 +151,7 @@ jobs:
 
       - name: Deploy to Cloud Run
         id: deploy
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@251330ba9a8a34bfbc1622895f42e1d53fd14522 # v2.7.6
         with:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}

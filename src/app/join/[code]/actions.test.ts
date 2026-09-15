@@ -8,6 +8,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// The probe is throttled per address now (LAN-352); outside a request there is no address.
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 
 import type { Client } from "pg";
 

@@ -72,7 +72,7 @@ jobs:
 
     steps:
       - name: Check out the base branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Deliberately the base branch and never the pull request's head.
           # The rules and the gate that decide this must be the reviewed,
@@ -207,7 +207,7 @@ jobs:
 
       - name: Record the verdict
         if: always() && steps.resolve.outputs.found == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: merge-verdict
           path: merge-verdict.json

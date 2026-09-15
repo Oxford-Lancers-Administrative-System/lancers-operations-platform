@@ -21,7 +21,7 @@ vi.mock("@/lib/db", () => ({
   getPool: () => ({ query }),
 }));
 
-import { GET } from "./route";
+import { GET, resetHealthProbe, PROBE_TTL_MS } from "./route";
 
 const saved = new Map<string, string | undefined>();
 
@@ -42,6 +42,7 @@ afterEach(() => {
 beforeEach(() => {
   query.mockReset();
   query.mockResolvedValue({ rows: [] });
+  resetHealthProbe();
 });
 
 async function body(): Promise<Record<string, unknown>> {
@@ -155,5 +156,24 @@ describe("schemaCompatible", () => {
     expect(serialised).not.toContain("secret-value");
     expect(serialised).not.toContain("private-db.example");
     expect(serialised).not.toContain("6543");
+  });
+});
+
+describe("the probe is shared across a burst", () => {
+  it("runs one query for many requests inside the TTL, then probes again", async () => {
+    process.env.DATABASE_URL = "postgresql://app:pw@127.0.0.1:5432/app";
+    vi.useFakeTimers();
+    try {
+      await GET();
+      await GET();
+      await GET();
+      expect(query).toHaveBeenCalledOnce();
+
+      vi.advanceTimersByTime(PROBE_TTL_MS);
+      await GET();
+      expect(query).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
