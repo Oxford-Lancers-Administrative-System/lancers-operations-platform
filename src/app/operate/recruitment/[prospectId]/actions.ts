@@ -5,14 +5,20 @@ import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   addRecruitmentProspectNote,
+  recordRecruitConsent,
   sendRecruitmentQuestionnaire,
+  stopRecruitMessages,
 } from "@/lib/services/recruitment-prospect";
+import type { ConsentWithdrawalReason } from "@/lib/services/messaging-consent";
 import type { RecruitmentQuestionnaireTrack } from "@/lib/services/recruitment-prospect";
 import type { RecruitmentActionState } from "../action-state";
 
 function refresh(prospectId: string): void {
   revalidatePath(`/operate/recruitment/${prospectId}`);
   revalidatePath("/operate/recruitment");
+  // LAN-371: the same two consent controls are on the person record, which is
+  // a different route and would otherwise keep serving the old status.
+  revalidatePath("/operate/people/[personId]", "page");
 }
 
 function stateFor(error: unknown): RecruitmentActionState {
@@ -64,4 +70,44 @@ export async function sendRecruitmentQuestionnaireAction(params: {
   } catch (error) {
     return { ...stateFor(error), created: [], reason: null };
   }
+}
+
+/**
+ * **Stop messages** — LAN-371, Brian 2026-09-16. Withdraws this season's
+ * consent for this recruit, with a required reason, and cancels everything
+ * still queued for them rather than leaving each send to be refused one at a
+ * time. `person_record_authority` is the same capability that edits the
+ * recruit, which is what the issue asks for.
+ */
+export async function stopMessagesAction(params: {
+  prospectId: string;
+  listedReason: ConsentWithdrawalReason;
+  note: string;
+}): Promise<RecruitmentActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await stopRecruitMessages(operator.personId, params.prospectId, {
+      listedReason: params.listedReason,
+      note: params.note,
+    });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh(params.prospectId);
+  return { error: null };
+}
+
+/** **Record consent** — the reverse, with a note of how consent was given. */
+export async function recordConsentAction(params: {
+  prospectId: string;
+  note: string;
+}): Promise<RecruitmentActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await recordRecruitConsent(operator.personId, params.prospectId, params.note);
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh(params.prospectId);
+  return { error: null };
 }

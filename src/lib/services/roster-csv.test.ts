@@ -18,7 +18,16 @@ import {
   refuseOversizedRosterFile,
 } from "./roster-csv";
 
+/**
+ * The header these row tests write. Deliberately without `middle_name`: that
+ * column is optional (LAN-366) and a file omitting it entirely is both the
+ * ordinary case and every club spreadsheet that already exists.
+ */
 const HEADER = "first_name,last_name,mobile,personal_email,college,matriculation_year";
+
+/** What the downloadable template offers, which does name every column. */
+const TEMPLATE_HEADER =
+  "first_name,middle_name,last_name,mobile,personal_email,college,matriculation_year";
 
 function csv(...rows: string[]): string {
   return [HEADER, ...rows].join("\r\n") + "\r\n";
@@ -26,7 +35,7 @@ function csv(...rows: string[]): string {
 
 describe("importTemplateCsv", () => {
   it("is the header row and nothing else", () => {
-    expect(importTemplateCsv()).toBe(HEADER + "\r\n");
+    expect(importTemplateCsv()).toBe(TEMPLATE_HEADER + "\r\n");
   });
 });
 

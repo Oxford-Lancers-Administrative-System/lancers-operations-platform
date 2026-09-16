@@ -114,6 +114,27 @@ on the event's **Delivery** screen that the tile moves from Queued to
 Delivered within the next scheduler tick (up to five minutes) and that the
 message actually arrives on the recipient's phone.
 
+## 6b. Turn on Meta's Require app secret — LAN-360
+
+**Order matters, and this is why this step is here and not earlier.** Meta's
+**Require app secret** setting makes the Graph API reject any call carrying an
+access token without a matching `appsecret_proof`. The application sends that
+proof on every outbound call as of LAN-360, and it is accepted and ignored
+while the setting is off — so the code goes first, item 6 proves a real message
+still arrives with the proof being sent, and only then is the setting turned
+on.
+
+1. Meta developer console → the club's WhatsApp Business app → **Settings →
+   Advanced**.
+2. Turn **Require app secret** on.
+3. Send one more real message the way item 6 did, and confirm it arrives.
+
+If it does not, turn the setting back off: an unsigned call fails at Meta with
+a `190`-class error, which the Delivery screen reports as the club's provider
+credential having been rejected. The same failure appears if
+`WHATSAPP_APP_SECRET` is absent from the running revision — but in that case
+nothing is sent at all, because the sender refuses before the request is built.
+
 ## 7. Confirm no local-only override reached production
 
 None of these should be set as a Cloud Run environment variable on the

@@ -227,13 +227,21 @@ Manager is no longer the only account of what the club sends.
 `src/lib/delivery/templates.ts`, so the record and the sender cannot drift
 apart without a test failing.
 
-Eleven of the fourteen carry URL buttons — three carry a Yes/No pair, eight
+LAN-367 added a fifteenth, `lancers_event_question_change_v1` — the only one
+not carrying a `_v2` suffix, because it has never been submitted under any
+other name and there is no Marketing original to replace. **It is drafted, not
+approved:** the name is registered here and in the code so nothing has to be
+assembled at runtime, and the code reads the name back from configuration
+exactly as it does for every other template. Until Brian submits it and Meta
+accepts it, a send against it is refused with `132001`.
+
+Twelve of the fifteen carry URL buttons — three carry a Yes/No pair, nine
 carry one — and each button's base names its own destination:
 
 | Template                                        | Base                |
 | ----------------------------------------------- | ------------------- |
 | invitation, reminder, recruit event follow-up   | `/a/yes/`, `/a/no/` |
-| nudge                                           | `/questions/`       |
+| nudge, question change notice                   | `/questions/`       |
 | change notice                                   | `/rsvp/`            |
 | recruit welcome, recruit details reminder       | `/signup/`          |
 | recruit interest ask, recruit interest reminder | `/background/`      |

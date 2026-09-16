@@ -123,6 +123,8 @@ function personRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     personId: PERSON_ID,
     givenName: "Jordan",
     givenNameSource: null,
+    middleName: null,
+    middleNameSource: null,
     familyName: "Ashworth",
     familyNameSource: null,
     aliases: [],
@@ -171,6 +173,7 @@ function view(overrides: Partial<QuestionnaireView> = {}): QuestionnaireView {
     openDisputedFields: new Set(),
     fieldSuppliedBy: {
       given_name: null,
+      middle_name: null,
       family_name: null,
       college: null,
       matriculation_year: null,
@@ -366,6 +369,7 @@ describe("F4 — provenance reflects who actually supplied each value", () => {
         person: personRecord({ givenNameSource: "Caspian Hallowfield" }),
         fieldSuppliedBy: {
           given_name: "club",
+          middle_name: null,
           family_name: null,
           college: null,
           matriculation_year: null,
@@ -390,6 +394,7 @@ describe("F4 — provenance reflects who actually supplied each value", () => {
         person: personRecord({ collegeSource: "Jordan Ashworth" }),
         fieldSuppliedBy: {
           given_name: null,
+          middle_name: null,
           family_name: null,
           college: null,
           matriculation_year: null,
@@ -409,6 +414,7 @@ describe("F4 — provenance reflects who actually supplied each value", () => {
         person: personRecord({ collegeSource: "Jordan Ashworth" }),
         fieldSuppliedBy: {
           given_name: null,
+          middle_name: null,
           family_name: null,
           college: "you",
           matriculation_year: null,
@@ -433,6 +439,7 @@ describe("F4 — provenance reflects who actually supplied each value", () => {
         person: personRecord({ givenNameSource: "Caspian Hallowfield", collegeSource: "Jordan" }),
         fieldSuppliedBy: {
           given_name: "club",
+          middle_name: null,
           family_name: null,
           college: "you",
           matriculation_year: null,

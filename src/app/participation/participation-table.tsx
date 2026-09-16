@@ -98,10 +98,14 @@ function AnswerCell({
   person: ParticipationPerson;
   questions: readonly ParticipationQuestion[];
 }) {
-  const invitationId = operator
-    ? ((person as OperatorParticipationPerson).invitationId ?? null)
-    : null;
-  const offerRecording = operator && person.answer === null && !person.isWalkUp && invitationId;
+  const operatorPerson = operator ? (person as OperatorParticipationPerson) : null;
+  const invitationId = operatorPerson?.invitationId ?? null;
+  // LAN-376. `person.answer === null` used to be a condition of offering the
+  // control at all, because the service refused an operator recording over a
+  // player's own answer. Brian reversed that on 2026-09-16: the last recorded
+  // answer wins whoever recorded it, so an answered row is offered the same
+  // control — wearing its own answer chip, never stacked beside one.
+  const offerRecording = operator && !person.isWalkUp && invitationId;
 
   if (offerRecording) {
     return (
@@ -109,6 +113,11 @@ function AnswerCell({
         event={event}
         invitationId={invitationId}
         displayName={person.displayName}
+        current={
+          person.answer === null
+            ? null
+            : { answer: person.answer, answeredAt: operatorPerson?.answeredAt ?? null }
+        }
         // LAN-339: only the questions this invitation's capacity is ever asked —
         // a recruit is asked Yes or No and nothing more, so the dialog offers an
         // operator nothing to record on their behalf either.

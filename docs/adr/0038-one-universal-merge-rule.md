@@ -1,10 +1,36 @@
 # 0038 — One universal merge rule: draft is the readiness gate
 
-**Status:** Accepted · **Date:** 2026-09-01 · **Supersedes:**
-[0017](0017-batched-fast-lane.md) · **Amends:**
+**Status:** Accepted · **Date:** 2026-09-01 · **Amended 2026-09-15** ·
+**Supersedes:** [0017](0017-batched-fast-lane.md) · **Amends:**
 [0027](0027-mission-harness.md), [0033](0033-harness-after-the-first-live-mission.md)
 
 Approved by Brian through LAN-209.
+
+## Amended 2026-09-15 — auto-merge is pinned to the scanned head
+
+This decision dropped `--match-head-commit` from the auto-merge call
+deliberately, and the reason it dropped it is unchanged. What it did not
+discuss is a push that lands **after** the draft lifts.
+
+GitHub's auto-merge tracks the pull request, not the commit. Armed against a
+head whose diff this workflow scanned and found clean, it stays armed over
+every later head — and if that later head touches a prohibited path, the
+workflow posts its comment and disarms nothing, so a green CI run merges it.
+The consequence below — "there is no re-draft-on-push machinery, deliberately"
+— is what leaves the window open: a commit landing after the lift means the
+process was run wrong, and this is what happens when it is.
+
+Brian, 2026-09-15: pin it. `merge.yml` now passes
+`--match-head-commit "$HEAD_SHA"`, the same head the diff scan read, and
+`tests/merge-governance.test.ts` requires the flag rather than forbidding it.
+No `--disable-auto` step is added: disarming is not this workflow's job, and a
+pin that GitHub itself enforces is one fewer thing for the club to run.
+
+**What GitHub does on a mismatch is to be observed on first real use.** Its
+documentation does not say whether the flag drops auto-merge outright or
+leaves it enabled and inert against the newer head. Either is an improvement on
+merging the wrong diff, and neither is asserted anywhere in this repository
+until somebody has watched it happen.
 
 ## Context
 

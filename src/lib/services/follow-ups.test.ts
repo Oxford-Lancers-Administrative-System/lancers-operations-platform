@@ -46,6 +46,8 @@ const CONFIGURED_WITH_EMAIL = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
+  // LAN-360: the outbound path signs every Graph call with a proof derived from it.
+  WHATSAPP_APP_SECRET: "not-a-real-app-secret",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",

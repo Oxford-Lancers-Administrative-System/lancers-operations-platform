@@ -25,16 +25,13 @@ import {
   IdentitySection,
   recordedMobile,
 } from "@/app/operate/people/[personId]/identity-contact-sections";
-import {
-  AcademicSection,
-  RestrictedSection,
-} from "@/app/operate/people/[personId]/academic-restricted-sections";
+import { RestrictedSection } from "@/app/operate/people/[personId]/academic-restricted-sections";
 import StatusSection from "@/app/operate/people/[personId]/status-section";
 import SeasonsSection from "@/app/operate/people/[personId]/seasons-section";
 import HistorySection from "@/app/operate/people/[personId]/history-section";
 import {
   ATTENDANCE_LABEL,
-  CONSENT_LABELS,
+  consentStatusLabel,
   PROSPECT_STATUS_LABELS,
   RSVP_LABEL,
 } from "@/lib/services/recruitment-vocabulary";
@@ -45,6 +42,7 @@ import { Section } from "@/components/section";
 import { formatDay, formatWhen } from "../../roster/presentation";
 import NotesCard from "./notes-card";
 import SendQuestionnaireButton from "./send-questionnaire-button";
+import ConsentControl from "./consent-control";
 import QueuedSendTime from "./queued-send-time";
 import StatusCell from "../status-cell";
 
@@ -83,6 +81,13 @@ export default function RecruitmentRecordView({
 }) {
   // LAN-204 item 9: the consent deadlock, fixed — personal and recruitment
   // sends no longer share one gate. See `sendRecruitmentQuestionnaireIn`.
+  // LAN-371: "WhatsApp granted", "Revoked (by operator, date)" or "Revoked (by
+  // the person, date)" — the same sentence on the record and on the board.
+  const consentStatus = consentStatusLabel(record.consent, {
+    byOperator: record.consentByOperator,
+    changedAt: record.consentChangedAt,
+  });
+
   const blockedByStatus = record.status === "declined";
   const blockedByRefusal = record.consent === "refused" || record.consent === "withdrawn";
   const grantedViaSignupForm =
@@ -167,6 +172,18 @@ export default function RecruitmentRecordView({
                   Joined — view on the roster
                 </Button>
               ) : null}
+              {/*
+                LAN-371. A recruit who wants out and cannot make it happen may
+                complain to WhatsApp, which risks the club's sending account,
+                and Meta classified a text "press X to stop" as marketing — so
+                the mechanism is this control. The reverse is the same control
+                when consent is not standing.
+              */}
+              <ConsentControl
+                prospectId={record.prospectId}
+                displayName={record.displayName}
+                granted={record.consent === "granted"}
+              />
             </>
           }
         />
@@ -182,7 +199,7 @@ export default function RecruitmentRecordView({
             }
             label="Recruit status"
           />
-          <Metric value={CONSENT_LABELS[record.consent]} label="WhatsApp consent" />
+          <Metric value={consentStatus} label="WhatsApp consent" />
           <Metric
             value={
               record.personal.lastSentAt
@@ -244,11 +261,13 @@ export default function RecruitmentRecordView({
             </Box>
           </Section>
 
-          <IdentitySection record={person} />
+          {/* LAN-365 correction: "Who they are" (which now also carries the
+              academic facts and the two identifiers) renders after "How to
+              reach them", the same order the canonical person record uses. */}
           {person.contacts !== undefined ? (
             <ContactSection record={person} currentSeasonLabel={currentSeasonLabel} />
           ) : null}
-          {person.college !== undefined ? <AcademicSection record={person} /> : null}
+          <IdentitySection record={person} />
           {person.dateOfBirth !== undefined ? <RestrictedSection record={person} /> : null}
           {person.status !== undefined ? (
             <StatusSection record={person} roles={roles} alumniLabel={alumniLabel} />
@@ -272,7 +291,7 @@ export default function RecruitmentRecordView({
               value={record.committedOn ? formatDay(record.committedOn) : null}
               readOnly
             />
-            <RecordField label="WhatsApp consent" value={CONSENT_LABELS[record.consent]} readOnly />
+            <RecordField label="WhatsApp consent" value={consentStatus} readOnly />
             <RecordField
               label="Played before"
               value={record.answers.playedBefore ? RSVP_LABEL[record.answers.playedBefore] : null}

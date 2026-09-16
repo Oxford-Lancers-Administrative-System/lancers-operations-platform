@@ -47,6 +47,9 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
         answers.playedBefore === null
           ? null
           : { text: null, boolean: answers.playedBefore === "yes", choice: null },
+      // Recruitment's own questionnaire never supersedes an answer — LAN-367's
+      // re-ask is an event-question mechanism, not this one.
+      wasChanged: false,
     },
     {
       id: "B2",
@@ -58,6 +61,7 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
         answers.watchedBefore === null
           ? null
           : { text: null, boolean: answers.watchedBefore === "yes", choice: null },
+      wasChanged: false,
     },
     {
       id: "B5",
@@ -69,6 +73,7 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
         answers.howTheyHeard === null
           ? null
           : { text: null, boolean: null, choice: answers.howTheyHeard },
+      wasChanged: false,
     },
     {
       id: "B6",
@@ -80,6 +85,7 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
         answers.anythingElse === null
           ? null
           : { text: answers.anythingElse, boolean: null, choice: null },
+      wasChanged: false,
     },
   ];
 }

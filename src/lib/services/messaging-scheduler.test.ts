@@ -33,6 +33,7 @@ import {
   EMAIL_FALLBACK_SUFFIX,
   readEventDeliveryDiagnostics,
 } from "./delivery";
+import { updateEventQuestions } from "./events";
 import {
   currentPresidentIn,
   dispatchEscalationJob,
@@ -78,6 +79,8 @@ const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
+  // LAN-360: the outbound path signs every Graph call with a proof derived from it.
+  WHATSAPP_APP_SECRET: "not-a-real-app-secret",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
@@ -251,6 +254,13 @@ afterEach(async () => {
     MARKER,
   ]);
   await observer.query(`delete from public.rsvp_responses where invitation_id in ${invitations}`, [
+    scope,
+  ]);
+  // LAN-367's question-change fixture answers a question before changing it,
+  // and the answer points at both the invitation and the event; it has to go
+  // before the invitation does, the same ordering event-questions.test.ts
+  // already keeps for the identical reason.
+  await observer.query(`delete from public.question_responses where event_id in ${events}`, [
     scope,
   ]);
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
@@ -1909,5 +1919,193 @@ describe("OWNER-LAN173-03 -- the schedule-change notice's ordinary dispatch", ()
     const job = await jobRow(target.jobId);
     expect(job.status).toBe("pending");
     expect(job.attempt_count).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-367 -- the question-change re-ask reaches the sweep
+// ---------------------------------------------------------------------------
+
+interface QuestionChangeFixture {
+  eventId: string;
+  invitationId: string;
+  questionId: string;
+}
+
+/**
+ * An approved event with one invitee, one question already answered — built
+ * directly, the same way `noticeFixture` is, because this suite is proving
+ * what the sweep does with a `question_change_notice` job once it exists, not
+ * exercising `approveEvent`/`saveEventAudience` again.
+ *
+ * `updateEventQuestions` itself is real, though (called from the test body,
+ * not this fixture): it is the one thing this finding is about, and a
+ * database-only `notification_jobs` insert — the way `noticeFixture` seeds
+ * `cancellation_notice`/`schedule_change_notice` — would prove the sweep can
+ * dispatch the job type without proving `declareQuestionReAskIn` is ever
+ * actually reached from the real edit path.
+ */
+async function questionChangeFixture(): Promise<QuestionChangeFixture> {
+  await observer.query("begin");
+  try {
+    const person = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name, created_at)
+       values ($1, 'Invitee', now() + interval '100 years') returning id`,
+      [MARKER],
+    );
+    const personId = person.rows[0].id;
+
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+       values ($1, 'phone', $2, true)`,
+      [personId, PHONE],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, normalised_value)
+       values ($1, 'email', $2, $2)`,
+      [personId, EMAIL],
+    );
+
+    const membership = await observer.query<{ id: string }>(
+      `insert into public.season_memberships
+         (person_id, season_id, status, entry, confirmed_on, activated_on)
+       values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
+      [personId, seasonId],
+    );
+
+    const event = await observer.query<{ id: string }>(
+      `with target as (select (now() + interval '72 hours') at time zone 'Europe/London' as local)
+       insert into public.events
+         (season_id, name, event_type, status, scheduled_on, starts_at,
+          response_deadline_at,
+          audience_confirmed_at, audience_confirmed_by_person_id,
+          approved_at, approved_by_person_id, template_id)
+       select $1, $2, 'practice', 'approved',
+              (select local::date from target), (select local::time from target),
+              now() + interval '24 hours', now(), $3, now(), $3,
+          (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       returning id`,
+      [seasonId, `${MARKER} question ${fixtureTag()}`, personId],
+    );
+    const eventId = event.rows[0].id;
+
+    const question = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required, sort_order)
+       values ($1, $2, 'text'::public.question_answer_type, false, 0) returning id`,
+      [eventId, "Can you get yourself to the ground?"],
+    );
+    const questionId = question.rows[0].id;
+
+    const audience = await observer.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, 'player', $3, $4, $4) returning id`,
+      [eventId, seasonId, membership.rows[0].id, personId],
+    );
+
+    const invitation = await observer.query<{ id: string }>(
+      `insert into public.invitations
+         (event_id, event_status, season_id, capacity, season_membership_id,
+          status, expires_at, audience_member_id)
+       values ($1, 'approved', $2, 'player', $3, 'pending', now() + interval '24 hours', $4)
+       returning id`,
+      [eventId, seasonId, membership.rows[0].id, audience.rows[0].id],
+    );
+    const invitationId = invitation.rows[0].id;
+
+    // The answer this event's re-ask has to void and re-ask about.
+    await observer.query(
+      `insert into public.question_responses
+         (invitation_id, event_id, event_question_id, answer_text)
+       values ($1, $2, $3, 'Yes, I will drive myself')`,
+      [invitationId, eventId, questionId],
+    );
+
+    await observer.query("commit");
+    return { eventId, invitationId, questionId };
+  } catch (error) {
+    await observer.query("rollback");
+    throw error;
+  }
+}
+
+describe("LAN-367 -- the sweep claims a question-change re-ask (B1's correction)", () => {
+  it("dispatches the question_change_notice job through the ordinary sweep, naming the changed question", async () => {
+    const target = await questionChangeFixture();
+    const changedPrompt = "Do you need a lift there and back?";
+
+    // The real edit path -- this is what `declareQuestionReAskIn` is reached
+    // from in production, not a direct `notification_jobs` insert.
+    await updateEventQuestions(anchorPersonId, target.eventId, [
+      {
+        id: target.questionId,
+        prompt: changedPrompt,
+        answerType: "text",
+        isRequired: false,
+        choices: null,
+        fromTemplate: false,
+      },
+    ]);
+
+    // Before the sweep runs at all: the job exists, pending, untouched --
+    // B1's own reproduction of the defect, kept here as the pre-condition a
+    // regression would have to break to reintroduce it.
+    const declared = await observer.query<{ status: string; attempt_count: number }>(
+      `select status::text as status, attempt_count from public.notification_jobs
+        where event_id = $1 and job_type = 'question_change_notice'`,
+      [target.eventId],
+    );
+    expect(declared.rows).toHaveLength(1);
+    expect(declared.rows[0].status).toBe("pending");
+    expect(declared.rows[0].attempt_count).toBe(0);
+
+    // LAN-181, F-W1's own crowd-out guard, applied here the same way
+    // `noticeFixture` avoids it: `declareQuestionReAskIn` leaves
+    // `scheduled_for` null, which `readDueJobs` falls back to `created_at`
+    // for -- "just now", the least overdue row in a batch that also carries
+    // the seeded database's genuinely due ambient ladder. This job carries no
+    // `invitationOffsetHours` knob of its own, so its `scheduled_for` is
+    // pushed back directly, exactly as overdue as `EXTREME_OVERDUE_HOURS`
+    // makes every other fixture in this file, so it always sorts first
+    // within the unmodified `SWEEP_BATCH_LIMIT`.
+    await observer.query(
+      `update public.notification_jobs
+          set scheduled_for = now() + ($2 || ' hours')::interval
+        where event_id = $1 and job_type = 'question_change_notice'`,
+      [target.eventId, String(EXTREME_OVERDUE_HOURS)],
+    );
+
+    const { sent, transport } = acceptingTransport();
+    const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(summary.accepted).toBeGreaterThanOrEqual(1);
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+
+    // One message per affected person -- this fixture has exactly one -- and
+    // it names the changed question, not a generic notice.
+    const bodies = sent.map((request) => JSON.stringify(request.body));
+    const matching = bodies.filter((body) => body.includes(changedPrompt));
+    expect(matching).toHaveLength(1);
+
+    const claimed = await observer.query<{ status: string; attempt_count: number }>(
+      `select status::text as status, attempt_count from public.notification_jobs
+        where event_id = $1 and job_type = 'question_change_notice'`,
+      [target.eventId],
+    );
+    expect(claimed.rows[0].attempt_count).toBe(1);
+    // `readDueJobs` never selected this job type before B1's correction, so
+    // it stayed `pending` forever; claimed and dispatched, it reaches the
+    // same terminal state the ordinary schedule-change notice does.
+    expect(claimed.rows[0].status).not.toBe("pending");
+
+    // The answer the change voided is a real row that still says what the
+    // invitee told the club, just no longer live -- proves this test's own
+    // fixture, not the sweep.
+    const answer = await observer.query<{ superseded_at: Date | null }>(
+      `select superseded_at from public.question_responses
+        where invitation_id = $1 and answer_text = 'Yes, I will drive myself'`,
+      [target.invitationId],
+    );
+    expect(answer.rows[0].superseded_at).not.toBeNull();
   });
 });

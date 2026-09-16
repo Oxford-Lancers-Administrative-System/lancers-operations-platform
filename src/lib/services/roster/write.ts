@@ -197,10 +197,10 @@ async function refuseExistingMembership(
 
 async function insertPerson(tx: Tx, input: NormalisedInput): Promise<string> {
   const result = await tx.query<{ id: string }>(
-    `insert into public.people (given_name, family_name, college, matriculation_year)
-     values ($1, $2, $3, $4)
+    `insert into public.people (given_name, middle_name, family_name, college, matriculation_year)
+     values ($1, $2, $3, $4, $5)
      returning id`,
-    [input.givenName, input.familyName, input.college, input.matriculationYear],
+    [input.givenName, input.middleName, input.familyName, input.college, input.matriculationYear],
   );
   return result.rows[0].id;
 }

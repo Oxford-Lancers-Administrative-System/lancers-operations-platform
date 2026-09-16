@@ -1,7 +1,6 @@
 import "server-only";
 
 import {
-  Conflict,
   ConstraintViolated,
   InvalidTransition,
   NotFound,
@@ -35,6 +34,8 @@ export interface SignedRsvpPage {
   readonly eventStartsAt: Date;
   readonly playerName: string;
   readonly responseDeadline: Date | null;
+  /** LAN-379. Whether that deadline is already at or behind the club's own now. */
+  readonly deadlinePassed: boolean;
   readonly currentResponse: CurrentResponse | null;
 }
 
@@ -61,6 +62,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     event_starts_at: Date;
     player_name: string;
     response_deadline: Date | null;
+    deadline_passed: boolean;
     response: "yes" | "no" | null;
     reason: string | null;
     responded_at: Date | null;
@@ -87,6 +89,10 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
               coalesce(nullif(btrim(${personDisplayAliasSql("p")}), ''), p.given_name),
               nullif(btrim(coalesce(p.family_name, '')), '')) as player_name,
             i.expires_at as response_deadline,
+            -- LAN-379: an event created inside its own invite window has a
+            -- deadline behind the player reading this page, and quoting it
+            -- back at them reads as a broken screen.
+            (i.expires_at is not null and i.expires_at <= now()) as deadline_passed,
             r.response::text as response,
             r.reason,
             r.responded_at
@@ -124,6 +130,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     eventStartsAt: row.event_starts_at,
     playerName: row.player_name,
     responseDeadline: row.response_deadline,
+    deadlinePassed: row.deadline_passed,
     currentResponse:
       row.response && row.responded_at
         ? { response: row.response, reason: row.reason, respondedAt: row.responded_at }
@@ -305,12 +312,11 @@ export interface OperatorRsvpSubmission {
 export const RESPONDED_AT_INVALID_RULE = "rsvp_operator_responded_at_invalid";
 export const RESPONDED_AT_NOT_FUTURE_RULE = "rsvp_operator_responded_at_not_future";
 export const RESPONDED_AT_BEFORE_INVITATION_RULE = "rsvp_operator_responded_at_before_invitation";
-export const OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE = "rsvp_operator_cannot_supersede_player";
 
 const CLUB_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CLUB_TIME_PATTERN = /^\d{2}:\d{2}$/;
 
-/** Records what an operator was told in person — W3, LAN-170. Never refuses for a prior operator answer or event start. */
+/** Records what an operator was told in person — W3, LAN-170. Never refuses for a prior answer of any kind, or for event start (LAN-376). */
 export async function recordOperatorRsvpResponse(
   operatorPersonId: string,
   eventId: string,
@@ -343,21 +349,13 @@ export async function recordOperatorRsvpResponse(
       );
     }
 
-    // DEC-no-supersede, checked inside the row lock above — see decision history.
-    const existingPlayerResponse = await tx.query<{ id: string }>(
-      `select id from public.rsvp_responses
-        where invitation_id = $1 and source = 'signed_link'
-        limit 1`,
-      [invitationId],
-    );
-    if (existingPlayerResponse.rows.length > 0) {
-      throw new Conflict(
-        "This player has already answered for themselves, so an operator " +
-          "cannot record over it. Ask them to change their answer from " +
-          "their own RSVP link.",
-        { rule: OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE },
-      );
-    }
+    // DEC-no-supersede used to refuse here whenever the player had answered for
+    // themselves. Brian reversed it on 2026-09-16 (LAN-376): "the last recorded
+    // answer wins, whoever recorded it". An operator may now record over a
+    // player's own answer and a player may answer over an operator's; the form
+    // shows what the player last said and when, the audit row below names the
+    // operator, and `public.current_rsvp` ranks on `recorded_at` so the row
+    // written last is the one that stands.
 
     if (!CLUB_DATE_PATTERN.test(submission.respondedAtDate)) {
       throw new ConstraintViolated("Choose a date and time.", {
@@ -474,7 +472,8 @@ export async function recordOperatorRsvpResponse(
              (invitation_id, event_id, event_question_id,
               answer_text, answer_boolean, answer_choice, responded_at)
            values ($1, $2, $3, $4, $5, $6, $7)
-           on conflict (invitation_id, event_question_id) do update
+           -- LAN-367: the live answer, inferred on the partial unique index.
+           on conflict (invitation_id, event_question_id) where superseded_at is null do update
              set answer_text = excluded.answer_text,
                  answer_boolean = excluded.answer_boolean,
                  answer_choice = excluded.answer_choice,

@@ -372,6 +372,52 @@ describe("updatePersonField — every other field overwrites, with history in th
     expect(audit?.to_state).toBe("Merton");
   });
 
+  /**
+   * LAN-366, Brian 2026-09-16. Optional everywhere, entered on the person
+   * record, the operator's create-person form and the onboarding details step,
+   * and shown on the record and its edit form only.
+   */
+  it("saves and clears a middle name, with the same reason rule as every other field", async () => {
+    const personId = await insertPerson({ givenName: unique("Middle") });
+
+    const filled = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "middle_name",
+      value: "Aloysius",
+    });
+    expect(filled.middleName).toBe("Aloysius");
+    expect((await latestAudit("people", personId))?.action).toBe("person_middle_name_updated");
+
+    // Clearing it is a correction, so it needs a reason like any other change.
+    await expect(
+      updatePersonField({ actorPersonId, personId, field: "middle_name", value: "" }),
+    ).rejects.toMatchObject({ rule: "person_field_change_requires_a_reason" });
+
+    const cleared = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "middle_name",
+      value: "",
+      reason: "They never had one; it was a typo",
+    });
+    expect(cleared.middleName).toBeNull();
+  });
+
+  it("trims a middle name rather than storing what the column would refuse", async () => {
+    const personId = await insertPerson({ givenName: unique("BlankMiddle") });
+
+    const record = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "middle_name",
+      value: "  Aloysius  ",
+    });
+    // `people_middle_name_not_blank` would refuse an all-whitespace value, and
+    // a padded one is not a different name.
+    expect(record.middleName).toBe("Aloysius");
+  });
+
   it("refuses to change an existing value without a reason", async () => {
     const personId = await insertPerson({ givenName: unique("HasCollege"), college: "Merton" });
 

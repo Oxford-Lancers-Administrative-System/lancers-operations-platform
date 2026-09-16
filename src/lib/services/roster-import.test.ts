@@ -446,6 +446,46 @@ describe("applyRosterImport", () => {
     expect(welcome.sent).toBe(false);
   });
 
+  /**
+   * LAN-366, Brian 2026-09-16: "Import: `roster-import` accepts an optional
+   * middle-name column; absent means null." Every other test in this file
+   * uses a header without it, which is the absent half.
+   */
+  it("accepts an optional middle_name column, and leaves it null when the column is absent", async () => {
+    const withMiddle = givenNameFor("HasMiddle");
+    const csvText =
+      "first_name,middle_name,last_name,mobile,personal_email,college,matriculation_year\r\n" +
+      [withMiddle, "Aloysius", familyNameFor("HasMiddle"), mobileFor(), "", "", ""].join(",") +
+      "\r\n";
+
+    const proposal = await planRosterImport({ csvText });
+    expect(proposal.ok).toBe(true);
+    if (!proposal.ok) return;
+    await applyRosterImport({ csvText, digest: proposal.plan.digest });
+
+    const stored = await observer.query<{ middle_name: string | null }>(
+      "select middle_name from public.people where given_name = $1",
+      [withMiddle],
+    );
+    expect(stored.rows[0].middle_name).toBe("Aloysius");
+
+    // The same file without the column at all: null, and never a refusal.
+    const withoutMiddle = givenNameFor("NoMiddle");
+    const plain = csvOf([
+      { firstName: withoutMiddle, lastName: familyNameFor("NoMiddle"), mobile: mobileFor() },
+    ]);
+    const second = await planRosterImport({ csvText: plain });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    await applyRosterImport({ csvText: plain, digest: second.plan.digest });
+
+    const plainStored = await observer.query<{ middle_name: string | null }>(
+      "select middle_name from public.people where given_name = $1",
+      [withoutMiddle],
+    );
+    expect(plainStored.rows[0].middle_name).toBeNull();
+  });
+
   it("B-008 — sets availability to green, in the same transaction, for a bulk-imported arrival", async () => {
     // Brian, this session: "When a player gets added into the board, their
     // availability should be flipped to green by default." The import door

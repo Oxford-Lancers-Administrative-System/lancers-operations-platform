@@ -40,6 +40,7 @@ import {
 } from "./event-approval";
 import { listAudienceCatalogueIn } from "./event-audience";
 import { withTransaction } from "@/lib/db";
+import { previewEventQuestionChanges } from "./events";
 import type { EventQuestionInput } from "./event-questions-input";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -508,7 +509,14 @@ describe("an approved event's questions change in place, and nothing goes out (L
     expect(invitationsAfter.rows[0].count).toBe(invitationsBefore.rows[0].count);
   });
 
-  it("leaves an answer already given exactly as it was, option withdrawn or not", async () => {
+  /**
+   * LAN-318 kept an answer exactly as it was when its question changed, even
+   * where the option answered was withdrawn. LAN-367, Brian 2026-09-16,
+   * reverses that: a changed question voids its answers and asks again. The
+   * row is kept — it is the record of what the person said before — and every
+   * current read filters it out.
+   */
+  it("supersedes an answer whose question changed, without deleting what was said", async () => {
     const event = await approvedAsking([
       question({ prompt: "Shirt size?", answerType: "choice", choices: ["S", "M", "L"] }),
     ]);
@@ -520,13 +528,19 @@ describe("an approved event's questions change in place, and nothing goes out (L
       question({ id: size.id, prompt: "Shirt size?", answerType: "choice", choices: ["S", "M"] }),
     ]);
 
-    const stored = await observer.query<{ answer_choice: string; event_question_id: string }>(
-      "select answer_choice, event_question_id from public.question_responses where event_id = $1",
+    const stored = await observer.query<{
+      answer_choice: string;
+      event_question_id: string;
+      superseded_at: Date | null;
+    }>(
+      `select answer_choice, event_question_id, superseded_at
+         from public.question_responses where event_id = $1`,
       [event.id],
     );
     expect(stored.rows).toHaveLength(1);
     expect(stored.rows[0].answer_choice).toBe("L");
     expect(stored.rows[0].event_question_id).toBe(size.id);
+    expect(stored.rows[0].superseded_at).not.toBeNull();
   });
 
   it("records the change, and what is now asked, in the audit trail", async () => {
@@ -840,5 +854,165 @@ describe("the approval review shows the questions as a player will be asked them
     expect(preview.groupSummary.total).toBe(preview.audience.length);
     expect(preview.groupSummary.others).toBe(preview.audience.length);
     expect(preview.groupSummary.groups).toEqual([]);
+  });
+});
+
+/**
+ * LAN-367, Brian 2026-09-16: "a question that did not change keeps every
+ * answer; a question that did change has its old answers nullified and
+ * everyone who answered is told and asked again; a new question is asked of
+ * everyone."
+ *
+ * LAN-318 shipped the opposite — the set was rewritten and nothing looked at
+ * `question_responses` or told anybody — so an operator correcting a
+ * question's wording silently kept answers to a question nobody had been
+ * asked. The whole of the reversal is here, end to end through the local sink.
+ */
+describe("a changed question voids its answers and asks again", () => {
+  async function approvedAsking(questions: readonly EventQuestionInput[]) {
+    const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }), questions);
+    await giveAudience(event.id);
+    await approveEvent(actorPersonId, event.id);
+    return event;
+  }
+
+  async function asked(eventId: string) {
+    return readEventQuestions(eventId);
+  }
+
+  async function firstInvitation(eventId: string): Promise<string> {
+    const result = await observer.query<{ id: string }>(
+      "select id from public.invitations where event_id = $1 order by id limit 1",
+      [eventId],
+    );
+    return result.rows[0].id;
+  }
+
+  async function answerText(
+    invitationId: string,
+    eventId: string,
+    questionId: string,
+    text: string,
+  ) {
+    await observer.query(
+      `insert into public.question_responses
+         (invitation_id, event_id, event_question_id, answer_text)
+       values ($1, $2, $3, $4)`,
+      [invitationId, eventId, questionId, text],
+    );
+  }
+
+  async function reAskJobs(eventId: string) {
+    const result = await observer.query<{
+      invitation_id: string;
+      template_variables: { questionSummary?: string };
+    }>(
+      `select invitation_id, template_variables from public.notification_jobs
+        where event_id = $1 and job_type = 'question_change_notice'`,
+      [eventId],
+    );
+    return result.rows;
+  }
+
+  async function liveAnswers(eventId: string) {
+    const result = await observer.query<{ event_question_id: string; answer_text: string | null }>(
+      `select event_question_id, answer_text from public.question_responses
+        where event_id = $1 and superseded_at is null`,
+      [eventId],
+    );
+    return result.rows;
+  }
+
+  it("keeps the unchanged answer, voids the changed one, and declares one job per person", async () => {
+    const event = await approvedAsking([
+      question({ prompt: "Are you fit?", answerType: "text" }),
+      question({ prompt: "Need a lift?", answerType: "text" }),
+    ]);
+    const [fit, lift] = await asked(event.id);
+    const invitationId = await firstInvitation(event.id);
+    await answerText(invitationId, event.id, fit.id, "Yes, fully fit");
+    await answerText(invitationId, event.id, lift.id, "Yes please");
+
+    await updateEventQuestions(actorPersonId, event.id, [
+      question({ id: fit.id, prompt: "Are you fit?", answerType: "text" }),
+      question({ id: lift.id, prompt: "Do you need a lift there and back?", answerType: "text" }),
+    ]);
+
+    const live = await liveAnswers(event.id);
+    expect(live).toHaveLength(1);
+    expect(live[0].event_question_id).toBe(fit.id);
+    expect(live[0].answer_text).toBe("Yes, fully fit");
+
+    const jobs = await reAskJobs(event.id);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].invitation_id).toBe(invitationId);
+    expect(jobs[0].template_variables.questionSummary).toBe("Do you need a lift there and back?");
+
+    // The changed question's version moved, so a later answer is told apart
+    // from the one that was just voided.
+    const versions = await observer.query<{ id: string; version: number }>(
+      "select id, version from public.event_questions where event_id = $1",
+      [event.id],
+    );
+    const byId = new Map(versions.rows.map((row) => [row.id, row.version]));
+    expect(byId.get(lift.id)).toBe(2);
+    expect(byId.get(fit.id)).toBe(1);
+  });
+
+  it("declares nothing at all when no question changed", async () => {
+    const event = await approvedAsking([question({ prompt: "Are you fit?", answerType: "text" })]);
+    const [fit] = await asked(event.id);
+    const invitationId = await firstInvitation(event.id);
+    await answerText(invitationId, event.id, fit.id, "Yes");
+
+    // A reorder and a required/optional flip: neither changes what was asked.
+    await updateEventQuestions(actorPersonId, event.id, [
+      question({ id: fit.id, prompt: "Are you fit?", answerType: "text", isRequired: true }),
+    ]);
+
+    expect(await reAskJobs(event.id)).toHaveLength(0);
+    expect(await liveAnswers(event.id)).toHaveLength(1);
+  });
+
+  it("keeps the answers and tells nobody when the operator says it is a correction — D3", async () => {
+    const event = await approvedAsking([question({ prompt: "Are you fit", answerType: "text" })]);
+    const [fit] = await asked(event.id);
+    const invitationId = await firstInvitation(event.id);
+    await answerText(invitationId, event.id, fit.id, "Yes");
+
+    await updateEventQuestions(
+      actorPersonId,
+      event.id,
+      [question({ id: fit.id, prompt: "Are you fit?", answerType: "text" })],
+      { correction: true },
+    );
+
+    expect(await reAskJobs(event.id)).toHaveLength(0);
+    expect(await liveAnswers(event.id)).toHaveLength(1);
+
+    const audit = await observer.query<{ context: { correction: boolean } }>(
+      `select context from public.audit_events
+        where entity_id = $1::uuid and action = 'event.questions_updated'
+        order by occurred_at desc limit 1`,
+      [event.id],
+    );
+    expect(audit.rows[0].context.correction).toBe(true);
+  });
+
+  it("says the same before the save as it does when it runs", async () => {
+    const event = await approvedAsking([question({ prompt: "Are you fit?", answerType: "text" })]);
+    const [fit] = await asked(event.id);
+    const invitationId = await firstInvitation(event.id);
+    await answerText(invitationId, event.id, fit.id, "Yes");
+
+    const submitted = [
+      question({ id: fit.id, prompt: "Are you fit to play?", answerType: "text" }),
+    ];
+    const preview = await previewEventQuestionChanges(event.id, submitted);
+    expect(preview.changedPrompts).toEqual(["Are you fit to play?"]);
+    expect(preview.peopleToAsk).toBe(1);
+
+    await updateEventQuestions(actorPersonId, event.id, submitted);
+    expect(await reAskJobs(event.id)).toHaveLength(preview.peopleToAsk);
   });
 });

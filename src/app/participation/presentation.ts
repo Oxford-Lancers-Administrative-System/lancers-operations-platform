@@ -163,6 +163,13 @@ export const SHARE_CONSEQUENCE =
   "Anyone with this link can see who was asked, what they said and who turned up. They " +
   "cannot change anything and do not need an account.";
 
+/**
+ * LAN-354, Brian 2026-09-16: the club link expires seven days after the event.
+ * A label on the panel that issues it, so an operator posting it into a group
+ * chat knows how long it lasts without being told a story about why.
+ */
+export const CLUB_LINK_EXPIRY_LABEL = "Expires 7 days after the event";
+
 export const COPY_LINK = "Copy link";
 export const COPY_LINK_DONE = "Copied";
 export const ISSUE_LINK = "Create the link";
@@ -181,6 +188,35 @@ export const RECORD_ANSWER = "Record answer";
 
 export function recordAnswerDialogTitle(displayName: string): string {
   return `Record ${displayName}'s answer`;
+}
+
+/**
+ * LAN-376. Until Brian's 2026-09-16 decision an operator could not record over
+ * an answer at all — the control was offered only against a row with nothing in
+ * it, and the service refused anything else. Now the last recorded answer wins
+ * whoever recorded it, so the chip itself opens the form and the form says what
+ * it is replacing.
+ */
+export function changeAnswerLabel(displayName: string): string {
+  return `Change ${displayName}'s answer`;
+}
+
+export const CURRENT_ANSWER_LABEL = "Current answer";
+
+/** "Attending, given Tuesday 15 Sept 2026, 19:02" — the answer and when it says it was given. */
+export function currentAnswerValue(answer: "yes" | "no", answeredAt: string | null): string {
+  const label = answer === "yes" ? ANSWER_YES : ANSWER_NO;
+  if (answeredAt === null) return label;
+  const when = new Date(answeredAt);
+  if (Number.isNaN(when.getTime())) return label;
+  return `${label}, given ${new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/London",
+  }).format(when)}`;
 }
 
 /**

@@ -141,7 +141,41 @@ export async function issueClubLinkIn(
 export type ClubLinkResolution =
   | { readonly state: "live"; readonly linkId: string; readonly eventId: string }
   | { readonly state: "unknown" }
-  | { readonly state: "revoked" };
+  | { readonly state: "revoked" }
+  /** LAN-354: more than `CLUB_LINK_LIFETIME_DAYS` past the event. */
+  | { readonly state: "expired" };
+
+/**
+ * How long a club link outlives its event — LAN-354, Brian 2026-09-16.
+ *
+ * `/e/<token>` is the shared squad page a coach posts into the team WhatsApp
+ * group: anyone holding it sees names, RSVP status, decline reasons and
+ * question answers. It never expired, so every link ever shared stayed live
+ * for every group it was ever forwarded into. Seven days after the event is
+ * long enough to settle who turned up and short enough that a forwarded link
+ * stops being a standing window into the squad.
+ *
+ * There is no revoke action and no stored expiry column. The clock is read off
+ * the event's own date **at resolve time**, so rescheduling an event to a later
+ * date revives its link until seven days after the new date — which is what an
+ * operator moving a fixture means to happen, and the reason a stored
+ * `expires_at` would be wrong. `revoked_at` stays unused.
+ */
+export const CLUB_LINK_LIFETIME_DAYS = 7;
+
+/**
+ * The instant a club link's seven days are counted from.
+ *
+ * The event's own end, in the club's zone, and its start where no end is
+ * recorded — `ends_at` is a time on `scheduled_on`, so both are a time of day
+ * on the same date. An event with neither starts at midnight, the earliest it
+ * could. In SQL rather than JavaScript for the reason `rsvp-tokens.ts` gives:
+ * Britain changes offset twice inside a season and PostgreSQL carries the IANA
+ * database.
+ */
+const CLUB_LINK_EXPIRY_EXPRESSION = `
+  (e.scheduled_on + coalesce(e.ends_at, e.starts_at, '00:00'::time))
+    at time zone 'Europe/London' + make_interval(days => ${CLUB_LINK_LIFETIME_DAYS})`;
 
 // What a presented token opens — a pure read; the use-count stamp happens after this commits, so readers never queue on a row lock (W157-R1; see relocations.md).
 export async function resolveClubLinkIn(
@@ -151,15 +185,25 @@ export async function resolveClubLinkIn(
 ): Promise<ClubLinkResolution> {
   if (!CLUB_LINK_TOKEN_PATTERN.test(token)) return { state: "unknown" }; // refused before any query runs
 
-  const found = await tx.query<{ id: string; event_id: string; revoked: boolean }>(
-    `select id, event_id, revoked_at is not null as revoked
-       from public.club_link_tokens
-      where token_hash = $1`,
+  const found = await tx.query<{
+    id: string;
+    event_id: string;
+    revoked: boolean;
+    expired: boolean;
+  }>(
+    `select t.id, t.event_id, t.revoked_at is not null as revoked,
+            ${CLUB_LINK_EXPIRY_EXPRESSION} <= now() as expired
+       from public.club_link_tokens t
+       join public.events e on e.id = t.event_id
+      where t.token_hash = $1`,
     [hashClubLinkToken(token)],
   );
   const row = found.rows[0];
   if (!row) return { state: "unknown" };
   if (row.revoked) return { state: "revoked" };
+  // Ordered after revocation for the same reason `rsvp-tokens.ts` orders its
+  // own states: a deliberate act outranks the clock.
+  if (row.expired) return { state: "expired" };
 
   // Re-derives to prove the token was minted for *this* row; timingSafeEqual needs equal lengths first.
   const expected = deriveClubLinkToken(row.event_id, row.id, options.env ?? process.env);

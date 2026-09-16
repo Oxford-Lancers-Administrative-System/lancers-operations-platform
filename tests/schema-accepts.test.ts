@@ -298,16 +298,21 @@ describe("participation as it really happens", () => {
   });
 
   it("accepts a changed answer, and keeps the superseded one", async () => {
+    // LAN-376: `recorded_at` is what ranks the answers and what
+    // `one_answer_per_instant` protects, so both are stated here rather than
+    // left to default to one transaction's single `now()`.
     await expectAccepted(
       client,
-      `insert into public.rsvp_responses (invitation_id, response, source, responded_at)
-       values ($1, 'yes', 'signed_link', '2026-11-01T10:00:00Z')`,
+      `insert into public.rsvp_responses
+         (invitation_id, response, source, responded_at, recorded_at)
+       values ($1, 'yes', 'signed_link', '2026-11-01T10:00:00Z', '2026-11-01T10:00:00Z')`,
       [base.invitationId],
     );
     await expectAccepted(
       client,
-      `insert into public.rsvp_responses (invitation_id, response, reason, source, responded_at)
-       values ($1, 'no', 'Clash came up', 'signed_link', '2026-11-02T10:00:00Z')`,
+      `insert into public.rsvp_responses
+         (invitation_id, response, reason, source, responded_at, recorded_at)
+       values ($1, 'no', 'Clash came up', 'signed_link', '2026-11-02T10:00:00Z', '2026-11-02T10:00:00Z')`,
       [base.invitationId],
     );
 

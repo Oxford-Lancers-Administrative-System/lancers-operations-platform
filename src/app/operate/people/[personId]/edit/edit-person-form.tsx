@@ -111,27 +111,6 @@ export default function EditPersonForm({
           </Notice>
         ) : null}
 
-        <Section title="Who they are">
-          <Stack spacing={2}>
-            <CorrectableField
-              name="givenName"
-              reasonName="givenNameReason"
-              label="First name"
-              required
-              original={record.givenName}
-              error={state.errors.givenName}
-            />
-            <CorrectableField
-              name="familyName"
-              reasonName="familyNameReason"
-              label="Last name"
-              original={record.familyName ?? ""}
-              error={state.errors.familyName}
-            />
-            <AliasesEditor personId={personId} record={record} />
-          </Stack>
-        </Section>
-
         <Section title="How to reach them">
           <Stack spacing={2}>
             <CorrectableField
@@ -170,8 +149,37 @@ export default function EditPersonForm({
           </Stack>
         </Section>
 
-        <Section title="Academic">
+        {/* LAN-365 correction, Brian 2026-09-16: "no academic section" — the
+            four academic fields fold in here too, after the contact details
+            above and before the two identifiers below, keeping the same
+            `academic` field category and capability gating as everything
+            else in this section. */}
+        <Section title="Who they are">
           <Stack spacing={2}>
+            <CorrectableField
+              name="givenName"
+              reasonName="givenNameReason"
+              label="First name"
+              required
+              original={record.givenName}
+              error={state.errors.givenName}
+            />
+            {/* LAN-366: optional, beside the given and family name. */}
+            <CorrectableField
+              name="middleName"
+              reasonName="middleNameReason"
+              label="Middle name"
+              original={record.middleName ?? ""}
+              error={state.errors.middleName}
+            />
+            <CorrectableField
+              name="familyName"
+              reasonName="familyNameReason"
+              label="Last name"
+              original={record.familyName ?? ""}
+              error={state.errors.familyName}
+            />
+            <AliasesEditor personId={personId} record={record} />
             <CorrectableField
               name="college"
               reasonName="collegeReason"
@@ -198,7 +206,10 @@ export default function EditPersonForm({
               label="Degree field"
               original={record.degreeField ?? ""}
             />
-            {/* LAN-267: BAFA number is operator-editable — a coach never sees the player questionnaire. */}
+            {/* LAN-365: both identifiers moved here from Academic. They are
+                facts about the person. BAFA is last because the club fills it
+                in — a student never knows their own registration number, so
+                it is never asked for in onboarding. */}
             <CorrectableField
               name="studentNumber"
               reasonName="studentNumberReason"

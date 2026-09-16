@@ -43,7 +43,7 @@ export function Invitation({
 }) {
   const date = formatEventDate(page.scheduledOn);
   const time = formatEventTime(page.startsAt, page.endsAt);
-  const deadline = formatDeadline(page.responseDeadline);
+  const deadline = formatDeadline(page.responseDeadline, page.deadlinePassed);
 
   return (
     <Shell>

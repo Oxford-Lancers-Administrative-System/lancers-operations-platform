@@ -7,9 +7,11 @@
  * carries no spreadsheet identifier. This module is the pure half — read,
  * shape-check, refuse what the database could never fix; `./roster-import.ts`
  * is the other half, calling `findPersonCandidates` inside a transaction.
- * Required: `first_name`, `last_name`, `mobile`. Optional: `personal_email`,
- * `college`, `matriculation_year`. No date of birth, no emergency contact —
- * both belong to onboarding, not a file on a laptop.
+ * Required: `first_name`, `last_name`, `mobile`. Optional: `middle_name`
+ * (LAN-366), `personal_email`, `college`, `matriculation_year`. No date of
+ * birth, no emergency contact — both belong to onboarding, not a file on a
+ * laptop. An absent `middle_name` column, or a blank cell in it, means null;
+ * it is never part of matching.
  */
 
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
@@ -18,6 +20,7 @@ import { isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
 
 const IMPORT_COLUMNS = [
   "first_name",
+  "middle_name",
   "last_name",
   "mobile",
   "personal_email",
@@ -57,6 +60,8 @@ export interface ParsedRosterRow {
   line: number;
   rawCells: Readonly<Record<ImportColumn, string>>;
   firstName: string | null;
+  /** LAN-366. Optional, absent means null, and never part of matching. */
+  middleName: string | null;
   lastName: string | null;
   mobile: string | null;
   personalEmail: string | null;
@@ -92,6 +97,9 @@ function parseRow(line: number, cells: Record<ImportColumn, string>): ParsedRost
   const firstName = trimmedOrNull(cells.first_name);
   if (!firstName) reasons.push('"first_name" is empty.');
 
+  // LAN-366: optional, so a blank or absent column is never a reason to refuse a row.
+  const middleName = trimmedOrNull(cells.middle_name);
+
   const lastName = trimmedOrNull(cells.last_name);
   if (!lastName) reasons.push('"last_name" is empty.');
 
@@ -124,6 +132,7 @@ function parseRow(line: number, cells: Record<ImportColumn, string>): ParsedRost
     line,
     rawCells: Object.freeze({ ...cells }),
     firstName,
+    middleName,
     lastName,
     mobile,
     personalEmail,

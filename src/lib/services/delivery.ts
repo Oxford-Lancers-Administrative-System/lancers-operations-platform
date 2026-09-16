@@ -236,6 +236,8 @@ function messageKindFor(jobType: string, capacity?: string): MessageKind {
       return "escalation";
     case "schedule_change_notice":
       return "change_notice";
+    case "question_change_notice":
+      return "question_change";
     case "cancellation_notice":
       return "cancellation";
     default:
@@ -284,6 +286,8 @@ async function claimJobIn(
     invitation_id: string | null;
     attempt_count: number;
     job_type: string;
+    /** LAN-367: what the re-ask named when it was declared. `{}` for every other kind. */
+    template_variables: Record<string, unknown> | null;
   }>(
     `update public.notification_jobs
         set status = 'processing',
@@ -312,7 +316,8 @@ async function claimJobIn(
         and held_at is null
         and attempt_count < $3
         and invitation_id is not null
-      returning id, invitation_id, attempt_count, job_type::text as job_type`,
+      returning id, invitation_id, attempt_count, job_type::text as job_type,
+                template_variables`,
     [jobId, claim, MAX_ATTEMPTS],
   );
 
@@ -326,6 +331,8 @@ async function claimJobIn(
     event_starts_at_set: boolean;
     when_label: string;
     deadline_label: string | null;
+    /** LAN-379. Whether the response deadline is already at or behind the send. */
+    deadline_passed: boolean;
     venue: string | null;
     attending_count: number;
     given_name: string;
@@ -365,6 +372,13 @@ async function claimJobIn(
             to_char(
               i.expires_at at time zone 'Europe/London',
               'FMDay FMDD FMMonth, HH24:MI') as deadline_label,
+            -- LAN-379. An event created inside its own invite window has a
+            -- deadline at or before the moment this message goes out, and the
+            -- invitation then read "Please respond by Tuesday 15 September,
+            -- 19:02" with 19:02 the time it arrived. Read here, in the
+            -- claiming transaction, against the same clock the send happens
+            -- on — not compared in JavaScript against a formatted string.
+            (i.expires_at is not null and i.expires_at <= now()) as deadline_passed,
             e.venue,
             -- The dispatch-time snapshot the approved W2-02 chase carries.
             -- Counted here, inside the claiming transaction, so the number in
@@ -589,6 +603,8 @@ async function claimJobIn(
         whenLabel: detail.when_label.replace(/\s+/g, " ").trim(),
         venue: detail.venue,
         deadlineLabel: detail.deadline_label?.replace(/\s+/g, " ").trim() ?? null,
+        // LAN-379: the wording changes, not the label.
+        deadlinePassed: detail.deadline_passed,
         // Suppressed on the first contact. The approved W2-01 note is explicit
         // that there is "no social proof: first contact is a plain invitation",
         // and the count only appears on the chase that follows it.
@@ -596,6 +612,13 @@ async function claimJobIn(
         // OWNER-LAN173-03. Only `change_notice` reads this; every other kind
         // gets `undefined`, exactly as before.
         changeSummary: kind === "change_notice" ? describeScheduleChange(detail) : undefined,
+        // LAN-367. Read off the job, not off the event: a later save changes
+        // the question again, and this message has to name what it named when
+        // it was declared.
+        questionSummary:
+          kind === "question_change"
+            ? ((job.template_variables?.questionSummary as string | undefined) ?? null)
+            : undefined,
         // The one place the plaintext token becomes a URL, and the last place
         // it exists at all. Two URLs on one token, deliberately: the change
         // notice sends a player to the answer page and the nudge sends them to

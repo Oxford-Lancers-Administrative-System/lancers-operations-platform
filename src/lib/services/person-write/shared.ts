@@ -62,6 +62,7 @@ interface LatestChangeRow {
 
 const CONCURRENT_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
   person_given_name_updated: "First name",
+  person_middle_name_updated: "Middle name",
   person_family_name_updated: "Last name",
   person_college_updated: "College",
   person_matriculation_year_updated: "Matriculation year",

@@ -84,6 +84,8 @@ const MESSAGE: OutboundMessage = {
   formUrl: onboardingUrl(BASE, TOKEN),
   stopUrl: stopMessagesUrl(BASE, TOKEN),
   queueUrl: `${BASE}/operate/admin/follow-ups`,
+  // LAN-367: which question changed, named by the re-ask.
+  questionSummary: "Do you need a lift to this one?",
 };
 
 /** The other three `formUrl` destinations, by the kinds that carry them. */
@@ -206,12 +208,20 @@ describe("every path a message mints", () => {
       recruit_event_followup: ["/a/yes/", "/a/no/"],
       nudge: ["/questions/"],
       change_notice: ["/rsvp/"],
+      // LAN-367: the re-ask sends a player to the event's own questions, the
+      // same page the nudge does — never to the RSVP page, which does not ask
+      // them.
+      question_change: ["/questions/"],
       recruit_welcome: ["/signup/", "/stop/"],
       recruit_details_reminder: ["/signup/", "/stop/"],
       recruit_interest_ask: ["/background/", "/stop/"],
       recruit_interest_reminder: ["/background/", "/stop/"],
-      onboarding_welcome: ["/onboarding/", "/stop/"],
-      onboarding_chase: ["/onboarding/", "/stop/"],
+      // LAN-372, Brian 2026-09-16: these two go to roster players, and a
+      // player is exempt from Stop — asking the club to stop messaging you is
+      // asking to leave the team. No opt-out credential is minted for them and
+      // no link to one is carried.
+      onboarding_welcome: ["/onboarding/"],
+      onboarding_chase: ["/onboarding/"],
     };
 
     for (const [kind, bases] of Object.entries(expected)) {

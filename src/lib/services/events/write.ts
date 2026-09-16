@@ -1,5 +1,7 @@
 import "server-only";
 
+import crypto from "node:crypto";
+
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 import { listAudienceCatalogueIn, resolveSelection } from "../event-audience";
 import {
@@ -22,6 +24,11 @@ import {
   type EventStatus,
   type TermWindow,
 } from "../event-input";
+import {
+  declareQuestionReAskIn,
+  planQuestionChangesIn,
+  supersedeAnswersToChangedQuestionsIn,
+} from "../event-question-changes";
 import { recordAudit } from "../audit";
 import { actorRequirement } from "../actor";
 import { readCurrentSeasonIn } from "../seasons";
@@ -266,6 +273,8 @@ export async function updateEventQuestions(
   actorPersonId: string,
   eventId: string,
   questions: readonly EventQuestionInput[],
+  /** LAN-367, decision D3: a wording fix that keeps the answers and tells nobody. */
+  options: { correction?: boolean } = {},
 ): Promise<EventDetail> {
   requireActor(actorPersonId);
 
@@ -305,7 +314,23 @@ export async function updateEventQuestions(
       }
     }
 
+    // LAN-367. Planned before anything is written, so the confirmation the
+    // operator saw and the save that follows it are the same answer.
+    const plan = await planQuestionChangesIn(tx, eventId, questions);
+
     await upsertEventQuestionsIn(tx, eventId, questions);
+
+    // Brian's D3: a wording fix that is genuinely a correction keeps the
+    // answers and tells nobody. The tick is recorded, because "we decided this
+    // was a correction" is the only thing that explains why fourteen people
+    // were not asked again.
+    const correction = options.correction === true;
+    const superseded = correction
+      ? 0
+      : await supersedeAnswersToChangedQuestionsIn(tx, eventId, plan.changedIds);
+    const reAsked = correction
+      ? 0
+      : await declareQuestionReAskIn(tx, eventId, plan, `questions:${crypto.randomUUID()}`);
 
     await recordAudit(tx, {
       actorPersonId,
@@ -320,10 +345,36 @@ export async function updateEventQuestions(
         // The prompts as they now stand — the audit row is the only record that the wording
         // changed, since the question row itself keeps no history.
         prompts: questions.map((question) => question.prompt),
+        // LAN-367: what the save did to the answers already given, and to whom.
+        changedQuestions: plan.changedPrompts,
+        correction,
+        answersSuperseded: superseded,
+        peopleAskedAgain: reAsked,
       },
     });
 
     return readEventIn(tx, eventId);
+  });
+}
+
+/**
+ * What a save would do, before it does it — LAN-367's confirmation.
+ *
+ * "2 questions changed, 14 people will be asked again", computed by the same
+ * function the save uses, so the number on the screen is the number that
+ * happens rather than a second opinion about it.
+ */
+export async function previewEventQuestionChanges(
+  eventId: string,
+  questions: readonly EventQuestionInput[],
+): Promise<{ changedPrompts: readonly string[]; addedCount: number; peopleToAsk: number }> {
+  return withTransaction(async (tx) => {
+    const plan = await planQuestionChangesIn(tx, eventId, questions);
+    return {
+      changedPrompts: plan.changedPrompts,
+      addedCount: plan.addedCount,
+      peopleToAsk: plan.invitationIds.length,
+    };
   });
 }
 

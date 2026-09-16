@@ -132,6 +132,10 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
     personId: "identity",
     givenName: "identity",
     givenNameSource: "identity",
+    // LAN-366. The same category as the rest of the name: it is shown beside
+    // the given and family name and nowhere else.
+    middleName: "identity",
+    middleNameSource: "identity",
     familyName: "identity",
     familyNameSource: "identity",
     aliases: "identity",

@@ -127,6 +127,8 @@ function updateFor(
   switch (field) {
     case "given_name":
       return { ...common, field, value: text };
+    case "middle_name":
+      return { ...common, field, value: text };
     case "family_name":
       return { ...common, field, value: text };
     case "college":

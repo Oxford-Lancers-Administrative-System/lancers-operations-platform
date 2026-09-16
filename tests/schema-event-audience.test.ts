@@ -125,9 +125,13 @@ describe("invariant P7 — all five states are derivable", () => {
       "responded_no",
     );
 
+    // LAN-376: `recorded_at` is what ranks and what `one_answer_per_instant`
+    // now protects, and both of these are written inside one transaction, so
+    // it is stated rather than defaulted.
     await client.query(
-      `insert into public.rsvp_responses (invitation_id, response, source, responded_at)
-       values ($1, 'yes', 'operator', now() + interval '1 hour')`,
+      `insert into public.rsvp_responses
+         (invitation_id, response, source, responded_at, recorded_at)
+       values ($1, 'yes', 'operator', now() + interval '1 hour', now() + interval '1 hour')`,
       [invitation.id],
     );
     expect((await stateOf(base.approvedEventId, base.otherMembershipId))[0].response_state).toBe(

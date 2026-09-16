@@ -22,7 +22,6 @@ import {
   CONSENT_HEADING,
   CONSENT_LABEL,
   DISPUTED_NOTICE,
-  FIELD_BAFA_NUMBER,
   FIELD_COLLEGE,
   FIELD_COLLEGE_EMAIL,
   FIELD_COLLEGE_EMAIL_HINT,
@@ -35,11 +34,13 @@ import {
   FIELD_EC_RELATIONSHIP,
   FIELD_EXPECTED_GRADUATION,
   FIELD_FAMILY_NAME,
+  FIELD_MIDDLE_NAME,
   FIELD_GIVEN_NAME,
   FIELD_MATRICULATION_YEAR,
   FIELD_MOBILE,
   FIELD_PERSONAL_EMAIL,
   FIELD_STUDENT_NUMBER,
+  FIELD_STUDENT_NUMBER_HINT,
   REQUIRED_NOTE,
   SAVE_AND_CONTINUE,
   SAVE_CHANGES,
@@ -177,6 +178,8 @@ export function DetailsForm({
         <Section title={SECTION_WHO_YOU_ARE}>
           <Stack spacing={2}>
             {field("given_name", FIELD_GIVEN_NAME, { fieldMeta: meta.given_name })}
+            {/* LAN-366: optional, between the two names it sits between. */}
+            {field("middle_name", FIELD_MIDDLE_NAME, { optional: true })}
             {field("family_name", FIELD_FAMILY_NAME, { fieldMeta: meta.family_name })}
             {field("mobile", FIELD_MOBILE, { phone: true })}
             {/* LAN-268: sits with name/phone, not academic facts — the club's proof of university affiliation. */}
@@ -199,12 +202,17 @@ export function DetailsForm({
             {field("degree_field", FIELD_DEGREE_FIELD, { fieldMeta: meta.degree_field })}
           </Stack>
         </Section>
-        {/* LAN-267: neither required — the roster form names the gap instead of this page refusing to move on. */}
+        {/* LAN-267: not required — the roster form names the gap instead of
+            this page refusing to move on. LAN-365: the BAFA registration
+            number is no longer asked for here, and the student number says
+            which of the two numbers on the University card is wanted. */}
         <Section title={SECTION_GAME_DAY}>
           <Stack spacing={2}>
             <FormHelperText sx={{ fontSize: 13, mt: 0 }}>{SECTION_GAME_DAY_NOTE}</FormHelperText>
-            {field("student_number", FIELD_STUDENT_NUMBER, { optional: true })}
-            {field("bafa_registration_number", FIELD_BAFA_NUMBER, { optional: true })}
+            {field("student_number", FIELD_STUDENT_NUMBER, {
+              optional: true,
+              hint: FIELD_STUDENT_NUMBER_HINT,
+            })}
           </Stack>
         </Section>
         <Section title={SECTION_KEPT_PRIVATE}>

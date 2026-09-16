@@ -43,12 +43,34 @@ function currentContact(
   return preferred ?? null;
 }
 
-/** "Who they are" — name, Known as and aliases. */
+/**
+ * "Who they are" — name, Known as, aliases, the academic facts, and the two
+ * personal identifiers.
+ *
+ * LAN-365, Brian 2026-09-16: "no academic section." The student number and
+ * the BAFA registration number moved here first, from a restricted
+ * "Academic" section, because they are facts about the person rather than
+ * about their degree; the correction round folded college, matriculation
+ * year, expected graduation and degree field in beside them for the
+ * identical reason, rendered after the contact details (`ContactSection`,
+ * rendered before this one on both the record and its edit form) and before
+ * the two identifiers. BAFA last, after everything else, because the club
+ * fills it in rather than the player — a student never knows it.
+ *
+ * Every one of these six rows is rendered only when the redaction left the
+ * field present, which is the `academic` category they have all always
+ * shared: moving where a fact is drawn must never change who may read it
+ * (`REQ-authority`).
+ */
 export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
   return (
     <Section variant="banded" band="person" title="Who they are">
       <Fact label="First name" note={record.givenNameSource ?? undefined}>
         {record.givenName ? <>{record.givenName}</> : <NotRecorded />}
+      </Fact>
+      {/* LAN-366: optional, between the two names it sits between. */}
+      <Fact label="Middle name" note={record.middleNameSource ?? undefined}>
+        {record.middleName ? <>{record.middleName}</> : <NotRecorded />}
       </Fact>
       <Fact label="Last name" note={record.familyNameSource ?? undefined}>
         {record.familyName ? <>{record.familyName}</> : <NotRecorded />}
@@ -77,6 +99,50 @@ export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
           </Stack>
         )}
       </Fact>
+      {/* LAN-365 correction: college, matriculation year, expected
+          graduation and degree field, folded in from the deleted "Academic"
+          section — after the contact details, before the two identifiers. */}
+      {record.college !== undefined ? (
+        <Fact label="College" note={record.collegeSource ?? undefined}>
+          {record.college != null ? <>{record.college}</> : <NotRecorded />}
+        </Fact>
+      ) : null}
+      {record.matriculationYear !== undefined ? (
+        <Fact label="Matriculation year" note={record.matriculationYearSource ?? undefined}>
+          {record.matriculationYear != null ? <>{record.matriculationYear}</> : <NotRecorded />}
+        </Fact>
+      ) : null}
+      {record.expectedGraduationYear !== undefined ? (
+        <Fact label="Expected graduation" note={record.expectedGraduationYearSource ?? undefined}>
+          {record.expectedGraduationYear != null ? (
+            <>{record.expectedGraduationYear}</>
+          ) : (
+            <NotRecorded />
+          )}
+        </Fact>
+      ) : null}
+      {record.degreeField !== undefined ? (
+        <Fact label="Degree field" note={record.degreeFieldSource ?? undefined}>
+          {record.degreeField != null ? <>{record.degreeField}</> : <NotRecorded />}
+        </Fact>
+      ) : null}
+      {record.studentNumber !== undefined ? (
+        <Fact label="Student number" note={record.studentNumberSource ?? undefined}>
+          {record.studentNumber != null ? <>{record.studentNumber}</> : <NotRecorded />}
+        </Fact>
+      ) : null}
+      {record.bafaRegistrationNumber !== undefined ? (
+        <Fact
+          label="BAFA registration number"
+          note={record.bafaRegistrationNumberSource ?? undefined}
+        >
+          {record.bafaRegistrationNumber != null ? (
+            <>{record.bafaRegistrationNumber}</>
+          ) : (
+            <NotRecorded />
+          )}
+        </Fact>
+      ) : null}
     </Section>
   );
 }

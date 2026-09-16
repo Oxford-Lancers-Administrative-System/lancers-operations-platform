@@ -34,6 +34,21 @@ async function insertPerson(givenName: string, familyName: string | null = null)
   return id;
 }
 
+/** LAN-366's own fixture: a person whose middle name is the only thing that could collide. */
+async function insertPersonWithMiddleName(
+  givenName: string,
+  middleName: string,
+  familyName: string | null = null,
+): Promise<string> {
+  const result = await observer.query<{ id: string }>(
+    `insert into public.people (given_name, middle_name, family_name) values ($1, $2, $3) returning id`,
+    [givenName, middleName, familyName],
+  );
+  const id = result.rows[0].id;
+  createdPersonIds.push(id);
+  return id;
+}
+
 async function insertAlias(personId: string, alias: string): Promise<void> {
   await observer.query(
     `insert into public.person_aliases (person_id, alias, source) values ($1::uuid, $2, 'test fixture')`,
@@ -209,6 +224,30 @@ describe("findPersonDuplicates", () => {
 
     expect(found.currentEmails).toContain(email);
     expect(found.currentPhones).toContain("+447700900789");
+  });
+
+  it("LAN-366, C1: never matches on middle_name — a query term equal to it is not enough", async () => {
+    // LAN-366 (Brian): middle_name is captured for records only and is "not
+    // part of duplicate matching or sign-up probes." The review's own
+    // defect-injection challenge (a one-line addition to the candidate
+    // WHERE clause matching middle_name against the given/family-name
+    // terms) passed every other test in this suite unnoticed — this is the
+    // test that would have caught it.
+    const middleName = unique("MiddleOnly");
+    const personId = await insertPersonWithMiddleName(
+      unique("GivenNoMatch"),
+      middleName,
+      unique("FamilyNoMatch"),
+    );
+
+    const byGivenNameTerm = await findPersonDuplicates({ givenName: middleName });
+    expect(byGivenNameTerm.map((c) => c.personId)).not.toContain(personId);
+
+    const byFamilyNameTerm = await findPersonDuplicates({
+      givenName: "Nothing At All Like It",
+      familyName: middleName,
+    });
+    expect(byFamilyNameTerm.map((c) => c.personId)).not.toContain(personId);
   });
 
   it("refuses a query with nothing to match on", async () => {

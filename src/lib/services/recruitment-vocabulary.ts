@@ -32,6 +32,60 @@ export const CONSENT_LABELS: Readonly<Record<SeasonMessagingConsentState, string
   withdrawn: "Withdrawn",
 });
 
+/**
+ * The standing consent state, said the way Brian asked for it on 2026-09-16
+ * (LAN-371): "WhatsApp granted", "Revoked (by operator, date)" or "Revoked (by
+ * the person, date)". The state alone does not say who acted, and once an
+ * operator can withdraw on somebody's behalf that is the first thing a reader
+ * needs to know.
+ */
+export function consentStatusLabel(
+  state: SeasonMessagingConsentState,
+  provenance: { readonly byOperator: boolean; readonly changedAt: string | null },
+): string {
+  if (state === "granted") return "WhatsApp granted";
+  if (state !== "withdrawn") return CONSENT_LABELS[state];
+  const who = provenance.byOperator ? "by operator" : "by the person";
+  const when = consentDateLabel(provenance.changedAt);
+  return when === null ? `Revoked (${who})` : `Revoked (${who}, ${when})`;
+}
+
+/** "15 Sept 2026", in the club's zone, or null where there is no date. */
+function consentDateLabel(changedAt: string | null): string | null {
+  if (changedAt === null) return null;
+  const when = new Date(changedAt);
+  if (Number.isNaN(when.getTime())) return null;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Europe/London",
+  }).format(when);
+}
+
+/**
+ * Why an operator changed somebody's consent.
+ *
+ * Brian, 2026-09-16: a recruit who wants out and cannot make it happen may
+ * complain to WhatsApp, which risks the club's sending account. A text-based
+ * "press X to stop" was tried and Meta classified it as marketing, so the
+ * mechanism is an operator action — and an operator action that changes what
+ * the club may send somebody is one the club has to be able to account for
+ * later.
+ *
+ * The four reasons are a short list plus the operator's own words, exactly as
+ * the issue asks: it is the reason that is recorded, never the recruit's own
+ * message or contact details.
+ */
+export const CONSENT_WITHDRAWAL_REASONS = Object.freeze({
+  asked_in_person: "They asked in person",
+  asked_by_message: "They asked by message",
+  complaint: "They complained",
+  other: "Other",
+} as const);
+
+export type ConsentWithdrawalReason = keyof typeof CONSENT_WITHDRAWAL_REASONS;
+
 export type RsvpValue = "yes" | "no";
 export type AttendanceValue = "present" | "late" | "excused" | "absent";
 

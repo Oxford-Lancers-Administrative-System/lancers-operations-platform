@@ -30,7 +30,13 @@ describe("merge authority", () => {
     expect(code).toMatch(/gh pr merge "\$PR" --repo "\$REPO" --auto --squash/);
     expect(code.match(/gh pr merge/g)).toHaveLength(1);
     expect(code).not.toMatch(/--admin/);
-    expect(code).not.toMatch(/--match-head-commit/);
+    // LAN-359, Brian 2026-09-15. Pinned to the head this run scanned: GitHub
+    // tracks the pull request, not the commit, so auto-merge armed against a
+    // clean diff used to stay armed over a later push — and if that head
+    // touched a prohibited path, the workflow commented and disarmed nothing.
+    // ADR 0038 dropped this flag for a case that is unchanged; the head-moving
+    // case was not discussed, and is what this puts back.
+    expect(code).toMatch(/--match-head-commit "\$HEAD_SHA"/);
   });
 
   it("stops on a draft before it does anything else", () => {

@@ -28,6 +28,9 @@ import { readPersonRecord } from "./person-record";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import {
   addRecruitmentProspectNoteIn,
+  readRecruitConsentForPersonIn,
+  recordRecruitConsentIn,
+  stopRecruitMessagesIn,
   flipRecruitmentProspectToJoinedIn,
   RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON,
   readRecruitmentProspectIn,
@@ -64,6 +67,8 @@ const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
+  // LAN-360: the outbound path signs every Graph call with a proof derived from it.
+  WHATSAPP_APP_SECRET: "not-a-real-app-secret",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
   EMAIL_API_KEY: "not-a-real-key",
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
@@ -1362,4 +1367,70 @@ describe("LAN-341 — a status change cancels what is still in flight", () => {
     // The other track had nothing queued, so there is nothing to explain there.
     expect(record?.recruitment.cancelledReason).toBeNull();
   }, 30_000);
+});
+
+/**
+ * LAN-371's recruit-shaped half — the two operator actions addressed by
+ * recruit rather than by person and season, and the person record's own read
+ * of the same fact. `messaging-consent.test.ts` proves what the actions do;
+ * this proves which person and which season one recruit's record means.
+ */
+describe("the operator's consent actions, by recruit", () => {
+  it("withdraws this recruit's consent for this season and records the reason", async () => {
+    const { personId, prospectId } = await newProspect("engaged");
+    await grantConsent(personId);
+    const operator = actorPersonId;
+
+    const result = await withTransaction((tx) =>
+      stopRecruitMessagesIn(tx, operator, prospectId, {
+        listedReason: "asked_in_person",
+        note: "Caught me after the taster session",
+      }),
+    );
+
+    expect(result.consent.state).toBe("withdrawn");
+    expect(result.consent.recordedByPersonId).toBe(operator);
+    expect(result.consent.reason).toContain("Caught me after the taster session");
+
+    const record = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
+    expect(record?.consent).toBe("withdrawn");
+    expect(record?.consentByOperator).toBe(true);
+    expect(record?.consentChangedAt).not.toBeNull();
+  });
+
+  it("records consent again, with a note of how it was given", async () => {
+    const { personId, prospectId } = await newProspect("engaged");
+    const operator = actorPersonId;
+
+    const consent = await withTransaction((tx) =>
+      recordRecruitConsentIn(tx, operator, prospectId, "Said yes at the stall, read back to them"),
+    );
+    expect(consent.state).toBe("granted");
+    expect(consent.recordedByPersonId).toBe(operator);
+    expect(personId).toBe(consent.personId);
+  });
+
+  it("refuses a recruit that does not exist, rather than writing against nobody", async () => {
+    const operator = actorPersonId;
+    await expect(
+      withTransaction((tx) =>
+        stopRecruitMessagesIn(tx, operator, "00000000-0000-4000-8000-00000000dead", {
+          listedReason: "complaint",
+        }),
+      ),
+    ).rejects.toMatchObject({ rule: "recruitment_prospect_not_found" });
+  });
+
+  it("offers the person record nothing for somebody who is not a recruit this season", async () => {
+    const person = await withTransaction((tx) =>
+      tx.query<{ id: string }>(
+        "insert into public.people (given_name, family_name) values ($1, null) returning id",
+        [MARKER],
+      ),
+    );
+    const summary = await withTransaction((tx) =>
+      readRecruitConsentForPersonIn(tx, person.rows[0].id),
+    );
+    expect(summary).toBeNull();
+  });
 });

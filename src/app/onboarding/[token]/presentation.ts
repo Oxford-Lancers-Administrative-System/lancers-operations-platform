@@ -75,17 +75,28 @@ export const FIELD_COLLEGE_EMAIL = "College email";
 export const FIELD_COLLEGE_EMAIL_HINT = "Your university address — it ends in ox.ac.uk.";
 export const FIELD_PERSONAL_EMAIL = "Personal email";
 export const FIELD_COLLEGE = "College";
+/** LAN-366. Optional, and the only name field on this step that is. */
+export const FIELD_MIDDLE_NAME = "Middle name";
+
 export const FIELD_MATRICULATION_YEAR = "Matriculation year";
 export const FIELD_EXPECTED_GRADUATION = "Expected graduation";
 export const FIELD_DEGREE_FIELD = "Degree field";
 export const FIELD_DATE_OF_BIRTH = "Date of birth";
 
-/** LAN-267's two identifiers. Neither required — a player who doesn't know their BAFA number yet is not blocked. */
+/**
+ * LAN-267's identifiers, reduced to one by LAN-365.
+ *
+ * Brian, 2026-09-16: the BAFA registration number leaves this form — a student
+ * never knows it, and the club fills it in on the person record. The student
+ * number stays, with copy that says which of the two similar numbers on the
+ * University card is wanted: Clint's warning is that people give the other one.
+ */
 export const SECTION_GAME_DAY = "For game day";
 export const SECTION_GAME_DAY_NOTE =
-  "The officials' roster form asks for these at every game. Leave either blank if you do not have it yet.";
+  "The officials' roster form asks for this at every game. Leave it blank if you do not have it to hand.";
 export const FIELD_STUDENT_NUMBER = "Student number";
-export const FIELD_BAFA_NUMBER = "BAFA registration number";
+export const FIELD_STUDENT_NUMBER_HINT =
+  "Your University (Bod) card shows two similar numbers. This is your student number, not your University card number.";
 
 export const FIELD_EC_GIVEN_NAME = "Emergency contact first name";
 export const FIELD_EC_FAMILY_NAME = "Emergency contact last name";

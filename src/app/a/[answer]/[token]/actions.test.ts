@@ -153,7 +153,9 @@ describe("a recruit's answer — LAN-203, REQ-recruit-sees-public-only", () => {
   it("redirects back to this same route, not to the events page they have no page at", async () => {
     const target = await redirectFrom(() => submitAnswer(formFor()));
 
-    expect(target).toBe(`/a/yes/${encodeURIComponent(TOKEN)}`);
+    // LAN-376: `?saved=1` is what now reaches the saved page, because a
+    // consumed token renders the confirm screen again rather than a dead end.
+    expect(target).toBe(`/a/yes/${encodeURIComponent(TOKEN)}?saved=1`);
     // No durable credential minted for someone who will never use one.
     expect(issuePersonTokenIn).not.toHaveBeenCalled();
   });

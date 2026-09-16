@@ -64,6 +64,8 @@ function baseRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
     personId: "p1",
     givenName: "Bertram",
     givenNameSource: null,
+    middleName: null,
+    middleNameSource: null,
     familyName: null,
     familyNameSource: null,
     aliases: [],
@@ -142,6 +144,59 @@ describe("the person record, for an authorized operator", () => {
     expect(screen.getAllByText("not recorded").length).toBeGreaterThan(0);
     expect(container.textContent).not.toContain("null");
     expect(container.textContent).not.toContain("undefined");
+  });
+
+  /**
+   * LAN-365, Brian 2026-09-16: "no academic section." The two identifiers
+   * moved into the personal group first; the correction round folded college,
+   * matriculation year, expected graduation and degree field in beside them
+   * too — after the contact details, before the two identifiers, and BAFA
+   * last because the club fills it in.
+   */
+  it("shows the academic facts and both identifiers in the personal group, none under a separate Academic heading", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({
+        college: "Wadham",
+        matriculationYear: 2024,
+        expectedGraduationYear: 2028,
+        degreeField: "Engineering Science",
+        studentNumber: "1234567",
+        bafaRegistrationNumber: "BAFA-99",
+      }),
+    );
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    expect(screen.queryByRole("heading", { name: "Academic" })).toBeNull();
+
+    const personal = screen.getByRole("heading", { name: "Who they are" }).closest("section");
+    expect(personal).not.toBeNull();
+    expect(within(personal as HTMLElement).getByText("Wadham")).toBeTruthy();
+    expect(within(personal as HTMLElement).getByText("2024")).toBeTruthy();
+    expect(within(personal as HTMLElement).getByText("2028")).toBeTruthy();
+    expect(within(personal as HTMLElement).getByText("Engineering Science")).toBeTruthy();
+    expect(within(personal as HTMLElement).getByText("1234567")).toBeTruthy();
+    expect(within(personal as HTMLElement).getByText("BAFA-99")).toBeTruthy();
+
+    // "Who they are" itself renders after the contact details.
+    const contact = screen.getByRole("heading", { name: "How to reach them" }).closest("section");
+    expect(contact).not.toBeNull();
+    expect(
+      (personal!.compareDocumentPosition(contact!) & Node.DOCUMENT_POSITION_PRECEDING) !== 0,
+    ).toBe(true);
+
+    // Ordered: the academic facts, then the identifiers, BAFA last.
+    const labels = within(personal as HTMLElement)
+      .getAllByText(
+        /^(First name|Last name|Known as|Aliases|College|Matriculation year|Expected graduation|Degree field|Student number|BAFA registration number)$/,
+      )
+      .map((node) => node.textContent);
+    expect(labels.at(-1)).toBe("BAFA registration number");
+    expect(labels.at(-2)).toBe("Student number");
+    expect(labels.indexOf("College")).toBeGreaterThan(labels.indexOf("Aliases"));
+    expect(labels.indexOf("Student number")).toBeGreaterThan(labels.indexOf("Degree field"));
   });
 
   it("shows who supplied a contact value, from its own stored source", async () => {

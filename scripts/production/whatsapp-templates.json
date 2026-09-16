@@ -144,6 +144,39 @@
     "replaces": "lancers_event_change_notice"
   },
   {
+    "name": "lancers_event_question_change_v1",
+    "kind": "question_change",
+    "category": "UTILITY",
+    "language": "en",
+    "environment": "Production",
+    "validityPeriodHours": 12,
+    "body": "Hello {{1}}, a question for {{2}} on {{3}} has changed: {{4}}.\n\nYour previous answer has been cleared. Please answer it again below.",
+    "samples": [
+      {
+        "slot": "{{1}}",
+        "meaning": "inviteeName"
+      },
+      {
+        "slot": "{{2}}",
+        "meaning": "eventName"
+      },
+      {
+        "slot": "{{3}}",
+        "meaning": "whenLabel"
+      },
+      {
+        "slot": "{{4}}",
+        "meaning": "questionSummary"
+      }
+    ],
+    "buttons": [
+      {
+        "label": "Answer questions",
+        "url": "https://app.oxfordlancers.com/questions/{{1}}"
+      }
+    ]
+  },
+  {
     "name": "lancers_event_cancellation_v2",
     "kind": "cancellation",
     "category": "UTILITY",

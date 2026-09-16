@@ -9,7 +9,7 @@ import { PhoneIcon } from "@/components/phone-icon";
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
 import {
   ATTENDANCE_LABEL,
-  CONSENT_LABELS,
+  consentStatusLabel,
   RSVP_LABEL,
 } from "@/lib/services/recruitment-vocabulary";
 import { bandColour, rawValue, type ColumnDef } from "./board-columns";
@@ -34,7 +34,15 @@ export function filterChipLabel(key: string, value: string, columns: readonly Co
  * club's own `RSVP_LABEL`/`ATTENDANCE_LABEL`, not `displayOf`'s bare `String()`.
  */
 function displayText(row: RecruitmentBoardRow, column: ColumnDef): string {
-  if (column.key === "consent") return CONSENT_LABELS[row.consent];
+  // LAN-371: "WhatsApp granted", "Revoked (by operator, date)" or "Revoked (by
+  // the person, date)" — once an operator can withdraw on somebody's behalf,
+  // who did it is the first thing a reader of this column needs.
+  if (column.key === "consent") {
+    return consentStatusLabel(row.consent, {
+      byOperator: row.consentByOperator,
+      changedAt: row.consentChangedAt,
+    });
+  }
   if (column.key === "playedBefore") {
     return row.playedBefore ? RSVP_LABEL[row.playedBefore] : NOT_RECORDED;
   }
@@ -170,7 +178,11 @@ export function RecruitCard({
             {row.displayName}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {row.college ?? NOT_RECORDED} · {CONSENT_LABELS[row.consent]}
+            {row.college ?? NOT_RECORDED} ·{" "}
+            {consentStatusLabel(row.consent, {
+              byOperator: row.consentByOperator,
+              changedAt: row.consentChangedAt,
+            })}
           </Typography>
         </Stack>
       </Box>

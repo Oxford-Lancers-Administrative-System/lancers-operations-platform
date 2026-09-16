@@ -319,7 +319,12 @@ export async function resolveAnswerTokenIn(tx: Tx, token: string): Promise<Answe
     state: "valid",
     answer: parsed.answer,
     invitation,
-    writable: row.single_use_at === null,
+    // LAN-376. A tapped button used to stop being writable, so a player who
+    // tapped Yes, then No, then Yes again dead-ended on "already recorded" with
+    // the No still standing. Brian, 2026-09-16: the last recorded answer wins,
+    // whoever recorded it — so every tap of a live button records again. The
+    // single-use stamp is kept, and is still what the write-on-GET guard reads.
+    writable: true,
     consumed: row.single_use_at !== null,
   };
 }
@@ -331,7 +336,7 @@ export interface RecordedPlayerAnswer {
   readonly answer: PlayerAnswer;
   readonly personId: string;
   readonly seasonId: string;
-  /** Already-consumed double-taps return `false` — nothing was written again. */
+  /** Always `true` since LAN-376: every tap of a live button records again. */
   readonly recorded: boolean;
   /**
    * LAN-203. `recruit`, or one of the other three `invitation_capacity`
@@ -357,12 +362,11 @@ function closedAnswerLinkMessage(): string {
  * gates the write happens in the route layer and must be able to refuse
  * *before* anything here runs.
  *
- * Idempotent by construction: a token already consumed records nothing a
- * second time and returns `recorded: false`, which is what makes a reload or a
- * double-tap of the same button safe. The *current* standing answer is always
- * whatever `current_rsvp` says, so a reload after consumption is not stale —
- * it is simply not this function's job to report it; the caller reads the page
- * fresh either way.
+ * LAN-376: a token already consumed records **again**. It used to return
+ * `recorded: false` and write nothing, which is what left "Yes, then No, then
+ * Yes again" stuck on the No. The standing answer is always whatever
+ * `current_rsvp` says, and that view now ranks on `recorded_at`, so the tap
+ * that happened last is the answer that stands.
  *
  * Owner correction round 5 (OWNER-LAN172-12, OWNER-LAN172-13). `options`
  * lets the landing page's own single combined submit both record what the
@@ -425,22 +429,18 @@ export async function consumeAnswerTokenIn(
     throw new InvalidTransition(closedAnswerLinkMessage(), { rule: ANSWER_TOKEN_CLOSED_RULE });
   }
 
-  // Idempotent: a second POST for an already-consumed token changes nothing
-  // and is not an error. `rsvp_responses` is append-only, so re-inserting here
-  // would either violate the one-answer-per-instant constraint or — worse on a
-  // slow retry a second later — silently append a second identical response.
-  // Neither is "no false RSVP was created twice"; simply doing nothing is.
-  if (row.single_use_at !== null) {
-    return {
-      invitationId: parsed.invitationId,
-      answer: response,
-      personId: row.person_id,
-      seasonId: row.season_id,
-      recorded: false,
-      capacity: row.capacity,
-    };
-  }
-
+  // LAN-376. A consumed token used to return here having written nothing, which
+  // is how "tap Yes, tap No, tap Yes again" left the No standing and the player
+  // looking at a dead end. Brian, 2026-09-16: the last recorded answer wins, so
+  // a second tap of a live button records again. The stamp is refreshed rather
+  // than skipped — it is the *use* record for this credential, and the
+  // write-on-GET guard (`answer-gate.ts`, the cookie `src/proxy.ts` sets) is
+  // what still keeps a crawler or a scanner from recording anything at all.
+  //
+  // The cost, accepted deliberately: a retried POST appends a second identical
+  // response rather than doing nothing. The standing answer is the same either
+  // way — which is what "reloads and double-taps are idempotent" was ever
+  // about — and every row is retained, which is what the audit needs.
   await tx.query(`update public.person_access_tokens set single_use_at = now() where id = $1`, [
     row.token_id,
   ]);

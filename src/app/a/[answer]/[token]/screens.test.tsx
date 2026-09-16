@@ -81,6 +81,18 @@ const QUESTION: EventQuestionForAnswer = {
   choices: null,
   isRequired: true,
   currentAnswer: null,
+  wasChanged: false,
+};
+
+/** LAN-367 correction: outstanding because a change superseded the earlier answer, not because nobody ever answered. */
+const CHANGED_QUESTION: EventQuestionForAnswer = {
+  id: "00000000-0000-4000-8000-0000000000bb",
+  prompt: "Do you need a lift there and back?",
+  answerType: "text",
+  choices: null,
+  isRequired: false,
+  currentAnswer: null,
+  wasChanged: true,
 };
 
 const TOKEN = "y.00000000-0000-4000-8000-000000000079.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM01";
@@ -101,6 +113,7 @@ const BASE: SignedRsvpPage = {
   eventStartsAt: new Date("2026-10-14T19:00:00Z"),
   playerName: "Avery Fielding",
   responseDeadline: new Date("2026-10-13T17:00:00Z"),
+  deadlinePassed: false,
   currentResponse: null,
 };
 
@@ -254,6 +267,21 @@ describe("OWNER-LAN172-12 — the Yes landing asks the event's own questions its
 
     expect(text).toContain("Plans changed? You can change your answer.");
   });
+
+  // LAN-367 correction (A3): a question superseded by a change reads as
+  // outstanding here, same as one nobody has ever answered — but it now
+  // carries its own short label, so the two are not mistaken for each other.
+  it("labels a question superseded by a change, and never labels an ordinary outstanding one", async () => {
+    givenAnswer("yes", [QUESTION, CHANGED_QUESTION]);
+    const { container } = await renderPage();
+
+    // Exactly one label, for the two questions rendered — QUESTION (an
+    // ordinary outstanding required question) never gets one.
+    const labels = container.querySelectorAll('[data-testid="question-changed-label"]');
+    expect(labels).toHaveLength(1);
+    expect(labels[0].textContent).toBe("Question changed");
+    expect(container.textContent).toContain(CHANGED_QUESTION.prompt);
+  });
 });
 
 describe("OWNER-LAN172-13 — the No landing takes the reason itself", () => {
@@ -398,11 +426,13 @@ describe("LAN-203, REQ-recruit-sees-public-only — a recruit's confirm screen",
     expect(container.textContent).toContain(RECRUIT_BASE.venue);
   });
 
-  it("lands on its own saved page once the token is consumed — submitAnswer's redirect target, resolved", async () => {
+  it("lands on its own saved page after submitAnswer's redirect — LAN-376's `saved` marker", async () => {
     // `submitAnswer` (actions.ts) sends a recruit back to this exact route
-    // rather than to `/events/[token]`; by the time this GET re-resolves the
-    // token it is already consumed, and that is what this proves renders —
-    // "Your response is saved", never the player copy naming "your own page".
+    // rather than to `/events/[token]`, now carrying `?saved=1`. LAN-376 made
+    // a consumed token writable again — tapping the button a second time must
+    // record again — so the saved page is reached by that marker rather than
+    // by the stamp. What it renders is unchanged: "Your response is saved",
+    // never the player copy naming "your own page".
     givenRecruitAnswer("no");
     vi.mocked(resolveAnswerTokenIn).mockResolvedValue({
       state: "valid",
@@ -418,10 +448,35 @@ describe("LAN-203, REQ-recruit-sees-public-only — a recruit's confirm screen",
       consumed: true,
     });
 
-    const { container } = await renderPage();
+    const { container } = await renderPage({ saved: "1" });
 
     expect(container.textContent).toMatch(/your response is saved/i);
     expect(container.textContent).not.toMatch(/your own page/i);
+  });
+
+  it("offers the confirm screen again on a plain revisit of a consumed token — LAN-376", async () => {
+    // The defect Brian reproduced: a second tap of a button already used
+    // dead-ended on "This response is already recorded" with the other
+    // button's answer still standing and nothing to do about it.
+    givenRecruitAnswer("no");
+    vi.mocked(resolveAnswerTokenIn).mockResolvedValue({
+      state: "valid",
+      answer: "no",
+      invitation: {
+        invitationId: RECRUIT_BASE.invitationId,
+        eventId: "00000000-0000-4000-8000-0000000000ee",
+        eventName: RECRUIT_BASE.eventName,
+        eventStatus: RECRUIT_BASE.eventStatus,
+        scheduledOn: RECRUIT_BASE.scheduledOn,
+      },
+      writable: true,
+      consumed: true,
+    });
+
+    const { container } = await renderPage();
+
+    expect(container.textContent).not.toMatch(/already recorded/i);
+    expect(container.querySelector("form")).not.toBeNull();
   });
 });
 

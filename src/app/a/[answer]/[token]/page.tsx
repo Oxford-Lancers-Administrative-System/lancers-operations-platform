@@ -19,7 +19,7 @@ import {
 } from "@/lib/services/player-answer-tokens";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 
-import { ERROR_PARAM } from "./params";
+import { ERROR_PARAM, SAVED_PARAM } from "./params";
 import { BUSY_ERROR } from "./presentation";
 import { Confirm } from "./confirm-panel";
 import { AlreadyRecorded, Cancelled, RecruitAlreadyRecorded } from "./terminal-panels";
@@ -128,8 +128,13 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
   const answer = resolved.resolution.answer as PlayerAnswer;
   const error = firstValue(query[ERROR_PARAM]);
 
-  if (resolved.resolution.consumed) {
-    // LAN-203: a recruit's actual "saved" landing — `submitAnswer` redirects them back here, not to `/events/<t>`, which they have no page at.
+  // LAN-376. This used to key off `resolution.consumed`, so a second tap of a
+  // button the player had already used dead-ended here with no way to change
+  // anything — the whole of Brian's "flipping yes and no leaves the answer
+  // stuck". A consumed token now renders the confirm screen again and records
+  // again. The saved page is reached by the one redirect that lands here:
+  // LAN-203's recruit landing, which has no `/events/<t>` page to go to.
+  if (firstValue(query[SAVED_PARAM]) !== null) {
     return resolved.base.capacity === "recruit" ? (
       <RecruitAlreadyRecorded answer={answer} base={resolved.base} />
     ) : (

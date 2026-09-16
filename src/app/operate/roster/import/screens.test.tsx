@@ -125,6 +125,7 @@ function plan(overrides: Partial<RosterImportPlan> = {}): RosterImportPlan {
         outcome: "new",
         name: "Rosalind Penhaligon",
         cells: {
+          middle_name: "",
           first_name: "Rosalind",
           last_name: "Penhaligon",
           mobile: "07700 900312",
@@ -141,6 +142,7 @@ function plan(overrides: Partial<RosterImportPlan> = {}): RosterImportPlan {
         outcome: "refused",
         name: "Beatrix Ashgrove",
         cells: {
+          middle_name: "",
           first_name: "Beatrix",
           last_name: "Ashgrove",
           mobile: "07700 900450",
@@ -168,6 +170,7 @@ function plan(overrides: Partial<RosterImportPlan> = {}): RosterImportPlan {
         outcome: "refused",
         name: "Wrenfield",
         cells: {
+          middle_name: "",
           first_name: "",
           last_name: "Wrenfield",
           mobile: "07700 900184",

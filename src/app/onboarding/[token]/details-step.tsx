@@ -47,6 +47,7 @@ export function DetailsStepPage({ view, token }: { view: QuestionnaireView; toke
 
   const initialValues: DetailsFormValues = {
     given_name: p.givenName,
+    middle_name: p.middleName ?? "",
     family_name: p.familyName ?? "",
     mobile: currentContact(view, "phone"),
     college_email: currentCollegeEmail(view),
@@ -56,7 +57,6 @@ export function DetailsStepPage({ view, token }: { view: QuestionnaireView; toke
     expected_graduation_year: p.expectedGraduationYear?.toString() ?? "",
     degree_field: p.degreeField ?? "",
     student_number: p.studentNumber ?? "",
-    bafa_registration_number: p.bafaRegistrationNumber ?? "",
     date_of_birth: p.dateOfBirth ?? "",
     ec_given_name: ec?.givenName ?? "",
     ec_family_name: ec?.familyName ?? "",

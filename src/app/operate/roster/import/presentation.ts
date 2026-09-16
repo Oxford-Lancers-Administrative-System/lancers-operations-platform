@@ -17,6 +17,7 @@ export const OUTCOME_LABELS: Readonly<Record<RosterRowOutcome, string>> = Object
 
 export const COLUMN_HEADINGS: Readonly<Record<ImportColumn, string>> = Object.freeze({
   first_name: "First name",
+  middle_name: "Middle name",
   last_name: "Last name",
   mobile: "Mobile",
   personal_email: "Personal email",

@@ -5,6 +5,16 @@ export type {
 } from "./read";
 export { readRecruitmentProspect, readRecruitmentProspectIn } from "./read";
 export { addRecruitmentProspectNote, addRecruitmentProspectNoteIn } from "./notes";
+// LAN-371: the operator's own "Stop messages" and "Record consent".
+export {
+  readRecruitConsentForPerson,
+  readRecruitConsentForPersonIn,
+  recordRecruitConsent,
+  recordRecruitConsentIn,
+  stopRecruitMessages,
+  stopRecruitMessagesIn,
+} from "./consent";
+export type { RecruitConsentSummary } from "./consent";
 
 export { updateRecruitmentProspectStatus, updateRecruitmentProspectStatusIn } from "./status";
 

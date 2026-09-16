@@ -65,6 +65,9 @@ export interface PersonRecord {
   givenName: string;
   /** Every `*Source` field below: derived from `audit_events`, `null` when no edit has named it (Q-13). */
   givenNameSource: string | null;
+  /** LAN-366. Optional, and shown on the person record and its edit form only. */
+  middleName: string | null;
+  middleNameSource: string | null;
   familyName: string | null;
   familyNameSource: string | null;
   aliases: PersonAlias[];
@@ -126,6 +129,7 @@ export const PERSON_MERGED_AWAY_MESSAGE =
 interface PersonRow {
   person_id: string;
   given_name: string;
+  middle_name: string | null;
   family_name: string | null;
   college: string | null;
   matriculation_year: number | null;
@@ -146,7 +150,7 @@ interface PersonRow {
 
 async function readPersonRowIn(tx: Tx, personId: string): Promise<PersonRow> {
   const result = await tx.query<PersonRow>(
-    `select p.id as person_id, p.given_name, p.family_name,
+    `select p.id as person_id, p.given_name, p.middle_name, p.family_name,
             p.college, p.matriculation_year, p.expected_graduation_year, p.degree_field,
             p.student_number, p.bafa_registration_number,
             to_char(p.date_of_birth, 'YYYY-MM-DD') as date_of_birth,
@@ -255,6 +259,7 @@ async function readEmergencyContactIn(tx: Tx, personId: string): Promise<Emergen
 /** The `people` columns with no `source` column of their own; each name is also the `field` half of `updatePersonField`'s `person_<field>_updated` audit action. */
 const DERIVED_PROVENANCE_FIELDS = [
   "given_name",
+  "middle_name",
   "family_name",
   "college",
   "matriculation_year",
@@ -347,6 +352,8 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
     personId: row.person_id,
     givenName: row.given_name,
     givenNameSource: fieldProvenance.given_name,
+    middleName: row.middle_name,
+    middleNameSource: fieldProvenance.middle_name,
     familyName: row.family_name,
     familyNameSource: fieldProvenance.family_name,
     aliases,
@@ -450,7 +457,7 @@ export async function searchPeople(
 
   return withTransaction(async (tx) => {
     const result = await tx.query<SummaryRow>(
-      `select p.id as person_id, p.given_name, p.family_name,
+      `select p.id as person_id, p.given_name, p.middle_name, p.family_name,
               ${personDisplayAliasSql("p")} as display_alias,
               ${personAssembledStatusSql("p")} as status,
               p.merged_into_person_id,

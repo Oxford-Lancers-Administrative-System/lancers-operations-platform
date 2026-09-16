@@ -19,7 +19,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import type { OutboundMessage } from "./provider";
+import type { MessageKind, OutboundMessage } from "./provider";
 import {
   ANSWER_QUESTIONS_LABEL,
   CHANGE_ANSWER_LABEL,
@@ -63,6 +63,7 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     deadlineLabel: "Tuesday 13 October, 20:00",
     attendingCount: 18,
     changeSummary: "The venue moved to the University Parks.",
+    questionSummary: "Do you need a lift to this one?",
     cancellationReason: "The pitch is waterlogged.",
     outstandingCount: 6,
     queueUrl: "https://lancers.example/operate/follow-ups",
@@ -85,14 +86,14 @@ describe("every declared template", () => {
     }
   });
 
-  it("covers all fourteen kinds and gives each one a distinct canonical name", () => {
+  it("covers all fifteen kinds and gives each one a distinct canonical name", () => {
     // Six from LAN-169, plus LAN-203's five recruit kinds — see
     // `recruit_event_followup` and the four capture-cycle templates below —
     // plus LAN-215's one door-independent onboarding welcome, plus LAN-218's
-    // chase and its own escalation.
-    expect(MESSAGE_KINDS).toHaveLength(14);
+    // chase and its own escalation, plus LAN-367's question-change notice.
+    expect(MESSAGE_KINDS).toHaveLength(15);
     expect(Object.keys(MESSAGE_TEMPLATES).sort()).toEqual([...MESSAGE_KINDS].sort());
-    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(14);
+    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(15);
   });
 
   it("renders a subject and a non-empty body for each", () => {
@@ -541,6 +542,21 @@ describe("the recruitment cycle's four templates", () => {
     }
   });
 
+  // LAN-372, Brian 2026-09-16: players are exempt from Stop, and the two
+  // onboarding kinds are the ones that go to a roster player. Their email
+  // bodies carried the opt-out line; the four recruit bodies above still do.
+  it("keeps the opt-out line off the onboarding messages, which go to roster players", () => {
+    for (const kind of [
+      "onboarding_welcome",
+      "onboarding_chase",
+      "onboarding_chase_escalation",
+    ] as const) {
+      const body = MESSAGE_TEMPLATES[kind].body(message({ kind })).join("\n");
+      expect(body).not.toContain(RECRUIT_STOP_MESSAGES_LABEL);
+      expect(body).not.toContain("https://lancers.example/stop/def");
+    }
+  });
+
   it("never asks a recruit for permission to send WhatsApp messages", () => {
     // Consent is obtained in person, at the door — a WhatsApp message asking
     // permission to send WhatsApp messages would itself require consent it
@@ -574,7 +590,7 @@ describe("the button labels", () => {
   });
 });
 
-describe("the fourteen canonical template names", () => {
+describe("the fifteen canonical template names", () => {
   // LAN-348. Every name carries `_v2` or `_v3`, and that is not decoration:
   // the unsuffixed and `_v1` names are the club's original Marketing
   // submissions, which Meta will not reclassify and will not let anyone edit
@@ -593,6 +609,10 @@ describe("the fourteen canonical template names", () => {
       "lancers_event_reminder_v2",
       "lancers_event_nudge_v2",
       "lancers_event_change_notice_v2",
+      // LAN-367's own template, drafted for Brian to submit. `_v1` because it
+      // has never been submitted under any other name: the suffixes elsewhere
+      // record a template Meta would not let the club correct in place.
+      "lancers_event_question_change_v1",
       "lancers_event_cancellation_v2",
       "lancers_nonresponse_escalation_v2",
       "recruit_event_followup_v2",
@@ -604,7 +624,7 @@ describe("the fourteen canonical template names", () => {
       "onboarding_chase_v2",
       "onboarding_chase_escalation_v2",
     ]);
-    for (const name of Object.values(TEMPLATE_NAMES)) expect(name).toMatch(/_v[23]$/);
+    for (const name of Object.values(TEMPLATE_NAMES)) expect(name).toMatch(/_v[123]$/);
   });
 });
 
@@ -647,5 +667,49 @@ describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
 
   it("carries the approved production template name", () => {
     expect(TEMPLATE_NAMES.onboarding_welcome).toBe("onboarding_welcome_v2");
+  });
+});
+
+/**
+ * LAN-379, Brian 2026-09-16. An event created inside its own invite window has
+ * a response deadline at or before the moment the message goes out, and the
+ * invitation then read "Please respond by Tuesday 15 September, 19:02" with
+ * 19:02 the time it arrived.
+ *
+ * Reproduced against the local sink before the fix: the WhatsApp slot carried
+ * the arrival time and the email said "Please respond by" it. The approved body
+ * fixes the word **by** in front of that slot and Meta will not edit an
+ * approved body, so the slot carries "today"; the email, under no such
+ * constraint, says "Please respond ASAP."
+ */
+describe("a response deadline that has already passed", () => {
+  const passed = (kind: MessageKind) => message({ kind, deadlinePassed: true });
+
+  it("sends the WhatsApp slot as today, so the fixed 'by' still reads", () => {
+    const slots = MESSAGE_TEMPLATES.invitation.parameters(passed("invitation"));
+    expect(slots.at(-1)).toBe("today");
+  });
+
+  it("says Please respond ASAP in the invitation email, never a deadline behind them", () => {
+    const body = MESSAGE_TEMPLATES.invitation.body(passed("invitation")).join("\n");
+    expect(body).toContain("Please respond ASAP.");
+    expect(body).not.toContain("Please respond by");
+  });
+
+  it("says the same on the reminder email, which chases the same answer", () => {
+    const body = MESSAGE_TEMPLATES.reminder.body(passed("reminder")).join("\n");
+    expect(body).toContain("Please respond ASAP.");
+    expect(body).not.toContain("Please respond now.");
+  });
+
+  it("leaves a real future deadline exactly as it was, on both channels", () => {
+    const future = message({ kind: "invitation", deadlinePassed: false });
+    expect(MESSAGE_TEMPLATES.invitation.parameters(future).at(-1)).toBe(future.deadlineLabel);
+    expect(MESSAGE_TEMPLATES.invitation.body(future).join("\n")).toContain(
+      `Please respond by ${future.deadlineLabel}. Thank you.`,
+    );
+    expect(MESSAGE_TEMPLATES.reminder.body(message({ kind: "reminder" })).join("\n")).toContain(
+      "Please respond now.",
+    );
   });
 });

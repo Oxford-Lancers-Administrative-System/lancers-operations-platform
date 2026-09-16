@@ -25,10 +25,10 @@ export default function PrivacyPage() {
       </PolicySection>
       <PolicySection title="Information the platform holds">
         <Typography>
-          Depending on your involvement with the club, records may include your name, contact
-          details including your university email address, university and membership information,
-          your student number, your BAFA registration number, date of birth, emergency contact
-          details, recruitment answers, onboarding progress and agreement records.
+          Depending on your involvement with the club, records may include your name including any
+          middle name, contact details including your university email address, university and
+          membership information, your student number, your BAFA registration number, date of birth,
+          emergency contact details, recruitment answers, onboarding progress and agreement records.
         </Typography>
         <Typography>
           The platform also records event invitations, your responses and answers, attendance,

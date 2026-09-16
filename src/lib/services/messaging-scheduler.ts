@@ -601,8 +601,8 @@ async function readDueJobs(
          from public.notification_jobs
         where held_at is null
           -- The rungs this package schedules, the escalation it raises,
-          -- OWNER-LAN173-03's two notices, and LAN-203's own recruitment
-          -- cycle messages.
+          -- OWNER-LAN173-03's two notices, LAN-367's question-change re-ask,
+          -- and LAN-203's own recruitment cycle messages.
           --
           -- Named as an allow-list rather than an exclusion so a seventh job
           -- type is not silently swept the day somebody adds one.
@@ -612,10 +612,22 @@ async function readDueJobs(
           -- here is new — see declareRecruitmentCycleJobsIn
           -- (recruitment-cycle.ts) for why 'other' was the safe value to
           -- adopt rather than a migrated seventh.
+          --
+          -- 'question_change_notice' (LAN-367) was declared by
+          -- declareQuestionReAskIn (event-question-changes.ts) but omitted
+          -- here when that job type was added, leaving every such job stuck
+          -- at pending forever -- readDueJobs is the only query
+          -- runMessagingSweep uses to discover work. Admitted on the
+          -- identical reasoning schedule_change_notice already has directly
+          -- below: it carries a real event_id, so it takes the ordinary
+          -- dispatchJob/claimJobIn path and falls through the
+          -- approved-and-future exists(...) guard rather than needing an
+          -- exemption from it.
           and (
             job_type in (
               'invitation', 'reminder', 'escalation',
-              'schedule_change_notice', 'cancellation_notice'
+              'schedule_change_notice', 'cancellation_notice',
+              'question_change_notice'
             )
             or (job_type = 'other' and idempotency_key like 'recruit-cycle:%')
             -- LAN-215. emitOnboardingOpenedWelcomeIn's own idempotency-key
@@ -673,6 +685,15 @@ async function readDueJobs(
           --     it, exactly as it does for a stale invitation, so the notice
           --     simply is not selected rather than being claimed and thrown
           --     against.
+          --   * question_change_notice is deliberately NOT exempt either, for
+          --     the identical reason schedule_change_notice is not:
+          --     declareQuestionReAskIn (event-question-changes.ts) only
+          --     writes it inside the same transaction as the question edit
+          --     that leaves the event approved and future, so it takes the
+          --     ordinary dispatchJob/claimJobIn path and mints a real
+          --     answer-page link, and a save that somehow left the event
+          --     cancelled or started is excluded by this same predicate
+          --     rather than needing a special case.
           --
           -- The status test excludes a cancelled event's rungs too. cancelEvent
           -- already cancels them, so this is belt and braces rather than the
@@ -1812,23 +1833,20 @@ export async function dispatchOnboardingWelcomeJob(
       return { kind: "no-send" };
     }
 
-    // Minted here, at dispatch: the onboarding questionnaire, and the opt-out
-    // — two credentials, never one (LAN-343). They used to be one token in two
-    // URLs, and the questionnaire link went to the events page rather than to
-    // the questionnaire this message is entirely about. Neither mint revokes
-    // anything: a link the club has sent keeps working until the season
-    // closes, which is what makes this page's own "you can come back to this
-    // link" true.
+    // Minted here, at dispatch: the onboarding questionnaire, and nothing
+    // else. The mint does not revoke anything — a link the club has sent keeps
+    // working until the season closes, which is what makes this page's own
+    // "you can come back to this link" true.
+    //
+    // LAN-372, Brian 2026-09-16: no opt-out credential is issued for a roster
+    // player. A player who wants the club to stop messaging them is asking to
+    // leave the team, which is a membership conversation, not an opt-out.
+    // Consent and Stop are recruit concepts.
     const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
       actorPersonId: null,
       purpose: "onboarding_details",
     });
-    const stopIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
-      actorPersonId: null,
-      purpose: "messaging_stop",
-    });
     const formUrl = onboardingUrl(context.appBaseUrl, issued.token);
-    const stopUrl = stopMessagesUrl(context.appBaseUrl, stopIssued.token);
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
@@ -1853,7 +1871,6 @@ export async function dispatchOnboardingWelcomeJob(
         whenLabel: membership.rows[0].opened_on,
         rsvpUrl: "",
         formUrl,
-        stopUrl,
       },
     };
   });
@@ -2541,16 +2558,13 @@ export async function dispatchOnboardingChaseJob(
     // earlier — the identical reasoning the welcome's own dispatcher carries,
     // and since LAN-343 this chase's link no longer kills the welcome's: both
     // keep resolving until the season closes.
+    // LAN-372: no `messaging_stop` credential for a roster player — see the
+    // welcome's own dispatcher above.
     const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
       actorPersonId: null,
       purpose: "onboarding_details",
     });
-    const stopIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
-      actorPersonId: null,
-      purpose: "messaging_stop",
-    });
     const formUrl = onboardingUrl(context.appBaseUrl, issued.token);
-    const stopUrl = stopMessagesUrl(context.appBaseUrl, stopIssued.token);
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
@@ -2573,7 +2587,6 @@ export async function dispatchOnboardingChaseJob(
         whenLabel: membership.rows[0].opened_on,
         rsvpUrl: "",
         formUrl,
-        stopUrl,
       },
     };
   });

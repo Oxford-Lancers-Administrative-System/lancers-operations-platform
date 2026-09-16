@@ -1090,6 +1090,7 @@ export type Database = {
           is_required: boolean
           prompt: string
           sort_order: number
+          version: number
         }
         Insert: {
           answer_type?: Database["public"]["Enums"]["question_answer_type"]
@@ -1101,6 +1102,7 @@ export type Database = {
           is_required?: boolean
           prompt: string
           sort_order?: number
+          version?: number
         }
         Update: {
           answer_type?: Database["public"]["Enums"]["question_answer_type"]
@@ -1112,6 +1114,7 @@ export type Database = {
           is_required?: boolean
           prompt?: string
           sort_order?: number
+          version?: number
         }
         Relationships: [
           {
@@ -2614,6 +2617,7 @@ export type Database = {
           merged_at: string | null
           merged_by_person_id: string | null
           merged_into_person_id: string | null
+          middle_name: string | null
           past_member_override: boolean | null
           student_number: string | null
           updated_at: string
@@ -2633,6 +2637,7 @@ export type Database = {
           merged_at?: string | null
           merged_by_person_id?: string | null
           merged_into_person_id?: string | null
+          middle_name?: string | null
           past_member_override?: boolean | null
           student_number?: string | null
           updated_at?: string
@@ -2652,6 +2657,7 @@ export type Database = {
           merged_at?: string | null
           merged_by_person_id?: string | null
           merged_into_person_id?: string | null
+          middle_name?: string | null
           past_member_override?: boolean | null
           student_number?: string | null
           updated_at?: string
@@ -3135,8 +3141,11 @@ export type Database = {
           event_question_id: string
           id: string
           invitation_id: string
+          question_version: number
           raw_capture: string | null
           responded_at: string
+          superseded_at: string | null
+          superseded_reason: string | null
         }
         Insert: {
           answer_boolean?: boolean | null
@@ -3146,8 +3155,11 @@ export type Database = {
           event_question_id: string
           id?: string
           invitation_id: string
+          question_version?: number
           raw_capture?: string | null
           responded_at?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
         }
         Update: {
           answer_boolean?: boolean | null
@@ -3157,8 +3169,11 @@ export type Database = {
           event_question_id?: string
           id?: string
           invitation_id?: string
+          question_version?: number
           raw_capture?: string | null
           responded_at?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
         }
         Relationships: [
           {
@@ -4161,6 +4176,7 @@ export type Database = {
           created_at: string
           id: string
           person_id: string
+          reason: string | null
           recorded_by_person_id: string | null
           season_id: string
           source: Database["public"]["Enums"]["messaging_consent_source"] | null
@@ -4171,6 +4187,7 @@ export type Database = {
           created_at?: string
           id?: string
           person_id: string
+          reason?: string | null
           recorded_by_person_id?: string | null
           season_id: string
           source?:
@@ -4183,6 +4200,7 @@ export type Database = {
           created_at?: string
           id?: string
           person_id?: string
+          reason?: string | null
           recorded_by_person_id?: string | null
           season_id?: string
           source?:
@@ -4975,6 +4993,7 @@ export type Database = {
         | "schedule_change_notice"
         | "escalation"
         | "other"
+        | "question_change_notice"
       onboarding_activity_kind: "ask" | "answer"
       onboarding_actor_kind: "operator" | "player" | "system"
       onboarding_agreement_type: "code_of_conduct" | "photo_release"
@@ -5247,6 +5266,7 @@ export const Constants = {
         "schedule_change_notice",
         "escalation",
         "other",
+        "question_change_notice",
       ],
       onboarding_activity_kind: ["ask", "answer"],
       onboarding_actor_kind: ["operator", "player", "system"],

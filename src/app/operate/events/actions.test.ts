@@ -37,6 +37,10 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
     updateEventQuestions: vi.fn(),
+    // LAN-367: the questions action asks what a save would do before it does
+    // it. Mocked to "nothing to re-ask" by default, so every assertion below
+    // about the save itself still reaches the save.
+    previewEventQuestionChanges: vi.fn(),
   };
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
@@ -65,7 +69,12 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { createEventDraft, updateEventDraft, updateEventQuestions } from "@/lib/services/events";
+import {
+  createEventDraft,
+  previewEventQuestionChanges,
+  updateEventDraft,
+  updateEventQuestions,
+} from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { EMPTY_AUDIENCE_MESSAGE } from "@/lib/services/audience-selection";
 import {
@@ -208,6 +217,11 @@ beforeEach(() => {
   vi.mocked(updateEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(approveEvent).mockResolvedValue({ event: { id: EVENT_ID } } as never);
   vi.mocked(updateEventQuestions).mockResolvedValue({ id: EVENT_ID } as never);
+  vi.mocked(previewEventQuestionChanges).mockResolvedValue({
+    changedPrompts: [],
+    addedCount: 0,
+    peopleToAsk: 0,
+  });
   vi.mocked(saveEventAudience).mockResolvedValue([] as never);
 });
 
@@ -768,6 +782,54 @@ describe("an approved event's questions are changed without anything being sent"
     const state = await updateEventQuestionsAction(EMPTY_FORM_STATE, questionsForm());
 
     expect(state.error).toContain("not removed");
+  });
+
+  /**
+   * LAN-367, Brian 2026-09-16. A save that changes a question voids the
+   * answers it collected and asks the people who gave them again, so the
+   * operator confirms it first — and D3's tick is what says "this was a
+   * correction", keeping the answers and telling nobody.
+   */
+  it("asks the operator to confirm before voiding anybody's answers", async () => {
+    vi.mocked(previewEventQuestionChanges).mockResolvedValue({
+      changedPrompts: ["Are you fit to play?"],
+      addedCount: 0,
+      peopleToAsk: 14,
+    });
+
+    const state = await updateEventQuestionsAction(EMPTY_FORM_STATE, questionsForm());
+
+    expect(state.questionChange).toEqual({
+      changedPrompts: ["Are you fit to play?"],
+      addedCount: 0,
+      peopleToAsk: 14,
+    });
+    expect(updateEventQuestions).not.toHaveBeenCalled();
+  });
+
+  it("saves as a correction when the operator ticks it, and never asks twice", async () => {
+    vi.mocked(previewEventQuestionChanges).mockResolvedValue({
+      changedPrompts: ["Are you fit to play?"],
+      addedCount: 0,
+      peopleToAsk: 14,
+    });
+    const form = questionsForm();
+    form.set("confirm", "1");
+    form.set("correction", "1");
+
+    await expect(updateEventQuestionsAction(EMPTY_FORM_STATE, form)).rejects.toThrow(/^REDIRECT:/);
+
+    // The preview is not consulted a second time: the operator has answered.
+    expect(previewEventQuestionChanges).not.toHaveBeenCalled();
+    expect(vi.mocked(updateEventQuestions).mock.calls[0][3]).toEqual({ correction: true });
+  });
+
+  it("saves straight through when nothing changed, with no confirmation at all", async () => {
+    await expect(updateEventQuestionsAction(EMPTY_FORM_STATE, questionsForm())).rejects.toThrow(
+      /^REDIRECT:/,
+    );
+
+    expect(vi.mocked(updateEventQuestions).mock.calls[0][3]).toEqual({ correction: false });
   });
 
   it("says which question is wrong rather than reaching the service", async () => {

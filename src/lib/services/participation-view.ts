@@ -100,6 +100,13 @@ export interface ParticipationPerson {
 export interface OperatorParticipationPerson extends ParticipationPerson {
   readonly delivery: DeliveryState | null;
   readonly invitationId?: string | null;
+  /**
+   * When the standing answer says it was given — LAN-376. The player's own
+   * answers stamp the database clock; an operator's is what the operator typed.
+   * Operator tier only, and only so the record-answer form can show what it is
+   * about to replace. `null` where there is no answer.
+   */
+  readonly answeredAt?: string | null;
   /** W4's chase position; see `./chase-position.ts`. */
   readonly chasePosition?: string | null;
   readonly noUsableRoute?: boolean;

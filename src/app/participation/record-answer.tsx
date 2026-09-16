@@ -26,8 +26,16 @@ import type { EventFactsBase, ParticipationQuestion } from "@/lib/services/parti
 
 import { recordOperatorAnswerAction } from "./record-answer-actions";
 import { EMPTY_RECORD_ANSWER_STATE } from "./record-answer-state";
+import { StatusChip } from "@/components/status-chip";
+import { Fact, FactGrid } from "@/components/fact";
+
 import {
+  ANSWER_NO,
+  ANSWER_YES,
   CANCEL,
+  changeAnswerLabel,
+  CURRENT_ANSWER_LABEL,
+  currentAnswerValue,
   EVENT_QUESTIONS_HEADING,
   QUESTION_OPTIONAL,
   QUESTION_REQUIRED_OF_PLAYER_OPTIONAL_HERE,
@@ -62,6 +70,11 @@ function nowInClubZoneAsLocalDate(): Date {
   // Floored (not rounded) to the TimePicker's five-minute step, or MUI reads an off-step value as invalid (OWNER-LAN170-04).
   const flooredMinutes = Math.floor((part("hour") * 60 + part("minute")) / 5) * 5;
   return new Date(part("year"), part("month") - 1, part("day"), 0, flooredMinutes);
+}
+
+/** The club's word for a standing answer, in the same vocabulary the chip uses. */
+function answerWord(answer: "yes" | "no"): string {
+  return answer === "yes" ? ANSWER_YES : ANSWER_NO;
 }
 
 /** OWNER-LAN170-08: the event's rule and this form's are different facts — required of the player, never required to record here. */
@@ -170,11 +183,20 @@ export function RecordAnswerControl({
   invitationId,
   displayName,
   questions,
+  current,
 }: {
   event: Pick<EventFactsBase, "id" | "name" | "scheduledOn" | "startsAt" | "endsAt">;
   invitationId: string;
   displayName: string;
   questions: readonly ParticipationQuestion[];
+  /**
+   * LAN-376. The standing answer, where there is one. Its presence is what
+   * turns this control from "Record answer" into the answer chip itself, so an
+   * answered row still reads as its answer and is still the way to change it —
+   * OWNER-LAN170-05's rule that the control replaces the chip rather than
+   * stacking beside it, now that a row with an answer has a control too.
+   */
+  current?: { readonly answer: "yes" | "no"; readonly answeredAt: string | null } | null;
 }) {
   const eventId = event.id;
   const [state, formAction, pending] = useActionState(
@@ -214,18 +236,37 @@ export function RecordAnswerControl({
 
   return (
     <>
-      {/* OWNER-LAN170-05: restored ordinary bordered row-action treatment; Brian: "it's just awkward" as bare text. */}
-      <Button
-        type="button"
-        variant="outlined"
-        color="inherit"
-        size="small"
-        onClick={openDialog}
-        data-testid="record-answer-open"
-        sx={{ minHeight: 44 }}
-      >
-        {RECORD_ANSWER}
-      </Button>
+      {/*
+        Two triggers, one dialog. With no answer this is OWNER-LAN170-05's
+        ordinary bordered row action (Brian: "it's just awkward" as bare text).
+        With an answer it is the answer chip, unchanged to look at, wrapped in
+        a button so that changing it is one tap — LAN-376. Nothing stacks:
+        exactly one of these is ever in the cell.
+      */}
+      {current ? (
+        <Button
+          type="button"
+          variant="text"
+          onClick={openDialog}
+          data-testid="record-answer-open"
+          aria-label={changeAnswerLabel(displayName)}
+          sx={{ minHeight: 44, minWidth: 0, p: 0.5, textTransform: "none" }}
+        >
+          <StatusChip domain="rsvp" status={current.answer} label={answerWord(current.answer)} />
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="outlined"
+          color="inherit"
+          size="small"
+          onClick={openDialog}
+          data-testid="record-answer-open"
+          sx={{ minHeight: 44 }}
+        >
+          {RECORD_ANSWER}
+        </Button>
+      )}
 
       <Dialog
         open={open}
@@ -259,6 +300,22 @@ export function RecordAnswerControl({
                 <Notice severity="error" testId="record-answer-error">
                   {state.error}
                 </Notice>
+              ) : null}
+
+              {/*
+                What this recording replaces, and when the player said it —
+                LAN-376's "the form shows the player's current answer and when
+                they gave it". No confirmation step: Brian decided the last
+                recorded answer simply wins.
+              */}
+              {current ? (
+                <FactGrid>
+                  <Fact
+                    label={CURRENT_ANSWER_LABEL}
+                    value={currentAnswerValue(current.answer, current.answeredAt)}
+                    testId="record-answer-current"
+                  />
+                </FactGrid>
               ) : null}
 
               <Box>

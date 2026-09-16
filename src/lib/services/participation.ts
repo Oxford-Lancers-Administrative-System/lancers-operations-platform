@@ -52,6 +52,8 @@ interface PersonRow {
   issued_at: Date | string | null;
   rsvp: string | null;
   reason: string | null;
+  /** LAN-376: when the standing answer says it was given, for the operator's record-answer form. */
+  responded_at: Date | string | null;
   presence: string | null;
   delivery_state: DeliveryState | null;
   delivery_channel: string | null;
@@ -137,6 +139,7 @@ function participantQuery(tier: ParticipationTier): string {
          inv.issued_at,
          r.response::text as rsvp,
          r.reason,
+         r.responded_at,
          rec.presence${
            operator
              ? ",\n         delivery.state as delivery_state" +
@@ -324,9 +327,12 @@ async function readPeopleIn(
   const answersByInvitation = new Map<string, Record<string, string>>();
   if (questions.length > 0) {
     const answers = await tx.query<AnswerRow>(
+      // LAN-367: a superseded answer is not the current answer. The row is
+      // kept as the record of what the person said before the question
+      // changed, and the table reads as though they have not answered yet.
       `select invitation_id, event_question_id, answer_text, answer_boolean, answer_choice
          from public.question_responses
-        where event_id = $1`,
+        where event_id = $1 and superseded_at is null`,
       [eventId],
     );
     for (const row of answers.rows) {
@@ -378,6 +384,9 @@ async function readPeopleIn(
       answer,
       // Invariant P3: reason is mandatory on a "no" only, so never shown against a Yes.
       reason: answer === "no" ? row.reason : null,
+      // LAN-376. An operator may now record over any standing answer, so the
+      // form has to show what it is replacing and when the player said it.
+      answeredAt: answer === null ? null : asIsoString(row.responded_at),
       presence,
       discrepancy: discrepancyFor({ answer, presence, isWalkUp }),
       answers: row.invitation_id ? (answersByInvitation.get(row.invitation_id) ?? {}) : {},

@@ -8,7 +8,7 @@ import type { MessageKind, OutboundMessage } from "./provider";
  *
  * ## What this file is for
  *
- * Every message the club sends is one of fourteen kinds, and each kind exists
+ * Every message the club sends is one of fifteen kinds, and each kind exists
  * twice — once as an approved WhatsApp template and once as an email. This
  * module is the single declaration of both, and three separate things read it:
  *
@@ -19,7 +19,7 @@ import type { MessageKind, OutboundMessage } from "./provider";
  *   * **The local delivery sink**, which validates every payload it is handed
  *     against this registry and *rejects a mismatch*. That is what makes a
  *     parameter reordering fail on a developer machine rather than at Meta with
- *     error `132000`, and it is why the registry is data rather than fourteen
+ *     error `132000`, and it is why the registry is data rather than fifteen
  *     hand-written payload builders.
  *
  * LAN-168 owns the Meta cutover — generating the manifest, checking the
@@ -42,7 +42,7 @@ import type { MessageKind, OutboundMessage } from "./provider";
  * arrive in Oxford. Every template the club registered before September 2026
  * was Marketing, so none of them could reach those people at all.
  *
- * The fourteen bodies below are the ones Meta's classifier accepted as
+ * The fifteen bodies below are the ones Meta's classifier accepted as
  * **Utility**, found one probe at a time on 11 September 2026 and recorded in
  * `docs/whatsapp-template-categories.md`. Three rules govern them, and all
  * three are load-bearing: certain words force Marketing whatever the context;
@@ -97,6 +97,14 @@ export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.free
   reminder: "lancers_event_reminder_v2",
   nudge: "lancers_event_nudge_v2",
   change_notice: "lancers_event_change_notice_v2",
+  // LAN-367. Its own template, and deliberately not the change notice: that
+  // one ends "Your response still stands", which is the opposite of what a
+  // voided answer needs to hear. `_v1` because it has never been submitted
+  // under any other name — the suffixes elsewhere record a template Meta would
+  // not let the club correct in place, and there is nothing here to correct.
+  // Read back from configuration like every other name: registering it here is
+  // not the same as Meta approving it.
+  question_change: "lancers_event_question_change_v1",
   cancellation: "lancers_event_cancellation_v2",
   escalation: "lancers_nonresponse_escalation_v2",
   recruit_event_followup: "recruit_event_followup_v2",
@@ -162,7 +170,7 @@ export const RECRUIT_NO_LABEL = "No thanks";
  * Brian's date decision, carried from LAN-336.
  *
  * Meta's classifier requires every Utility body to anchor on `for {thing} on
- * {date}`. Six of the fourteen templates follow a *person* rather than an event
+ * {date}`. Six of the fifteen templates follow a *person* rather than an event
  * and have no event date to give it, so the thing is the person's own record
  * and the date is the day it was opened. The subject is fixed per kind and
  * carries the word "opened", so the rendered sentence reads "your answers for
@@ -232,10 +240,30 @@ function venueSlot(message: OutboundMessage): string {
  * cannot skip it, and "Please respond by as soon as you can" reads as a broken
  * template; the event's own start is the last moment an answer can matter, and
  * repeating it is the same fallback `venueSlot` takes for a missing venue.
+ *
+ * LAN-379, Brian 2026-09-16. An event created inside its own invite window has
+ * a deadline at or before the moment the message goes out, and this slot then
+ * quoted the arrival time back at the reader: "Please respond by Tuesday 15
+ * September, 19:02", sent at 19:02. The approved body fixes the word **by** in
+ * front of this slot and Meta will not edit an approved body, so the slot
+ * carries `today` — "Please respond by today. Thank you." The email, which is
+ * under no such constraint, says "Please respond ASAP." instead; see
+ * {@link deadlineSentence}.
  */
+export const DEADLINE_PASSED_SLOT = "today";
+export const RESPOND_ASAP = "Please respond ASAP.";
+
 function deadlineSlot(message: OutboundMessage): string {
+  if (message.deadlinePassed) return DEADLINE_PASSED_SLOT;
   const deadline = (message.deadlineLabel ?? "").trim();
   return deadline === "" ? required(message.whenLabel, "date and time") : deadline;
+}
+
+/** The email's own deadline line — LAN-379. Plain English, with no approved body to work around. */
+function deadlineSentence(message: OutboundMessage): string {
+  return message.deadlinePassed
+    ? RESPOND_ASAP
+    : `Please respond by ${deadlineSlot(message)}. Thank you.`;
 }
 
 /**
@@ -282,9 +310,17 @@ function formButtonUrls(message: OutboundMessage): readonly [string] {
 }
 
 /**
- * Email-only opt-out line. The WhatsApp templates cannot carry it (see
+ * Email-only opt-out line, on the four recruit messages and nowhere else.
+ *
+ * The WhatsApp templates cannot carry it at all (see
  * `RECRUIT_STOP_MESSAGES_LABEL`); the email transport is not bound by Meta's
  * classifier and keeps offering it wherever the dispatcher minted one.
+ *
+ * LAN-372, Brian 2026-09-16: the onboarding welcome and chase used to carry it
+ * too, and those go to roster players. A player asking the club to stop
+ * messaging them is asking to leave the team — a membership conversation, not
+ * an opt-out — so no `messaging_stop` credential is minted for them and this
+ * line never renders in their email. Consent and Stop are recruit concepts.
  */
 function stopLine(message: OutboundMessage): readonly string[] {
   const url = (message.stopUrl ?? "").trim();
@@ -317,7 +353,7 @@ const INVITATION: MessageTemplate = {
   body: (message) => [
     `Hello ${message.inviteeName}, you are on the team sheet for ${message.eventName} on ${message.whenLabel}.`,
     `Venue: ${venueSlot(message)}.`,
-    `Please respond by ${deadlineSlot(message)}. Thank you.`,
+    deadlineSentence(message),
     // Email's "equivalent calls to action" (W2's own words) rather than one
     // raw link: two distinct URLs, each already the answer, matching what the
     // WhatsApp buttons do. `REQ-no-false-rsvp` covers both — the destination
@@ -356,7 +392,12 @@ const REMINDER: MessageTemplate = {
       message.whenLabel,
       `Venue: ${venueSlot(message)}.`,
       ...(attending ? [attending] : []),
-      "Please respond now. Your answer affects numbers, transport and coaching plans.",
+      // LAN-379: the same rule the invitation follows, on the chase that
+      // follows it — a deadline already behind us is not something to respond
+      // "by".
+      message.deadlinePassed
+        ? `${RESPOND_ASAP} Your answer affects numbers, transport and coaching plans.`
+        : "Please respond now. Your answer affects numbers, transport and coaching plans.",
       `${YES_BUTTON_LABEL}: ${message.yesUrl}`,
       `${NO_BUTTON_LABEL}: ${message.noUrl}`,
     ];
@@ -428,6 +469,40 @@ const CHANGE_NOTICE: MessageTemplate = {
   ],
   buttonCount: 1,
   buttonUrls: (message) => [required(message.rsvpUrl, "link")],
+};
+
+/**
+ * LAN-367, decision D1. `Hello {{1}}, a question for {{2}} on {{3}} has
+ * changed: {{4}}.` / `Your previous answer has been cleared. Please answer it
+ * again below.` — one button on the `/questions/` base.
+ *
+ * A new template rather than a reuse of `change_notice`: that body ends "Your
+ * response still stands. Please use the link below if you need to change it.",
+ * and the whole point here is that one answer no longer stands. The RSVP
+ * itself is untouched, which is why the body says "a question" and never
+ * "your response".
+ *
+ * Utility, on the same reading every other approved body here was written to:
+ * it states a fact about the reader's own record and asks them to complete
+ * something they already started, with no offer and no invitation verb.
+ */
+const QUESTION_CHANGE: MessageTemplate = {
+  kind: "question_change",
+  parameterNames: ["inviteeName", "eventName", "whenLabel", "questionSummary"],
+  parameters: (message) => [
+    required(message.inviteeName, "name"),
+    required(message.eventName, "event name"),
+    required(message.whenLabel, "date and time"),
+    required(message.questionSummary, "which question changed"),
+  ],
+  subject: (message) => `A question changed: ${message.eventName}`,
+  body: (message) => [
+    `Hello ${message.inviteeName}, a question for ${message.eventName} on ${message.whenLabel} has changed: ${required(message.questionSummary, "which question changed")}.`,
+    "Your previous answer has been cleared. Please answer it again below.",
+    `${ANSWER_QUESTIONS_LABEL}: ${required(message.questionsUrl, "link")}`,
+  ],
+  buttonCount: 1,
+  buttonUrls: (message) => [required(message.questionsUrl, "link")],
 };
 
 /**
@@ -649,7 +724,9 @@ const RECRUIT_INTEREST_REMINDER: MessageTemplate = {
  * `Hello {{1}}, welcome to the team. Your answers for {{2}} on {{3}} are still
  * outstanding.` / `It takes a few minutes. Please complete the remaining
  * questions below.` — one button, `/onboarding/`, on its own purpose-tagged
- * credential (LAN-343). Never a Stop messages button (LAN-263).
+ * credential (LAN-343). Never a Stop messages button (LAN-263), and since
+ * LAN-372 no Stop line in the email body either: this message goes to a roster
+ * player, and players are exempt from Stop.
  */
 const ONBOARDING_WELCOME: MessageTemplate = {
   kind: "onboarding_welcome",
@@ -661,7 +738,6 @@ const ONBOARDING_WELCOME: MessageTemplate = {
     `Your answers for ${ONBOARDING_SUBJECT} on ${message.whenLabel}, are still outstanding.`,
     "It takes a few minutes. Please complete the remaining questions below.",
     `${ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "link")}`,
-    ...stopLine(message),
   ],
   buttonCount: 1,
   buttonUrls: formButtonUrls,
@@ -682,7 +758,6 @@ const ONBOARDING_CHASE: MessageTemplate = {
     `Hello ${message.inviteeName}, your answers for ${ONBOARDING_SUBJECT} on ${message.whenLabel}, are still outstanding.`,
     "Please complete the remaining questions below.",
     `${ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "link")}`,
-    ...stopLine(message),
   ],
   buttonCount: 1,
   buttonUrls: formButtonUrls,
@@ -715,6 +790,7 @@ export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> =
   reminder: REMINDER,
   nudge: NUDGE,
   change_notice: CHANGE_NOTICE,
+  question_change: QUESTION_CHANGE,
   cancellation: CANCELLATION,
   escalation: ESCALATION,
   recruit_event_followup: RECRUIT_EVENT_FOLLOWUP,
@@ -733,6 +809,7 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
   "reminder",
   "nudge",
   "change_notice",
+  "question_change",
   "cancellation",
   "escalation",
   "recruit_event_followup",

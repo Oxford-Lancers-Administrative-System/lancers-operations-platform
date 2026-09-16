@@ -60,11 +60,15 @@ describe.runIf(seeded)("synthetic dataset privacy", () => {
   });
 
   /**
-   * OWNER-LAN172-21. `public.current_rsvp` picks the standing answer by
-   * `order by responded_at desc`, so a seeded response timestamped in the
-   * future permanently outranks every honest, real `now()` click a later
-   * test or a real player ever makes on the same invitation — no matter how
-   * many real answers get appended afterward. `scripts/seed-local.mjs` used
+   * OWNER-LAN172-21. `public.current_rsvp` used to pick the standing answer
+   * by `order by responded_at desc`, so a seeded response timestamped in the
+   * future permanently outranked every honest, real `now()` click a later
+   * test or a real player ever made on the same invitation — no matter how
+   * many real answers got appended afterward. LAN-376 moved the ranking to
+   * `recorded_at`, which removes that particular trap; the rule that a seeded
+   * answer is never stamped in the future stays, because a seeded row claiming
+   * the player answered tomorrow is wrong on its own terms and reads that way
+   * on the record. `scripts/seed-local.mjs` used
    * to time an answer relative to its event's own (possibly future)
    * deadline rather than to the seed's own clock, so roughly half of every
    * already-answered upcoming invitation in the seeded roster was pinned
@@ -84,7 +88,7 @@ describe.runIf(seeded)("synthetic dataset privacy", () => {
     );
     expect(
       future,
-      "a seeded rsvp_responses row is timestamped after now() — it will permanently outrank a real click in current_rsvp's order by responded_at desc",
+      "a seeded rsvp_responses row is timestamped after now() — it claims the player answered in the future, and the record shows that instant as when they answered",
     ).toBe(0);
   });
 
@@ -96,7 +100,7 @@ describe.runIf(seeded)("synthetic dataset privacy", () => {
    * This picks a real, already-answered, upcoming invitation from whatever
    * this run's own seeded roster produced and proves the property the bug
    * actually broke: a real answer recorded now supersedes the seeded one,
-   * exactly as `current_rsvp`'s `order by responded_at desc` promises.
+   * exactly as `current_rsvp`'s `order by recorded_at desc` promises.
    * Wrapped in a transaction that is always rolled back — the seeded
    * dataset is unmutated by this test either way.
    */
