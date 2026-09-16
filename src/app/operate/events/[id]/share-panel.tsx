@@ -3,6 +3,7 @@ import { Section } from "@/components/section";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 
 import {
   CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE,
@@ -14,6 +15,7 @@ import {
 import { CopyLinkButton } from "../../../participation/copy-link";
 import {
   CLOSE,
+  CLUB_LINK_EXPIRY_LABEL,
   ISSUE_LINK,
   SHARE_CONSEQUENCE,
   SHARE_HEADLINE,
@@ -82,6 +84,10 @@ export function SharePanel({
             >
               {url}
             </Box>
+            {/* LAN-354: a label, so the operator posting this into a group chat knows how long it lasts. */}
+            <Typography variant="caption" color="text.secondary" data-testid="club-link-expiry">
+              {CLUB_LINK_EXPIRY_LABEL}
+            </Typography>
             <Box>
               <CopyLinkButton url={url} />
             </Box>

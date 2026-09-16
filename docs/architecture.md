@@ -218,6 +218,14 @@ control.
   The layer now exists — `src/lib/db/` and `src/lib/services/` — but it carries
   **no authorization rule yet**. `requireRole()` arrives in LAN-73. Until then a
   service function takes an actor and records it; it does not check it.
+- **The club link expires seven days after its event.** `/e/<token>` shows
+  names, RSVP status, decline reasons and question answers to anybody holding
+  it, and it used to hold for ever — so every link ever forwarded stayed a
+  standing window into the squad. `club-link.ts` refuses one more than seven
+  days past the event's end (or its start, where no end is recorded), counted
+  from the event's date **as read at resolve time**: there is no stored expiry
+  column, so rescheduling revives the link and `revoked_at` stays unused. No
+  other token type changed (Brian, 2026-09-16, LAN-354).
 - **The lawful basis for messaging a member is membership; consent is a recruit
   concept.** A person on the roster for a season is messaged about training,
   fixtures and their own record because they are on the team, and there is no

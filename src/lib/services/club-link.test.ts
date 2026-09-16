@@ -18,6 +18,7 @@ import type { Client } from "pg";
 
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import {
+  CLUB_LINK_LIFETIME_DAYS,
   CLUB_LINK_NEEDS_AN_AUDIENCE_RULE,
   CLUB_LINK_TOKEN_PATTERN,
   CLUB_LINK_UNCONFIGURED_RULE,
@@ -393,6 +394,118 @@ describe("resolving a club link", () => {
 // ---------------------------------------------------------------------------
 // The database's own refusals
 // ---------------------------------------------------------------------------
+
+/**
+ * LAN-354, Brian 2026-09-16: "Club link: automatic expiry 7 days after the
+ * event. No revoke action. Every other token type unchanged."
+ *
+ * `/e/<token>` is the shared squad page a coach posts into the team WhatsApp
+ * group, and it never expired — so every link ever forwarded stayed a standing
+ * window into names, RSVP status, decline reasons and question answers. The
+ * clock is read off the event's own date at resolve time, with no stored
+ * column, so rescheduling revives the link.
+ */
+describe("a club link's seven days", () => {
+  it("is seven days, named once and read by the expression that enforces it", () => {
+    expect(CLUB_LINK_LIFETIME_DAYS).toBe(7);
+  });
+
+  async function moveEventTo(eventId: string, days: number): Promise<void> {
+    await observer.query(
+      `update public.events
+          set scheduled_on = (current_date + make_interval(days => $2))::date
+        where id = $1`,
+      [eventId, days],
+    );
+  }
+
+  it("opens on the day of the event and six days after", async () => {
+    const eventId = await anEvent();
+    const issued = await withTransaction((tx) =>
+      issueClubLinkIn(tx, eventId, { actorPersonId, env: SECRET }),
+    );
+
+    for (const daysAgo of [0, -6]) {
+      await moveEventTo(eventId, daysAgo);
+      const resolved = await withTransaction((tx) =>
+        resolveClubLinkIn(tx, issued.token, { env: SECRET }),
+      );
+      expect(resolved.state).toBe("live");
+    }
+  });
+
+  it("refuses on day eight, and says nothing about the squad", async () => {
+    const eventId = await anEvent();
+    const issued = await withTransaction((tx) =>
+      issueClubLinkIn(tx, eventId, { actorPersonId, env: SECRET }),
+    );
+    await moveEventTo(eventId, -8);
+
+    const resolved = await withTransaction((tx) =>
+      resolveClubLinkIn(tx, issued.token, { env: SECRET }),
+    );
+    expect(resolved).toEqual({ state: "expired" });
+    // Nothing an expired resolution carries names the event, so the page has
+    // nothing to render but the same refusal an unknown token produces.
+    expect(JSON.stringify(resolved)).not.toContain(eventId);
+  });
+
+  it("revives when the event is rescheduled later", async () => {
+    const eventId = await anEvent();
+    const issued = await withTransaction((tx) =>
+      issueClubLinkIn(tx, eventId, { actorPersonId, env: SECRET }),
+    );
+    await moveEventTo(eventId, -30);
+    expect(
+      (await withTransaction((tx) => resolveClubLinkIn(tx, issued.token, { env: SECRET }))).state,
+    ).toBe("expired");
+
+    await moveEventTo(eventId, 3);
+    expect(
+      (await withTransaction((tx) => resolveClubLinkIn(tx, issued.token, { env: SECRET }))).state,
+    ).toBe("live");
+  });
+
+  it("counts from the end where one is recorded, not from the start", async () => {
+    const eventId = await anEvent();
+    const issued = await withTransaction((tx) =>
+      issueClubLinkIn(tx, eventId, { actorPersonId, env: SECRET }),
+    );
+    // Exactly seven days ago, starting at midnight and ending a minute before
+    // the next one: the start's seven days ran out at midnight this morning,
+    // the end's run out tonight. Live, so the end is what counts.
+    await observer.query(
+      `update public.events
+          set scheduled_on = (current_date - 7)::date,
+              starts_at = '00:00'::time,
+              ends_at = '23:59'::time
+        where id = $1`,
+      [eventId],
+    );
+
+    expect(
+      (await withTransaction((tx) => resolveClubLinkIn(tx, issued.token, { env: SECRET }))).state,
+    ).toBe("live");
+  });
+
+  it("stays revoked rather than expired when both are true — a deliberate act outranks the clock", async () => {
+    const eventId = await anEvent();
+    const issued = await withTransaction((tx) =>
+      issueClubLinkIn(tx, eventId, { actorPersonId, env: SECRET }),
+    );
+    await moveEventTo(eventId, -30);
+    await observer.query(
+      `update public.club_link_tokens
+          set revoked_at = now(), revoked_reason = 'Shared outside the squad'
+        where id = $1`,
+      [issued.linkId],
+    );
+
+    expect(
+      (await withTransaction((tx) => resolveClubLinkIn(tx, issued.token, { env: SECRET }))).state,
+    ).toBe("revoked");
+  });
+});
 
 describe("the table refuses what the module must never do", () => {
   it("refuses a stored plaintext token", async () => {

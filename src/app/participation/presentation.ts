@@ -163,6 +163,13 @@ export const SHARE_CONSEQUENCE =
   "Anyone with this link can see who was asked, what they said and who turned up. They " +
   "cannot change anything and do not need an account.";
 
+/**
+ * LAN-354, Brian 2026-09-16: the club link expires seven days after the event.
+ * A label on the panel that issues it, so an operator posting it into a group
+ * chat knows how long it lasts without being told a story about why.
+ */
+export const CLUB_LINK_EXPIRY_LABEL = "Expires 7 days after the event";
+
 export const COPY_LINK = "Copy link";
 export const COPY_LINK_DONE = "Copied";
 export const ISSUE_LINK = "Create the link";

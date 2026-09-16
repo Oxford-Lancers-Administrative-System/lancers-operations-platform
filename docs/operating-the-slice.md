@@ -657,6 +657,24 @@ pages asks you to sign in, and reading them creates no record of any kind.
 
 ---
 
+## 12c. The club link, and how long it lasts
+
+**Share this event** on an approved event's page issues `/e/<token>` — the
+shared squad page a coach posts into the team WhatsApp group. Anyone holding it
+sees names, RSVP status, decline reasons and question answers, with no account
+and no sign-in. It shows no delivery state and no joining URL.
+
+**It expires seven days after the event** (Brian, 2026-09-16, LAN-354). The
+panel says so beside the link. Nothing is stored: the seven days are counted
+from the event's own end — or its start, where no end is recorded — as read at
+the moment the link is opened, so moving a fixture to a later date brings its
+link back until seven days after the new date. On day eight the link shows the
+same "this link does not open anything" panel an unknown token gets, and says
+nothing about the squad. There is no revoke action, and no other token type
+changed.
+
+---
+
 ## 13. What this walk deliberately does not cover
 
 Performance and load. Anything against the hosted project. Amending and
