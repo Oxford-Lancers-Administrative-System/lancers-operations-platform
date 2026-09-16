@@ -20,6 +20,7 @@
  * the event — in a card shown to everybody in the chat, for a link that
  * identifies one person.
  */
+import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -208,6 +209,16 @@ describe("the icons and the install prompt", () => {
     // The PNG header carries the dimensions: bytes 16-24 of an IHDR chunk.
     expect(og.readUInt32BE(16)).toBe(1200);
     expect(og.readUInt32BE(20)).toBe(630);
+
+    // Review advisory A1: the two checks above would pass for any pair of
+    // identical, correctly-sized PNGs, not just the club's own supplied
+    // recruitment image. Pin the sign-up card to the exact bytes LAN-383
+    // committed, so a swap for a different (even same-sized) image fails here.
+    if (segment === "src/app/join/[code]") {
+      const expectedSha256 = "da685eeea29b7493914b8dc892226aa1f046bb4abcdfb5ad350835275770945f";
+      expect(createHash("sha256").update(og).digest("hex")).toBe(expectedSha256);
+      expect(createHash("sha256").update(twitter).digest("hex")).toBe(expectedSha256);
+    }
   });
 
   it("gives the sign-up card its own picture, not the club-wide one", async () => {
