@@ -210,8 +210,12 @@ describe("every path a message mints", () => {
       recruit_details_reminder: ["/signup/", "/stop/"],
       recruit_interest_ask: ["/background/", "/stop/"],
       recruit_interest_reminder: ["/background/", "/stop/"],
-      onboarding_welcome: ["/onboarding/", "/stop/"],
-      onboarding_chase: ["/onboarding/", "/stop/"],
+      // LAN-372, Brian 2026-09-16: these two go to roster players, and a
+      // player is exempt from Stop — asking the club to stop messaging you is
+      // asking to leave the team. No opt-out credential is minted for them and
+      // no link to one is carried.
+      onboarding_welcome: ["/onboarding/"],
+      onboarding_chase: ["/onboarding/"],
     };
 
     for (const [kind, bases] of Object.entries(expected)) {

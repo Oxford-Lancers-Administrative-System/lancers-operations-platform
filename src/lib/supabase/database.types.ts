@@ -2614,6 +2614,7 @@ export type Database = {
           merged_at: string | null
           merged_by_person_id: string | null
           merged_into_person_id: string | null
+          middle_name: string | null
           past_member_override: boolean | null
           student_number: string | null
           updated_at: string
@@ -2633,6 +2634,7 @@ export type Database = {
           merged_at?: string | null
           merged_by_person_id?: string | null
           merged_into_person_id?: string | null
+          middle_name?: string | null
           past_member_override?: boolean | null
           student_number?: string | null
           updated_at?: string
@@ -2652,6 +2654,7 @@ export type Database = {
           merged_at?: string | null
           merged_by_person_id?: string | null
           merged_into_person_id?: string | null
+          middle_name?: string | null
           past_member_override?: boolean | null
           student_number?: string | null
           updated_at?: string

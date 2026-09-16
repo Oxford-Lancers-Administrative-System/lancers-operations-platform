@@ -158,6 +158,17 @@ export async function submitPersonEdit(
         expectedVersion: nextExpectedVersion(),
       });
     }
+    // LAN-366. Optional, and clearing it is a legitimate correction.
+    if (values.middleName.trim() !== (current.middleName ?? "")) {
+      await updatePersonField({
+        actorPersonId: operator.personId,
+        personId,
+        field: "middle_name",
+        value: values.middleName.trim() === "" ? null : values.middleName.trim(),
+        reason: values.middleNameReason || null,
+        expectedVersion: nextExpectedVersion(),
+      });
+    }
     if (values.familyName.trim() !== (current.familyName ?? "")) {
       await updatePersonField({
         actorPersonId: operator.personId,

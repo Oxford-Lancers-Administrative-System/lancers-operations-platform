@@ -47,6 +47,7 @@ export function DetailsStepPage({ view, token }: { view: QuestionnaireView; toke
 
   const initialValues: DetailsFormValues = {
     given_name: p.givenName,
+    middle_name: p.middleName ?? "",
     family_name: p.familyName ?? "",
     mobile: currentContact(view, "phone"),
     college_email: currentCollegeEmail(view),

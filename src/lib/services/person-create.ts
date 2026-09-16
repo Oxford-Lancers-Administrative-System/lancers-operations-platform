@@ -20,6 +20,8 @@ import {
 
 export interface CreatePersonInput {
   givenName: string;
+  /** LAN-366. Optional everywhere; shown on the person record and its edit form only, and never part of matching. */
+  middleName?: string | null;
   familyName: string;
   /** Raw, as typed. Validated here, and again — the same posture `person-write.ts` states. */
   mobile?: string | null;
@@ -51,6 +53,7 @@ function trimmedOrNull(value: string | null | undefined): string | null {
 /** The minimum to mint, checked here rather than trusted from the client. Task 08 §4: last name required at every rung. */
 function validateMinimum(input: CreatePersonInput): {
   givenName: string;
+  middleName: string | null;
   familyName: string;
   mobile: string | null;
   personalEmail: string | null;
@@ -94,7 +97,10 @@ function validateMinimum(input: CreatePersonInput): {
       throw new ConstraintViolated(validation.message, { rule: validation.rule });
   }
 
-  return { givenName, familyName, mobile, personalEmail, collegeEmail };
+  // LAN-366: optional, and blank means "not recorded" rather than a refusal.
+  const middleName = trimmedOrNull(input.middleName);
+
+  return { givenName, middleName, familyName, mobile, personalEmail, collegeEmail };
 }
 
 /** The same query `findPersonDuplicates` answers, drawn from this input. */
@@ -122,11 +128,12 @@ function exactContactMatch(
 
 async function insertPersonIn(
   tx: Tx,
-  values: { givenName: string; familyName: string },
+  values: { givenName: string; middleName: string | null; familyName: string },
 ): Promise<string> {
   const result = await tx.query<{ id: string }>(
-    `insert into public.people (given_name, family_name) values ($1, $2) returning id`,
-    [values.givenName, values.familyName],
+    `insert into public.people (given_name, middle_name, family_name)
+     values ($1, $2, $3) returning id`,
+    [values.givenName, values.middleName, values.familyName],
   );
   return result.rows[0].id;
 }

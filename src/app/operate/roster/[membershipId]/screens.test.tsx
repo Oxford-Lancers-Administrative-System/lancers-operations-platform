@@ -149,6 +149,8 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
       personId: PERSON_ID,
       givenName: "Avery",
       givenNameSource: null,
+      middleName: null,
+      middleNameSource: null,
       familyName: "Fielding",
       familyNameSource: null,
       aliases: [

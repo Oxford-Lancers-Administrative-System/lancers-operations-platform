@@ -121,6 +121,14 @@ export default function EditPersonForm({
               original={record.givenName}
               error={state.errors.givenName}
             />
+            {/* LAN-366: optional, beside the given and family name. */}
+            <CorrectableField
+              name="middleName"
+              reasonName="middleNameReason"
+              label="Middle name"
+              original={record.middleName ?? ""}
+              error={state.errors.middleName}
+            />
             <CorrectableField
               name="familyName"
               reasonName="familyNameReason"

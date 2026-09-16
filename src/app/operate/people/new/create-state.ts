@@ -2,6 +2,8 @@ import type { PersonDuplicateCandidate } from "@/lib/services/person-duplicate";
 
 export interface CreateFormValues {
   givenName: string;
+  /** LAN-366. Optional, and it is the only name field here that is. */
+  middleName: string;
   familyName: string;
   mobile: string;
   personalEmail: string;
@@ -9,6 +11,7 @@ export interface CreateFormValues {
 
 export const EMPTY_VALUES: CreateFormValues = {
   givenName: "",
+  middleName: "",
   familyName: "",
   mobile: "",
   personalEmail: "",
@@ -44,6 +47,7 @@ export function readCreateValues(formData: FormData): CreateFormValues {
   };
   return {
     givenName: read("givenName"),
+    middleName: read("middleName"),
     familyName: read("familyName"),
     mobile: read("mobile"),
     personalEmail: read("personalEmail"),

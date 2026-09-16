@@ -89,6 +89,7 @@ function toDuplicateCandidate(candidate: PersonCandidate): RosterDuplicateCandid
 function cellsOf(row: ParsedRosterRow): Readonly<Record<ImportColumn, string>> {
   return Object.freeze({
     first_name: row.firstName ?? row.rawCells.first_name,
+    middle_name: row.middleName ?? row.rawCells.middle_name,
     last_name: row.lastName ?? row.rawCells.last_name,
     mobile: row.mobile ?? row.rawCells.mobile,
     personal_email: row.personalEmail ?? row.rawCells.personal_email,
@@ -387,6 +388,7 @@ export async function applyRosterImport(request: RosterApplyRequest): Promise<Ro
         actorPersonId: operator.personId,
         input: {
           givenName: row.cells.first_name,
+          middleName: row.cells.middle_name === "" ? null : row.cells.middle_name,
           familyName: row.cells.last_name,
           email: row.cells.personal_email === "" ? null : row.cells.personal_email,
           phone: row.cells.mobile,

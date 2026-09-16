@@ -76,6 +76,8 @@ const FULL_PERSON: PersonRecord = {
   personId: "person-1",
   givenName: "Ambrose",
   givenNameSource: "Rowan Ashdown",
+  middleName: null,
+  middleNameSource: null,
   familyName: "Kittiwake",
   familyNameSource: null,
   aliases: [

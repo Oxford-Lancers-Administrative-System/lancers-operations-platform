@@ -8,6 +8,8 @@ import { Conflict, ConstraintViolated, NotFound, type Tx } from "@/lib/db";
 /** What the operator typed into UX-10. Never mutated, never normalised in place. */
 export interface ReturnerIntakeInput {
   givenName: string;
+  /** LAN-366. Optional, written only for a person this call mints, and never part of matching. */
+  middleName?: string | null;
   familyName?: string | null;
   knownAs?: string | null;
   email?: string | null;
@@ -76,6 +78,7 @@ export function trimmedOrNull(value: string | null | undefined): string | null {
 /** The intake input reduced to the values this module acts on. `raw` is stored as typed; `compare` is trimmed, for comparison only. */
 export interface NormalisedInput {
   givenName: string;
+  middleName: string | null;
   familyName: string | null;
   knownAs: string | null;
   email: { raw: string; compare: string } | null;
@@ -100,6 +103,7 @@ export function normaliseInput(input: ReturnerIntakeInput): NormalisedInput {
 
   return {
     givenName,
+    middleName: trimmedOrNull(input.middleName ?? null),
     familyName: trimmedOrNull(input.familyName),
     knownAs: trimmedOrNull(input.knownAs),
     email: email === null ? null : { raw: email, compare: email.trim() },

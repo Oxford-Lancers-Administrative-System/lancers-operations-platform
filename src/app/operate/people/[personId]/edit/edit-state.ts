@@ -2,6 +2,7 @@
 
 export interface EditFieldErrors {
   givenName?: string;
+  middleName?: string;
   familyName?: string;
   mobile?: string;
   mobileReason?: string;
@@ -29,6 +30,8 @@ export interface EditFieldErrors {
  */
 interface CorrectionReasonFormValues {
   givenNameReason: string;
+  /** LAN-366. Optional everywhere, so a reason is required only to change one that is already recorded. */
+  middleNameReason: string;
   familyNameReason: string;
   collegeReason: string;
   matriculationYearReason: string;
@@ -71,6 +74,7 @@ function optional(value: FormDataEntryValue | null): string {
 
 export interface EditFormValues extends CorrectionReasonFormValues {
   givenName: string;
+  middleName: string;
   familyName: string;
   mobile: string;
   mobileReason: string;
@@ -98,6 +102,8 @@ export function readEditFormValues(formData: FormData): EditFormValues {
   return {
     givenName: optional(formData.get("givenName")),
     givenNameReason: optional(formData.get("givenNameReason")),
+    middleName: optional(formData.get("middleName")),
+    middleNameReason: optional(formData.get("middleNameReason")),
     familyName: optional(formData.get("familyName")),
     familyNameReason: optional(formData.get("familyNameReason")),
     mobile: optional(formData.get("mobile")),

@@ -12,6 +12,8 @@ import { updatePersonField, type PersonFieldUpdate } from "../person-write";
 
 export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
   "given_name",
+  // LAN-366: optional everywhere, asked on the onboarding details step.
+  "middle_name",
   "family_name",
   "college",
   "matriculation_year",
@@ -25,6 +27,7 @@ export const DISPUTABLE_FIELDS: readonly DisputedPersonField[] = Object.freeze([
 
 const PROVENANCE_ACTION_BY_FIELD: Readonly<Record<DisputedPersonField, string>> = Object.freeze({
   given_name: "person_given_name_updated",
+  middle_name: "person_middle_name_updated",
   family_name: "person_family_name_updated",
   college: "person_college_updated",
   matriculation_year: "person_matriculation_year_updated",
@@ -88,6 +91,7 @@ export async function readFieldSuppliedByIn(
 const PERSON_FIELD_SOURCE_KEY: Readonly<Record<DisputedPersonField, keyof PersonRecord>> =
   Object.freeze({
     given_name: "givenNameSource",
+    middle_name: "middleNameSource",
     family_name: "familyNameSource",
     college: "collegeSource",
     matriculation_year: "matriculationYearSource",
@@ -101,6 +105,7 @@ const PERSON_FIELD_SOURCE_KEY: Readonly<Record<DisputedPersonField, keyof Person
 const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonRecord>> =
   Object.freeze({
     given_name: "givenName",
+    middle_name: "middleName",
     family_name: "familyName",
     college: "college",
     matriculation_year: "matriculationYear",
@@ -116,6 +121,8 @@ export type FieldSaveOutcome = "unchanged" | "filled" | "self-corrected" | "over
 function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFieldUpdate {
   switch (field) {
     case "given_name":
+      return { field, value };
+    case "middle_name":
       return { field, value };
     case "family_name":
       return { field, value };

@@ -61,6 +61,10 @@ export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
       <Fact label="First name" note={record.givenNameSource ?? undefined}>
         {record.givenName ? <>{record.givenName}</> : <NotRecorded />}
       </Fact>
+      {/* LAN-366: optional, between the two names it sits between. */}
+      <Fact label="Middle name" note={record.middleNameSource ?? undefined}>
+        {record.middleName ? <>{record.middleName}</> : <NotRecorded />}
+      </Fact>
       <Fact label="Last name" note={record.familyNameSource ?? undefined}>
         {record.familyName ? <>{record.familyName}</> : <NotRecorded />}
       </Fact>

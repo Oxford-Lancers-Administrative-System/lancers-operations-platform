@@ -34,6 +34,7 @@ import {
   FIELD_EC_RELATIONSHIP,
   FIELD_EXPECTED_GRADUATION,
   FIELD_FAMILY_NAME,
+  FIELD_MIDDLE_NAME,
   FIELD_GIVEN_NAME,
   FIELD_MATRICULATION_YEAR,
   FIELD_MOBILE,
@@ -177,6 +178,8 @@ export function DetailsForm({
         <Section title={SECTION_WHO_YOU_ARE}>
           <Stack spacing={2}>
             {field("given_name", FIELD_GIVEN_NAME, { fieldMeta: meta.given_name })}
+            {/* LAN-366: optional, between the two names it sits between. */}
+            {field("middle_name", FIELD_MIDDLE_NAME, { optional: true })}
             {field("family_name", FIELD_FAMILY_NAME, { fieldMeta: meta.family_name })}
             {field("mobile", FIELD_MOBILE, { phone: true })}
             {/* LAN-268: sits with name/phone, not academic facts — the club's proof of university affiliation. */}

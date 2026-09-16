@@ -75,6 +75,9 @@ export const FIELD_COLLEGE_EMAIL = "College email";
 export const FIELD_COLLEGE_EMAIL_HINT = "Your university address — it ends in ox.ac.uk.";
 export const FIELD_PERSONAL_EMAIL = "Personal email";
 export const FIELD_COLLEGE = "College";
+/** LAN-366. Optional, and the only name field on this step that is. */
+export const FIELD_MIDDLE_NAME = "Middle name";
+
 export const FIELD_MATRICULATION_YEAR = "Matriculation year";
 export const FIELD_EXPECTED_GRADUATION = "Expected graduation";
 export const FIELD_DEGREE_FIELD = "Degree field";

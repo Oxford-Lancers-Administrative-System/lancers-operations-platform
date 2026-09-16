@@ -145,6 +145,7 @@ export async function saveDetails(
     grantConsent: checked(form, "consent"),
     fields: {
       given_name: values.given_name,
+      middle_name: values.middle_name,
       family_name: values.family_name,
       college: values.college,
       matriculation_year: values.matriculation_year,

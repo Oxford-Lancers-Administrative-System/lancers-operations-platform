@@ -27,6 +27,8 @@ import {
 
 export interface DetailsFormValues {
   given_name: string;
+  /** LAN-366. Optional, like the rest of the name fields that are not required. */
+  middle_name: string;
   family_name: string;
   mobile: string;
   /** LAN-268. Required, and validated to the Oxford rule by the service. */
@@ -56,6 +58,7 @@ export interface DetailsFormState {
 
 export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
   given_name: "",
+  middle_name: "",
   family_name: "",
   mobile: "",
   college_email: "",
@@ -81,7 +84,10 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
  * for here at all — a student never knows it, and the club fills it in on the
  * person record.
  */
-type ValidatedDetailsField = Exclude<keyof DetailsFormValues, "ec_relationship" | "student_number">;
+type ValidatedDetailsField = Exclude<
+  keyof DetailsFormValues,
+  "ec_relationship" | "student_number" | "middle_name"
+>;
 
 /** The screen's own top-to-bottom order. */
 const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
@@ -127,6 +133,7 @@ export function readDetailsValues(form: FormData): DetailsFormValues {
 
   return {
     given_name: read("given_name"),
+    middle_name: read("middle_name"),
     family_name: read("family_name"),
     mobile: read("mobile"),
     college_email: read("college_email"),

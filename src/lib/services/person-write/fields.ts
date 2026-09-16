@@ -16,6 +16,8 @@ import {
 
 export type PersonFieldUpdate =
   | { field: "given_name"; value: string }
+  /** LAN-366. Optional everywhere, and cleared by saving it blank. */
+  | { field: "middle_name"; value: string | null }
   | { field: "family_name"; value: string | null }
   | { field: "college"; value: string | null }
   | { field: "matriculation_year"; value: number | null }
@@ -29,6 +31,7 @@ export type PersonFieldUpdate =
 
 const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
   given_name: "the first name",
+  middle_name: "the middle name",
   family_name: "the last name",
   college: "college",
   matriculation_year: "the matriculation year",
@@ -41,6 +44,7 @@ const PERSON_FIELD_LABELS: Readonly<Record<PersonFieldUpdate["field"], string>> 
 
 const PERSON_FIELD_COLUMNS: Readonly<Record<PersonFieldUpdate["field"], string>> = Object.freeze({
   given_name: "given_name",
+  middle_name: "middle_name",
   family_name: "family_name",
   college: "college",
   matriculation_year: "matriculation_year",

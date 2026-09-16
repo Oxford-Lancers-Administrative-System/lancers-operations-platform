@@ -102,6 +102,15 @@ export default function CreatePersonForm() {
               helperText={errors.givenName}
               autoFocus={!errors.givenName}
             />
+            {/* LAN-366: optional, and the only name field here that is. */}
+            <Field
+              name="middleName"
+              label="Middle name"
+              autoComplete={NO_AUTOFILL}
+              defaultValue={values.middleName}
+              error={Boolean(errors.middleName)}
+              helperText={errors.middleName}
+            />
             <Field
               name="familyName"
               label="Last name"

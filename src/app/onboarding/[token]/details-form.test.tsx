@@ -32,6 +32,7 @@ const NO_META = {
 
 const FILLED_VALUES: DetailsFormValues = {
   given_name: "Jordan",
+  middle_name: "Riley",
   family_name: "Ashworth",
   mobile: "07700 900000",
   college_email: "jordan.ashworth@stpeters.ox.ac.uk",
