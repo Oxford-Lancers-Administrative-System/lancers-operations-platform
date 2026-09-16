@@ -232,10 +232,30 @@ function venueSlot(message: OutboundMessage): string {
  * cannot skip it, and "Please respond by as soon as you can" reads as a broken
  * template; the event's own start is the last moment an answer can matter, and
  * repeating it is the same fallback `venueSlot` takes for a missing venue.
+ *
+ * LAN-379, Brian 2026-09-16. An event created inside its own invite window has
+ * a deadline at or before the moment the message goes out, and this slot then
+ * quoted the arrival time back at the reader: "Please respond by Tuesday 15
+ * September, 19:02", sent at 19:02. The approved body fixes the word **by** in
+ * front of this slot and Meta will not edit an approved body, so the slot
+ * carries `today` — "Please respond by today. Thank you." The email, which is
+ * under no such constraint, says "Please respond ASAP." instead; see
+ * {@link deadlineSentence}.
  */
+export const DEADLINE_PASSED_SLOT = "today";
+export const RESPOND_ASAP = "Please respond ASAP.";
+
 function deadlineSlot(message: OutboundMessage): string {
+  if (message.deadlinePassed) return DEADLINE_PASSED_SLOT;
   const deadline = (message.deadlineLabel ?? "").trim();
   return deadline === "" ? required(message.whenLabel, "date and time") : deadline;
+}
+
+/** The email's own deadline line — LAN-379. Plain English, with no approved body to work around. */
+function deadlineSentence(message: OutboundMessage): string {
+  return message.deadlinePassed
+    ? RESPOND_ASAP
+    : `Please respond by ${deadlineSlot(message)}. Thank you.`;
 }
 
 /**
@@ -325,7 +345,7 @@ const INVITATION: MessageTemplate = {
   body: (message) => [
     `Hello ${message.inviteeName}, you are on the team sheet for ${message.eventName} on ${message.whenLabel}.`,
     `Venue: ${venueSlot(message)}.`,
-    `Please respond by ${deadlineSlot(message)}. Thank you.`,
+    deadlineSentence(message),
     // Email's "equivalent calls to action" (W2's own words) rather than one
     // raw link: two distinct URLs, each already the answer, matching what the
     // WhatsApp buttons do. `REQ-no-false-rsvp` covers both — the destination
@@ -364,7 +384,12 @@ const REMINDER: MessageTemplate = {
       message.whenLabel,
       `Venue: ${venueSlot(message)}.`,
       ...(attending ? [attending] : []),
-      "Please respond now. Your answer affects numbers, transport and coaching plans.",
+      // LAN-379: the same rule the invitation follows, on the chase that
+      // follows it — a deadline already behind us is not something to respond
+      // "by".
+      message.deadlinePassed
+        ? `${RESPOND_ASAP} Your answer affects numbers, transport and coaching plans.`
+        : "Please respond now. Your answer affects numbers, transport and coaching plans.",
       `${YES_BUTTON_LABEL}: ${message.yesUrl}`,
       `${NO_BUTTON_LABEL}: ${message.noUrl}`,
     ];

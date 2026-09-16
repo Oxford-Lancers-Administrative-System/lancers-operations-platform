@@ -79,7 +79,7 @@ export function Confirm({
   const date = formatEventDate(base.scheduledOn);
   const time = formatEventTime(base.startsAt, base.endsAt);
   const when = [date, time].filter(Boolean).join(" · ") || null;
-  const deadline = formatDeadline(base.responseDeadline);
+  const deadline = formatDeadline(base.responseDeadline, base.deadlinePassed);
   const attending = attendingSentence(landing.attendingCount);
   const otherOutstanding = otherOutstandingSentence(landing.otherOutstandingCount);
 

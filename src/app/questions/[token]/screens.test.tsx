@@ -65,6 +65,7 @@ const PAGE: SignedRsvpPage = {
   eventStartsAt: new Date("2026-10-01T18:00:00Z"),
   playerName: "Player One",
   responseDeadline: null,
+  deadlinePassed: false,
   currentResponse: { response: "yes", reason: null, respondedAt: new Date() },
 };
 

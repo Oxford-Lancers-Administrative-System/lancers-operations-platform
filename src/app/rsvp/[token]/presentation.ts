@@ -23,6 +23,13 @@ export const VENUE_LABEL = "Venue";
 export { DESCRIPTION_LABEL, EQUIPMENT_LABEL } from "@/lib/services/event-vocabulary";
 export const DEADLINE_LABEL = "Response deadline";
 export const DEADLINE_NOTE = "Late responses accepted until start";
+/**
+ * LAN-379, Brian 2026-09-16. An event created inside its own invite window has
+ * a deadline that is already behind the player reading the page, and quoting it
+ * back at them reads as a broken screen. Written as a value rather than a
+ * sentence, because this is a labelled fact and not prose.
+ */
+export const DEADLINE_PASSED_VALUE = "Please respond ASAP";
 export const CURRENT_ANSWER_LABEL = "Current answer";
 export const CURRENT_ANSWER_NOTE = "Only you can see this";
 
@@ -123,9 +130,17 @@ export function formatEventTime(startsAt: string | null, endsAt: string | null):
   return endsAt === null ? startsAt : `${startsAt}–${endsAt}`;
 }
 
-/** "Tuesday, 13 October at 18:00" */
-export function formatDeadline(deadline: Date | null): string | null {
+/**
+ * "Tuesday, 13 October at 18:00", or LAN-379's `Please respond ASAP` where the
+ * deadline has already passed.
+ *
+ * `passed` is a fact the read computed on the database's clock, not one this
+ * function works out: reading the clock in a render body is an impure call the
+ * lint rules reject, and the club's own "now" is the database's.
+ */
+export function formatDeadline(deadline: Date | null, passed = false): string | null {
   if (deadline === null) return null;
+  if (passed) return DEADLINE_PASSED_VALUE;
   const weekday = new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
     timeZone: ZONE,

@@ -158,6 +158,14 @@ export interface OutboundMessage {
   readonly venue?: string | null;
   /** The response deadline, already formatted. Displayed, never enforced here. */
   readonly deadlineLabel?: string | null;
+  /**
+   * LAN-379. Whether that deadline was already at or behind the moment this
+   * message went out — an event created inside its own invite window has one.
+   * The wording changes, never the deadline itself: the email says "Please
+   * respond ASAP." and the WhatsApp slot carries "today", because the approved
+   * body fixes the word "by" in front of it.
+   */
+  readonly deadlinePassed?: boolean | null;
   /** How many others have already said yes. A dispatch-time snapshot (W2-02). */
   readonly attendingCount?: number | null;
   /** What an amendment changed, in the club's own words. */

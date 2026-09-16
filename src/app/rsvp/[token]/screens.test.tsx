@@ -81,6 +81,7 @@ import {
   ANSWER_NOT_ATTENDING,
   ATTENDING,
   BUSY_HEADING,
+  DEADLINE_PASSED_VALUE,
   CONTACT_THE_CLUB,
   DECLINE_PROMPT,
   NOT_ATTENDING,
@@ -107,6 +108,7 @@ const PAGE: SignedRsvpPage = {
   eventStartsAt: new Date("2026-10-14T19:00:00Z"),
   playerName: "Avery Fielding",
   responseDeadline: new Date("2026-10-13T17:00:00Z"),
+  deadlinePassed: false,
   currentResponse: null,
 };
 
@@ -598,5 +600,28 @@ describe("rate limiting", () => {
       searchParams: Promise.resolve({}),
     });
     expect(render(other).container.textContent).toContain("Team Practice");
+  });
+});
+
+/**
+ * LAN-379, Brian 2026-09-16. An event created inside its own invite window has
+ * a deadline already behind the player reading the page, and quoting it back
+ * at them reads as a broken screen.
+ */
+describe("a response deadline that has already passed", () => {
+  it("says to respond as soon as possible instead of quoting a time already gone", async () => {
+    givenToken("valid", { ...PAGE, deadlinePassed: true });
+    const { container } = await renderPage();
+
+    expect(container.textContent).toContain(DEADLINE_PASSED_VALUE);
+    expect(container.textContent).not.toContain("Tuesday, 13 October at 18:00");
+  });
+
+  it("still prints a real future deadline", async () => {
+    givenToken("valid");
+    const { container } = await renderPage();
+
+    expect(container.textContent).toContain("Tuesday, 13 October at 18:00");
+    expect(container.textContent).not.toContain(DEADLINE_PASSED_VALUE);
   });
 });

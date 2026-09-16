@@ -503,6 +503,49 @@ describe("dispatching after approval", () => {
     expect(noSuffix).toMatch(/^n\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
   });
 
+  /**
+   * LAN-379, Brian 2026-09-16. An event created inside its own invite window
+   * has a response deadline at or before the moment the message goes out, and
+   * the invitation read "Please respond by Tuesday 15 September, 19:02" with
+   * 19:02 the time it arrived. Reproduced against the local sink before the
+   * fix; this is the half that decides it, on the database's own clock.
+   */
+  it("sends the deadline slot as today when the deadline has already passed", async () => {
+    const { eventId, invitationId } = await fixture();
+    await observer.query("update public.invitations set expires_at = now() where id = $1", [
+      invitationId,
+    ]);
+
+    const transport = accepts();
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      template: { components: { type: string; parameters: { text: string }[] }[] };
+    };
+    const slots = body.template.components.find((c) => c.type === "body")?.parameters ?? [];
+    expect(slots.at(-1)?.text).toBe("today");
+  });
+
+  it("sends a real future deadline exactly as it reads", async () => {
+    const { eventId, invitationId } = await fixture();
+    await observer.query(
+      "update public.invitations set expires_at = now() + interval '5 hours' where id = $1",
+      [invitationId],
+    );
+
+    const transport = accepts();
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      template: { components: { type: string; parameters: { text: string }[] }[] };
+    };
+    const slots = body.template.components.find((c) => c.type === "body")?.parameters ?? [];
+    expect(slots.at(-1)?.text).not.toBe("today");
+    expect(slots.at(-1)?.text).toMatch(/\d{2}:\d{2}$/);
+  });
+
   it("never stores the plaintext answer token it sent", async () => {
     const { eventId } = await fixture();
     const transport = accepts();

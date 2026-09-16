@@ -34,6 +34,8 @@ export interface SignedRsvpPage {
   readonly eventStartsAt: Date;
   readonly playerName: string;
   readonly responseDeadline: Date | null;
+  /** LAN-379. Whether that deadline is already at or behind the club's own now. */
+  readonly deadlinePassed: boolean;
   readonly currentResponse: CurrentResponse | null;
 }
 
@@ -60,6 +62,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     event_starts_at: Date;
     player_name: string;
     response_deadline: Date | null;
+    deadline_passed: boolean;
     response: "yes" | "no" | null;
     reason: string | null;
     responded_at: Date | null;
@@ -86,6 +89,10 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
               coalesce(nullif(btrim(${personDisplayAliasSql("p")}), ''), p.given_name),
               nullif(btrim(coalesce(p.family_name, '')), '')) as player_name,
             i.expires_at as response_deadline,
+            -- LAN-379: an event created inside its own invite window has a
+            -- deadline behind the player reading this page, and quoting it
+            -- back at them reads as a broken screen.
+            (i.expires_at is not null and i.expires_at <= now()) as deadline_passed,
             r.response::text as response,
             r.reason,
             r.responded_at
@@ -123,6 +130,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     eventStartsAt: row.event_starts_at,
     playerName: row.player_name,
     responseDeadline: row.response_deadline,
+    deadlinePassed: row.deadline_passed,
     currentResponse:
       row.response && row.responded_at
         ? { response: row.response, reason: row.reason, respondedAt: row.responded_at }

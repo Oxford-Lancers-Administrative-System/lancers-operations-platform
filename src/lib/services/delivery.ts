@@ -326,6 +326,8 @@ async function claimJobIn(
     event_starts_at_set: boolean;
     when_label: string;
     deadline_label: string | null;
+    /** LAN-379. Whether the response deadline is already at or behind the send. */
+    deadline_passed: boolean;
     venue: string | null;
     attending_count: number;
     given_name: string;
@@ -365,6 +367,13 @@ async function claimJobIn(
             to_char(
               i.expires_at at time zone 'Europe/London',
               'FMDay FMDD FMMonth, HH24:MI') as deadline_label,
+            -- LAN-379. An event created inside its own invite window has a
+            -- deadline at or before the moment this message goes out, and the
+            -- invitation then read "Please respond by Tuesday 15 September,
+            -- 19:02" with 19:02 the time it arrived. Read here, in the
+            -- claiming transaction, against the same clock the send happens
+            -- on — not compared in JavaScript against a formatted string.
+            (i.expires_at is not null and i.expires_at <= now()) as deadline_passed,
             e.venue,
             -- The dispatch-time snapshot the approved W2-02 chase carries.
             -- Counted here, inside the claiming transaction, so the number in
@@ -589,6 +598,8 @@ async function claimJobIn(
         whenLabel: detail.when_label.replace(/\s+/g, " ").trim(),
         venue: detail.venue,
         deadlineLabel: detail.deadline_label?.replace(/\s+/g, " ").trim() ?? null,
+        // LAN-379: the wording changes, not the label.
+        deadlinePassed: detail.deadline_passed,
         // Suppressed on the first contact. The approved W2-01 note is explicit
         // that there is "no social proof: first contact is a plain invitation",
         // and the count only appears on the chase that follows it.
