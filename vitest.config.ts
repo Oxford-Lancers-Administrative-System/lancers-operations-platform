@@ -77,6 +77,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/people-directory.test.ts",
   "src/lib/services/person-create.test.ts",
   "src/lib/services/person-duplicate.test.ts",
+  "src/lib/services/person-erasure.test.ts",
   "src/lib/services/person-fact-dispute.test.ts",
   "src/lib/services/person-merge.test.ts",
   "src/lib/services/person-record.test.ts",

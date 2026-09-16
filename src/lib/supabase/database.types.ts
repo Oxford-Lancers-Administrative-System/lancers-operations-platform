@@ -2757,6 +2757,7 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           degree_field: string | null
+          erased_at: string | null
           expected_graduation_year: number | null
           family_name: string | null
           given_name: string
@@ -2777,6 +2778,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           degree_field?: string | null
+          erased_at?: string | null
           expected_graduation_year?: number | null
           family_name?: string | null
           given_name: string
@@ -2797,6 +2799,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           degree_field?: string | null
+          erased_at?: string | null
           expected_graduation_year?: number | null
           family_name?: string | null
           given_name?: string
@@ -3039,6 +3042,62 @@ export type Database = {
           {
             foreignKeyName: "person_emergency_contacts_recorded_by_person_id_fkey"
             columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
+      person_erasure_signoffs: {
+        Row: {
+          id: string
+          person_id: string
+          requested_on: string
+          role_codes: string[]
+          signed_at: string
+          signed_by_person_id: string
+        }
+        Insert: {
+          id?: string
+          person_id: string
+          requested_on: string
+          role_codes: string[]
+          signed_at?: string
+          signed_by_person_id: string
+        }
+        Update: {
+          id?: string
+          person_id?: string
+          requested_on?: string
+          role_codes?: string[]
+          signed_at?: string
+          signed_by_person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_erasure_signoffs_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_erasure_signoffs_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "person_erasure_signoffs_signed_by_person_id_fkey"
+            columns: ["signed_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_erasure_signoffs_signed_by_person_id_fkey"
+            columns: ["signed_by_person_id"]
             isOneToOne: false
             referencedRelation: "person_standing"
             referencedColumns: ["person_id"]

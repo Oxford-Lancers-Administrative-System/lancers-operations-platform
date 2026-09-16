@@ -474,9 +474,15 @@ describe("a club link's seven days", () => {
     // Exactly seven days ago, starting at midnight and ending a minute before
     // the next one: the start's seven days ran out at midnight this morning,
     // the end's run out tonight. Live, so the end is what counts.
+    //
+    // Seven days ago *in the club's zone*, not in the session's. `current_date`
+    // is the UTC date, and between midnight in London and midnight in UTC the
+    // two differ — so a run after 23:00 BST placed the event a day earlier than
+    // this test means, and the window it is asserting inside had already
+    // closed. The expiry expression itself is zone-aware; the fixture was not.
     await observer.query(
       `update public.events
-          set scheduled_on = (current_date - 7)::date,
+          set scheduled_on = ((now() at time zone 'Europe/London')::date - 7),
               starts_at = '00:00'::time,
               ends_at = '23:59'::time
         where id = $1`,
