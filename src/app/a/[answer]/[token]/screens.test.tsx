@@ -398,11 +398,13 @@ describe("LAN-203, REQ-recruit-sees-public-only — a recruit's confirm screen",
     expect(container.textContent).toContain(RECRUIT_BASE.venue);
   });
 
-  it("lands on its own saved page once the token is consumed — submitAnswer's redirect target, resolved", async () => {
+  it("lands on its own saved page after submitAnswer's redirect — LAN-376's `saved` marker", async () => {
     // `submitAnswer` (actions.ts) sends a recruit back to this exact route
-    // rather than to `/events/[token]`; by the time this GET re-resolves the
-    // token it is already consumed, and that is what this proves renders —
-    // "Your response is saved", never the player copy naming "your own page".
+    // rather than to `/events/[token]`, now carrying `?saved=1`. LAN-376 made
+    // a consumed token writable again — tapping the button a second time must
+    // record again — so the saved page is reached by that marker rather than
+    // by the stamp. What it renders is unchanged: "Your response is saved",
+    // never the player copy naming "your own page".
     givenRecruitAnswer("no");
     vi.mocked(resolveAnswerTokenIn).mockResolvedValue({
       state: "valid",
@@ -418,10 +420,35 @@ describe("LAN-203, REQ-recruit-sees-public-only — a recruit's confirm screen",
       consumed: true,
     });
 
-    const { container } = await renderPage();
+    const { container } = await renderPage({ saved: "1" });
 
     expect(container.textContent).toMatch(/your response is saved/i);
     expect(container.textContent).not.toMatch(/your own page/i);
+  });
+
+  it("offers the confirm screen again on a plain revisit of a consumed token — LAN-376", async () => {
+    // The defect Brian reproduced: a second tap of a button already used
+    // dead-ended on "This response is already recorded" with the other
+    // button's answer still standing and nothing to do about it.
+    givenRecruitAnswer("no");
+    vi.mocked(resolveAnswerTokenIn).mockResolvedValue({
+      state: "valid",
+      answer: "no",
+      invitation: {
+        invitationId: RECRUIT_BASE.invitationId,
+        eventId: "00000000-0000-4000-8000-0000000000ee",
+        eventName: RECRUIT_BASE.eventName,
+        eventStatus: RECRUIT_BASE.eventStatus,
+        scheduledOn: RECRUIT_BASE.scheduledOn,
+      },
+      writable: true,
+      consumed: true,
+    });
+
+    const { container } = await renderPage();
+
+    expect(container.textContent).not.toMatch(/already recorded/i);
+    expect(container.querySelector("form")).not.toBeNull();
   });
 });
 

@@ -21,6 +21,7 @@ import type { Client } from "pg";
 
 import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
 import { issueTokenIn, mintToken, resolveRsvpToken, revokeTokensIn } from "./rsvp-tokens";
+import { consumeAnswerTokenIn, issueAnswerTokenIn } from "./player-answer-tokens";
 import {
   composeReason,
   readSignedRsvpPageIn,
@@ -28,7 +29,6 @@ import {
   recordSignedLinkResponse,
   INVITATION_WITHDRAWN_RULE,
   NO_REQUIRES_A_REASON_RULE,
-  OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE,
   RESPONDED_AT_BEFORE_INVITATION_RULE,
   RESPONDED_AT_INVALID_RULE,
   RESPONDED_AT_NOT_FUTURE_RULE,
@@ -91,6 +91,11 @@ afterEach(async () => {
     `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
     [MARKER],
   );
+  // LAN-376's flip tests mint one-time answer tokens, which hang off the
+  // person rather than the invitation and would otherwise block the delete.
+  await observer.query(`delete from public.person_access_tokens where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query(
     `delete from public.audit_events where entity_id in ${invitations}
        or entity_id in ${people}`,
@@ -1227,42 +1232,100 @@ describe("recordOperatorRsvpResponse", () => {
     expect(await questionResponsesFor(invitationId)).toHaveLength(0);
   });
 
-  // SEC-LAN170-01 / DEC-no-supersede -- correction round 1.
-  it("refuses to record over a player's own answer, and their answer stands", async () => {
+  // DEC-no-supersede, reversed by Brian on 2026-09-16 (LAN-376): "the last
+  // recorded answer wins, whoever recorded it". This test asserted the refusal
+  // for a year; it now asserts the decision that replaced it.
+  it("records over a player's own answer, and the operator's answer stands", async () => {
     const { invitationId, eventId } = await fixture(48);
     const operator = await operatorPersonId();
 
     const token = await tokenFor(invitationId);
     await recordSignedLinkResponse(token, { response: "yes" });
-    // Backdated so the operator's "now" is unambiguously later -- the
-    // ordinary case is a player answering earlier in the day and an
-    // operator recording something later, which the form's own default
-    // encourages.
+    // Backdated so the operator's typed "now" is unambiguously later in
+    // `responded_at` too -- the point of the assertion below is that it would
+    // stand either way, because `current_rsvp` ranks on `recorded_at`.
     await observer.query(
       "update public.rsvp_responses set responded_at = now() - interval '3 hours' where invitation_id = $1",
       [invitationId],
     );
 
-    const error = await caught(() =>
-      recordOperatorRsvpResponse(operator, eventId, invitationId, {
-        response: "no",
-        reason: "Misheard at training",
-        ...clubNow(),
-      }),
-    );
-    expect(error.rule).toBe(OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE);
+    const recorded = await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "no",
+      reason: "Misheard at training",
+      ...clubNow(),
+    });
+    expect(recorded.response).toBe("no");
 
-    // Nothing was written by the refused call, and the player's own answer
-    // is still what `current_rsvp` reports as standing.
+    // Both rows are retained -- the player's answer is superseded, never lost.
     const rows = await responsesFor(invitationId);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].source).toBe("signed_link");
-    expect(rows[0].response).toBe("yes");
-    const current = await observer.query<{ response: string }>(
-      "select response::text as response from public.current_rsvp where invitation_id = $1",
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.source)).toContain("signed_link");
+    const current = await observer.query<{ response: string; source: string }>(
+      "select response::text as response, source::text as source from public.current_rsvp where invitation_id = $1",
       [invitationId],
     );
-    expect(current.rows[0].response).toBe("yes");
+    expect(current.rows[0].response).toBe("no");
+    expect(current.rows[0].source).toBe("operator");
+  });
+
+  // LAN-376, the other direction: the player has the last word when they act last.
+  it("lets the player answer over an operator's record, whatever the operator typed", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    // The operator types the latest instant they are allowed to -- "now" --
+    // and the player then answers a moment later on the database clock. Under
+    // the old `responded_at` ordering the two were within the same minute and
+    // whichever second the clock happened to land on decided the answer.
+    await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "yes",
+      ...clubNow(),
+    });
+
+    const token = await tokenFor(invitationId);
+    await recordSignedLinkResponse(token, {
+      response: "no",
+      reason: "Told the coach yes, then double-booked",
+    });
+
+    const current = await observer.query<{ response: string; source: string }>(
+      "select response::text as response, source::text as source from public.current_rsvp where invitation_id = $1",
+      [invitationId],
+    );
+    expect(current.rows[0].response).toBe("no");
+    expect(current.rows[0].source).toBe("signed_link");
+  });
+
+  // The inversion the view change is for: the operator records last but types
+  // an earlier instant, because the form floors to the picker's five-minute
+  // step. `responded_at` ordering gave the player's earlier click the answer.
+  it("lets an operator correct an answer they type as earlier than the player's own", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const token = await tokenFor(invitationId);
+    await recordSignedLinkResponse(token, { response: "yes" });
+    // The typed instant may not precede the invitation, so the invitation is
+    // pushed back rather than the typed instant brought forward: the point is
+    // that it is far earlier than the player's own click.
+    await observer.query(
+      "update public.invitations set created_at = timestamptz '2010-01-01' where id = $1",
+      [invitationId],
+    );
+
+    await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "no",
+      reason: "They told me at training before they clicked",
+      respondedAtDate: "2020-06-01",
+      respondedAtTime: "10:00",
+    });
+
+    const current = await observer.query<{ response: string; source: string }>(
+      "select response::text as response, source::text as source from public.current_rsvp where invitation_id = $1",
+      [invitationId],
+    );
+    expect(current.rows[0].response).toBe("no");
+    expect(current.rows[0].source).toBe("operator");
   });
 
   it("still permits a second operator to record over a first operator's answer", async () => {
@@ -1300,4 +1363,115 @@ describe("recordOperatorRsvpResponse", () => {
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.source === "operator")).toBe(true);
   });
+});
+
+/**
+ * LAN-376 — "the last recorded answer wins, whoever recorded it" (Brian,
+ * 2026-09-16), across all three writers.
+ *
+ * Reproduced first against a local production build: an operator's Yes, a
+ * player flipping on their own link, the WhatsApp buttons and two open tabs.
+ * What the reproduction found was not one defect but three — a view that
+ * ranked on the operator's typed `responded_at`, an answer button that
+ * dead-ended on its second tap, and a per-link throttle that rendered the
+ * uniform "this link can't be used" page and so looked permanent. These are
+ * the service-level halves; the page's own halves are in
+ * `src/app/rsvp/[token]/screens.test.tsx` and `.../a/[answer]/[token]`.
+ */
+describe("the last recorded answer wins", () => {
+  async function standing(invitationId: string): Promise<{ response: string; source: string }> {
+    const current = await observer.query<{ response: string; source: string }>(
+      `select response::text as response, source::text as source
+         from public.current_rsvp where invitation_id = $1`,
+      [invitationId],
+    );
+    return current.rows[0];
+  }
+
+  async function tapButton(
+    invitationId: string,
+    answer: "yes" | "no",
+    token?: string,
+  ): Promise<string> {
+    const live =
+      token ?? (await withTransaction((tx) => issueAnswerTokenIn(tx, invitationId, answer))).token;
+    await withTransaction((tx) =>
+      consumeAnswerTokenIn(tx, live, { reason: answer === "no" ? "Tapped No" : null }),
+    );
+    return live;
+  }
+
+  // Reproduction step 3: tap Yes, tap No, tap Yes again. The third tap used to
+  // land on "This response is already recorded" with the No still standing.
+  it("records again when the same answer button is tapped a second time", async () => {
+    const { invitationId } = await fixture(48);
+
+    const yes = await tapButton(invitationId, "yes");
+    expect((await standing(invitationId)).response).toBe("yes");
+
+    await tapButton(invitationId, "no");
+    expect((await standing(invitationId)).response).toBe("no");
+
+    // The same Yes token again — already consumed once.
+    await tapButton(invitationId, "yes", yes);
+    expect((await standing(invitationId)).response).toBe("yes");
+
+    const rows = await responsesFor(invitationId);
+    expect(rows).toHaveLength(3);
+  });
+
+  // Reproduction steps 1 and 4: an operator's Yes, then the player flipping on
+  // their own link; and two tabs writing in turn. Both are just "the last write
+  // is the answer", which is the whole of the rule.
+  it("lets the player's link flip the answer as often as they like", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    await recordOperatorRsvpResponse(await operatorPersonId(), eventId, invitationId, {
+      response: "yes",
+      ...clubNow(),
+    });
+
+    const token = await tokenFor(invitationId);
+    for (const answer of ["no", "yes", "no", "yes", "no"] as const) {
+      await recordSignedLinkResponse(token, {
+        response: answer,
+        reason: answer === "no" ? "Flipping" : null,
+      });
+      expect((await standing(invitationId)).response).toBe(answer);
+    }
+
+    expect(await responsesFor(invitationId)).toHaveLength(6);
+  });
+
+  // The acceptance criterion: a hundred changes, mixed across the page, the
+  // buttons and the operator, and the last one is the answer.
+  it("holds over a hundred mixed changes from every writer", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+    const token = await tokenFor(invitationId);
+
+    let expected: "yes" | "no" = "no";
+    for (let turn = 0; turn < 100; turn += 1) {
+      const answer: "yes" | "no" = turn % 2 === 0 ? "yes" : "no";
+      const reason = answer === "no" ? `Change ${turn}` : null;
+
+      if (turn % 3 === 0) {
+        await recordSignedLinkResponse(token, { response: answer, reason });
+      } else if (turn % 3 === 1) {
+        await tapButton(invitationId, answer);
+      } else {
+        await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+          response: answer,
+          reason,
+          ...clubNow(),
+        });
+      }
+      expected = answer;
+
+      // Checked every turn, not only at the end: an answer that goes wrong in
+      // the middle and comes right by luck is not this rule holding.
+      expect((await standing(invitationId)).response).toBe(expected);
+    }
+
+    expect(await responsesFor(invitationId)).toHaveLength(100);
+  }, 120_000);
 });

@@ -52,6 +52,13 @@ export const SAVED_NOTE =
 export const CHANGE_RESPONSE = "Change response";
 export const CLOSE = "Close";
 
+// LAN-376 — the per-link throttle, told plainly instead of as a dead link
+
+export const BUSY_HEADING = "Your last change was not saved";
+export const BUSY_NOTE =
+  "This link was used a lot in the last minute. Your previous answer still stands. Try again in a moment.";
+export const TRY_AGAIN = "Try again";
+
 // UX-63, UX-64, UX-65 — the one uniform terminal response
 
 /** Quoted from the owner decision. All three internal states render exactly this, at `404`, with the same actions and headers. */

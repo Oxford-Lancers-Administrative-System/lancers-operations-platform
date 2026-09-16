@@ -24,7 +24,7 @@ import {
   resolveAnswerTokenIn,
   type PlayerAnswer,
 } from "@/lib/services/player-answer-tokens";
-import { ERROR_PARAM } from "./params";
+import { ERROR_PARAM, SAVED_PARAM } from "./params";
 import { BUSY_ERROR } from "./presentation";
 
 /**
@@ -93,7 +93,7 @@ export async function submitAnswer(form: FormData): Promise<void> {
       // this requirement forbids). Redirects back here instead, rendering
       // `AlreadyRecorded` with no durable credential minted.
       if (recorded.capacity === "recruit") {
-        return here;
+        return `${here}?${SAVED_PARAM}=1`;
       }
 
       if (recorded.answer === "yes" && submissions.length > 0) {

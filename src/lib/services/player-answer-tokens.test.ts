@@ -27,6 +27,7 @@ import {
   issuePersonTokenIn,
   NO_REASON_GIVEN_DEFAULT,
   resolveAnswerToken,
+  resolveAnswerTokenIn,
   resolvePersonToken,
   revokePersonTokenIn,
 } from "./player-answer-tokens";
@@ -398,7 +399,13 @@ describe("consuming an answer token", () => {
     expect(job.rows[0].status).toBe("cancelled");
   });
 
-  it("is idempotent — a double-tap of the same button records nothing twice", async () => {
+  // LAN-376 reversed this one. A second tap used to write nothing and return
+  // `recorded: false`, which is how "Yes, then No, then Yes again" left the No
+  // standing with the player looking at a dead end. Brian, 2026-09-16: the last
+  // recorded answer wins. A double-tap of the *same* button therefore appends a
+  // second, identical row and the standing answer is unchanged — which is what
+  // "reloads and double-taps are idempotent" was ever about.
+  it("records again on a second tap, and the standing answer is the same either way", async () => {
     const { invitationId } = await fixture(48);
     const yes = await withTransaction((tx) => issueAnswerTokenIn(tx, invitationId, "yes"));
 
@@ -406,13 +413,50 @@ describe("consuming an answer token", () => {
     const second = await withTransaction((tx) => consumeAnswerTokenIn(tx, yes.token));
 
     expect(first.recorded).toBe(true);
-    expect(second.recorded).toBe(false);
+    expect(second.recorded).toBe(true);
 
     const responses = await observer.query(
       "select count(*) as count from public.rsvp_responses where invitation_id = $1",
       [invitationId],
     );
-    expect(Number(responses.rows[0].count)).toBe(1);
+    expect(Number(responses.rows[0].count)).toBe(2);
+
+    const current = await observer.query<{ response: string }>(
+      "select response::text as response from public.current_rsvp where invitation_id = $1",
+      [invitationId],
+    );
+    expect(current.rows[0].response).toBe("yes");
+  });
+
+  // The defect itself: the No button, then the Yes button the player had
+  // already used once. Before LAN-376 the third tap recorded nothing.
+  it("lets a used button record again after the other button has answered", async () => {
+    const { invitationId } = await fixture(48);
+    const yes = await withTransaction((tx) => issueAnswerTokenIn(tx, invitationId, "yes"));
+    const no = await withTransaction((tx) => issueAnswerTokenIn(tx, invitationId, "no"));
+
+    await withTransaction((tx) => consumeAnswerTokenIn(tx, yes.token));
+    await withTransaction((tx) => consumeAnswerTokenIn(tx, no.token));
+    await withTransaction((tx) => consumeAnswerTokenIn(tx, yes.token));
+
+    const current = await observer.query<{ response: string }>(
+      "select response::text as response from public.current_rsvp where invitation_id = $1",
+      [invitationId],
+    );
+    expect(current.rows[0].response).toBe("yes");
+  });
+
+  // The resolution half: a consumed token is writable again, so the route
+  // renders its confirm screen rather than the "already recorded" dead end.
+  it("resolves a consumed token as writable, still reporting that it was used", async () => {
+    const { invitationId } = await fixture(48);
+    const yes = await withTransaction((tx) => issueAnswerTokenIn(tx, invitationId, "yes"));
+    await withTransaction((tx) => consumeAnswerTokenIn(tx, yes.token));
+
+    const resolution = await withTransaction((tx) => resolveAnswerTokenIn(tx, yes.token));
+    expect(resolution.state).toBe("valid");
+    expect(resolution.writable).toBe(true);
+    expect(resolution.consumed).toBe(true);
   });
 
   it("refuses a revoked token, uniformly with every other closed reason", async () => {

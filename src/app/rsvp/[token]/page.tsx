@@ -19,6 +19,7 @@ import { DECLINE_STEP, ERROR_PARAM, SAVED_PARAM, STEP_PARAM } from "./params";
 import { DecliningStep } from "./decline-step";
 import { Invitation } from "./invitation-step";
 import { CancelledEvent, ResponseSaved } from "./saved-and-cancelled";
+import { LinkBusy } from "./throttled";
 
 /**
  * The player's RSVP — the only unauthenticated page in the application; the
@@ -55,7 +56,14 @@ export default async function RsvpPage({ params, searchParams }: PageProps) {
       const decision = allowRsvpRequest(clientKeyFrom(requestHeaders), token);
       if (!decision.allowed) {
         logThrottledRsvpRequest(decision.reason!);
-        return { state: "unknown" as const, page: null };
+        // LAN-376. The per-link bucket is keyed on this exact token, so filling
+        // it means holding a real link and using it twenty times in a minute —
+        // a player changing their mind, never a guesser, who presents a
+        // different token each time and meets the per-address bucket instead.
+        // That one keeps the uniform terminal response. See `throttled.tsx`.
+        return decision.reason === "link"
+          ? { state: "throttled" as const, page: null }
+          : { state: "unknown" as const, page: null };
       }
 
       // Resolution and the page read share one transaction: the event could otherwise be cancelled between the two.
@@ -73,6 +81,11 @@ export default async function RsvpPage({ params, searchParams }: PageProps) {
     // All terminal states held to the same floor so the work each costs is not visible from outside.
     (outcome) => outcome.page === null || outcome.state === "event_started",
   );
+
+  // Busy is not dead: the link works again once this minute's allowance rolls over.
+  if (resolved.state === "throttled") {
+    return <LinkBusy token={token} />;
+  }
 
   // Distinct in the resolver, secure logs and tests; one response from exactly this line.
   if (resolved.page === null || resolved.state === "event_started") {

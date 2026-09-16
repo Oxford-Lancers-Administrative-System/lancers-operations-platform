@@ -68,6 +68,7 @@ import { withTransaction } from "@/lib/db";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 import { resolveRsvpTokenIn, type TokenState } from "@/lib/services/rsvp-tokens";
 import {
+  RATE_LIMIT_MAX_PER_ADDRESS,
   RATE_LIMIT_MAX_PER_LINK,
   resetRsvpRateLimit,
   UNIFORM_TERMINAL_RESPONSE_MS,
@@ -79,6 +80,7 @@ import {
   ANSWER_NONE,
   ANSWER_NOT_ATTENDING,
   ATTENDING,
+  BUSY_HEADING,
   CONTACT_THE_CLUB,
   DECLINE_PROMPT,
   NOT_ATTENDING,
@@ -509,16 +511,52 @@ describe("UX-66 — a valid link to a cancelled event", () => {
 // ---------------------------------------------------------------------------
 
 describe("rate limiting", () => {
-  it("refuses a flood as the same terminal response a bad token produces", async () => {
+  // LAN-376. A flood on the per-link bucket used to render the uniform
+  // terminal page, and that is what made Brian's and Glen's links look
+  // permanently dead after six answer changes in a minute. Filling this bucket
+  // means holding one real token and using it twenty times, so it is said
+  // plainly; a guesser presents a different token each time and never reaches
+  // it. The per-address bucket, which is the one a guesser does reach, still
+  // produces the uniform terminal response — asserted below.
+  it("tells the holder their link is busy, not dead, once the per-link allowance is spent", async () => {
     givenToken("valid");
 
-    // Well past the per-link allowance. The first requests succeed; the page
-    // then refuses exactly as an unusable link does, which is what stops the
-    // limiter from being a signal of its own.
-    let refusals = 0;
+    let busy = 0;
     for (let attempt = 0; attempt < RATE_LIMIT_MAX_PER_LINK + 5; attempt += 1) {
+      const { container } = await renderPage();
+      if ((container.textContent ?? "").includes(BUSY_HEADING)) busy += 1;
+    }
+    expect(busy).toBeGreaterThan(0);
+  });
+
+  it("never shows the old answer on the busy page", async () => {
+    givenToken("valid");
+
+    let text = "";
+    for (let attempt = 0; attempt < RATE_LIMIT_MAX_PER_LINK + 2; attempt += 1) {
+      text = (await renderPage()).container.textContent ?? "";
+    }
+    expect(text).toContain(BUSY_HEADING);
+    expect(text).not.toContain(PAGE.eventName);
+    expect(text).not.toMatch(/current answer/i);
+  });
+
+  it("keeps the uniform terminal response for the per-address bucket a guesser reaches", async () => {
+    givenToken("valid");
+
+    let refusals = 0;
+    for (let attempt = 0; attempt < RATE_LIMIT_MAX_PER_ADDRESS + 5; attempt += 1) {
+      // A fresh token each time, exactly as a guesser presents one: the
+      // per-link bucket is never filled, the per-address one eventually is.
       try {
-        await renderPage();
+        render(
+          await RsvpPage({
+            params: Promise.resolve({
+              token: `${TOKEN.slice(0, 39)}${String(attempt).padStart(4, "0")}`,
+            }),
+            searchParams: Promise.resolve({}),
+          }),
+        );
       } catch (error) {
         expect((error as Error).message).toBe("NEXT_NOT_FOUND");
         refusals += 1;

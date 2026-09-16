@@ -1,7 +1,6 @@
 import "server-only";
 
 import {
-  Conflict,
   ConstraintViolated,
   InvalidTransition,
   NotFound,
@@ -305,12 +304,11 @@ export interface OperatorRsvpSubmission {
 export const RESPONDED_AT_INVALID_RULE = "rsvp_operator_responded_at_invalid";
 export const RESPONDED_AT_NOT_FUTURE_RULE = "rsvp_operator_responded_at_not_future";
 export const RESPONDED_AT_BEFORE_INVITATION_RULE = "rsvp_operator_responded_at_before_invitation";
-export const OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE = "rsvp_operator_cannot_supersede_player";
 
 const CLUB_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CLUB_TIME_PATTERN = /^\d{2}:\d{2}$/;
 
-/** Records what an operator was told in person — W3, LAN-170. Never refuses for a prior operator answer or event start. */
+/** Records what an operator was told in person — W3, LAN-170. Never refuses for a prior answer of any kind, or for event start (LAN-376). */
 export async function recordOperatorRsvpResponse(
   operatorPersonId: string,
   eventId: string,
@@ -343,21 +341,13 @@ export async function recordOperatorRsvpResponse(
       );
     }
 
-    // DEC-no-supersede, checked inside the row lock above — see decision history.
-    const existingPlayerResponse = await tx.query<{ id: string }>(
-      `select id from public.rsvp_responses
-        where invitation_id = $1 and source = 'signed_link'
-        limit 1`,
-      [invitationId],
-    );
-    if (existingPlayerResponse.rows.length > 0) {
-      throw new Conflict(
-        "This player has already answered for themselves, so an operator " +
-          "cannot record over it. Ask them to change their answer from " +
-          "their own RSVP link.",
-        { rule: OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE },
-      );
-    }
+    // DEC-no-supersede used to refuse here whenever the player had answered for
+    // themselves. Brian reversed it on 2026-09-16 (LAN-376): "the last recorded
+    // answer wins, whoever recorded it". An operator may now record over a
+    // player's own answer and a player may answer over an operator's; the form
+    // shows what the player last said and when, the audit row below names the
+    // operator, and `public.current_rsvp` ranks on `recorded_at` so the row
+    // written last is the one that stands.
 
     if (!CLUB_DATE_PATTERN.test(submission.respondedAtDate)) {
       throw new ConstraintViolated("Choose a date and time.", {

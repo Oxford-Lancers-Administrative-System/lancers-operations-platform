@@ -184,6 +184,35 @@ export function recordAnswerDialogTitle(displayName: string): string {
 }
 
 /**
+ * LAN-376. Until Brian's 2026-09-16 decision an operator could not record over
+ * an answer at all — the control was offered only against a row with nothing in
+ * it, and the service refused anything else. Now the last recorded answer wins
+ * whoever recorded it, so the chip itself opens the form and the form says what
+ * it is replacing.
+ */
+export function changeAnswerLabel(displayName: string): string {
+  return `Change ${displayName}'s answer`;
+}
+
+export const CURRENT_ANSWER_LABEL = "Current answer";
+
+/** "Attending, given Tuesday 15 Sept 2026, 19:02" — the answer and when it says it was given. */
+export function currentAnswerValue(answer: "yes" | "no", answeredAt: string | null): string {
+  const label = answer === "yes" ? ANSWER_YES : ANSWER_NO;
+  if (answeredAt === null) return label;
+  const when = new Date(answeredAt);
+  if (Number.isNaN(when.getTime())) return label;
+  return `${label}, given ${new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/London",
+  }).format(when)}`;
+}
+
+/**
  * The dialog's event-identity subtitle (OWNER-LAN170-09, correction round 4):
  * restores the second line `W3-02`/`W3-04` both draw, dropped without
  * authorisation. Date/time half uses `formatDetailWhen`, the same formatter
