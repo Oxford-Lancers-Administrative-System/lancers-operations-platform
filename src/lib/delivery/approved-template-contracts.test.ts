@@ -60,6 +60,7 @@ const config: OutboundConfig = {
   graphVersion: "v26.0",
   phoneNumberId: "12345",
   accessToken: "test-placeholder",
+  appSecret: "test-placeholder-app-secret",
   templateName: TEMPLATE_NAMES.invitation,
   templateLanguage: "en",
   templateParameters: "invitation",

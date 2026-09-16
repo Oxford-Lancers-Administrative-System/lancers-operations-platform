@@ -126,9 +126,36 @@ function reasonFor(code: number, fallback: string): string {
   return PROVIDER_REASONS[code] ?? `The provider refused this message (code ${code}). ${fallback}`;
 }
 
-/** The Graph endpoint one message is posted to. */
-function messagesEndpoint(config: OutboundConfig): string {
-  return `${config.graphBaseUrl}/${config.graphVersion}/${config.phoneNumberId}/messages`;
+/**
+ * Meta's **Require app secret** proof — LAN-360.
+ *
+ * `HMAC-SHA256(key = the app secret, message = the access token)`, hex. With
+ * the setting on, Meta rejects any Graph call carrying an access token without
+ * one; with it off, the parameter is accepted and ignored. That is the whole
+ * reason the order matters: the code sends the proof first and is proven with
+ * the setting off, and only then does Brian flip it.
+ *
+ * Neither the proof nor the token is ever logged. The proof is a function of
+ * the token, so quoting it in a failure would be handing out a derivative of a
+ * credential that is otherwise never written down.
+ */
+export function appSecretProof(accessToken: string, appSecret: string): string {
+  return crypto.createHmac("sha256", appSecret).update(accessToken, "utf8").digest("hex");
+}
+
+export const APP_SECRET_MISSING_REASON =
+  "The club's WhatsApp app secret is not configured, so nothing was sent. " +
+  "Meta requires every outbound call to carry a proof derived from it.";
+
+/**
+ * The Graph endpoint one message is posted to, carrying its proof.
+ *
+ * The proof rides in the query string, which is where Meta's own
+ * documentation puts it and the only place the Cloud API reads it.
+ */
+function messagesEndpoint(config: OutboundConfig, proof: string): string {
+  const base = `${config.graphBaseUrl}/${config.graphVersion}/${config.phoneNumberId}/messages`;
+  return `${base}?appsecret_proof=${encodeURIComponent(proof)}`;
 }
 
 /**
@@ -318,14 +345,29 @@ export function createWhatsAppCloudProvider(
   config: OutboundConfig,
   transport: Transport = fetch,
 ): DeliveryProvider {
+  // LAN-360: computed once per config resolution, never per send. It is a
+  // constant for a given token and secret, and hashing a credential on every
+  // message is work with no answer that changes.
+  const secret = config.appSecret.trim();
+  const proof = secret === "" ? null : appSecretProof(config.accessToken, secret);
+
   return {
     name: WHATSAPP_CLOUD_PROVIDER,
     channel: "whatsapp",
 
     async send(message: InvitationMessage): Promise<SendOutcome> {
+      // A sender with the token and not the secret refuses, and never sends
+      // unsigned: this file's posture for a missing setting is refusal, and
+      // once Meta's Require app secret setting is on, an unsigned send fails
+      // at the provider with nothing here to explain it. Retryable, because
+      // supplying the secret is all it takes.
+      if (proof === null) {
+        return { status: "refused", reason: APP_SECRET_MISSING_REASON, retryable: true };
+      }
+
       let response: Response;
       try {
-        response = await transport(messagesEndpoint(config), {
+        response = await transport(messagesEndpoint(config, proof), {
           method: "POST",
           headers: {
             // The one place this credential is used. Never logged, never stored.

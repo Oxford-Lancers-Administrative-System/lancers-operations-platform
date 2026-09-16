@@ -36,6 +36,7 @@ const config = (overrides: Partial<OutboundConfig> = {}): OutboundConfig => ({
   graphVersion: "v21.0",
   phoneNumberId: "5550001",
   accessToken: "not-a-real-token",
+  appSecret: "not-a-real-app-secret",
   templateName: "event_invitation",
   templateLanguage: "en_GB",
   templateParameters: "invitation",
@@ -373,8 +374,59 @@ describe("sending", () => {
     expect(outcome).toEqual({ status: "accepted", providerMessageId: "wamid.OK" });
 
     const [url, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("https://graph.example.test/v21.0/5550001/messages");
+    const target = new URL(url);
+    expect(`${target.origin}${target.pathname}`).toBe(
+      "https://graph.example.test/v21.0/5550001/messages",
+    );
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer not-a-real-token");
+  });
+
+  /**
+   * LAN-360. Meta's **Require app secret** setting makes the Graph API reject
+   * any call carrying an access token without a matching `appsecret_proof`:
+   * `HMAC-SHA256(key = the app secret, message = the access token)`, hex, in
+   * the query string. Order matters — the code sends the proof first and is
+   * proven with the setting still off, and only then does Brian turn it on.
+   */
+  it("carries an appsecret_proof of the configured token under the configured secret", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    await createWhatsAppCloudProvider(config(), transport).send(MESSAGE);
+
+    const [url] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    const proof = new URL(url).searchParams.get("appsecret_proof");
+    expect(proof).toBe(
+      crypto
+        .createHmac("sha256", "not-a-real-app-secret")
+        .update("not-a-real-token", "utf8")
+        .digest("hex"),
+    );
+    // Derived here rather than asserted against a literal, so the test proves
+    // the construction rather than a string somebody copied out of a run.
+    expect(proof).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("refuses to send at all with the token and no secret, rather than sending unsigned", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const outcome = await createWhatsAppCloudProvider(config({ appSecret: "" }), transport).send(
+      MESSAGE,
+    );
+
+    expect(outcome.status).toBe("refused");
+    expect(transport).not.toHaveBeenCalled();
+    // The refusal names the setting, and never the secret or the token.
+    expect(JSON.stringify(outcome)).not.toContain("not-a-real-token");
+  });
+
+  it("never puts the proof or the token in a failure it reports", async () => {
+    const transport = vi.fn(async () => {
+      throw new Error("connect ECONNREFUSED graph.example.test:443");
+    });
+    const outcome = await createWhatsAppCloudProvider(config(), transport).send(MESSAGE);
+
+    const said = JSON.stringify(outcome);
+    expect(said).not.toContain("not-a-real-token");
+    expect(said).not.toContain("not-a-real-app-secret");
+    expect(said).not.toMatch(/[0-9a-f]{64}/);
   });
 
   it("treats a thrown transport as retryable and quotes no digits", async () => {

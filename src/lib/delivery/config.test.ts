@@ -30,6 +30,10 @@ const DEPLOYED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "1234567890",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
+  // LAN-360: the outbound path signs every Graph call with a proof derived
+  // from the app secret, so it is a sending requirement and not the webhook's
+  // alone.
+  WHATSAPP_APP_SECRET: "not-a-real-app-secret",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
 };
 

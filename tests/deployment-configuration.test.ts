@@ -206,7 +206,8 @@ describe("the deploy turns on what the code refuses to run without", () => {
     ["WHATSAPP_ACCESS_TOKEN", "the sender has no credential to call the Graph API with"],
     [
       "WHATSAPP_APP_SECRET",
-      "inbound callbacks cannot be verified and the webhook route answers 503 (LAN-78)",
+      "inbound callbacks cannot be verified and the webhook route answers 503 (LAN-78), and " +
+        "since LAN-360 the sender refuses outright rather than calling the Graph API unsigned",
     ],
     [
       "WHATSAPP_WEBHOOK_VERIFY_TOKEN",

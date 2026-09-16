@@ -100,6 +100,17 @@ export interface OutboundConfig {
   readonly phoneNumberId: string;
   /** Secret. The Cloud API access token. */
   readonly accessToken: string;
+  /**
+   * Secret. The Meta app secret, shared with the webhook.
+   *
+   * LAN-360. Meta's **Require app secret** setting makes the Graph API reject
+   * any call carrying an access token without a matching `appsecret_proof`.
+   * The sender needs the same secret the callback path already verifies with,
+   * and it is required here rather than optional: a sender that has the token
+   * and not the secret must refuse, never send unsigned, which is this file's
+   * posture for every other missing setting.
+   */
+  readonly appSecret: string;
   /** The approved message template's name. */
   readonly templateName: string;
   /** The approved template's language code, e.g. `en`. */
@@ -206,6 +217,12 @@ export const OUTBOUND_ENVIRONMENT_VARIABLES = Object.freeze([
   "APP_BASE_URL",
   "WHATSAPP_PHONE_NUMBER_ID",
   "WHATSAPP_ACCESS_TOKEN",
+  // LAN-360. The outbound path signs every Graph call with
+  // `appsecret_proof`, so the app secret is no longer the webhook's alone.
+  // Required, not optional: "missing means refusal" is what stops a
+  // deployment quietly sending unsigned once Meta's Require app secret
+  // setting is on, which would fail every send with no local explanation.
+  "WHATSAPP_APP_SECRET",
   "WHATSAPP_TEMPLATE_NAME",
 ] as const);
 
@@ -421,6 +438,7 @@ export function resolveOutboundConfig(source: EnvironmentSource = process.env): 
       graphVersion: withDefault("WHATSAPP_GRAPH_VERSION", source),
       phoneNumberId: trimmed("WHATSAPP_PHONE_NUMBER_ID", source),
       accessToken: trimmed("WHATSAPP_ACCESS_TOKEN", source),
+      appSecret: trimmed("WHATSAPP_APP_SECRET", source),
       templateName: trimmed("WHATSAPP_TEMPLATE_NAME", source),
       templateLanguage: withDefault("WHATSAPP_TEMPLATE_LANGUAGE", source),
       templateParameters: templateShape(source),

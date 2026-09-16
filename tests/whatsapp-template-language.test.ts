@@ -4,7 +4,7 @@
  * LAN-351.
  *
  * Meta resolves an approved template by name AND language together. The
- * club's fourteen approved production templates
+ * club's approved production templates
  * (`scripts/production/whatsapp-templates.json`) are all one language, and
  * `DEFAULTS.WHATSAPP_TEMPLATE_LANGUAGE` in `src/lib/delivery/config.ts` has to
  * default to that same value or every unconfigured send fails at Meta with
@@ -38,11 +38,14 @@ const DEPLOYED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "1234567890",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
+  // LAN-360: the outbound path signs every Graph call, so the app secret is a
+  // sending requirement too.
+  WHATSAPP_APP_SECRET: "not-a-real-app-secret",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
 };
 
 describe("the outbound template language default", () => {
-  it("has one language across all fourteen approved production templates", () => {
+  it("has one language across every approved production template", () => {
     const languages = new Set(records.map((record) => record.language));
     expect(records.length).toBeGreaterThan(0);
     expect(languages.size).toBe(1);
