@@ -14,10 +14,12 @@ import {
   resolveMergeSurvivor,
 } from "@/lib/services/people-directory";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
+import { readRecruitConsentForPerson } from "@/lib/services/recruitment-prospect";
 import { readCurrentSeason } from "@/lib/services/seasons";
 import { gateShellPage } from "../../gate";
 import { labelFor, STATUS_LABELS } from "../presentation";
 import { IdentitySection, ContactSection } from "./identity-contact-sections";
+import { MessagingSection } from "./messaging-section";
 import { AcademicSection, RestrictedSection } from "./academic-restricted-sections";
 import StatusSection from "./status-section";
 import SeasonsSection from "./seasons-section";
@@ -66,12 +68,15 @@ export default async function PersonRecordPage({
     gate.operator.roleCodes,
   ) as unknown as Partial<PersonRecord>;
 
-  const [predecessors, roles, seasons, history, currentSeason] = await Promise.all([
+  const [predecessors, roles, seasons, history, currentSeason, recruitConsent] = await Promise.all([
     listMergedPredecessors(personId),
     listPersonRoleAssignments(personId),
     listPersonSeasons(personId),
     readPersonHistory(personId),
     readCurrentSeason().catch(() => null),
+    // LAN-371. `null` for anybody who is not a recruit this season, which is
+    // what keeps the control off a roster player's record (LAN-372).
+    readRecruitConsentForPerson(personId).catch(() => null),
   ]);
 
   const sp = await searchParams;
@@ -174,6 +179,10 @@ export default async function PersonRecordPage({
 
       {visible.contacts !== undefined ? (
         <ContactSection record={visible} currentSeasonLabel={currentSeason?.label ?? null} />
+      ) : null}
+
+      {recruitConsent ? (
+        <MessagingSection consent={recruitConsent} displayName={record.displayName} />
       ) : null}
 
       {visible.college !== undefined ? <AcademicSection record={visible} /> : null}

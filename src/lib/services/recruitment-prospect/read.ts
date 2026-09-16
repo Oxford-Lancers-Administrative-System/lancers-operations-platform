@@ -86,6 +86,10 @@ export interface RecruitmentProspectRecord {
   readonly consent: SeasonMessagingConsentState;
   /** `null` unless `consent` is `granted` — the door the grant came through. A touchline grant does not authorise the recruitment SEND button; only `qr_self_entry` does. */
   readonly consentSource: SeasonMessagingConsentSource | null;
+  /** LAN-371. When the standing consent state was last changed, ISO. `null` where nothing has ever been recorded. */
+  readonly consentChangedAt: string | null;
+  /** LAN-371. True when an operator recorded the current state, false when the person did it themselves. */
+  readonly consentByOperator: boolean;
   readonly personal: RecruitmentQuestionnaireSendState;
   readonly recruitment: RecruitmentQuestionnaireSendState;
   readonly answers: RecruitmentQuestionnaireAnswers;
@@ -314,6 +318,8 @@ export async function readRecruitmentProspectIn(
     convertedMembershipId: row.converted_membership_id,
     consent: consent?.state ?? "never_asked",
     consentSource: consent?.state === "granted" ? consent.source : null,
+    consentChangedAt: consent?.changedAt ?? null,
+    consentByOperator: consent?.recordedByPersonId != null,
     personal: sendState.personal,
     recruitment: sendState.recruitment,
     answers: {

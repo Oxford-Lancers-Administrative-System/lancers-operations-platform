@@ -53,6 +53,10 @@ export interface RecruitmentBoardRow {
   readonly personalSent: boolean;
   readonly recruitmentSent: boolean;
   readonly consent: SeasonMessagingConsentState;
+  /** LAN-371. When the standing consent state was last changed, ISO; `null` where nothing has been recorded. */
+  readonly consentChangedAt: string | null;
+  /** LAN-371. True when an operator recorded the current state rather than the person themselves. */
+  readonly consentByOperator: boolean;
   readonly playedBefore: RsvpValue | null;
   readonly watchedBefore: RsvpValue | null;
   readonly positionInterest: string | null;
@@ -150,9 +154,15 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
         `select person_id, alias from public.person_aliases where person_id = any($1::uuid[])`,
         [personIds],
       ),
-      tx.query<{ person_id: string; state: string }>(
-        `select person_id, state::text as state from public.season_messaging_consents
-        where season_id = $1::uuid and person_id = any($2::uuid[])`,
+      tx.query<{
+        person_id: string;
+        state: string;
+        changed_at: Date;
+        recorded_by_person_id: string | null;
+      }>(
+        `select person_id, state::text as state, changed_at, recorded_by_person_id
+           from public.season_messaging_consents
+          where season_id = $1::uuid and person_id = any($2::uuid[])`,
         [season.id, personIds],
       ),
       tx.query<{
@@ -210,7 +220,14 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
     aliasesByPerson.set(row.person_id, list);
   }
   const consentByPerson = new Map(
-    consentRows.rows.map((row) => [row.person_id, row.state as SeasonMessagingConsentState]),
+    consentRows.rows.map((row) => [
+      row.person_id,
+      {
+        state: row.state as SeasonMessagingConsentState,
+        changedAt: row.changed_at.toISOString(),
+        byOperator: row.recorded_by_person_id !== null,
+      },
+    ]),
   );
   const answersByProspect = new Map<string, typeof answerRows.rows>();
   for (const row of answerRows.rows) {
@@ -282,7 +299,9 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
       firstContactOn: prospect.first_contact_on,
       personalSent: SENT_STEP_KEYS.personal.some((step) => sentSteps.has(step)),
       recruitmentSent: SENT_STEP_KEYS.recruitment.some((step) => sentSteps.has(step)),
-      consent: consentByPerson.get(prospect.person_id) ?? "never_asked",
+      consent: consentByPerson.get(prospect.person_id)?.state ?? "never_asked",
+      consentChangedAt: consentByPerson.get(prospect.person_id)?.changedAt ?? null,
+      consentByOperator: consentByPerson.get(prospect.person_id)?.byOperator ?? false,
       playedBefore: yesNo(answerFor(prospect.prospect_id, QUESTIONNAIRE_B_CODE.playedBefore)),
       watchedBefore: yesNo(answerFor(prospect.prospect_id, QUESTIONNAIRE_B_CODE.watchedBefore)),
       positionInterest: answerFor(prospect.prospect_id, QUESTIONNAIRE_B_CODE.positionInterest),

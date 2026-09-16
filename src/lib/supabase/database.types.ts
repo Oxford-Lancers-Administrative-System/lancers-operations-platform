@@ -4164,6 +4164,7 @@ export type Database = {
           created_at: string
           id: string
           person_id: string
+          reason: string | null
           recorded_by_person_id: string | null
           season_id: string
           source: Database["public"]["Enums"]["messaging_consent_source"] | null
@@ -4174,6 +4175,7 @@ export type Database = {
           created_at?: string
           id?: string
           person_id: string
+          reason?: string | null
           recorded_by_person_id?: string | null
           season_id: string
           source?:
@@ -4186,6 +4188,7 @@ export type Database = {
           created_at?: string
           id?: string
           person_id?: string
+          reason?: string | null
           recorded_by_person_id?: string | null
           season_id?: string
           source?:

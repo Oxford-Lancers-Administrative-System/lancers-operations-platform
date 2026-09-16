@@ -22,6 +22,8 @@ function row(overrides: Partial<RecruitmentBoardRow>): RecruitmentBoardRow {
     personalSent: false,
     recruitmentSent: false,
     consent: "never_asked",
+    consentChangedAt: null,
+    consentByOperator: false,
     playedBefore: null,
     watchedBefore: null,
     positionInterest: null,

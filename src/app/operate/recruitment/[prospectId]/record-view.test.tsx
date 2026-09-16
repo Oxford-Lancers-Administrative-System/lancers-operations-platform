@@ -20,6 +20,9 @@ vi.mock("./actions", () => ({
   sendRecruitmentQuestionnaireAction: vi
     .fn()
     .mockResolvedValue({ error: null, created: [], reason: "not_consented" }),
+  // LAN-371's two operator consent actions.
+  stopMessagesAction: vi.fn().mockResolvedValue({ error: null }),
+  recordConsentAction: vi.fn().mockResolvedValue({ error: null }),
 }));
 vi.mock("../status-cell", () => ({
   default: () => null,
@@ -39,7 +42,12 @@ import {
 } from "@/app/operate/people/[personId]/academic-restricted-sections";
 import StatusSection from "@/app/operate/people/[personId]/status-section";
 import RecruitmentRecordView from "./record-view";
-import { sendRecruitmentQuestionnaireAction } from "./actions";
+import { RECORD_CONSENT, STOP_MESSAGES } from "./consent-control";
+import {
+  recordConsentAction,
+  sendRecruitmentQuestionnaireAction,
+  stopMessagesAction,
+} from "./actions";
 
 const BASE_RECORD: RecruitmentProspectRecord = {
   prospectId: "prospect-1",
@@ -54,6 +62,8 @@ const BASE_RECORD: RecruitmentProspectRecord = {
   convertedMembershipId: null,
   consent: "never_asked",
   consentSource: null,
+  consentChangedAt: null,
+  consentByOperator: false,
   personal: { lastSentAt: null, queuedFor: null, cancelledReason: null },
   recruitment: { lastSentAt: null, queuedFor: null, cancelledReason: null },
   answers: {
@@ -774,4 +784,93 @@ describe("LAN-237 — the manual send reports the dispatch outcome", () => {
       expect(screen.queryByTestId("recruitment-send-personal-no-op")).toBeNull();
     },
   );
+});
+
+/**
+ * LAN-371, Brian 2026-09-16: "an operator can withdraw a recruit's messaging
+ * consent, and the record shows granted or revoked". A recruit who wants out
+ * and cannot make it happen may complain to WhatsApp, which risks the club's
+ * sending account, and Meta classified a text-based "press X to stop" as
+ * marketing — so the mechanism is this control.
+ */
+describe("the operator's own consent control", () => {
+  it("offers Stop messages while consent stands, and withdraws with a reason", async () => {
+    render(
+      <RecruitmentRecordView
+        record={{ ...BASE_RECORD, consent: "granted", consentSource: "qr_self_entry" }}
+        person={{}}
+      />,
+    );
+
+    expect(screen.getByTestId("consent-control-open").textContent).toBe(STOP_MESSAGES);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("consent-control-open"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("consent-control-submit"));
+    });
+
+    expect(stopMessagesAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prospectId: BASE_RECORD.prospectId,
+        listedReason: "asked_in_person",
+      }),
+    );
+  });
+
+  it("offers Record consent when it does not, and grants with a note", async () => {
+    render(<RecruitmentRecordView record={{ ...BASE_RECORD, consent: "withdrawn" }} person={{}} />);
+
+    expect(screen.getByTestId("consent-control-open").textContent).toBe(RECORD_CONSENT);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("consent-control-open"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("consent-control-submit"));
+    });
+
+    expect(recordConsentAction).toHaveBeenCalledWith(
+      expect.objectContaining({ prospectId: BASE_RECORD.prospectId }),
+    );
+  });
+
+  it("says who revoked it and when, not merely that it is withdrawn", () => {
+    const { container } = render(
+      <RecruitmentRecordView
+        record={{
+          ...BASE_RECORD,
+          consent: "withdrawn",
+          consentByOperator: true,
+          consentChangedAt: "2026-09-15T10:00:00.000Z",
+        }}
+        person={{}}
+      />,
+    );
+
+    expect(container.textContent).toContain("Revoked (by operator, 15 Sept 2026)");
+  });
+
+  it("says so differently when the person did it themselves through their own link", () => {
+    const { container } = render(
+      <RecruitmentRecordView
+        record={{
+          ...BASE_RECORD,
+          consent: "withdrawn",
+          consentByOperator: false,
+          consentChangedAt: "2026-09-15T10:00:00.000Z",
+        }}
+        person={{}}
+      />,
+    );
+
+    expect(container.textContent).toContain("Revoked (by the person, 15 Sept 2026)");
+  });
+
+  it("says WhatsApp granted, in those words, while it stands", () => {
+    const { container } = render(
+      <RecruitmentRecordView record={{ ...BASE_RECORD, consent: "granted" }} person={{}} />,
+    );
+
+    expect(container.textContent).toContain("WhatsApp granted");
+  });
 });
