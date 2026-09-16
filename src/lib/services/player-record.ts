@@ -40,7 +40,7 @@ import {
  * this membership's own season (which may not be the current one).
  */
 
-export interface PlayerSeasonFacts {
+interface PlayerSeasonFacts {
   offencePosition: string | null;
   offenceBackupPosition: string | null;
   defencePosition: string | null;

@@ -10,20 +10,11 @@ export type {
   RosterBoardRow,
 } from "./read";
 export { listRosterBoard, readPositionOptions } from "./read";
-export {
-  COACHING_GROUP_VALUES,
-  DEFENSIVE_POSITION_GROUP_VALUES,
-  FORMALWEAR_ITEM_KEYS,
-  OFFENSIVE_POSITION_GROUP_VALUES,
-  parseSpecialTeamsCellKey,
-  SPECIAL_TEAMS_SLOTS,
-  SPECIAL_TEAMS_SQUADS,
-  specialTeamsCellKey,
-} from "./vocabulary";
+export { SPECIAL_TEAMS_SLOTS, SPECIAL_TEAMS_SQUADS, specialTeamsCellKey } from "./vocabulary";
 export type { SpecialTeamsSlot, SpecialTeamsSquad } from "./vocabulary";
 export { commitSpecialTeamsAssignment } from "./write-special-teams";
 export { commitKitItem } from "./write-kit";
-export { KIT_DISTRIBUTED_ITEMS, KIT_ITEMS, kitCellKey, parseKitCellKey } from "./vocabulary";
+export { KIT_DISTRIBUTED_ITEMS, KIT_ITEMS, kitCellKey } from "./vocabulary";
 export type { KitItemCode } from "./vocabulary";
 export type { PositionColumn } from "./write-position";
 export { commitPosition } from "./write-position";

@@ -782,6 +782,17 @@ Europe/London. The club is in Oxford and every event time is Europe/London
 (DEC-timezone), so "today" is today there rather than wherever the database
 happens to think it is.
 
+### An agreement version may be a PDF (LAN-363)
+
+`onboarding_agreement_versions.pdf_path` is a nullable path this deployment
+serves — never a bucket key, never an address somewhere else, and refused
+blank. The Code of Conduct step renders that file into the page with pdf.js and
+keeps the text rendering of `body` beside it as the accessible version.
+
+`body` stays `not null` and stays what the agreement is recorded against: the
+PDF is how the wording is shown, not a substitute for holding it. No RLS or
+grant change — a new column inherits its table's own.
+
 ### Kit Distributed is derived, not typed (LAN-375)
 
 The `kit_sorted` onboarding item stays exactly where it is — the Onboarding

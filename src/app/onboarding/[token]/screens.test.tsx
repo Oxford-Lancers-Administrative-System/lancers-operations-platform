@@ -108,12 +108,14 @@ function agreementVersion(
   agreementType: "code_of_conduct" | "photo_release",
   versionLabel: string,
   body: string,
+  pdfPath: string | null = null,
 ) {
   return {
     id: `00000000-0000-4000-8000-00000000000${agreementType === "photo_release" ? "7" : "6"}`,
     agreementType,
     versionLabel,
     body,
+    pdfPath,
     effectiveFrom: new Date("2026-09-14T00:00:00Z"),
   } as const;
 }
@@ -306,6 +308,51 @@ describe("acceptance 9 — placeholder wording is labelled", () => {
     givenValid(view({ nextStep: "code_of_conduct" }));
     const { container } = await renderPage({ step: "code_of_conduct" });
     expect(container.textContent).toMatch(/PLACEHOLDER/);
+  });
+});
+
+// LAN-363 — the Code of Conduct is a PDF, rendered into the page.
+describe("the Code of Conduct document itself", () => {
+  function withPdf() {
+    const base = view({ nextStep: "code_of_conduct" });
+    return {
+      ...base,
+      agreementVersions: {
+        ...base.agreementVersions,
+        code_of_conduct: agreementVersion(
+          "code_of_conduct",
+          "placeholder-v1",
+          PLACEHOLDER_BODY,
+          "/documents/sample-conduct-document.pdf",
+        ),
+      },
+    };
+  }
+
+  it("renders the document and keeps the text of it, and the tick, alongside", async () => {
+    givenValid(withPdf());
+    const { container } = await renderPage({ step: "code_of_conduct" });
+
+    expect(container.querySelector('[data-testid="code-of-conduct-pdf"]')).not.toBeNull();
+    // Never an iframe: iOS Safari hands a framed PDF to its own viewer, and
+    // the application's own headers forbid framing anyway.
+    expect(container.querySelector("iframe")).toBeNull();
+    // The accessible version stays.
+    expect(container.querySelector('[data-testid="code-of-conduct-text"]')).not.toBeNull();
+    // A download link beside the viewer, never instead of it.
+    const download = container.querySelector('[data-testid="download-document"]');
+    expect(download?.getAttribute("href")).toBe("/documents/sample-conduct-document.pdf");
+    // The tick is unchanged: the consent is the tick, not having scrolled.
+    expect(container.querySelector('input[name="agree"]')).not.toBeNull();
+  });
+
+  it("renders the text alone, with no viewer and no download link, when the version has no PDF", async () => {
+    givenValid(view({ nextStep: "code_of_conduct" }));
+    const { container } = await renderPage({ step: "code_of_conduct" });
+
+    expect(container.querySelector('[data-testid="code-of-conduct-pdf"]')).toBeNull();
+    expect(container.querySelector('[data-testid="download-document"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-of-conduct-text"]')).not.toBeNull();
   });
 });
 

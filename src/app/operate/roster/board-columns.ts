@@ -93,7 +93,7 @@ const BANDS: readonly BandDef[] = Object.freeze([
 ]);
 
 /** Every band, in order — the board's group strip and the record's section order are the same list. */
-export const BAND_ORDER: readonly Band[] = Object.freeze(BANDS.map((band) => band.key));
+const BAND_ORDER: readonly Band[] = Object.freeze(BANDS.map((band) => band.key));
 
 /** Groups the board and the record open collapsed. The long tail, not the facts an operator came for. */
 export const COLLAPSED_BY_DEFAULT: ReadonlySet<Band> = Object.freeze(
@@ -133,7 +133,7 @@ export interface ColumnDef {
 }
 
 /** The single cell a collapsed group occupies — the band header still names it, and one click brings the columns back. */
-export function collapsedPlaceholder(band: Band): ColumnDef {
+function collapsedPlaceholder(band: Band): ColumnDef {
   return Object.freeze({
     key: `group:${band}`,
     label: "",

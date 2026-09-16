@@ -132,6 +132,11 @@ export const PHOTO_RELEASE_LEAD = "Step 3 of 5 · Read it, then agree";
 export const AGREE_AND_CONTINUE = "I agree — continue";
 export const MUST_AGREE_ERROR = "Read the document, then tick the box to continue.";
 
+/** LAN-363 — the label on the link beside the viewer, never instead of it. */
+export const DOWNLOAD_DOCUMENT = "Download the document";
+/** The heading over the text rendering, once the document itself is on the page above it. */
+export const DOCUMENT_TEXT_HEADING = "The same document as text";
+
 export const PLACEHOLDER_LABEL = "PLACEHOLDER WORDING — the real text is owed under LAN-213";
 
 /**

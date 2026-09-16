@@ -17,6 +17,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Generated from the local Supabase schema; never hand-edited.
     "src/lib/supabase/database.types.ts",
+    // pdf.js's worker and standard fonts, copied out of `pdfjs-dist` at build
+    // and dev start (LAN-363). Generated, minified, and not ours to lint.
+    "public/pdfjs/**",
     // Scratch space written by the Supabase CLI; contains vendored bundles.
     "supabase/.temp/**",
     "supabase/.branches/**",

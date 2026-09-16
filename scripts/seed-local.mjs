@@ -5838,6 +5838,19 @@ try {
     total += rows[key].length;
   }
 
+  // LAN-363: the Code of Conduct step renders the document itself. The club's
+  // real PDF is not in this repository and never will be until Brian puts it
+  // there, so the local fixture points the placeholder version at the
+  // synthetic sample committed under `public/documents/`. Local only — the
+  // migration that added the column deliberately set no path, so no deployed
+  // environment shows a sample document.
+  await client.query(
+    `update public.onboarding_agreement_versions
+        set pdf_path = $1
+      where agreement_type = 'code_of_conduct' and version_label = 'placeholder-v1'`,
+    ["/documents/sample-conduct-document.pdf"],
+  );
+
   // LAN-375: Kit Distributed is derived from the kit issued, so the fixture
   // computes it the way the application does rather than drawing it. The rows
   // above are inserted table by table, and the trigger that maintains it can

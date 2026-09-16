@@ -2362,6 +2362,7 @@ export type Database = {
           created_at: string
           effective_from: string
           id: string
+          pdf_path: string | null
           version_label: string
         }
         Insert: {
@@ -2370,6 +2371,7 @@ export type Database = {
           created_at?: string
           effective_from?: string
           id?: string
+          pdf_path?: string | null
           version_label: string
         }
         Update: {
@@ -2378,6 +2380,7 @@ export type Database = {
           created_at?: string
           effective_from?: string
           id?: string
+          pdf_path?: string | null
           version_label?: string
         }
         Relationships: []
