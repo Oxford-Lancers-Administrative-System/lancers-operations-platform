@@ -151,7 +151,6 @@ export async function saveDetails(
       expected_graduation_year: values.expected_graduation_year,
       degree_field: values.degree_field,
       student_number: values.student_number,
-      bafa_registration_number: values.bafa_registration_number,
       date_of_birth: values.date_of_birth,
     },
     mobile: values.mobile,

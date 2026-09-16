@@ -129,6 +129,24 @@ export default function EditPersonForm({
               error={state.errors.familyName}
             />
             <AliasesEditor personId={personId} record={record} />
+            {/* LAN-365: both identifiers moved here from Academic. They are
+                facts about the person. BAFA is last because the club fills it
+                in — a student never knows their own registration number, so
+                it is never asked for in onboarding. */}
+            <CorrectableField
+              name="studentNumber"
+              reasonName="studentNumberReason"
+              label="Student number"
+              original={record.studentNumber ?? ""}
+              unchangedHelperText="Printed beside their name on the officials' roster form."
+            />
+            <CorrectableField
+              name="bafaRegistrationNumber"
+              reasonName="bafaRegistrationNumberReason"
+              label="BAFA registration number"
+              original={record.bafaRegistrationNumber ?? ""}
+              unchangedHelperText="Printed beside every coach and sideline person on the officials' roster form."
+            />
           </Stack>
         </Section>
 
@@ -197,21 +215,6 @@ export default function EditPersonForm({
               reasonName="degreeFieldReason"
               label="Degree field"
               original={record.degreeField ?? ""}
-            />
-            {/* LAN-267: BAFA number is operator-editable — a coach never sees the player questionnaire. */}
-            <CorrectableField
-              name="studentNumber"
-              reasonName="studentNumberReason"
-              label="Student number"
-              original={record.studentNumber ?? ""}
-              unchangedHelperText="Printed beside their name on the officials' roster form."
-            />
-            <CorrectableField
-              name="bafaRegistrationNumber"
-              reasonName="bafaRegistrationNumberReason"
-              label="BAFA registration number"
-              original={record.bafaRegistrationNumber ?? ""}
-              unchangedHelperText="Printed beside every coach and sideline person on the officials' roster form."
             />
           </Stack>
         </Section>

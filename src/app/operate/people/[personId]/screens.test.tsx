@@ -144,6 +144,44 @@ describe("the person record, for an authorized operator", () => {
     expect(container.textContent).not.toContain("undefined");
   });
 
+  /**
+   * LAN-365, Brian 2026-09-16: "Student number and BAFA number belong in the
+   * person record's personal group." They sat in a restricted "Academic"
+   * section beside college and degree field; they are facts about the person,
+   * not about their degree. BAFA is last because the club fills it in.
+   */
+  it("shows both identifiers in the personal group, BAFA last, and neither under Academic", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({
+        college: "Wadham",
+        studentNumber: "1234567",
+        bafaRegistrationNumber: "BAFA-99",
+      }),
+    );
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    const personal = screen.getByRole("heading", { name: "Who they are" }).closest("section");
+    expect(personal).not.toBeNull();
+    expect(within(personal as HTMLElement).getByText("1234567")).toBeTruthy();
+    expect(within(personal as HTMLElement).getByText("BAFA-99")).toBeTruthy();
+
+    const academic = screen.getByRole("heading", { name: "Academic" }).closest("section");
+    expect(within(academic as HTMLElement).queryByText("1234567")).toBeNull();
+    expect(within(academic as HTMLElement).queryByText("BAFA-99")).toBeNull();
+
+    // BAFA last: the club's own field, after everything the player supplies.
+    const labels = within(personal as HTMLElement)
+      .getAllByText(
+        /^(First name|Last name|Known as|Aliases|Student number|BAFA registration number)$/,
+      )
+      .map((node) => node.textContent);
+    expect(labels.at(-1)).toBe("BAFA registration number");
+    expect(labels.at(-2)).toBe("Student number");
+  });
+
   it("shows who supplied a contact value, from its own stored source", async () => {
     signedInAs(["secretary"]);
     vi.mocked(readPersonRecord).mockResolvedValue(

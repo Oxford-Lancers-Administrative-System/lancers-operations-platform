@@ -43,7 +43,18 @@ function currentContact(
   return preferred ?? null;
 }
 
-/** "Who they are" — name, Known as and aliases. */
+/**
+ * "Who they are" — name, Known as, aliases, and the two personal identifiers.
+ *
+ * LAN-365, Brian 2026-09-16: the student number and the BAFA registration
+ * number belong with who somebody is, not with what they are reading. BAFA
+ * last, after everything else, because the club fills it in rather than the
+ * player — a student never knows it.
+ *
+ * Both rows are rendered only when the redaction left the field present, which
+ * is the `academic` category they have always been in: moving where a fact is
+ * drawn must not change who may read it (`REQ-authority`).
+ */
 export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
   return (
     <Section variant="banded" band="person" title="Who they are">
@@ -77,6 +88,23 @@ export function IdentitySection({ record }: { record: VisiblePersonRecord }) {
           </Stack>
         )}
       </Fact>
+      {record.studentNumber !== undefined ? (
+        <Fact label="Student number" note={record.studentNumberSource ?? undefined}>
+          {record.studentNumber != null ? <>{record.studentNumber}</> : <NotRecorded />}
+        </Fact>
+      ) : null}
+      {record.bafaRegistrationNumber !== undefined ? (
+        <Fact
+          label="BAFA registration number"
+          note={record.bafaRegistrationNumberSource ?? undefined}
+        >
+          {record.bafaRegistrationNumber != null ? (
+            <>{record.bafaRegistrationNumber}</>
+          ) : (
+            <NotRecorded />
+          )}
+        </Fact>
+      ) : null}
     </Section>
   );
 }

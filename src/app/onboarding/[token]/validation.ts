@@ -38,8 +38,6 @@ export interface DetailsFormValues {
   degree_field: string;
   /** LAN-267. Never required — a blank one prints blank on the roster form. */
   student_number: string;
-  /** LAN-267. Never required, and an operator can supply it later. */
-  bafa_registration_number: string;
   date_of_birth: string;
   ec_given_name: string;
   ec_family_name: string;
@@ -67,7 +65,6 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
   expected_graduation_year: "",
   degree_field: "",
   student_number: "",
-  bafa_registration_number: "",
   date_of_birth: "",
   ec_given_name: "",
   ec_family_name: "",
@@ -76,11 +73,15 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
   ec_email: "",
 };
 
-/** Every field this form requires. `ec_relationship` was never required; `student_number`/`bafa_registration_number` (LAN-267) a player may genuinely not have yet. */
-type ValidatedDetailsField = Exclude<
-  keyof DetailsFormValues,
-  "ec_relationship" | "student_number" | "bafa_registration_number"
->;
+/**
+ * Every field this form requires. `ec_relationship` was never required, and
+ * `student_number` (LAN-267) a player may genuinely not have to hand.
+ *
+ * LAN-365, Brian 2026-09-16: the BAFA registration number is no longer asked
+ * for here at all — a student never knows it, and the club fills it in on the
+ * person record.
+ */
+type ValidatedDetailsField = Exclude<keyof DetailsFormValues, "ec_relationship" | "student_number">;
 
 /** The screen's own top-to-bottom order. */
 const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
@@ -135,7 +136,6 @@ export function readDetailsValues(form: FormData): DetailsFormValues {
     expected_graduation_year: read("expected_graduation_year"),
     degree_field: read("degree_field"),
     student_number: read("student_number"),
-    bafa_registration_number: read("bafa_registration_number"),
     date_of_birth: read("date_of_birth"),
     ec_given_name: read("ec_given_name"),
     ec_family_name: read("ec_family_name"),

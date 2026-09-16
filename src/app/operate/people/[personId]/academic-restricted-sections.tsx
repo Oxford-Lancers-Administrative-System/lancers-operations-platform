@@ -9,6 +9,8 @@ import type { VisiblePersonRecord } from "./identity-contact-sections";
  * "Academic" — only when `visible.college !== undefined` (page decides).
  * Takes the redacted record, as every shared section does (LAN-307): a field
  * this operator may not see is absent, and absent reads as "not recorded".
+ *
+ * Four fields since LAN-365 took the two identifiers out of it.
  */
 export function AcademicSection({ record }: { record: VisiblePersonRecord }) {
   return (
@@ -29,21 +31,11 @@ export function AcademicSection({ record }: { record: VisiblePersonRecord }) {
       <Fact label="Degree field" note={record.degreeFieldSource ?? undefined}>
         {record.degreeField != null ? <>{record.degreeField}</> : <NotRecorded />}
       </Fact>
-      {/* LAN-267: two personal facts under the same handling as the rest of
-          this section. */}
-      <Fact label="Student number" note={record.studentNumberSource ?? undefined}>
-        {record.studentNumber != null ? <>{record.studentNumber}</> : <NotRecorded />}
-      </Fact>
-      <Fact
-        label="BAFA registration number"
-        note={record.bafaRegistrationNumberSource ?? undefined}
-      >
-        {record.bafaRegistrationNumber != null ? (
-          <>{record.bafaRegistrationNumber}</>
-        ) : (
-          <NotRecorded />
-        )}
-      </Fact>
+      {/* LAN-365, Brian 2026-09-16: the student number and the BAFA
+          registration number moved out of here and into the personal group.
+          They are facts about the person, not about their degree. They keep
+          the `academic` field category, so exactly the same operators see
+          them — see `identity-contact-sections.tsx`. */}
     </Section>
   );
 }

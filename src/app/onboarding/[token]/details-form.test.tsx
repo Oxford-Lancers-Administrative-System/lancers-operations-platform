@@ -18,6 +18,7 @@ vi.mock("./actions", () => ({ saveDetails: vi.fn() }));
 import { saveDetails } from "./actions";
 import { DetailsForm, type DetailsFormProps } from "./details-form";
 import { EMPTY_DETAILS_VALUES, type DetailsFormValues } from "./validation";
+import { FIELD_STUDENT_NUMBER_HINT } from "./presentation";
 
 const NO_META = {
   given_name: { source: null, disputed: false },
@@ -40,7 +41,6 @@ const FILLED_VALUES: DetailsFormValues = {
   expected_graduation_year: "2026",
   degree_field: "Engineering",
   student_number: "1234567",
-  bafa_registration_number: "BAFA-1234",
   date_of_birth: "2004-01-01",
   ec_given_name: "Alex",
   ec_family_name: "Ashworth",
@@ -221,5 +221,23 @@ describe("what the player typed survives a failed submit", () => {
     expect((container.querySelector('input[name="college_email"]') as HTMLInputElement).value).toBe(
       FILLED_VALUES.college_email,
     );
+  });
+});
+
+/**
+ * LAN-365, Brian 2026-09-16. A student never knows their BAFA registration
+ * number, so the form stopped asking; the club fills it in on the person
+ * record. The student number stays, with copy that says which of the two
+ * similar numbers on the University card is wanted — Clint's warning is that
+ * people give the other one.
+ */
+describe("the two game-day identifiers", () => {
+  it("asks for the student number, says which number it means, and never asks for BAFA", () => {
+    const { container } = renderForm(FILLED_VALUES);
+
+    expect(screen.getByLabelText(/student number/i)).toBeTruthy();
+    expect(container.textContent).toContain(FIELD_STUDENT_NUMBER_HINT);
+    expect(container.textContent).not.toMatch(/BAFA/i);
+    expect(container.querySelector('[name="bafa_registration_number"]')).toBeNull();
   });
 });
