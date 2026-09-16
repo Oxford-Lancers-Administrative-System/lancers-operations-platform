@@ -243,6 +243,32 @@ describe("the icons and the install prompt", () => {
     }
   });
 
+  it("points the operator's QR preview at a card Next actually serves — LAN-383", async () => {
+    // The QR page builds this path itself rather than importing a shared
+    // constant, so this reads the literal template out of its source: a
+    // future rename of the served file (Next serves a static opengraph-image
+    // with its extension included, not at the old code-generated route) has
+    // to update both, or this fails instead of the operator seeing a broken
+    // image on /operate/recruitment/qr.
+    const source = await readFile(
+      path.join(REPO, "src/app/operate/recruitment/qr/page.tsx"),
+      "utf8",
+    );
+    const match = source.match(
+      /cardImageSrc = code \? `\/join\/\$\{encodeURIComponent\(code\.code\)\}\/([^`]+)` : null/,
+    );
+    expect(match, "could not find the cardImageSrc template in the QR page").not.toBeNull();
+
+    const fileName = match![1];
+    expect(fileName, "must carry an extension, since that is what LAN-383 changed").toMatch(
+      /\.\w+$/,
+    );
+    await expect(
+      stat(path.join(REPO, "src/app/join/[code]", fileName)),
+      `${fileName} does not exist under src/app/join/[code]/`,
+    ).resolves.toBeDefined();
+  });
+
   it("cuts the favicon from the round badge, at the three sizes a tab uses", async () => {
     const ico = await readFile(path.join(REPO, "src/app/favicon.ico"));
     expect(ico.readUInt16LE(0)).toBe(0); // reserved
