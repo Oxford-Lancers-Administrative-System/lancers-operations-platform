@@ -41,8 +41,6 @@ export function pageHeading(outstandingCount: number, hasFollowUpNeeded: boolean
 
 export const FOLLOW_UP_ONLY_HEADING = "You have follow-up work to finish";
 
-export const HEADING_HELP =
-  "Answer the next one now. Below that, everything you have already answered and that is still to come.";
 export const FOLLOW_UP_ONLY_HELP =
   "Nothing new needs an answer, but a standing answer below still needs a reason or a question finished.";
 export const EMPTY_HELP =

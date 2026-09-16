@@ -54,9 +54,7 @@ describe("commitWithRetry", () => {
   });
 
   it("says one plain sentence only when the retry fails too", async () => {
-    const action = vi
-      .fn<() => Promise<BoardActionState>>()
-      .mockRejectedValue(failedToFetch());
+    const action = vi.fn<() => Promise<BoardActionState>>().mockRejectedValue(failedToFetch());
 
     await expect(commitWithRetry(action)).resolves.toEqual({ error: COULD_NOT_SAVE });
     expect(action).toHaveBeenCalledTimes(2);

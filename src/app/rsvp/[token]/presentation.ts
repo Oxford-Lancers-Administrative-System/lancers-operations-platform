@@ -5,7 +5,6 @@
  * is provable by a test.
  */
 
-
 // UX-60 — the invitation
 
 export const PRIVACY_NOTE =
