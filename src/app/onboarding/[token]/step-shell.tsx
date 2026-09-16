@@ -26,21 +26,36 @@ type QuestionnaireItemCode = keyof QuestionnaireView["itemStatus"];
 
 // The checklist strip — the map of the sequence
 
+/**
+ * Where a step lives. LAN-362: the strip is navigation, so every step it draws
+ * is a link to its own `?step=`, completed ones included — the player can see
+ * what they submitted. `page.tsx` honours any `?step=` in `STEP_PARAM_VALUES`
+ * and gates none of them, so there is no step to draw as plain text; a rule
+ * that gated one would express itself by leaving `href` off that step.
+ */
+export function stepHref(token: string, step: QuestionnaireStep): string {
+  return `/onboarding/${encodeURIComponent(token)}?step=${step}`;
+}
+
 function ChecklistStrip({
   view,
   currentStep,
+  token,
 }: {
   view: QuestionnaireView;
   currentStep: QuestionnaireStep;
+  token: string;
 }) {
   const steps = [];
   for (const step of STEP_ORDER) {
     const isCurrent = step === currentStep;
+    const href = stepHref(token, step);
     if (step === "details") {
       steps.push({
         label: stepLabel(step),
         status: view.detailsComplete ? "complete" : "pending",
         statusLabel: view.detailsComplete ? "Saved" : isCurrent ? "In progress" : "Still needed",
+        href,
       });
       continue;
     }
@@ -48,7 +63,7 @@ function ChecklistStrip({
 
     const code: QuestionnaireItemCode = step === "hudl" ? "hudl_access" : step;
     const status = view.itemStatus[code] ?? "pending";
-    steps.push({ label: stepLabel(step), status, statusLabel: itemStepWord(code, status) });
+    steps.push({ label: stepLabel(step), status, statusLabel: itemStepWord(code, status), href });
   }
 
   return <StepTrail steps={steps} currentIndex={STEP_ORDER.indexOf(currentStep)} />;
@@ -119,6 +134,7 @@ export function Shell({
   children,
   view,
   currentStep,
+  token,
   heading,
   lead,
   privacyNote = PRIVACY_NOTE,
@@ -126,6 +142,8 @@ export function Shell({
   children: React.ReactNode;
   view: QuestionnaireView;
   currentStep: QuestionnaireStep;
+  /** The strip's links are this token's own — LAN-362. */
+  token: string;
   heading: string;
   lead: string;
   privacyNote?: string;
@@ -133,7 +151,7 @@ export function Shell({
   return (
     <>
       <Section title="Where you are">
-        <ChecklistStrip view={view} currentStep={currentStep} />
+        <ChecklistStrip view={view} currentStep={currentStep} token={token} />
       </Section>
       <PageHeader title={heading} subtitle={lead} />
       <Typography variant="caption" color="text.secondary">
@@ -164,7 +182,7 @@ export function BucsHudlShell({
   return (
     <>
       <Section title="Where you are">
-        <ChecklistStrip view={view} currentStep={step} />
+        <ChecklistStrip view={view} currentStep={step} token={token} />
       </Section>
       <PageHeader title={heading} subtitle={lead} />
       <Typography variant="caption" color="text.secondary">

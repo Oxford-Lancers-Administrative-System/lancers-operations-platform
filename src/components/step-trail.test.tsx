@@ -20,9 +20,33 @@ describe("StepTrail", () => {
     expect(steps.filter((step) => step.getAttribute("aria-current") === "step")).toHaveLength(1);
   });
 
-  it("is a map and not a set of controls — no step is a link", () => {
+  it("links a step that carries an href, the current one included", () => {
+    // LAN-362: the strip read as navigation and was not, which is what Brian
+    // reported. Marking a step current is not disabling it — the step you are
+    // on still links to itself, or the strip reads as a row of controls with
+    // one broken.
+    const linked = STEPS.map((step, index) => ({ ...step, href: `/x?step=${index}` }));
+    render(<StepTrail steps={linked} currentIndex={0} />);
+
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(STEPS.length);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(linked.map((step) => step.href));
+  });
+
+  it("draws a step with no href as plain text, not a dead link", () => {
+    // How a sequence expresses a step it will not open yet. The questionnaire
+    // gates none of its five, so it gives every one an href.
     render(<StepTrail steps={STEPS} currentIndex={0} />);
     expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getAllByRole("listitem")).toHaveLength(STEPS.length);
+  });
+
+  it("still names every step once when they are links", () => {
+    const linked = STEPS.map((step) => ({ ...step, href: `/x` }));
+    render(<StepTrail steps={linked} currentIndex={1} />);
+    const items = screen.getAllByRole("listitem");
+    expect(items[1]).toHaveAttribute("aria-current", "step");
+    expect(items[0]).toHaveTextContent("1. Your details");
   });
 
   it("marks nothing current for a summary that is on no step", () => {

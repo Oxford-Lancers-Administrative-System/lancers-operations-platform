@@ -68,6 +68,7 @@ export function DocumentStepPage({
     <Shell
       view={view}
       currentStep={agreementType}
+      token={token}
       heading={heading}
       lead={lead}
       privacyNote={DOCUMENT_PRIVACY_NOTE}
@@ -85,7 +86,25 @@ export function DocumentStepPage({
           <Notice severity="warning">{PLACEHOLDER_LABEL}</Notice>
         ) : null}
 
-        {isCodeOfConduct ? (
+        {agreed ? (
+          // LAN-362. The strip is navigation now, so a player can open a
+          // document they have already agreed to — and what they get is the
+          // wording they agreed to, with the agreement recorded above it. No
+          // tick and no button: consent already given is never asked for twice.
+          <Box
+            sx={{
+              border: "1px solid rgba(0,0,0,0.23)",
+              borderRadius: 1,
+              p: 2,
+              maxHeight: 340,
+              overflow: "auto",
+              bgcolor: "background.paper",
+            }}
+            data-testid="agreed-document"
+          >
+            <AgreementBlocks blocks={sections.flatMap((section) => section.blocks)} />
+          </Box>
+        ) : isCodeOfConduct ? (
           <>
             <Box
               sx={{
