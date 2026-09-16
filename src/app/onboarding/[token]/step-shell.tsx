@@ -33,7 +33,7 @@ type QuestionnaireItemCode = keyof QuestionnaireView["itemStatus"];
  * and gates none of them, so there is no step to draw as plain text; a rule
  * that gated one would express itself by leaving `href` off that step.
  */
-export function stepHref(token: string, step: QuestionnaireStep): string {
+function stepHref(token: string, step: QuestionnaireStep): string {
   return `/onboarding/${encodeURIComponent(token)}?step=${step}`;
 }
 

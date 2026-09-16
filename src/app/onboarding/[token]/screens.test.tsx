@@ -575,8 +575,15 @@ describe("LAN-362 — every step in the strip is a link to its own step", () => 
         },
         agreements: {
           code_of_conduct: {
+            id: "00000000-0000-4000-8000-000000000008",
+            personId: PERSON_ID,
+            seasonId: SEASON_ID,
+            agreementType: "code_of_conduct",
             agreementVersionId: "00000000-0000-4000-8000-000000000006",
             agreedAt: new Date("2026-09-15T10:00:00Z"),
+            printedName: "Jordan Ashworth",
+            form: { name: null, address: null, postcode: null, tel: null, email: null },
+            reopenedAt: null,
           },
           photo_release: null,
         },
