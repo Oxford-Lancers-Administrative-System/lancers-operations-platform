@@ -18,7 +18,16 @@ export interface CallingCountry {
   readonly trunkPrefix: string;
 }
 
+/**
+ * The menu, in the order it renders (`src/components/phone-field.tsx`): the
+ * United States, then the United Kingdom, then everything else alphabetically
+ * (Brian, LAN-355). `DEFAULT_CALLING_CODE` is still 44 — this is the order the
+ * list is read in, not what an empty field starts on. Canada shares +1 and
+ * stays in the alphabetical tail; the code alone cannot tell the two apart, and
+ * `trunkPrefixFor` answers from the code, so both give the same answer anyway.
+ */
 export const CALLING_COUNTRIES: readonly CallingCountry[] = Object.freeze([
+  { iso: "US", name: "United States", callingCode: "1", trunkPrefix: "" },
   { iso: "GB", name: "United Kingdom", callingCode: "44", trunkPrefix: "0" },
   { iso: "AU", name: "Australia", callingCode: "61", trunkPrefix: "0" },
   { iso: "AT", name: "Austria", callingCode: "43", trunkPrefix: "0" },
@@ -56,7 +65,6 @@ export const CALLING_COUNTRIES: readonly CallingCountry[] = Object.freeze([
   { iso: "CH", name: "Switzerland", callingCode: "41", trunkPrefix: "0" },
   { iso: "TR", name: "Türkiye", callingCode: "90", trunkPrefix: "0" },
   { iso: "AE", name: "United Arab Emirates", callingCode: "971", trunkPrefix: "0" },
-  { iso: "US", name: "United States", callingCode: "1", trunkPrefix: "" },
 ]);
 
 /** The trunk prefix for a calling code, or `"0"` for a code the list does not carry (the common case). */

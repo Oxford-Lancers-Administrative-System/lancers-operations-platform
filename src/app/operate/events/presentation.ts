@@ -145,7 +145,7 @@ export const APPROVED_NOTHING_SENT_YET =
 export const AUDIENCE_FROZEN_AT_APPROVAL = "Confirmed at approval.";
 
 /** One state among several — see {@link describeDistribution}. */
-export const NOTHING_DELIVERED_YET = "nothing delivered yet";
+const NOTHING_DELIVERED_YET = "nothing delivered yet";
 
 /** What the Distribution fact says, from the real job states — LAN-243. */
 export interface DistributionCounts {

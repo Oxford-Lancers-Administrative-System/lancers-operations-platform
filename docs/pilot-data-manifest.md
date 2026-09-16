@@ -57,6 +57,13 @@ up — so it is not tracked as a row in the tables below; this note is the
 record that it is what production's reference data now is, and that the
 tester-week dataset described under Status is not layered on top of it.
 
+A season's baseline carries that season and its own three terms, and nothing
+from the year before it. Since LAN-368 that is enough: the Oxford View builds
+the whole year — including the Long Vacation weeks running into Michaelmas —
+from those three term rows alone, so pre-season events are on the calendar the
+day the season is opened. The baseline file itself lives under
+`scripts/production/` and is Brian's to edit.
+
 ## Durable pilot identities and access
 
 Persist between feature tests. Never created or removed by a scenario script.

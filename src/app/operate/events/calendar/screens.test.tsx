@@ -575,14 +575,20 @@ describe("the Oxford View", () => {
     expect(container.querySelector('[data-testid="year-column"]')).toBeNull();
   });
 
-  it("lists a dated event outside the year rather than dropping it", async () => {
-    givenEvents([listEntry({ name: "Before the records", scheduledOn: "2020-01-01" })]);
+  it("draws a dated event the terms do not cover rather than listing it apart", async () => {
+    // LAN-368: the Long Vacation at whichever end an event falls beyond now
+    // reaches out to hold it, so a pre-season date is a week on the calendar
+    // rather than a footnote under it. `outside-the-year` survives for the one
+    // case that can still produce it — a year with no configured term at all,
+    // which the test above covers.
+    givenEvents([listEntry({ name: "Long before term", scheduledOn: "2026-03-08" })]);
 
     const { container } = render(await oxford());
 
-    expect(flatten(within(container).getByTestId("outside-the-year").textContent)).toContain(
-      "Before the records",
-    );
+    expect(container.querySelector('[data-testid="outside-the-year"]')).toBeNull();
+    expect(
+      flatten(container.querySelector('[data-testid="year-column-stack"]')?.textContent),
+    ).toContain("Long before term");
   });
 
   it("lists an undated event rather than dropping it", async () => {

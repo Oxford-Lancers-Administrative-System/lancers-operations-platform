@@ -5,14 +5,7 @@
  * is provable by a test.
  */
 
-import { TYPE_LABELS } from "@/app/operate/events/presentation";
-
 // UX-60 — the invitation
-
-/** The kind of event, in the club's word for it. Only `/design-preview` still calls this (LAN-265) — live screens read `templateName` off the row instead. */
-export function eventTypeLabel(eventType: string): string {
-  return TYPE_LABELS[eventType] ?? eventType;
-}
 
 export const PRIVACY_NOTE =
   "This secure page records only your response. Other players’ responses are never visible.";

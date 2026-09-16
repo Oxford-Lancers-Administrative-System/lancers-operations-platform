@@ -6,7 +6,6 @@
  * formatters already in `src/app/rsvp/[token]/presentation.ts`.
  */
 
-import { TYPE_LABELS } from "@/app/operate/events/presentation";
 import { attendingSentence, otherOutstandingSentence } from "@/app/a/[answer]/[token]/presentation";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 
@@ -20,11 +19,6 @@ export const PRIVACY_NOTE =
  * label for one destination cannot drift from itself.
  */
 export const SEE_ALL_YOUR_EVENTS = "See all your events.";
-
-/** The kind of event, in the club's word for it. Only `/design-preview` still calls this (LAN-265) — live screens read `templateName` off the row instead. */
-export function eventTypeLabel(eventType: string): string {
-  return TYPE_LABELS[eventType] ?? eventType;
-}
 
 export {
   attendingSentence,
@@ -47,8 +41,6 @@ export function pageHeading(outstandingCount: number, hasFollowUpNeeded: boolean
 
 export const FOLLOW_UP_ONLY_HEADING = "You have follow-up work to finish";
 
-export const HEADING_HELP =
-  "Answer the next one now. Below that, everything you have already answered and that is still to come.";
 export const FOLLOW_UP_ONLY_HELP =
   "Nothing new needs an answer, but a standing answer below still needs a reason or a question finished.";
 export const EMPTY_HELP =

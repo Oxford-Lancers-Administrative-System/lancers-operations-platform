@@ -28,6 +28,7 @@ export default function SeasonFactsSection({
   record,
   editing,
   closed,
+  savingKey,
   fieldErrorKey,
   fieldErrorMessage,
   setEditing,
@@ -37,6 +38,8 @@ export default function SeasonFactsSection({
   record: PlayerRecordData;
   editing: string | null;
   closed: boolean;
+  /** The one field whose save is in flight — LAN-380. It takes no further edit until it is back. */
+  savingKey: string | null;
   fieldErrorKey: string | null;
   fieldErrorMessage: string | null;
   setEditing: (key: string | null) => void;
@@ -44,6 +47,19 @@ export default function SeasonFactsSection({
   toggleFormalwear: (item: FormalwearItemKey, owned: boolean) => void;
 }) {
   const errorFor = (key: string) => (fieldErrorKey === key ? fieldErrorMessage : null);
+  const savingOf = (key: string) => savingKey === key;
+  /**
+   * While any one field is saving, the whole panel takes no edit — LAN-380.
+   *
+   * Not tidiness: every editor here is built from the last server render, and a
+   * commit fired while another field's `revalidatePath` refresh is still in
+   * flight aborts that refresh. The next editor then opens on a value the
+   * server has already moved past and writes it back. Measured on a production
+   * build under a Slow 3G profile: ten edits alternating the two jersey kits,
+   * and only the last of each survived. One save at a time is what makes each
+   * editor's starting value true.
+   */
+  const locked = closed || savingKey !== null;
 
   return (
     <Section
@@ -59,7 +75,8 @@ export default function SeasonFactsSection({
         options={[...STATUSES]}
         optionLabels={STATUS_OPTION_LABELS}
         editing={editing === "status"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("status")}
         error={errorFor("status")}
         onOpen={() => setEditing("status")}
         onClose={() => setEditing(null)}
@@ -72,7 +89,8 @@ export default function SeasonFactsSection({
         value={labelFor(ENTRY_LABELS, record.entry)}
         options={[...ENTRIES]}
         editing={editing === "entry"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("entry")}
         error={errorFor("entry")}
         onOpen={() => setEditing("entry")}
         onClose={() => setEditing(null)}
@@ -105,7 +123,8 @@ export default function SeasonFactsSection({
         value={record.season.offencePosition}
         options={record.positionOptions.offence}
         editing={editing === "offencePosition"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("offencePosition")}
         error={errorFor("offencePosition")}
         onOpen={() => setEditing("offencePosition")}
         onClose={() => setEditing(null)}
@@ -116,7 +135,8 @@ export default function SeasonFactsSection({
         value={record.season.defencePosition}
         options={record.positionOptions.defence}
         editing={editing === "defencePosition"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("defencePosition")}
         error={errorFor("defencePosition")}
         onOpen={() => setEditing("defencePosition")}
         onClose={() => setEditing(null)}
@@ -127,7 +147,8 @@ export default function SeasonFactsSection({
         value={record.season.specialTeamsPosition}
         options={record.positionOptions.specialTeams}
         editing={editing === "specialTeamsPosition"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("specialTeamsPosition")}
         error={errorFor("specialTeamsPosition")}
         onOpen={() => setEditing("specialTeamsPosition")}
         onClose={() => setEditing(null)}
@@ -139,7 +160,9 @@ export default function SeasonFactsSection({
         held={record.season.blueNumbers}
         holders={record.jerseyHolders.blue}
         editing={editing === "blueNumbers"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("blueNumbers")}
+        error={errorFor("blueNumbers")}
         onOpen={() => setEditing("blueNumbers")}
         onClose={() => setEditing(null)}
         onCommit={(next) => commitSeasonField("blueNumbers", next)}
@@ -149,7 +172,9 @@ export default function SeasonFactsSection({
         held={record.season.whiteNumbers}
         holders={record.jerseyHolders.white}
         editing={editing === "whiteNumbers"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("whiteNumbers")}
+        error={errorFor("whiteNumbers")}
         onOpen={() => setEditing("whiteNumbers")}
         onClose={() => setEditing(null)}
         onCommit={(next) => commitSeasonField("whiteNumbers", next)}
@@ -160,7 +185,8 @@ export default function SeasonFactsSection({
         value={record.season.coachGroup}
         options={[...COACH_GROUPS]}
         editing={editing === "coachGroup"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("coachGroup")}
         error={errorFor("coachGroup")}
         onOpen={() => setEditing("coachGroup")}
         onClose={() => setEditing(null)}
@@ -171,7 +197,9 @@ export default function SeasonFactsSection({
       <FormalwearField
         season={record.season}
         editing={editing === "formalwear"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("formalwear")}
+        error={errorFor("formalwear")}
         onOpen={() => setEditing("formalwear")}
         onClose={() => setEditing(null)}
         onToggle={toggleFormalwear}
@@ -182,7 +210,8 @@ export default function SeasonFactsSection({
         value={record.season.blues}
         options={[...BLUES_VALUES]}
         editing={editing === "blues"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("blues")}
         error={errorFor("blues")}
         onOpen={() => setEditing("blues")}
         onClose={() => setEditing(null)}
@@ -197,7 +226,8 @@ export default function SeasonFactsSection({
         options={[...ELIGIBILITY_VALUES]}
         optionLabels={ELIGIBILITY_LABELS}
         editing={editing === "eligibility"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("eligibility")}
         error={errorFor("eligibility")}
         onOpen={() => setEditing("eligibility")}
         onClose={() => setEditing(null)}
@@ -214,7 +244,8 @@ export default function SeasonFactsSection({
         options={[...AVAILABILITY_VALUES]}
         optionLabels={AVAILABILITY_LABELS}
         editing={editing === "availability"}
-        readOnly={closed}
+        readOnly={locked}
+        saving={savingOf("availability")}
         error={errorFor("availability")}
         onOpen={() => setEditing("availability")}
         onClose={() => setEditing(null)}

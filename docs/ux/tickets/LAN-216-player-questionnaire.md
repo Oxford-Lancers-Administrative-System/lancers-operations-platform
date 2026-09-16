@@ -210,6 +210,27 @@ than copy, and neither may become copy:
   test or a seed. Unset, the step still shows every instruction and states
   that the link is not published yet — it never invents a destination.
 
+**Every step in the strip is a link** (LAN-362, 2026-09-16). The strip read as
+navigation and was not, so a player who wanted to see what they had already
+submitted had no way back to it. Each of the five links to
+`/onboarding/<token>?step=<step>`, completed steps included and the current one
+too — it is marked current, not disabled. `page.tsx` gates no step, so none is
+drawn as plain text; a rule that gated one would express itself by leaving the
+step's `href` off. A step opened after it is finished shows what was saved:
+Details prefilled as on return, and an agreed document showing its wording with
+the agreement recorded above it and **no tick and no button**, because consent
+already given is never asked for twice.
+
+**Neither trust step carries a status box** (LAN-364, 2026-09-16). BUCS Play showed a
+four-cell grid between its heading and its instructions — Photo release, BUCS
+Play, Confirmed by, Instructions. The first two repeated the strip directly
+above them and the other two were facts about the process the player cannot act
+on. Brian: "That's not needed. You can just give the instructions, and that's
+that." What is left on both steps is the strip, the heading, the "Step n of 5"
+line, the privacy sentence, the numbered instructions, the claim tick and the
+button. The finishing page's summary grid is a different thing with a different
+job and is untouched.
+
 **Hudl is self-serve, and the club sends nothing** (LAN-333, reversing this
 ticket's earlier rule). The step described an email invitation an operator was
 assumed to send, and offered a second control — "No invitation has reached

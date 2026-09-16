@@ -19,8 +19,11 @@ export const CREST_PATH = "/brand/crest.svg";
 /** What a member reads when the app is shared (LAN-269, Brian's sentence). */
 export const SITE_DESCRIPTION = "The Oxford Lancers club app: events, RSVPs and your details.";
 
-/** LAN-279, Brian's defaults. Two strings: `JOIN_CARD_WORDS` for the card, `JOIN_TITLE` for the tab/search. */
-export const JOIN_CARD_WORDS = "Join the Lancers";
+/**
+ * LAN-279, Brian's default for the tab and for search. The sign-up card carries
+ * its own words inside the supplied image since LAN-383, so there is no second
+ * constant here; the card's alt text is `src/app/join/[code]/*.alt.txt`.
+ */
 export const JOIN_TITLE = "Join the Oxford Lancers";
 export const JOIN_DESCRIPTION =
   "Sign up in under a minute: your name, phone and college email, and we'll send you the details.";

@@ -19,10 +19,6 @@ import {
   BUCS_HAVE_YOU_DONE_IT,
   BUCS_HEADING,
   BUCS_LEAD,
-  BUCS_STATUS_CONFIRMED_BY,
-  BUCS_STATUS_CONFIRMED_BY_LABEL,
-  BUCS_STATUS_INSTRUCTIONS,
-  BUCS_STATUS_INSTRUCTIONS_LABEL,
   bucsSteps,
   CONTINUE,
   FINISH,
@@ -32,10 +28,9 @@ import {
   HUDL_LEAD,
   HUDL_LINK_NOT_PUBLISHED,
   hudlSteps,
-  stepLabel,
   type InstructionStep,
 } from "./presentation";
-import { BucsHudlShell, itemIsSettled, itemStepWord } from "./step-shell";
+import { BucsHudlShell } from "./step-shell";
 
 /**
  * One numbered list of instructions. A step's destinations are rendered as
@@ -77,10 +72,6 @@ function Instructions({ steps, testId }: { steps: readonly InstructionStep[]; te
 // Step 4 — BUCS Play
 
 export function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string }) {
-  const photoReleaseAgreed = view.itemStatus.photo_release === "complete";
-  // LAN-289's same one source, so this box and the navigator directly above it
-  // cannot say different things about the same item.
-  const bucs = view.itemStatus.bucs_play;
   return (
     <BucsHudlShell
       view={view}
@@ -88,17 +79,6 @@ export function BucsStepPage({ view, token }: { view: QuestionnaireView; token: 
       token={token}
       heading={BUCS_HEADING}
       lead={BUCS_LEAD}
-      statusRows={[
-        [
-          stepLabel("photo_release"),
-          photoReleaseAgreed ? "Agreed" : "Outstanding",
-          photoReleaseAgreed,
-        ],
-        [stepLabel("bucs_play"), itemStepWord("bucs_play", bucs ?? "pending"), itemIsSettled(bucs)],
-        [BUCS_STATUS_CONFIRMED_BY_LABEL, BUCS_STATUS_CONFIRMED_BY],
-        // LAN-333 wrote the instructions, so this row is no longer a fault.
-        [BUCS_STATUS_INSTRUCTIONS_LABEL, BUCS_STATUS_INSTRUCTIONS, true],
-      ]}
     >
       {/* The league is season-stamped; the year comes off the open season's label, never a constant. */}
       <Instructions steps={bucsSteps(view.seasonLabel)} testId="bucs-steps" />

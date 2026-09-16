@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { NotRecorded } from "@/components/fact";
-import { RecordRow as Row } from "@/components/record-field";
+import { RecordRow as Row, SAVING } from "@/components/record-field";
 import JerseyPicker from "../jersey-picker";
 
 /** The board's own jersey picker — the fuller editor W6 keeps, since the board shows only the predominant number. */
@@ -11,6 +11,8 @@ export default function JerseyField({
   holders,
   editing,
   readOnly,
+  saving,
+  error,
   onOpen,
   onClose,
   onCommit,
@@ -20,11 +22,15 @@ export default function JerseyField({
   holders: Record<string, string>;
   editing: boolean;
   readOnly: boolean;
+  /** This field's own save is in flight — LAN-380. */
+  saving?: boolean;
+  /** What the last save was refused with, or could not be delivered with — LAN-380. */
+  error?: string | null;
   onOpen: () => void;
   onClose: () => void;
   onCommit: (next: string[]) => void;
 }) {
-  const editable = !readOnly;
+  const editable = !readOnly && !saving;
   return (
     <Row label={label}>
       {editing ? (
@@ -64,6 +70,20 @@ export default function JerseyField({
           )}
         </Box>
       )}
+      {saving ? (
+        <Typography
+          variant="caption"
+          sx={{ display: "block", color: "text.secondary", mt: 0.25 }}
+          data-testid="field-saving"
+        >
+          {SAVING}
+        </Typography>
+      ) : null}
+      {error ? (
+        <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.25 }}>
+          {error}
+        </Typography>
+      ) : null}
     </Row>
   );
 }

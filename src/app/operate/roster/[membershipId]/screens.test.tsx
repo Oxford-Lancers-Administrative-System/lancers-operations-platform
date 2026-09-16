@@ -64,10 +64,12 @@ import type {
   PlayerRecordResult,
 } from "@/lib/services/player-record";
 import {
+  recordCommitJerseyNumbersAction,
   recordResolveOnboardingItemAction,
   recordSendOnboardingQuestionnaireAction,
   recordSetStatusAction,
 } from "./record-actions";
+import { COULD_NOT_SAVE } from "../board-action-state";
 import PlayerRecordPage from "./page";
 import { STATUSES, STATUS_OPTION_LABELS } from "../board-columns";
 
@@ -1606,4 +1608,122 @@ describe("the free status ladder — no confirmation dialog on any transition", 
       });
     }
   }
+});
+
+/**
+ * LAN-380 — the season panel and a save that does not land.
+ *
+ * Brian, editing a player's season details on production: the panel showed
+ * "failed to fetch" and then loaded a second later on its own. Reproduced on a
+ * local production build under a Slow 3G profile: every tick of the jersey
+ * picker fired its own Server Action, each computed from the value the server
+ * had last confirmed, so the later writes overwrote the earlier ones and the
+ * earlier requests were aborted as the later ones arrived. **Four of five ticks
+ * did not land**, and nothing in the panel said so — `await action()` had no
+ * `catch`, and the rejection went into a fire-and-forget transition.
+ *
+ * Three things follow: one write per opening, the field unavailable while its
+ * own save is outstanding, and one plain sentence only after a retry has failed
+ * too. The retry itself is `board-action-state.test.ts`.
+ */
+describe("LAN-380 — a season fact being saved", () => {
+  const jerseyRow = () =>
+    screen.getByText("Jersey — Blue").closest('[data-testid="record-row"]') as HTMLElement;
+
+  const tick = (value: string) =>
+    document.querySelector(`ul[role="listbox"] li[data-value="${value}"]`) as HTMLElement;
+
+  it("commits once when the picker closes, carrying everything that was ticked", async () => {
+    // It used to commit on every tick, each one built on the server's last
+    // confirmed value: three ticks were three writes, and the last one won.
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(jerseyRow()).getByTestId("editable-field"));
+    await screen.findByRole("listbox");
+
+    fireEvent.click(tick("7"));
+    fireEvent.click(tick("11"));
+    fireEvent.click(tick("21"));
+    expect(recordCommitJerseyNumbersAction).not.toHaveBeenCalled();
+
+    await act(async () => fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" }));
+
+    expect(recordCommitJerseyNumbersAction).toHaveBeenCalledTimes(1);
+    expect(recordCommitJerseyNumbersAction).toHaveBeenCalledWith(
+      expect.objectContaining({ kit: "blue", numbers: ["7", "11", "21"] }),
+    );
+  });
+
+  it("writes nothing when the picker is closed without a change", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(jerseyRow()).getByTestId("editable-field"));
+    await screen.findByRole("listbox");
+    await act(async () => fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" }));
+
+    expect(recordCommitJerseyNumbersAction).not.toHaveBeenCalled();
+  });
+
+  it("says it is saving, and takes no further edit, while the save is outstanding", async () => {
+    let land: (state: { error: string | null }) => void = () => {};
+    vi.mocked(recordCommitJerseyNumbersAction).mockImplementation(
+      () => new Promise((resolve) => (land = resolve)),
+    );
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(jerseyRow()).getByTestId("editable-field"));
+    await screen.findByRole("listbox");
+    fireEvent.click(tick("7"));
+    await act(async () => fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" }));
+
+    expect(within(jerseyRow()).getByTestId("field-saving")).toBeVisible();
+    // Nothing to click: a second edit computed from a value the server has not
+    // confirmed is exactly what lost four of five ticks.
+    expect(within(jerseyRow()).queryByTestId("editable-field")).not.toBeInTheDocument();
+
+    await act(async () => land({ error: null }));
+    expect(within(jerseyRow()).queryByTestId("field-saving")).not.toBeInTheDocument();
+    expect(within(jerseyRow()).getByTestId("editable-field")).toBeInTheDocument();
+  });
+
+  it("shows one plain sentence when the request never completes, twice", async () => {
+    vi.mocked(recordCommitJerseyNumbersAction).mockRejectedValue(new TypeError("Failed to fetch"));
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(jerseyRow()).getByTestId("editable-field"));
+    await screen.findByRole("listbox");
+    fireEvent.click(tick("7"));
+    await act(async () => fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" }));
+
+    expect(recordCommitJerseyNumbersAction).toHaveBeenCalledTimes(2);
+    expect(within(jerseyRow()).getByText(COULD_NOT_SAVE)).toBeVisible();
+    // Never the browser's own words.
+    expect(within(jerseyRow()).queryByText(/failed to fetch/i)).not.toBeInTheDocument();
+  });
+
+  it("says nothing at all when the retry lands", async () => {
+    vi.mocked(recordCommitJerseyNumbersAction)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({ error: null });
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(jerseyRow()).getByTestId("editable-field"));
+    await screen.findByRole("listbox");
+    fireEvent.click(tick("7"));
+    await act(async () => fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" }));
+
+    expect(recordCommitJerseyNumbersAction).toHaveBeenCalledTimes(2);
+    expect(within(jerseyRow()).queryByText(COULD_NOT_SAVE)).not.toBeInTheDocument();
+    expect(within(jerseyRow()).queryByTestId("field-saving")).not.toBeInTheDocument();
+  });
 });

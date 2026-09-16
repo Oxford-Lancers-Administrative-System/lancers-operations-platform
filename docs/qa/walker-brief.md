@@ -116,8 +116,10 @@ everywhere** column, as `none` or as the list of what was blank.
 - A slow page (over 3 s to interactive on this production build) is a finding;
   record the time.
 
-Not a finding: scope the map or an ADR (`docs/adr/`) records as unbuilt,
-anything under `/design-preview`, and browser-automation friction on your side.
+Not a finding: scope the map or an ADR (`docs/adr/`) records as unbuilt, and
+browser-automation friction on your side. `/design-preview` used to be excluded
+here; LAN-357 deleted the whole route, so a page answering under it now **is** a
+finding.
 When you are unsure whether behaviour is intended, check the ticket contract and
 the spec under `missions/packets/<mission>/`; if it is still unclear, file it
 with confidence `unsure` and quote the contract line.

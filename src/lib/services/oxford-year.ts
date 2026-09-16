@@ -30,7 +30,11 @@ interface YearDay {
 
 export interface YearWeek {
   segmentKey: string;
-  /** The Oxford week on a term row (−1 … 8), or the forward count on a vacation row (1, 2, 3 …). */
+  /**
+   * The Oxford week on a term row (−1 … 8); the forward count on a trailing or mid-year vacation
+   * row (1, 2, 3 …); or, on the leading Long Vacation, a countdown ending at −1 against the first
+   * term (LAN-368).
+   */
   week: number;
   /** "−1st week", "3rd week", "Christmas Vacation 2". */
   label: string;
@@ -81,9 +85,13 @@ export function formatOxfordWeek(week: number): string {
   return `${OXFORD_WEEK_ORDINALS[`${week}`] ?? `${week}`} week`;
 }
 
-/** "Christmas Vacation 2" — a vacation row, numbered forward from 1. */
+/**
+ * "Christmas Vacation 2" — a vacation row, numbered forward from 1. "Long Vacation −2" — the
+ * leading Long Vacation, counted down to −1 at the first term (LAN-368); a real minus sign
+ * (U+2212), matching `formatOxfordWeek`.
+ */
 export function formatVacationWeek(name: string, week: number): string {
-  return `${name} ${week}`;
+  return `${name} ${week < 0 ? `−${-week}` : week}`;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -189,21 +197,22 @@ function byDate(left: CalendarEvent, right: CalendarEvent): number {
   return byStartTime(left, right);
 }
 
-/** How the trailing Long Vacation is bounded with no next Michaelmas configured yet; one week minimum. */
-const MINIMUM_TRAILING_VACATION_WEEKS = 1;
-
 /**
  * How much of the year's two Long Vacations is drawn — BG-153-1, Brian at the
- * visual gate. Trimmed to the last/first N weeks of records, extended (never
- * shortened) to reach a distant event. Does not renumber, does not touch
- * terms, does not special-case Christmas/Easter.
+ * visual gate; the minimum raised at both ends by LAN-368. Each end draws at
+ * least this many whole weeks whether or not anything falls in them, and
+ * extends (never shortens) to reach a more distant event. Does not touch terms,
+ * does not special-case Christmas/Easter.
  */
 export const LEADING_VACATION_WEEKS = 5;
 
-export const TRAILING_VACATION_WEEKS = 1;
+export const TRAILING_VACATION_WEEKS = 5;
 
 /** Which end of a vacation is kept when it is longer than it needs to be. */
-type VacationTrim = "none" | "keep-last" | "keep-first";
+type VacationTrim = "none" | "keep-first";
+
+/** "forward" numbers 1, 2, 3 …; "countdown" numbers back from −1, ending there (LAN-368). */
+type VacationNumbering = "forward" | "countdown";
 
 function weekHasEvents(week: YearWeek): boolean {
   return week.days.some((day) => day.events.length > 0);
@@ -213,12 +222,6 @@ function weekHasEvents(week: YearWeek): boolean {
 function trimVacationWeeks(weeks: YearWeek[], trim: VacationTrim): YearWeek[] {
   if (trim === "none" || weeks.length === 0) return weeks;
 
-  if (trim === "keep-last") {
-    const earliest = weeks.findIndex(weekHasEvents);
-    const reach = earliest === -1 ? 0 : weeks.length - earliest;
-    return weeks.slice(-Math.min(weeks.length, Math.max(LEADING_VACATION_WEEKS, reach)));
-  }
-
   let latest = -1;
   weeks.forEach((week, index) => {
     if (weekHasEvents(week)) latest = index;
@@ -227,12 +230,30 @@ function trimVacationWeeks(weeks: YearWeek[], trim: VacationTrim): YearWeek[] {
   return weeks.slice(0, Math.min(weeks.length, Math.max(TRAILING_VACATION_WEEKS, reach)));
 }
 
+/**
+ * Whole weeks from `from` to `to` inclusive, never fewer than `minimum` — how far
+ * a Long Vacation reaches, counted in rows rather than days so a row is never
+ * half-drawn.
+ */
+function wholeWeeksSpanning(from: string | null, to: string, minimum: number): number {
+  if (from === null) return minimum;
+  const days = daysBetween(from, to);
+  if (days === null || days < 0) return minimum;
+  return Math.max(minimum, Math.ceil((days + 1) / 7));
+}
+
 export interface AcademicYearOptions {
   today?: string | null;
   seasonEndsOn?: string | null;
 }
 
-/** One continuous academic year. `terms` is every term, not just this year's — the leading vacation numbers from the previous year's last term. */
+/**
+ * One continuous academic year. `terms` may hold other years' terms; only this
+ * year's are drawn, and only the next year's first term bounds the trailing
+ * vacation. Since LAN-368 the leading Long Vacation is built from this year's
+ * own first term alone, so a season whose baseline seeds nothing but its three
+ * terms still shows the weeks before Michaelmas.
+ */
 export function buildAcademicYear(
   academicYear: string,
   terms: readonly TermWindow[],
@@ -286,7 +307,7 @@ export function buildAcademicYear(
     };
   };
 
-  /** A vacation segment, numbered forward from 1, filling `startsOn`..`endsOn`. */
+  /** A vacation segment filling `startsOn`..`endsOn`, numbered per `numbering` (LAN-368). */
   const emitVacation = (
     name: string,
     jumpLabel: string,
@@ -294,19 +315,25 @@ export function buildAcademicYear(
     startsOn: string,
     endsOn: string,
     trim: VacationTrim = "none",
+    numbering: VacationNumbering = "forward",
   ) => {
     const length = daysBetween(startsOn, endsOn);
     if (length === null || length < 0) return;
 
-    const weeks: YearWeek[] = [];
+    const weekStarts: string[] = [];
     let cursor: string | null = startsOn;
-    let week = 1;
     while (cursor !== null && cursor <= endsOn) {
-      weeks.push(emitWeek(key, week, formatVacationWeek(name, week), cursor, endsOn));
+      weekStarts.push(cursor);
       cursor = addDays(cursor, 7);
-      week += 1;
     }
-    if (weeks.length === 0) return;
+    if (weekStarts.length === 0) return;
+
+    // "forward" counts 1, 2, 3 … from the earliest week. "countdown" counts back from the week
+    // against the first term, which lands on −1, however far the segment reaches (LAN-368).
+    const weeks: YearWeek[] = weekStarts.map((weekStart, index) => {
+      const week = numbering === "countdown" ? index - weekStarts.length : index + 1;
+      return emitWeek(key, week, formatVacationWeek(name, week), weekStart, endsOn);
+    });
 
     // Trimmed after building, never before.
     const drawn = trimVacationWeeks(weeks, trim);
@@ -328,19 +355,27 @@ export function buildAcademicYear(
   const vacationJumpLabel = (name: string, startsOn: string) =>
     name === "Long Vacation" ? `${name} ${startsOn.slice(0, 4)}` : name;
 
-  // The leading Long Vacation, numbered from the day after the previous year's last term ends.
+  // The leading Long Vacation. Always drawn, from this year's own first term (LAN-368): at least
+  // LEADING_VACATION_WEEKS whole weeks up against that term, reaching further back if an event is
+  // out there. The year before is not consulted — production opens a season with its three terms
+  // and nothing else, and the weeks before Michaelmas have to exist on the day it opens. Numbered
+  // as a countdown, ending at −1 against Michaelmas (Brian, 2026-09-16), so the column never reads
+  // as if the vacation starts there.
   const firstEntry = entries[0];
-  const previousYearEnd = [...terms]
-    .map((term) => termSpan(term))
-    .filter((span): span is { startsOn: string; endsOn: string } => span !== null)
-    .filter((span) => span.endsOn < firstEntry.span.startsOn)
-    .sort((left, right) => (left.endsOn < right.endsOn ? -1 : 1))
-    .pop();
+  const leadingEnd = addDays(firstEntry.span.startsOn, -1);
 
-  if (previousYearEnd) {
-    const leadingStart = addDays(previousYearEnd.endsOn, 1);
-    const leadingEnd = addDays(firstEntry.span.startsOn, -1);
-    if (leadingStart !== null && leadingEnd !== null && leadingStart <= leadingEnd) {
+  if (leadingEnd !== null) {
+    const earliestEventDay = [...byDay.keys()]
+      .filter((day) => day <= leadingEnd)
+      .sort()
+      .shift();
+    const reachWeeks = wholeWeeksSpanning(
+      earliestEventDay ?? null,
+      leadingEnd,
+      LEADING_VACATION_WEEKS,
+    );
+    const leadingStart = addDays(leadingEnd, -(reachWeeks * 7 - 1));
+    if (leadingStart !== null) {
       const name = VACATION_BEFORE[firstEntry.term.name] ?? UNNAMED_VACATION;
       emitVacation(
         name,
@@ -348,7 +383,8 @@ export function buildAcademicYear(
         `vacation-before-${firstEntry.term.id}`,
         leadingStart,
         leadingEnd,
-        "keep-last",
+        "none",
+        "countdown",
       );
     }
   }
@@ -399,20 +435,21 @@ export function buildAcademicYear(
 
     const boundedByNextTerm = nextYearStart ? addDays(nextYearStart.startsOn, -1) : null;
 
+    // Each candidate is a reach, never a cap: the season's own `ends_on` cannot shorten the
+    // trailing vacation below TRAILING_VACATION_WEEKS or below the last event (LAN-368).
     let gapEnd: string | null = boundedByNextTerm;
     if (gapEnd === null) {
       const lastEventDay = [...byDay.keys()]
         .filter((day) => day >= gapStart)
         .sort()
         .pop();
-      const reaches = [
-        options.seasonEndsOn ?? null,
-        lastEventDay ?? null,
-        addDays(gapStart, MINIMUM_TRAILING_VACATION_WEEKS * 7 - 1),
-      ]
+      const reachWeeks = [options.seasonEndsOn ?? null, lastEventDay ?? null]
         .filter((value): value is string => typeof value === "string" && value >= gapStart)
-        .sort();
-      gapEnd = reaches.length > 0 ? reaches[reaches.length - 1] : null;
+        .reduce(
+          (most, day) => Math.max(most, wholeWeeksSpanning(gapStart, day, TRAILING_VACATION_WEEKS)),
+          TRAILING_VACATION_WEEKS,
+        );
+      gapEnd = addDays(gapStart, reachWeeks * 7 - 1);
     }
     if (gapEnd === null) return;
 

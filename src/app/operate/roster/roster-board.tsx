@@ -15,6 +15,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { PinnedSelect } from "@/components/pinned-select";
+import { SAVING } from "@/components/record-field";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
 import type { MembershipStatus, OnboardingItemStatus } from "@/lib/services/membership";
@@ -38,6 +39,7 @@ import {
   commitOnboardingItemAction,
   commitPositionAction,
 } from "./board-actions";
+import { commitWithRetry } from "./board-action-state";
 import { PLAYER_COLUMN_WIDTH, type ColumnDef } from "./board-columns";
 import { applyBoard, filterOptionLabel, filterOptions, optionListLabel } from "./board-data";
 import AddPlayersMenu from "./add-players-menu";
@@ -89,6 +91,8 @@ export default function RosterBoard({
   const [menu, setMenu] = useState<{ anchor: HTMLElement; column: ColumnDef } | null>(null);
   const [phoneFilters, setPhoneFilters] = useState(false);
   const [cellError, setCellError] = useState<{ id: string; message: string } | null>(null);
+  /** Which row's own save is in flight — LAN-380. `useTransition`'s own flag cannot answer it: the transition is over before the request is. */
+  const [savingRowId, setSavingRowId] = useState<string | null>(null);
 
   const canManageStatus = roleCodesPermit(operator.roleCodes, "membership_activation");
   const seasonEmpty = totalInSeason === 0;
@@ -188,143 +192,160 @@ export default function RosterBoard({
     [columns],
   );
 
-  async function runCommit(rowId: string, action: () => Promise<{ error: string | null }>) {
+  /**
+   * One board commit. LAN-380: the cell's editor closes the moment it is
+   * committed, the row says it is saving until the answer is back, and a
+   * request that did not complete is retried once before the operator is told
+   * anything.
+   */
+  function runCommit(rowId: string, action: () => Promise<{ error: string | null }>) {
+    // Outside the transition on purpose: an update made inside one is held back
+    // until the transition settles, and it settles exactly when the save stops
+    // being outstanding — so a saving state set in there is never drawn.
     setCellError(null);
-    const result = await action();
-    if (result.error) setCellError({ id: rowId, message: result.error });
     setEditing(null);
-  }
-
-  function commitFor(row: RosterBoardRow, column: ColumnDef, next: string | string[]) {
+    setSavingRowId(rowId);
     startTransition(() => {
       void (async () => {
-        switch (column.key) {
-          case "status":
-            await runCommit(row.membershipId, () =>
-              setMembershipStatusAction({
-                membershipId: row.membershipId,
-                status: next as MembershipStatus,
-              }),
-            );
-            return;
-          case "entry":
-            await runCommit(row.membershipId, () =>
-              commitEntryAction({
-                membershipId: row.membershipId,
-                entry: next as "new" | "returning",
-              }),
-            );
-            return;
-          case "offencePosition":
-          case "defencePosition":
-          case "specialTeamsPosition": {
-            const positionColumn: PositionColumn =
-              column.key === "offencePosition"
-                ? "offence"
-                : column.key === "defencePosition"
-                  ? "defence"
-                  : "specialTeams";
-            await runCommit(row.membershipId, () =>
-              commitPositionAction({
-                membershipId: row.membershipId,
-                seasonId,
-                column: positionColumn,
-                code: (next as string) || null,
-              }),
-            );
-            return;
-          }
-          case "coachGroup":
-            await runCommit(row.membershipId, () =>
-              commitCoachGroupAction({
-                membershipId: row.membershipId,
-                seasonId,
-                coachGroup: (next as string) || null,
-              }),
-            );
-            return;
-          case "blues":
-            await runCommit(row.membershipId, () =>
-              commitBluesAction({
-                membershipId: row.membershipId,
-                seasonId,
-                value: next as "Full" | "Half" | "None",
-              }),
-            );
-            return;
-          case "eligibility":
-            await runCommit(row.membershipId, () =>
-              commitEligibilityAction({
-                membershipId: row.membershipId,
-                seasonId,
-                status: next as "pending" | "eligible" | "ineligible" | "expired",
-              }),
-            );
-            return;
-          case "availability":
-            await runCommit(row.membershipId, () =>
-              commitAvailabilityAction({
-                membershipId: row.membershipId,
-                level: next as "green" | "orange" | "red",
-              }),
-            );
-            return;
-          case "bps":
-            await runCommit(row.membershipId, () =>
-              commitBpsAction({
-                membershipId: row.membershipId,
-                seasonId,
-                value: next as BpsValue,
-              }),
-            );
-            return;
-          case "subsInvoiced":
-          case "subsPaid":
-          case "kitDistributed":
-          case "bucsPlay":
-          case "hudlAccess":
-          case "squadPhoto":
-          case "commsGroup": {
-            // Correction round 2, item 5: every onboarding column commits
-            // through the same one action, keyed by this membership's own
-            // item id for that column's `itemCode` — never a direct write.
-            const item = column.itemCode ? row.onboardingItems[column.itemCode] : undefined;
-            if (!item) return;
-            await runCommit(row.membershipId, () =>
-              commitOnboardingItemAction({
-                membershipId: row.membershipId,
-                itemId: item.id,
-                status: next as OnboardingItemStatus,
-              }),
-            );
-            return;
-          }
-          case "blueNumbers":
-          case "whiteNumbers": {
-            const kit: Kit = column.key === "blueNumbers" ? "blue" : "white";
-            await runCommit(row.membershipId, () =>
-              commitJerseyNumbersAction({
-                membershipId: row.membershipId,
-                seasonId,
-                kit,
-                numbers: next as string[],
-              }),
-            );
-            return;
-          }
-          default:
-            return;
+        try {
+          const result = await commitWithRetry(action);
+          if (result.error) setCellError({ id: rowId, message: result.error });
+        } finally {
+          // Cleared *in* a transition, so React holds it until the refreshed
+          // payload `revalidatePath` triggers is ready to draw. Clearing it
+          // urgently put the pre-save value back on screen for the ~200ms
+          // between the action resolving and the refresh landing, which is the
+          // old value shown as though it were saved.
+          startTransition(() => setSavingRowId(null));
         }
       })();
     });
   }
 
+  function commitFor(row: RosterBoardRow, column: ColumnDef, next: string | string[]) {
+    switch (column.key) {
+      case "status":
+        runCommit(row.membershipId, () =>
+          setMembershipStatusAction({
+            membershipId: row.membershipId,
+            status: next as MembershipStatus,
+          }),
+        );
+        return;
+      case "entry":
+        runCommit(row.membershipId, () =>
+          commitEntryAction({
+            membershipId: row.membershipId,
+            entry: next as "new" | "returning",
+          }),
+        );
+        return;
+      case "offencePosition":
+      case "defencePosition":
+      case "specialTeamsPosition": {
+        const positionColumn: PositionColumn =
+          column.key === "offencePosition"
+            ? "offence"
+            : column.key === "defencePosition"
+              ? "defence"
+              : "specialTeams";
+        runCommit(row.membershipId, () =>
+          commitPositionAction({
+            membershipId: row.membershipId,
+            seasonId,
+            column: positionColumn,
+            code: (next as string) || null,
+          }),
+        );
+        return;
+      }
+      case "coachGroup":
+        runCommit(row.membershipId, () =>
+          commitCoachGroupAction({
+            membershipId: row.membershipId,
+            seasonId,
+            coachGroup: (next as string) || null,
+          }),
+        );
+        return;
+      case "blues":
+        runCommit(row.membershipId, () =>
+          commitBluesAction({
+            membershipId: row.membershipId,
+            seasonId,
+            value: next as "Full" | "Half" | "None",
+          }),
+        );
+        return;
+      case "eligibility":
+        runCommit(row.membershipId, () =>
+          commitEligibilityAction({
+            membershipId: row.membershipId,
+            seasonId,
+            status: next as "pending" | "eligible" | "ineligible" | "expired",
+          }),
+        );
+        return;
+      case "availability":
+        runCommit(row.membershipId, () =>
+          commitAvailabilityAction({
+            membershipId: row.membershipId,
+            level: next as "green" | "orange" | "red",
+          }),
+        );
+        return;
+      case "bps":
+        runCommit(row.membershipId, () =>
+          commitBpsAction({
+            membershipId: row.membershipId,
+            seasonId,
+            value: next as BpsValue,
+          }),
+        );
+        return;
+      case "subsInvoiced":
+      case "subsPaid":
+      case "kitDistributed":
+      case "bucsPlay":
+      case "hudlAccess":
+      case "squadPhoto":
+      case "commsGroup": {
+        // Correction round 2, item 5: every onboarding column commits
+        // through the same one action, keyed by this membership's own
+        // item id for that column's `itemCode` — never a direct write.
+        const item = column.itemCode ? row.onboardingItems[column.itemCode] : undefined;
+        if (!item) return;
+        runCommit(row.membershipId, () =>
+          commitOnboardingItemAction({
+            membershipId: row.membershipId,
+            itemId: item.id,
+            status: next as OnboardingItemStatus,
+          }),
+        );
+        return;
+      }
+      case "blueNumbers":
+      case "whiteNumbers": {
+        const kit: Kit = column.key === "blueNumbers" ? "blue" : "white";
+        runCommit(row.membershipId, () =>
+          commitJerseyNumbersAction({
+            membershipId: row.membershipId,
+            seasonId,
+            kit,
+            numbers: next as string[],
+          }),
+        );
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
   function toggleFormalwear(row: RosterBoardRow, item: FormalwearItemKey, owned: boolean) {
-    startTransition(() => {
-      void runCommit(row.membershipId, () =>
-        commitFormalwearItemAction({ membershipId: row.membershipId, seasonId, item, owned }),
-      );
-    });
+    runCommit(row.membershipId, () =>
+      commitFormalwearItemAction({ membershipId: row.membershipId, seasonId, item, owned }),
+    );
   }
 
   const pinned = (
@@ -497,6 +518,16 @@ export default function RosterBoard({
                   >
                     {row.displayName}
                   </Button>
+                  {savingRowId === row.membershipId ? (
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ display: "block" }}
+                      data-testid="row-saving"
+                    >
+                      {SAVING}
+                    </Typography>
+                  ) : null}
                   {cellError?.id === row.membershipId ? (
                     <Typography variant="caption" color="error" sx={{ display: "block" }}>
                       {cellError.message}
@@ -508,6 +539,7 @@ export default function RosterBoard({
                   <Cell
                     key={column.key}
                     row={row}
+                    boardSaving={savingRowId !== null}
                     column={column}
                     editing={editing?.id === row.membershipId && editing.key === column.key}
                     holders={

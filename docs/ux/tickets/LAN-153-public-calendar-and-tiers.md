@@ -154,38 +154,52 @@ the control inert at every width below 900px while the address bar still updated
   assumes weeks 1 to 8"). On the seed today that is −1st for Michaelmas and 0th
   for Hilary and Trinity, which is a fact about the data rather than a decision
   — see § Where the implementation departs, which does not close it.
-- The **leading Long Vacation** is numbered from the day after the previous
-  academic year's last term ends — the only place its week 1 can come from. The
-  **trailing** one runs to the next Michaelmas where one is configured, and
-  otherwise to the season's `ends_on`, the last dated event, or one week at
-  minimum, so the segment always exists.
+- **Both Long Vacations are built from the year's own terms** (Brian, LAN-368,
+  2026-09-16, amending the paragraph below). The **leading** one ends the day
+  before the year's first term and the **trailing** one begins the day after its
+  last; the year before is not consulted for anything. The trailing one still
+  runs to the next Michaelmas where one is configured. This is what makes a
+  season usable the moment it is opened: a production baseline seeds one season
+  and its three terms, and before LAN-368 the leading vacation was emitted only
+  when a previous year's term happened to exist, so on production every
+  pre-season date fell off the calendar until Michaelmas began.
 - **The two Long Vacations are drawn only as far as the club's records reach**
   (Brian, at the visual gate on `2d4fc02`: a full-length leading vacation
   _"just shows a really dead calendar, and that's not what I want to see."_).
-  The **last five** weeks of the vacation before the year's first term and the
-  **first one** after its last are drawn, each **extended, never shortened**, to
-  include an event further out — his examples: an event seven weeks before term
-  draws seven weeks, one three weeks after the season draws weeks 1, 2 and 3. A
-  vacation shorter than the default is drawn whole; nothing is padded.
+  **Five whole weeks at each end, always**, whether or not anything falls in
+  them, each **extended, never shortened**, to include an event further out —
+  drawn continuously in whole weeks, so an event eight weeks after Trinity means
+  the trailing vacation runs to week 8 and an event eight weeks before
+  Michaelmas means the leading one starts eight weeks out. The season's
+  `ends_on` is a reach, never a cap. **Every event is in some drawn week;
+  nothing is ever off the calendar.**
 
-  **This does not renumber anything, and the visible consequence is worth
-  expecting.** Vacation weeks are numbered forward from 1 from the vacation's
-  real start (D85, Stewart Humble), so a fourteen-week leading vacation drawn to
-  its last five **opens at "Long Vacation 10"**. That is the correct absolute
-  position, not an off-by-nine. Brian's "7, 6, 5, 4, 3, 2, 1" describes a
-  distance from the term boundary — how far to extend — and is not a request to
-  relabel.
+  **The leading vacation counts down to the first term.** Brian, 2026-09-16
+  (LAN-368): labelling the leading rows "1" to "5" read as if the vacation
+  started there, so they are a countdown instead — the row that meets the
+  first term is "Long Vacation −1", the one before that "−2", and so on
+  however far back the segment reaches, using a real minus sign (U+2212), the
+  same one `formatOxfordWeek` already renders for Michaelmas's own −1st week.
+  A vacation week is still not clamped to 8: reach ten weeks back and the far
+  row is "Long Vacation −10". **The trailing vacation keeps D85 and Stewart
+  Humble's forward-from-1 rule** — an event eight weeks after Trinity still
+  means "Long Vacation 8" — and mid-year vacations (Christmas, Easter) are
+  unaffected either way. Michaelmas's own −1 and 0 weeks stay labelled under
+  Michaelmas, not the vacation, so the column is unambiguous about which
+  segment a week belongs to.
 
   **Terms are untouched.** Michaelmas, Hilary and Trinity keep every configured
   week, empty or not: an empty term week is the term card. **Christmas and Easter
-  need no rule of their own** — they sit between terms, so the trim does not
+  need no rule of their own** — they sit between terms, so the rule does not
   reach them, which is the outcome Brian asked for without a special case.
 
 - The academic year is derived from the term dates — the year whose terms span
   today, else the season's start, else the latest configured — and **never** from
   heading text.
-- Every dated event in the year lands in exactly one cell. A date the year does
-  not reach, and an event with no date at all, are listed rather than dropped.
+- Every dated event in the year lands in exactly one cell — the vacation at
+  whichever end it falls beyond reaches out to hold it (LAN-368). An event with
+  no date at all is listed rather than dropped, as is any dated event at all
+  when the year has no configured term to draw from.
 
 ## Where the implementation departs from the approved mockup, and why
 

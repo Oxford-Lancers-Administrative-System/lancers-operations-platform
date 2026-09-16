@@ -2,6 +2,13 @@
 
 Generated evidence for the mockup on `chore/lan-225-design-mockup`.
 
+**The `/design-preview` routes this file describes no longer exist.** LAN-225's
+kit and theme were adopted by the real screens, and LAN-357 deleted the preview
+directory on 16 September 2026 — it shipped in the production build, and any
+signed-in operator could reach it. The captures below are kept as the record of
+what the mockup review showed; the steps that rebuild them cannot be re-run
+without restoring the routes from `git log`.
+
 1. With the issue's slot held and the app up (`npm run db:acquire -- LAN-225`,
    `db:start`, `db:reset`, `npm run dev:slot`), run from the worktree root:
    `node docs/ux/review/design-mockup-2026-09/capture.mjs` — signs in through

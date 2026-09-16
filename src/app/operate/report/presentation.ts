@@ -28,9 +28,6 @@ export const NOTHING_AT_ALL =
 export const CHANGE_DATE_LABEL = "Reporting date";
 export const CHANGE_DATE_SUBMIT = "Show report";
 
-export const STORED_NOTE =
-  "This is the report as it stood when it was first opened today. It is kept exactly as it was.";
-
 /** Shown, not hidden or "upgraded" — invariant M5: an old report stays readable, never quietly recomputed. */
 export const OTHER_METRIC_VERSION_NOTE =
   "This report was generated under earlier metric definitions, so it is not organised the way " +

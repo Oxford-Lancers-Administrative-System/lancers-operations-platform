@@ -172,15 +172,9 @@ beforeAll(async () => {
        left join public.season_memberships m on m.id = i.season_membership_id
       where e.status = 'approved'
         and s.status = any(array['open','active','closing']::public.season_status[])
-        -- The token services' own notion of "started" (EVENT_START_EXPRESSION
-        -- in rsvp-tokens.ts and player-answer-tokens.ts): a null starts_at is
-        -- midnight, not end of day, and the comparison is in the club's own
-        -- London wall time, not the session's. '23:59' with no zone
-        -- conversion disagreed with both, so on a day whose next approved
-        -- event was untimed and today, this fixture could pick an event the
-        -- token services already refused as started (issueTokenIn throwing
-        -- "This event has already started") — no fixture choice should ever
-        -- provoke that.
+        -- The token services' own notion of "started": an untimed event
+        -- starts at 00:00, and the wall time is London's, not the session's.
+        -- Anything looser picks an event issueTokenIn then refuses.
         and ((e.scheduled_on + coalesce(e.starts_at, '00:00'::time)) at time zone 'Europe/London') > now()
         and coalesce(i.person_id, m.person_id) is not null
       order by e.scheduled_on

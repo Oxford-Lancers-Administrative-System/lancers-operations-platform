@@ -30,7 +30,7 @@ export default function AdminPageHeading({
 }
 
 /** The words, so a test asserts the approved label rather than a variable. */
-export const HOW_ADMINISTRATION_WORKS = "How administration works";
+const HOW_ADMINISTRATION_WORKS = "How administration works";
 
 /** Inline SVG, not `@mui/icons-material`, for one 16px mark — a dependency change out of proportion. */
 function HowAdministrationWorksLink() {

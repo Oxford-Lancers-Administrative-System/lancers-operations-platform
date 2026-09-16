@@ -9,7 +9,6 @@ export {
   EVENT_STATUSES,
   EVENT_TYPES,
   validateEventDraft,
-  type DerivedEventState,
   type EventDraftInput,
   type RawEventDraft,
   type TermWindow,

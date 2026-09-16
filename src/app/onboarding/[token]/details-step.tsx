@@ -69,6 +69,7 @@ export function DetailsStepPage({ view, token }: { view: QuestionnaireView; toke
     <Shell
       view={view}
       currentStep="details"
+      token={token}
       heading={DETAILS_HEADING}
       lead={isReturning ? DETAILS_LEAD_RETURNING : DETAILS_LEAD_STEP}
     >

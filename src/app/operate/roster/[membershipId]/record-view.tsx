@@ -41,6 +41,7 @@ import {
   recordResolveOnboardingItemAction,
   recordSetStatusAction,
 } from "./record-actions";
+import { commitWithRetry } from "../board-action-state";
 import OnboardingRow from "./onboarding-row";
 import OtherSeasons from "./other-seasons";
 import StatusHistory from "./status-history";
@@ -81,8 +82,15 @@ export default function PlayerRecordView({
   unsavedContacts?: ("email" | "phone")[];
 }) {
   const [editing, setEditing] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [fieldError, setFieldError] = useState<{ key: string; message: string } | null>(null);
+  /**
+   * Which field's own save is in flight — LAN-380. `pending` from
+   * `useTransition` cannot answer this: the transition's callback fires the
+   * commit and returns, so it is done before the request is, and nothing was
+   * ever unavailable while a save was outstanding.
+   */
+  const [saving, setSaving] = useState<string | null>(null);
 
   const closed = record.status === "departed" || record.status === "archived";
   const resolvedCount = record.onboardingItems.filter((item) =>
@@ -101,130 +109,144 @@ export default function PlayerRecordView({
   const personalEmail = currentContact(person.contacts, "email", "personal");
   const mobile = currentContact(person.contacts, "phone", null);
 
-  async function runCommit(key: string, action: () => Promise<{ error: string | null }>) {
+  /**
+   * One season-fact save. LAN-380: the editor closes the moment it is
+   * committed, the field says it is saving until the answer is back, and a
+   * request that did not complete is retried once before the operator is told
+   * anything. Nothing here is optimistic — the field shows the value it is
+   * saving, and the saved value only once the server has confirmed it.
+   *
+   * The three state changes before the transition are deliberately outside it.
+   * A state update made *inside* `startTransition` is deferred until the
+   * transition settles, and the transition settles at exactly the moment the
+   * save stops being outstanding — so a saving state set in there is the one
+   * state React would never put on screen. Measured on a production build:
+   * with the update inside, the field showed nothing for the whole 800ms of
+   * the save and then showed the new value.
+   */
+  function runCommit(key: string, action: () => Promise<{ error: string | null }>) {
     setFieldError(null);
-    const result = await action();
-    if (result.error) setFieldError({ key, message: result.error });
     setEditing(null);
-  }
-
-  function commitSeasonField(key: string, next: string | string[]) {
+    setSaving(key);
     startTransition(() => {
       void (async () => {
-        switch (key) {
-          case "status":
-            await runCommit(key, () =>
-              recordSetStatusAction({
-                membershipId: record.membershipId,
-                status: next as MembershipStatus,
-              }),
-            );
-            return;
-          case "entry":
-            await runCommit(key, () =>
-              recordCommitEntryAction({
-                membershipId: record.membershipId,
-                entry: next as "new" | "returning",
-              }),
-            );
-            return;
-          case "offencePosition":
-          case "defencePosition":
-          case "specialTeamsPosition": {
-            const column: PositionColumn =
-              key === "offencePosition"
-                ? "offence"
-                : key === "defencePosition"
-                  ? "defence"
-                  : "specialTeams";
-            await runCommit(key, () =>
-              recordCommitPositionAction({
-                membershipId: record.membershipId,
-                seasonId: record.seasonId,
-                column,
-                code: (next as string) || null,
-              }),
-            );
-            return;
-          }
-          case "coachGroup":
-            await runCommit(key, () =>
-              recordCommitCoachGroupAction({
-                membershipId: record.membershipId,
-                seasonId: record.seasonId,
-                coachGroup: (next as string) || null,
-              }),
-            );
-            return;
-          case "blues":
-            await runCommit(key, () =>
-              recordCommitBluesAction({
-                membershipId: record.membershipId,
-                seasonId: record.seasonId,
-                value: next as "Full" | "Half" | "None",
-              }),
-            );
-            return;
-          case "eligibility":
-            await runCommit(key, () =>
-              recordCommitEligibilityAction({
-                membershipId: record.membershipId,
-                seasonId: record.seasonId,
-                status: next as "pending" | "eligible" | "ineligible" | "expired",
-              }),
-            );
-            return;
-          case "availability":
-            await runCommit(key, () =>
-              recordCommitAvailabilityAction({
-                membershipId: record.membershipId,
-                level: next as "green" | "orange" | "red",
-              }),
-            );
-            return;
-          case "blueNumbers":
-          case "whiteNumbers": {
-            const kit: Kit = key === "blueNumbers" ? "blue" : "white";
-            await runCommit(key, () =>
-              recordCommitJerseyNumbersAction({
-                membershipId: record.membershipId,
-                seasonId: record.seasonId,
-                kit,
-                numbers: next as string[],
-              }),
-            );
-            return;
-          }
-          default:
-            return;
+        try {
+          const result = await commitWithRetry(action);
+          if (result.error) setFieldError({ key, message: result.error });
+        } finally {
+          // Cleared *in* a transition, so React holds it until the refreshed
+          // payload `revalidatePath` triggers is ready to draw. Clearing it
+          // urgently put the pre-save value back on screen for the ~200ms
+          // between the action resolving and the refresh landing, which is the
+          // old value shown as though it were saved.
+          startTransition(() => setSaving(null));
         }
       })();
     });
   }
 
+  function commitSeasonField(key: string, next: string | string[]) {
+    const action = seasonFieldAction(key, next);
+    if (action) runCommit(key, action);
+  }
+
+  /** Which server action a season field's key commits through, or `null` for a key this panel does not own. */
+  function seasonFieldAction(
+    key: string,
+    next: string | string[],
+  ): (() => Promise<{ error: string | null }>) | null {
+    switch (key) {
+      case "status":
+        return () =>
+          recordSetStatusAction({
+            membershipId: record.membershipId,
+            status: next as MembershipStatus,
+          });
+      case "entry":
+        return () =>
+          recordCommitEntryAction({
+            membershipId: record.membershipId,
+            entry: next as "new" | "returning",
+          });
+      case "offencePosition":
+      case "defencePosition":
+      case "specialTeamsPosition": {
+        const column: PositionColumn =
+          key === "offencePosition"
+            ? "offence"
+            : key === "defencePosition"
+              ? "defence"
+              : "specialTeams";
+        return () =>
+          recordCommitPositionAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            column,
+            code: (next as string) || null,
+          });
+      }
+      case "coachGroup":
+        return () =>
+          recordCommitCoachGroupAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            coachGroup: (next as string) || null,
+          });
+      case "blues":
+        return () =>
+          recordCommitBluesAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            value: next as "Full" | "Half" | "None",
+          });
+      case "eligibility":
+        return () =>
+          recordCommitEligibilityAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            status: next as "pending" | "eligible" | "ineligible" | "expired",
+          });
+      case "availability":
+        return () =>
+          recordCommitAvailabilityAction({
+            membershipId: record.membershipId,
+            level: next as "green" | "orange" | "red",
+          });
+      case "blueNumbers":
+      case "whiteNumbers": {
+        const kit: Kit = key === "blueNumbers" ? "blue" : "white";
+        return () =>
+          recordCommitJerseyNumbersAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            kit,
+            numbers: next as string[],
+          });
+      }
+      default:
+        return null;
+    }
+  }
+
   function toggleFormalwear(item: FormalwearItemKey, owned: boolean) {
-    startTransition(() => {
-      void runCommit("formalwear", () =>
-        recordCommitFormalwearItemAction({
-          membershipId: record.membershipId,
-          seasonId: record.seasonId,
-          item,
-          owned,
-        }),
-      );
-    });
+    runCommit("formalwear", () =>
+      recordCommitFormalwearItemAction({
+        membershipId: record.membershipId,
+        seasonId: record.seasonId,
+        item,
+        owned,
+      }),
+    );
   }
 
   function resolveOnboardingItem(item: OnboardingItemDisplay, status: OnboardingItemStatus) {
-    startTransition(() => {
-      void runCommit(`item:${item.id}`, () =>
-        recordResolveOnboardingItemAction({
-          membershipId: record.membershipId,
-          itemId: item.id,
-          status,
-        }),
-      );
-    });
+    runCommit(`item:${item.id}`, () =>
+      recordResolveOnboardingItemAction({
+        membershipId: record.membershipId,
+        itemId: item.id,
+        status,
+      }),
+    );
   }
 
   return (
@@ -427,6 +449,7 @@ export default function PlayerRecordView({
         record={record}
         editing={editing}
         closed={closed}
+        savingKey={saving}
         fieldErrorKey={fieldError?.key ?? null}
         fieldErrorMessage={fieldError?.message ?? null}
         setEditing={setEditing}
@@ -458,8 +481,6 @@ export default function PlayerRecordView({
       >
         <StatusHistory history={record.statusHistory} />
       </Section>
-
-      {pending ? null : null}
     </Stack>
   );
 }
