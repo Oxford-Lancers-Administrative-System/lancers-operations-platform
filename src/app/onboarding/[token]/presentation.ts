@@ -236,19 +236,28 @@ const HUDL_JOIN_LINK_LABEL = "Join the Oxford Lancers on Hudl";
 export const HUDL_LINK_NOT_PUBLISHED =
   "The join link is not published yet. Ask anybody at the club.";
 
-/** The club's own Hudl steps (Brian, 2026-09-11 — LAN-333). `joinLink` is `null` until the deployment is configured. */
+/**
+ * The club's own Hudl steps (Brian, 2026-09-11 — LAN-333; LAN-283 put the link
+ * first and said why). The join link leads, because nothing else on the step
+ * works until the player has gone through it, and the two steps after it say
+ * so rather than reading as independent instructions. The app-store links stay
+ * last and stay optional. `joinLink` is `null` until the deployment is
+ * configured.
+ */
 export function hudlSteps(joinLink: string | null): readonly InstructionStep[] {
   return [
     {
-      text: "Go to the club's Hudl join link.",
+      text: "Start here. Nothing below works until you have joined through this link.",
       links: joinLink ? [{ label: HUDL_JOIN_LINK_LABEL, href: joinLink }] : undefined,
     },
-    { text: "Follow the steps to create an account if you do not have one." },
     {
-      text: "On the “about your info” screen, enter what you have and press submit. The phone number field can be left alone.",
+      text: "Once you have joined through the link above, create an account if you do not have one.",
     },
     {
-      text: "For convenience, download the app.",
+      text: "Once you have joined through the link above, enter what you have on the “about your info” screen and press submit. The phone number field can be left alone.",
+    },
+    {
+      text: "Optional: download the app.",
       links: [
         { label: "Apple", href: HUDL_APPLE },
         { label: "Android", href: HUDL_ANDROID },

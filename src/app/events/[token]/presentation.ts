@@ -76,8 +76,9 @@ export const PUBLIC_CALENDAR_LINK = "See the public calendar";
 // and a recruit flipped to joined moved from a flow that offered a group to
 // one that never mentioned it.
 
-export const WHATSAPP_GROUP_HEADING = "The club's WhatsApp group";
-export const JOIN_WHATSAPP_GROUP = "Join the WhatsApp group";
+// LAN-283 moved the words and the section itself into one shared component:
+// the onboarding Done page offers the same group, and two copies would drift.
+export { JOIN_WHATSAPP_GROUP, WHATSAPP_GROUP_HEADING } from "@/components/player-whatsapp-group";
 
 // Further out — Q-20's 21-day horizon
 

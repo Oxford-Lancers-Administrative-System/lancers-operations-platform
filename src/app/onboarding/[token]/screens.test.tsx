@@ -504,6 +504,31 @@ describe("F3 — the Done screen carries every approved section", () => {
     expect(januaryRender.textContent).not.toContain("15 August 2026");
   });
 
+  // LAN-283: the players' group, offered as a link on the Done page, above the
+  // settled-and-outstanding summary. A link shown, never a tracked item.
+  it("offers the players' WhatsApp group when the link is configured, and nothing when it is not", async () => {
+    process.env.PLAYER_WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EXAMPLEPLAYERS";
+    givenValid(doneView());
+    const { container } = await renderPage({ step: "done" });
+    const button = container.querySelector('[data-testid="player-whatsapp-group-link"]');
+    expect(button?.getAttribute("href")).toBe("https://chat.whatsapp.com/EXAMPLEPLAYERS");
+    expect(container.textContent).toContain("The club's WhatsApp group");
+    // Above the summary, not below it.
+    const summary = container.querySelector('[data-testid="questionnaire-status"]');
+    if (summary) {
+      expect(
+        button!.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    // The sentence about messaging groups being the club's to tick off stays.
+    expect(container.textContent).toContain(WHAT_CLUB_HAS_HEADING);
+
+    delete process.env.PLAYER_WHATSAPP_GROUP_LINK;
+    givenValid(doneView());
+    const { container: unset } = await renderPage({ step: "done" });
+    expect(unset.querySelector('[data-testid="player-whatsapp-group"]')).toBeNull();
+  });
+
   it("shows 'What the club now has', 'If something here is wrong', Close and the R3-G reassurance line", async () => {
     givenValid(doneView());
     const { container } = await renderPage({ step: "done" });
@@ -805,22 +830,26 @@ describe("LAN-333 — the real BUCS Play and Hudl steps", () => {
     expect(unlabelled.textContent).not.toContain("undefined");
   });
 
-  it("carries the club's four Hudl steps and the join link when one is configured", async () => {
+  it("puts the join link in step one and says nothing else works first (LAN-283)", async () => {
     process.env.HUDL_JOIN_LINK = DUMMY_HUDL;
     const container = await hudlScreen();
     const steps = container.querySelector('[data-testid="hudl-steps"]');
-    const text = steps?.textContent ?? "";
+    const items = [...(steps?.querySelectorAll("li") ?? [])];
 
-    expect(text).toContain("Go to the club's Hudl join link.");
-    expect(text).toContain("Follow the steps to create an account");
-    expect(text).toContain("press submit");
-    expect(text).toContain("The phone number field can be left alone.");
-    expect(steps?.querySelectorAll("li")).toHaveLength(4);
+    expect(items).toHaveLength(4);
+    // The link is in the first step, not somewhere further down it.
+    expect(items[0].querySelector(`a[href="${DUMMY_HUDL}"]`)).not.toBeNull();
+    expect(items[0].textContent).toContain("Nothing below works until you have joined");
+    // The two steps after it refer back to it rather than standing alone.
+    expect(items[1].textContent).toContain("Once you have joined through the link above");
+    expect(items[2].textContent).toContain("Once you have joined through the link above");
+    expect(items[2].textContent).toContain("The phone number field can be left alone.");
+    // The app-store links stay last and stay optional.
+    expect(items[3].textContent).toContain("Optional");
+    const lastHrefs = [...items[3].querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(lastHrefs).toContain("https://apps.apple.com/us/app/hudl/id412223222");
+    expect(lastHrefs).toContain("https://play.google.com/store/apps/details?id=com.hudl.hudroid");
 
-    const hrefs = [...(steps?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain(DUMMY_HUDL);
-    expect(hrefs).toContain("https://apps.apple.com/us/app/hudl/id412223222");
-    expect(hrefs).toContain("https://play.google.com/store/apps/details?id=com.hudl.hudroid");
     expect(container.querySelector('[data-testid="hudl-link-missing"]')).toBeNull();
   });
 
@@ -829,7 +858,7 @@ describe("LAN-333 — the real BUCS Play and Hudl steps", () => {
     const steps = container.querySelector('[data-testid="hudl-steps"]');
 
     expect(steps?.querySelectorAll("li")).toHaveLength(4);
-    expect(steps?.textContent).toContain("Go to the club's Hudl join link.");
+    expect(steps?.textContent).toContain("Nothing below works until you have joined");
     expect(container.querySelector('[data-testid="hudl-link-missing"]')?.textContent).toBe(
       HUDL_LINK_NOT_PUBLISHED,
     );
