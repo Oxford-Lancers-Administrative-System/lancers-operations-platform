@@ -37,6 +37,8 @@ reach.
 | `LAN-355/desktop_country-menu.png`  | The calling-code menu open on `/operate/people/new` at 1440 |
 | `LAN-355/phone375_country-menu.png` | The same at a measured 375                                  |
 
+Recaptured 2026-09-16: the earlier pair showed the closed control mid-transition
+rather than the reordered list, so these are retaken with the menu held open.
 The menu reads **United States +1, United Kingdom +44, Australia +61, Austria
 +43 …** at both widths. The closed control still shows `+44`, and the number box
 and its validation are untouched.
