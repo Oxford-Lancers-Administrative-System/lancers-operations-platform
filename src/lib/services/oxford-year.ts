@@ -30,7 +30,11 @@ interface YearDay {
 
 export interface YearWeek {
   segmentKey: string;
-  /** The Oxford week on a term row (−1 … 8), or the forward count on a vacation row (1, 2, 3 …). */
+  /**
+   * The Oxford week on a term row (−1 … 8); the forward count on a trailing or mid-year vacation
+   * row (1, 2, 3 …); or, on the leading Long Vacation, a countdown ending at −1 against the first
+   * term (LAN-368).
+   */
   week: number;
   /** "−1st week", "3rd week", "Christmas Vacation 2". */
   label: string;
@@ -81,9 +85,13 @@ export function formatOxfordWeek(week: number): string {
   return `${OXFORD_WEEK_ORDINALS[`${week}`] ?? `${week}`} week`;
 }
 
-/** "Christmas Vacation 2" — a vacation row, numbered forward from 1. */
+/**
+ * "Christmas Vacation 2" — a vacation row, numbered forward from 1. "Long Vacation −2" — the
+ * leading Long Vacation, counted down to −1 at the first term (LAN-368); a real minus sign
+ * (U+2212), matching `formatOxfordWeek`.
+ */
 export function formatVacationWeek(name: string, week: number): string {
-  return `${name} ${week}`;
+  return `${name} ${week < 0 ? `−${-week}` : week}`;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -203,6 +211,9 @@ export const TRAILING_VACATION_WEEKS = 5;
 /** Which end of a vacation is kept when it is longer than it needs to be. */
 type VacationTrim = "none" | "keep-first";
 
+/** "forward" numbers 1, 2, 3 …; "countdown" numbers back from −1, ending there (LAN-368). */
+type VacationNumbering = "forward" | "countdown";
+
 function weekHasEvents(week: YearWeek): boolean {
   return week.days.some((day) => day.events.length > 0);
 }
@@ -296,7 +307,7 @@ export function buildAcademicYear(
     };
   };
 
-  /** A vacation segment, numbered forward from 1, filling `startsOn`..`endsOn`. */
+  /** A vacation segment filling `startsOn`..`endsOn`, numbered per `numbering` (LAN-368). */
   const emitVacation = (
     name: string,
     jumpLabel: string,
@@ -304,19 +315,25 @@ export function buildAcademicYear(
     startsOn: string,
     endsOn: string,
     trim: VacationTrim = "none",
+    numbering: VacationNumbering = "forward",
   ) => {
     const length = daysBetween(startsOn, endsOn);
     if (length === null || length < 0) return;
 
-    const weeks: YearWeek[] = [];
+    const weekStarts: string[] = [];
     let cursor: string | null = startsOn;
-    let week = 1;
     while (cursor !== null && cursor <= endsOn) {
-      weeks.push(emitWeek(key, week, formatVacationWeek(name, week), cursor, endsOn));
+      weekStarts.push(cursor);
       cursor = addDays(cursor, 7);
-      week += 1;
     }
-    if (weeks.length === 0) return;
+    if (weekStarts.length === 0) return;
+
+    // "forward" counts 1, 2, 3 … from the earliest week. "countdown" counts back from the week
+    // against the first term, which lands on −1, however far the segment reaches (LAN-368).
+    const weeks: YearWeek[] = weekStarts.map((weekStart, index) => {
+      const week = numbering === "countdown" ? index - weekStarts.length : index + 1;
+      return emitWeek(key, week, formatVacationWeek(name, week), weekStart, endsOn);
+    });
 
     // Trimmed after building, never before.
     const drawn = trimVacationWeeks(weeks, trim);
@@ -341,7 +358,9 @@ export function buildAcademicYear(
   // The leading Long Vacation. Always drawn, from this year's own first term (LAN-368): at least
   // LEADING_VACATION_WEEKS whole weeks up against that term, reaching further back if an event is
   // out there. The year before is not consulted — production opens a season with its three terms
-  // and nothing else, and the weeks before Michaelmas have to exist on the day it opens.
+  // and nothing else, and the weeks before Michaelmas have to exist on the day it opens. Numbered
+  // as a countdown, ending at −1 against Michaelmas (Brian, 2026-09-16), so the column never reads
+  // as if the vacation starts there.
   const firstEntry = entries[0];
   const leadingEnd = addDays(firstEntry.span.startsOn, -1);
 
@@ -364,6 +383,8 @@ export function buildAcademicYear(
         `vacation-before-${firstEntry.term.id}`,
         leadingStart,
         leadingEnd,
+        "none",
+        "countdown",
       );
     }
   }

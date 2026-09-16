@@ -174,14 +174,19 @@ the control inert at every width below 900px while the address bar still updated
   `ends_on` is a reach, never a cap. **Every event is in some drawn week;
   nothing is ever off the calendar.**
 
-  **The leading vacation is numbered from its own first drawn week.** Vacation
-  weeks are still numbered forward from 1 (D85, Stewart Humble), and the drawn
-  leading vacation now _is_ the vacation, so five drawn rows read "Long Vacation
-  1" to "Long Vacation 5". It used to read 10 to 14 because it counted from the
-  previous year's Trinity — a row production has no way to know about. Brian's
-  "7, 6, 5, 4, 3, 2, 1" describes a distance from the term boundary — how far to
-  extend — and is not a request to relabel. A vacation week is still not clamped
-  to 8: reach ten weeks back and the row against term is "Long Vacation 10".
+  **The leading vacation counts down to the first term.** Brian, 2026-09-16
+  (LAN-368): labelling the leading rows "1" to "5" read as if the vacation
+  started there, so they are a countdown instead — the row that meets the
+  first term is "Long Vacation −1", the one before that "−2", and so on
+  however far back the segment reaches, using a real minus sign (U+2212), the
+  same one `formatOxfordWeek` already renders for Michaelmas's own −1st week.
+  A vacation week is still not clamped to 8: reach ten weeks back and the far
+  row is "Long Vacation −10". **The trailing vacation keeps D85 and Stewart
+  Humble's forward-from-1 rule** — an event eight weeks after Trinity still
+  means "Long Vacation 8" — and mid-year vacations (Christmas, Easter) are
+  unaffected either way. Michaelmas's own −1 and 0 weeks stay labelled under
+  Michaelmas, not the vacation, so the column is unambiguous about which
+  segment a week belongs to.
 
   **Terms are untouched.** Michaelmas, Hilary and Trinity keep every configured
   week, empty or not: an empty term week is the term card. **Christmas and Easter

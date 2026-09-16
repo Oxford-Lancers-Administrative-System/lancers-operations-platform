@@ -299,11 +299,15 @@ describe("buildAcademicYear — the boundaries the club supplied", () => {
   });
 
   it("meets Michaelmas at its −1st week, which is where Michaelmas does start", () => {
-    // LAN-368: the leading vacation is five whole weeks up against Michaelmas,
-    // numbered forward from its own first drawn row, so the last row is 5 — it
-    // used to read "Long Vacation 14" because it counted from the previous
-    // year's Trinity, a row production has no way to know about.
-    expect(coordinate("2026-09-26")).toBe("Long Vacation 5");
+    // LAN-368, Brian 2026-09-16: the leading vacation is five whole weeks up
+    // against Michaelmas, counted down so the row that meets the term is −1 —
+    // it used to read "Long Vacation 5" or, earlier still, "14" because it
+    // counted forward from the previous year's Trinity, a row production has
+    // no way to know about.
+    // `coordinate` here prints the raw numeric field, not the rendered label —
+    // an ASCII hyphen, same as "michaelmas -1" below; `formatVacationWeek`'s
+    // own real-minus-sign rendering is covered under "week labels".
+    expect(coordinate("2026-09-26")).toBe("Long Vacation -1");
     expect(coordinate("2026-09-27")).toBe("michaelmas -1");
   });
 
@@ -312,18 +316,21 @@ describe("buildAcademicYear — the boundaries the club supplied", () => {
     expect(coordinate("2027-04-17")).toBe("Easter Vacation 5");
   });
 
-  it("numbers the Long Vacation forward past any Oxford week", () => {
+  it("counts the Long Vacation down past any Oxford week", () => {
     // Stewart's own example reached the twenties: a vacation week is not clamped
     // to the 8 an Oxford term stops at. Ten weeks before Michaelmas is the
-    // tenth row from the end of a leading vacation drawn to reach that event.
+    // tenth row from the end of a leading vacation drawn to reach that event,
+    // and it counts down to −1 wherever it starts (LAN-368).
     const stretched = year([event({ scheduledOn: "2026-07-19", name: "Pre-season" })]);
     const leading = stretched.segments.find(
       (segment) => segment.jumpLabel === "Long Vacation 2026",
     );
 
-    expect(leading?.weeks.map((week) => week.week)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    expect(leading?.weeks[9].label).toBe("Long Vacation 10");
-    expect(leading?.weeks.some((week) => week.week > 8)).toBe(true);
+    expect(leading?.weeks.map((week) => week.week)).toEqual([
+      -10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
+    ]);
+    expect(leading?.weeks[9].label).toBe("Long Vacation −1");
+    expect(leading?.weeks.some((week) => week.week < -8)).toBe(true);
   });
 
   it("opens a trailing Long Vacation after Trinity even with nothing in it", () => {
@@ -379,7 +386,7 @@ describe("buildAcademicYear — where events land", () => {
     expect(column.placedCount).toBe(1);
     expect(yearCoordinateOf(column, "2026-03-08")).toMatchObject({
       segmentName: "Long Vacation",
-      week: 1,
+      week: -29,
     });
   });
 
@@ -451,6 +458,11 @@ describe("week labels", () => {
 
   it("numbers a vacation week with its own segment's name", () => {
     expect(formatVacationWeek("Long Vacation", 22)).toBe("Long Vacation 22");
+  });
+
+  it("uses a real minus sign for a leading Long Vacation week, like formatOxfordWeek", () => {
+    expect(formatVacationWeek("Long Vacation", -1)).toBe("Long Vacation −1");
+    expect(formatVacationWeek("Long Vacation", -12)).toBe("Long Vacation −12");
   });
 });
 
@@ -533,7 +545,7 @@ describe("the year's two Long Vacations are trimmed to where events are", () => 
     expect(column.outsideTheYear).toEqual([]);
     expect(yearCoordinateOf(column, "2026-09-16")).toMatchObject({
       segmentName: "Long Vacation",
-      week: 4,
+      week: -2,
     });
   });
 
@@ -555,15 +567,15 @@ describe("the year's two Long Vacations are trimmed to where events are", () => 
     expect(weeks[0].startsOn).toBe("2027-06-20");
   });
 
-  it("numbers the leading vacation forward from its own first drawn week", () => {
-    // D85 and Stewart Humble fix the numbering — forward from 1. It used to
-    // count from the previous year's Trinity, so five drawn rows opened at
-    // "Long Vacation 10"; LAN-368 stopped consulting that term, and the drawn
-    // vacation now is the vacation, numbered from its own first row.
+  it("counts the leading vacation down to −1 at the first term", () => {
+    // Brian, 2026-09-16 (LAN-368): the leading vacation reads as counting down
+    // to the first term, not as starting there, so it is numbered back from
+    // −1 at the row that meets Michaelmas, however far the segment reaches —
+    // never forward from its own first drawn row.
     const weeks = leading(year()).weeks;
 
-    expect(weeks.map((week) => week.week)).toEqual([1, 2, 3, 4, 5]);
-    expect(weeks[0].label).toBe("Long Vacation 1");
+    expect(weeks.map((week) => week.week)).toEqual([-5, -4, -3, -2, -1]);
+    expect(weeks[weeks.length - 1].label).toBe("Long Vacation −1");
     expect(weeks[0].startsOn).toBe("2026-08-23");
   });
 
@@ -587,8 +599,9 @@ describe("the year's two Long Vacations are trimmed to where events are", () => 
     expect(leading(year()).weeks).toHaveLength(LEADING_VACATION_WEEKS);
     expect(leading(column).weeks).toHaveLength(7);
     expect(leading(column).weeks[0].startsOn).toBe(seventhFromEnd);
-    // Drawn continuously from the row that holds the event to the term.
-    expect(leading(column).weeks.map((week) => week.week)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    // Drawn continuously from the row that holds the event to the term, counted
+    // down so the row against the term is still −1.
+    expect(leading(column).weeks.map((week) => week.week)).toEqual([-7, -6, -5, -4, -3, -2, -1]);
     expect(column.outsideTheYear).toEqual([]);
     expect(column.placedCount).toBe(1);
   });

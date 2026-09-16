@@ -15,16 +15,20 @@ season in: **one season and its own three terms, and nothing from the year
 before**. One event was moved to three weeks before Michaelmas to stand for the
 pre-season date production had nowhere to put.
 
-| File                                        | What it is                                                                                              |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `LAN-368/desktop_oxford-first-segment.png`  | The Oxford View's first segment at 1440 — Long Vacation 2026, five whole weeks, running into Michaelmas |
-| `LAN-368/phone375_oxford-first-segment.png` | The same at a measured 375                                                                              |
-| `LAN-368/desktop_oxford-full.png`           | The whole column at 1440, for the year either side of it                                                |
-| `LAN-368/phone375_oxford-full.png`          | The whole column at 375                                                                                 |
+| File                                        | What it is                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `LAN-368/desktop_oxford-first-segment.png`  | The Oxford View's first segment at 1440 — Long Vacation 2026, five whole weeks, counting down into Michaelmas |
+| `LAN-368/phone375_oxford-first-segment.png` | The same at a measured 375                                                                                    |
+| `LAN-368/desktop_oxford-full.png`           | The whole column at 1440, for the year either side of it                                                      |
+| `LAN-368/phone375_oxford-full.png`          | The whole column at 375                                                                                       |
 
-The pre-season event sits in **Long Vacation 3, 5–11 April 2026**. Before this
-the column began at Michaelmas and that event was listed apart from the
-calendar as a date the year did not reach.
+Recaptured 2026-09-16 (Brian): the leading rows now read **Long Vacation −5**
+through **−1**, a countdown to Michaelmas rather than a forward count that read
+as if the vacation started there; the trailing Long Vacation after Trinity is
+unchanged and still counts up. The pre-season event sits in **Long Vacation
+−3, 5–11 April 2026**. Before the original fix the column began at Michaelmas
+and that event was listed apart from the calendar as a date the year did not
+reach.
 
 ## LAN-355 — the phone country menu
 
