@@ -127,6 +127,17 @@ describe("the approved production WhatsApp contracts", () => {
         expect(JSON.stringify(payload)).not.toContain(message.queueUrl);
         expect(JSON.stringify(payload)).not.toContain(message.inviteeName);
       }
+      // LAN-372: no message to a roster player carries a Stop link. No
+      // WhatsApp template ever did (Meta will not classify one as Utility),
+      // and the onboarding email bodies stopped carrying one on 2026-09-16 —
+      // asserted here on the payload as well, so neither half can drift back.
+      if (kind === "onboarding_welcome" || kind === "onboarding_chase") {
+        expect(JSON.stringify(payload)).not.toContain(message.stopUrl);
+        expect(MESSAGE_TEMPLATES[kind].body({ ...message, kind }).join("\n")).not.toContain(
+          message.stopUrl,
+        );
+      }
+
       // The three two-button templates send the Yes token at index 0 and the No
       // token at index 1. Swapping them delivers cleanly and answers backwards.
       if (kind === "invitation" || kind === "reminder" || kind === "recruit_event_followup") {

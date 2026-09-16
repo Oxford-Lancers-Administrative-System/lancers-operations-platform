@@ -47,6 +47,9 @@ beforeAll(async () => {
 
 afterEach(async () => {
   const people = "(select id from public.people where given_name = $1)";
+  await observer.query(`delete from public.season_memberships where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query(
     `delete from public.season_messaging_consents where person_id in ${people}`,
     [MARKER],
@@ -111,5 +114,41 @@ describe("withdrawMessagingConsent", () => {
   it("refuses a revoked or unknown token, gracefully", async () => {
     const outcome = await withdrawMessagingConsent("not-a-real-token");
     expect(outcome.ok).toBe(false);
+  });
+});
+
+/**
+ * LAN-372, Brian 2026-09-16: "A roster player who wants the club to stop
+ * messaging them is asking to leave the team; that is a membership
+ * conversation, not an opt-out. Consent and Stop are recruit concepts only."
+ *
+ * No `messaging_stop` credential is minted for a player any more, but the ones
+ * already sent keep resolving until their season closes, so the refusal has to
+ * live at the write and not only in what the page renders.
+ */
+describe("a roster player's own stop link", () => {
+  it("withdraws nothing and says membership is the conversation", async () => {
+    const { personId, token } = await mintGrantedPersonAndToken();
+    await observer.query(
+      `insert into public.season_memberships
+         (person_id, season_id, status, entry, confirmed_on, activated_on)
+       values ($1::uuid, $2::uuid, 'active', 'returning', current_date, current_date)`,
+      [personId, seasonId],
+    );
+
+    const outcome = await withdrawMessagingConsent(token);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.message).toMatch(/roster/i);
+
+    // Consent is untouched, so every send continues.
+    await expect(
+      withTransaction((tx) => requireGrantedSeasonMessagingConsentIn(tx, personId, seasonId)),
+    ).resolves.toBeUndefined();
+    const consent = await observer.query<{ state: string }>(
+      `select state::text as state from public.season_messaging_consents
+        where person_id = $1::uuid and season_id = $2::uuid`,
+      [personId, seasonId],
+    );
+    expect(consent.rows[0].state).toBe("granted");
   });
 });

@@ -541,6 +541,21 @@ describe("the recruitment cycle's four templates", () => {
     }
   });
 
+  // LAN-372, Brian 2026-09-16: players are exempt from Stop, and the two
+  // onboarding kinds are the ones that go to a roster player. Their email
+  // bodies carried the opt-out line; the four recruit bodies above still do.
+  it("keeps the opt-out line off the onboarding messages, which go to roster players", () => {
+    for (const kind of [
+      "onboarding_welcome",
+      "onboarding_chase",
+      "onboarding_chase_escalation",
+    ] as const) {
+      const body = MESSAGE_TEMPLATES[kind].body(message({ kind })).join("\n");
+      expect(body).not.toContain(RECRUIT_STOP_MESSAGES_LABEL);
+      expect(body).not.toContain("https://lancers.example/stop/def");
+    }
+  });
+
   it("never asks a recruit for permission to send WhatsApp messages", () => {
     // Consent is obtained in person, at the door — a WhatsApp message asking
     // permission to send WhatsApp messages would itself require consent it

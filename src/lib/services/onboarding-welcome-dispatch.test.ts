@@ -198,10 +198,12 @@ describe("dispatchOnboardingWelcomeJob", () => {
     const { transport } = acceptingTransport();
     await dispatchOnboardingWelcomeJob(jobId, { source: CONFIGURED, transport });
 
-    // LAN-343. Two rows, not one: the questionnaire and the opt-out are
-    // separate pages and each gets its own purpose-tagged credential. One
-    // credential in both URLs meant a leaked questionnaire link also stopped
-    // every message the club sends.
+    // LAN-343 minted two rows here, one per purpose. LAN-372, Brian
+    // 2026-09-16: a roster player is exempt from Stop — asking the club to
+    // stop messaging you is asking to leave the team — so no `messaging_stop`
+    // credential is issued for this message at all, and the questionnaire's is
+    // the only one. The separation LAN-343 won still holds where it applies:
+    // the four recruit rungs mint both.
     const after = await observer.query<{
       single_use: boolean;
       revoked_at: Date | null;
@@ -212,14 +214,14 @@ describe("dispatchOnboardingWelcomeJob", () => {
         order by purpose`,
       [personId],
     );
-    expect(after.rows.map((row) => row.purpose)).toEqual(["messaging_stop", "onboarding_details"]);
+    expect(after.rows.map((row) => row.purpose)).toEqual(["onboarding_details"]);
     for (const row of after.rows) {
       expect(row.single_use).toBe(false);
       expect(row.revoked_at).toBeNull();
     }
   });
 
-  it("carries the questionnaire and the opt-out as two different credentials", async () => {
+  it("carries the questionnaire credential and mints no opt-out for a roster player", async () => {
     const { personId, membershipId } = await createArrival();
     const jobId = await jobIdFor(membershipId);
 
@@ -244,13 +246,10 @@ describe("dispatchOnboardingWelcomeJob", () => {
     expect(urlButtons).toHaveLength(1);
     expect(urlButtons[0].parameters?.[0]?.text).toBeTruthy();
 
-    // LAN-343's claim survives the button's removal, and is asserted where it
-    // is still true: the dispatcher mints *two* credentials for this message,
-    // one per purpose. They used to be one token on two paths, so the old
-    // pair of assertions were the same assertion and the defect read as
-    // correct — `suffixOf` takes the last path segment, which `/me/<t>` and
-    // `/me/stop/<t>` shared. Asserting on the minted rows rather than on the
-    // payload keeps that covered now that only one of them rides a button.
+    // LAN-372. Asserted on the minted rows rather than on the payload,
+    // because no WhatsApp template has carried an opt-out button since
+    // LAN-348 and the email body no longer carries the line either: the only
+    // place the absence is provable is here, at the mint.
     const credentials = await observer.query<{ purpose: string; token_hash: string }>(
       `select purpose::text as purpose, token_hash
          from public.person_access_tokens
@@ -260,8 +259,7 @@ describe("dispatchOnboardingWelcomeJob", () => {
     );
     const byPurpose = new Map(credentials.rows.map((row) => [row.purpose, row.token_hash]));
     expect(byPurpose.get("onboarding_details")).toBeTruthy();
-    expect(byPurpose.get("messaging_stop")).toBeTruthy();
-    expect(byPurpose.get("onboarding_details")).not.toBe(byPurpose.get("messaging_stop"));
+    expect(byPurpose.get("messaging_stop")).toBeUndefined();
   });
 
   it("refuses at claim time when consent was withdrawn after the job was declared", async () => {

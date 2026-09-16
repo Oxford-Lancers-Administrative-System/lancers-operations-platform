@@ -143,3 +143,30 @@ export async function withdrawSeasonMessagingConsentIn(
   );
   return toConsent(result.rows[0] as unknown as ConsentRow);
 }
+
+/**
+ * Whether this person is on the roster for this season — LAN-372.
+ *
+ * Brian, 2026-09-16: "A roster player who wants the club to stop messaging
+ * them is asking to leave the team; that is a membership conversation, not an
+ * opt-out. Consent and Stop are recruit concepts only."
+ *
+ * A `season_memberships` row is what "on the roster" means: a recruit has a
+ * `recruitment_prospects` row and no membership until they convert, and a
+ * converted recruit is a player from that moment, which is the right answer
+ * here. The stop surface reads this to decide whether it is offering an
+ * opt-out at all.
+ */
+export async function isSeasonRosterMemberIn(
+  tx: Tx,
+  personId: string,
+  seasonId: string,
+): Promise<boolean> {
+  const result = await tx.query<{ present: boolean }>(
+    `select true as present from public.season_memberships
+      where person_id = $1::uuid and season_id = $2::uuid
+      limit 1`,
+    [personId, seasonId],
+  );
+  return result.rows.length > 0;
+}

@@ -218,6 +218,16 @@ control.
   The layer now exists — `src/lib/db/` and `src/lib/services/` — but it carries
   **no authorization rule yet**. `requireRole()` arrives in LAN-73. Until then a
   service function takes an actor and records it; it does not check it.
+- **The lawful basis for messaging a member is membership; consent is a recruit
+  concept.** A person on the roster for a season is messaged about training,
+  fixtures and their own record because they are on the team, and there is no
+  opt-out from it: a player who wants the club to stop is asking to leave, which
+  is a membership conversation and not a switch on a page (Brian, 2026-09-16,
+  LAN-372). `season_messaging_consents` therefore gates recruit messaging only —
+  `delivery.ts` refuses a recruit-capacity invitation without granted consent,
+  and the recruit ladder skips an unconsented person — and `/stop/[token]` tells
+  a roster player so rather than withdrawing anything. No message to a roster
+  player carries a Stop link on any channel.
 - Development and CI never touch production — [ADR 0001](adr/0001-local-supabase-only.md).
 
 ## Authentication scope

@@ -282,9 +282,17 @@ function formButtonUrls(message: OutboundMessage): readonly [string] {
 }
 
 /**
- * Email-only opt-out line. The WhatsApp templates cannot carry it (see
+ * Email-only opt-out line, on the four recruit messages and nowhere else.
+ *
+ * The WhatsApp templates cannot carry it at all (see
  * `RECRUIT_STOP_MESSAGES_LABEL`); the email transport is not bound by Meta's
  * classifier and keeps offering it wherever the dispatcher minted one.
+ *
+ * LAN-372, Brian 2026-09-16: the onboarding welcome and chase used to carry it
+ * too, and those go to roster players. A player asking the club to stop
+ * messaging them is asking to leave the team — a membership conversation, not
+ * an opt-out — so no `messaging_stop` credential is minted for them and this
+ * line never renders in their email. Consent and Stop are recruit concepts.
  */
 function stopLine(message: OutboundMessage): readonly string[] {
   const url = (message.stopUrl ?? "").trim();
@@ -649,7 +657,9 @@ const RECRUIT_INTEREST_REMINDER: MessageTemplate = {
  * `Hello {{1}}, welcome to the team. Your answers for {{2}} on {{3}} are still
  * outstanding.` / `It takes a few minutes. Please complete the remaining
  * questions below.` — one button, `/onboarding/`, on its own purpose-tagged
- * credential (LAN-343). Never a Stop messages button (LAN-263).
+ * credential (LAN-343). Never a Stop messages button (LAN-263), and since
+ * LAN-372 no Stop line in the email body either: this message goes to a roster
+ * player, and players are exempt from Stop.
  */
 const ONBOARDING_WELCOME: MessageTemplate = {
   kind: "onboarding_welcome",
@@ -661,7 +671,6 @@ const ONBOARDING_WELCOME: MessageTemplate = {
     `Your answers for ${ONBOARDING_SUBJECT} on ${message.whenLabel}, are still outstanding.`,
     "It takes a few minutes. Please complete the remaining questions below.",
     `${ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "link")}`,
-    ...stopLine(message),
   ],
   buttonCount: 1,
   buttonUrls: formButtonUrls,
@@ -682,7 +691,6 @@ const ONBOARDING_CHASE: MessageTemplate = {
     `Hello ${message.inviteeName}, your answers for ${ONBOARDING_SUBJECT} on ${message.whenLabel}, are still outstanding.`,
     "Please complete the remaining questions below.",
     `${ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "link")}`,
-    ...stopLine(message),
   ],
   buttonCount: 1,
   buttonUrls: formButtonUrls,

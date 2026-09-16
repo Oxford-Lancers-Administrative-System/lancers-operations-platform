@@ -1812,23 +1812,20 @@ export async function dispatchOnboardingWelcomeJob(
       return { kind: "no-send" };
     }
 
-    // Minted here, at dispatch: the onboarding questionnaire, and the opt-out
-    // — two credentials, never one (LAN-343). They used to be one token in two
-    // URLs, and the questionnaire link went to the events page rather than to
-    // the questionnaire this message is entirely about. Neither mint revokes
-    // anything: a link the club has sent keeps working until the season
-    // closes, which is what makes this page's own "you can come back to this
-    // link" true.
+    // Minted here, at dispatch: the onboarding questionnaire, and nothing
+    // else. The mint does not revoke anything — a link the club has sent keeps
+    // working until the season closes, which is what makes this page's own
+    // "you can come back to this link" true.
+    //
+    // LAN-372, Brian 2026-09-16: no opt-out credential is issued for a roster
+    // player. A player who wants the club to stop messaging them is asking to
+    // leave the team, which is a membership conversation, not an opt-out.
+    // Consent and Stop are recruit concepts.
     const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
       actorPersonId: null,
       purpose: "onboarding_details",
     });
-    const stopIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
-      actorPersonId: null,
-      purpose: "messaging_stop",
-    });
     const formUrl = onboardingUrl(context.appBaseUrl, issued.token);
-    const stopUrl = stopMessagesUrl(context.appBaseUrl, stopIssued.token);
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
@@ -1853,7 +1850,6 @@ export async function dispatchOnboardingWelcomeJob(
         whenLabel: membership.rows[0].opened_on,
         rsvpUrl: "",
         formUrl,
-        stopUrl,
       },
     };
   });
@@ -2541,16 +2537,13 @@ export async function dispatchOnboardingChaseJob(
     // earlier — the identical reasoning the welcome's own dispatcher carries,
     // and since LAN-343 this chase's link no longer kills the welcome's: both
     // keep resolving until the season closes.
+    // LAN-372: no `messaging_stop` credential for a roster player — see the
+    // welcome's own dispatcher above.
     const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
       actorPersonId: null,
       purpose: "onboarding_details",
     });
-    const stopIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
-      actorPersonId: null,
-      purpose: "messaging_stop",
-    });
     const formUrl = onboardingUrl(context.appBaseUrl, issued.token);
-    const stopUrl = stopMessagesUrl(context.appBaseUrl, stopIssued.token);
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
@@ -2573,7 +2566,6 @@ export async function dispatchOnboardingChaseJob(
         whenLabel: membership.rows[0].opened_on,
         rsvpUrl: "",
         formUrl,
-        stopUrl,
       },
     };
   });
