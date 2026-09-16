@@ -14,6 +14,7 @@ import {
   commitJerseyNumbers,
   commitPosition,
   commitPositionGroups,
+  commitKitItem,
   commitSpecialTeamsAssignment,
   type AvailabilityLevel,
   type BluesValue,
@@ -23,6 +24,7 @@ import {
   type Kit,
   type PositionColumn,
   type PositionGroupSide,
+  type KitItemCode,
   type SpecialTeamsSlot,
   type SpecialTeamsSquad,
 } from "@/lib/services/roster-board";
@@ -123,6 +125,22 @@ export async function commitSpecialTeamsAssignmentAction(params: {
   const operator = await requireCapability("person_record_authority");
   try {
     await commitSpecialTeamsAssignment({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh();
+  return OK;
+}
+
+export async function commitKitItemAction(params: {
+  membershipId: string;
+  seasonId: string;
+  item: KitItemCode;
+  value: string | null;
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await commitKitItem({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }

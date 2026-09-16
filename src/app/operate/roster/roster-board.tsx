@@ -26,7 +26,7 @@ import type {
   FormalwearItemKey,
   BpsValue,
 } from "@/lib/services/roster-board";
-import { parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
+import { parseKitCellKey, parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
 import type { Band } from "./board-columns";
 import { setMembershipStatusAction } from "./actions";
 import {
@@ -41,6 +41,7 @@ import {
   commitOnboardingItemAction,
   commitPositionAction,
   commitPositionGroupsAction,
+  commitKitItemAction,
   commitSpecialTeamsAssignmentAction,
 } from "./board-actions";
 import { commitWithRetry } from "./board-action-state";
@@ -263,6 +264,20 @@ export default function RosterBoard({
           squad: cell.squad,
           slot: cell.slot,
           positionName: (next as string) || null,
+        }),
+      );
+      return;
+    }
+
+    // LAN-375: one branch for all eleven issued-kit items.
+    const kitItem = parseKitCellKey(column.key);
+    if (kitItem) {
+      runCommit(row.membershipId, () =>
+        commitKitItemAction({
+          membershipId: row.membershipId,
+          seasonId,
+          item: kitItem,
+          value: (next as string) || null,
         }),
       );
       return;

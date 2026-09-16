@@ -9,6 +9,8 @@ import {
   DEFENSIVE_POSITION_GROUP_VALUES,
   FORMALWEAR_ITEM_KEYS,
   OFFENSIVE_POSITION_GROUP_VALUES,
+  KIT_ITEMS,
+  kitCellKey,
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
   specialTeamsCellKey,
@@ -295,11 +297,13 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       filterable: true,
       requires: "person_record_authority",
     },
+    // LAN-375: derived from the kit issued, never typed. It stays the red flag
+    // it was; `edit: "none"` is what stops it opening a control.
     {
       key: "kitDistributed",
       label: "Kit Distributed",
       band: "onboarding",
-      edit: "onboarding",
+      edit: "none",
       itemCode: "kit_sorted",
       options: allowedItemStates("kit_sorted"),
       width: 120,
@@ -557,8 +561,20 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       })),
     ),
     // ------------------------------------------------------------------ Kit --
-    // LAN-375 fills this group. Formalwear moves here from Season and keeps
-    // Tie and Bow tie; the club's blue game socks are a Kit item of their own.
+    // LAN-375: eleven issued-kit items from Clint's sheet, one single-select
+    // each. Formalwear moved here from Season and keeps Tie and Bow tie; the
+    // club's blue game socks are a Kit item of their own.
+    ...KIT_ITEMS.map((item) => ({
+      key: kitCellKey(item.item),
+      label: item.label,
+      band: "kit" as const,
+      edit: "select" as const,
+      options: item.values,
+      width: 190,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority" as const,
+    })),
     {
       key: "formalwear",
       label: "Formalwear",
@@ -604,6 +620,7 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     offensivePositionGroups: ["offensivePositionGroups"],
     defensivePositionGroups: ["defensivePositionGroups"],
     formalwear: ["formalwear"],
+    ...Object.fromEntries(KIT_ITEMS.map((item) => [kitCellKey(item.item), ["kit"] as const])),
     ...Object.fromEntries(
       SPECIAL_TEAMS_SQUADS.flatMap((squad) =>
         SPECIAL_TEAMS_SLOTS.map((slot) => [

@@ -133,6 +133,7 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
       bps: "No" as const,
       formalwear: { tie: false, bowtie: false },
       specialTeams: {},
+      kit: {},
       blues: "None",
       eligibility: null,
       availability: null,
@@ -493,8 +494,8 @@ describe("W6 — Subscription paid is the one item Waived applies to", () => {
 // B-001 (correction round 2, Brian): "Kit sorted" is renamed "Kit
 // Distributed" and reduced to yes/no — no waived, no claimed, no reopen
 // offered on this one item, same as every other binary item now.
-describe("B-001 — Kit Distributed is binary", () => {
-  it("shows Yes/No only, never Waived or Not applicable or a Reopen option", async () => {
+describe("Kit Distributed — still Yes/No, no longer typed (LAN-375)", () => {
+  it("shows the flag and opens no control at all", async () => {
     givenRecord({
       onboardingItems: [
         historyItem({ code: "kit_sorted", label: "Kit Distributed", status: "complete" }),
@@ -505,38 +506,71 @@ describe("B-001 — Kit Distributed is binary", () => {
     const row = screen
       .getByText("Kit Distributed")
       .closest('[data-testid="record-row"]') as HTMLElement;
-    const { fireEvent } = await import("@testing-library/react");
     expect(within(row).getByText("Yes")).toBeVisible();
-    fireEvent.click(within(row).getByTestId("editable-field"));
-
-    expect(await screen.findByRole("option", { name: "Yes" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "No" })).toBeInTheDocument();
-    for (const forbidden of ["Waived", "Not applicable", "Reopen", "Complete"]) {
-      expect(screen.queryByRole("option", { name: forbidden })).not.toBeInTheDocument();
-    }
+    // Derived: the click target a typed item carries is simply not there.
+    expect(within(row).queryByTestId("editable-field")).not.toBeInTheDocument();
   });
 
-  it("answering No commits pending directly — no separate reopen verb, no reason field", async () => {
+  it("puts the eleven issued-kit items in the Kit group, Braces 1 and Braces 2 among them", async () => {
+    givenRecord({});
+    render(await PlayerRecordPage(pageProps()));
+
+    const kit = screen.getByTestId("section-kit");
+    for (const label of [
+      "Helmet",
+      "Shoulder Pads",
+      "Lower Pads",
+      "Lowers",
+      "Practice Jersey",
+      "Loaner Cleats",
+      "Team Mouthguard",
+      "Team Gloves",
+      "Braces 1",
+      "Braces 2",
+      "Socks",
+      "Formalwear",
+    ]) {
+      expect(within(kit).getByText(label)).toBeInTheDocument();
+    }
+  });
+});
+
+// D-002: `waived` is offered by exactly one item's own list — Subscription
+// paid — so this row needs Subscription invoiced complete alongside it
+// (the same blank-until-invoiced gating every other suite proves).
+describe("W6 — Subscription paid is the one item Waived applies to", () => {
+  it("saves a waiver with no reason field drawn at all — the reason stops being solicited", async () => {
     givenRecord({
       onboardingItems: [
-        historyItem({ code: "kit_sorted", label: "Kit Distributed", status: "complete" }),
+        historyItem({
+          id: "item-invoiced",
+          code: "subs_invoiced",
+          label: "Subscription invoiced",
+          status: "complete",
+        }),
+        historyItem({
+          id: "item-paid",
+          code: "subs_paid",
+          label: "Subscription paid",
+          status: "pending",
+        }),
       ],
     });
     render(await PlayerRecordPage(pageProps()));
 
     const row = screen
-      .getByText("Kit Distributed")
+      .getByText("Subscription paid")
       .closest('[data-testid="record-row"]') as HTMLElement;
     const { fireEvent, act } = await import("@testing-library/react");
     fireEvent.click(within(row).getByTestId("editable-field"));
-    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "No" })));
+    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Waived" })));
 
     expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
       membershipId: MEMBERSHIP_ID,
-      itemId: "item-1",
-      status: "pending",
+      itemId: "item-paid",
+      status: "waived",
     });
-    expect(screen.queryByTestId("onboarding-waiver-reason")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Why is this waived/)).not.toBeInTheDocument();
   });
 });
 

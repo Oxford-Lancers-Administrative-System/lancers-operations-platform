@@ -31,7 +31,11 @@ import {
   commitJerseyNumbers,
   commitPosition,
   commitPositionGroups,
+  commitKitItem,
   commitSpecialTeamsAssignment,
+  KIT_DISTRIBUTED_ITEMS,
+  KIT_ITEMS,
+  kitCellKey,
   listRosterBoard,
   readPositionOptions,
   SPECIAL_TEAMS_SLOTS,
@@ -67,6 +71,10 @@ async function cleanUp(): Promise<void> {
   );
   await observer.query(
     `delete from public.special_teams_assignments where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  await observer.query(
+    `delete from public.kit_issue_records where season_membership_id = $1::uuid`,
     [membershipId],
   );
   await observer.query(
@@ -652,25 +660,27 @@ describe("onboardingItems — the roster board's own onboarding columns", () => 
     expect(beforeRow.onboardingItems["kit_sorted"]).toMatchObject({ status: "pending" });
     expect(beforeRow.onboardingItems["subs_invoiced"]).toMatchObject({ status: "pending" });
 
-    const kitItemId = beforeRow.onboardingItems["kit_sorted"].id;
+    // Kit Distributed became derived in LAN-375, so the column that proves
+    // this is Subscription invoiced, which is still typed.
+    const invoicedItemId = beforeRow.onboardingItems["subs_invoiced"].id;
     await resolveOnboardingItem({
       actorPersonId,
       membershipId,
-      itemId: kitItemId,
+      itemId: invoicedItemId,
       status: "complete",
     });
 
     const after = await listRosterBoard();
     const afterRow = after.rows.find((entry) => entry.membershipId === membershipId)!;
-    expect(afterRow.onboardingItems["kit_sorted"]).toMatchObject({
-      id: kitItemId,
+    expect(afterRow.onboardingItems["subs_invoiced"]).toMatchObject({
+      id: invoicedItemId,
       status: "complete",
     });
     // Untouched items stay untouched — one column's edit is not a checklist-wide rewrite.
-    expect(afterRow.onboardingItems["subs_invoiced"]).toMatchObject({ status: "pending" });
+    expect(afterRow.onboardingItems["kit_sorted"]).toMatchObject({ status: "pending" });
   });
 
-  it("refuses Kit Distributed a waiver — B-001's binary reduction holds through the board's own action", async () => {
+  it("refuses Kit Distributed any hand-set state at all — it is derived (LAN-375)", async () => {
     const board = await listRosterBoard();
     const row = board.rows.find((entry) => entry.membershipId === membershipId)!;
     const kitItemId = row.onboardingItems["kit_sorted"]?.id;
@@ -876,5 +886,150 @@ describe("special teams assignments — LAN-374", () => {
     expect(row?.specialTeams[specialTeamsCellKey("field_goal_block", "starting")]).toBe(
       "DEF ON FIELD",
     );
+  });
+});
+
+describe("issued kit and the derived Kit Distributed flag — LAN-375", () => {
+  /** The item the flag lives on, for this fixture's membership. */
+  async function kitDistributedStatus(): Promise<string | null> {
+    const result = await observer.query<{ status: string }>(
+      `select i.status::text as status
+         from public.onboarding_items i
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.season_membership_id = $1::uuid and t.code = 'kit_sorted'`,
+      [membershipId],
+    );
+    return result.rows[0]?.status ?? null;
+  }
+
+  it("mirrors Clint's sheet exactly: the reference table and the application's own list agree", async () => {
+    const stored = await observer.query<{ item: string; value: string }>(
+      `select item::text as item, value from public.kit_item_options order by item, sort_order`,
+    );
+    const byItem = new Map<string, string[]>();
+    for (const row of stored.rows) {
+      const list = byItem.get(row.item) ?? [];
+      list.push(row.value);
+      byItem.set(row.item, list);
+    }
+
+    expect([...byItem.keys()].sort()).toEqual(KIT_ITEMS.map((item) => item.item).sort());
+    for (const item of KIT_ITEMS) {
+      expect(byItem.get(item.item)).toEqual([...item.values]);
+    }
+    // Clint's own spellings, reproduced rather than corrected.
+    expect(byItem.get("shoulder_pads")).toContain("Champro all porpose L");
+    expect(byItem.get("shoulder_pads")).toContain("Schutt skill S");
+  });
+
+  it("gives Braces 1 and Braces 2 the same list and keeps them independent", async () => {
+    const one = KIT_ITEMS.find((item) => item.item === "braces_1")!;
+    const two = KIT_ITEMS.find((item) => item.item === "braces_2")!;
+    expect(one.values).toEqual(two.values);
+
+    await commitKitItem({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "braces_1",
+      value: "Ankle - M",
+    });
+    await commitKitItem({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "braces_2",
+      value: "Ankle - M",
+    });
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.kit[kitCellKey("braces_1")]).toBe("Ankle - M");
+    expect(row?.kit[kitCellKey("braces_2")]).toBe("Ankle - M");
+  });
+
+  it("refuses a value from another item's list", async () => {
+    await expect(
+      commitKitItem({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item: "practice_jersey",
+        value: "Speedflex M",
+      }),
+    ).rejects.toMatchObject({ rule: "kit_issue_records_value_in_item" });
+  });
+
+  it("reads Kit Distributed from the five items, with Team Mouthguard outside the rule", async () => {
+    expect(KIT_DISTRIBUTED_ITEMS).toEqual([
+      "helmet",
+      "shoulder_pads",
+      "lower_pads",
+      "lowers",
+      "practice_jersey",
+    ]);
+
+    await commitKitItem({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "team_mouthguard",
+      value: "Yes",
+    });
+    expect(await kitDistributedStatus()).toBe("pending");
+
+    const values: Record<string, string> = {
+      helmet: "Air L",
+      shoulder_pads: "Riddell Skill L",
+      lower_pads: "7 Pad Girdle",
+      lowers: "Yes - Solid Blue",
+      practice_jersey: "Blue",
+    };
+    for (const item of KIT_DISTRIBUTED_ITEMS) {
+      expect(await kitDistributedStatus()).toBe("pending");
+      await commitKitItem({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item,
+        value: values[item],
+      });
+    }
+    expect(await kitDistributedStatus()).toBe("complete");
+
+    // And back again the moment one of the five is blanked.
+    await commitKitItem({ actorPersonId, membershipId, seasonId, item: "lowers", value: null });
+    expect(await kitDistributedStatus()).toBe("pending");
+
+    // Every flip is in the item's own history, as `system`.
+    const history = await observer.query<{ to_status: string; actor_kind: string }>(
+      `select h.to_status::text as to_status, h.actor_kind::text as actor_kind
+         from public.onboarding_item_history h
+         join public.onboarding_items i on i.id = h.onboarding_item_id
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.season_membership_id = $1::uuid and t.code = 'kit_sorted'
+        order by h.occurred_at`,
+      [membershipId],
+    );
+    expect(history.rows.filter((row) => row.actor_kind === "system").length).toBeGreaterThanOrEqual(
+      2,
+    );
+  });
+
+  it("refuses a hand set of Kit Distributed", async () => {
+    const item = await observer.query<{ id: string }>(
+      `select i.id from public.onboarding_items i
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.season_membership_id = $1::uuid and t.code = 'kit_sorted'`,
+      [membershipId],
+    );
+    await expect(
+      resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: item.rows[0].id,
+        status: "complete",
+      }),
+    ).rejects.toMatchObject({ rule: "onboarding_item_derived_not_editable" });
   });
 });

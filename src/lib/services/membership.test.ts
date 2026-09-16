@@ -1274,25 +1274,18 @@ describe("resolveOnboardingItem", () => {
       ).rejects.toMatchObject({ kind: "constraint_violated" });
     });
 
-    it("still moves complete -> pending directly, the same way every other item does now", async () => {
+    // LAN-375: it is no longer typed at all. It reads the kit issued, so
+    // `complete` is refused for the same reason `waived` is — nothing an
+    // operator clicks decides it.
+    it("refuses complete and pending alike, because it is derived (LAN-375)", async () => {
       const membershipId = await givenMembership("onboarding");
       const item = await kitItem(membershipId);
 
-      await resolveOnboardingItem({
-        actorPersonId,
-        membershipId,
-        itemId: item.id,
-        status: "complete",
-      });
-      const corrected = await resolveOnboardingItem({
-        actorPersonId,
-        membershipId,
-        itemId: item.id,
-        status: "pending",
-      });
-
-      const updated = corrected.onboardingItems.find((each) => each.id === item.id)!;
-      expect(updated.status).toBe("pending");
+      for (const status of ["complete", "pending"] as const) {
+        await expect(
+          resolveOnboardingItem({ actorPersonId, membershipId, itemId: item.id, status }),
+        ).rejects.toMatchObject({ rule: "onboarding_item_derived_not_editable" });
+      }
     });
   });
 

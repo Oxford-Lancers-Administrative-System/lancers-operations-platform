@@ -21,10 +21,12 @@ import type { OnboardingActorKind } from "./onboarding-item-history";
 import { readPersonRecord, type PersonRecord } from "./person-record";
 import {
   readPositionOptions,
+  kitCellKey,
   specialTeamsCellKey,
   type BluesValue,
   type BpsValue,
   type FormalwearItemKey,
+  type KitItemCode,
   type SpecialTeamsSlot,
   type SpecialTeamsSquad,
   type PositionOptions,
@@ -52,6 +54,8 @@ export interface PlayerSeasonFacts {
   formalwear: Record<FormalwearItemKey, boolean>;
   /** One entry per filled special-teams cell, keyed `st:<squad>:<slot>` — LAN-374. */
   specialTeams: Readonly<Record<string, string>>;
+  /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. */
+  kit: Readonly<Record<string, string>>;
   blues: BluesValue;
   /** `public.bps_selections.is_selected`, defaulting to "No" — LAN-387 puts it on the record beside the board's own column. */
   bps: BpsValue;
@@ -329,6 +333,11 @@ async function readSeasonFactsIn(
       where season_membership_id = $1::uuid`,
     [membershipId],
   );
+  const kit = await tx.query<{ item: string; value: string }>(
+    `select item::text as item, value from public.kit_issue_records
+      where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
   const bps = await tx.query<{ is_selected: boolean }>(
     `select is_selected from public.bps_selections where season_membership_id = $1::uuid`,
     [membershipId],
@@ -377,6 +386,9 @@ async function readSeasonFactsIn(
         specialTeamsCellKey(row.squad as SpecialTeamsSquad, row.slot as SpecialTeamsSlot),
         row.position_name,
       ]),
+    ),
+    kit: Object.fromEntries(
+      kit.rows.map((row) => [kitCellKey(row.item as KitItemCode), row.value]),
     ),
     blues: bluesValue,
     bps: bps.rows[0]?.is_selected ? "Yes" : "No",

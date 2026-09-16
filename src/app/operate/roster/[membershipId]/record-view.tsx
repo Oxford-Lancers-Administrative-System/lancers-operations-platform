@@ -21,7 +21,7 @@ import type { PersonRecord } from "@/lib/services/person-record";
 import { formatChaseNext } from "@/app/operate/people/missing/chase-presentation";
 import type { OnboardingItemDisplay, PlayerRecordData } from "@/lib/services/player-record";
 import type { BpsValue, FormalwearItemKey, Kit, PositionColumn } from "@/lib/services/roster-board";
-import { parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
+import { parseKitCellKey, parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
 
 import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
@@ -41,6 +41,7 @@ import {
   recordCommitJerseyNumbersAction,
   recordCommitPositionAction,
   recordCommitPositionGroupsAction,
+  recordCommitKitItemAction,
   recordCommitSpecialTeamsAssignmentAction,
   recordResolveOnboardingItemAction,
   recordSetStatusAction,
@@ -177,6 +178,17 @@ export default function PlayerRecordView({
           squad: cell.squad,
           slot: cell.slot,
           positionName: (next as string) || null,
+        });
+    }
+
+    const kitItem = parseKitCellKey(key);
+    if (kitItem) {
+      return () =>
+        recordCommitKitItemAction({
+          membershipId: record.membershipId,
+          seasonId: record.seasonId,
+          item: kitItem,
+          value: (next as string) || null,
         });
     }
 

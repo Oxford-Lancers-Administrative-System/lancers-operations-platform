@@ -17,7 +17,7 @@ import {
   type RosterPlannedRow,
   SEASON_FACT_IMPORT_COLUMNS,
 } from "./roster-csv";
-import { commitSpecialTeamsAssignment } from "./roster-board";
+import { commitKitItem, commitSpecialTeamsAssignment } from "./roster-board";
 import {
   enterReturningPlayer,
   findPersonCandidates,
@@ -265,6 +265,14 @@ async function writeSeasonFacts(
         squad: column.squad,
         slot: column.slot,
         positionName: value,
+      });
+    } else {
+      await commitKitItem({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item: column.item,
+        value,
       });
     }
     written += 1;

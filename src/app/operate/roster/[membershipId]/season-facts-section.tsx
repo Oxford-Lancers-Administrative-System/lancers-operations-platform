@@ -21,6 +21,7 @@ import PositionField from "./position-field";
 import JerseyField from "./jersey-field";
 import MultiSelectField from "./multi-select-field";
 import SpecialTeamsSection from "./special-teams-section";
+import KitItemsFields from "./kit-items-fields";
 
 /**
  * The membership record's own groups — the same ones the board shows, in the
@@ -249,6 +250,15 @@ export default function SeasonFactsSection({
       />
 
       <Section variant="banded" band="kit" title="Kit" testId="kit" collapsible>
+        <KitItemsFields
+          items={record.season.kit}
+          editing={editing}
+          locked={locked}
+          savingOf={savingOf}
+          errorFor={errorFor}
+          setEditing={setEditing}
+          commitSeasonField={commitSeasonField}
+        />
         <MultiSelectField
           label="Formalwear"
           values={FORMALWEAR_ITEMS.filter((item) => record.season.formalwear[item])}

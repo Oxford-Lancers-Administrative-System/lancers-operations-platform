@@ -22,6 +22,9 @@ export {
 } from "./vocabulary";
 export type { SpecialTeamsSlot, SpecialTeamsSquad } from "./vocabulary";
 export { commitSpecialTeamsAssignment } from "./write-special-teams";
+export { commitKitItem } from "./write-kit";
+export { KIT_DISTRIBUTED_ITEMS, KIT_ITEMS, kitCellKey, parseKitCellKey } from "./vocabulary";
+export type { KitItemCode } from "./vocabulary";
 export type { PositionColumn } from "./write-position";
 export { commitPosition } from "./write-position";
 export type { Kit } from "./write-jersey";

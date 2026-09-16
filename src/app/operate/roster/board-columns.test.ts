@@ -38,6 +38,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     defensivePositionGroups: [],
     formalwear: { tie: true, bowtie: false },
     specialTeams: {},
+    kit: {},
     blues: "Half",
     eligibility: "eligible",
     availability: "green",
@@ -253,7 +254,9 @@ describe("buildColumns — every onboarding column's offered set IS its own item
   const ONBOARDING_COLUMN_ITEM_CODES: Readonly<Record<string, string>> = {
     subsInvoiced: "subs_invoiced",
     subsPaid: "subs_paid",
-    kitDistributed: "kit_sorted",
+    // kitDistributed is deliberately absent: LAN-375 made it derived, so it
+    // is an onboarding column that offers nothing at all. Its own assertion
+    // is below.
     bucsPlay: "bucs_play",
     hudlAccess: "hudl_access",
     squadPhoto: "photo",
@@ -276,6 +279,15 @@ describe("buildColumns — every onboarding column's offered set IS its own item
     const bucs = columns.find((column) => column.key === "bucsPlay")!;
     const hudl = columns.find((column) => column.key === "hudlAccess")!;
     expect(bucs.options).not.toEqual(hudl.options);
+  });
+
+  it("opens no control at all on Kit Distributed — it reads the kit issued (LAN-375)", () => {
+    const column = buildColumns(POSITION_OPTIONS).find(
+      (candidate) => candidate.key === "kitDistributed",
+    )!;
+    expect(column.band).toBe("onboarding");
+    expect(column.edit).toBe("none");
+    expect(column.itemCode).toBe("kit_sorted");
   });
 
   it("offers reopen, waived (outside Subscription paid), or not_applicable nowhere", () => {

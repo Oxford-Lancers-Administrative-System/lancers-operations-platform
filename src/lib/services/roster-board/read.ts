@@ -13,7 +13,9 @@ import type { Season } from "../seasons";
 import { BOARD_ELIGIBILITY_COMPETITION } from "./shared";
 import {
   FORMALWEAR_ITEM_KEYS,
+  kitCellKey,
   specialTeamsCellKey,
+  type KitItemCode,
   type FormalwearItemKey,
   type SpecialTeamsSlot,
   type SpecialTeamsSquad,
@@ -80,6 +82,8 @@ export interface RosterBoardRow {
   formalwear: Record<FormalwearItemKey, boolean>;
   /** One entry per filled special-teams cell, keyed `st:<squad>:<slot>` — LAN-374. A blank cell is an absent key. */
   specialTeams: Readonly<Record<string, string>>;
+  /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. A blank item is an absent key. */
+  kit: Readonly<Record<string, string>>;
   blues: BluesValue;
   /** `public.eligibility_status`, for the `club_play` competition, or `null`. */
   eligibility: string | null;
@@ -249,6 +253,16 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         where season_id = $1::uuid`,
       [roster.season.id],
     );
+    const kitRows = await tx.query<{
+      season_membership_id: string;
+      item: string;
+      value: string;
+    }>(
+      `select season_membership_id, item::text as item, value
+         from public.kit_issue_records
+        where season_id = $1::uuid`,
+      [roster.season.id],
+    );
     const bluesRows = await tx.query<{
       season_membership_id: string;
       half_blue_awarded: boolean;
@@ -365,6 +379,13 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       specialTeamsByMembership.set(row.season_membership_id, current);
     }
 
+    const kitByMembership = new Map<string, Record<string, string>>();
+    for (const row of kitRows.rows) {
+      const current = kitByMembership.get(row.season_membership_id) ?? {};
+      current[kitCellKey(row.item as KitItemCode)] = row.value;
+      kitByMembership.set(row.season_membership_id, current);
+    }
+
     const bluesByMembership = new Map<string, BluesValue>();
     for (const row of bluesRows.rows) {
       bluesByMembership.set(
@@ -446,6 +467,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
           bowtie: false,
         },
         specialTeams: specialTeamsByMembership.get(entry.membershipId) ?? {},
+        kit: kitByMembership.get(entry.membershipId) ?? {},
         blues: bluesByMembership.get(entry.membershipId) ?? "None",
         eligibility: eligibilityByMembership.get(entry.membershipId) ?? null,
         availability: availabilityByMembership.get(entry.membershipId) ?? null,

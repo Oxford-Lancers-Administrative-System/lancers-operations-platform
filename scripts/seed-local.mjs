@@ -558,6 +558,7 @@ const rows = {
   coach_group_assignments: [],
   membership_position_groups: [],
   special_teams_assignments: [],
+  kit_issue_records: [],
   formalwear_records: [],
   blues_awards: [],
   onboarding_item_types: [],
@@ -1164,12 +1165,11 @@ function weightedStatusFor(code, subsInvoicedStatus) {
       ]);
       return subsInvoicedStatus === "complete" ? drawn : "pending";
     }
-    // B-001: Kit Distributed is binary — Yes · No.
+    // LAN-375: Kit Distributed is derived from the kit issued, never drawn.
+    // Seeded pending and recomputed once every row is in (see the bottom of
+    // this file); the value here is only what it starts from.
     case "kit_sorted":
-      return weighted([
-        ["complete", 70],
-        ["pending", 30],
-      ]);
+      return "pending";
     // BUCS Play — Not invited · Invited · Claimed · Confirmed. Four states.
     case "bucs_play":
       return weighted([
@@ -1495,6 +1495,39 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
         updated_at: "2026-10-02T09:00:00Z",
       });
     }
+  }
+
+  // LAN-375: issued kit. About two thirds of the squad have the five items
+  // Kit Distributed reads; the rest are part-way, which is what the derived
+  // flag has to show as No.
+  const KIT_SEED = [
+    ["helmet", ["Speedflex M", "Air L", "Xenith XL"]],
+    ["shoulder_pads", ["Riddell Skill L", "Schutt All purpose M", "Douglas Female S"]],
+    ["lower_pads", ["7 Pad Girdle", "5 Pad Girdle + Knee", "Set of pads"]],
+    ["lowers", ["Yes - Solid Blue", "Yes - Blue with Gold Stripe", "Other"]],
+    ["practice_jersey", ["Blue", "White", "Red"]],
+    ["loaner_cleats", ["Yes", "No"]],
+    ["team_mouthguard", ["Yes", "No"]],
+    ["team_gloves", ["Yes - OL/DL", "Yes - Skill", "No"]],
+    ["braces_1", ["Ankle - M", "Knee - L", "Shoulder"]],
+    ["braces_2", ["Ankle - S", "Knee - XXL", "Shoulder"]],
+    ["socks", ["Yes", "No"]],
+  ];
+  // i % 3 === 2 gets only the first three items, so its Kit Distributed reads No.
+  const kitItemsForThisPlayer = i % 3 === 2 ? KIT_SEED.slice(0, 3) : KIT_SEED;
+  if (i % 7 !== 6) {
+    kitItemsForThisPlayer.forEach(([item, values], index) => {
+      add("kit_issue_records", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        item,
+        value: values[(i + index) % values.length],
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-05T09:00:00Z",
+        updated_at: "2026-10-05T09:00:00Z",
+      });
+    });
   }
 
   // LAN-374: special teams. Six squads, four cells each; the sheet is sparse,
@@ -5255,6 +5288,20 @@ const WRITE_PLAN = [
     "special_teams_assignments",
   ],
   [
+    "public.kit_issue_records",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "item",
+      "value",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "kit_issue_records",
+  ],
+  [
     "public.formalwear_records",
     [
       "id",
@@ -5790,6 +5837,28 @@ try {
     await insertRows(client, table, columns, rows[key]);
     total += rows[key].length;
   }
+
+  // LAN-375: Kit Distributed is derived from the kit issued, so the fixture
+  // computes it the way the application does rather than drawing it. The rows
+  // above are inserted table by table, and the trigger that maintains it can
+  // only fire on a membership whose onboarding item already exists, so this
+  // recomputes every one once everything is in.
+  await client.query(`
+    do $seed$
+    declare
+      membership record;
+    begin
+      for membership in
+        select i.season_membership_id
+          from public.onboarding_items i
+          join public.onboarding_item_types t on t.id = i.item_type_id
+         where t.code = 'kit_sorted'
+      loop
+        perform public.refresh_kit_distributed(membership.season_membership_id);
+      end loop;
+    end;
+    $seed$;
+  `);
 
   await client.query("commit");
 

@@ -1870,6 +1870,93 @@ export type Database = {
           },
         ]
       }
+      kit_issue_records: {
+        Row: {
+          created_at: string
+          id: string
+          item: Database["public"]["Enums"]["kit_item"]
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item: Database["public"]["Enums"]["kit_item"]
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item?: Database["public"]["Enums"]["kit_item"]
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kit_issue_records_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "kit_issue_records_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "kit_issue_records_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kit_issue_records_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "kit_issue_records_value_in_item"
+            columns: ["item", "value"]
+            isOneToOne: false
+            referencedRelation: "kit_item_options"
+            referencedColumns: ["item", "value"]
+          },
+        ]
+      }
+      kit_item_options: {
+        Row: {
+          item: Database["public"]["Enums"]["kit_item"]
+          sort_order: number
+          value: string
+        }
+        Insert: {
+          item: Database["public"]["Enums"]["kit_item"]
+          sort_order: number
+          value: string
+        }
+        Update: {
+          item?: Database["public"]["Enums"]["kit_item"]
+          sort_order?: number
+          value?: string
+        }
+        Relationships: []
+      }
       membership_position_groups: {
         Row: {
           created_at: string
@@ -5053,7 +5140,10 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      refresh_kit_distributed: {
+        Args: { target_membership_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       attendance_presence: "present" | "absent" | "late" | "excused"
@@ -5109,6 +5199,18 @@ export type Database = {
         | "expired"
         | "cancelled"
       kit: "blue" | "white"
+      kit_item:
+        | "helmet"
+        | "shoulder_pads"
+        | "lower_pads"
+        | "lowers"
+        | "practice_jersey"
+        | "loaner_cleats"
+        | "team_mouthguard"
+        | "team_gloves"
+        | "braces_1"
+        | "braces_2"
+        | "socks"
       membership_entry: "new" | "returning"
       membership_status:
         | "onboarding"
@@ -5388,6 +5490,19 @@ export const Constants = {
         "cancelled",
       ],
       kit: ["blue", "white"],
+      kit_item: [
+        "helmet",
+        "shoulder_pads",
+        "lower_pads",
+        "lowers",
+        "practice_jersey",
+        "loaner_cleats",
+        "team_mouthguard",
+        "team_gloves",
+        "braces_1",
+        "braces_2",
+        "socks",
+      ],
       membership_entry: ["new", "returning"],
       membership_status: [
         "onboarding",

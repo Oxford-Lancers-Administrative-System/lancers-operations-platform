@@ -18,8 +18,10 @@ import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 
 import { isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
 import {
+  KIT_ITEMS,
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
+  type KitItemCode,
   type SpecialTeamsSlot,
   type SpecialTeamsSquad,
 } from "./roster-board/vocabulary";
@@ -43,19 +45,24 @@ export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
  * vocabulary the board's own columns are, and a file that names none of them
  * is exactly as valid as today's.
  */
-export interface SeasonFactImportColumn {
+interface SeasonFactImportColumnBase {
   /** The header name, lower-case with underscores, as `normaliseHeaderCell` produces. */
   readonly name: string;
-  readonly kind: "special_teams";
-  readonly squad: SpecialTeamsSquad;
-  readonly slot: SpecialTeamsSlot;
   /** Exactly what this cell accepts; anything else refuses the row. */
   readonly options: readonly string[];
 }
 
-export const SEASON_FACT_IMPORT_COLUMNS: readonly SeasonFactImportColumn[] = Object.freeze(
-  SPECIAL_TEAMS_SQUADS.flatMap((squad) =>
-    SPECIAL_TEAMS_SLOTS.map((slot) =>
+export type SeasonFactImportColumn =
+  | (SeasonFactImportColumnBase & {
+      readonly kind: "special_teams";
+      readonly squad: SpecialTeamsSquad;
+      readonly slot: SpecialTeamsSlot;
+    })
+  | (SeasonFactImportColumnBase & { readonly kind: "kit"; readonly item: KitItemCode });
+
+export const SEASON_FACT_IMPORT_COLUMNS: readonly SeasonFactImportColumn[] = Object.freeze([
+  ...SPECIAL_TEAMS_SQUADS.flatMap((squad) =>
+    SPECIAL_TEAMS_SLOTS.map((slot): SeasonFactImportColumn =>
       Object.freeze({
         name: `st_${squad.squad}_${slot.slot}`,
         kind: "special_teams" as const,
@@ -65,7 +72,15 @@ export const SEASON_FACT_IMPORT_COLUMNS: readonly SeasonFactImportColumn[] = Obj
       }),
     ),
   ),
-);
+  ...KIT_ITEMS.map((item): SeasonFactImportColumn =>
+    Object.freeze({
+      name: `kit_${item.item}`,
+      kind: "kit" as const,
+      item: item.item,
+      options: item.values,
+    }),
+  ),
+]);
 
 function seasonFactColumn(name: string): SeasonFactImportColumn | undefined {
   return SEASON_FACT_IMPORT_COLUMNS.find((column) => column.name === name);

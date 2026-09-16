@@ -45,6 +45,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     defensivePositionGroups: [],
     formalwear: { tie: false, bowtie: false },
     specialTeams: {},
+    kit: {},
     blues: "None",
     eligibility: null,
     availability: null,
