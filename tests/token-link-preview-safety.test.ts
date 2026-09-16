@@ -172,7 +172,10 @@ beforeAll(async () => {
        left join public.season_memberships m on m.id = i.season_membership_id
       where e.status = 'approved'
         and s.status = any(array['open','active','closing']::public.season_status[])
-        and (e.scheduled_on + coalesce(e.starts_at, '23:59')) > now()
+        -- The token services' own notion of "started": an untimed event
+        -- starts at 00:00, and the wall time is London's, not the session's.
+        -- Anything looser picks an event issueTokenIn then refuses.
+        and ((e.scheduled_on + coalesce(e.starts_at, '00:00'::time)) at time zone 'Europe/London') > now()
         and coalesce(i.person_id, m.person_id) is not null
       order by e.scheduled_on
       limit 1`,
