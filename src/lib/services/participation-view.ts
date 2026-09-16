@@ -157,6 +157,8 @@ interface OperatorEvent extends EventFactsBase {
 export interface ParticipationHeadline {
   readonly invited: number;
   readonly saidYes: number;
+  /** LAN-384: the same clause as `saidYes`, the other way. One definition, both surfaces. */
+  readonly saidNo: number;
   readonly showed: number;
   /** D74: `false` means `Showed / Invited` reads "NA / 47", never "0 / 47". */
   readonly registerSaved: boolean;

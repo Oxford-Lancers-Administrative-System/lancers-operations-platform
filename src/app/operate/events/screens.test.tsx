@@ -2640,7 +2640,7 @@ describe("the participation table on the event page", () => {
         delivery: "delivered",
       },
     ],
-    headline: { invited: 1, saidYes: 1, showed: 0, registerSaved: true },
+    headline: { invited: 1, saidYes: 1, saidNo: 0, showed: 0, registerSaved: true },
   };
 
   function approvedWithInvitations() {
@@ -2817,6 +2817,36 @@ describe("sharing the club link — W7-04", () => {
     expect(panel).not.toMatch(/prerogative/i);
     // There is no send-to-WhatsApp: the club cannot message groups.
     expect(panel).not.toMatch(/whatsapp/i);
+    vi.unstubAllEnvs();
+  });
+
+  // LAN-384: one more button beside Copy link, and nothing else on the panel.
+  it("offers Copy share message beside Copy link once a link exists", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventClubLink).mockResolvedValue({ linkId: "link-1", token: "a-token" });
+    vi.stubEnv("APP_BASE_URL", "https://club.example");
+    vi.stubEnv("CLUB_LINK_SECRET", "a-signing-key-long-enough-to-be-accepted");
+
+    render(await EventDetailPage(detailProps({ share: "1" })));
+
+    expect(screen.getByTestId("copy-club-link")).toBeInTheDocument();
+    expect(screen.getByTestId("copy-share-message")).toBeInTheDocument();
+    // Still no preview card — Brian parked it on 2026-09-16.
+    expect(screen.queryByTestId("share-message-preview")).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it("offers no share message before a link has been issued", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventClubLink).mockResolvedValue(null);
+    vi.stubEnv("CLUB_LINK_SECRET", "a-signing-key-long-enough-to-be-accepted");
+
+    render(await EventDetailPage(detailProps({ share: "1" })));
+
+    expect(screen.getByTestId("issue-club-link")).toBeInTheDocument();
+    expect(screen.queryByTestId("copy-share-message")).toBeNull();
     vi.unstubAllEnvs();
   });
 });

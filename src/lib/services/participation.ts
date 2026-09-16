@@ -222,6 +222,7 @@ async function readHeadlineIn(tx: Tx, eventId: string): Promise<ParticipationHea
   const result = await tx.query<{
     invited: string;
     said_yes: string;
+    said_no: string;
     showed: string;
     recorded: string;
   }>(
@@ -237,6 +238,11 @@ async function readHeadlineIn(tx: Tx, eventId: string): Promise<ParticipationHea
             (select count(*) from public.current_rsvp r
                join invited iv on iv.id = r.invitation_id
               where r.response = 'yes')::text as said_yes,
+            -- LAN-384: the symmetric clause, so the operator page and the club
+            -- link page count a No the same way they count a Yes.
+            (select count(*) from public.current_rsvp r
+               join invited iv on iv.id = r.invitation_id
+              where r.response = 'no')::text as said_no,
             (select count(*) from recorded
               where presence in ('present', 'late'))::text as showed,
             (select count(*) from recorded)::text as recorded`,
@@ -248,6 +254,7 @@ async function readHeadlineIn(tx: Tx, eventId: string): Promise<ParticipationHea
   return {
     invited: Number(row.invited),
     saidYes: Number(row.said_yes),
+    saidNo: Number(row.said_no),
     showed: Number(row.showed),
     registerSaved: recorded > 0,
   };
@@ -534,6 +541,53 @@ export async function issueEventClubLink(
   return withTransaction((tx) =>
     issueClubLinkIn(tx, eventId, { actorPersonId: operator.personId, env: options.env }),
   );
+}
+
+export interface EventShareFacts {
+  readonly eventName: string;
+  readonly scheduledOn: string | null;
+  readonly startsAt: string | null;
+  readonly endsAt: string | null;
+  readonly venue: string | null;
+  readonly saidYes: number;
+  readonly saidNo: number;
+  readonly token: string;
+}
+
+/**
+ * Everything the share message says — LAN-384. The counts come from
+ * `readHeadlineIn`, the one definition the operator page and the club-link
+ * page already share, so the message can never disagree with either. The link
+ * is issued here when the event has none, through the same path the share
+ * panel's own button uses; no names are read at all.
+ */
+export async function readEventShareFacts(
+  eventId: string,
+  options: { env?: EnvSource } = {},
+): Promise<EventShareFacts> {
+  const operator = await requireCapability("event_calendar_management");
+  return withTransaction(async (tx) => {
+    const { facts } = await readEventFactsIn(tx, eventId);
+    const headline = await readHeadlineIn(tx, eventId);
+
+    // Idempotent: returns the live link where there is one, and issues it
+    // where there is not — the same path the share panel's own button takes.
+    const link = await issueClubLinkIn(tx, eventId, {
+      actorPersonId: operator.personId,
+      env: options.env,
+    });
+
+    return {
+      eventName: facts.name,
+      scheduledOn: facts.scheduledOn,
+      startsAt: facts.startsAt,
+      endsAt: facts.endsAt,
+      venue: facts.venue,
+      saidYes: headline.saidYes,
+      saidNo: headline.saidNo,
+      token: link.token,
+    };
+  });
 }
 
 /** The live link for an event, without creating one; `null` when none issued. The share dialog reads this so opening it is never itself a write. */

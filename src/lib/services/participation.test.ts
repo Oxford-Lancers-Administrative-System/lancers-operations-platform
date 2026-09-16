@@ -1092,6 +1092,32 @@ describe("the headline numbers", () => {
     expect(summary.showed).toBe(2);
   });
 
+  // LAN-384: the No count is the same clause the other way, so the operator
+  // page and the club-link page cannot disagree about it.
+  it("count a No the same way they count a Yes, on both tiers", async () => {
+    const staged = await scenario();
+    const operator = await withTransaction((tx) =>
+      buildOperatorParticipationIn(tx, staged.eventId),
+    );
+    const clubLink = await withTransaction((tx) =>
+      buildClubLinkParticipationIn(tx, staged.eventId),
+    );
+
+    expect(clubLink.headline.saidYes).toBe(operator.headline.saidYes);
+    expect(clubLink.headline.saidNo).toBe(operator.headline.saidNo);
+
+    const stored = await observer.query<{ said_no: string }>(
+      `select count(*)::text as said_no
+         from public.current_rsvp r
+         join public.invitations i on i.id = r.invitation_id
+        where i.event_id = $1 and r.response = 'no'`,
+      [staged.eventId],
+    );
+    expect(operator.headline.saidNo).toBe(Number(stored.rows[0].said_no));
+    // Not an agreement of two zeroes: this scenario stages at least one No.
+    expect(operator.headline.saidNo).toBeGreaterThan(0);
+  });
+
   it("reads an unsaved register as unsaved, not as nobody coming — D74", async () => {
     const event = await createEventDraft(actorPersonId, draft());
     const candidates = await catalogueFor(event);

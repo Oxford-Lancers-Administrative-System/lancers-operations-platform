@@ -8,6 +8,7 @@ import {
   formatShowedAgainstInvited,
   formatTermAndWeek,
   HEADLINE_INVITED_LABEL,
+  HEADLINE_SAID_NO_LABEL,
   HEADLINE_SAID_YES_LABEL,
   HEADLINE_SHOWED_LABEL,
 } from "./presentation";
@@ -96,6 +97,14 @@ export function HeadlineNumbers({ headline }: { headline: ParticipationHeadline 
       label: HEADLINE_SAID_YES_LABEL,
       value: String(headline.saidYes),
       testId: "headline-said-yes",
+    },
+    // LAN-384: a No tile beside Said yes, from the same query. Somebody reading
+    // the club link can already see who said yes; the count of the other
+    // answer was the one number the page withheld.
+    {
+      label: HEADLINE_SAID_NO_LABEL,
+      value: String(headline.saidNo),
+      testId: "headline-said-no",
     },
     {
       label: `${HEADLINE_SHOWED_LABEL} / ${HEADLINE_INVITED_LABEL}`,

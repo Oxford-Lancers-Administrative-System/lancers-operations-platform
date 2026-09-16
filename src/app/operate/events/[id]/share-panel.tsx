@@ -21,6 +21,7 @@ import {
   SHARE_HEADLINE,
 } from "../../../participation/presentation";
 import { issueClubLinkAction } from "./club-link-actions";
+import { ShareMessageButton } from "./share-message-button";
 
 /** **Share this event** — W7-04. Link, one sentence, **Copy link** — no more (Brian rejected extra copy repeatedly). Issuing writes nothing until pressed. */
 const REFUSAL_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
@@ -88,9 +89,12 @@ export function SharePanel({
             <Typography variant="caption" color="text.secondary" data-testid="club-link-expiry">
               {CLUB_LINK_EXPIRY_LABEL}
             </Typography>
-            <Box>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
               <CopyLinkButton url={url} />
-            </Box>
+              {/* LAN-384: the same link, wrapped in the four lines an operator
+                  would otherwise retype into the group chat. */}
+              <ShareMessageButton eventId={eventId} />
+            </Stack>
           </>
         )}
 

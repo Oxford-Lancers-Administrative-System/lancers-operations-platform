@@ -20,6 +20,7 @@ import { CAPACITY_LABELS } from "../operate/events/presentation";
 export {
   formatShowedAgainstInvited,
   HEADLINE_INVITED_LABEL,
+  HEADLINE_SAID_NO_LABEL,
   HEADLINE_SAID_YES_LABEL,
   HEADLINE_SHOWED_LABEL,
 } from "../operate/events/[id]/attendance/presentation";
