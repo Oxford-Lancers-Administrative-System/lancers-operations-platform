@@ -23,7 +23,9 @@ only in what this pull request changes.
    pale and a dark browser chrome. Before is the generic icon this repository
    shipped with; after is the gold-outline Ops mark on the club navy. 16px is
    the hard case and the navy ground is what makes it a badge rather than a
-   smudge.
+   smudge. **Superseded by LAN-385 (2026-09-16)**, which cut the same three
+   sizes from the round award badge instead; `docs/ux/review/LAN-353/LAN-385/`
+   carries the current strips.
 4. **`join-link-preview-card.png`** — the 1200×630 card `/join/[code]` unfurled
    with at the time of this review, fetched from the running server: drawn in
    code from `crest.svg`, wording LAN-279's default, "Join the Lancers".

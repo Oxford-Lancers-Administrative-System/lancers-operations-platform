@@ -232,7 +232,7 @@ describe("the icons and the install prompt", () => {
     }
   });
 
-  it("cuts the favicon from the gold mark, at the three sizes a tab uses", async () => {
+  it("cuts the favicon from the round badge, at the three sizes a tab uses", async () => {
     const ico = await readFile(path.join(REPO, "src/app/favicon.ico"));
     expect(ico.readUInt16LE(0)).toBe(0); // reserved
     expect(ico.readUInt16LE(2)).toBe(1); // an icon, not a cursor
@@ -241,16 +241,40 @@ describe("the icons and the install prompt", () => {
 
     const sizes = Array.from({ length: frames }, (_, index) => ico.readUInt8(6 + index * 16));
     expect(sizes).toEqual([16, 32, 48]);
+
+    // `next build` decodes this file itself and its ICO reader accepts only
+    // RGBA PNG frames — colour type 6 in the IHDR, byte 25 of a PNG. A
+    // three-channel frame fails the build with "The PNG is not in RGBA format!",
+    // and LAN-385 keeps a real alpha channel rather than an opaque one: the
+    // badge is a circle, and what is outside it is nothing.
+    for (let index = 0; index < frames; index += 1) {
+      const entry = 6 + index * 16;
+      const offset = ico.readUInt32LE(entry + 12);
+      expect(ico.subarray(offset, offset + 8).toString("latin1")).toContain("PNG");
+      expect(ico.readUInt8(offset + 25), `frame ${sizes[index]} is not RGBA`).toBe(6);
+    }
   });
 
   it("draws the header mark and the icon mark from different files", async () => {
     // The two are different logos and swapping them is the mistake
-    // `public/brand/README.md` exists to prevent: one crown in the header,
-    // three in the tab.
+    // `public/brand/README.md` exists to prevent: the crest in the header, the
+    // round award badge in the tab. Both carry the club gold; only the badge
+    // carries the navy disc it sits on.
     const crest = await readFile(path.join(REPO, "public/brand/crest.svg"), "utf8");
     const icon = await readFile(path.join(REPO, "public/brand/icon-mark.svg"), "utf8");
     expect(crest).not.toEqual(icon);
-    expect(icon).toContain("#8D7149"); // the gold outline
+    expect(icon).toContain("#8D7149"); // the gold ring
+    expect(icon).toContain("#002147"); // the navy disc it draws its own ground with
     expect(crest).not.toContain("#8D7149");
+  });
+
+  it("serves the same badge as the SVG icon, with no navy square around it", async () => {
+    // LAN-385: the badge carries its own ground and ring, so the generator's
+    // navy square and inset are gone. A full-bleed `<rect fill="#002147">`
+    // coming back would be that wrapper, and it would square off a round icon.
+    const icon = await readFile(path.join(REPO, "src/app/icon.svg"), "utf8");
+    const mark = await readFile(path.join(REPO, "public/brand/icon-mark.svg"), "utf8");
+    expect(icon).toBe(mark);
+    expect(icon).not.toMatch(/<rect[^>]*fill="#002147"/i);
   });
 });
