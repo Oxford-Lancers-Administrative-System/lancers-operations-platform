@@ -39,16 +39,16 @@ import {
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import {
   readQuestionnaireViewIn,
+  STEP_ORDER,
   type QuestionnaireView,
 } from "@/lib/services/player-questionnaire";
 import type { PersonRecord } from "@/lib/services/person-record";
 import PlayerDetailsPage from "./page";
 import {
+  AGREE_AND_CONTINUE,
   ALREADY_COMPLETE_HEADING,
   BUCS_CLAIM_SUBNOTE,
   BUCS_CONTINUE_ANYWAY_NOTE,
-  BUCS_STATUS_CONFIRMED_BY,
-  BUCS_STATUS_INSTRUCTIONS,
   bucsLeagueYear,
   CLOSE,
   CONSENT_ALREADY_GRANTED,
@@ -508,13 +508,124 @@ describe("F3 — the Done screen carries every approved section", () => {
   });
 });
 
-describe("F3 — the BUCS Play screen carries its status box and both footer notes", () => {
-  it("shows the two-column status box, naming the confirming-by and instructions facts", async () => {
+/**
+ * LAN-362 — the strip is navigation.
+ *
+ * It read as navigation and was not: labels and status words, no links, so a
+ * player who wanted to look at what they had agreed to had no way back to it.
+ * Brian: clicking Code of Conduct goes to the Code of Conduct, and a completed
+ * step is still openable so the player can see what they submitted.
+ */
+describe("LAN-362 — every step in the strip is a link to its own step", () => {
+  const stripLinks = (container: HTMLElement) =>
+    Array.from(
+      container.querySelectorAll<HTMLAnchorElement>('[data-testid="step-trail"] a[href]'),
+    ).map((link) => link.getAttribute("href"));
+
+  it("carries one link per step, to that step's own ?step=, on every step page", async () => {
+    for (const step of STEP_ORDER) {
+      givenValid(view({ nextStep: step }));
+      const { container, unmount } = await renderPage({ step });
+
+      expect(stripLinks(container), `strip on ${step}`).toEqual(
+        STEP_ORDER.map((target) => `/onboarding/${encodeURIComponent(TOKEN)}?step=${target}`),
+      );
+      unmount();
+    }
+  });
+
+  it("links the step the player is on as well, marking it current rather than disabling it", async () => {
+    givenValid(view({ nextStep: "photo_release" }));
+    const { container } = await renderPage({ step: "photo_release" });
+
+    const current = container.querySelector('[data-testid="step-trail"] li[data-current="true"]');
+    expect(current).not.toBeNull();
+    expect(current?.querySelector("a[href]")?.getAttribute("href")).toBe(
+      `/onboarding/${encodeURIComponent(TOKEN)}?step=photo_release`,
+    );
+  });
+
+  it("opens a completed Details step on the saved values", async () => {
+    givenValid(
+      view({
+        detailsComplete: true,
+        nextStep: "bucs_play",
+        person: personRecord({ college: "Balliol", matriculationYear: 2025 }),
+      }),
+    );
+    const { container } = await renderPage({ step: "details" });
+
+    const college = container.querySelector<HTMLInputElement>('input[name="college"]');
+    expect(college?.value).toBe("Balliol");
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="matriculation_year"]')?.value,
+    ).toBe("2025");
+  });
+
+  it("opens an agreed Code of Conduct on the agreed state, not the tick", async () => {
+    givenValid(
+      view({
+        nextStep: "bucs_play",
+        documentAgreed: { code_of_conduct: true, photo_release: false },
+        itemStatus: {
+          code_of_conduct: "complete",
+          photo_release: "pending",
+          bucs_play: "pending",
+          hudl_access: "pending",
+        },
+        agreements: {
+          code_of_conduct: {
+            id: "00000000-0000-4000-8000-000000000008",
+            personId: PERSON_ID,
+            seasonId: SEASON_ID,
+            agreementType: "code_of_conduct",
+            agreementVersionId: "00000000-0000-4000-8000-000000000006",
+            agreedAt: new Date("2026-09-15T10:00:00Z"),
+            printedName: "Jordan Ashworth",
+            form: { name: null, address: null, postcode: null, tel: null, email: null },
+            reopenedAt: null,
+          },
+          photo_release: null,
+        },
+      }),
+    );
+    const { container } = await renderPage({ step: "code_of_conduct" });
+
+    expect(container.textContent).toContain("Already agreed");
+    // The wording is still there to read — that is the point of opening it.
+    expect(container.querySelector('[data-testid="agreed-document"]')).not.toBeNull();
+    // Nothing re-asks consent already given.
+    expect(container.querySelector('input[name="agree"]')).toBeNull();
+    expect(container.textContent).not.toContain(AGREE_AND_CONTINUE);
+  });
+});
+
+describe("LAN-364 — the trust steps give the instructions and nothing else", () => {
+  /**
+   * F3 put a four-cell status box between the heading and the instructions —
+   * Photo release / BUCS Play / Confirmed by / Instructions. It repeated the
+   * strip directly above it, and two of its four rows were facts about the
+   * process rather than anything the player could act on. Brian, 2026-09-16:
+   * "That's not needed. You can just give the instructions, and that's that."
+   *
+   * The Done page's summary is a different grid with a different job and is
+   * asserted unchanged above.
+   */
+  it.each(["bucs_play", "hudl"] as const)(
+    "says no 'Confirmed by' or 'Instructions' on %s",
+    async (step) => {
+      givenValid(view({ nextStep: step }));
+      const { container } = await renderPage({ step });
+      const text = container.textContent ?? "";
+      expect(text).not.toContain("Confirmed by");
+      expect(text).not.toContain("Instructions");
+    },
+  );
+
+  it("still leads straight from the heading into the numbered instructions", async () => {
     givenValid(view({ nextStep: "bucs_play" }));
     const { container } = await renderPage({ step: "bucs_play" });
-    const text = container.textContent ?? "";
-    expect(text).toContain(BUCS_STATUS_CONFIRMED_BY);
-    expect(text).toContain(BUCS_STATUS_INSTRUCTIONS);
+    expect(container.querySelector('[data-testid="bucs-steps"]')).not.toBeNull();
   });
 
   it("shows both footer notes", async () => {

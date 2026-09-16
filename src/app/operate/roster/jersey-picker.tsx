@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Checkbox from "@mui/material/Checkbox";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
@@ -10,7 +11,19 @@ const JERSEY_NUMBERS: readonly string[] = Object.freeze(
   Array.from({ length: 99 }, (_, index) => String(index + 1)),
 );
 
-/** The jersey number picker Brian asked to keep exactly — all 99, never free text, another player's number ticked/named/unclickable. */
+/**
+ * The jersey number picker Brian asked to keep exactly — all 99, never free
+ * text, another player's number ticked/named/unclickable.
+ *
+ * Ticking is local, and the whole set is committed once when the picker closes
+ * (LAN-380). It used to fire a Server Action on every tick, each one computed
+ * from the `held` prop the server had last confirmed: tick three numbers on a
+ * slow connection and the second and third were both built on the value before
+ * the first, so the first two writes were overwritten and the earlier requests
+ * were aborted as the later ones arrived. Reproduced on a production build
+ * under a Slow 3G profile — four of five ticks did not land, and the panel
+ * said nothing. One opening is now one write, of exactly what is ticked.
+ */
 export default function JerseyPicker({
   held,
   holders,
@@ -25,15 +38,23 @@ export default function JerseyPicker({
   onClose: () => void;
   width: number;
 }) {
-  const mine = new Set(held);
+  const [selected, setSelected] = useState<string[]>([...held]);
+  const mine = new Set(selected);
+
+  const close = () => {
+    const changed =
+      selected.length !== held.length || selected.some((number, index) => number !== held[index]);
+    if (changed) onCommit(selected);
+    onClose();
+  };
 
   return (
     <Select
       size="small"
       open
       multiple
-      value={held as string[]}
-      onClose={onClose}
+      value={selected}
+      onClose={close}
       renderValue={(value) => (value as string[]).join(", ") || "—"}
       sx={{ width: Math.max(width - 24, 64) }}
       MenuProps={{
@@ -54,10 +75,11 @@ export default function JerseyPicker({
               takenByAnother
                 ? undefined
                 : () => {
-                    const next = isMine
-                      ? held.filter((entry) => entry !== number)
-                      : [...held, number].sort((a, b) => Number(a) - Number(b));
-                    onCommit(next);
+                    setSelected((current) =>
+                      isMine
+                        ? current.filter((entry) => entry !== number)
+                        : [...current, number].sort((a, b) => Number(a) - Number(b)),
+                    );
                   }
             }
             sx={{ "&.Mui-disabled": { opacity: 1, color: "text.disabled" } }}

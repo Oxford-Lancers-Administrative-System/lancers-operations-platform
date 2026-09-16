@@ -3,7 +3,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Typography from "@mui/material/Typography";
 import { NOT_RECORDED, NotRecorded } from "@/components/fact";
-import { RecordRow as Row } from "@/components/record-field";
+import { RecordRow as Row, SAVING } from "@/components/record-field";
 import type { PositionOptions } from "@/lib/services/roster-board";
 
 /** One position field: a code, editable from a fixed option list. */
@@ -13,6 +13,7 @@ export default function PositionField({
   options,
   editing,
   readOnly,
+  saving,
   error,
   onOpen,
   onClose,
@@ -23,12 +24,14 @@ export default function PositionField({
   options: PositionOptions["offence"];
   editing: boolean;
   readOnly: boolean;
+  /** This field's own save is in flight — LAN-380. */
+  saving?: boolean;
   error: string | null;
   onOpen: () => void;
   onClose: () => void;
   onCommit: (next: string) => void;
 }) {
-  const editable = !readOnly;
+  const editable = !readOnly && !saving;
   return (
     <Row label={label}>
       {editing ? (
@@ -80,6 +83,15 @@ export default function PositionField({
           )}
         </Box>
       )}
+      {saving ? (
+        <Typography
+          variant="caption"
+          sx={{ display: "block", color: "text.secondary", mt: 0.25 }}
+          data-testid="field-saving"
+        >
+          {SAVING}
+        </Typography>
+      ) : null}
       {error ? (
         <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.25 }}>
           {error}

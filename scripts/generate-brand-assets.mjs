@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Derives every committed brand artefact from the three files Brian supplied
- * on 9 September 2026 — LAN-277, LAN-278, LAN-269, LAN-279.
+ * Derives every committed brand artefact from the files Brian supplied on
+ * 9 September 2026 — LAN-277, LAN-278, LAN-269, LAN-279 — and on
+ * 16 September 2026 — LAN-383, LAN-385.
  *
  * The supplied originals are not in the repository. They live on the review
  * machine at `~/.local/state/lancers-operations-platform/brand/` (Downloads is
@@ -10,6 +11,11 @@
  *   app-logo-group-2454.svg   the application mark  -> public/brand/crest*.svg
  *   gold-outline-ops-logo.svg the favicon/app icons -> public/brand/icon-mark.svg + rasters
  *   og-image.png              the link preview      -> src/app/opengraph-image.png
+ *   join-og-image.png         the sign-up preview   -> src/app/join/[code]/opengraph-image.png
+ *
+ * Both preview images are copied byte for byte and never re-encoded: LAN-269
+ * and LAN-383 are one decision — the club supplied a picture, and the picture
+ * is what a chat shows.
  *
  * This script is a one-off asset tool, not part of `npm run verify`: it reads
  * files outside the repository and so cannot run in CI. It exists so the
@@ -170,61 +176,42 @@ function recolourWhite(svg, colour) {
     .join("\n");
 }
 
-/**
- * The mark centred on a navy square, as an SVG — `src/app/icon.svg`.
- *
- * Inlined rather than referenced: a favicon is fetched on its own, so an
- * `<image href="/brand/…">` inside it would be a second request the browser may
- * not make in that context, and a data URI would double the bytes.
- *
- * `inset` is the share of the square left as navy margin on the long axis. A
- * tab favicon is looked at in a 16px slot next to a title, and a mark that runs
- * to the edge reads as a coloured block; the margin is what makes it read as a
- * badge.
- */
-function navySquare(mark, box, size, inset) {
-  const drawn = size * (1 - inset * 2);
-  const scale = drawn / Math.max(box.width, box.height);
-  const tx = (size - box.width * scale) / 2 - box.x * scale;
-  const ty = (size - box.height * scale) / 2 - box.y * scale;
-  const round = (n) => Math.round(n * 1000) / 1000;
-
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
-      `viewBox="0 0 ${size} ${size}" fill="none">`,
-    `<rect width="${size}" height="${size}" fill="${NAVY}"/>`,
-    `<g transform="translate(${round(tx)} ${round(ty)}) scale(${round(scale)})">`,
-    body(mark),
-    "</g>",
-    "</svg>",
-    "",
-  ].join("\n");
-}
-
 // ---------------------------------------------------------------------------
 // Rasters
 // ---------------------------------------------------------------------------
 
 /**
- * A square PNG of `svg` at `size`, on an opaque navy ground.
- *
- * `flatten` composites the mark onto the navy and drops the alpha channel;
- * `ensureAlpha` then puts a fully opaque one back. That looks redundant and is
- * not: `next build` decodes `favicon.ico` itself, and its ICO reader accepts
- * **only** RGBA PNG frames — a three-channel PNG fails the build outright with
- * "The PNG is not in RGBA format!". `palette: false` keeps sharp from
- * quantising the small frames into an indexed PNG for the same reason.
- *
- * The ground is opaque either way, which is what iOS wants for `apple-icon` and
- * what makes the gold outline legible against a light or a dark tab strip.
+ * The rasterisation density that gives `svg` a natural raster comfortably above
+ * `size`, so the downscale has pixels to work with without decoding a 9000px
+ * square for a 16px frame.
  */
-async function navyPng(svg, size) {
-  return sharp(Buffer.from(svg), { density: 72 * 8 })
-    .resize(size, size, { fit: "fill" })
-    .flatten({ background: NAVY })
-    .ensureAlpha(1)
-    .png({ compressionLevel: 9, palette: false })
-    .toBuffer();
+function densityFor(svg, size) {
+  const declared = Number(attribute(openTag(svg), "width")) || 512;
+  return Math.max(72, Math.min(72 * 8, Math.ceil((size * 4 * 72) / declared)));
+}
+
+/**
+ * A square PNG of `svg` at `size`, RGBA.
+ *
+ * `ensureAlpha` looks redundant on a drawing that already has one and is not:
+ * `next build` decodes `favicon.ico` itself, and its ICO reader accepts **only**
+ * RGBA PNG frames — a three-channel PNG fails the build outright with "The PNG
+ * is not in RGBA format!". `palette: false` keeps sharp from quantising the
+ * small frames into an indexed PNG for the same reason.
+ *
+ * `ground` flattens onto an opaque colour first. That is for `apple-icon` alone:
+ * iOS masks the icon to a rounded square and paints black wherever the alpha is,
+ * so a transparent corner shows as a black corner. Everything else keeps the
+ * badge's own transparency outside the disc (LAN-385) — the badge carries its
+ * own navy ground and gold ring, so it reads on a light or a dark tab strip
+ * without a square behind it.
+ */
+async function png(svg, size, ground = null) {
+  const pipeline = sharp(Buffer.from(svg), { density: densityFor(svg, size) }).resize(size, size, {
+    fit: "fill",
+  });
+  if (ground !== null) pipeline.flatten({ background: ground });
+  return pipeline.ensureAlpha(1).png({ compressionLevel: 9, palette: false }).toBuffer();
 }
 
 /**
@@ -295,53 +282,76 @@ async function main() {
     ),
   );
 
-  // -- LAN-269: the icons --------------------------------------------------
-  const gold = await readFile(path.join(source, "gold-outline-ops-logo.svg"), "utf8");
-  const goldView = attribute(openTag(gold), "viewBox").split(/\s+/).map(Number);
-  const goldBox = await inkBox(Buffer.from(gold), goldView[2]);
+  // -- LAN-269, LAN-385: the icons -----------------------------------------
+  // Everything below is one SVG rendered at six sizes. The badge already is an
+  // icon — a white crest on a navy disc inside a gold ring, transparent outside
+  // the circle — so there is no navy square to compose it onto and no inset to
+  // leave as margin. That wrapper existed because the gold-outline mark it
+  // replaced was outline on nothing and had no ground of its own.
+  const sticker = await readFile(path.join(source, "award-sticker.svg"), "utf8");
+  const stickerView = attribute(openTag(sticker), "viewBox").split(/\s+/).map(Number);
+  const stickerBox = await inkBox(Buffer.from(sticker), stickerView[2]);
 
-  await put(
-    path.join(brand, "icon-mark.svg"),
-    crop(
-      gold,
-      goldBox,
-      "Brian's Gold Outline Ops Logo (1).svg, supplied 9 September 2026. The " +
-        "favicon and app icons only; the header mark is crest.svg.",
-    ),
+  const badge = crop(
+    sticker,
+    stickerBox,
+    "Brian's Award Sticker.svg, supplied 16 September 2026 (LAN-385). The " +
+      "favicon and app icons only; the header mark is crest.svg. Used as " +
+      "supplied: viewBox cropped to the mark, nothing redrawn or recoloured.",
   );
 
-  const iconSvg = navySquare(gold, goldBox, 512, 0.1);
-  await put(path.join(app, "icon.svg"), iconSvg);
+  // The name is unchanged from LAN-269 so every reader keeps working; what it
+  // holds is the badge now, not the gold outline.
+  await put(path.join(brand, "icon-mark.svg"), badge);
+  await put(path.join(app, "icon.svg"), badge);
 
-  // Apple rounds and masks this itself, so it gets the same margin and no alpha.
-  await put(path.join(app, "apple-icon.png"), await navyPng(iconSvg, 180));
+  // iOS masks and rounds this itself and paints black through any alpha, so it
+  // is the one raster given an opaque ground.
+  await put(path.join(app, "apple-icon.png"), await png(badge, 180, NAVY));
 
   // The manifest's two sizes, for a pinned home-screen tile.
-  await put(path.join(brand, "icon-192.png"), await navyPng(iconSvg, 192));
-  await put(path.join(brand, "icon-512.png"), await navyPng(iconSvg, 512));
+  await put(path.join(brand, "icon-192.png"), await png(badge, 192));
+  await put(path.join(brand, "icon-512.png"), await png(badge, 512));
 
-  // 16, 32 and 48. A 16px slot cannot hold a three-crown mark drawn at the
-  // proportions a 512px tile uses, so the small frames are cut from a tighter
-  // square: less navy margin, more mark.
-  const tight = navySquare(gold, goldBox, 512, 0.04);
+  // 16, 32 and 48 — the three a tab, a bookmark bar and a history entry use.
+  // Straight downscales of the same badge: no tighter crop, because cropping a
+  // round badge is cutting its ring off.
   await put(
     path.join(app, "favicon.ico"),
     ico([
-      { size: 16, png: await navyPng(tight, 16) },
-      { size: 32, png: await navyPng(tight, 32) },
-      { size: 48, png: await navyPng(tight, 48) },
+      { size: 16, png: await png(badge, 16) },
+      { size: 32, png: await png(badge, 32) },
+      { size: 48, png: await png(badge, 48) },
     ]),
   );
 
-  // -- LAN-269: the link preview ------------------------------------------
-  // Used exactly as supplied. LAN-269: "do not generate one."
-  const og = await readFile(path.join(source, "og-image.png"));
-  const ogMeta = await sharp(og).metadata();
-  if (ogMeta.width !== 1200 || ogMeta.height !== 630) {
-    throw new Error(`og-image.png must be 1200x630, found ${ogMeta.width}x${ogMeta.height}`);
-  }
-  await put(path.join(app, "opengraph-image.png"), og);
-  await put(path.join(app, "twitter-image.png"), og);
+  // -- LAN-269, LAN-383: the two link previews -----------------------------
+  // Used exactly as supplied. LAN-269: "do not generate one." Copied, never
+  // passed through sharp: re-encoding a supplied picture is modifying it.
+  const preview = async (file, ...targets) => {
+    const bytes = await readFile(path.join(source, file));
+    const meta = await sharp(bytes).metadata();
+    if (meta.width !== 1200 || meta.height !== 630) {
+      throw new Error(`${file} must be 1200x630, found ${meta.width}x${meta.height}`);
+    }
+    for (const target of targets) await put(target, bytes);
+  };
+
+  await preview(
+    "og-image.png",
+    path.join(app, "opengraph-image.png"),
+    path.join(app, "twitter-image.png"),
+  );
+
+  // The sign-up door's own card — the one link the club pushes at strangers.
+  // It was drawn in code from crest.svg until LAN-383 replaced it with Brian's
+  // recruitment image, which is used whole: no words drawn over it, and it
+  // still reads nothing from `params`.
+  await preview(
+    "join-og-image.png",
+    path.join(app, "join/[code]/opengraph-image.png"),
+    path.join(app, "join/[code]/twitter-image.png"),
+  );
 
   console.log(`Source: ${source}`);
   for (const file of wrote) console.log(`  wrote ${file}`);

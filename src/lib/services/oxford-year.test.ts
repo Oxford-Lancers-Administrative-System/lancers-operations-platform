@@ -87,7 +87,11 @@ const TRINITY_2027: TermWindow = Object.freeze({
   lastWeek: 8,
 });
 
-/** The previous year, so the leading Long Vacation has something to count from. */
+/**
+ * The previous year. Since LAN-368 it must make no difference at all to the
+ * 2026–27 column: production opens a season carrying its own three terms and
+ * nothing else, and the leading Long Vacation has to be drawn anyway.
+ */
 const TRINITY_2026: TermWindow = Object.freeze({
   id: "term-tt-2026",
   name: "trinity",
@@ -103,6 +107,13 @@ const TERMS: readonly TermWindow[] = Object.freeze([
   HILARY_2027,
   MICHAELMAS_2026,
   TRINITY_2026,
+]);
+
+/** The shape a production baseline actually opens a season in: three terms of one year, nothing before them. */
+const BASELINE_TERMS: readonly TermWindow[] = Object.freeze([
+  TRINITY_2027,
+  HILARY_2027,
+  MICHAELMAS_2026,
 ]);
 
 let nextId = 0;
@@ -288,7 +299,15 @@ describe("buildAcademicYear — the boundaries the club supplied", () => {
   });
 
   it("meets Michaelmas at its −1st week, which is where Michaelmas does start", () => {
-    expect(coordinate("2026-09-26")).toBe("Long Vacation 14");
+    // LAN-368, Brian 2026-09-16: the leading vacation is five whole weeks up
+    // against Michaelmas, counted down so the row that meets the term is −1 —
+    // it used to read "Long Vacation 5" or, earlier still, "14" because it
+    // counted forward from the previous year's Trinity, a row production has
+    // no way to know about.
+    // `coordinate` here prints the raw numeric field, not the rendered label —
+    // an ASCII hyphen, same as "michaelmas -1" below; `formatVacationWeek`'s
+    // own real-minus-sign rendering is covered under "week labels".
+    expect(coordinate("2026-09-26")).toBe("Long Vacation -1");
     expect(coordinate("2026-09-27")).toBe("michaelmas -1");
   });
 
@@ -297,16 +316,21 @@ describe("buildAcademicYear — the boundaries the club supplied", () => {
     expect(coordinate("2027-04-17")).toBe("Easter Vacation 5");
   });
 
-  it("numbers the Long Vacation forward past any Oxford week", () => {
-    // Stewart's own example reached the twenties. The leading Long Vacation runs
-    // from the previous Trinity's last week to Michaelmas, which is fourteen.
-    const leading = column.segments.find((segment) => segment.jumpLabel === "Long Vacation 2026");
-    // Drawn from its last five weeks since BG-153-1, and numbered from the
-    // vacation's real start regardless — so these run 10 to 14, well past the
-    // 8 an Oxford term stops at, which is the property Stewart described.
-    expect(leading?.weeks.map((week) => week.week)).toEqual([10, 11, 12, 13, 14]);
-    expect(leading?.weeks[4].label).toBe("Long Vacation 14");
-    expect(leading?.weeks.every((week) => week.week > 8)).toBe(true);
+  it("counts the Long Vacation down past any Oxford week", () => {
+    // Stewart's own example reached the twenties: a vacation week is not clamped
+    // to the 8 an Oxford term stops at. Ten weeks before Michaelmas is the
+    // tenth row from the end of a leading vacation drawn to reach that event,
+    // and it counts down to −1 wherever it starts (LAN-368).
+    const stretched = year([event({ scheduledOn: "2026-07-19", name: "Pre-season" })]);
+    const leading = stretched.segments.find(
+      (segment) => segment.jumpLabel === "Long Vacation 2026",
+    );
+
+    expect(leading?.weeks.map((week) => week.week)).toEqual([
+      -10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
+    ]);
+    expect(leading?.weeks[9].label).toBe("Long Vacation −1");
+    expect(leading?.weeks.some((week) => week.week < -8)).toBe(true);
   });
 
   it("opens a trailing Long Vacation after Trinity even with nothing in it", () => {
@@ -350,11 +374,20 @@ describe("buildAcademicYear — where events land", () => {
     expect(academicYearEvents(column)).toContain(undated);
   });
 
-  it("lists a date the year does not reach rather than dropping it", () => {
-    const ancient = event({ scheduledOn: "2020-01-01", name: "Before the records" });
-    const column = year([ancient]);
-    expect(column.placedCount).toBe(0);
-    expect(column.outsideTheYear.map((entry) => entry.name)).toEqual(["Before the records"]);
+  it("draws a week for a date far outside the terms rather than listing it apart", () => {
+    // LAN-368, "nothing is ever off the calendar": the leading vacation reaches
+    // back to the earliest event however far out it is, so a stray date is a
+    // visible week rather than a footnote. `outsideTheYear` survives for the
+    // only case that can still produce it — a year with no terms at all.
+    const stray = event({ scheduledOn: "2026-03-08", name: "Long before term" });
+    const column = year([stray]);
+
+    expect(column.outsideTheYear).toEqual([]);
+    expect(column.placedCount).toBe(1);
+    expect(yearCoordinateOf(column, "2026-03-08")).toMatchObject({
+      segmentName: "Long Vacation",
+      week: -29,
+    });
   });
 
   it("orders two events on one day by start time, and keeps both", () => {
@@ -426,6 +459,11 @@ describe("week labels", () => {
   it("numbers a vacation week with its own segment's name", () => {
     expect(formatVacationWeek("Long Vacation", 22)).toBe("Long Vacation 22");
   });
+
+  it("uses a real minus sign for a leading Long Vacation week, like formatOxfordWeek", () => {
+    expect(formatVacationWeek("Long Vacation", -1)).toBe("Long Vacation −1");
+    expect(formatVacationWeek("Long Vacation", -12)).toBe("Long Vacation −12");
+  });
 });
 
 describe("yearCoordinateOf", () => {
@@ -471,11 +509,44 @@ describe("the year's two Long Vacations are trimmed to where events are", () => 
   const trailing = (column: AcademicYearColumn) =>
     column.segments.find((segment) => segment.jumpLabel === "Long Vacation 2027")!;
 
-  it("draws five leading weeks and one trailing week when nothing is out there", () => {
+  it("draws five leading and five trailing weeks when nothing is out there", () => {
     const column = year();
+
+    expect(LEADING_VACATION_WEEKS).toBe(5);
+    expect(TRAILING_VACATION_WEEKS).toBe(5);
+    expect(leading(column).weeks).toHaveLength(LEADING_VACATION_WEEKS);
+    expect(trailing(column).weeks).toHaveLength(TRAILING_VACATION_WEEKS);
+  });
+
+  it("draws both ends from one season's own three terms, with no year before it", () => {
+    // The production case, LAN-368: the production baseline seeds a season
+    // and its three terms and nothing else. Before this the leading vacation was
+    // built only when a previous year's term existed, so every pre-season date
+    // fell off the calendar until Michaelmas began.
+    const column = buildAcademicYear("2026-27", BASELINE_TERMS, []);
 
     expect(leading(column).weeks).toHaveLength(LEADING_VACATION_WEEKS);
     expect(trailing(column).weeks).toHaveLength(TRAILING_VACATION_WEEKS);
+    expect(leading(column).weeks[leading(column).weeks.length - 1].endsOn).toBe("2026-09-26");
+  });
+
+  it("is unchanged by a previous year's term being present or absent", () => {
+    const withPreviousYear = rows(buildAcademicYear("2026-27", TERMS, []));
+    const baselineOnly = rows(buildAcademicYear("2026-27", BASELINE_TERMS, []));
+
+    expect(baselineOnly).toEqual(withPreviousYear);
+  });
+
+  it("puts a September pre-season event in the leading vacation on the baseline shape", () => {
+    const trial = event({ scheduledOn: "2026-09-16", name: "Pre-season trial" });
+    const column = buildAcademicYear("2026-27", BASELINE_TERMS, [trial]);
+
+    expect(column.placedCount).toBe(1);
+    expect(column.outsideTheYear).toEqual([]);
+    expect(yearCoordinateOf(column, "2026-09-16")).toMatchObject({
+      segmentName: "Long Vacation",
+      week: -2,
+    });
   });
 
   it("keeps the LAST weeks of the leading vacation, up against Michaelmas", () => {
@@ -496,16 +567,16 @@ describe("the year's two Long Vacations are trimmed to where events are", () => 
     expect(weeks[0].startsOn).toBe("2027-06-20");
   });
 
-  it("does not renumber: the trimmed leading vacation starts mid-sequence", () => {
-    // D85 and Stewart Humble fix the numbering — forward from 1, from the
-    // vacation's real start. Brian's "7, 6, 5, 4, 3, 2, 1" is a distance from
-    // the term boundary describing how far to extend, not a relabelling. The
-    // visible consequence is that a fourteen-week vacation trimmed to five opens
-    // at "Long Vacation 10", and that is correct rather than an off-by-nine.
+  it("counts the leading vacation down to −1 at the first term", () => {
+    // Brian, 2026-09-16 (LAN-368): the leading vacation reads as counting down
+    // to the first term, not as starting there, so it is numbered back from
+    // −1 at the row that meets Michaelmas, however far the segment reaches —
+    // never forward from its own first drawn row.
     const weeks = leading(year()).weeks;
 
-    expect(weeks.map((week) => week.week)).toEqual([10, 11, 12, 13, 14]);
-    expect(weeks[0].label).toBe("Long Vacation 10");
+    expect(weeks.map((week) => week.week)).toEqual([-5, -4, -3, -2, -1]);
+    expect(weeks[weeks.length - 1].label).toBe("Long Vacation −1");
+    expect(weeks[0].startsOn).toBe("2026-08-23");
   });
 
   it("still draws exactly five when an event sits on the default boundary", () => {
@@ -528,40 +599,43 @@ describe("the year's two Long Vacations are trimmed to where events are", () => 
     expect(leading(year()).weeks).toHaveLength(LEADING_VACATION_WEEKS);
     expect(leading(column).weeks).toHaveLength(7);
     expect(leading(column).weeks[0].startsOn).toBe(seventhFromEnd);
-    // Extended, not renumbered: the seventh row from the end is week 8 of 14.
-    expect(leading(column).weeks.map((week) => week.week)).toEqual([8, 9, 10, 11, 12, 13, 14]);
+    // Drawn continuously from the row that holds the event to the term, counted
+    // down so the row against the term is still −1.
+    expect(leading(column).weeks.map((week) => week.week)).toEqual([-7, -6, -5, -4, -3, -2, -1]);
     expect(column.outsideTheYear).toEqual([]);
     expect(column.placedCount).toBe(1);
   });
 
-  it("extends the trailing vacation to reach a later event", () => {
-    // And his: an event three weeks after the season draws weeks 1, 2 and 3.
-    const column = year([event({ scheduledOn: "2027-07-06", name: "Summer tour" })]);
+  it("extends the trailing vacation to reach a later event beyond the default", () => {
+    // Eight weeks after Trinity: the trailing vacation runs to week 8, and the
+    // five-week floor is what an event inside the default cannot shorten.
+    const column = year([event({ scheduledOn: "2027-08-10", name: "Summer tour" })]);
     const weeks = trailing(column).weeks;
 
-    expect(weeks.map((week) => week.week)).toEqual([1, 2, 3]);
-    expect(weeks[weeks.length - 1].endsOn >= "2027-07-06").toBe(true);
+    expect(weeks.map((week) => week.week)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(weeks[weeks.length - 1].endsOn >= "2027-08-10").toBe(true);
     expect(column.outsideTheYear).toEqual([]);
+
+    const inside = year([event({ scheduledOn: "2027-07-06", name: "Tour launch" })]);
+    expect(trailing(inside).weeks.map((week) => week.week)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("draws a leading vacation shorter than the default whole, inventing nothing", () => {
-    // Previous Trinity ending three weeks before Michaelmas: there is no fifth
-    // week to pad with, and padding would be inventing calendar.
-    const tightPreviousYear: TermWindow = {
-      ...TRINITY_2026,
-      startsOn: "2026-07-05",
-      endsOn: "2026-09-05",
-    };
-    const column = buildAcademicYear(
-      "2026-27",
-      [TRINITY_2027, HILARY_2027, MICHAELMAS_2026, tightPreviousYear],
-      [],
-    );
+  it("reaches an event eight weeks before Michaelmas, continuously", () => {
+    // The leading half of the same rule: eight whole weeks, nothing skipped.
+    const eighthFromEnd = "2026-08-02";
+    const column = year([event({ scheduledOn: eighthFromEnd, name: "Trials" })]);
     const weeks = leading(column).weeks;
 
-    expect(weeks.length).toBeLessThan(LEADING_VACATION_WEEKS);
-    expect(weeks.map((week) => week.week)).toEqual([1, 2, 3]);
-    expect(weeks[0].startsOn).toBe("2026-09-06");
+    expect(weeks).toHaveLength(8);
+    expect(weeks[0].startsOn).toBe(eighthFromEnd);
+    expect(weeks[weeks.length - 1].endsOn).toBe("2026-09-26");
+    for (let index = 1; index < weeks.length; index += 1) {
+      expect(weeks[index].startsOn).toBe(
+        new Date(new Date(`${weeks[index - 1].endsOn}T00:00:00Z`).getTime() + 86_400_000)
+          .toISOString()
+          .slice(0, 10),
+      );
+    }
   });
 
   it("leaves the terms alone — an empty term week is the term card", () => {

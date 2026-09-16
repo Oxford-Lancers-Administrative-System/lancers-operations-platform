@@ -8,7 +8,8 @@ import { CLUB_NAME, CREST_PATH } from "@/lib/brand";
  * The crest and the club's name, together — LAN-225, brief §4.4. `tone` says
  * which ground it sits on: white on Oxford Blue, Oxford Blue on paper, never
  * Gold text. Not the browser-tab mark — that's a different file, cut from the
- * gold-outline Ops logo (LAN-269); `public/brand/README.md` says which is which.
+ * round award badge (LAN-269, LAN-385); `public/brand/README.md` says which is
+ * which.
  */
 export { CLUB_NAME, CREST_PATH } from "@/lib/brand";
 

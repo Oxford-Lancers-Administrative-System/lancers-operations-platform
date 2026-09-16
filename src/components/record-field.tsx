@@ -8,6 +8,9 @@ import Typography from "@mui/material/Typography";
 import { Fact, FactList, NOT_RECORDED, NotRecorded } from "./fact";
 import { StatusChip, type StatusDomain } from "./status-chip";
 
+/** The one word a field says while its own save is outstanding — LAN-380. A state, not a sentence. */
+export const SAVING = "Saving…";
+
 /** Interactive records retain their click-to-edit controls inside the kit's fact layout. */
 export function RecordRow({
   label,
@@ -38,6 +41,7 @@ export function RecordField({
   note,
   status,
   readOnly,
+  saving,
   options,
   optionLabels,
   editing,
@@ -52,6 +56,8 @@ export function RecordField({
   note?: string;
   status?: { domain: StatusDomain; code: string };
   readOnly?: boolean;
+  /** This field's own save is in flight — LAN-380. It takes no further edit until it is back. */
+  saving?: boolean;
   options?: readonly string[];
   optionLabels?: Readonly<Record<string, string>>;
   editing?: boolean;
@@ -62,7 +68,7 @@ export function RecordField({
   onClose?: () => void;
   onCommit?: (next: string) => void;
 }) {
-  const editable = !readOnly && options !== undefined && onOpen !== undefined;
+  const editable = !readOnly && !saving && options !== undefined && onOpen !== undefined;
 
   return (
     <RecordRow label={label}>
@@ -119,6 +125,15 @@ export function RecordField({
           )}
         </Box>
       )}
+      {saving ? (
+        <Typography
+          variant="caption"
+          sx={{ display: "block", color: "text.secondary", mt: 0.25 }}
+          data-testid="field-saving"
+        >
+          {SAVING}
+        </Typography>
+      ) : null}
       {note ? (
         <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 0.25 }}>
           {note}

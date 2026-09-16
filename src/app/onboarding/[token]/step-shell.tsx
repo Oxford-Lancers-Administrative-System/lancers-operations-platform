@@ -1,7 +1,7 @@
 /**
  * The chrome every questionnaire step shares: the "Where you are" navigator,
- * the two-column status box, and the two page shells that wrap a step's own
- * content in them. Split from `page.tsx` (LAN-300).
+ * the Done page's two-column status box, and the two page shells that wrap a
+ * step's own content in them. Split from `page.tsx` (LAN-300).
  */
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -26,21 +26,36 @@ type QuestionnaireItemCode = keyof QuestionnaireView["itemStatus"];
 
 // The checklist strip — the map of the sequence
 
+/**
+ * Where a step lives. LAN-362: the strip is navigation, so every step it draws
+ * is a link to its own `?step=`, completed ones included — the player can see
+ * what they submitted. `page.tsx` honours any `?step=` in `STEP_PARAM_VALUES`
+ * and gates none of them, so there is no step to draw as plain text; a rule
+ * that gated one would express itself by leaving `href` off that step.
+ */
+function stepHref(token: string, step: QuestionnaireStep): string {
+  return `/onboarding/${encodeURIComponent(token)}?step=${step}`;
+}
+
 function ChecklistStrip({
   view,
   currentStep,
+  token,
 }: {
   view: QuestionnaireView;
   currentStep: QuestionnaireStep;
+  token: string;
 }) {
   const steps = [];
   for (const step of STEP_ORDER) {
     const isCurrent = step === currentStep;
+    const href = stepHref(token, step);
     if (step === "details") {
       steps.push({
         label: stepLabel(step),
         status: view.detailsComplete ? "complete" : "pending",
         statusLabel: view.detailsComplete ? "Saved" : isCurrent ? "In progress" : "Still needed",
+        href,
       });
       continue;
     }
@@ -48,7 +63,7 @@ function ChecklistStrip({
 
     const code: QuestionnaireItemCode = step === "hudl" ? "hudl_access" : step;
     const status = view.itemStatus[code] ?? "pending";
-    steps.push({ label: stepLabel(step), status, statusLabel: itemStepWord(code, status) });
+    steps.push({ label: stepLabel(step), status, statusLabel: itemStepWord(code, status), href });
   }
 
   return <StepTrail steps={steps} currentIndex={STEP_ORDER.indexOf(currentStep)} />;
@@ -76,9 +91,15 @@ export function itemIsSettled(status: OnboardingItemStatus | null): boolean {
 }
 
 /**
- * The two-column status box Done and BUCS Play both show above their own
- * steps, one grid shared rather than two copies. `positive` colours a row
- * with this route's Alert convention (`success.main`/`warning.main`).
+ * The two-column status box the Done page shows as its summary. `positive`
+ * colours a row with this route's Alert convention
+ * (`success.main`/`warning.main`).
+ *
+ * BUCS Play carried the same grid above its instructions until LAN-364: it
+ * repeated the strip directly above it and added two rows — who confirms, where
+ * the instructions are — that the player cannot act on. Brian: "That's not
+ * needed. You can just give the instructions, and that's that." The Done page's
+ * summary is a summary, and is left alone.
  */
 export function QuestionnaireStatus({ rows }: { rows: Array<[string, string, boolean?]> }) {
   return (
@@ -113,6 +134,7 @@ export function Shell({
   children,
   view,
   currentStep,
+  token,
   heading,
   lead,
   privacyNote = PRIVACY_NOTE,
@@ -120,6 +142,8 @@ export function Shell({
   children: React.ReactNode;
   view: QuestionnaireView;
   currentStep: QuestionnaireStep;
+  /** The strip's links are this token's own — LAN-362. */
+  token: string;
   heading: string;
   lead: string;
   privacyNote?: string;
@@ -127,7 +151,7 @@ export function Shell({
   return (
     <>
       <Section title="Where you are">
-        <ChecklistStrip view={view} currentStep={currentStep} />
+        <ChecklistStrip view={view} currentStep={currentStep} token={token} />
       </Section>
       <PageHeader title={heading} subtitle={lead} />
       <Typography variant="caption" color="text.secondary">
@@ -145,7 +169,6 @@ export function BucsHudlShell({
   heading,
   lead,
   code,
-  statusRows,
   children,
 }: {
   view: QuestionnaireView;
@@ -154,20 +177,17 @@ export function BucsHudlShell({
   heading: string;
   lead: string;
   code?: "hudl_access";
-  /** F3 (LAN-230): the `W4-05` two-column status box — BUCS Play only. */
-  statusRows?: Array<[string, string, boolean?]>;
   children: React.ReactNode;
 }) {
   return (
     <>
       <Section title="Where you are">
-        <ChecklistStrip view={view} currentStep={step} />
+        <ChecklistStrip view={view} currentStep={step} token={token} />
       </Section>
       <PageHeader title={heading} subtitle={lead} />
       <Typography variant="caption" color="text.secondary">
         {PRIVACY_NOTE}
       </Typography>
-      {statusRows ? <QuestionnaireStatus rows={statusRows} /> : null}
       <Surface>
         <Box component="form" action={submitTrustStep}>
           <input type="hidden" name="token" value={token} />

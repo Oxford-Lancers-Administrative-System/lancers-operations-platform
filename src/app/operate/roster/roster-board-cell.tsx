@@ -31,6 +31,7 @@ export function Cell({
   editing,
   holders,
   canManageStatus,
+  boardSaving,
   bandEnd,
   onOpen,
   onClose,
@@ -42,6 +43,13 @@ export function Cell({
   editing: boolean;
   holders?: Record<string, string>;
   canManageStatus: boolean;
+  /**
+   * Some row's save is outstanding, so no cell opens — LAN-380. Every editor
+   * here is built from the last server render, and a commit fired while another
+   * cell's refresh is still in flight aborts that refresh; the next editor then
+   * opens on a value the server has already moved past and writes it back.
+   */
+  boardSaving?: boolean;
   /** Whether this column is the last in its band's run — see `bandBoundaryKeys`. */
   bandEnd: boolean;
   onOpen: () => void;
@@ -142,6 +150,7 @@ export function Cell({
   }
 
   const editable =
+    !boardSaving &&
     (column.edit === "select" ||
       column.edit === "multiselect" ||
       column.edit === "jersey" ||

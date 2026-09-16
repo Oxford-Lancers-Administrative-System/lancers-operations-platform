@@ -439,13 +439,16 @@ describe("the Oxford year the environment is loaded with", () => {
       "Long Vacation",
     ]);
 
-    // What the loader used to plant. The leading Long Vacation has no previous
-    // Trinity to number its weeks from, and the year stops in December — which
-    // is why all six rows are loaded rather than the one the term card names.
+    // What the loader used to plant. One term is one term: with no Hilary or
+    // Trinity the year stops at the vacation after Michaelmas, which is why all
+    // six rows are loaded rather than the one the term card names. Since
+    // LAN-368 the leading Long Vacation is drawn from Michaelmas alone, so it is
+    // here even though nothing precedes it.
     const michaelmasOnly = buildAcademicYear(currentYear, [windows[3]], [], {
       today: "2026-11-01",
     });
     expect(michaelmasOnly.segments.map((segment) => segment.name)).toEqual([
+      "Long Vacation",
       "michaelmas",
       "Christmas Vacation",
     ]);

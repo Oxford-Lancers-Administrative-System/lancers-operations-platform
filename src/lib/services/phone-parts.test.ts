@@ -28,9 +28,23 @@ const UK_NATIONAL = "7700900123";
 const UK_E164 = "447700900123";
 
 describe("CALLING_COUNTRIES", () => {
-  it("offers the United Kingdom first, because that is the club's default", () => {
-    expect(CALLING_COUNTRIES[0]?.callingCode).toBe(DEFAULT_CALLING_CODE);
-    expect(CALLING_COUNTRIES[0]?.name).toBe("United Kingdom");
+  it("offers the United States first and the United Kingdom second (LAN-355)", () => {
+    // The menu renders this array in its own order. Brian, 2026-09-16. The
+    // field itself is unchanged: an empty one still opens on +44, which comes
+    // from DEFAULT_CALLING_CODE and not from whatever sits at index 0.
+    expect(CALLING_COUNTRIES.slice(0, 2).map((country) => country.iso)).toEqual(["US", "GB"]);
+    expect(CALLING_COUNTRIES[0]?.name).toBe("United States");
+    expect(CALLING_COUNTRIES[1]?.name).toBe("United Kingdom");
+    expect(DEFAULT_CALLING_CODE).toBe("44");
+    expect(CALLING_COUNTRIES[1]?.callingCode).toBe(DEFAULT_CALLING_CODE);
+  });
+
+  it("leaves everything after those two alphabetical, Canada included", () => {
+    // Canada also uses +1, and a calling code cannot tell the two apart, so
+    // promoting it would put a second "+1" at the top of the menu.
+    const rest = CALLING_COUNTRIES.slice(2).map((country) => country.name);
+    expect(rest).toEqual([...rest].sort((left, right) => left.localeCompare(right, "en")));
+    expect(rest).toContain("Canada");
   });
 
   it("carries no duplicate ISO codes", () => {

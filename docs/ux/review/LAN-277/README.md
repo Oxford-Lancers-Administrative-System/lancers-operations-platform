@@ -23,11 +23,15 @@ only in what this pull request changes.
    pale and a dark browser chrome. Before is the generic icon this repository
    shipped with; after is the gold-outline Ops mark on the club navy. 16px is
    the hard case and the navy ground is what makes it a badge rather than a
-   smudge.
-4. **`join-link-preview-card.png`** — the 1200×630 card `/join/[code]` unfurls
-   with, fetched from the running server. Drawn in code from `crest.svg`, so it
-   follows the logo. Wording is LAN-279's default, "Join the Lancers"; Brian
-   floated "Sign up" as the alternative and it is one constant to change.
+   smudge. **Superseded by LAN-385 (2026-09-16)**, which cut the same three
+   sizes from the round award badge instead; `docs/ux/review/LAN-353/LAN-385/`
+   carries the current strips.
+4. **`join-link-preview-card.png`** — the 1200×630 card `/join/[code]` unfurled
+   with at the time of this review, fetched from the running server: drawn in
+   code from `crest.svg`, wording LAN-279's default, "Join the Lancers".
+   **Superseded by LAN-383 (2026-09-16)**, which replaced the generated card
+   with the club's own recruitment image, used as supplied. This capture is kept
+   as the record of what the review approved, not as current behaviour.
 5. **`after/desktop_operate_recruitment_qr.png`** — the QR page now shows that
    same generated card under the printed link, so the poster and the chat card
    are one design. The QR itself is untouched: same component, same 320px
@@ -50,6 +54,6 @@ only in what this pull request changes.
 | ---------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `before/`, `after/`          | Full-page captures, `desktop_` at 1440 and `phone375_` at 375                                          |
 | `marks/`                     | The mark and the tab icon at the sizes they are actually drawn                                         |
-| `join-link-preview-card.png` | `/join/[code]/opengraph-image`, as served                                                              |
+| `join-link-preview-card.png` | `/join/[code]/opengraph-image`, as served on `2d4fc02` — superseded by LAN-383                         |
 | `manifest.webmanifest.json`  | `/manifest.webmanifest`, as served                                                                     |
 | `tags.txt`                   | Every route's `<title>`, `og:`, `twitter:`, icon and manifest tags, fetched with a WhatsApp user agent |

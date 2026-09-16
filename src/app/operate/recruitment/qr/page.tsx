@@ -22,7 +22,9 @@ export default async function RecruitmentQrPage() {
   const joinUrl = code ? `${origin}/join/${code.code}` : null;
 
   // Relative path (LAN-279 item 3) — fetched by the operator's own browser, unlike the absolute printed URL.
-  const cardImageSrc = code ? `/join/${encodeURIComponent(code.code)}/opengraph-image` : null;
+  // LAN-383 replaced the generated opengraph-image route with a static file, which Next serves with
+  // its extension included (opengraph-image.png), not at the old extensionless route.
+  const cardImageSrc = code ? `/join/${encodeURIComponent(code.code)}/opengraph-image.png` : null;
 
   return (
     <QrCodeView
