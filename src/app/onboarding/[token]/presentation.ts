@@ -205,12 +205,9 @@ export const BUCS_HAVE_YOU_DONE_IT = "Have you done it?";
 export const BUCS_CLAIM_LABEL = "Yes — I have registered on BUCS Play and selected Oxford Lancers.";
 export const CONTINUE = "Continue";
 
-// F3 (LAN-230), W4-05-proposed. Constant, not per-player: true of this item regardless of who is looking.
-export const BUCS_STATUS_CONFIRMED_BY_LABEL = "Confirmed by";
-export const BUCS_STATUS_CONFIRMED_BY = "You, then the club";
-export const BUCS_STATUS_INSTRUCTIONS_LABEL = "Instructions";
-/** LAN-333 wrote them. The row read "Owed — not written", which was true and is not any more. */
-export const BUCS_STATUS_INSTRUCTIONS = "On this page";
+// LAN-364 removed the four-cell status box this step used to carry above its
+// instructions — it repeated the strip and added two rows the player cannot act
+// on. The constants that fed it (Confirmed by / Instructions) went with it.
 export const BUCS_CLAIM_SUBNOTE =
   "This records claimed, not complete. The compliance owner confirms it against the BUCS roster, and W6 is where that happens.";
 export const BUCS_CONTINUE_ANYWAY_NOTE =

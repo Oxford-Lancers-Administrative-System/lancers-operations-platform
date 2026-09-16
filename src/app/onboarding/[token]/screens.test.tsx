@@ -47,8 +47,6 @@ import {
   ALREADY_COMPLETE_HEADING,
   BUCS_CLAIM_SUBNOTE,
   BUCS_CONTINUE_ANYWAY_NOTE,
-  BUCS_STATUS_CONFIRMED_BY,
-  BUCS_STATUS_INSTRUCTIONS,
   bucsLeagueYear,
   CLOSE,
   CONSENT_ALREADY_GRANTED,
@@ -508,13 +506,32 @@ describe("F3 — the Done screen carries every approved section", () => {
   });
 });
 
-describe("F3 — the BUCS Play screen carries its status box and both footer notes", () => {
-  it("shows the two-column status box, naming the confirming-by and instructions facts", async () => {
+describe("LAN-364 — the trust steps give the instructions and nothing else", () => {
+  /**
+   * F3 put a four-cell status box between the heading and the instructions —
+   * Photo release / BUCS Play / Confirmed by / Instructions. It repeated the
+   * strip directly above it, and two of its four rows were facts about the
+   * process rather than anything the player could act on. Brian, 2026-09-16:
+   * "That's not needed. You can just give the instructions, and that's that."
+   *
+   * The Done page's summary is a different grid with a different job and is
+   * asserted unchanged above.
+   */
+  it.each(["bucs_play", "hudl"] as const)(
+    "says no 'Confirmed by' or 'Instructions' on %s",
+    async (step) => {
+      givenValid(view({ nextStep: step }));
+      const { container } = await renderPage({ step });
+      const text = container.textContent ?? "";
+      expect(text).not.toContain("Confirmed by");
+      expect(text).not.toContain("Instructions");
+    },
+  );
+
+  it("still leads straight from the heading into the numbered instructions", async () => {
     givenValid(view({ nextStep: "bucs_play" }));
     const { container } = await renderPage({ step: "bucs_play" });
-    const text = container.textContent ?? "";
-    expect(text).toContain(BUCS_STATUS_CONFIRMED_BY);
-    expect(text).toContain(BUCS_STATUS_INSTRUCTIONS);
+    expect(container.querySelector('[data-testid="bucs-steps"]')).not.toBeNull();
   });
 
   it("shows both footer notes", async () => {

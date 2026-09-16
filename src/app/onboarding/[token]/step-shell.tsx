@@ -1,7 +1,7 @@
 /**
  * The chrome every questionnaire step shares: the "Where you are" navigator,
- * the two-column status box, and the two page shells that wrap a step's own
- * content in them. Split from `page.tsx` (LAN-300).
+ * the Done page's two-column status box, and the two page shells that wrap a
+ * step's own content in them. Split from `page.tsx` (LAN-300).
  */
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -76,9 +76,15 @@ export function itemIsSettled(status: OnboardingItemStatus | null): boolean {
 }
 
 /**
- * The two-column status box Done and BUCS Play both show above their own
- * steps, one grid shared rather than two copies. `positive` colours a row
- * with this route's Alert convention (`success.main`/`warning.main`).
+ * The two-column status box the Done page shows as its summary. `positive`
+ * colours a row with this route's Alert convention
+ * (`success.main`/`warning.main`).
+ *
+ * BUCS Play carried the same grid above its instructions until LAN-364: it
+ * repeated the strip directly above it and added two rows — who confirms, where
+ * the instructions are — that the player cannot act on. Brian: "That's not
+ * needed. You can just give the instructions, and that's that." The Done page's
+ * summary is a summary, and is left alone.
  */
 export function QuestionnaireStatus({ rows }: { rows: Array<[string, string, boolean?]> }) {
   return (
@@ -145,7 +151,6 @@ export function BucsHudlShell({
   heading,
   lead,
   code,
-  statusRows,
   children,
 }: {
   view: QuestionnaireView;
@@ -154,8 +159,6 @@ export function BucsHudlShell({
   heading: string;
   lead: string;
   code?: "hudl_access";
-  /** F3 (LAN-230): the `W4-05` two-column status box — BUCS Play only. */
-  statusRows?: Array<[string, string, boolean?]>;
   children: React.ReactNode;
 }) {
   return (
@@ -167,7 +170,6 @@ export function BucsHudlShell({
       <Typography variant="caption" color="text.secondary">
         {PRIVACY_NOTE}
       </Typography>
-      {statusRows ? <QuestionnaireStatus rows={statusRows} /> : null}
       <Surface>
         <Box component="form" action={submitTrustStep}>
           <input type="hidden" name="token" value={token} />

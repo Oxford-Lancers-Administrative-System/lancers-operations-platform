@@ -210,6 +210,16 @@ than copy, and neither may become copy:
   test or a seed. Unset, the step still shows every instruction and states
   that the link is not published yet — it never invents a destination.
 
+**Neither step carries a status box** (LAN-364, 2026-09-16). BUCS Play showed a
+four-cell grid between its heading and its instructions — Photo release, BUCS
+Play, Confirmed by, Instructions. The first two repeated the strip directly
+above them and the other two were facts about the process the player cannot act
+on. Brian: "That's not needed. You can just give the instructions, and that's
+that." What is left on both steps is the strip, the heading, the "Step n of 5"
+line, the privacy sentence, the numbered instructions, the claim tick and the
+button. The finishing page's summary grid is a different thing with a different
+job and is untouched.
+
 **Hudl is self-serve, and the club sends nothing** (LAN-333, reversing this
 ticket's earlier rule). The step described an email invitation an operator was
 assumed to send, and offered a second control — "No invitation has reached
