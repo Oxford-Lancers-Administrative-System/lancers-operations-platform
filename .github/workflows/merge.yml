@@ -197,13 +197,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ steps.resolve.outputs.number }}
+          HEAD_SHA: ${{ steps.resolve.outputs.head_sha }}
         run: |
           set -euo pipefail
           # The only merge instruction in this repository, and it is not a
           # merge: GitHub holds it until every required check is green at the
           # head, and branch protection is the authoritative gate. No --admin,
           # ever. If auto-merge is already enabled this is a no-op.
-          gh pr merge "$PR" --repo "$REPO" --auto --squash --delete-branch
+          #
+          # `--match-head-commit` pins it to the head this run actually
+          # scanned. ADR 0038 dropped the flag deliberately, and the case it
+          # dropped it for is unchanged; the case it did not discuss is a push
+          # after the draft lifts. GitHub tracks the pull request, not the
+          # commit, so auto-merge armed against a clean diff stayed armed over
+          # a later head — and if that head touched a prohibited path the
+          # workflow posted a comment and disarmed nothing. Pinned, a moved
+          # head is GitHub's problem rather than the club's.
+          #
+          # What GitHub does on a mismatch — drop the flag, or leave it inert —
+          # is to be observed on first real use, not asserted here.
+          gh pr merge "$PR" --repo "$REPO" --auto --squash --delete-branch \
+            --match-head-commit "$HEAD_SHA"
 
       - name: Record the verdict
         if: always() && steps.resolve.outputs.found == 'true'
