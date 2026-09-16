@@ -11,7 +11,13 @@ import { missingRequiredFields } from "../person-required";
 import { isOxfordCollegeEmail } from "../person-validation";
 import type { Season } from "../seasons";
 import { BOARD_ELIGIBILITY_COMPETITION } from "./shared";
-import { FORMALWEAR_ITEM_KEYS, type FormalwearItemKey } from "./vocabulary";
+import {
+  FORMALWEAR_ITEM_KEYS,
+  specialTeamsCellKey,
+  type FormalwearItemKey,
+  type SpecialTeamsSlot,
+  type SpecialTeamsSquad,
+} from "./vocabulary";
 
 /**
  * The roster board's read path — LAN-186, `WP-roster-board`.
@@ -20,6 +26,8 @@ import { FORMALWEAR_ITEM_KEYS, type FormalwearItemKey } from "./vocabulary";
  */
 
 export type BluesValue = "Full" | "Half" | "None";
+/** `public.bps_selections.is_selected`, plain yes/no — a roster attribute beside Blues and Formalwear, never an onboarding item. */
+export type BpsValue = "Yes" | "No";
 export type { FormalwearItemKey };
 interface PositionOption {
   code: string;
@@ -70,6 +78,8 @@ export interface RosterBoardRow {
   offensivePositionGroups: string[];
   defensivePositionGroups: string[];
   formalwear: Record<FormalwearItemKey, boolean>;
+  /** One entry per filled special-teams cell, keyed `st:<squad>:<slot>` — LAN-374. A blank cell is an absent key. */
+  specialTeams: Readonly<Record<string, string>>;
   blues: BluesValue;
   /** `public.eligibility_status`, for the `club_play` competition, or `null`. */
   eligibility: string | null;
@@ -228,6 +238,17 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         where season_id = $1::uuid`,
       [roster.season.id],
     );
+    const specialTeamsRows = await tx.query<{
+      season_membership_id: string;
+      squad: string;
+      slot: string;
+      position_name: string;
+    }>(
+      `select season_membership_id, squad::text as squad, slot::text as slot, position_name
+         from public.special_teams_assignments
+        where season_id = $1::uuid`,
+      [roster.season.id],
+    );
     const bluesRows = await tx.query<{
       season_membership_id: string;
       half_blue_awarded: boolean;
@@ -336,6 +357,14 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       formalwearByMembership.set(row.season_membership_id, current);
     }
 
+    const specialTeamsByMembership = new Map<string, Record<string, string>>();
+    for (const row of specialTeamsRows.rows) {
+      const current = specialTeamsByMembership.get(row.season_membership_id) ?? {};
+      current[specialTeamsCellKey(row.squad as SpecialTeamsSquad, row.slot as SpecialTeamsSlot)] =
+        row.position_name;
+      specialTeamsByMembership.set(row.season_membership_id, current);
+    }
+
     const bluesByMembership = new Map<string, BluesValue>();
     for (const row of bluesRows.rows) {
       bluesByMembership.set(
@@ -416,6 +445,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
           tie: false,
           bowtie: false,
         },
+        specialTeams: specialTeamsByMembership.get(entry.membershipId) ?? {},
         blues: bluesByMembership.get(entry.membershipId) ?? "None",
         eligibility: eligibilityByMembership.get(entry.membershipId) ?? null,
         availability: availabilityByMembership.get(entry.membershipId) ?? null,

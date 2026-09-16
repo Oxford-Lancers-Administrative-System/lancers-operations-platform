@@ -26,6 +26,7 @@ import type {
   FormalwearItemKey,
   BpsValue,
 } from "@/lib/services/roster-board";
+import { parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
 import type { Band } from "./board-columns";
 import { setMembershipStatusAction } from "./actions";
 import {
@@ -40,6 +41,7 @@ import {
   commitOnboardingItemAction,
   commitPositionAction,
   commitPositionGroupsAction,
+  commitSpecialTeamsAssignmentAction,
 } from "./board-actions";
 import { commitWithRetry } from "./board-action-state";
 import {
@@ -250,6 +252,22 @@ export default function RosterBoard({
   }
 
   function commitFor(row: RosterBoardRow, column: ColumnDef, next: string | string[]) {
+    // LAN-374: one branch for all twenty-four special-teams cells, keyed by
+    // the column's own `st:<squad>:<slot>`.
+    const cell = parseSpecialTeamsCellKey(column.key);
+    if (cell) {
+      runCommit(row.membershipId, () =>
+        commitSpecialTeamsAssignmentAction({
+          membershipId: row.membershipId,
+          seasonId,
+          squad: cell.squad,
+          slot: cell.slot,
+          positionName: (next as string) || null,
+        }),
+      );
+      return;
+    }
+
     switch (column.key) {
       case "status":
         runCommit(row.membershipId, () =>

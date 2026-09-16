@@ -36,6 +36,7 @@ export function Fact({
   layout = "stacked",
   emphasis = false,
   multiline = false,
+  labelItalic = false,
   testId,
 }: {
   label: string;
@@ -45,6 +46,8 @@ export function Fact({
   /** Who recorded it, or when — shown only when known. */
   provenance?: ReactNode;
   layout?: "stacked" | "inline";
+  /** The label in italics — LAN-374's slot names under a bold squad heading. */
+  labelItalic?: boolean;
   /** The value at `body1` 600, for the one or two facts a card is opened to find. */
   emphasis?: boolean;
   /** For a multi-line typed value where line breaks matter (LAN-264). `pre-line`, not `pre` — spaces still collapse. Off by default. */
@@ -98,7 +101,11 @@ export function Fact({
           variant="body2"
           color="text.secondary"
           component="dt"
-          sx={{ minWidth: { sm: 200 }, flexShrink: 0 }}
+          sx={{
+            minWidth: { sm: 200 },
+            flexShrink: 0,
+            fontStyle: labelItalic ? "italic" : undefined,
+          }}
         >
           {label}
         </Typography>

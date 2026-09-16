@@ -21,9 +21,12 @@ import type { OnboardingActorKind } from "./onboarding-item-history";
 import { readPersonRecord, type PersonRecord } from "./person-record";
 import {
   readPositionOptions,
+  specialTeamsCellKey,
   type BluesValue,
   type BpsValue,
   type FormalwearItemKey,
+  type SpecialTeamsSlot,
+  type SpecialTeamsSquad,
   type PositionOptions,
 } from "./roster-board";
 
@@ -47,6 +50,8 @@ export interface PlayerSeasonFacts {
   offensivePositionGroups: string[];
   defensivePositionGroups: string[];
   formalwear: Record<FormalwearItemKey, boolean>;
+  /** One entry per filled special-teams cell, keyed `st:<squad>:<slot>` — LAN-374. */
+  specialTeams: Readonly<Record<string, string>>;
   blues: BluesValue;
   /** `public.bps_selections.is_selected`, defaulting to "No" — LAN-387 puts it on the record beside the board's own column. */
   bps: BpsValue;
@@ -318,6 +323,12 @@ async function readSeasonFactsIn(
     `select level::text as level from public.current_availability where season_membership_id = $1::uuid`,
     [membershipId],
   );
+  const specialTeams = await tx.query<{ squad: string; slot: string; position_name: string }>(
+    `select squad::text as squad, slot::text as slot, position_name
+       from public.special_teams_assignments
+      where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
   const bps = await tx.query<{ is_selected: boolean }>(
     `select is_selected from public.bps_selections where season_membership_id = $1::uuid`,
     [membershipId],
@@ -361,6 +372,12 @@ async function readSeasonFactsIn(
       .filter((row) => row.side === "defence")
       .map((row) => row.position_group),
     formalwear: formalwearRecord,
+    specialTeams: Object.fromEntries(
+      specialTeams.rows.map((row) => [
+        specialTeamsCellKey(row.squad as SpecialTeamsSquad, row.slot as SpecialTeamsSlot),
+        row.position_name,
+      ]),
+    ),
     blues: bluesValue,
     bps: bps.rows[0]?.is_selected ? "Yes" : "No",
     eligibility: eligibility.rows[0]?.status ?? null,

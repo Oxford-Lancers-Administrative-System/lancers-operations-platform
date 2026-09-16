@@ -4386,6 +4386,96 @@ export type Database = {
           },
         ]
       }
+      special_teams_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          position_name: string
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          slot: Database["public"]["Enums"]["special_teams_slot"]
+          squad: Database["public"]["Enums"]["special_teams_squad"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          position_name: string
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          slot: Database["public"]["Enums"]["special_teams_slot"]
+          squad: Database["public"]["Enums"]["special_teams_squad"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          position_name?: string
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          slot?: Database["public"]["Enums"]["special_teams_slot"]
+          squad?: Database["public"]["Enums"]["special_teams_squad"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "special_teams_assignments_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "special_teams_assignments_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "special_teams_assignments_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "special_teams_assignments_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "special_teams_assignments_value_in_squad"
+            columns: ["squad", "position_name"]
+            isOneToOne: false
+            referencedRelation: "special_teams_squad_positions"
+            referencedColumns: ["squad", "position_name"]
+          },
+        ]
+      }
+      special_teams_squad_positions: {
+        Row: {
+          position_name: string
+          sort_order: number
+          squad: Database["public"]["Enums"]["special_teams_squad"]
+        }
+        Insert: {
+          position_name: string
+          sort_order: number
+          squad: Database["public"]["Enums"]["special_teams_squad"]
+        }
+        Update: {
+          position_name?: string
+          sort_order?: number
+          squad?: Database["public"]["Enums"]["special_teams_squad"]
+        }
+        Relationships: []
+      }
       terms: {
         Row: {
           academic_year: string
@@ -5109,6 +5199,14 @@ export type Database = {
         | "weather"
         | "other"
       season_status: "planning" | "open" | "active" | "closing" | "archived"
+      special_teams_slot: "starting" | "backup_1" | "backup_2" | "backup_3"
+      special_teams_squad:
+        | "kick_return"
+        | "kickoff"
+        | "punt"
+        | "punt_return"
+        | "field_goal"
+        | "field_goal_block"
       term_name: "michaelmas" | "hilary" | "trinity"
     }
     CompositeTypes: {
@@ -5392,6 +5490,15 @@ export const Constants = {
         "other",
       ],
       season_status: ["planning", "open", "active", "closing", "archived"],
+      special_teams_slot: ["starting", "backup_1", "backup_2", "backup_3"],
+      special_teams_squad: [
+        "kick_return",
+        "kickoff",
+        "punt",
+        "punt_return",
+        "field_goal",
+        "field_goal_block",
+      ],
       term_name: ["michaelmas", "hilary", "trinity"],
     },
   },

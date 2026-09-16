@@ -25,6 +25,7 @@ import {
   commitJerseyNumbers,
   commitPosition,
   commitPositionGroups,
+  commitSpecialTeamsAssignment,
   type AvailabilityLevel,
   type BluesValue,
   type BpsValue,
@@ -33,6 +34,8 @@ import {
   type Kit,
   type PositionColumn,
   type PositionGroupSide,
+  type SpecialTeamsSlot,
+  type SpecialTeamsSquad,
 } from "@/lib/services/roster-board";
 import type { BoardActionState } from "../board-action-state";
 
@@ -144,6 +147,23 @@ export async function recordCommitPositionGroupsAction(params: {
   const operator = await requireCapability("person_record_authority");
   try {
     await commitPositionGroups({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh(params.membershipId);
+  return OK;
+}
+
+export async function recordCommitSpecialTeamsAssignmentAction(params: {
+  membershipId: string;
+  seasonId: string;
+  squad: SpecialTeamsSquad;
+  slot: SpecialTeamsSlot;
+  positionName: string | null;
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await commitSpecialTeamsAssignment({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }

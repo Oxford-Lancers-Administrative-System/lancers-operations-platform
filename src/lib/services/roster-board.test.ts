@@ -31,8 +31,12 @@ import {
   commitJerseyNumbers,
   commitPosition,
   commitPositionGroups,
+  commitSpecialTeamsAssignment,
   listRosterBoard,
   readPositionOptions,
+  SPECIAL_TEAMS_SLOTS,
+  SPECIAL_TEAMS_SQUADS,
+  specialTeamsCellKey,
 } from "./roster-board";
 import { generateOnboardingItems, resolveOnboardingItem } from "./membership";
 
@@ -59,6 +63,10 @@ async function cleanUp(): Promise<void> {
   );
   await observer.query(
     `delete from public.membership_position_groups where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  await observer.query(
+    `delete from public.special_teams_assignments where season_membership_id = $1::uuid`,
     [membershipId],
   );
   await observer.query(
@@ -750,5 +758,123 @@ describe("LAN-301 — no read overlaps a query already running on its own client
       ),
     );
     expect(overlaps).toBeGreaterThan(0);
+  });
+});
+
+describe("special teams assignments — LAN-374", () => {
+  it("mirrors the sheet exactly: the reference table and the application's own list agree", async () => {
+    const stored = await observer.query<{ squad: string; position_name: string }>(
+      `select squad::text as squad, position_name
+         from public.special_teams_squad_positions
+        order by squad, sort_order`,
+    );
+    const bySquad = new Map<string, string[]>();
+    for (const row of stored.rows) {
+      const list = bySquad.get(row.squad) ?? [];
+      list.push(row.position_name);
+      bySquad.set(row.squad, list);
+    }
+
+    expect([...bySquad.keys()].sort()).toEqual(
+      SPECIAL_TEAMS_SQUADS.map((squad) => squad.squad).sort(),
+    );
+    for (const squad of SPECIAL_TEAMS_SQUADS) {
+      expect(bySquad.get(squad.squad)).toEqual([...squad.positions]);
+    }
+  });
+
+  it("stores one pick per cell, blanks by deleting, and never touches a neighbouring cell", async () => {
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "starting",
+      positionName: "Longsnapper",
+    });
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "backup_2",
+      positionName: "Punter",
+    });
+
+    let board = await listRosterBoard();
+    let row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "starting")]).toBe("Longsnapper");
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "backup_2")]).toBe("Punter");
+    // Not a depth chart: the cells nobody filled in are simply absent.
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "backup_1")]).toBeUndefined();
+
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "starting",
+      positionName: null,
+    });
+    board = await listRosterBoard();
+    row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "starting")]).toBeUndefined();
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "backup_2")]).toBe("Punter");
+
+    const stored = await observer.query(
+      `select 1 from public.special_teams_assignments
+        where season_membership_id = $1::uuid and squad = 'punt' and slot = 'starting'`,
+      [membershipId],
+    );
+    expect(stored.rows).toHaveLength(0);
+  });
+
+  it("lets the same position stand in several slots of a squad — no cross-cell rule", async () => {
+    for (const slot of SPECIAL_TEAMS_SLOTS) {
+      await commitSpecialTeamsAssignment({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        squad: "kickoff",
+        slot: slot.slot,
+        positionName: "Kicker",
+      });
+    }
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    for (const slot of SPECIAL_TEAMS_SLOTS) {
+      expect(row?.specialTeams[specialTeamsCellKey("kickoff", slot.slot)]).toBe("Kicker");
+    }
+  });
+
+  it("refuses a value another squad allows", async () => {
+    await expect(
+      commitSpecialTeamsAssignment({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        squad: "punt_return",
+        slot: "starting",
+        positionName: "Longsnapper",
+      }),
+    ).rejects.toMatchObject({ rule: "special_teams_assignments_value_in_squad" });
+  });
+
+  it("takes DEF ON FIELD on the two squads whose sheet carries it", async () => {
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      squad: "field_goal_block",
+      slot: "starting",
+      positionName: "DEF ON FIELD",
+    });
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.specialTeams[specialTeamsCellKey("field_goal_block", "starting")]).toBe(
+      "DEF ON FIELD",
+    );
   });
 });

@@ -111,6 +111,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     offensivePositionGroups: [],
     defensivePositionGroups: [],
     formalwear: { tie: false, bowtie: false },
+    specialTeams: {},
     blues: "None",
     eligibility: null,
     availability: "green",
@@ -182,7 +183,7 @@ describe("the board itself", () => {
 
     expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27");
     expect(screen.getByTestId("season-label")).toHaveTextContent("1 player");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("31 columns");
+    expect(screen.getByTestId("season-label")).toHaveTextContent("55 columns");
   });
 
   it("groups the columns the way the 2026-09-16 call settled (LAN-387)", async () => {
@@ -200,6 +201,31 @@ describe("the board itself", () => {
     expect(within(board).getByText("Defensive assignments")).toBeInTheDocument();
     // No "Season" band survives the rename.
     expect(within(board).queryByText("Season")).not.toBeInTheDocument();
+  });
+
+  it("opens Special teams closed, and shows six squads of four italic slots when expanded", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(within(board).queryByText("Kick Return")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(within(board).getByTestId("band-toggle-specialTeams"));
+    });
+    expect(within(board).getByText("Special teams assignments")).toBeInTheDocument();
+    for (const squad of [
+      "Kick Return",
+      "Kickoff",
+      "Punt",
+      "Punt Return",
+      "Field Goal",
+      "Field Goal Block",
+    ]) {
+      expect(within(board).getAllByText(squad).length).toBeGreaterThan(0);
+    }
+    expect(within(board).getAllByText("Starting Position")).toHaveLength(6);
+    expect(within(board).getAllByText("Backup Position 3")).toHaveLength(6);
   });
 
   it("opens Kit closed and shows its columns once the group is expanded", async () => {

@@ -20,6 +20,7 @@ import { ENTRY_LABELS, formatDay, labelFor, MEMBERSHIP_STATUS_LABELS } from "../
 import PositionField from "./position-field";
 import JerseyField from "./jersey-field";
 import MultiSelectField from "./multi-select-field";
+import SpecialTeamsSection from "./special-teams-section";
 
 /**
  * The membership record's own groups — the same ones the board shows, in the
@@ -236,6 +237,16 @@ export default function SeasonFactsSection({
           onCommit={(next) => commitSeasonField("defenceBackupPosition", next)}
         />
       </Section>
+
+      <SpecialTeamsSection
+        assignments={record.season.specialTeams}
+        editing={editing}
+        locked={locked}
+        savingOf={savingOf}
+        errorFor={errorFor}
+        setEditing={setEditing}
+        commitSeasonField={commitSeasonField}
+      />
 
       <Section variant="banded" band="kit" title="Kit" testId="kit" collapsible>
         <MultiSelectField

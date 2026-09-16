@@ -15,7 +15,13 @@ export {
   DEFENSIVE_POSITION_GROUP_VALUES,
   FORMALWEAR_ITEM_KEYS,
   OFFENSIVE_POSITION_GROUP_VALUES,
+  parseSpecialTeamsCellKey,
+  SPECIAL_TEAMS_SLOTS,
+  SPECIAL_TEAMS_SQUADS,
+  specialTeamsCellKey,
 } from "./vocabulary";
+export type { SpecialTeamsSlot, SpecialTeamsSquad } from "./vocabulary";
+export { commitSpecialTeamsAssignment } from "./write-special-teams";
 export type { PositionColumn } from "./write-position";
 export { commitPosition } from "./write-position";
 export type { Kit } from "./write-jersey";

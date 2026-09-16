@@ -181,6 +181,15 @@ export default function BoardTableHead({
                 borderRightColor: "background.paper",
               }}
             >
+              {column.groupHeading ? (
+                <Typography
+                  variant="caption"
+                  component="span"
+                  sx={{ display: "block", fontWeight: 700, lineHeight: 1.3 }}
+                >
+                  {column.groupHeading}
+                </Typography>
+              ) : null}
               <Stack
                 direction="row"
                 spacing={0.5}
@@ -191,6 +200,7 @@ export default function BoardTableHead({
                     active={sortKey === column.key}
                     direction={sortKey === column.key ? sortDirection : "asc"}
                     onClick={() => setSort(column.key)}
+                    sx={column.groupHeading ? { fontStyle: "italic" } : undefined}
                   >
                     {column.label}
                   </TableSortLabel>

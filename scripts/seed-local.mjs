@@ -557,6 +557,7 @@ const rows = {
   jersey_assignments: [],
   coach_group_assignments: [],
   membership_position_groups: [],
+  special_teams_assignments: [],
   formalwear_records: [],
   blues_awards: [],
   onboarding_item_types: [],
@@ -1494,6 +1495,34 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
         updated_at: "2026-10-02T09:00:00Z",
       });
     }
+  }
+
+  // LAN-374: special teams. Six squads, four cells each; the sheet is sparse,
+  // so most players hold a handful of cells and plenty hold none.
+  const SPECIAL_TEAMS_SEED = [
+    ["kick_return", ["Left Tackle", "Left Upback", "Middle Returner", "Right Guard"]],
+    ["kickoff", ["1 Gunner", "3 Heavy", "8 Linebacker", "Kicker"]],
+    ["punt", ["Longsnapper", "Left Wing", "Middle Wall", "Punter"]],
+    ["punt_return", ["Returner", "DEF ON FIELD"]],
+    ["field_goal", ["Holder", "Left TE", "Right Wing", "Kicker"]],
+    ["field_goal_block", ["DEF ON FIELD"]],
+  ];
+  const SPECIAL_TEAMS_SLOT_CODES = ["starting", "backup_1", "backup_2", "backup_3"];
+  if (i % 3 !== 2) {
+    const [squad, values] = SPECIAL_TEAMS_SEED[i % SPECIAL_TEAMS_SEED.length];
+    SPECIAL_TEAMS_SLOT_CODES.slice(0, 1 + (i % 3)).forEach((slot, index) => {
+      add("special_teams_assignments", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        squad,
+        slot,
+        position_name: values[index % values.length],
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-02T09:00:00Z",
+        updated_at: "2026-10-02T09:00:00Z",
+      });
+    });
   }
 
   // LAN-387: the offensive and defensive position groups, from Stewart's
@@ -5209,6 +5238,21 @@ const WRITE_PLAN = [
       "created_at",
     ],
     "membership_position_groups",
+  ],
+  [
+    "public.special_teams_assignments",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "squad",
+      "slot",
+      "position_name",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "special_teams_assignments",
   ],
   [
     "public.formalwear_records",

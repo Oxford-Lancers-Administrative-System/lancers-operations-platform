@@ -132,6 +132,7 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
       defensivePositionGroups: [],
       bps: "No" as const,
       formalwear: { tie: false, bowtie: false },
+      specialTeams: {},
       blues: "None",
       eligibility: null,
       availability: null,

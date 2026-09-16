@@ -21,6 +21,7 @@ import type { PersonRecord } from "@/lib/services/person-record";
 import { formatChaseNext } from "@/app/operate/people/missing/chase-presentation";
 import type { OnboardingItemDisplay, PlayerRecordData } from "@/lib/services/player-record";
 import type { BpsValue, FormalwearItemKey, Kit, PositionColumn } from "@/lib/services/roster-board";
+import { parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
 
 import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
@@ -40,6 +41,7 @@ import {
   recordCommitJerseyNumbersAction,
   recordCommitPositionAction,
   recordCommitPositionGroupsAction,
+  recordCommitSpecialTeamsAssignmentAction,
   recordResolveOnboardingItemAction,
   recordSetStatusAction,
 } from "./record-actions";
@@ -165,6 +167,19 @@ export default function PlayerRecordView({
     key: string,
     next: string | string[],
   ): (() => Promise<{ error: string | null }>) | null {
+    // LAN-374: one branch for all twenty-four special-teams cells.
+    const cell = parseSpecialTeamsCellKey(key);
+    if (cell) {
+      return () =>
+        recordCommitSpecialTeamsAssignmentAction({
+          membershipId: record.membershipId,
+          seasonId: record.seasonId,
+          squad: cell.squad,
+          slot: cell.slot,
+          positionName: (next as string) || null,
+        });
+    }
+
     switch (key) {
       case "status":
         return () =>

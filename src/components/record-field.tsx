@@ -15,15 +15,25 @@ export const SAVING = "Saving…";
 export function RecordRow({
   label,
   note,
+  labelItalic,
   children,
 }: {
   label: string;
   note?: string;
+  /** LAN-374 — a slot name under its squad's bold heading. */
+  labelItalic?: boolean;
   children: ReactNode;
 }) {
   return (
     <FactList>
-      <Fact layout="inline" label={label} value={children} provenance={note} testId="record-row" />
+      <Fact
+        layout="inline"
+        label={label}
+        labelItalic={labelItalic}
+        value={children}
+        provenance={note}
+        testId="record-row"
+      />
     </FactList>
   );
 }
@@ -37,6 +47,7 @@ export function RecordRow({
  */
 export function RecordField({
   label,
+  labelItalic,
   value,
   note,
   status,
@@ -52,6 +63,8 @@ export function RecordField({
   onCommit,
 }: {
   label: string;
+  /** LAN-374 — a slot name under its squad's bold heading. */
+  labelItalic?: boolean;
   value: string | null;
   note?: string;
   status?: { domain: StatusDomain; code: string };
@@ -71,7 +84,7 @@ export function RecordField({
   const editable = !readOnly && !saving && options !== undefined && onOpen !== undefined;
 
   return (
-    <RecordRow label={label}>
+    <RecordRow label={label} labelItalic={labelItalic}>
       {editing && options ? (
         <Select
           size="small"

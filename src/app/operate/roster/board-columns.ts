@@ -9,6 +9,9 @@ import {
   DEFENSIVE_POSITION_GROUP_VALUES,
   FORMALWEAR_ITEM_KEYS,
   OFFENSIVE_POSITION_GROUP_VALUES,
+  SPECIAL_TEAMS_SLOTS,
+  SPECIAL_TEAMS_SQUADS,
+  specialTeamsCellKey,
 } from "@/lib/services/roster-board/vocabulary";
 import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
@@ -114,6 +117,8 @@ export interface ColumnDef {
   readonly options?: readonly string[];
   readonly optionLabels?: Readonly<Record<string, string>>;
   readonly kit?: "blue" | "white";
+  /** The bold line above an italic `label` — LAN-374's six squad sub-headings. */
+  readonly groupHeading?: string;
   /** `edit: "onboarding"` only — the `onboarding_item_types.code` this column edits, keying `row.onboardingItems`. */
   readonly itemCode?: string;
   readonly width: number;
@@ -535,7 +540,22 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       requires: "person_record_authority",
     },
     // ----------------------------------------- Special teams assignments --
-    // LAN-374 fills this group; LAN-387 only puts it in the order.
+    // LAN-374: six squads, four cells each, twenty-four columns. Each is one
+    // pick from that squad's own list; no rule ties any two of them together.
+    ...SPECIAL_TEAMS_SQUADS.flatMap((squad) =>
+      SPECIAL_TEAMS_SLOTS.map((slot) => ({
+        key: specialTeamsCellKey(squad.squad, slot.slot),
+        label: slot.label,
+        groupHeading: squad.label,
+        band: "specialTeams" as const,
+        edit: "select" as const,
+        options: squad.positions,
+        width: 176,
+        sortable: true,
+        filterable: true,
+        requires: "person_record_authority" as const,
+      })),
+    ),
     // ------------------------------------------------------------------ Kit --
     // LAN-375 fills this group. Formalwear moves here from Season and keeps
     // Tie and Bow tie; the club's blue game socks are a Kit item of their own.
@@ -584,6 +604,14 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     offensivePositionGroups: ["offensivePositionGroups"],
     defensivePositionGroups: ["defensivePositionGroups"],
     formalwear: ["formalwear"],
+    ...Object.fromEntries(
+      SPECIAL_TEAMS_SQUADS.flatMap((squad) =>
+        SPECIAL_TEAMS_SLOTS.map((slot) => [
+          specialTeamsCellKey(squad.squad, slot.slot),
+          ["specialTeams"] as const,
+        ]),
+      ),
+    ),
     blues: ["blues"],
     eligibility: ["eligibility"],
     availability: ["availability"],

@@ -38,6 +38,7 @@ let pastSeasonId: string;
 let personId: string;
 let membershipId: string;
 let pastMembershipId: string;
+let pastBlueNumber: string;
 
 async function cleanUp(): Promise<void> {
   for (const id of [membershipId, pastMembershipId]) {
@@ -125,10 +126,25 @@ beforeAll(async () => {
   );
   pastMembershipId = pastMembership.rows[0].id;
 
+  // A number nobody in the *current* season holds, read rather than hardcoded:
+  // the point of the assertion below is that the past season's number does not
+  // leak into this season's holder map, and a collision with the seed would
+  // make that assertion pass for the wrong reason.
+  const free = await observer.query<{ number: number }>(
+    `select series.number from generate_series(1, 99) as series(number)
+      where not exists (
+        select 1 from public.jersey_assignments j
+         where j.season_id = $1::uuid and j.kit = 'blue' and j.number = series.number
+      )
+      order by series.number limit 1`,
+    [seasonId],
+  );
+  pastBlueNumber = String(free.rows[0].number);
+
   await observer.query(
     `insert into public.jersey_assignments (season_membership_id, season_id, kit, number, effective_from, is_predominant)
-     values ($1::uuid, $2::uuid, 'blue', 42, current_date, true)`,
-    [pastMembershipId, pastSeasonId],
+     values ($1::uuid, $2::uuid, 'blue', $3::smallint, current_date, true)`,
+    [pastMembershipId, pastSeasonId, pastBlueNumber],
   );
   await observer.query(
     `insert into public.blues_awards (season_membership_id, season_id, half_blue_awarded, full_blue_awarded, awarded_on)
@@ -188,7 +204,7 @@ describe("readPlayerRecord — assembling one season's board facts for one membe
     const data = (result as PlayerRecordFound).data;
     // The number minted onto the *past* season's fixture must not leak into
     // this season's holder map.
-    expect(data.jerseyHolders.blue["42"]).toBeUndefined();
+    expect(data.jerseyHolders.blue[pastBlueNumber]).toBeUndefined();
   });
 
   it("lists the person's other seasons, with that season's predominant Blue number and award", async () => {
@@ -197,7 +213,7 @@ describe("readPlayerRecord — assembling one season's board facts for one membe
     const other = data.otherSeasons.find((season) => season.membershipId === pastMembershipId);
     expect(other).toBeDefined();
     expect(other?.status).toBe("archived");
-    expect(other?.blueJerseyNumber).toBe("42");
+    expect(other?.blueJerseyNumber).toBe(pastBlueNumber);
     expect(other?.blues).toBe("Half");
   });
 

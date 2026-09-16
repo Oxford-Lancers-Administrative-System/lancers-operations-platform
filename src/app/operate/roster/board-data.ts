@@ -21,6 +21,9 @@ export interface BoardSort {
 }
 
 export function rawValue(row: RosterBoardRow, key: string): string | string[] | number | null {
+  // LAN-374: the twenty-four special-teams cells are one family, keyed
+  // `st:<squad>:<slot>`, not twenty-four cases.
+  if (key.startsWith("st:")) return row.specialTeams[key] ?? null;
   switch (key) {
     case "college":
       return row.college;

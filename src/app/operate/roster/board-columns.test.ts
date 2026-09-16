@@ -37,6 +37,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     offensivePositionGroups: [],
     defensivePositionGroups: [],
     formalwear: { tie: true, bowtie: false },
+    specialTeams: {},
     blues: "Half",
     eligibility: "eligible",
     availability: "green",
@@ -123,6 +124,7 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
       "coaching",
       "offensive",
       "defensive",
+      "specialTeams",
       "kit",
     ]);
   });
@@ -175,6 +177,25 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
       "Linebackers",
       "Defensive Backs",
     ]);
+  });
+
+  it("gives special teams six squads of four cells, each on its own list (LAN-374)", () => {
+    const columns = buildColumns(POSITION_OPTIONS).filter(
+      (column) => column.band === "specialTeams",
+    );
+    expect(columns).toHaveLength(24);
+    expect(columns.slice(0, 4).map((column) => column.label)).toEqual([
+      "Starting Position",
+      "Backup Position 1",
+      "Backup Position 2",
+      "Backup Position 3",
+    ]);
+    expect(columns[0].groupHeading).toBe("Kick Return");
+    expect(columns[0].key).toBe("st:kick_return:starting");
+    // Each squad's list is its own — the punt squad's Longsnapper is not on
+    // the kick-return squad's list, and Field Goal Block offers one value.
+    expect(columns[0].options).not.toContain("Longsnapper");
+    expect(columns[columns.length - 1].options).toEqual(["DEF ON FIELD"]);
   });
 
   it("moves Formalwear into Kit with Tie and Bow tie only", () => {
