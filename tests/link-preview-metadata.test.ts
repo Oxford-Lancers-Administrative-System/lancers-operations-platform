@@ -183,24 +183,53 @@ describe("the icons and the install prompt", () => {
       ["public/brand/crest.svg", 1_000],
       ["public/brand/crest-blue.svg", 1_000],
       ["public/brand/icon-mark.svg", 1_000],
-      ["src/app/join/[code]/opengraph-image.tsx", 500],
-      ["src/app/join/[code]/twitter-image.tsx", 100],
+      ["src/app/join/[code]/opengraph-image.png", 10_000],
+      ["src/app/join/[code]/twitter-image.png", 10_000],
+      ["src/app/join/[code]/opengraph-image.alt.txt", 10],
+      ["src/app/join/[code]/twitter-image.alt.txt", 10],
     ] as const) {
       const stats = await stat(path.join(REPO, file));
       expect(stats.size, `${file} is present but empty`).toBeGreaterThan(minimumBytes);
     }
   });
 
-  it("keeps the supplied preview image exactly as supplied", async () => {
-    // LAN-269: "do not generate one." The two files are the same bytes, so a
-    // future edit to one that is not made to the other shows up here.
-    const og = await readFile(path.join(REPO, "src/app/opengraph-image.png"));
-    const twitter = await readFile(path.join(REPO, "src/app/twitter-image.png"));
+  it.each([
+    ["the club-wide card", "src/app"],
+    ["the sign-up card", "src/app/join/[code]"],
+  ])("keeps %s exactly as supplied", async (_what, segment) => {
+    // LAN-269: "do not generate one." LAN-383 said the same of the sign-up
+    // door's card, which used to be drawn in code from crest.svg. Within a pair
+    // the two files are the same bytes, so an edit to one that is not made to
+    // the other shows up here.
+    const og = await readFile(path.join(REPO, segment, "opengraph-image.png"));
+    const twitter = await readFile(path.join(REPO, segment, "twitter-image.png"));
     expect(og.equals(twitter)).toBe(true);
 
     // The PNG header carries the dimensions: bytes 16-24 of an IHDR chunk.
     expect(og.readUInt32BE(16)).toBe(1200);
     expect(og.readUInt32BE(20)).toBe(630);
+  });
+
+  it("gives the sign-up card its own picture, not the club-wide one", async () => {
+    const club = await readFile(path.join(REPO, "src/app/opengraph-image.png"));
+    const join = await readFile(path.join(REPO, "src/app/join/[code]/opengraph-image.png"));
+    expect(join.equals(club)).toBe(false);
+
+    // The alt text Next emits as `og:image:alt` / `twitter:image:alt`: the file
+    // convention for this version reads it from a sibling `.alt.txt`.
+    for (const file of ["opengraph-image.alt.txt", "twitter-image.alt.txt"]) {
+      const alt = await readFile(path.join(REPO, "src/app/join/[code]", file), "utf8");
+      expect(alt.trim()).toBe("Join the Lancers — Oxford Lancers");
+    }
+  });
+
+  it("draws no sign-up card in code any more", async () => {
+    // The two generated modules LAN-383 deleted. A route segment holding both a
+    // .png and a .tsx for the same convention is ambiguous, and the file is
+    // what Brian supplied.
+    for (const file of ["opengraph-image.tsx", "twitter-image.tsx"]) {
+      await expect(stat(path.join(REPO, "src/app/join/[code]", file))).rejects.toThrow();
+    }
   });
 
   it("cuts the favicon from the gold mark, at the three sizes a tab uses", async () => {

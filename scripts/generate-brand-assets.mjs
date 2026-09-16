@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Derives every committed brand artefact from the three files Brian supplied
- * on 9 September 2026 — LAN-277, LAN-278, LAN-269, LAN-279.
+ * Derives every committed brand artefact from the files Brian supplied on
+ * 9 September 2026 — LAN-277, LAN-278, LAN-269, LAN-279 — and on
+ * 16 September 2026 — LAN-383, LAN-385.
  *
  * The supplied originals are not in the repository. They live on the review
  * machine at `~/.local/state/lancers-operations-platform/brand/` (Downloads is
@@ -10,6 +11,11 @@
  *   app-logo-group-2454.svg   the application mark  -> public/brand/crest*.svg
  *   gold-outline-ops-logo.svg the favicon/app icons -> public/brand/icon-mark.svg + rasters
  *   og-image.png              the link preview      -> src/app/opengraph-image.png
+ *   join-og-image.png         the sign-up preview   -> src/app/join/[code]/opengraph-image.png
+ *
+ * Both preview images are copied byte for byte and never re-encoded: LAN-269
+ * and LAN-383 are one decision — the club supplied a picture, and the picture
+ * is what a chat shows.
  *
  * This script is a one-off asset tool, not part of `npm run verify`: it reads
  * files outside the repository and so cannot run in CI. It exists so the
@@ -333,15 +339,33 @@ async function main() {
     ]),
   );
 
-  // -- LAN-269: the link preview ------------------------------------------
-  // Used exactly as supplied. LAN-269: "do not generate one."
-  const og = await readFile(path.join(source, "og-image.png"));
-  const ogMeta = await sharp(og).metadata();
-  if (ogMeta.width !== 1200 || ogMeta.height !== 630) {
-    throw new Error(`og-image.png must be 1200x630, found ${ogMeta.width}x${ogMeta.height}`);
-  }
-  await put(path.join(app, "opengraph-image.png"), og);
-  await put(path.join(app, "twitter-image.png"), og);
+  // -- LAN-269, LAN-383: the two link previews -----------------------------
+  // Used exactly as supplied. LAN-269: "do not generate one." Copied, never
+  // passed through sharp: re-encoding a supplied picture is modifying it.
+  const preview = async (file, ...targets) => {
+    const bytes = await readFile(path.join(source, file));
+    const meta = await sharp(bytes).metadata();
+    if (meta.width !== 1200 || meta.height !== 630) {
+      throw new Error(`${file} must be 1200x630, found ${meta.width}x${meta.height}`);
+    }
+    for (const target of targets) await put(target, bytes);
+  };
+
+  await preview(
+    "og-image.png",
+    path.join(app, "opengraph-image.png"),
+    path.join(app, "twitter-image.png"),
+  );
+
+  // The sign-up door's own card — the one link the club pushes at strangers.
+  // It was drawn in code from crest.svg until LAN-383 replaced it with Brian's
+  // recruitment image, which is used whole: no words drawn over it, and it
+  // still reads nothing from `params`.
+  await preview(
+    "join-og-image.png",
+    path.join(app, "join/[code]/opengraph-image.png"),
+    path.join(app, "join/[code]/twitter-image.png"),
+  );
 
   console.log(`Source: ${source}`);
   for (const file of wrote) console.log(`  wrote ${file}`);

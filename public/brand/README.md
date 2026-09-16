@@ -1,19 +1,21 @@
 # Brand assets
 
-Three files, three jobs. Brian supplied all three on **9 September 2026**
-(LAN-277), and each has exactly one place it belongs. Using the wrong one is the
-mistake this table exists to prevent.
+One file, one job. Brian supplied the first three on **9 September 2026**
+(LAN-277) and the sign-up card on **16 September 2026** (LAN-383), and each has
+exactly one place it belongs. Using the wrong one is the mistake this table
+exists to prevent.
 
-| Supplied file                   | Job                           | Lives here as                                                                                            |
-| ------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `Group 2454.svg`                | the **application mark**      | `crest.svg`, `crest-blue.svg`                                                                            |
-| `Gold Outline Ops Logo (1).svg` | the **favicon and app icons** | `icon-mark.svg`, `icon-192.png`, `icon-512.png`, and `src/app/icon.svg`, `apple-icon.png`, `favicon.ico` |
-| `OG Image.png`                  | the **link-preview image**    | `src/app/opengraph-image.png`, `twitter-image.png`                                                       |
+| Supplied file                   | Job                                  | Lives here as                                                                                            |
+| ------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `Group 2454.svg`                | the **application mark**             | `crest.svg`, `crest-blue.svg`                                                                            |
+| `Gold Outline Ops Logo (1).svg` | the **favicon and app icons**        | `icon-mark.svg`, `icon-192.png`, `icon-512.png`, and `src/app/icon.svg`, `apple-icon.png`, `favicon.ico` |
+| `OG Image.png`                  | the **site-wide link-preview image** | `src/app/opengraph-image.png`, `twitter-image.png`                                                       |
+| `Join OG Image.png`             | the **sign-up link-preview image**   | `src/app/join/[code]/opengraph-image.png`, `twitter-image.png`                                           |
 
 The originals are not in this repository. They are kept on the review machine at
 `~/.local/state/lancers-operations-platform/brand/` — Downloads is not durable —
-under the names `app-logo-group-2454.svg`, `gold-outline-ops-logo.svg` and
-`og-image.png`.
+under the names `app-logo-group-2454.svg`, `gold-outline-ops-logo.svg`,
+`og-image.png` and `join-og-image.png`.
 
 ## The application mark
 
@@ -47,9 +49,9 @@ square and the mark is 1.183 wide to tall, so it renders 48×41 and 32×27
 respectively, centred by `preserveAspectRatio`. The club's name beside it stays
 set in Geist.
 
-It is also the mark drawn into the recruit sign-up card at
-`src/app/join/[code]/opengraph-image.tsx`, which reads `crest.svg` at request
-time so the card follows the logo rather than copying it.
+It is not used for the link previews: both cards are supplied pictures, below.
+The recruit sign-up card used to be drawn from `crest.svg` at request time, and
+LAN-383 replaced that with the club's own recruitment image.
 
 ## The favicon and app icons
 
@@ -70,12 +72,21 @@ outline and needs a ground to read against a light or a dark browser chrome:
   tighter square — 92% rather than 80% — because a 16px slot cannot hold a
   three-crown mark drawn at the proportions a 512px tile uses.
 
-## The link preview
+## The link previews
 
-`OG Image.png` is 1200×630: the OUL AFC crest over the stadium with the full club
-name. It is used **as supplied**, unmodified, as the site-wide
-`opengraph-image.png` and `twitter-image.png`. Every route shows it except
-`/join/[code]`, which draws its own card.
+Two pictures, both used **as supplied** and copied byte for byte. Neither is
+re-encoded, recomposed or drawn over: sharp reads them only to check the
+1200×630 the crawlers want.
+
+- `OG Image.png` — the OUL AFC crest over the stadium with the full club name.
+  The site-wide `src/app/opengraph-image.png` and `twitter-image.png`. Every
+  route shows it except `/join/[code]`.
+- `Join OG Image.png` — the club's recruitment image, LAN-383. The sign-up
+  door's own card, `src/app/join/[code]/opengraph-image.png` and
+  `twitter-image.png`, with `og:image:alt` and `twitter:image:alt` in the
+  sibling `.alt.txt` files Next's file convention reads. It is the one link the
+  club pushes at strangers, and it still reads nothing from `params`: a card
+  printing the sign-up code would outlive the code in a chat transcript.
 
 ## Regenerating
 
