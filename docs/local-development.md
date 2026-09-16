@@ -251,6 +251,7 @@ APP_BASE_URL=http://localhost:3000
 SCHEDULER_TRIGGER_TOKEN=local-only-not-a-secret
 WHATSAPP_PHONE_NUMBER_ID=local-stub
 WHATSAPP_ACCESS_TOKEN=local-stub-not-a-secret
+WHATSAPP_APP_SECRET=local-stub-not-a-secret
 WHATSAPP_TEMPLATE_NAME=event_invitation
 EMAIL_API_KEY=local-stub-not-a-secret
 EMAIL_FROM_ADDRESS=Oxford Lancers <events@lancers.example.org>
