@@ -20,7 +20,7 @@ import { gateShellPage } from "../../gate";
 import { labelFor, STATUS_LABELS } from "../presentation";
 import { IdentitySection, ContactSection } from "./identity-contact-sections";
 import { MessagingSection } from "./messaging-section";
-import { AcademicSection, RestrictedSection } from "./academic-restricted-sections";
+import { RestrictedSection } from "./academic-restricted-sections";
 import StatusSection from "./status-section";
 import SeasonsSection from "./seasons-section";
 import HistorySection from "./history-section";
@@ -174,18 +174,19 @@ export default async function PersonRecordPage({
       ) : null}
 
       {/* LAN-307: every section takes the redacted record, and the recruit
-          record renders these same components from the same shape. */}
-      <IdentitySection record={visible} />
-
+          record renders these same components from the same shape.
+          LAN-365 correction: "Who they are" (IdentitySection, which now also
+          carries the four academic facts and the two identifiers) is
+          rendered after "How to reach them", per Brian's ordering. */}
       {visible.contacts !== undefined ? (
         <ContactSection record={visible} currentSeasonLabel={currentSeason?.label ?? null} />
       ) : null}
 
+      <IdentitySection record={visible} />
+
       {recruitConsent ? (
         <MessagingSection consent={recruitConsent} displayName={record.displayName} />
       ) : null}
-
-      {visible.college !== undefined ? <AcademicSection record={visible} /> : null}
 
       {visible.dateOfBirth !== undefined ? <RestrictedSection record={visible} /> : null}
 

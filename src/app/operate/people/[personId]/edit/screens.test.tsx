@@ -112,7 +112,9 @@ describe("a four-role operator", () => {
     expect(screen.getByRole("heading", { name: "Correct this record" })).toBeTruthy();
     expect(screen.getByText("Who they are")).toBeTruthy();
     expect(screen.getByText("How to reach them")).toBeTruthy();
-    expect(screen.getByText("Academic")).toBeTruthy();
+    // LAN-365 correction: no separate "Academic" section any more — its four
+    // fields folded into "Who they are".
+    expect(screen.queryByText("Academic")).toBeNull();
     expect(screen.getByText("Restricted")).toBeTruthy();
     expect(container.querySelector('input[name="givenName"]')).toHaveValue("Hollis");
   });

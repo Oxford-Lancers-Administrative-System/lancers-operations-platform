@@ -25,10 +25,7 @@ import {
   IdentitySection,
   recordedMobile,
 } from "@/app/operate/people/[personId]/identity-contact-sections";
-import {
-  AcademicSection,
-  RestrictedSection,
-} from "@/app/operate/people/[personId]/academic-restricted-sections";
+import { RestrictedSection } from "@/app/operate/people/[personId]/academic-restricted-sections";
 import StatusSection from "@/app/operate/people/[personId]/status-section";
 import SeasonsSection from "@/app/operate/people/[personId]/seasons-section";
 import HistorySection from "@/app/operate/people/[personId]/history-section";
@@ -264,11 +261,13 @@ export default function RecruitmentRecordView({
             </Box>
           </Section>
 
-          <IdentitySection record={person} />
+          {/* LAN-365 correction: "Who they are" (which now also carries the
+              academic facts and the two identifiers) renders after "How to
+              reach them", the same order the canonical person record uses. */}
           {person.contacts !== undefined ? (
             <ContactSection record={person} currentSeasonLabel={currentSeasonLabel} />
           ) : null}
-          {person.college !== undefined ? <AcademicSection record={person} /> : null}
+          <IdentitySection record={person} />
           {person.dateOfBirth !== undefined ? <RestrictedSection record={person} /> : null}
           {person.status !== undefined ? (
             <StatusSection record={person} roles={roles} alumniLabel={alumniLabel} />

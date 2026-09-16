@@ -36,10 +36,7 @@ import {
   ContactSection,
   IdentitySection,
 } from "@/app/operate/people/[personId]/identity-contact-sections";
-import {
-  AcademicSection,
-  RestrictedSection,
-} from "@/app/operate/people/[personId]/academic-restricted-sections";
+import { RestrictedSection } from "@/app/operate/people/[personId]/academic-restricted-sections";
 import StatusSection from "@/app/operate/people/[personId]/status-section";
 import RecruitmentRecordView from "./record-view";
 import { RECORD_CONSENT, STOP_MESSAGES } from "./consent-control";
@@ -175,7 +172,6 @@ describe("LAN-307 — the recruit record shows the whole person record", () => {
       <div>
         <IdentitySection record={FULL_PERSON} />
         <ContactSection record={FULL_PERSON} currentSeasonLabel="2026-27" />
-        <AcademicSection record={FULL_PERSON} />
         <RestrictedSection record={FULL_PERSON} />
         <StatusSection record={FULL_PERSON} roles={[]} alumniLabel="Never a member" />
       </div>,

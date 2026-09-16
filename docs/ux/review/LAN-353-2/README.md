@@ -32,13 +32,13 @@ can hold still.
 | `desktop-stop-roster-player.png`, `phone375-stop-roster-player.png` | A roster player's own Stop link: the membership sentence, and nothing to press. |
 | `desktop-stop-recruit.png`, `phone375-stop-recruit.png`             | A recruit's, unchanged.                                                         |
 
-## LAN-365 — the two identifiers in the personal group
+## LAN-365 — no academic section: everything folds into the personal group
 
-| File                                                                | What it shows                                                                                                                                                          |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `desktop-person-record.png`, `phone375-person-record.png`           | **Who they are** now ends with Student number and then BAFA registration number; **Academic** keeps college, matriculation year, expected graduation and degree field. |
-| `desktop-person-record-edit.png`, `phone375-person-record-edit.png` | The same move on the edit form.                                                                                                                                        |
-| `desktop-onboarding-details.png`, `phone375-onboarding-details.png` | The details step: the student number with its Bod-card guidance, and no BAFA field at all.                                                                             |
+| File                                                                | What it shows                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `desktop-person-record.png`, `phone375-person-record.png`           | Correction round: no separate **Academic** heading anywhere. **How to reach them** now renders first; **Who they are** follows it and ends College, Matriculation year, Expected graduation, Degree field, Student number, then BAFA registration number, in that order. |
+| `desktop-person-record-edit.png`, `phone375-person-record-edit.png` | The same fold and reorder on the edit form.                                                                                                                                                                                                                              |
+| `desktop-onboarding-details.png`, `phone375-onboarding-details.png` | Unchanged by this round: the student number with its Bod-card guidance, and no BAFA field at all.                                                                                                                                                                        |
 
 ## LAN-354 — the club link expires seven days after the event
 
