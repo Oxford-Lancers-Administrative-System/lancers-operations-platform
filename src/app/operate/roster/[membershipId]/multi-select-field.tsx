@@ -6,66 +6,72 @@ import Select from "@mui/material/Select";
 import Typography from "@mui/material/Typography";
 import { NotRecorded } from "@/components/fact";
 import { RecordRow as Row, SAVING } from "@/components/record-field";
-import type { FormalwearItemKey } from "@/lib/services/roster-board";
-import type { PlayerSeasonFacts } from "@/lib/services/player-record";
-import { FORMALWEAR_ITEMS, FORMALWEAR_LABELS } from "../board-columns";
 
-/** The formalwear multiselect field, editable as a set of owned items. */
-export default function FormalwearField({
-  season,
+/**
+ * One uncapped multi-select record field — LAN-387. Formalwear used to be the
+ * only one and had its own component; the coaching group and the two position
+ * groups are the same control over a different list, so there is one component
+ * and each caller brings its vocabulary. Nothing is capped, and the whole
+ * selection is what commits.
+ */
+export default function MultiSelectField({
+  label,
+  values,
+  options,
+  optionLabels,
   editing,
   readOnly,
   saving,
   error,
+  testId,
   onOpen,
   onClose,
-  onToggle,
+  onCommit,
 }: {
-  season: PlayerSeasonFacts;
+  label: string;
+  values: readonly string[];
+  options: readonly string[];
+  /** Display text per option, where the stored value is not the word shown. */
+  optionLabels?: Readonly<Record<string, string>>;
   editing: boolean;
   readOnly: boolean;
   /** This field's own save is in flight — LAN-380. */
   saving?: boolean;
-  /** What the last save was refused with, or could not be delivered with — LAN-380. */
   error?: string | null;
+  testId?: string;
   onOpen: () => void;
   onClose: () => void;
-  onToggle: (item: FormalwearItemKey, owned: boolean) => void;
+  onCommit: (next: string[]) => void;
 }) {
   const editable = !readOnly && !saving;
-  const owned = FORMALWEAR_ITEMS.filter((item) => season.formalwear[item]);
-  const display =
-    owned.length === 0 ? null : owned.map((item) => FORMALWEAR_LABELS[item]).join(", ");
+  const labelOf = (value: string) => optionLabels?.[value] ?? value;
+  const display = values.length === 0 ? null : values.map(labelOf).join(", ");
 
   return (
-    <Row label="Formalwear">
+    <Row label={label}>
       {editing ? (
         <Select
           size="small"
           open
           multiple
-          value={owned}
+          value={[...values]}
           onClose={onClose}
-          renderValue={(value) =>
-            (value as string[]).map((item) => FORMALWEAR_LABELS[item]).join(", ") || "—"
-          }
+          onChange={(event) => onCommit(event.target.value as string[])}
+          renderValue={(value) => (value as string[]).map(labelOf).join(", ") || "—"}
           sx={{ minWidth: 220 }}
+          MenuProps={{ slotProps: { paper: { sx: { maxHeight: 360 } } } }}
         >
-          {FORMALWEAR_ITEMS.map((item) => (
-            <MenuItem
-              key={item}
-              value={item}
-              onClick={() => onToggle(item, !season.formalwear[item])}
-            >
-              <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={season.formalwear[item]} />
-              <ListItemText primary={FORMALWEAR_LABELS[item]} />
+          {options.map((option) => (
+            <MenuItem key={option} value={option}>
+              <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={values.includes(option)} />
+              <ListItemText primary={labelOf(option)} />
             </MenuItem>
           ))}
         </Select>
       ) : (
         <Box
           onClick={editable ? onOpen : undefined}
-          data-testid={editable ? "editable-field" : undefined}
+          data-testid={editable ? "editable-field" : testId}
           sx={{
             display: "inline-block",
             cursor: editable ? "pointer" : "default",

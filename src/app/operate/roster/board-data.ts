@@ -42,16 +42,22 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.entry;
     case "offencePosition":
       return row.offencePosition;
+    case "offenceBackupPosition":
+      return row.offenceBackupPosition;
     case "defencePosition":
       return row.defencePosition;
-    case "specialTeamsPosition":
-      return row.specialTeamsPosition;
+    case "defenceBackupPosition":
+      return row.defenceBackupPosition;
     case "blueNumbers":
       return row.blueNumbers;
     case "whiteNumbers":
       return row.whiteNumbers;
-    case "coachGroup":
-      return row.coachGroup;
+    case "coachingGroups":
+      return row.coachingGroups;
+    case "offensivePositionGroups":
+      return row.offensivePositionGroups;
+    case "defensivePositionGroups":
+      return row.defensivePositionGroups;
     case "formalwear":
       return (Object.keys(row.formalwear) as (keyof typeof row.formalwear)[]).filter(
         (item) => row.formalwear[item],
@@ -106,7 +112,12 @@ function comparable(row: RosterBoardRow, key: string): string | number | null {
   return Number.isNaN(asNumber) ? value : asNumber;
 }
 
-const CODE_ONLY_COLUMNS = new Set(["offencePosition", "defencePosition", "specialTeamsPosition"]);
+const CODE_ONLY_COLUMNS = new Set([
+  "offencePosition",
+  "offenceBackupPosition",
+  "defencePosition",
+  "defenceBackupPosition",
+]);
 
 // Display text for a column's option code — label alone, never the code
 // beside it (LAN-186 item 9). Positions are the exception: the club's

@@ -20,7 +20,12 @@ import { closePool, withTransaction } from "@/lib/db";
 import { generateOnboardingItems, resolveOnboardingItem } from "./membership";
 import { recordOnboardingActivityIn } from "./onboarding-activity-log";
 import { resolveOpenSeason } from "./roster";
-import { commitBlues, commitCoachGroup, commitPosition, readPositionOptions } from "./roster-board";
+import {
+  commitBlues,
+  commitCoachingGroups,
+  commitPosition,
+  readPositionOptions,
+} from "./roster-board";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import { readPlayerRecord, type PlayerRecordFound } from "./player-record";
 
@@ -151,7 +156,12 @@ describe("readPlayerRecord — assembling one season's board facts for one membe
       column: "offence",
       code: offenceCode!,
     });
-    await commitCoachGroup({ actorPersonId, membershipId, seasonId, coachGroup: "Offense" });
+    await commitCoachingGroups({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      groups: ["Offense"],
+    });
     await commitBlues({ actorPersonId, membershipId, seasonId, value: "Full" });
 
     const result = await readPlayerRecord(membershipId);
@@ -159,7 +169,7 @@ describe("readPlayerRecord — assembling one season's board facts for one membe
     const data = (result as PlayerRecordFound).data;
 
     expect(data.season.offencePosition).toBe(offenceCode);
-    expect(data.season.coachGroup).toBe("Offense");
+    expect(data.season.coachingGroups).toEqual(["Offense"]);
     expect(data.season.blues).toBe("Full");
     expect(data.season.defencePosition).toBeNull();
     expect(data.positionOptions.offence.length).toBeGreaterThan(0);
@@ -168,12 +178,9 @@ describe("readPlayerRecord — assembling one season's board facts for one membe
   it("reads the season's own vocabulary rather than a fixed list (S3)", async () => {
     const result = await readPlayerRecord(membershipId);
     const data = (result as PlayerRecordFound).data;
-    expect(data.positionOptions.specialTeams.map((option) => option.code).sort()).toEqual([
-      "FG",
-      "KO",
-      "KR",
-      "PUNT",
-    ]);
+    // LAN-387: the vocabulary is the season's own, Stewart's additions merged in.
+    expect(data.positionOptions.offence.map((option) => option.code)).toContain("HB");
+    expect(data.positionOptions.defence.map((option) => option.code)).toContain("E");
   });
 
   it("names this membership's own season's jersey holders, not another season's", async () => {

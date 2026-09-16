@@ -6,7 +6,6 @@ import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 const POSITION_OPTIONS = {
   offence: [{ code: "QB", label: "Quarterback" }],
   defence: [{ code: "CB", label: "Cornerback" }],
-  specialTeams: [{ code: "KO", label: "Kickoff" }],
 };
 
 function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
@@ -29,12 +28,15 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     itemsResolved: 2,
     requiredOutstanding: 0,
     offencePosition: "QB",
+    offenceBackupPosition: null,
     defencePosition: null,
-    specialTeamsPosition: null,
+    defenceBackupPosition: null,
     blueNumbers: ["7"],
     whiteNumbers: [],
-    coachGroup: "Offense",
-    formalwear: { tie: true, bowtie: false, socks: true },
+    coachingGroups: ["Offense"],
+    offensivePositionGroups: [],
+    defensivePositionGroups: [],
+    formalwear: { tie: true, bowtie: false },
     blues: "Half",
     eligibility: "eligible",
     availability: "green",
@@ -103,17 +105,84 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
         { code: "RB", label: "Running Back" },
       ],
       defence: [],
-      specialTeams: [],
     });
     const widerOffence = widerVocabulary.find((column) => column.key === "offencePosition");
     expect(widerOffence?.options).toEqual(["QB", "RB"]);
   });
 
-  it("is exactly twenty-eight columns including Player", () => {
-    // Correction round 2, item 5 (WP-operator-record, LAN-217) added seven
-    // onboarding-item columns to the twenty-one this test used to name.
+  it("groups every column into the order Brian and Stewart settled (LAN-387)", () => {
     const columns = buildColumns(POSITION_OPTIONS);
-    expect(columns.length + 1).toBe(28);
+    const bandsInOrder: string[] = [];
+    for (const column of columns) {
+      if (bandsInOrder[bandsInOrder.length - 1] !== column.band) bandsInOrder.push(column.band);
+    }
+    expect(bandsInOrder).toEqual([
+      "person",
+      "onboarding",
+      "membership",
+      "coaching",
+      "offensive",
+      "defensive",
+      "kit",
+    ]);
+  });
+
+  it("gives the Membership group exactly the facts the call named, in order", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    expect(
+      columns.filter((column) => column.band === "membership").map((column) => column.key),
+    ).toEqual([
+      "status",
+      "entry",
+      "blueNumbers",
+      "whiteNumbers",
+      "blues",
+      "eligibility",
+      "bps",
+      "availability",
+    ]);
+  });
+
+  it("pairs a primary and a backup a side, both on the season's own vocabulary", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    const offensive = columns.filter((column) => column.band === "offensive");
+    expect(offensive.map((column) => column.label)).toEqual([
+      "Primary position",
+      "Backup position",
+    ]);
+    expect(offensive[0].options).toEqual(offensive[1].options);
+
+    const defensive = columns.filter((column) => column.band === "defensive");
+    expect(defensive.map((column) => column.label)).toEqual([
+      "Primary position",
+      "Backup position",
+    ]);
+  });
+
+  it("leaves the multi-selects uncapped and the coaching group's three values as written", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    const coaching = columns.find((column) => column.key === "coachingGroups")!;
+    expect(coaching.edit).toBe("multiselect");
+    expect(coaching.options).toEqual(["Offense", "Defense", "Special Teams"]);
+    expect(columns.find((column) => column.key === "offensivePositionGroups")?.options).toEqual([
+      "Offensive Line",
+      "Quarterbacks",
+      "Runningbacks",
+      "Wide Receivers",
+    ]);
+    expect(columns.find((column) => column.key === "defensivePositionGroups")?.options).toEqual([
+      "Defensive Line",
+      "Linebackers",
+      "Defensive Backs",
+    ]);
+  });
+
+  it("moves Formalwear into Kit with Tie and Bow tie only", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    const formalwear = columns.find((column) => column.key === "formalwear")!;
+    expect(formalwear.band).toBe("kit");
+    expect(formalwear.options).toEqual(["tie", "bowtie"]);
+    expect(formalwear.optionLabels).toEqual({ tie: "Tie", bowtie: "Bow tie" });
   });
 });
 
@@ -137,14 +206,17 @@ describe("buildColumns — Status is an ordinary select column (item 4)", () => 
 // Brian, 2026-09-05 (`WP-operator-record`, LAN-217, correction round 5): BPS
 // sits immediately before Availability, and Availability is the last column.
 describe("buildColumns — column order (correction round 5)", () => {
-  it("puts BPS immediately before Availability, with Availability last", () => {
-    const keys = buildColumns(POSITION_OPTIONS).map((column) => column.key);
-    const bpsIndex = keys.indexOf("bps");
-    const availabilityIndex = keys.indexOf("availability");
+  it("puts BPS immediately before Availability, and Availability last in its group", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    const membership = columns
+      .filter((column) => column.band === "membership")
+      .map((column) => column.key);
+    const bpsIndex = membership.indexOf("bps");
+    const availabilityIndex = membership.indexOf("availability");
 
     expect(bpsIndex).toBeGreaterThanOrEqual(0);
     expect(availabilityIndex).toBe(bpsIndex + 1);
-    expect(availabilityIndex).toBe(keys.length - 1);
+    expect(availabilityIndex).toBe(membership.length - 1);
   });
 });
 

@@ -10,17 +10,24 @@ export type {
   RosterBoardRow,
 } from "./read";
 export { listRosterBoard, readPositionOptions } from "./read";
+export {
+  COACHING_GROUP_VALUES,
+  DEFENSIVE_POSITION_GROUP_VALUES,
+  FORMALWEAR_ITEM_KEYS,
+  OFFENSIVE_POSITION_GROUP_VALUES,
+} from "./vocabulary";
 export type { PositionColumn } from "./write-position";
 export { commitPosition } from "./write-position";
 export type { Kit } from "./write-jersey";
 export { commitJerseyNumbers } from "./write-jersey";
-export type { AvailabilityLevel, EligibilityStatus } from "./write-misc";
+export type { AvailabilityLevel, EligibilityStatus, PositionGroupSide } from "./write-misc";
 export {
   commitAvailability,
   commitBlues,
   commitBps,
-  commitCoachGroup,
+  commitCoachingGroups,
   commitEligibility,
   commitEntry,
-  commitFormalwearItem,
+  commitFormalwearItems,
+  commitPositionGroups,
 } from "./write-misc";

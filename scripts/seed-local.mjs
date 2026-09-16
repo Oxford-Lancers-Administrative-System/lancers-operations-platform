@@ -402,6 +402,17 @@ const VOCAB_2026 = {
     ["CB", "Cornerback", "defence"],
     ["FS", "Free Safety", "defence"],
     ["SS", "Strong Safety", "defence"],
+    // LAN-387 — Stewart's assignments sheet adds these to the live vocabulary.
+    // The migration inserts the same seven into every non-archived season's
+    // vocabulary; they are here so a reset-and-seed and a migrated database
+    // hold the same list.
+    ["HB", "Half Back", "offence"],
+    ["OL", "Offensive Line", "offence"],
+    ["N", "Nickel", "defence"],
+    ["DL", "Defensive Line", "defence"],
+    ["OLB", "Outside Line Backer", "defence"],
+    ["ILB", "Inside Line Backer", "defence"],
+    ["E", "Edge", "defence"],
     // Source Data Analysis §11.1: four special-teams slots, 0% populated. The
     // structure is reproduced deliberately — the model must tolerate
     // anticipated-but-unused vocabulary.
@@ -545,6 +556,7 @@ const rows = {
   position_assignments: [],
   jersey_assignments: [],
   coach_group_assignments: [],
+  membership_position_groups: [],
   formalwear_records: [],
   blues_awards: [],
   onboarding_item_types: [],
@@ -1463,17 +1475,54 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
   // Coach group. Not everybody has one: the club assigns them as the coaching
   // staff settles, and the board's "Coach group" column has to render an empty
   // cell as readily as a filled one.
+  // LAN-387: several groups per player, uncapped. About one player in three
+  // trains with two of them, which is exactly the case the multi-select cell
+  // has to render.
   if (i % 4 !== 3) {
-    add("coach_group_assignments", {
-      id: uuid(),
-      season_membership_id: membership.id,
-      season_id: seasonCurrent.id,
-      coach_group: ["Offense", "Defense", "Special teams"][i % 3],
-      responsible_coach_person_id: people[9].id,
-      recorded_by_person_id: people[2].id,
-      created_at: "2026-10-02T09:00:00Z",
-      updated_at: "2026-10-02T09:00:00Z",
-    });
+    const groups = ["Offense", "Defense", "Special Teams"];
+    const held = [groups[i % 3]];
+    if (i % 3 === 0) held.push("Special Teams");
+    for (const coachGroup of new Set(held)) {
+      add("coach_group_assignments", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        coach_group: coachGroup,
+        responsible_coach_person_id: people[9].id,
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-02T09:00:00Z",
+        updated_at: "2026-10-02T09:00:00Z",
+      });
+    }
+  }
+
+  // LAN-387: the offensive and defensive position groups, from Stewart's
+  // Coaching Assignments tab. Blank on about a quarter of the squad.
+  const OFFENSIVE_POSITION_GROUPS = [
+    "Offensive Line",
+    "Quarterbacks",
+    "Runningbacks",
+    "Wide Receivers",
+  ];
+  const DEFENSIVE_POSITION_GROUPS = ["Defensive Line", "Linebackers", "Defensive Backs"];
+  for (const [side, vocabulary] of [
+    ["offence", OFFENSIVE_POSITION_GROUPS],
+    ["defence", DEFENSIVE_POSITION_GROUPS],
+  ]) {
+    if (i % 4 === 3) continue;
+    const held = [vocabulary[i % vocabulary.length]];
+    if (i % 5 === 0) held.push(vocabulary[(i + 1) % vocabulary.length]);
+    for (const positionGroup of new Set(held)) {
+      add("membership_position_groups", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        side,
+        position_group: positionGroup,
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-02T09:00:00Z",
+      });
+    }
   }
 
   // Formalwear, reasked every season. The measured ownership rates are tie 79%,
@@ -5147,6 +5196,19 @@ const WRITE_PLAN = [
       "updated_at",
     ],
     "coach_group_assignments",
+  ],
+  [
+    "public.membership_position_groups",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "side",
+      "position_group",
+      "recorded_by_person_id",
+      "created_at",
+    ],
+    "membership_position_groups",
   ],
   [
     "public.formalwear_records",

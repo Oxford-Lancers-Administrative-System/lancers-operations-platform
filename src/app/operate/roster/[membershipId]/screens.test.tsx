@@ -123,16 +123,20 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
     season: {
       offencePosition: null,
       defencePosition: null,
-      specialTeamsPosition: null,
+      offenceBackupPosition: null,
+      defenceBackupPosition: null,
       blueNumbers: [],
       whiteNumbers: [],
-      coachGroup: null,
-      formalwear: { tie: false, bowtie: false, socks: false },
+      coachingGroups: [],
+      offensivePositionGroups: [],
+      defensivePositionGroups: [],
+      bps: "No" as const,
+      formalwear: { tie: false, bowtie: false },
       blues: "None",
       eligibility: null,
       availability: null,
     },
-    positionOptions: { offence: [], defence: [], specialTeams: [] },
+    positionOptions: { offence: [], defence: [] },
     jerseyHolders: { blue: {}, white: {} },
     otherSeasons: [],
     attendance: [],
@@ -315,7 +319,7 @@ describe("UX-13 — the confirmation says what the intake actually did", () => {
   });
 });
 
-describe("Person · Onboarding · Season banding", () => {
+describe("Person · Onboarding · Membership banding", () => {
   beforeEach(() => {
     givenRecord({
       onboardingItems: [
@@ -344,7 +348,7 @@ describe("Person · Onboarding · Season banding", () => {
     expect(
       within(screen.getByTestId("section-onboarding")).getByText("Onboarding"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Season · 2026-27")).toBeInTheDocument();
+    expect(screen.getByText("Membership · 2026-27")).toBeInTheDocument();
   });
 
   it("routes a durable person fact to the person record rather than editing it here", async () => {

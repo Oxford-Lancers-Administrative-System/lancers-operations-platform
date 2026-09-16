@@ -103,11 +103,14 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     requiredOutstanding: 0,
     offencePosition: "QB",
     defencePosition: null,
-    specialTeamsPosition: null,
+    offenceBackupPosition: null,
+    defenceBackupPosition: null,
     blueNumbers: ["7"],
     whiteNumbers: [],
-    coachGroup: null,
-    formalwear: { tie: false, bowtie: false, socks: false },
+    coachingGroups: [],
+    offensivePositionGroups: [],
+    defensivePositionGroups: [],
+    formalwear: { tie: false, bowtie: false },
     blues: "None",
     eligibility: null,
     availability: "green",
@@ -126,7 +129,6 @@ function givenBoard(overrides: Partial<RosterBoardData> = {}): void {
     positionOptions: {
       offence: [{ code: "QB", label: "Quarterback" }],
       defence: [{ code: "CB", label: "Cornerback" }],
-      specialTeams: [{ code: "KO", label: "Kickoff" }],
     },
     ...overrides,
   } as RosterBoardData);
@@ -180,10 +182,10 @@ describe("the board itself", () => {
 
     expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27");
     expect(screen.getByTestId("season-label")).toHaveTextContent("1 player");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("28 columns");
+    expect(screen.getByTestId("season-label")).toHaveTextContent("31 columns");
   });
 
-  it("bands the columns as Person, Onboarding, Season", async () => {
+  it("groups the columns the way the 2026-09-16 call settled (LAN-387)", async () => {
     givenBoard();
     render(await RosterPage(pageProps()));
 
@@ -192,10 +194,29 @@ describe("the board itself", () => {
     // "Onboarding" is both the band label and its one column's label — both
     // legitimately present, so this asserts there are two rather than one.
     expect(within(board).getAllByText("Onboarding")).toHaveLength(2);
-    expect(within(board).getByText("Season")).toBeInTheDocument();
+    expect(within(board).getByText("Membership")).toBeInTheDocument();
+    expect(within(board).getByText("Coaching assignments")).toBeInTheDocument();
+    expect(within(board).getByText("Offensive assignments")).toBeInTheDocument();
+    expect(within(board).getByText("Defensive assignments")).toBeInTheDocument();
+    // No "Season" band survives the rename.
+    expect(within(board).queryByText("Season")).not.toBeInTheDocument();
   });
 
-  it("carries the twenty-eight approved columns, with raw email and phone gone", async () => {
+  it("opens Kit closed and shows its columns once the group is expanded", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(within(board).queryByText("Formalwear")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(within(board).getByTestId("band-toggle-kit"));
+    });
+    expect(within(board).getByText("Kit")).toBeInTheDocument();
+    expect(within(board).getByText("Formalwear")).toBeInTheDocument();
+  });
+
+  it("carries the approved columns, with raw email and phone gone", async () => {
     givenBoard();
     render(await RosterPage(pageProps()));
 
@@ -207,13 +228,14 @@ describe("the board itself", () => {
       "Missing",
       "Status",
       "Entry",
-      "Offence",
-      "Defence",
-      "Special teams",
+      // LAN-387: a primary and a backup a side, one label each per group.
+      "Primary position",
+      "Backup position",
+      "Coaching group",
+      "Offensive position group",
+      "Defensive position group",
       "Blue #",
       "White #",
-      "Coach group",
-      "Formalwear",
       "Blues",
       "Eligibility",
       "Availability",
@@ -227,8 +249,12 @@ describe("the board itself", () => {
       "Squad photo",
       "Comms group",
     ]) {
-      expect(within(board).getByText(label)).toBeInTheDocument();
+      expect(within(board).getAllByText(label).length).toBeGreaterThan(0);
     }
+    // Dropped with the regroup: the single Special teams position column
+    // (Brian, 2026-09-16) and the old Coach group single-select.
+    expect(within(board).queryByText("Special teams")).not.toBeInTheDocument();
+    expect(within(board).queryByText("Coach group")).not.toBeInTheDocument();
     // "Email" legitimately appears as the Contactable column's own indicator
     // chip (not a raw value) — what must be gone is a column *header* named
     // for the value rather than the indicator.
@@ -277,7 +303,9 @@ describe("the board itself", () => {
       rows: [
         row({
           college: null,
-          coachGroup: null,
+          coachingGroups: [],
+          offensivePositionGroups: [],
+          defensivePositionGroups: [],
           eligibility: null,
         }),
       ],
@@ -645,7 +673,7 @@ describe("select cells never echo the raw value beside the label (item 9)", () =
     render(await RosterPage(pageProps()));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Filter Offence" }));
+      fireEvent.click(screen.getAllByRole("button", { name: "Filter Primary position" })[0]);
     });
 
     expect(await screen.findByRole("menuitem", { name: "QB — Quarterback" })).toBeInTheDocument();
@@ -667,7 +695,7 @@ describe("the phone card — a way into the record, not a miniature board", () =
           displayName: "Avery Fielding",
           status: "active",
           missingCount: 2,
-          coachGroup: "Offense",
+          coachingGroups: ["Offense"],
           availability: "green",
         }),
       ],

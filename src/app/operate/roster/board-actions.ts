@@ -7,12 +7,13 @@ import {
   commitAvailability,
   commitBlues,
   commitBps,
-  commitCoachGroup,
+  commitCoachingGroups,
   commitEligibility,
   commitEntry,
-  commitFormalwearItem,
+  commitFormalwearItems,
   commitJerseyNumbers,
   commitPosition,
+  commitPositionGroups,
   type AvailabilityLevel,
   type BluesValue,
   type BpsValue,
@@ -20,6 +21,7 @@ import {
   type FormalwearItemKey,
   type Kit,
   type PositionColumn,
+  type PositionGroupSide,
 } from "@/lib/services/roster-board";
 import { resolveOnboardingItem, type OnboardingItemStatus } from "@/lib/services/membership";
 import type { BoardActionState } from "./board-action-state";
@@ -77,14 +79,14 @@ export async function commitJerseyNumbersAction(params: {
   return OK;
 }
 
-export async function commitCoachGroupAction(params: {
+export async function commitCoachingGroupsAction(params: {
   membershipId: string;
   seasonId: string;
-  coachGroup: string | null;
+  groups: readonly string[];
 }): Promise<BoardActionState> {
   const operator = await requireCapability("person_record_authority");
   try {
-    await commitCoachGroup({ actorPersonId: operator.personId, ...params });
+    await commitCoachingGroups({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }
@@ -92,15 +94,30 @@ export async function commitCoachGroupAction(params: {
   return OK;
 }
 
-export async function commitFormalwearItemAction(params: {
+export async function commitPositionGroupsAction(params: {
   membershipId: string;
   seasonId: string;
-  item: FormalwearItemKey;
-  owned: boolean;
+  side: PositionGroupSide;
+  groups: readonly string[];
 }): Promise<BoardActionState> {
   const operator = await requireCapability("person_record_authority");
   try {
-    await commitFormalwearItem({ actorPersonId: operator.personId, ...params });
+    await commitPositionGroups({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh();
+  return OK;
+}
+
+export async function commitFormalwearItemsAction(params: {
+  membershipId: string;
+  seasonId: string;
+  items: readonly FormalwearItemKey[];
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await commitFormalwearItems({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }

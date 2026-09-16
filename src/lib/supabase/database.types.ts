@@ -1870,6 +1870,65 @@ export type Database = {
           },
         ]
       }
+      membership_position_groups: {
+        Row: {
+          created_at: string
+          id: string
+          position_group: string
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          side: Database["public"]["Enums"]["position_side"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          position_group: string
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          side: Database["public"]["Enums"]["position_side"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          position_group?: string
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          side?: Database["public"]["Enums"]["position_side"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_position_groups_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "membership_position_groups_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "membership_position_groups_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_position_groups_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       messaging_schedules: {
         Row: {
           email_reminder_count: number
@@ -5022,6 +5081,8 @@ export type Database = {
         | "kick_return"
         | "punt"
         | "field_goal"
+        | "offence_backup"
+        | "defence_backup"
       prospect_status:
         | "identified"
         | "engaged"
@@ -5299,6 +5360,8 @@ export const Constants = {
         "kick_return",
         "punt",
         "field_goal",
+        "offence_backup",
+        "defence_backup",
       ],
       prospect_status: [
         "identified",

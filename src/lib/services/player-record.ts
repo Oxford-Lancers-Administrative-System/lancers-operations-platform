@@ -22,6 +22,7 @@ import { readPersonRecord, type PersonRecord } from "./person-record";
 import {
   readPositionOptions,
   type BluesValue,
+  type BpsValue,
   type FormalwearItemKey,
   type PositionOptions,
 } from "./roster-board";
@@ -36,13 +37,19 @@ import {
 
 export interface PlayerSeasonFacts {
   offencePosition: string | null;
+  offenceBackupPosition: string | null;
   defencePosition: string | null;
-  specialTeamsPosition: string | null;
+  defenceBackupPosition: string | null;
   blueNumbers: string[];
   whiteNumbers: string[];
-  coachGroup: string | null;
+  /** Uncapped multi-selects — LAN-387. */
+  coachingGroups: string[];
+  offensivePositionGroups: string[];
+  defensivePositionGroups: string[];
   formalwear: Record<FormalwearItemKey, boolean>;
   blues: BluesValue;
+  /** `public.bps_selections.is_selected`, defaulting to "No" — LAN-387 puts it on the record beside the board's own column. */
+  bps: BpsValue;
   /** `public.eligibility_status` for the `club_play` competition, or `null`. */
   eligibility: string | null;
   /** `public.availability_level`, or `null` when nothing has ever been recorded. */
@@ -264,8 +271,8 @@ async function readSeasonFactsIn(
 ): Promise<PlayerSeasonFacts> {
   // Sequential, not `Promise.all` (LAN-301): all seven run on one transaction
   // client, which `pg` serialises anyway — loudly, since pg@8.
-  const positions = await tx.query<{ side: string; code: string }>(
-    `select pa.side::text as side, pos.code
+  const positions = await tx.query<{ slot: string; code: string }>(
+    `select pa.slot::text as slot, pos.code
        from public.position_assignments pa
        join public.positions pos on pos.id = pa.position_id
       where pa.season_membership_id = $1::uuid and pa.effective_to is null`,
@@ -279,7 +286,13 @@ async function readSeasonFactsIn(
     [membershipId],
   );
   const coachGroup = await tx.query<{ coach_group: string }>(
-    `select coach_group from public.coach_group_assignments where season_membership_id = $1::uuid`,
+    `select coach_group from public.coach_group_assignments
+      where season_membership_id = $1::uuid order by coach_group`,
+    [membershipId],
+  );
+  const positionGroups = await tx.query<{ side: string; position_group: string }>(
+    `select side::text as side, position_group from public.membership_position_groups
+      where season_membership_id = $1::uuid order by position_group`,
     [membershipId],
   );
   const formalwear = await tx.query<{ item: string; ownership: string }>(
@@ -305,15 +318,12 @@ async function readSeasonFactsIn(
     `select level::text as level from public.current_availability where season_membership_id = $1::uuid`,
     [membershipId],
   );
+  const bps = await tx.query<{ is_selected: boolean }>(
+    `select is_selected from public.bps_selections where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
 
-  let offencePosition: string | null = null;
-  let defencePosition: string | null = null;
-  let specialTeamsPosition: string | null = null;
-  for (const row of positions.rows) {
-    if (row.side === "offence") offencePosition = row.code;
-    else if (row.side === "defence") defencePosition = row.code;
-    else specialTeamsPosition = row.code;
-  }
+  const positionBySlot = new Map(positions.rows.map((row) => [row.slot, row.code]));
 
   const blueNumbers: string[] = [];
   const whiteNumbers: string[] = [];
@@ -321,13 +331,10 @@ async function readSeasonFactsIn(
     (row.kit === "blue" ? blueNumbers : whiteNumbers).push(String(row.number));
   }
 
-  const formalwearRecord: Record<FormalwearItemKey, boolean> = {
-    tie: false,
-    bowtie: false,
-    socks: false,
-  };
+  const formalwearRecord: Record<FormalwearItemKey, boolean> = { tie: false, bowtie: false };
   for (const row of formalwear.rows) {
-    formalwearRecord[row.item as FormalwearItemKey] = row.ownership !== "No";
+    if (row.item !== "tie" && row.item !== "bowtie") continue;
+    formalwearRecord[row.item] = row.ownership !== "No";
   }
 
   const bluesRow = blues.rows[0];
@@ -340,14 +347,22 @@ async function readSeasonFactsIn(
   void seasonId;
 
   return {
-    offencePosition,
-    defencePosition,
-    specialTeamsPosition,
+    offencePosition: positionBySlot.get("offence") ?? null,
+    offenceBackupPosition: positionBySlot.get("offence_backup") ?? null,
+    defencePosition: positionBySlot.get("defence") ?? null,
+    defenceBackupPosition: positionBySlot.get("defence_backup") ?? null,
     blueNumbers,
     whiteNumbers,
-    coachGroup: coachGroup.rows[0]?.coach_group ?? null,
+    coachingGroups: coachGroup.rows.map((row) => row.coach_group),
+    offensivePositionGroups: positionGroups.rows
+      .filter((row) => row.side === "offence")
+      .map((row) => row.position_group),
+    defensivePositionGroups: positionGroups.rows
+      .filter((row) => row.side === "defence")
+      .map((row) => row.position_group),
     formalwear: formalwearRecord,
     blues: bluesValue,
+    bps: bps.rows[0]?.is_selected ? "Yes" : "No",
     eligibility: eligibility.rows[0]?.status ?? null,
     availability: availability.rows[0]?.level ?? null,
   };

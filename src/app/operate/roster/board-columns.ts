@@ -2,6 +2,14 @@ import { BAND_COLOURS } from "@/components/section";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
+// Straight from the vocabulary module, never through the service index: that
+// index re-exports `server-only` code, and these column definitions are client.
+import {
+  COACHING_GROUP_VALUES,
+  DEFENSIVE_POSITION_GROUP_VALUES,
+  FORMALWEAR_ITEM_KEYS,
+  OFFENSIVE_POSITION_GROUP_VALUES,
+} from "@/lib/services/roster-board/vocabulary";
 import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
 // The board's column model — LAN-186. Every column is one entry here, driving
@@ -9,7 +17,19 @@ import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 // `<TableCell>` copied around the file. Each carries a `requires` capability
 // (REQ-authority) so `visibleColumns()` can narrow later without a rewrite.
 
-export type Band = "person" | "onboarding" | "season";
+/**
+ * LAN-387 — the board's groups, in the order Brian and Stewart settled on the
+ * call of 2026-09-16. `season` became `membership`; everything after it is new.
+ */
+export type Band =
+  | "person"
+  | "onboarding"
+  | "membership"
+  | "coaching"
+  | "offensive"
+  | "defensive"
+  | "specialTeams"
+  | "kit";
 
 export interface BandDef {
   readonly key: Band;
@@ -36,11 +56,44 @@ const BANDS: readonly BandDef[] = Object.freeze([
     ...BAND_COLOURS.onboarding,
   }),
   Object.freeze({
-    key: "season" as const,
-    label: "Season",
-    ...BAND_COLOURS.season,
+    key: "membership" as const,
+    label: "Membership",
+    ...BAND_COLOURS.membership,
+  }),
+  Object.freeze({
+    key: "coaching" as const,
+    label: "Coaching assignments",
+    ...BAND_COLOURS.coaching,
+  }),
+  Object.freeze({
+    key: "offensive" as const,
+    label: "Offensive assignments",
+    ...BAND_COLOURS.offensive,
+  }),
+  Object.freeze({
+    key: "defensive" as const,
+    label: "Defensive assignments",
+    ...BAND_COLOURS.defensive,
+  }),
+  Object.freeze({
+    key: "specialTeams" as const,
+    label: "Special teams assignments",
+    ...BAND_COLOURS.specialTeams,
+  }),
+  Object.freeze({
+    key: "kit" as const,
+    label: "Kit",
+    ...BAND_COLOURS.kit,
   }),
 ]);
+
+/** Every band, in order — the board's group strip and the record's section order are the same list. */
+export const BAND_ORDER: readonly Band[] = Object.freeze(BANDS.map((band) => band.key));
+
+/** Groups the board and the record open collapsed. The long tail, not the facts an operator came for. */
+export const COLLAPSED_BY_DEFAULT: ReadonlySet<Band> = Object.freeze(
+  new Set<Band>(["specialTeams", "kit"]),
+);
 
 export function bandOf(key: Band): BandDef {
   const found = BANDS.find((band) => band.key === key);
@@ -68,18 +121,52 @@ export interface ColumnDef {
   readonly filterable: boolean;
   /** The capability a viewer must hold for this column to render at all. */
   readonly requires: "person_record_authority";
+  /** Not a column: the one narrow cell a collapsed group leaves behind (LAN-387). */
+  readonly placeholder?: true;
+}
+
+/** The single cell a collapsed group occupies — the band header still names it, and one click brings the columns back. */
+export function collapsedPlaceholder(band: Band): ColumnDef {
+  return Object.freeze({
+    key: `group:${band}`,
+    label: "",
+    band,
+    edit: "none",
+    width: 28,
+    sortable: false,
+    filterable: false,
+    requires: "person_record_authority",
+    placeholder: true,
+  });
+}
+
+/** The columns actually drawn: a collapsed group contributes one placeholder instead of its own columns. */
+export function displayColumns(
+  columns: readonly ColumnDef[],
+  collapsed: ReadonlySet<Band>,
+): readonly ColumnDef[] {
+  const drawn: ColumnDef[] = [];
+  for (const band of BAND_ORDER) {
+    const inBand = columns.filter((column) => column.band === band);
+    if (inBand.length === 0) continue;
+    if (collapsed.has(band)) drawn.push(collapsedPlaceholder(band));
+    else drawn.push(...inBand);
+  }
+  return drawn;
 }
 
 export const STATUSES = Object.freeze(["onboarding", "active", "inactive", "departed", "archived"]);
 /** The same words `presentation.ts` fixes for the rest of the roster — one wording everywhere. */
 export const STATUS_OPTION_LABELS: Readonly<Record<string, string>> = MEMBERSHIP_STATUS_LABELS;
 export const ENTRIES = Object.freeze(["new", "returning"]);
-export const COACH_GROUPS = Object.freeze(["Offense", "Defense", "Special teams"]);
-export const FORMALWEAR_ITEMS = Object.freeze(["tie", "bowtie", "socks"] as const);
+/** Stewart's own spellings, uncapped multi-selects (LAN-387). The service holds the vocabulary; these are the same list, imported not retyped. */
+export const COACHING_GROUPS = COACHING_GROUP_VALUES;
+export const OFFENSIVE_POSITION_GROUPS = OFFENSIVE_POSITION_GROUP_VALUES;
+export const DEFENSIVE_POSITION_GROUPS = DEFENSIVE_POSITION_GROUP_VALUES;
+export const FORMALWEAR_ITEMS = FORMALWEAR_ITEM_KEYS;
 export const FORMALWEAR_LABELS: Readonly<Record<string, string>> = Object.freeze({
   tie: "Tie",
-  bowtie: "Bowtie",
-  socks: "Socks",
+  bowtie: "Bow tie",
 });
 export const BLUES_VALUES = Object.freeze(["Full", "Half", "None"]);
 export const ELIGIBILITY_VALUES = Object.freeze(["eligible", "pending", "ineligible", "expired"]);
@@ -263,11 +350,14 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       filterable: true,
       requires: "person_record_authority",
     },
-    // ---------------------------------------------------------------- Season --
+    // ------------------------------------------------------------ Membership --
+    // Renamed from Season (LAN-387); the facts and their order are Brian's own
+    // list from the call: Status, Entry, Blue #, White #, Blues, Eligibility,
+    // BPS, Availability.
     {
       key: "status",
       label: "Status",
-      band: "season",
+      band: "membership",
       edit: "select",
       options: STATUSES,
       optionLabels: STATUS_OPTION_LABELS,
@@ -279,7 +369,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
     {
       key: "entry",
       label: "Entry",
-      band: "season",
+      band: "membership",
       edit: "select",
       options: ENTRIES,
       width: 116,
@@ -288,45 +378,9 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       requires: "person_record_authority",
     },
     {
-      key: "offencePosition",
-      label: "Offence",
-      band: "season",
-      edit: "select",
-      options: positionOptions.offence.map((option) => option.code),
-      optionLabels: positionOptionLabels(positionOptions.offence),
-      width: 128,
-      sortable: true,
-      filterable: true,
-      requires: "person_record_authority",
-    },
-    {
-      key: "defencePosition",
-      label: "Defence",
-      band: "season",
-      edit: "select",
-      options: positionOptions.defence.map((option) => option.code),
-      optionLabels: positionOptionLabels(positionOptions.defence),
-      width: 128,
-      sortable: true,
-      filterable: true,
-      requires: "person_record_authority",
-    },
-    {
-      key: "specialTeamsPosition",
-      label: "Special teams",
-      band: "season",
-      edit: "select",
-      options: positionOptions.specialTeams.map((option) => option.code),
-      optionLabels: positionOptionLabels(positionOptions.specialTeams),
-      width: 168,
-      sortable: true,
-      filterable: true,
-      requires: "person_record_authority",
-    },
-    {
       key: "blueNumbers",
       label: "Blue #",
-      band: "season",
+      band: "membership",
       edit: "jersey",
       kit: "blue",
       width: 120,
@@ -337,7 +391,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
     {
       key: "whiteNumbers",
       label: "White #",
-      band: "season",
+      band: "membership",
       edit: "jersey",
       kit: "white",
       width: 120,
@@ -346,32 +400,9 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       requires: "person_record_authority",
     },
     {
-      key: "coachGroup",
-      label: "Coach group",
-      band: "season",
-      edit: "select",
-      options: COACH_GROUPS,
-      width: 140,
-      sortable: true,
-      filterable: true,
-      requires: "person_record_authority",
-    },
-    {
-      key: "formalwear",
-      label: "Formalwear",
-      band: "season",
-      edit: "multiselect",
-      options: [...FORMALWEAR_ITEMS],
-      optionLabels: FORMALWEAR_LABELS,
-      width: 150,
-      sortable: true,
-      filterable: true,
-      requires: "person_record_authority",
-    },
-    {
       key: "blues",
       label: "Blues",
-      band: "season",
+      band: "membership",
       edit: "select",
       options: BLUES_VALUES,
       width: 116,
@@ -382,7 +413,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
     {
       key: "eligibility",
       label: "Eligibility",
-      band: "season",
+      band: "membership",
       edit: "select",
       options: ELIGIBILITY_VALUES,
       optionLabels: ELIGIBILITY_LABELS,
@@ -395,7 +426,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
     {
       key: "bps",
       label: "BPS",
-      band: "season",
+      band: "membership",
       edit: "select",
       options: BPS_VALUES,
       width: 96,
@@ -406,11 +437,116 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
     {
       key: "availability",
       label: "Availability",
-      band: "season",
+      band: "membership",
       edit: "select",
       options: AVAILABILITY_VALUES,
       optionLabels: AVAILABILITY_LABELS,
       width: 128,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    // ---------------------------------------------- Coaching assignments --
+    // Three uncapped multi-selects (LAN-387). A player may be in every group
+    // on the list; Stewart's sheet has several who are.
+    {
+      key: "coachingGroups",
+      label: "Coaching group",
+      band: "coaching",
+      edit: "multiselect",
+      options: COACHING_GROUPS,
+      width: 190,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "offensivePositionGroups",
+      label: "Offensive position group",
+      band: "coaching",
+      edit: "multiselect",
+      options: OFFENSIVE_POSITION_GROUPS,
+      width: 210,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "defensivePositionGroups",
+      label: "Defensive position group",
+      band: "coaching",
+      edit: "multiselect",
+      options: DEFENSIVE_POSITION_GROUPS,
+      width: 210,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    // --------------------------------------------- Offensive assignments --
+    // The primary/backup pair. Both draw on the season's offence vocabulary
+    // (invariant S3) and nothing says they differ.
+    {
+      key: "offencePosition",
+      label: "Primary position",
+      band: "offensive",
+      edit: "select",
+      options: positionOptions.offence.map((option) => option.code),
+      optionLabels: positionOptionLabels(positionOptions.offence),
+      width: 150,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "offenceBackupPosition",
+      label: "Backup position",
+      band: "offensive",
+      edit: "select",
+      options: positionOptions.offence.map((option) => option.code),
+      optionLabels: positionOptionLabels(positionOptions.offence),
+      width: 150,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    // --------------------------------------------- Defensive assignments --
+    {
+      key: "defencePosition",
+      label: "Primary position",
+      band: "defensive",
+      edit: "select",
+      options: positionOptions.defence.map((option) => option.code),
+      optionLabels: positionOptionLabels(positionOptions.defence),
+      width: 150,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "defenceBackupPosition",
+      label: "Backup position",
+      band: "defensive",
+      edit: "select",
+      options: positionOptions.defence.map((option) => option.code),
+      optionLabels: positionOptionLabels(positionOptions.defence),
+      width: 150,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    // ----------------------------------------- Special teams assignments --
+    // LAN-374 fills this group; LAN-387 only puts it in the order.
+    // ------------------------------------------------------------------ Kit --
+    // LAN-375 fills this group. Formalwear moves here from Season and keeps
+    // Tie and Bow tie; the club's blue game socks are a Kit item of their own.
+    {
+      key: "formalwear",
+      label: "Formalwear",
+      band: "kit",
+      edit: "multiselect",
+      options: [...FORMALWEAR_ITEMS],
+      optionLabels: FORMALWEAR_LABELS,
+      width: 150,
       sortable: true,
       filterable: true,
       requires: "person_record_authority",
@@ -439,11 +575,14 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     status: ["status"],
     entry: ["entry"],
     offencePosition: ["offencePosition"],
+    offenceBackupPosition: ["offenceBackupPosition"],
     defencePosition: ["defencePosition"],
-    specialTeamsPosition: ["specialTeamsPosition"],
+    defenceBackupPosition: ["defenceBackupPosition"],
     blueNumbers: ["blueNumbers"],
     whiteNumbers: ["whiteNumbers"],
-    coachGroup: ["coachGroup"],
+    coachingGroups: ["coachingGroups"],
+    offensivePositionGroups: ["offensivePositionGroups"],
+    defensivePositionGroups: ["defensivePositionGroups"],
     formalwear: ["formalwear"],
     blues: ["blues"],
     eligibility: ["eligibility"],

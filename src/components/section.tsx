@@ -13,7 +13,19 @@ import { CLUB, SEMANTIC } from "@/theme-tokens";
  * brief §1.5's mapping — never a traffic-light hue; a band is a place, not a
  * verdict.
  */
-export type Band = "person" | "season" | "recruitment" | "onboarding" | "attendance" | "history";
+export type Band =
+  | "person"
+  | "season"
+  | "membership"
+  | "coaching"
+  | "offensive"
+  | "defensive"
+  | "specialTeams"
+  | "kit"
+  | "recruitment"
+  | "onboarding"
+  | "attendance"
+  | "history";
 
 export interface BandColours {
   readonly header: string;
@@ -25,6 +37,16 @@ export interface BandColours {
 export const BAND_COLOURS: Readonly<Record<Band, BandColours>> = Object.freeze({
   person: { header: CLUB.oxfordBlue, tint: "rgba(0, 33, 71, 0.045)", solid: "#F3F5F8" },
   season: { header: CLUB.royalBlue, tint: "rgba(29, 66, 166, 0.045)", solid: "#F4F6FB" },
+  // LAN-387's five new roster groups. Places, not verdicts: the membership
+  // group keeps the Season band's blue because it is the same facts renamed,
+  // and the four assignment/kit groups step away from it in tone without
+  // borrowing a traffic-light hue.
+  membership: { header: CLUB.royalBlue, tint: "rgba(29, 66, 166, 0.045)", solid: "#F4F6FB" },
+  coaching: { header: CLUB.oxfordBlue, tint: "rgba(0, 33, 71, 0.06)", solid: "#F1F4F7" },
+  offensive: { header: "#1F5C4A", tint: "rgba(31, 92, 74, 0.055)", solid: "#F1F7F5" },
+  defensive: { header: "#5B3A7E", tint: "rgba(91, 58, 126, 0.055)", solid: "#F6F2F9" },
+  specialTeams: { header: "#7A4A18", tint: "rgba(122, 74, 24, 0.055)", solid: "#F9F4EE" },
+  kit: { header: CLUB.oldGold, tint: "rgba(141, 113, 73, 0.07)", solid: "#F8F5F0" },
   recruitment: { header: CLUB.royalBlue, tint: "rgba(29, 66, 166, 0.045)", solid: "#F4F6FB" },
   onboarding: { header: CLUB.oldGold, tint: "rgba(141, 113, 73, 0.07)", solid: "#F8F5F0" },
   attendance: { header: SEMANTIC.neutral.main, tint: "rgba(90, 87, 84, 0.05)", solid: "#F5F5F4" },
@@ -53,7 +75,7 @@ export function Section({
   action?: ReactNode;
   /** One sentence under the heading, where the section needs it. Never help copy. */
   description?: string;
-  /** Hide the body behind a disclosure. `plain` only — a band is never a control. */
+  /** Hide the body behind a disclosure. LAN-387: a banded roster group takes it too, so the band is the control. */
   collapsible?: boolean;
   /** Open on arrival. A long tail is closed; a section the reader came for is open. */
   defaultOpen?: boolean;
@@ -68,6 +90,79 @@ export function Section({
 }) {
   if (variant === "banded") {
     const colours = BAND_COLOURS[band];
+    const bandHead = (
+      <Stack
+        direction="row"
+        sx={{
+          bgcolor: colours.header,
+          color: "common.white",
+          px: 2,
+          py: 0.75,
+          minHeight: 36,
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 2,
+          flexWrap: "wrap",
+        }}
+      >
+        <Typography
+          variant="overline"
+          component={headingLevel === 2 ? "h2" : "h3"}
+          data-testid={titleTestId}
+          sx={{ fontWeight: 700, color: "inherit" }}
+        >
+          {title}
+        </Typography>
+        {action ?? null}
+        {collapsible ? (
+          <Box
+            component="span"
+            aria-hidden="true"
+            data-disclosure-indicator
+            sx={{
+              width: 10,
+              height: 10,
+              flexShrink: 0,
+              borderRight: "2px solid",
+              borderBottom: "2px solid",
+              borderColor: "common.white",
+              transform: "rotate(45deg)",
+            }}
+          />
+        ) : null}
+      </Stack>
+    );
+
+    // LAN-387: a roster group is collapsible on the record exactly as it is on
+    // the board, so the band itself is the disclosure control here.
+    if (collapsible) {
+      return (
+        <Paper
+          component="details"
+          variant="outlined"
+          open={defaultOpen || undefined}
+          sx={{
+            overflow: "hidden",
+            "& > summary": { cursor: "pointer", listStyle: "none" },
+            "& > summary::-webkit-details-marker": { display: "none" },
+            "& > summary:focus-visible": {
+              outline: "2px solid",
+              outlineColor: "primary.light",
+              outlineOffset: -2,
+            },
+            "&[open] > summary [data-disclosure-indicator]": {
+              transform: "translateY(3px) rotate(225deg)",
+            },
+          }}
+          data-testid={testId ? `section-${testId}` : undefined}
+          data-band={band}
+        >
+          <Box component="summary">{bandHead}</Box>
+          <Box sx={{ bgcolor: colours.tint, px: 2, py: 0.5 }}>{children}</Box>
+        </Paper>
+      );
+    }
+
     return (
       <Paper
         variant="outlined"
@@ -76,30 +171,7 @@ export function Section({
         data-testid={testId ? `section-${testId}` : undefined}
         data-band={band}
       >
-        <Stack
-          direction="row"
-          sx={{
-            bgcolor: colours.header,
-            color: "common.white",
-            px: 2,
-            py: 0.75,
-            minHeight: 36,
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 2,
-            flexWrap: "wrap",
-          }}
-        >
-          <Typography
-            variant="overline"
-            component={headingLevel === 2 ? "h2" : "h3"}
-            data-testid={titleTestId}
-            sx={{ fontWeight: 700, color: "inherit" }}
-          >
-            {title}
-          </Typography>
-          {action ?? null}
-        </Stack>
+        {bandHead}
         <Box sx={{ bgcolor: colours.tint, px: 2, py: 0.5 }}>{children}</Box>
       </Paper>
     );

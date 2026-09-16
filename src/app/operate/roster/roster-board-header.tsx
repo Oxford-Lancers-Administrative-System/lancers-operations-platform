@@ -1,15 +1,18 @@
+import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
+import ButtonBase from "@mui/material/ButtonBase";
 import { FilterButton, groupRuns } from "../board-filter-controls";
 import {
   BAND_LABEL_INSET_PX,
   BAND_ROW_HEIGHT,
   bandOf,
   PLAYER_COLUMN_WIDTH,
+  type Band,
   type ColumnDef,
 } from "./board-columns";
 import { filterOptionLabel } from "./board-data";
@@ -17,6 +20,8 @@ import { filterOptionLabel } from "./board-data";
 /** The board's own two-row sticky head: the band overline, then the sortable, filterable columns. */
 export default function BoardTableHead({
   columns,
+  collapsedBands,
+  onToggleBand,
   bandBoundaries,
   sortKey,
   sortDirection,
@@ -25,6 +30,9 @@ export default function BoardTableHead({
   onOpenFilter,
 }: {
   columns: readonly ColumnDef[];
+  /** LAN-387 — which groups are folded away. The band label is the control. */
+  collapsedBands: ReadonlySet<Band>;
+  onToggleBand: (band: Band) => void;
   bandBoundaries: ReadonlySet<string>;
   sortKey: string;
   sortDirection: "asc" | "desc";
@@ -68,19 +76,44 @@ export default function BoardTableHead({
                 borderRightColor: "background.paper",
               }}
             >
-              <Typography
-                variant="overline"
-                component="span"
+              <ButtonBase
+                onClick={() => onToggleBand(run.band)}
+                aria-expanded={!collapsedBands.has(run.band)}
+                data-testid={`band-toggle-${run.band}`}
                 sx={{
-                  fontWeight: 700,
-                  lineHeight: `${BAND_ROW_HEIGHT}px`,
                   position: "sticky",
                   left: PLAYER_COLUMN_WIDTH + BAND_LABEL_INSET_PX,
-                  display: "inline-block",
+                  color: "inherit",
+                  gap: 0.75,
+                  px: 0,
+                  height: BAND_ROW_HEIGHT,
                 }}
               >
-                {band.label}
-              </Typography>
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 7,
+                    height: 7,
+                    borderRight: "2px solid",
+                    borderBottom: "2px solid",
+                    borderColor: "inherit",
+                    transform: collapsedBands.has(run.band)
+                      ? "rotate(-45deg)"
+                      : "translateY(-2px) rotate(45deg)",
+                  }}
+                />
+                <Typography
+                  variant="overline"
+                  component="span"
+                  sx={{
+                    fontWeight: 700,
+                    lineHeight: `${BAND_ROW_HEIGHT}px`,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {collapsedBands.has(run.band) ? "" : band.label}
+                </Typography>
+              </ButtonBase>
             </TableCell>
           );
         })}
@@ -116,6 +149,22 @@ export default function BoardTableHead({
         {columns.map((column) => {
           const band = bandOf(column.band);
           const filtered = (filters[column.key] ?? "") !== "";
+          if (column.placeholder) {
+            return (
+              <TableCell
+                key={column.key}
+                sx={{
+                  top: BAND_ROW_HEIGHT,
+                  bgcolor: band.solid,
+                  minWidth: column.width,
+                  width: column.width,
+                  p: 0,
+                  borderRight: bandBoundaries.has(column.key) ? 2 : 0,
+                  borderRightColor: "background.paper",
+                }}
+              />
+            );
+          }
           return (
             <TableCell
               key={column.key}

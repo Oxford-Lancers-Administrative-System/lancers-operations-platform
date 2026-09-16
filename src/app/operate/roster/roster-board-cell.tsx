@@ -13,7 +13,7 @@ import { bandOf, type ColumnDef } from "./board-columns";
 import { displayOf, NOT_RECORDED, onboardingLabel, optionListLabel, rawValue } from "./board-data";
 import JerseyPicker from "./jersey-picker";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
-import type { FormalwearItemKey, RosterBoardRow } from "@/lib/services/roster-board";
+import type { RosterBoardRow } from "@/lib/services/roster-board";
 
 const AVAILABILITY_COLOUR: Readonly<Record<string, string>> = Object.freeze({
   green: "#2e7d32",
@@ -36,7 +36,6 @@ export function Cell({
   onOpen,
   onClose,
   onCommit,
-  onToggleFormalwear,
 }: {
   row: RosterBoardRow;
   column: ColumnDef;
@@ -55,9 +54,10 @@ export function Cell({
   onOpen: () => void;
   onClose: () => void;
   onCommit: (next: string | string[]) => void;
-  onToggleFormalwear: (item: FormalwearItemKey, owned: boolean) => void;
 }) {
   const band = bandOf(column.band);
+  // LAN-387: a collapsed group leaves one narrow, empty cell so the row keeps
+  // its shape — the band header above it is what brings the columns back.
   const shell = {
     bgcolor: band.tint,
     minWidth: column.width,
@@ -67,6 +67,10 @@ export function Cell({
     borderRight: bandEnd ? 2 : 0,
     borderRightColor: "background.paper",
   };
+
+  if (column.placeholder) {
+    return <TableCell sx={{ ...shell, p: 0 }} />;
+  }
 
   if (editing) {
     if (column.edit === "jersey") {
@@ -85,31 +89,27 @@ export function Cell({
     }
 
     if (column.edit === "multiselect") {
-      const current = row.formalwear;
+      // LAN-387: the multi-select is the column's own list, not formalwear's.
+      // Every one of them is uncapped, and the whole selection is committed.
+      const current = (rawValue(row, column.key) as string[] | null) ?? [];
       return (
         <TableCell sx={shell}>
           <Select
             size="small"
             open
             multiple
-            value={(Object.keys(current) as FormalwearItemKey[]).filter((key) => current[key])}
+            value={current}
             onClose={onClose}
-            renderValue={(value) => (value as string[]).join(", ") || "—"}
+            onChange={(event) => onCommit(event.target.value as string[])}
+            renderValue={() => displayOf(row, column)}
             sx={{ width: Math.max(column.width - 24, 64) }}
           >
-            {(column.options ?? []).map((option) => {
-              const key = option as FormalwearItemKey;
-              return (
-                <MenuItem
-                  key={option}
-                  value={option}
-                  onClick={() => onToggleFormalwear(key, !current[key])}
-                >
-                  <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={current[key]} />
-                  <ListItemText primary={column.optionLabels?.[option] ?? option} />
-                </MenuItem>
-              );
-            })}
+            {(column.options ?? []).map((option) => (
+              <MenuItem key={option} value={option}>
+                <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={current.includes(option)} />
+                <ListItemText primary={optionListLabel(column, option)} />
+              </MenuItem>
+            ))}
           </Select>
         </TableCell>
       );

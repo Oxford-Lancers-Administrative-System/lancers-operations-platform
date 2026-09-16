@@ -6,20 +6,13 @@ import { actorRequirement, closeCurrentRow, currentDateOf } from "./shared";
 
 /** The roster board's position columns — LAN-186. */
 
-export type PositionColumn = "offence" | "defence" | "specialTeams";
-
-/** `KO → kickoff, KR → kick_return, PUNT → punt, FG → field_goal` — LAN-186, stable across `VOCAB_2023`/`VOCAB_2026` (LAN-190). */
-const SPECIAL_TEAMS_SLOT_BY_CODE: Readonly<Record<string, string>> = Object.freeze({
-  KO: "kickoff",
-  KR: "kick_return",
-  PUNT: "punt",
-  FG: "field_goal",
-});
+/** The four position cells LAN-387 leaves: a primary and a backup a side, each from the season's own vocabulary. */
+export type PositionColumn = "offence" | "offenceBackup" | "defence" | "defenceBackup";
 
 async function lookupPosition(
   tx: Tx,
   seasonId: string,
-  side: "offence" | "defence" | "special_teams",
+  side: "offence" | "defence",
   code: string,
 ): Promise<{ id: string; vocabularyId: string }> {
   const result = await tx.query<{ id: string; vocabulary_id: string }>(
@@ -39,12 +32,21 @@ async function lookupPosition(
   return { id: row.id, vocabularyId: row.vocabulary_id };
 }
 
-const POSITION_COLUMN_SIDE: Readonly<
-  Record<PositionColumn, "offence" | "defence" | "special_teams">
-> = Object.freeze({
+const POSITION_COLUMN_SIDE: Readonly<Record<PositionColumn, "offence" | "defence">> = Object.freeze(
+  {
+    offence: "offence",
+    offenceBackup: "offence",
+    defence: "defence",
+    defenceBackup: "defence",
+  },
+);
+
+/** Which `position_assignments.slot` each column fills. The primary and the backup are separate slots, so the per-slot exclusion keeps one of each (invariant S1/S4). */
+const POSITION_COLUMN_SLOT: Readonly<Record<PositionColumn, string>> = Object.freeze({
   offence: "offence",
+  offenceBackup: "offence_backup",
   defence: "defence",
-  specialTeams: "special_teams",
+  defenceBackup: "defence_backup",
 });
 
 /** Sets — or clears — the one position this board column holds, superseding whatever was there (invariant S4). */
@@ -58,17 +60,20 @@ export async function commitPosition(params: {
 }): Promise<void> {
   actorRequirement(params.actorPersonId);
   const side = POSITION_COLUMN_SIDE[params.column];
+  const slot = POSITION_COLUMN_SLOT[params.column];
 
   return withTransaction(async (tx) => {
     const today = await currentDateOf(tx);
+    // Keyed on the slot, not the side: a backup is superseded on its own and
+    // never disturbs the primary beside it.
     const current = await tx.query<{ id: string; code: string; effective_from: string }>(
       `select pa.id, pos.code, to_char(pa.effective_from, 'YYYY-MM-DD') as effective_from
          from public.position_assignments pa
          join public.positions pos on pos.id = pa.position_id
-        where pa.season_membership_id = $1::uuid and pa.side = $2::public.position_side
+        where pa.season_membership_id = $1::uuid and pa.slot = $2::public.position_slot
           and pa.effective_to is null
         for update of pa`,
-      [params.membershipId, side],
+      [params.membershipId, slot],
     );
 
     const before = current.rows.map((row) => row.code).join(", ") || null;
@@ -80,13 +85,6 @@ export async function commitPosition(params: {
 
     if (params.code !== null) {
       const position = await lookupPosition(tx, params.seasonId, side, params.code);
-      const slot = side === "special_teams" ? SPECIAL_TEAMS_SLOT_BY_CODE[params.code] : side;
-      if (!slot) {
-        throw new ConstraintViolated(
-          `"${params.code}" does not map to a recognised special-teams slot.`,
-          { rule: "position_assignments_slot_matches_side" },
-        );
-      }
       await tx.query(
         `insert into public.position_assignments
            (season_membership_id, season_id, position_vocabulary_id, position_id, side, slot,
@@ -113,7 +111,7 @@ export async function commitPosition(params: {
       entityId: params.membershipId,
       fromState: before,
       toState: params.code,
-      context: { issue: "LAN-186", column: params.column, side },
+      context: { issue: "LAN-387", column: params.column, side, slot },
     });
   });
 }

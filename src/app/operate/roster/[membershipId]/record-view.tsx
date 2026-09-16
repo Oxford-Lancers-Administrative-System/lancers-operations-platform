@@ -20,7 +20,7 @@ import type { PersonRecord } from "@/lib/services/person-record";
 // LAN-266 requirement 2 asks for "the same words the queue already uses".
 import { formatChaseNext } from "@/app/operate/people/missing/chase-presentation";
 import type { OnboardingItemDisplay, PlayerRecordData } from "@/lib/services/player-record";
-import type { FormalwearItemKey, Kit, PositionColumn } from "@/lib/services/roster-board";
+import type { BpsValue, FormalwearItemKey, Kit, PositionColumn } from "@/lib/services/roster-board";
 
 import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
@@ -32,12 +32,14 @@ import { ENTRY_LABELS, formatDay, labelFor, MEMBERSHIP_STATUS_LABELS } from "../
 import {
   recordCommitAvailabilityAction,
   recordCommitBluesAction,
-  recordCommitCoachGroupAction,
+  recordCommitBpsAction,
+  recordCommitCoachingGroupsAction,
   recordCommitEligibilityAction,
   recordCommitEntryAction,
-  recordCommitFormalwearItemAction,
+  recordCommitFormalwearItemsAction,
   recordCommitJerseyNumbersAction,
   recordCommitPositionAction,
+  recordCommitPositionGroupsAction,
   recordResolveOnboardingItemAction,
   recordSetStatusAction,
 } from "./record-actions";
@@ -56,6 +58,14 @@ import { currentContact, formatEmergencyContact, joinAliases } from "./record-vi
  * editor absent rather than disabled.
  */
 /** A departed or archived membership takes no writes (`closed`, below); the send is a write like any other — LAN-266. */
+/** Which position slot each of the four position fields writes — the same map the board keeps. */
+const POSITION_COLUMN_BY_KEY: Readonly<Record<string, PositionColumn>> = Object.freeze({
+  offencePosition: "offence",
+  offenceBackupPosition: "offenceBackup",
+  defencePosition: "defence",
+  defenceBackupPosition: "defenceBackup",
+});
+
 const CLOSED_MEMBERSHIP_REASON =
   "This membership is closed, so nothing further is sent to this player.";
 
@@ -169,14 +179,10 @@ export default function PlayerRecordView({
             entry: next as "new" | "returning",
           });
       case "offencePosition":
+      case "offenceBackupPosition":
       case "defencePosition":
-      case "specialTeamsPosition": {
-        const column: PositionColumn =
-          key === "offencePosition"
-            ? "offence"
-            : key === "defencePosition"
-              ? "defence"
-              : "specialTeams";
+      case "defenceBackupPosition": {
+        const column = POSITION_COLUMN_BY_KEY[key];
         return () =>
           recordCommitPositionAction({
             membershipId: record.membershipId,
@@ -185,12 +191,35 @@ export default function PlayerRecordView({
             code: (next as string) || null,
           });
       }
-      case "coachGroup":
+      case "coachingGroups":
         return () =>
-          recordCommitCoachGroupAction({
+          recordCommitCoachingGroupsAction({
             membershipId: record.membershipId,
             seasonId: record.seasonId,
-            coachGroup: (next as string) || null,
+            groups: next as string[],
+          });
+      case "offensivePositionGroups":
+      case "defensivePositionGroups":
+        return () =>
+          recordCommitPositionGroupsAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            side: key === "offensivePositionGroups" ? "offence" : "defence",
+            groups: next as string[],
+          });
+      case "formalwear":
+        return () =>
+          recordCommitFormalwearItemsAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            items: next as FormalwearItemKey[],
+          });
+      case "bps":
+        return () =>
+          recordCommitBpsAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            value: next as BpsValue,
           });
       case "blues":
         return () =>
@@ -226,17 +255,6 @@ export default function PlayerRecordView({
       default:
         return null;
     }
-  }
-
-  function toggleFormalwear(item: FormalwearItemKey, owned: boolean) {
-    runCommit("formalwear", () =>
-      recordCommitFormalwearItemAction({
-        membershipId: record.membershipId,
-        seasonId: record.seasonId,
-        item,
-        owned,
-      }),
-    );
   }
 
   function resolveOnboardingItem(item: OnboardingItemDisplay, status: OnboardingItemStatus) {
@@ -454,7 +472,6 @@ export default function PlayerRecordView({
         fieldErrorMessage={fieldError?.message ?? null}
         setEditing={setEditing}
         commitSeasonField={commitSeasonField}
-        toggleFormalwear={toggleFormalwear}
       />
 
       <Section variant="banded" band="attendance" title="Attendance" testId="attendance">

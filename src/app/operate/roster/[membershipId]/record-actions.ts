@@ -17,18 +17,22 @@ import {
 import {
   commitAvailability,
   commitBlues,
-  commitCoachGroup,
+  commitBps,
+  commitCoachingGroups,
   commitEligibility,
   commitEntry,
-  commitFormalwearItem,
+  commitFormalwearItems,
   commitJerseyNumbers,
   commitPosition,
+  commitPositionGroups,
   type AvailabilityLevel,
   type BluesValue,
+  type BpsValue,
   type EligibilityStatus,
   type FormalwearItemKey,
   type Kit,
   type PositionColumn,
+  type PositionGroupSide,
 } from "@/lib/services/roster-board";
 import type { BoardActionState } from "../board-action-state";
 
@@ -116,14 +120,14 @@ export async function recordCommitJerseyNumbersAction(params: {
   return OK;
 }
 
-export async function recordCommitCoachGroupAction(params: {
+export async function recordCommitCoachingGroupsAction(params: {
   membershipId: string;
   seasonId: string;
-  coachGroup: string | null;
+  groups: readonly string[];
 }): Promise<BoardActionState> {
   const operator = await requireCapability("person_record_authority");
   try {
-    await commitCoachGroup({ actorPersonId: operator.personId, ...params });
+    await commitCoachingGroups({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }
@@ -131,15 +135,46 @@ export async function recordCommitCoachGroupAction(params: {
   return OK;
 }
 
-export async function recordCommitFormalwearItemAction(params: {
+export async function recordCommitPositionGroupsAction(params: {
   membershipId: string;
   seasonId: string;
-  item: FormalwearItemKey;
-  owned: boolean;
+  side: PositionGroupSide;
+  groups: readonly string[];
 }): Promise<BoardActionState> {
   const operator = await requireCapability("person_record_authority");
   try {
-    await commitFormalwearItem({ actorPersonId: operator.personId, ...params });
+    await commitPositionGroups({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh(params.membershipId);
+  return OK;
+}
+
+export async function recordCommitFormalwearItemsAction(params: {
+  membershipId: string;
+  seasonId: string;
+  items: readonly FormalwearItemKey[];
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await commitFormalwearItems({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh(params.membershipId);
+  return OK;
+}
+
+/** BPS — the record's own copy of the board's column (LAN-387 puts it in the Membership group on both surfaces). */
+export async function recordCommitBpsAction(params: {
+  membershipId: string;
+  seasonId: string;
+  value: BpsValue;
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await commitBps({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }
