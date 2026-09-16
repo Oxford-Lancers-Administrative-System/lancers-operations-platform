@@ -386,6 +386,66 @@ describe("the answer-specific landing content", () => {
     const landing = await withTransaction((tx) => readPlayerAnswerLandingIn(tx, invitationId));
     expect(landing.outstandingRequiredQuestions).toBe(1);
   });
+
+  // LAN-367 correction (A3): a question superseded by a change is told apart
+  // from one nobody has ever answered — both are "outstanding", but only the
+  // first is `wasChanged`.
+  it("marks a question outstanding because a change superseded its answer, not a brand new one nobody has ever answered", async () => {
+    const { invitationId, eventId } = await fixture(48, "-changed");
+    const changedQuestion = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required, applies_to_capacities)
+       values ($1, 'Need a lift?', 'text', false, '{player}') returning id`,
+      [eventId],
+    );
+    const neverAskedQuestion = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required, applies_to_capacities)
+       values ($1, 'Brand new question', 'text', false, '{player}') returning id`,
+      [eventId],
+    );
+    // The same shape `supersedeAnswersToChangedQuestionsIn` leaves behind: a
+    // live answer voided by a change, current read filters it out.
+    await observer.query(
+      `insert into public.question_responses
+         (invitation_id, event_id, event_question_id, answer_text, superseded_at, superseded_reason)
+       values ($1, $2, $3, 'Yes please', now(), 'question changed')`,
+      [invitationId, eventId, changedQuestion.rows[0].id],
+    );
+
+    const landing = await withTransaction((tx) => readPlayerAnswerLandingIn(tx, invitationId));
+    const changed = landing.questions.find((q) => q.id === changedQuestion.rows[0].id);
+    const brandNew = landing.questions.find((q) => q.id === neverAskedQuestion.rows[0].id);
+
+    expect(changed?.currentAnswer).toBeNull();
+    expect(changed?.wasChanged).toBe(true);
+    expect(brandNew?.currentAnswer).toBeNull();
+    expect(brandNew?.wasChanged).toBe(false);
+  });
+
+  it("stops marking a question wasChanged once the invitee answers it again", async () => {
+    const { invitationId, eventId } = await fixture(48, "-reanswered");
+    const question = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required, applies_to_capacities)
+       values ($1, 'Need a lift?', 'text', false, '{player}') returning id`,
+      [eventId],
+    );
+    await observer.query(
+      `insert into public.question_responses
+         (invitation_id, event_id, event_question_id, answer_text, superseded_at, superseded_reason)
+       values ($1, $2, $3, 'Yes please', now(), 'question changed')`,
+      [invitationId, eventId, question.rows[0].id],
+    );
+    await observer.query(
+      `insert into public.question_responses (invitation_id, event_id, event_question_id, answer_text)
+       values ($1, $2, $3, 'No thanks')`,
+      [invitationId, eventId, question.rows[0].id],
+    );
+
+    const landing = await withTransaction((tx) => readPlayerAnswerLandingIn(tx, invitationId));
+    const reanswered = landing.questions.find((q) => q.id === question.rows[0].id);
+
+    expect(reanswered?.currentAnswer).toEqual({ text: "No thanks", boolean: null, choice: null });
+    expect(reanswered?.wasChanged).toBe(false);
+  });
 });
 
 describe("saving event questions", () => {

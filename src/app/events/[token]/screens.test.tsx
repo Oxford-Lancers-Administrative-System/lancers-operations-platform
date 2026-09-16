@@ -224,6 +224,7 @@ const QUESTION: EventQuestionForAnswer = {
   choices: null,
   isRequired: true,
   currentAnswer: null,
+  wasChanged: false,
 };
 
 const OPTIONAL_QUESTION: EventQuestionForAnswer = {
@@ -233,6 +234,7 @@ const OPTIONAL_QUESTION: EventQuestionForAnswer = {
   choices: null,
   isRequired: false,
   currentAnswer: null,
+  wasChanged: false,
 };
 
 const YES_ENTRY = invitation({

@@ -72,10 +72,10 @@ The same three routes as LAN-365: one save, one screen, two issues.
 | ----------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `desktop-rsvp-deadline-passed.png`, `phone375-rsvp-deadline-passed.png` | The deadline line on a link whose deadline has already gone. |
 
-## LAN-367 — a changed question voids its answers
+## LAN-367 — a changed question voids its answers, and the sweep sends the re-ask
 
-| File                                                                                    | What it shows                                                                                                                             |
-| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `desktop-questions-editor.png`, `phone375-questions-editor.png`                         | The editor before a save.                                                                                                                 |
-| `desktop-questions-editor-confirm.png`, `phone375-questions-editor-confirm.png`         | The confirmation: **1 question changed, 19 people will be asked again**, with the correction tick.                                        |
-| `desktop-player-questions-outstanding.png`, `phone375-player-questions-outstanding.png` | The player's own page afterwards: the changed question reads as outstanding, the unchanged one keeps its answer, and their yes/no stands. |
+| File                                                                                    | What it shows                                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `desktop-questions-editor.png`, `phone375-questions-editor.png`                         | The editor before a save.                                                                                                                                                                                          |
+| `desktop-questions-editor-confirm.png`, `phone375-questions-editor-confirm.png`         | The confirmation: **1 question changed, 19 people will be asked again**, with the correction tick.                                                                                                                 |
+| `desktop-player-questions-outstanding.png`, `phone375-player-questions-outstanding.png` | Correction round: the player's own page afterwards. The changed question now carries its own **Question changed** label beside it, told apart from the unchanged one, which keeps its answer; their yes/no stands. |

@@ -76,6 +76,7 @@ const QUESTION: EventQuestionForAnswer = {
   choices: null,
   isRequired: true,
   currentAnswer: null,
+  wasChanged: false,
 };
 
 function given(state: TokenState, questions: readonly EventQuestionForAnswer[]): void {

@@ -44,6 +44,14 @@ export interface EventQuestionForAnswer {
   readonly choices: readonly string[] | null;
   readonly isRequired: boolean;
   readonly currentAnswer: EventQuestionAnswer | null;
+  /**
+   * LAN-367 correction (A3): true when this question reads as outstanding
+   * because a change superseded the invitee's earlier answer to it, rather
+   * than because nobody has ever answered it. `QuestionField` is the one
+   * place this is shown — a short label, never a sentence — so a player who
+   * already answered once is not left thinking their answer never arrived.
+   */
+  readonly wasChanged: boolean;
 }
 
 export interface PlayerAnswerLanding {
@@ -179,9 +187,20 @@ export async function readPlayerAnswerLandingIn(
     answer_text: string | null;
     answer_boolean: boolean | null;
     answer_choice: string | null;
+    was_changed: boolean;
   }>(
     `select q.id, q.prompt, q.answer_type::text as answer_type, q.choices, q.is_required,
-            qr.answer_text, qr.answer_boolean, qr.answer_choice
+            qr.answer_text, qr.answer_boolean, qr.answer_choice,
+            -- LAN-367 correction (A3): outstanding because a change superseded
+            -- this invitee's earlier answer, told apart from a question they
+            -- have simply never answered.
+            exists (
+              select 1
+                from public.question_responses sup
+               where sup.event_question_id = q.id
+                 and sup.invitation_id = $2
+                 and sup.superseded_at is not null
+            ) as was_changed
        from public.event_questions q
        -- LAN-367: a superseded answer is not an answer. The question it was
        -- given to changed after the invitation went out, so it reads as
@@ -209,6 +228,13 @@ export async function readPlayerAnswerLandingIn(
       q.answer_text !== null || q.answer_boolean !== null || q.answer_choice !== null
         ? { text: q.answer_text, boolean: q.answer_boolean, choice: q.answer_choice }
         : null,
+    // A question with a live answer is not "changed, please re-answer" —
+    // that reading applies only while it is genuinely outstanding.
+    wasChanged:
+      q.was_changed &&
+      q.answer_text === null &&
+      q.answer_boolean === null &&
+      q.answer_choice === null,
   }));
 
   return {

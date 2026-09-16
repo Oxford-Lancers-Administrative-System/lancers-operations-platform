@@ -81,6 +81,18 @@ const QUESTION: EventQuestionForAnswer = {
   choices: null,
   isRequired: true,
   currentAnswer: null,
+  wasChanged: false,
+};
+
+/** LAN-367 correction: outstanding because a change superseded the earlier answer, not because nobody ever answered. */
+const CHANGED_QUESTION: EventQuestionForAnswer = {
+  id: "00000000-0000-4000-8000-0000000000bb",
+  prompt: "Do you need a lift there and back?",
+  answerType: "text",
+  choices: null,
+  isRequired: false,
+  currentAnswer: null,
+  wasChanged: true,
 };
 
 const TOKEN = "y.00000000-0000-4000-8000-000000000079.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM01";
@@ -254,6 +266,21 @@ describe("OWNER-LAN172-12 — the Yes landing asks the event's own questions its
     const text = (await renderPage()).container.textContent ?? "";
 
     expect(text).toContain("Plans changed? You can change your answer.");
+  });
+
+  // LAN-367 correction (A3): a question superseded by a change reads as
+  // outstanding here, same as one nobody has ever answered — but it now
+  // carries its own short label, so the two are not mistaken for each other.
+  it("labels a question superseded by a change, and never labels an ordinary outstanding one", async () => {
+    givenAnswer("yes", [QUESTION, CHANGED_QUESTION]);
+    const { container } = await renderPage();
+
+    // Exactly one label, for the two questions rendered — QUESTION (an
+    // ordinary outstanding required question) never gets one.
+    const labels = container.querySelectorAll('[data-testid="question-changed-label"]');
+    expect(labels).toHaveLength(1);
+    expect(labels[0].textContent).toBe("Question changed");
+    expect(container.textContent).toContain(CHANGED_QUESTION.prompt);
   });
 });
 
