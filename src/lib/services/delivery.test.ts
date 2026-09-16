@@ -21,6 +21,8 @@ import type { Client } from "pg";
 
 import { closePool, isServiceError, type ServiceError } from "@/lib/db";
 import type { EnvironmentSource } from "@/lib/delivery/config";
+import { createDeliverySink } from "@/lib/delivery/local-sink";
+import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import {
   applyProviderCallback,
@@ -544,6 +546,49 @@ describe("dispatching after approval", () => {
     const slots = body.template.components.find((c) => c.type === "body")?.parameters ?? [];
     expect(slots.at(-1)?.text).not.toBe("today");
     expect(slots.at(-1)?.text).toMatch(/\d{2}:\d{2}$/);
+  });
+
+  /**
+   * LAN-367, through the local sink — the transport a developer's own stack
+   * uses, which validates the payload against the approved contract before it
+   * writes it down. What this proves is the last leg: a declared
+   * `question_change_notice` becomes a message that names the question that
+   * changed and links at the event's own questions page.
+   */
+  it("sends the question-change notice naming the question, through the local sink", async () => {
+    const { eventId, jobId } = await fixture();
+    await observer.query(
+      `update public.notification_jobs
+          set job_type = 'question_change_notice',
+              template_variables = jsonb_build_object('questionSummary', $2::text)
+        where id = $1`,
+      [jobId, "Do you need a lift there and back?"],
+    );
+
+    const written: unknown[] = [];
+    const sink = createDeliverySink({ APP_BASE_URL: "http://localhost:3000" }, { write: () => {} });
+    const transport = vi.fn(async (url: string, init: RequestInit) => {
+      written.push(JSON.parse(String(init.body)));
+      return sink(url, init);
+    });
+
+    expect(await dispatchJob(jobId, { source: CONFIGURED, transport })).toBe("accepted");
+
+    const payload = written[0] as {
+      template: { name: string; components: { type: string; parameters: { text: string }[] }[] };
+    };
+    expect(payload.template.name).toBe(TEMPLATE_NAMES.question_change);
+    const slots = payload.template.components.find((c) => c.type === "body")?.parameters ?? [];
+    expect(slots.at(-1)?.text).toBe("Do you need a lift there and back?");
+    const button = payload.template.components.find((c) => c.type === "button");
+    expect(button?.parameters[0].text).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+    // And the event is untouched by the send.
+    const event = await observer.query<{ status: string }>(
+      "select status::text as status from public.events where id = $1",
+      [eventId],
+    );
+    expect(event.rows[0].status).toBe("approved");
   });
 
   it("never stores the plaintext answer token it sent", async () => {

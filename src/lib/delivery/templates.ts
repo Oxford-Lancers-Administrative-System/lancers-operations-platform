@@ -8,7 +8,7 @@ import type { MessageKind, OutboundMessage } from "./provider";
  *
  * ## What this file is for
  *
- * Every message the club sends is one of fourteen kinds, and each kind exists
+ * Every message the club sends is one of fifteen kinds, and each kind exists
  * twice — once as an approved WhatsApp template and once as an email. This
  * module is the single declaration of both, and three separate things read it:
  *
@@ -19,7 +19,7 @@ import type { MessageKind, OutboundMessage } from "./provider";
  *   * **The local delivery sink**, which validates every payload it is handed
  *     against this registry and *rejects a mismatch*. That is what makes a
  *     parameter reordering fail on a developer machine rather than at Meta with
- *     error `132000`, and it is why the registry is data rather than fourteen
+ *     error `132000`, and it is why the registry is data rather than fifteen
  *     hand-written payload builders.
  *
  * LAN-168 owns the Meta cutover — generating the manifest, checking the
@@ -42,7 +42,7 @@ import type { MessageKind, OutboundMessage } from "./provider";
  * arrive in Oxford. Every template the club registered before September 2026
  * was Marketing, so none of them could reach those people at all.
  *
- * The fourteen bodies below are the ones Meta's classifier accepted as
+ * The fifteen bodies below are the ones Meta's classifier accepted as
  * **Utility**, found one probe at a time on 11 September 2026 and recorded in
  * `docs/whatsapp-template-categories.md`. Three rules govern them, and all
  * three are load-bearing: certain words force Marketing whatever the context;
@@ -97,6 +97,14 @@ export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.free
   reminder: "lancers_event_reminder_v2",
   nudge: "lancers_event_nudge_v2",
   change_notice: "lancers_event_change_notice_v2",
+  // LAN-367. Its own template, and deliberately not the change notice: that
+  // one ends "Your response still stands", which is the opposite of what a
+  // voided answer needs to hear. `_v1` because it has never been submitted
+  // under any other name — the suffixes elsewhere record a template Meta would
+  // not let the club correct in place, and there is nothing here to correct.
+  // Read back from configuration like every other name: registering it here is
+  // not the same as Meta approving it.
+  question_change: "lancers_event_question_change_v1",
   cancellation: "lancers_event_cancellation_v2",
   escalation: "lancers_nonresponse_escalation_v2",
   recruit_event_followup: "recruit_event_followup_v2",
@@ -162,7 +170,7 @@ export const RECRUIT_NO_LABEL = "No thanks";
  * Brian's date decision, carried from LAN-336.
  *
  * Meta's classifier requires every Utility body to anchor on `for {thing} on
- * {date}`. Six of the fourteen templates follow a *person* rather than an event
+ * {date}`. Six of the fifteen templates follow a *person* rather than an event
  * and have no event date to give it, so the thing is the person's own record
  * and the date is the day it was opened. The subject is fixed per kind and
  * carries the word "opened", so the rendered sentence reads "your answers for
@@ -464,6 +472,40 @@ const CHANGE_NOTICE: MessageTemplate = {
 };
 
 /**
+ * LAN-367, decision D1. `Hello {{1}}, a question for {{2}} on {{3}} has
+ * changed: {{4}}.` / `Your previous answer has been cleared. Please answer it
+ * again below.` — one button on the `/questions/` base.
+ *
+ * A new template rather than a reuse of `change_notice`: that body ends "Your
+ * response still stands. Please use the link below if you need to change it.",
+ * and the whole point here is that one answer no longer stands. The RSVP
+ * itself is untouched, which is why the body says "a question" and never
+ * "your response".
+ *
+ * Utility, on the same reading every other approved body here was written to:
+ * it states a fact about the reader's own record and asks them to complete
+ * something they already started, with no offer and no invitation verb.
+ */
+const QUESTION_CHANGE: MessageTemplate = {
+  kind: "question_change",
+  parameterNames: ["inviteeName", "eventName", "whenLabel", "questionSummary"],
+  parameters: (message) => [
+    required(message.inviteeName, "name"),
+    required(message.eventName, "event name"),
+    required(message.whenLabel, "date and time"),
+    required(message.questionSummary, "which question changed"),
+  ],
+  subject: (message) => `A question changed: ${message.eventName}`,
+  body: (message) => [
+    `Hello ${message.inviteeName}, a question for ${message.eventName} on ${message.whenLabel} has changed: ${required(message.questionSummary, "which question changed")}.`,
+    "Your previous answer has been cleared. Please answer it again below.",
+    `${ANSWER_QUESTIONS_LABEL}: ${required(message.questionsUrl, "link")}`,
+  ],
+  buttonCount: 1,
+  buttonUrls: (message) => [required(message.questionsUrl, "link")],
+};
+
+/**
  * `Hello {{1}}, {{2}} on {{3}} has been cancelled.` / `Reason: {{4}}.` / `No
  * action is needed. Thank you.` — no buttons. The dispatcher supplies the
  * fixed, generic reason, never the operator's own recorded one.
@@ -748,6 +790,7 @@ export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> =
   reminder: REMINDER,
   nudge: NUDGE,
   change_notice: CHANGE_NOTICE,
+  question_change: QUESTION_CHANGE,
   cancellation: CANCELLATION,
   escalation: ESCALATION,
   recruit_event_followup: RECRUIT_EVENT_FOLLOWUP,
@@ -766,6 +809,7 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
   "reminder",
   "nudge",
   "change_notice",
+  "question_change",
   "cancellation",
   "escalation",
   "recruit_event_followup",

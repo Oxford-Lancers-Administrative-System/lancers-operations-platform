@@ -47,6 +47,8 @@ export type MessageKind =
   /** A player who said yes but has not finished the event's questions. */
   | "nudge"
   | "change_notice"
+  /** LAN-367. A question changed after the invitation went out, so its answers were voided. */
+  | "question_change"
   | "cancellation"
   /** To the President, as an office. Carries no player personal data. */
   | "escalation"
@@ -170,6 +172,13 @@ export interface OutboundMessage {
   readonly attendingCount?: number | null;
   /** What an amendment changed, in the club's own words. */
   readonly changeSummary?: string | null;
+  /**
+   * LAN-367. Which question changed, as it read when the re-ask was declared.
+   * Carried on the job rather than read at send time: a later save changes the
+   * question again, and this message has to name what it named when it was
+   * declared.
+   */
+  readonly questionSummary?: string | null;
   /** Why an event was cancelled. Required by the cancellation template. */
   readonly cancellationReason?: string | null;
   /** How many people have not answered. Escalation only. */

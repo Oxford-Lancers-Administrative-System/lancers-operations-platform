@@ -327,9 +327,12 @@ async function readPeopleIn(
   const answersByInvitation = new Map<string, Record<string, string>>();
   if (questions.length > 0) {
     const answers = await tx.query<AnswerRow>(
+      // LAN-367: a superseded answer is not the current answer. The row is
+      // kept as the record of what the person said before the question
+      // changed, and the table reads as though they have not answered yet.
       `select invitation_id, event_question_id, answer_text, answer_boolean, answer_choice
          from public.question_responses
-        where event_id = $1`,
+        where event_id = $1 and superseded_at is null`,
       [eventId],
     );
     for (const row of answers.rows) {

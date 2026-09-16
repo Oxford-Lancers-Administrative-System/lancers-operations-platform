@@ -63,6 +63,7 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     deadlineLabel: "Tuesday 13 October, 20:00",
     attendingCount: 18,
     changeSummary: "The venue moved to the University Parks.",
+    questionSummary: "Do you need a lift to this one?",
     cancellationReason: "The pitch is waterlogged.",
     outstandingCount: 6,
     queueUrl: "https://lancers.example/operate/follow-ups",
@@ -85,14 +86,14 @@ describe("every declared template", () => {
     }
   });
 
-  it("covers all fourteen kinds and gives each one a distinct canonical name", () => {
+  it("covers all fifteen kinds and gives each one a distinct canonical name", () => {
     // Six from LAN-169, plus LAN-203's five recruit kinds — see
     // `recruit_event_followup` and the four capture-cycle templates below —
     // plus LAN-215's one door-independent onboarding welcome, plus LAN-218's
-    // chase and its own escalation.
-    expect(MESSAGE_KINDS).toHaveLength(14);
+    // chase and its own escalation, plus LAN-367's question-change notice.
+    expect(MESSAGE_KINDS).toHaveLength(15);
     expect(Object.keys(MESSAGE_TEMPLATES).sort()).toEqual([...MESSAGE_KINDS].sort());
-    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(14);
+    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(15);
   });
 
   it("renders a subject and a non-empty body for each", () => {
@@ -589,7 +590,7 @@ describe("the button labels", () => {
   });
 });
 
-describe("the fourteen canonical template names", () => {
+describe("the fifteen canonical template names", () => {
   // LAN-348. Every name carries `_v2` or `_v3`, and that is not decoration:
   // the unsuffixed and `_v1` names are the club's original Marketing
   // submissions, which Meta will not reclassify and will not let anyone edit
@@ -608,6 +609,10 @@ describe("the fourteen canonical template names", () => {
       "lancers_event_reminder_v2",
       "lancers_event_nudge_v2",
       "lancers_event_change_notice_v2",
+      // LAN-367's own template, drafted for Brian to submit. `_v1` because it
+      // has never been submitted under any other name: the suffixes elsewhere
+      // record a template Meta would not let the club correct in place.
+      "lancers_event_question_change_v1",
       "lancers_event_cancellation_v2",
       "lancers_nonresponse_escalation_v2",
       "recruit_event_followup_v2",
@@ -619,7 +624,7 @@ describe("the fourteen canonical template names", () => {
       "onboarding_chase_v2",
       "onboarding_chase_escalation_v2",
     ]);
-    for (const name of Object.values(TEMPLATE_NAMES)) expect(name).toMatch(/_v[23]$/);
+    for (const name of Object.values(TEMPLATE_NAMES)) expect(name).toMatch(/_v[123]$/);
   });
 });
 

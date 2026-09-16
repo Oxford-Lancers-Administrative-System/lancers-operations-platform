@@ -236,6 +236,8 @@ function messageKindFor(jobType: string, capacity?: string): MessageKind {
       return "escalation";
     case "schedule_change_notice":
       return "change_notice";
+    case "question_change_notice":
+      return "question_change";
     case "cancellation_notice":
       return "cancellation";
     default:
@@ -284,6 +286,8 @@ async function claimJobIn(
     invitation_id: string | null;
     attempt_count: number;
     job_type: string;
+    /** LAN-367: what the re-ask named when it was declared. `{}` for every other kind. */
+    template_variables: Record<string, unknown> | null;
   }>(
     `update public.notification_jobs
         set status = 'processing',
@@ -312,7 +316,8 @@ async function claimJobIn(
         and held_at is null
         and attempt_count < $3
         and invitation_id is not null
-      returning id, invitation_id, attempt_count, job_type::text as job_type`,
+      returning id, invitation_id, attempt_count, job_type::text as job_type,
+                template_variables`,
     [jobId, claim, MAX_ATTEMPTS],
   );
 
@@ -607,6 +612,13 @@ async function claimJobIn(
         // OWNER-LAN173-03. Only `change_notice` reads this; every other kind
         // gets `undefined`, exactly as before.
         changeSummary: kind === "change_notice" ? describeScheduleChange(detail) : undefined,
+        // LAN-367. Read off the job, not off the event: a later save changes
+        // the question again, and this message has to name what it named when
+        // it was declared.
+        questionSummary:
+          kind === "question_change"
+            ? ((job.template_variables?.questionSummary as string | undefined) ?? null)
+            : undefined,
         // The one place the plaintext token becomes a URL, and the last place
         // it exists at all. Two URLs on one token, deliberately: the change
         // notice sends a player to the answer page and the nudge sends them to

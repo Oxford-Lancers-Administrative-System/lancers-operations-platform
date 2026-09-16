@@ -84,6 +84,8 @@ const MESSAGE: OutboundMessage = {
   formUrl: onboardingUrl(BASE, TOKEN),
   stopUrl: stopMessagesUrl(BASE, TOKEN),
   queueUrl: `${BASE}/operate/admin/follow-ups`,
+  // LAN-367: which question changed, named by the re-ask.
+  questionSummary: "Do you need a lift to this one?",
 };
 
 /** The other three `formUrl` destinations, by the kinds that carry them. */
@@ -206,6 +208,10 @@ describe("every path a message mints", () => {
       recruit_event_followup: ["/a/yes/", "/a/no/"],
       nudge: ["/questions/"],
       change_notice: ["/rsvp/"],
+      // LAN-367: the re-ask sends a player to the event's own questions, the
+      // same page the nudge does — never to the RSVP page, which does not ask
+      // them.
+      question_change: ["/questions/"],
       recruit_welcome: ["/signup/", "/stop/"],
       recruit_details_reminder: ["/signup/", "/stop/"],
       recruit_interest_ask: ["/background/", "/stop/"],

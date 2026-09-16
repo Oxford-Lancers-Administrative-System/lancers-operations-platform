@@ -183,8 +183,13 @@ export async function readPlayerAnswerLandingIn(
     `select q.id, q.prompt, q.answer_type::text as answer_type, q.choices, q.is_required,
             qr.answer_text, qr.answer_boolean, qr.answer_choice
        from public.event_questions q
+       -- LAN-367: a superseded answer is not an answer. The question it was
+       -- given to changed after the invitation went out, so it reads as
+       -- outstanding here and the row survives only as the record of what was
+       -- said before.
        left join public.question_responses qr
          on qr.event_question_id = q.id and qr.invitation_id = $2
+        and qr.superseded_at is null
       where q.event_id = $1
         -- LAN-339, in the one place the rule lives: a recruit-capacity
         -- invitation has no applicable question, whatever the stored
@@ -299,7 +304,9 @@ export async function answerEventQuestionsIn(
       `insert into public.question_responses
          (invitation_id, event_id, event_question_id, answer_text, answer_boolean, answer_choice)
        values ($1, $2, $3, $4, $5, $6)
-       on conflict (invitation_id, event_question_id)
+       -- LAN-367: the live answer, inferred on the partial unique index. A
+       -- superseded row is history and is never updated in place.
+       on conflict (invitation_id, event_question_id) where superseded_at is null
        do update set
          answer_text = excluded.answer_text,
          answer_boolean = excluded.answer_boolean,
@@ -458,6 +465,7 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
          from public.event_questions q
          left join public.question_responses qr
            on qr.event_question_id = q.id and qr.invitation_id = $2
+          and qr.superseded_at is null
         where q.event_id = $1
           and ${questionAppliesToCapacitySql("q", "$3::public.invitation_capacity")}
           and q.is_required

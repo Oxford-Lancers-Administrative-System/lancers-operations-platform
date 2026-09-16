@@ -8,6 +8,7 @@ import {
   createEventDraft,
   deleteEventDraft,
   updateEventDraft,
+  previewEventQuestionChanges,
   updateEventQuestions,
   validateEventDraft,
   validateEventQuestions,
@@ -168,9 +169,20 @@ export async function updateEventDraftAction(
 }
 
 /**
- * Changes what an approved event asks — LAN-318, amending D41. The same question editor the draft
- * uses, on its own, with nothing else on the form and no Remove control. Nothing is sent: this
- * action queues no notification and touches no delivery.
+ * Changes what an approved event asks — LAN-318, amending D41, and LAN-367.
+ *
+ * Two passes, deliberately. The first computes what the save would do — which
+ * questions changed, and how many people would have their answers voided and
+ * be asked again — and hands it back for the operator to confirm. The second,
+ * carrying `confirm`, saves. A save that changes no question never reaches the
+ * confirm at all: there is nothing to warn about, so it goes straight through,
+ * which is the issue's own acceptance criterion.
+ *
+ * Brian's D3: the confirmation carries a "This is a correction, keep answers"
+ * tick, for a wording fix that is genuinely a fix. Ticked, the answers stand
+ * and nobody is told; the tick is recorded in the audit, because "we decided
+ * this was a correction" is the only thing that explains why fourteen people
+ * were not asked again.
  */
 export async function updateEventQuestionsAction(
   _previous: EventFormState,
@@ -188,11 +200,48 @@ export async function updateEventQuestionsAction(
       error: null,
       values: null,
       questions: rawQuestions,
+      questionChange: null,
     };
   }
 
+  const submitted = questions.value as EventQuestionInput[];
+  const confirmed = text(formData, "confirm") === "1";
+  const correction = text(formData, "correction") === "1";
+
+  if (!confirmed) {
+    try {
+      const preview = await previewEventQuestionChanges(eventId, submitted);
+      if (
+        preview.peopleToAsk > 0 &&
+        (preview.changedPrompts.length > 0 || preview.addedCount > 0)
+      ) {
+        return {
+          issues: [],
+          questionIssues: [],
+          error: null,
+          values: null,
+          questions: rawQuestions,
+          questionChange: {
+            changedPrompts: [...preview.changedPrompts],
+            addedCount: preview.addedCount,
+            peopleToAsk: preview.peopleToAsk,
+          },
+        };
+      }
+    } catch (error) {
+      return {
+        issues: [],
+        questionIssues: [],
+        error: messageFor(error),
+        values: null,
+        questions: rawQuestions,
+        questionChange: null,
+      };
+    }
+  }
+
   try {
-    await updateEventQuestions(operator.personId, eventId, questions.value as EventQuestionInput[]);
+    await updateEventQuestions(operator.personId, eventId, submitted, { correction });
   } catch (error) {
     return {
       issues: [],
@@ -200,6 +249,7 @@ export async function updateEventQuestionsAction(
       error: messageFor(error),
       values: null,
       questions: rawQuestions,
+      questionChange: null,
     };
   }
 

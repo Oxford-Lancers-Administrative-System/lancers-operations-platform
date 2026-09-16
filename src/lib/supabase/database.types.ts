@@ -1090,6 +1090,7 @@ export type Database = {
           is_required: boolean
           prompt: string
           sort_order: number
+          version: number
         }
         Insert: {
           answer_type?: Database["public"]["Enums"]["question_answer_type"]
@@ -1101,6 +1102,7 @@ export type Database = {
           is_required?: boolean
           prompt: string
           sort_order?: number
+          version?: number
         }
         Update: {
           answer_type?: Database["public"]["Enums"]["question_answer_type"]
@@ -1112,6 +1114,7 @@ export type Database = {
           is_required?: boolean
           prompt?: string
           sort_order?: number
+          version?: number
         }
         Relationships: [
           {
@@ -3138,8 +3141,11 @@ export type Database = {
           event_question_id: string
           id: string
           invitation_id: string
+          question_version: number
           raw_capture: string | null
           responded_at: string
+          superseded_at: string | null
+          superseded_reason: string | null
         }
         Insert: {
           answer_boolean?: boolean | null
@@ -3149,8 +3155,11 @@ export type Database = {
           event_question_id: string
           id?: string
           invitation_id: string
+          question_version?: number
           raw_capture?: string | null
           responded_at?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
         }
         Update: {
           answer_boolean?: boolean | null
@@ -3160,8 +3169,11 @@ export type Database = {
           event_question_id?: string
           id?: string
           invitation_id?: string
+          question_version?: number
           raw_capture?: string | null
           responded_at?: string
+          superseded_at?: string | null
+          superseded_reason?: string | null
         }
         Relationships: [
           {
@@ -4981,6 +4993,7 @@ export type Database = {
         | "schedule_change_notice"
         | "escalation"
         | "other"
+        | "question_change_notice"
       onboarding_activity_kind: "ask" | "answer"
       onboarding_actor_kind: "operator" | "player" | "system"
       onboarding_agreement_type: "code_of_conduct" | "photo_release"
@@ -5253,6 +5266,7 @@ export const Constants = {
         "schedule_change_notice",
         "escalation",
         "other",
+        "question_change_notice",
       ],
       onboarding_activity_kind: ["ask", "answer"],
       onboarding_actor_kind: ["operator", "player", "system"],

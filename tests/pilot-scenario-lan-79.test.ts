@@ -176,8 +176,12 @@ async function answer(invitationId: string, response: "yes" | "no", reason: stri
     // `clock_timestamp()` rather than `now()`: two answers in one transaction
     // share a transaction timestamp, and `one_answer_per_instant` refuses that.
     // A real change of mind arrives in two separate transactions.
-    `insert into public.rsvp_responses (invitation_id, response, reason, source, responded_at)
-     values ($1, $2::public.rsvp_value, $3, 'signed_link', clock_timestamp())`,
+    //
+    // LAN-376 moved that constraint to `recorded_at`, which is what now ranks
+    // the answers, so both columns take the statement clock here.
+    `insert into public.rsvp_responses
+       (invitation_id, response, reason, source, responded_at, recorded_at)
+     values ($1, $2::public.rsvp_value, $3, 'signed_link', clock_timestamp(), clock_timestamp())`,
     [invitationId, response, reason],
   );
   await client.query("update public.invitations set status = 'responded' where id = $1", [

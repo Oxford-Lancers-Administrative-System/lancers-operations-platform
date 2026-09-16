@@ -472,7 +472,8 @@ export async function recordOperatorRsvpResponse(
              (invitation_id, event_id, event_question_id,
               answer_text, answer_boolean, answer_choice, responded_at)
            values ($1, $2, $3, $4, $5, $6, $7)
-           on conflict (invitation_id, event_question_id) do update
+           -- LAN-367: the live answer, inferred on the partial unique index.
+           on conflict (invitation_id, event_question_id) where superseded_at is null do update
              set answer_text = excluded.answer_text,
                  answer_boolean = excluded.answer_boolean,
                  answer_choice = excluded.answer_choice,

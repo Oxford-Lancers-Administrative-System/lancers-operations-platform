@@ -38,6 +38,9 @@ const expected = {
   reminder: [["inviteeName", "eventName", "whenLabel", "venue"], 2],
   nudge: [["inviteeName", "eventName", "whenLabel"], 1],
   change_notice: [["inviteeName", "eventName", "whenLabel", "changeSummary"], 1],
+  // LAN-367's own template — drafted here, submitted by Brian, and read back
+  // from configuration like every other name.
+  question_change: [["inviteeName", "eventName", "whenLabel", "questionSummary"], 1],
   cancellation: [["inviteeName", "eventName", "whenLabel", "cancellationReason"], 0],
   escalation: [["outstandingCount", "eventName", "whenLabel", "deadlineLabel"], 0],
   recruit_event_followup: [["inviteeName", "eventName", "whenLabel", "venue"], 2],
@@ -78,6 +81,7 @@ const message: OutboundMessage = {
   attendingCount: 0,
   outstandingCount: 3,
   changeSummary: "Venue changed",
+  questionSummary: "Do you need a lift?",
   cancellationReason: "Private cancellation reason must not enter the WhatsApp payload",
   rsvpUrl: "https://club.example/rsvp/rsvp.token",
   questionsUrl: "https://club.example/questions/questions.token",
