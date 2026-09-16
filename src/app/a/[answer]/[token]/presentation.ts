@@ -4,13 +4,7 @@
  * (Brian's Q-10) so the WhatsApp message and the page can't drift apart.
  */
 
-import { TYPE_LABELS } from "@/app/operate/events/presentation";
 import { NO_BUTTON_LABEL } from "@/lib/delivery/templates";
-
-/** The kind of event, in the club's word for it. Only `/design-preview` still calls this (LAN-265) — live screens read `templateName` off the row instead. */
-export function eventTypeLabel(eventType: string): string {
-  return TYPE_LABELS[eventType] ?? eventType;
-}
 
 export const PRIVACY_NOTE =
   "This secure page records only your response. Other players’ responses are never visible.";

@@ -6,7 +6,6 @@
  * formatters already in `src/app/rsvp/[token]/presentation.ts`.
  */
 
-import { TYPE_LABELS } from "@/app/operate/events/presentation";
 import { attendingSentence, otherOutstandingSentence } from "@/app/a/[answer]/[token]/presentation";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 
@@ -20,11 +19,6 @@ export const PRIVACY_NOTE =
  * label for one destination cannot drift from itself.
  */
 export const SEE_ALL_YOUR_EVENTS = "See all your events.";
-
-/** The kind of event, in the club's word for it. Only `/design-preview` still calls this (LAN-265) — live screens read `templateName` off the row instead. */
-export function eventTypeLabel(eventType: string): string {
-  return TYPE_LABELS[eventType] ?? eventType;
-}
 
 export {
   attendingSentence,
