@@ -24,9 +24,9 @@
 --      constraint, so that is replaced by one-per-(membership, group). A new
 --      table would have left `coach_group_assignments` behind as a second
 --      home for the same fact, so this widens the table that already holds it.
---      The three values are closed here for the first time (Offense, Defense,
---      Special Teams — the sheet's own spellings), and the rows written under
---      the old British spellings are rewritten to them.
+--      The rows written under the old British spellings are rewritten to the
+--      sheet's own (Offense, Defense, Special Teams). The column itself stays
+--      free text — see the note beside it below for why.
 --
 --   3. Offensive and defensive position groups are new facts, several per
 --      player, so they get their own table keyed (membership, side, group).
@@ -93,13 +93,14 @@ alter table public.coach_group_assignments
   add constraint coach_group_assignments_one_per_group
     unique (season_membership_id, coach_group);
 
--- Anything outside the sheet's three values is not a coaching group.
-delete from public.coach_group_assignments
- where coach_group not in ('Offense', 'Defense', 'Special Teams');
-
-alter table public.coach_group_assignments
-  add constraint coach_group_assignments_group_in_vocabulary
-    check (coach_group in ('Offense', 'Defense', 'Special Teams'));
+-- The vocabulary is **not** closed here, deliberately. `coach_group` was made
+-- free text on purpose ("Mission 9 owns the vocabulary, and closing this here
+-- would freeze a set nobody has written down"), and the owner-run showcase
+-- dataset loader still writes the older spellings. A check constraint would
+-- refuse that loader outright, and it is not this issue's to change. So the
+-- three values live in `src/lib/services/roster-board/vocabulary.ts`, the
+-- board's own write path proves every value against them
+-- (`membership_group_in_vocabulary`), and the column stays open.
 
 comment on table public.coach_group_assignments is
   'Which coaching groups a player trains with this season — Offense, Defense, Special Teams, any combination, uncapped (LAN-387, Stewart''s Coaching Assignments tab). One row per group held.';

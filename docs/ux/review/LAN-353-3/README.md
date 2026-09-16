@@ -42,7 +42,9 @@ step one, and the two steps after it referring back to it.
 
 `*-club-link-tiles.png` is the club-link page's headline row, with the **No**
 tile beside Said yes. `*-share-panel.png` is the operator's own share panel,
-with **Copy link** and **Copy share message** side by side.
+carrying the club link's existing clipboard button and the new
+**Copy share message** beside it. Neither sends anything: the operator pastes
+the text into a group chat themselves, because the club cannot message groups.
 
 ## LAN-363 — the Code of Conduct as a PDF
 
