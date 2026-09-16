@@ -507,7 +507,7 @@ describe("the year's two Long Vacations are trimmed to where events are", () => 
   });
 
   it("draws both ends from one season's own three terms, with no year before it", () => {
-    // The production case, LAN-368: `scripts/production/baseline` seeds a season
+    // The production case, LAN-368: the production baseline seeds a season
     // and its three terms and nothing else. Before this the leading vacation was
     // built only when a previous year's term existed, so every pre-season date
     // fell off the calendar until Michaelmas began.
