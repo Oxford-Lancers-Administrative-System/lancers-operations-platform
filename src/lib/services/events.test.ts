@@ -485,6 +485,155 @@ describe("row 3 — a draft can be edited, and only while it is a draft", () => 
   });
 });
 
+/**
+ * LAN-391 — Clint, 2026-09-16: "it didn't want to change event type once the
+ * draft is saved."
+ *
+ * Reproduced before the fix, on a local production build: the Type control was
+ * **not** disabled, the operator could pick another type, the form accepted it,
+ * the save succeeded and redirected, the name change beside it persisted — and
+ * reopening the draft showed the original type. `updateEventDraft` did not name
+ * `template_id` or `event_type` in its `update`, so the chosen type was
+ * silently discarded with no refusal and no message.
+ *
+ * Brian, 2026-09-17: while an event is a draft, its type can be changed; once
+ * approved the type is fixed, as today.
+ */
+describe("LAN-391 — a draft's type can be changed", () => {
+  const PRACTICE = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+  const SOCIAL = "8de00424-52a8-52ad-9c9f-a29823f9c4bf";
+  const RECRUITMENT = "ae03257b-292e-5a97-b6ef-c3a6a2b839d7";
+
+  async function storedType(eventId: string) {
+    const row = await observer.query<{ template_id: string; event_type: string }>(
+      "select template_id, event_type::text as event_type from public.events where id = $1",
+      [eventId],
+    );
+    return row.rows[0];
+  }
+
+  it("saves the new type, and the class that comes with it", async () => {
+    const event = await createEventDraft(actorPersonId, draft({ templateId: PRACTICE }));
+    expect((await storedType(event.id)).event_type).toBe("practice");
+
+    const edited = await updateEventDraft(actorPersonId, event.id, draft({ templateId: SOCIAL }));
+
+    expect(edited.templateId).toBe(SOCIAL);
+    expect(edited.eventType).toBe("social");
+    // Read back from the row, not from what the service returned: the defect
+    // was that the row never moved.
+    expect(await storedType(event.id)).toEqual({ template_id: SOCIAL, event_type: "social" });
+  });
+
+  it("keeps the class the template says, not one a caller asks for", async () => {
+    // `events_template_fkey` is composite (LAN-265), so the two columns must
+    // agree; the class is read off the template rather than taken from input.
+    const event = await createEventDraft(actorPersonId, draft({ templateId: PRACTICE }));
+
+    await updateEventDraft(actorPersonId, event.id, draft({ templateId: RECRUITMENT }));
+
+    expect(await storedType(event.id)).toEqual({
+      template_id: RECRUITMENT,
+      event_type: "recruitment",
+    });
+  });
+
+  it("leaves everything else about the draft alone when the type does not change", async () => {
+    const event = await createEventDraft(actorPersonId, draft({ templateId: PRACTICE }));
+
+    const edited = await updateEventDraft(
+      actorPersonId,
+      event.id,
+      draft({ templateId: PRACTICE, venue: "University Parks" }),
+    );
+
+    expect(edited.venue).toBe("University Parks");
+    expect(await storedType(event.id)).toEqual({ template_id: PRACTICE, event_type: "practice" });
+  });
+
+  it("drops the audience rows the new class cannot offer, and keeps the rest", async () => {
+    // D46/LAN-295: recruits belong to a Recruitment event and nowhere else. A
+    // draft that was recruitment and is now a social is holding rows its own
+    // picker would no longer offer, and approval would invite them.
+    const event = await createEventDraft(actorPersonId, draft({ templateId: RECRUITMENT }));
+    const season = await observer.query<{ id: string }>(
+      "select season_id as id from public.events where id = $1",
+      [event.id],
+    );
+    const seasonId = season.rows[0].id;
+
+    const player = await observer.query<{ id: string; person_id: string }>(
+      `select id, person_id from public.season_memberships
+        where season_id = $1 and status = 'active' limit 1`,
+      [seasonId],
+    );
+    const prospect = await observer.query<{ person_id: string }>(
+      `select person_id from public.recruitment_prospects
+        where season_id = $1 and status in ('identified', 'engaged', 'committed') limit 1`,
+      [seasonId],
+    );
+    expect(player.rows).toHaveLength(1);
+    expect(prospect.rows).toHaveLength(1);
+
+    await observer.query(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id, person_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, 'player', $3::uuid, null, $4::uuid, $6::uuid),
+              ($1, $2, 'recruit', null, $5::uuid, $5::uuid, $6::uuid)`,
+      [
+        event.id,
+        seasonId,
+        player.rows[0].id,
+        player.rows[0].person_id,
+        prospect.rows[0].person_id,
+        actorPersonId,
+      ],
+    );
+
+    await updateEventDraft(actorPersonId, event.id, draft({ templateId: SOCIAL }));
+
+    const left = await observer.query<{ capacity: string }>(
+      "select capacity::text as capacity from public.event_audience_members where event_id = $1",
+      [event.id],
+    );
+    expect(left.rows.map((row) => row.capacity)).toEqual(["player"]);
+  });
+
+  it("says in the audit what the type was, what it became, and what left the audience", async () => {
+    const event = await createEventDraft(actorPersonId, draft({ templateId: PRACTICE }));
+
+    await updateEventDraft(actorPersonId, event.id, draft({ templateId: SOCIAL }));
+
+    const context = await observer.query<{ context: Record<string, unknown> }>(
+      `select context from public.audit_events
+        where entity_table = 'events' and entity_id = $1 and action = 'event.draft_updated'
+        order by occurred_at desc limit 1`,
+      [event.id],
+    );
+    expect(context.rows[0].context).toMatchObject({
+      templateId: SOCIAL,
+      eventType: "social",
+      previousTemplateId: PRACTICE,
+      previousEventType: "practice",
+      audienceDroppedByTypeChange: 0,
+    });
+  });
+
+  it("refuses the whole edit once the event is no longer a draft", async () => {
+    const event = await createEventDraft(actorPersonId, draft({ templateId: PRACTICE }));
+    await forceStatus(event.id, "approved");
+
+    const error = await refusalFrom(() =>
+      updateEventDraft(actorPersonId, event.id, draft({ templateId: SOCIAL })),
+    );
+
+    expect(error.rule).toBe("event_edit_requires_draft");
+    // And the row did not move: the refusal is the `where status = 'draft'`
+    // guard on the statement itself, not a read-then-write.
+    expect(await storedType(event.id)).toEqual({ template_id: PRACTICE, event_type: "practice" });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Rows 4, 5, 6 — the three transitions
 // ---------------------------------------------------------------------------

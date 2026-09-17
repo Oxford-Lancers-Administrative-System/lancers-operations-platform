@@ -50,6 +50,7 @@ export function EventCoreFields({
   templateId,
   templateList,
   onTemplateChange,
+  resetByTypeChange,
   scheduledOn,
   scheduledOnDate,
   onScheduledOnDateChange,
@@ -70,6 +71,8 @@ export function EventCoreFields({
   templateId: string;
   templateList: readonly EventTypeFormDefaults[];
   onTemplateChange: (next: string) => void;
+  /** LAN-391 — the fields the last type change replaced, by label. */
+  resetByTypeChange: readonly string[];
   scheduledOn: string;
   scheduledOnDate: Date | null;
   onScheduledOnDateChange: (next: Date | null) => void;
@@ -116,6 +119,21 @@ export function EventCoreFields({
             label: option.name,
           }))}
         />
+
+        {/* LAN-391 (Clint, 2026-09-16). A draft's type can be changed, and
+            changing it re-applies the new type's defaults over the fields that
+            still held the old type's. This states which ones, before the save,
+            as labels — not a sentence about what happened. */}
+        {resetByTypeChange.length > 0 ? (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            data-testid="type-change-reset"
+            aria-live="polite"
+          >
+            <strong>Reset by the new type:</strong> {resetByTypeChange.join(" · ")}
+          </Typography>
+        ) : null}
 
         {/* C1/C2: MUI X DatePicker/TimePicker replace native locale-dependent controls (W154C-F1 crash). D2 (Q-27) drew a 12-hour AM/PM face; LAN-326 reverses it (Brian, 2026-09-11) — 24-hour, `format="HH:mm"`, matching every place the app already *displays* a time. Still drawn the same way on every machine, and the stored value is unchanged plain HH:mm through the hidden input. */}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>

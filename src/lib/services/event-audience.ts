@@ -17,6 +17,7 @@ import {
 
 export {
   audiencePeople,
+  capacitiesForEventType,
   summariseAudienceGroups,
   EMPTY_AUDIENCE_MESSAGE,
   EMPTY_AUDIENCE_RULE,

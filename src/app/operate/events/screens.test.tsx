@@ -1696,6 +1696,37 @@ describe("the edit view — UX-31 against an existing draft", () => {
     );
   });
 
+  /**
+   * LAN-391 — Clint, 2026-09-16: "it didn't want to change event type once the
+   * draft is saved." The reproduction was that the control was *not* locked:
+   * the change was accepted on screen and dropped on save. Brian, 2026-09-17:
+   * a draft's type can be changed. These prove the editor half — the control
+   * is live on a saved draft and the new type is what the form posts.
+   */
+  describe("LAN-391 — the type on a saved draft", () => {
+    it("is a live control, not a fixed one", async () => {
+      vi.mocked(readEvent).mockResolvedValue(detail());
+
+      render(await EditEventPage(editProps()));
+
+      const type = screen.getByRole("combobox", { name: "Type" });
+      expect(type.getAttribute("aria-disabled")).not.toBe("true");
+      expect(type.textContent).toBe(SEEDED_TEMPLATE_NAMES.practice);
+    });
+
+    it("posts the type the operator chose", async () => {
+      vi.mocked(readEvent).mockResolvedValue(detail());
+      const { container } = render(await EditEventPage(editProps()));
+
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+      fireEvent.click(screen.getByRole("option", { name: SEEDED_TEMPLATE_NAMES.social }));
+
+      expect(container.querySelector<HTMLInputElement>('input[name="templateId"]')?.value).toBe(
+        SEEDED_TEMPLATE_IDS.social,
+      );
+    });
+  });
+
   it("refuses to open an editor for a cancelled event", async () => {
     // LAN-318 opened this route to an approved event's questions; a cancelled
     // event is asking nobody anything, so it is still refused outright.
@@ -3171,6 +3202,36 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     typeTime("Start", "20", "00");
 
     expect(valueOf("endsAt")).toBe("22:00");
+  });
+
+  /**
+   * LAN-391: "the editor shows which fields it reset before the operator
+   * saves, as a label or state, not a paragraph."
+   */
+  it("names the fields the new type replaced, and nothing it left alone", async () => {
+    twoTemplates();
+    render(await NewEventPage(newProps()));
+    fireEvent.change(screen.getByRole("textbox", { name: /Description/ }), {
+      target: { value: "Walkthrough only — the pitch is frozen." },
+    });
+
+    chooseType("Social");
+
+    const reset = flatten(screen.getByTestId("type-change-reset").textContent);
+    expect(reset).toContain("Venue");
+    expect(reset).toContain("Required equipment");
+    expect(reset).toContain("Questions");
+    // The one the operator wrote is not in the list, because it was not reset.
+    expect(reset).not.toContain("Description");
+    // A label and its values, not a sentence about what happened.
+    expect(reset).not.toMatch(/\b(because|so that|which means)\b/);
+  });
+
+  it("says nothing at all until a type change actually replaces something", async () => {
+    twoTemplates();
+    render(await NewEventPage(newProps()));
+
+    expect(screen.queryByTestId("type-change-reset")).toBeNull();
   });
 
   it("leaves an end the operator set themselves", async () => {

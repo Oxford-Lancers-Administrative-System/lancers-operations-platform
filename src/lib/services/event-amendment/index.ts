@@ -10,7 +10,12 @@ export {
   SILENCE_NEEDS_CONFIRMATION_RULE,
 } from "./shared";
 
-export { amendApprovedEvent, AMENDMENT_NEEDS_A_DATE_RULE, NOTHING_CHANGED_RULE } from "./amend";
+export {
+  amendApprovedEvent,
+  AMENDMENT_CANNOT_CHANGE_TYPE_RULE,
+  AMENDMENT_NEEDS_A_DATE_RULE,
+  NOTHING_CHANGED_RULE,
+} from "./amend";
 
 export {
   cancelEvent,

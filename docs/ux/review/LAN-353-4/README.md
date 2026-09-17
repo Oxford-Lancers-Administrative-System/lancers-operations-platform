@@ -46,3 +46,19 @@ six mid-onboarding memberships.
 
 Before this, those six were in neither the Active groups nor the Recruits group,
 so there was no way to put them on an event at all.
+
+## LAN-391 — the type on a saved draft
+
+`/operate/events/[id]/edit`, on a saved practice draft.
+
+| File                              | State                                                                                           |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `*_draft-editor_before.png`       | The draft as saved, Type reading Practice.                                                      |
+| `*_draft-editor_type-changed.png` | Type changed to Social, with **Reset by the new type** naming the fields the new type replaced. |
+| `*_draft-editor_after-save.png`   | Saved and reopened: the type is Social. Before this change it read Practice again.              |
+
+The reproduction, recorded on a production build of `main` before the fix: the
+Type control was not disabled, the new type could be chosen, the save succeeded
+and redirected, a name change made in the same save persisted — and the type
+reverted on reopen. `updateEventDraft` never named `template_id` or
+`event_type` in its `update`.

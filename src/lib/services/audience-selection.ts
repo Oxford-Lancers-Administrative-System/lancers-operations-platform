@@ -118,6 +118,20 @@ export function groupsForEventType(eventType: string): readonly AudienceGroup[] 
   );
 }
 
+/**
+ * The capacities any group offers for this event type — the audience *class*,
+ * as opposed to the audience. LAN-391 needs it: when a draft's type changes,
+ * the rows the new class cannot offer (a recruit on anything but Recruitment,
+ * D46) have to leave with the old type.
+ */
+export function capacitiesForEventType(eventType: string): AudienceCapacity[] {
+  const offered = new Set<AudienceCapacity>();
+  for (const group of groupsForEventType(eventType)) {
+    for (const capacity of group.capacities) offered.add(capacity);
+  }
+  return [...offered];
+}
+
 // The groups a template's default-audience picker may offer — groupsForEventType minus templateEligible: false.
 export function templateGroupsForEventType(eventType: string): readonly AudienceGroup[] {
   return groupsForEventType(eventType).filter((group) => group.templateEligible !== false);

@@ -29,6 +29,7 @@ import {
   CANCEL_REQUIRES_APPROVED_RULE,
   cancelEvent,
   EVENT_IS_CANCELLED_RULE,
+  AMENDMENT_CANNOT_CHANGE_TYPE_RULE,
   NOTHING_CHANGED_RULE,
   NOTHING_TO_RENOTIFY_RULE,
   readAmendmentContext,
@@ -407,6 +408,41 @@ describe("an approved event is amended in place", () => {
       const change = outcome.changes.find((entry) => entry.field === "venue");
       expect(change?.previous).toBe("M2W Tab A Venue");
     });
+  });
+
+  /**
+   * LAN-391 (Brian, 2026-09-17): a draft's type can be changed; an approved
+   * event's is fixed. The amend screen has no Type control and posts the stored
+   * template as a hidden field, so this is the crafted-post path — and it
+   * matters now that the draft path writes the column, because a path that
+   * quietly ignores a submitted type is the exact defect LAN-391 was filed
+   * about.
+   */
+  it("refuses a submitted type change rather than quietly keeping the old one", async () => {
+    const fixture = await approvedEvent();
+    const before = await observer.query<{ template_id: string; event_type: string }>(
+      "select template_id, event_type::text as event_type from public.events where id = $1",
+      [fixture.eventId],
+    );
+
+    const failure = await serviceFailure(() =>
+      amendApprovedEvent(
+        actorPersonId,
+        fixture.eventId,
+        draft({ templateId: "8de00424-52a8-52ad-9c9f-a29823f9c4bf", venue: "Somewhere else" }),
+        { notify: true },
+      ),
+    );
+
+    expect(failure.rule).toBe(AMENDMENT_CANNOT_CHANGE_TYPE_RULE);
+    // Nothing else in the amendment got through on the way past, either.
+    const after = await observer.query<{ template_id: string; event_type: string; venue: string }>(
+      "select template_id, event_type::text as event_type, venue from public.events where id = $1",
+      [fixture.eventId],
+    );
+    expect(after.rows[0].template_id).toBe(before.rows[0].template_id);
+    expect(after.rows[0].event_type).toBe(before.rows[0].event_type);
+    expect(after.rows[0].venue).not.toBe("Somewhere else");
   });
 
   it("writes nothing at all when nothing moved", async () => {

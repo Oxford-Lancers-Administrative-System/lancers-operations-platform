@@ -43,6 +43,16 @@ const AMENDMENT_NEEDS_A_DATE_MESSAGE =
   "An approved event has to have a date. Put one back before saving.";
 export const AMENDMENT_NEEDS_A_DATE_RULE = "event_amendment_requires_a_date";
 
+// LAN-391 (Brian, 2026-09-17): a draft's type can be changed; an approved
+// event's cannot. The amend screen has no Type control and posts the stored
+// template as a hidden field, so nothing an operator can do reaches this — it
+// exists because the draft path now writes the column, and a path that ignores
+// a submitted type is exactly the defect LAN-391 was filed about.
+const AMENDMENT_CANNOT_CHANGE_TYPE_MESSAGE =
+  "An approved event keeps the type it was approved as. Cancel it and draft " +
+  "the other kind of event instead.";
+export const AMENDMENT_CANNOT_CHANGE_TYPE_RULE = "event_type_fixed_after_approval";
+
 function holdReason(changes: readonly AmendmentChange[]): string {
   return `Event amended: ${changes.map((change) => change.label).join(", ")}.`; // so Mission 4 knows what it is holding
 }
@@ -86,6 +96,12 @@ export async function amendApprovedEvent(
         `${AMEND_REQUIRES_APPROVED_MESSAGE} ${describeStatus(before.status)}`,
         { rule: AMEND_REQUIRES_APPROVED_RULE },
       );
+    }
+
+    if (input.templateId !== before.templateId) {
+      throw new ConstraintViolated(AMENDMENT_CANNOT_CHANGE_TYPE_MESSAGE, {
+        rule: AMENDMENT_CANNOT_CHANGE_TYPE_RULE,
+      });
     }
 
     // LAN-244: what the form actually asks to change, against the row under the lock — not the
