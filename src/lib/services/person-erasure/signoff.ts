@@ -45,6 +45,7 @@ const ERASURE_SEAT_RULE = "erasure_signer_holds_no_qualifying_seat";
 const ERASURE_NOT_ELIGIBLE_RULE = "erasure_person_not_eligible";
 const ERASURE_ALREADY_SIGNED_RULE = "erasure_signer_already_confirmed";
 const ERASURE_REQUEST_DATE_RULE = "erasure_request_date_required";
+const ERASURE_SIGNOFF_PAIR_INCOMPLETE_RULE = "erasure_signoff_pair_incomplete";
 
 /** Every one of the four seats this signer holds. Empty means their confirmation counts for nothing. */
 function qualifyingSeats(roleCodes: readonly string[]): readonly string[] {
@@ -66,6 +67,17 @@ function seatsStillNeeded(signed: readonly ErasureSignOff[]): readonly string[] 
   // One person holding both is exactly the case Brian named: the second
   // confirmation then comes from another of the core four.
   return other.length > 0 ? other : CORE_FOUR_ROLE_CODES.filter((code) => !held.includes(code));
+}
+
+/**
+ * Whether the seats actually held across both signers satisfy the rule:
+ * President and General Manager between them, or one signer holding both.
+ * This is `seatsStillNeeded` restated as a pass/fail over the completed pair,
+ * so enforcement and the "who is still needed" dialog can never disagree.
+ */
+function signoffsSatisfyRequiredPair(signed: readonly ErasureSignOff[]): boolean {
+  const held = new Set(signed.flatMap((entry) => entry.roleCodes));
+  return REQUIRED_SIGNOFF_ROLE_CODES.every((code) => held.has(code));
 }
 
 async function readSignOffsIn(tx: Tx, personId: string): Promise<ErasureSignOff[]> {
@@ -192,6 +204,14 @@ export async function confirmErasure(params: {
         },
       });
       return { state: "awaiting-second" as const };
+    }
+
+    if (!signoffsSatisfyRequiredPair(after)) {
+      throw new ConstraintViolated(
+        "The President and the General Manager must each confirm. If one person holds " +
+          "both seats, the second confirmation has to come from another of the core four.",
+        { rule: ERASURE_SIGNOFF_PAIR_INCOMPLETE_RULE },
+      );
     }
 
     const counts = await anonymisePersonIn(tx, params.personId);

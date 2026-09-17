@@ -154,6 +154,33 @@ async function seedSubject(): Promise<string> {
     [id, SUBJECT.college, SUBJECT.freeText],
   );
 
+  // A1: their own free text on somebody ELSE's record, as the recorder, the
+  // owner, and the appointer — not the row's subject at all. Each carries
+  // their name in the words, not merely their id in the FK, so the exhaustive
+  // scan below proves whether the actor path is scrubbed, not only the
+  // subject path.
+  const bystanderId = await newPerson("Bystander");
+  await observer.query(
+    `insert into public.follow_up_actions (season_id, category, description, owner_person_id)
+     values ($1::uuid, 'other', $2, $3::uuid)`,
+    [seasonId, SUBJECT.freeText, id],
+  );
+  await observer.query(
+    `insert into public.role_assignments
+       (person_id, role_id, scope, is_constitutional_office, season_id,
+        effective_from, appointed_by_person_id, note)
+     values ($1::uuid, (select id from public.roles where code = 'special_teams_coach'),
+             'season', false, $2::uuid, current_date, $3::uuid, $4)`,
+    [bystanderId, seasonId, id, SUBJECT.freeText],
+  );
+  await observer.query(
+    `insert into public.rsvp_responses
+       (invitation_id, response, reason, raw_capture, source, responded_at, recorded_by_person_id)
+     values ((select id from public.invitations order by id limit 1),
+             'no', $1, $1, 'operator', now(), $2::uuid)`,
+    [SUBJECT.freeText, id],
+  );
+
   return id;
 }
 
@@ -188,6 +215,15 @@ async function cleanUp(): Promise<void> {
   );
   await observer.query(
     `delete from public.person_fact_disputes where person_id = any($1::uuid[]) or raised_by_person_id = any($1::uuid[])`,
+    [people],
+  );
+  await observer.query(
+    `delete from public.follow_up_actions
+      where owner_person_id = any($1::uuid[]) or subject_person_id = any($1::uuid[])`,
+    [people],
+  );
+  await observer.query(
+    `delete from public.rsvp_responses where recorded_by_person_id = any($1::uuid[])`,
     [people],
   );
   await observer.query(`delete from public.notification_jobs where person_id = any($1::uuid[])`, [
@@ -458,6 +494,26 @@ describe("the two sign-offs", () => {
       confirmErasure({ personId: subjectId, requestedOn: "2026-09-10" }),
     ).rejects.toMatchObject({ rule: "erasure_signer_holds_no_qualifying_seat" });
   });
+
+  it("refuses a pair that never includes the President or the General Manager", async () => {
+    actingAs(presidentId, ["secretary"]);
+    const first = await confirmErasure({ personId: subjectId, requestedOn: "2026-09-10" });
+    expect(first.state).toBe("awaiting-second");
+
+    actingAs(generalManagerId, ["vice_president"]);
+    await expect(
+      confirmErasure({ personId: subjectId, requestedOn: "2026-09-10" }),
+    ).rejects.toMatchObject({ rule: "erasure_signoff_pair_incomplete" });
+
+    const state = await readErasureState(subjectId);
+    expect(state.signOffs).toHaveLength(1);
+    expect(state.eligibility.eligible).toBe(true);
+    const person = await observer.query<{ given_name: string }>(
+      `select given_name from public.people where id = $1::uuid`,
+      [subjectId],
+    );
+    expect(person.rows[0].given_name).toBe(SUBJECT.givenName);
+  }, 60_000);
 });
 
 describe("who may be erased", () => {

@@ -153,13 +153,19 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
     [personId, ERASED_TEXT],
   );
 
-  // What the club recorded about them in words, on their own records.
+  // What the club recorded about them in words, on their own records — and,
+  // separately, any dispute this person raised or resolved about somebody
+  // else's record, where the free text is their own note rather than the
+  // other person's disputed value.
   scrubbed.person_fact_disputes = await run(
     tx,
     `update public.person_fact_disputes
-        set club_value = $2, player_value = $2,
+        set club_value = case when person_id = $1::uuid then $2 else club_value end,
+            player_value = case when person_id = $1::uuid then $2 else player_value end,
             resolution_note = case when resolution_note is null then null else $2 end
-      where person_id = $1::uuid`,
+      where person_id = $1::uuid
+         or raised_by_person_id = $1::uuid
+         or resolved_by_person_id = $1::uuid`,
     [personId, ERASED_TEXT],
   );
   scrubbed.season_memberships = await run(
@@ -191,8 +197,9 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
     tx,
     `update public.onboarding_items
         set waived_reason = case when waived_reason is null then null else $2 end
-      where season_membership_id in (
-        select id from public.season_memberships where person_id = $1::uuid)`,
+      where waived_by_person_id = $1::uuid
+         or season_membership_id in (
+              select id from public.season_memberships where person_id = $1::uuid)`,
     [personId, ERASED_TEXT],
   );
   scrubbed.onboarding_item_history = await run(
@@ -222,13 +229,15 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
     [personId, ERASED_TEXT],
   );
 
-  // What they answered, and why they said no. The counts stay; the words go.
+  // What they answered, and why they said no. The counts stay; the words go —
+  // and the same for an operator who recorded somebody else's RSVP by hand.
   scrubbed.rsvp_responses = await run(
     tx,
     `update public.rsvp_responses
         set reason = case when reason is null then null else $2 end,
             raw_capture = case when raw_capture is null then null else $2 end
-      where invitation_id in (select id from public.invitations where person_id = $1::uuid)`,
+      where recorded_by_person_id = $1::uuid
+         or invitation_id in (select id from public.invitations where person_id = $1::uuid)`,
     [personId, ERASED_TEXT],
   );
   scrubbed.question_responses = await run(
@@ -244,7 +253,8 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
     tx,
     `update public.nonresponse_flags
         set resolution = case when resolution is null then null else $2 end
-      where invitation_id in (select id from public.invitations where person_id = $1::uuid)`,
+      where resolved_by_person_id = $1::uuid
+         or invitation_id in (select id from public.invitations where person_id = $1::uuid)`,
     [personId, ERASED_TEXT],
   );
 
@@ -284,20 +294,33 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
     [personId, ERASED_TEXT],
   );
 
-  // Follow-ups and seats: what somebody wrote about them, in words.
+  // Follow-ups and seats: what somebody wrote about them, in words — or, when
+  // this person is the owner rather than the subject, what they wrote in
+  // their own free text about somebody else's follow-up or appointment.
   scrubbed.follow_up_actions = await run(
     tx,
     `update public.follow_up_actions
         set description = $2,
             resolution_note = case when resolution_note is null then null else $2 end
-      where subject_person_id = $1::uuid`,
+      where subject_person_id = $1::uuid or owner_person_id = $1::uuid`,
     [personId, ERASED_TEXT],
   );
   scrubbed.role_assignments = await run(
     tx,
     `update public.role_assignments
         set note = case when note is null then null else $2 end
-      where person_id = $1::uuid`,
+      where person_id = $1::uuid or appointed_by_person_id = $1::uuid`,
+    [personId, ERASED_TEXT],
+  );
+
+  // The reason a fixture's date, time, venue or opponent changed, as
+  // recorded or approved by them — the schedule fact itself (what changed,
+  // to what) has no separate subject and stays; only their own words go.
+  scrubbed.schedule_changes = await run(
+    tx,
+    `update public.schedule_changes
+        set reason = case when reason is null then null else $2 end
+      where recorded_by_person_id = $1::uuid or approved_by_person_id = $1::uuid`,
     [personId, ERASED_TEXT],
   );
 

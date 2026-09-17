@@ -26,9 +26,20 @@ alter table public.onboarding_agreement_versions
 alter table public.onboarding_agreement_versions
   add constraint onboarding_agreement_versions_pdf_path_not_blank
     check (pdf_path is null or btrim(pdf_path) <> ''),
-  -- A path this deployment serves, never an address somewhere else.
+  -- A path this deployment serves, never an address somewhere else. A single
+  -- leading slash only: a second `/` is protocol-relative
+  -- (`//host/file.pdf` resolves against the current protocol to an external
+  -- host) and a second `\` is the same trick, since a browser normalises a
+  -- leading backslash to a slash before resolving it.
   add constraint onboarding_agreement_versions_pdf_path_is_local
-    check (pdf_path is null or pdf_path like '/%');
+    check (
+      pdf_path is null
+      or (
+        pdf_path like '/%'
+        and substr(pdf_path, 2, 1) <> '/'
+        and substr(pdf_path, 2, 1) <> '\'
+      )
+    );
 
 comment on column public.onboarding_agreement_versions.pdf_path is
   'A path this deployment serves for the document itself (LAN-363), or null. The wording still lives in `body`; this is how it is shown.';
