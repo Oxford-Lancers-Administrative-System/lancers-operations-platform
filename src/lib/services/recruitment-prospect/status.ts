@@ -3,6 +3,7 @@ import "server-only";
 import { InvalidTransition, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
 import { recordAudit } from "../audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
 import { EXIT_STATUSES, type ProspectStatus } from "../recruitment-vocabulary";
 import {
   cancelRecruitCycleJobsIn,
@@ -98,6 +99,21 @@ export async function updateRecruitmentProspectStatusIn(
     fromState: row.status,
     toState: toStatus,
     reason,
+  });
+
+  // LAN-392. A status change inside recruitment can put somebody into the
+  // Recruits group (a `void` record corrected back to `identified`) or take
+  // them out of it (declined, disinterested, void). Both directions run through
+  // the one rule: the first adds them to every approved future recruitment
+  // event that chose Recruits, and the second takes back any rule-added row
+  // whose message has not gone — which is what stops a recruit who declined at
+  // 10:05 being invited at 10:10, and stops a cancelled-but-kept invitation
+  // sitting in the non-response queue being chased about a message nobody sent.
+  await applyAudienceGroupRuleIn(tx, {
+    personId: row.person_id,
+    seasonId: row.season_id,
+    trigger: "recruit_status_changed",
+    actorPersonId,
   });
 
   if (EXIT_STATUSES.includes(toStatus)) {

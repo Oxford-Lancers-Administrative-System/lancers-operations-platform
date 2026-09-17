@@ -39,3 +39,26 @@ The widest overlay bar macOS draws is 15px, so 11px was not enough and 27px is.
 On a platform that lays its scrollbars out in flow instead, `scrollbar-gutter:
 stable` reserves the bar's own width on top of that; the cost there is a small
 gap after the last column, which is what "the scrollbar beside them" asks for.
+
+## LAN-392 — an approved event keeps its audience groups
+
+`LAN-392/desktop_event-with-late-joiner.png` and
+`LAN-392/phone375_event-with-late-joiner.png` are an approved recruitment event
+whose audience was built from the Recruits group, after recruits were added to
+the club with the event already approved.
+
+What to read on it:
+
+- **Audience — "9 confirmed", "Confirmed at approval, plus 3 added since."**
+  The count reflects the late joiners, and the line beside it no longer claims
+  the whole audience was confirmed at approval, because it was not.
+- **Distribution — "9 invitations · 0 responses · 7 queued".** Computed from the
+  live rows, so the late joiners are in it.
+- **Everyone asked — 7**, with Tamsin Wrayburn's **Invitation Thu 20:19** beside
+  everybody else's **Invitation Wed 19:00**. That difference is the rule: the
+  event's own invitation instant for the people who were there at approval, and
+  her own grace-delayed instant for the person who arrived afterwards. The rungs
+  after it are the event's, shared with everyone.
+
+Every person shown is the local synthetic seed. The 375px shot is the same page
+at phone width.

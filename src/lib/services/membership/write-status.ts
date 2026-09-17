@@ -2,6 +2,7 @@ import "server-only";
 
 import { NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "../audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
 import { type MembershipRecord, readMembershipIn } from "./read";
 import {
   generateOnboardingItems,
@@ -16,9 +17,15 @@ import {
 async function lockMembership(
   tx: Tx,
   membershipId: string,
-): Promise<{ status: MembershipStatus; seasonId: string }> {
-  const result = await tx.query<{ status: MembershipStatus; season_id: string }>(
-    `select status::text as status, season_id
+): Promise<{ status: MembershipStatus; seasonId: string; personId: string }> {
+  const result = await tx.query<{
+    status: MembershipStatus;
+    season_id: string;
+    person_id: string;
+  }>(
+    // person_id is read here rather than re-read later because LAN-392's group
+    // rule needs the human, and this row is already locked.
+    `select status::text as status, season_id, person_id
        from public.season_memberships
       where id = $1::uuid
       for update`,
@@ -28,7 +35,7 @@ async function lockMembership(
   if (!row) {
     throw new NotFound(MEMBERSHIP_NOT_FOUND_MESSAGE, { rule: "season_memberships_not_found" });
   }
-  return { status: row.status, seasonId: row.season_id };
+  return { status: row.status, seasonId: row.season_id, personId: row.person_id };
 }
 
 async function recordStatusEvent(
@@ -61,7 +68,7 @@ export async function setMembershipStatus(params: {
   requireActor(actorPersonId);
 
   return withTransaction(async (tx) => {
-    const { status: current, seasonId } = await lockMembership(tx, membershipId);
+    const { status: current, seasonId, personId } = await lockMembership(tx, membershipId);
     if (current === status) return readMembershipIn(tx, membershipId);
 
     if (status === "active") {
@@ -83,6 +90,18 @@ export async function setMembershipStatus(params: {
         where id = $1::uuid`,
       [membershipId, status],
     );
+
+    // LAN-392. A status change moves this person between derived audience
+    // groups — out of Onboarding, into the active groups, or out of both — so
+    // every approved future event whose stored groups they now match adds them,
+    // and every one they no longer match takes an unsent rule-add back. Inside
+    // this transaction, and never able to abort it.
+    await applyAudienceGroupRuleIn(tx, {
+      personId,
+      seasonId,
+      trigger: "membership_status_changed",
+      actorPersonId,
+    });
 
     await recordAudit(tx, {
       actorPersonId,

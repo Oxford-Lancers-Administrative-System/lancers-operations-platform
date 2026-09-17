@@ -88,6 +88,7 @@ function event(overrides: Partial<EventDetail> = {}): EventDetail {
     venue: "Iffley Road",
     isMandatory: true,
     registerSaved: false,
+    audienceAddedSinceApproval: 0,
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,

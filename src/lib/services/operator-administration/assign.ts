@@ -2,6 +2,8 @@ import { assertAdministrationTarget } from "@/lib/auth/administration-authority"
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { withTransaction } from "@/lib/db";
 import { recordAdministrationEvent } from "../administration-audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
+import { readCurrentSeasonIn } from "../seasons";
 import type { AdministrationOperatingYear } from "../administration-events";
 import {
   insertRoleAssignmentIn,
@@ -76,6 +78,19 @@ export async function assignRole(params: AssignRoleParams): Promise<RoleAssignme
       entry,
       cycle,
       appointedByPersonId: actor.personId,
+    });
+
+    // LAN-392, Brian's decision 9: a coaching or committee seat is a derived
+    // audience group, so seating somebody adds them to every approved future
+    // event that chose that group, and a seat that ends takes back an unsent
+    // rule-add. The season is the club's current one: a club-scoped committee
+    // seat has no season of its own, and the rule only ever acts on events in
+    // the season the club is operating.
+    await applyAudienceGroupRuleIn(tx, {
+      personId: params.personId,
+      seasonId: (await readCurrentSeasonIn(tx)).id,
+      trigger: "seat_assigned",
+      actorPersonId: actor.personId,
     });
 
     await recordAdministrationEvent(tx, {

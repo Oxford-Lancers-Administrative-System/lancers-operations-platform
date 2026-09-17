@@ -4,6 +4,8 @@ import { assertAdministrationTarget } from "@/lib/auth/administration-authority"
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { ConstraintViolated, InvalidTransition, withTransaction } from "@/lib/db";
 import { recordAdministrationEvent } from "../administration-audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
+import { readCurrentSeasonIn } from "../seasons";
 import {
   currentDateIn,
   insertRoleAssignmentIn,
@@ -180,6 +182,28 @@ export async function replaceRoleHolder(
       correlationId,
       detail: { replacesPersonId: outgoing.personId },
     });
+
+    // LAN-392, Brian's decision 9: a coaching or committee seat is a derived
+    // audience group, so seating somebody adds them to every approved future
+    // event that chose that group, and a seat that ends takes back an unsent
+    // rule-add. The season is the club's current one: a club-scoped committee
+    // seat has no season of its own, and the rule only ever acts on events in
+    // the season the club is operating.
+    //
+    // Run last, after both writes, because a handover is both directions at
+    // once and each half has to be on the record before the rule reads it: the
+    // outgoing holder's seat now ends on the handover date, so their unsent
+    // rule-adds to events after it come back off, and the successor's seat now
+    // exists, so events after it add them.
+    const handoverSeasonId = (await readCurrentSeasonIn(tx)).id;
+    for (const personId of [outgoing.personId, params.successorPersonId]) {
+      await applyAudienceGroupRuleIn(tx, {
+        personId,
+        seasonId: handoverSeasonId,
+        trigger: "seat_replaced",
+        actorPersonId: actor.personId,
+      });
+    }
 
     return {
       roleCode: role.code,

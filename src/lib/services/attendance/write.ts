@@ -8,6 +8,7 @@ import {
   type Tx,
 } from "@/lib/db";
 import { recordAudit } from "../audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
 import { actorRequirement } from "../actor";
 import {
   isAttendancePresence,
@@ -427,6 +428,18 @@ async function mintWalkUpProspect(
      values ($1::uuid, $2::uuid, 'identified', $3, $4::date)`,
     [personId, event.seasonId, `Walk-up at ${event.name}`, event.scheduledOn],
   );
+
+  // LAN-392, Brian's decision 8: the walk-up form creates a recruit, so it is a
+  // group change like any other. This person has no consent row yet — the
+  // walk-up's own messaging authorisation is a separate decision made a few
+  // lines up the call stack — so the rule adds the audience row and the
+  // invitation and declares nothing where consent is absent.
+  await applyAudienceGroupRuleIn(tx, {
+    personId,
+    seasonId: event.seasonId,
+    trigger: "walk_up_recorded",
+    actorPersonId: null,
+  });
 
   return { capacity: "recruit", membershipId: null, personId };
 }

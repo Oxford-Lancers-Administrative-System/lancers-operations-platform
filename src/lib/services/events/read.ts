@@ -56,6 +56,7 @@ const SHOWED_PRESENCE_LITERALS = SHOWED_PRESENCES.map((presence) => `'${presence
 /** The participation counts — operator tier only, named beside `participationJoins()` so `PARTICIPATION_TABLES` catches a new one. `coalesce`d since the joins are outer. */
 const COUNT_COLUMNS = `
   coalesce(audience.audience_count, 0) as audience_count,
+  coalesce(audience.audience_added_since_approval, 0) as audience_added_since_approval,
   coalesce(invited.invitation_count, 0) as invitation_count,
   coalesce(invited.response_count, 0) as response_count,
   coalesce(invited.said_yes_count, 0) as said_yes_count,
@@ -66,8 +67,20 @@ const COUNT_COLUMNS = `
 function participationJoins(scope: string): string {
   return `
        left join (
-         select p.event_id, count(*) as audience_count
+         select p.event_id,
+                count(*) as audience_count,
+                -- LAN-392/LAN-393: how many of them arrived after approval,
+                -- so the page can say "confirmed at approval" without it
+                -- quietly becoming untrue the first time somebody joins late.
+                -- Both doors are covered: the group rule stamps
+                -- added_by_group, and an operator's hand-add is an
+                -- added_by_person_id recorded after the event was approved.
+                count(*) filter (
+                  where p.added_by_group is not null
+                     or (e2.approved_at is not null and p.added_at > e2.approved_at)
+                ) as audience_added_since_approval
            from public.event_audience_members p
+           join public.events e2 on e2.id = p.event_id
           where ${scope}
           group by p.event_id
        ) audience on audience.event_id = e.id
@@ -115,6 +128,7 @@ interface EventRow {
   venue: string | null;
   is_mandatory: boolean;
   audience_count: string;
+  audience_added_since_approval: string;
   invitation_count: string;
   response_count: string;
   said_yes_count: string;
@@ -276,6 +290,7 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
 
   return {
     ...toListEntry(row),
+    audienceAddedSinceApproval: Number(row.audience_added_since_approval),
     description: row.description,
     requiredEquipment: row.required_equipment,
     joiningUrl: safeUri(row.joining_url),

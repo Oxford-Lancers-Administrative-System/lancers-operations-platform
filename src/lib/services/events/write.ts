@@ -8,6 +8,7 @@ import {
   listAudienceCatalogueIn,
   resolveSelection,
 } from "../event-audience";
+import { groupsForEventType } from "../audience-selection";
 import {
   readTemplateInheritanceIn,
   templateAudienceKeys,
@@ -260,6 +261,20 @@ export async function updateEventDraft(
         )
       : null;
 
+    // LAN-392: the stored group *rule* follows the class for the same reason
+    // the rows do. A `recruits` rule left on a draft that is now a practice
+    // would violate `event_audience_groups_recruits_are_recruitment_only` the
+    // moment it was written and, worse, would be a rule to invite recruits to
+    // an event whose own picker does not offer them.
+    const droppedGroups = typeChanged
+      ? await tx.query(
+          `delete from public.event_audience_groups
+            where event_id = $1
+              and audience_group::text <> all($2::text[])`,
+          [eventId, groupsForEventType(inherited.eventType).map((group) => group.key)],
+        )
+      : null;
+
     await recordAudit(tx, {
       actorPersonId,
       action: "event.draft_updated",
@@ -279,6 +294,7 @@ export async function updateEventDraft(
               previousTemplateId: before.templateId,
               previousEventType: before.eventType,
               audienceDroppedByTypeChange: droppedFromAudience?.rowCount ?? 0,
+              audienceGroupsDroppedByTypeChange: droppedGroups?.rowCount ?? 0,
             }
           : {}),
       },

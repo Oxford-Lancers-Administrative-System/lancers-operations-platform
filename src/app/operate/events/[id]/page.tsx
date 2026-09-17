@@ -92,6 +92,7 @@ export default async function EventDetailPage({
             candidates={preview.catalogue.candidates}
             counts={preview.catalogue.counts}
             initialKeys={preview.audience.map((member) => `${member.capacity}:${member.anchorId}`)}
+            initialGroups={preview.audienceGroups}
             templateGroups={template.audienceGroups}
           />
         </ApprovalLayout>
