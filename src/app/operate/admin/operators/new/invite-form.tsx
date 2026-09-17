@@ -68,6 +68,10 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
   const [familyName, setFamilyName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  // LAN-389. The control sits outside both forms on this screen, so there is
+  // no submit event for it to refuse; the refusal arrives here instead and
+  // holds the Send button, exactly as a malformed number does.
+  const [phoneUnconfirmed, setPhoneUnconfirmed] = useState(false);
   const [personId, setPersonId] = useState(CREATE_NEW);
   const [roleCode, setRoleCode] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState("");
@@ -130,6 +134,7 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
             name="phoneControl"
             label="Phone (optional)"
             onValueChange={setPhone}
+            onMismatchChange={setPhoneUnconfirmed}
             error={Boolean(phoneFormatError)}
             helperText={phoneFormatError ?? undefined}
             testId="invite-phone-field"
@@ -249,7 +254,11 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
                   type="submit"
                   variant="contained"
                   disabled={
-                    sending || roleCode === "" || email.trim() === "" || Boolean(phoneFormatError)
+                    sending ||
+                    roleCode === "" ||
+                    email.trim() === "" ||
+                    Boolean(phoneFormatError) ||
+                    phoneUnconfirmed
                   }
                   sx={{ minHeight: 44 }}
                 >
@@ -258,7 +267,7 @@ function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
               }
               cancel={<Button href="/operate/admin/operators">Cancel</Button>}
               note={
-                phoneFormatError
+                phoneFormatError || phoneUnconfirmed
                   ? "Correct the phone number to send."
                   : roleCode === "" || email.trim() === ""
                     ? "Choose a role and enter an email address to send."

@@ -95,6 +95,10 @@ export default function SignupForm({
   const [step, setStep] = useState<Step>("form");
   const [values, setValues] = useState<SignupFieldValues>(initial);
   const [consent, setConsent] = useState(false);
+  // LAN-389. Every other phone entry point is an HTML form, and the control
+  // refuses the submit event itself; this one saves from a button's onClick,
+  // so the same refusal arrives here as a reason Save stays disabled.
+  const [mobileUnconfirmed, setMobileUnconfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,15 +154,16 @@ export default function SignupForm({
   const formatInvalid = Boolean(
     mobileError || emailError || collegeEmailError || matriculationError || graduationError,
   );
-  const ready = !requiredMissing && !formatInvalid && consent;
+  const ready = !requiredMissing && !formatInvalid && !mobileUnconfirmed && consent;
   const REQUIRED_FOUR = "a first name, a last name, a mobile number and your Oxford email";
-  const disabledReason = formatInvalid
-    ? "Correct the field marked in red to enable this."
-    : requiredMissing && !consent
-      ? `Enter ${REQUIRED_FOUR}, and tick the box below, to enable this.`
-      : requiredMissing
-        ? `Enter ${REQUIRED_FOUR} to enable this.`
-        : "Tick the box below to enable this.";
+  const disabledReason =
+    formatInvalid || mobileUnconfirmed
+      ? "Correct the field marked in red to enable this."
+      : requiredMissing && !consent
+        ? `Enter ${REQUIRED_FOUR}, and tick the box below, to enable this.`
+        : requiredMissing
+          ? `Enter ${REQUIRED_FOUR} to enable this.`
+          : "Tick the box below to enable this.";
 
   async function doSubmit(confirmedExistingMatch: boolean) {
     setBusy(true);
@@ -313,6 +318,7 @@ export default function SignupForm({
             setError(null);
             setValues((current) => ({ ...current, mobile: joined }));
           }}
+          onMismatchChange={setMobileUnconfirmed}
         />
         <Field
           label="College email"

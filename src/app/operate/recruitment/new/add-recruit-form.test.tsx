@@ -11,7 +11,7 @@
  * and the one authorised explanatory paragraph is on the page.
  */
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({ submitAddRecruit: vi.fn() }));
@@ -89,6 +89,9 @@ describe("V-1, correction round 2 — inline phone and email validation", () => 
     fireEvent.change(named("givenName"), { target: { value: "Ada" } });
     fireEvent.change(named("familyName"), { target: { value: "Nkemelu" } });
     fireEvent.change(inside("mobile-field"), { target: { value: "07700 900461" } });
+    // LAN-389: the confirm box under the number is required the moment a
+    // number is typed, and the form will not submit until the two agree.
+    fireEvent.change(inside("mobile-field-confirm"), { target: { value: "07700 900461" } });
     fireEvent.change(collegeEmail, { target: { value: "ada.nkemelu@balliol.ox.ac.uk" } });
 
     fireEvent.click(screen.getByTestId("add-recruit-check"));
@@ -146,5 +149,88 @@ describe("V-2, correction round 2 — the widened field set", () => {
     }
     // None of the widened fields carry MUI's `required` marker.
     expect(screen.getByLabelText("Known as")).not.toBeRequired();
+  });
+});
+
+/**
+ * LAN-389, entry points 3 and 4 of 10 (Clint, 2026-09-17). Two numbers on one
+ * form — the recruit's own and their emergency contact's — and each confirms
+ * itself independently.
+ */
+describe("the confirm boxes on Add recruit", () => {
+  const inside = (testId: string) =>
+    screen.getByTestId(testId).querySelector("input") as HTMLInputElement;
+
+  function fillRequired() {
+    const named = (name: string) =>
+      document.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+    fireEvent.change(named("givenName"), { target: { value: "Ada" } });
+    fireEvent.change(named("familyName"), { target: { value: "Nkemelu" } });
+    fireEvent.change(inside("college-email-field"), {
+      target: { value: "ada.nkemelu@balliol.ox.ac.uk" },
+    });
+  }
+
+  it("refuses a mismatched mobile, and checks nothing", async () => {
+    vi.mocked(submitAddRecruit).mockClear();
+    const { container } = render(<AddRecruitForm seasonLabel="2026-27" />);
+    fillRequired();
+
+    fireEvent.change(inside("mobile-field"), { target: { value: "07700900461" } });
+    fireEvent.change(inside("mobile-field-confirm"), { target: { value: "07700900416" } });
+
+    await act(async () => {
+      fireEvent.submit(container.querySelector("form")!);
+    });
+
+    expect(submitAddRecruit).not.toHaveBeenCalled();
+    expect(screen.getByText("Does not match the number above.")).toBeTruthy();
+  });
+
+  it("refuses a mismatched emergency contact phone, and checks nothing", async () => {
+    vi.mocked(submitAddRecruit).mockClear();
+    const { container } = render(<AddRecruitForm seasonLabel="2026-27" />);
+    fillRequired();
+
+    fireEvent.change(inside("mobile-field"), { target: { value: "07700900461" } });
+    fireEvent.change(inside("mobile-field-confirm"), { target: { value: "07700900461" } });
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "07700900777" } });
+    fireEvent.change(screen.getByLabelText(/^Confirm phone/), {
+      target: { value: "07700900778" },
+    });
+
+    await act(async () => {
+      fireEvent.submit(container.querySelector("form")!);
+    });
+
+    expect(submitAddRecruit).not.toHaveBeenCalled();
+    expect(screen.getByText("Does not match the number above.")).toBeTruthy();
+  });
+
+  it("posts both numbers once both are confirmed, and neither confirm value", async () => {
+    vi.mocked(submitAddRecruit).mockClear();
+    vi.mocked(submitAddRecruit).mockResolvedValue({
+      ...INITIAL_ADD_RECRUIT_STATE,
+      candidates: [],
+    });
+    const { container } = render(<AddRecruitForm seasonLabel="2026-27" />);
+    fillRequired();
+
+    fireEvent.change(inside("mobile-field"), { target: { value: "07700900461" } });
+    fireEvent.change(inside("mobile-field-confirm"), { target: { value: "07700900461" } });
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "07700900777" } });
+    fireEvent.change(screen.getByLabelText(/^Confirm phone/), {
+      target: { value: "07700900777" },
+    });
+
+    await act(async () => {
+      fireEvent.submit(container.querySelector("form")!);
+    });
+
+    expect(submitAddRecruit).toHaveBeenCalled();
+    const posted = vi.mocked(submitAddRecruit).mock.calls[0][1];
+    expect(posted.get("mobile")).toBe("+447700900461");
+    expect(posted.get("emergencyPhone")).toBe("+447700900777");
+    expect([...posted.keys()].filter((key) => key.toLowerCase().includes("confirm"))).toEqual([]);
   });
 });

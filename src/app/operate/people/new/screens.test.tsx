@@ -84,3 +84,62 @@ describe("a four-role operator", () => {
     );
   });
 });
+
+/**
+ * LAN-389, entry point 5 of 10 (Clint, 2026-09-17). The control's own suite
+ * (`src/components/phone-field.test.tsx`) proves the rule; this proves it
+ * reached this form, and that the action never sees a number whose two
+ * entries disagree.
+ */
+describe("the confirm box under Mobile phone", () => {
+  it("refuses a mismatch here, and creates nobody", async () => {
+    vi.mocked(submitCreatePerson).mockClear();
+    signedInAs(["secretary"]);
+    const element = await AddPersonPage();
+    const { container } = render(element);
+
+    fireEvent.change(screen.getByLabelText(/^Mobile phone/), {
+      target: { value: "07700900123" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Confirm mobile phone/), {
+      target: { value: "07700900132" },
+    });
+
+    await act(async () => {
+      fireEvent.submit(container.querySelector("form")!);
+    });
+
+    expect(submitCreatePerson).not.toHaveBeenCalled();
+    expect(screen.getByText("Does not match the number above.")).toBeTruthy();
+  });
+
+  it("lets the same number through, and posts only the first", async () => {
+    vi.mocked(submitCreatePerson).mockClear();
+    signedInAs(["secretary"]);
+    vi.mocked(submitCreatePerson).mockResolvedValue({
+      values: EMPTY_VALUES,
+      errors: {},
+      candidates: [],
+      exactMatch: null,
+    });
+    const element = await AddPersonPage();
+    const { container } = render(element);
+
+    fireEvent.change(screen.getByLabelText(/^Mobile phone/), {
+      target: { value: "07700900123" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Confirm mobile phone/), {
+      target: { value: "07700900123" },
+    });
+
+    await act(async () => {
+      fireEvent.submit(container.querySelector("form")!);
+    });
+
+    expect(submitCreatePerson).toHaveBeenCalled();
+    const posted = vi.mocked(submitCreatePerson).mock.calls[0][1];
+    expect(posted.get("mobile")).toBe("+447700900123");
+    // Nothing in the form data carries the second entry.
+    expect([...posted.keys()].filter((key) => key.toLowerCase().includes("confirm"))).toEqual([]);
+  });
+});
