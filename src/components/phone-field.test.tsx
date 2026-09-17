@@ -14,7 +14,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { PhoneField } from "@/components/phone-field";
+import { PhoneField, PHONE_CONFIRM_MISMATCH_MESSAGE } from "@/components/phone-field";
 
 describe("PhoneField — mobile keyboard", () => {
   it("asks a handset for the phone keypad on the national-number box", () => {
@@ -109,7 +109,7 @@ describe("PhoneField — confirm", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(submitted).not.toHaveBeenCalled();
-    expect(screen.getByText("Does not match the number above.")).not.toBeNull();
+    expect(screen.getByText(PHONE_CONFIRM_MISMATCH_MESSAGE)).not.toBeNull();
     expect(confirmBox().getAttribute("aria-invalid")).toBe("true");
     // And the number box is not the one being complained about.
     expect(screen.getByLabelText("Mobile number").getAttribute("aria-invalid")).toBe("false");
