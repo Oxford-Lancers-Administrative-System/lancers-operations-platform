@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import { PageHeader } from "@/components/page-header";
 import { Section } from "@/components/section";
 import { Surface } from "@/components/surface";
+import { PlayerWhatsAppGroupSection } from "@/components/player-whatsapp-group";
 
 import type { QuestionnaireView } from "@/lib/services/player-questionnaire";
 
@@ -41,7 +42,16 @@ function formatLongDate(date: Date): string {
   );
 }
 
-export function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
+export function DonePage({
+  view,
+  token,
+  playerGroupLink = null,
+}: {
+  view: QuestionnaireView;
+  token: string;
+  /** The players' group — LAN-283. A link shown, never a tracked item; `null` renders nothing. */
+  playerGroupLink?: string | null;
+}) {
   const consentGiven = !view.needsConsentStep;
   const codeOfConductAgreed = view.itemStatus.code_of_conduct === "complete";
   const photoReleaseAgreed = view.itemStatus.photo_release === "complete";
@@ -65,6 +75,9 @@ export function DonePage({ view, token }: { view: QuestionnaireView; token: stri
           {PRIVACY_NOTE}
         </Typography>
       </Surface>
+      {/* LAN-283: above the settled-and-outstanding summary, the same offer and
+          the same words the player's own events page makes. */}
+      <PlayerWhatsAppGroupSection link={playerGroupLink} />
       <QuestionnaireStatus
         rows={[
           [CONSENT_HEADING, consentGiven ? "Given" : "Outstanding", consentGiven],

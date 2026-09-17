@@ -16,6 +16,13 @@ export default function TermsPage() {
         title="Terms of use"
         intro="The Oxford Lancers operations platform supports the club’s membership, onboarding, events and communications."
       />
+      <PolicySection title="Who runs this platform">
+        <Typography>
+          The <strong>University of Oxford</strong> is the data controller for the information held
+          here. Oxford University Lancers American Football Club administers the platform as part of
+          the University.
+        </Typography>
+      </PolicySection>
       <PolicySection title="Accounts and private links">
         <Typography>
           Use only the account or private link provided for you. Keep passwords and personal links

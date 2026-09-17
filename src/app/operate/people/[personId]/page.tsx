@@ -16,6 +16,8 @@ import {
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
 import { readRecruitConsentForPerson } from "@/lib/services/recruitment-prospect";
 import { readCurrentSeason } from "@/lib/services/seasons";
+import { readErasureState, type ErasureState } from "@/lib/services/person-erasure";
+import { roleCodesPermit } from "@/lib/auth/capabilities";
 import { gateShellPage } from "../../gate";
 import { labelFor, STATUS_LABELS } from "../presentation";
 import { IdentitySection, ContactSection } from "./identity-contact-sections";
@@ -24,6 +26,7 @@ import { RestrictedSection } from "./academic-restricted-sections";
 import StatusSection from "./status-section";
 import SeasonsSection from "./seasons-section";
 import HistorySection from "./history-section";
+import { ErasurePanel } from "./erasure-panel";
 
 function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -62,6 +65,12 @@ export default async function PersonRecordPage({
     }
     throw error;
   }
+
+  // LAN-361: read only for an operator who holds the capability. The service
+  // guards it too; this keeps the read off the page for everybody else.
+  const erasure: ErasureState | null = roleCodesPermit(gate.operator.roleCodes, "person_erasure")
+    ? await readErasureState(personId)
+    : null;
 
   const visible = redactPersonRecord(
     record as unknown as Record<string, unknown>,
@@ -203,6 +212,13 @@ export default async function PersonRecordPage({
         historyField={historyField}
         historyActor={historyActor}
       />
+
+      {/* LAN-361: at the bottom of the record, and only for the core four.
+          An operator who does not hold the capability sees nothing at all —
+          absent from the payload, not disabled on screen. */}
+      {erasure ? (
+        <ErasurePanel personId={personId} displayName={record.displayName} state={erasure} />
+      ) : null}
     </Stack>
   );
 }

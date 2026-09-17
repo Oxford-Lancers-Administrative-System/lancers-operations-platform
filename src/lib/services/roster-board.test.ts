@@ -25,13 +25,22 @@ import {
   commitAvailability,
   commitBlues,
   commitBps,
-  commitCoachGroup,
+  commitCoachingGroups,
   commitEligibility,
-  commitFormalwearItem,
+  commitFormalwearItems,
   commitJerseyNumbers,
   commitPosition,
+  commitPositionGroups,
+  commitKitItem,
+  commitSpecialTeamsAssignment,
+  KIT_DISTRIBUTED_ITEMS,
+  KIT_ITEMS,
+  kitCellKey,
   listRosterBoard,
   readPositionOptions,
+  SPECIAL_TEAMS_SLOTS,
+  SPECIAL_TEAMS_SQUADS,
+  specialTeamsCellKey,
 } from "./roster-board";
 import { generateOnboardingItems, resolveOnboardingItem } from "./membership";
 
@@ -54,6 +63,18 @@ async function cleanUp(): Promise<void> {
   );
   await observer.query(
     `delete from public.coach_group_assignments where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  await observer.query(
+    `delete from public.membership_position_groups where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  await observer.query(
+    `delete from public.special_teams_assignments where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  await observer.query(
+    `delete from public.kit_issue_records where season_membership_id = $1::uuid`,
     [membershipId],
   );
   await observer.query(
@@ -151,15 +172,10 @@ describe("readPositionOptions — S3, never hardcoded", () => {
     const options = await readPositionOptions(seasonId);
     expect(options.offence.length).toBeGreaterThan(0);
     expect(options.defence.length).toBeGreaterThan(0);
-    // Special teams is the one part of the vocabulary LAN-190 left untouched —
-    // present regardless of which offence/defence codes this season's
-    // vocabulary happens to carry.
-    expect(options.specialTeams.map((option) => option.code).sort()).toEqual([
-      "FG",
-      "KO",
-      "KR",
-      "PUNT",
-    ]);
+    // LAN-387 merged Stewart's additions into the live vocabulary; the board's
+    // dropdown is that vocabulary and nothing else.
+    expect(options.offence.map((option) => option.code)).toContain("OL");
+    expect(options.defence.map((option) => option.code)).toContain("ILB");
   });
 });
 
@@ -275,76 +291,110 @@ describe("commitPosition — offence and defence, S1/S4", () => {
   });
 });
 
-describe("commitPosition — special teams, the one board-level narrowing", () => {
-  it("closes whichever slot was open and opens the newly chosen one, across a day boundary", async () => {
-    await commitPosition({
-      actorPersonId,
-      membershipId,
-      seasonId,
-      column: "specialTeams",
-      code: "KO",
-    });
-    // Backdated for the same reason the offence/defence test backdates: a
-    // same-day correction deletes rather than supersedes, and this proves the
-    // cross-slot close specifically preserves history when there is one.
-    await observer.query(
-      `update public.position_assignments set effective_from = current_date - 1
-        where season_membership_id = $1::uuid and side = 'special_teams'`,
-      [membershipId],
-    );
+describe("commitPosition — the backup slot beside the primary, LAN-387", () => {
+  it("keeps the primary and the backup independent, and allows the same code in both", async () => {
+    const options = await readPositionOptions(seasonId);
+    const [first, second] = options.offence;
 
     await commitPosition({
       actorPersonId,
       membershipId,
       seasonId,
-      column: "specialTeams",
-      code: "PUNT",
+      column: "offence",
+      code: first.code,
+    });
+    await commitPosition({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      column: "offenceBackup",
+      code: second.code,
     });
 
-    const rows = await observer.query<{ slot: string; effective_to: string | null }>(
-      `select slot::text as slot, effective_to
-         from public.position_assignments
-        where season_membership_id = $1::uuid and side = 'special_teams'
-        order by created_at`,
+    let board = await listRosterBoard();
+    let row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.offencePosition).toBe(first.code);
+    expect(row?.offenceBackupPosition).toBe(second.code);
+
+    // Changing the backup leaves the primary exactly where it was.
+    await commitPosition({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      column: "offenceBackup",
+      code: first.code,
+    });
+    board = await listRosterBoard();
+    row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.offencePosition).toBe(first.code);
+    // No rule says the two differ — Stewart's sheet lists players the same twice.
+    expect(row?.offenceBackupPosition).toBe(first.code);
+
+    const slots = await observer.query<{ slot: string }>(
+      `select slot::text as slot from public.position_assignments
+        where season_membership_id = $1::uuid and effective_to is null and side = 'offence'
+        order by slot`,
       [membershipId],
     );
-    expect(rows.rows).toHaveLength(2);
-    expect(rows.rows[0]).toMatchObject({ slot: "kickoff" });
-    expect(rows.rows[0].effective_to).not.toBeNull();
-    expect(rows.rows[1]).toMatchObject({ slot: "punt", effective_to: null });
+    expect(slots.rows.map((entry) => entry.slot)).toEqual(["offence", "offence_backup"]);
+  });
+
+  it("clears a backup without touching the primary", async () => {
+    const options = await readPositionOptions(seasonId);
+    await commitPosition({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      column: "defence",
+      code: options.defence[0].code,
+    });
+    await commitPosition({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      column: "defenceBackup",
+      code: options.defence[0].code,
+    });
+    await commitPosition({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      column: "defenceBackup",
+      code: null,
+    });
 
     const board = await listRosterBoard();
     const row = board.rows.find((entry) => entry.membershipId === membershipId);
-    expect(row?.specialTeamsPosition).toBe("PUNT");
-  });
-
-  it("deletes a same-day special-teams correction rather than leaving two rows", async () => {
-    await commitPosition({
-      actorPersonId,
-      membershipId,
-      seasonId,
-      column: "specialTeams",
-      code: "FG",
-    });
-
-    const rows = await observer.query<{ slot: string }>(
-      `select slot::text as slot from public.position_assignments
-        where season_membership_id = $1::uuid and side = 'special_teams'
-          and effective_to is null`,
-      [membershipId],
-    );
-    expect(rows.rows).toEqual([{ slot: "field_goal" }]);
+    expect(row?.defencePosition).toBe(options.defence[0].code);
+    expect(row?.defenceBackupPosition).toBeNull();
   });
 });
 
+/** Two numbers nobody in this season holds. Read, never hardcoded: the seed hands them out at random and which ones are free moves with it. */
+async function freeNumbers(kit: "blue" | "white", howMany: number): Promise<string[]> {
+  const held = await observer.query<{ number: number }>(
+    `select number from public.jersey_assignments
+      where season_id = $1::uuid and kit = $2::public.kit and effective_to is null`,
+    [seasonId, kit],
+  );
+  const taken = new Set(held.rows.map((row) => row.number));
+  const free: string[] = [];
+  for (let number = 1; number <= 99 && free.length < howMany; number += 1) {
+    if (!taken.has(number)) free.push(String(number));
+  }
+  expect(free.length, "the season needs free jersey numbers for this test").toBe(howMany);
+  return free;
+}
+
 describe("commitJerseyNumbers — Q-7/Q-8", () => {
   it("adds, removes by effective-dating (never deleting), and refuses a held number", async () => {
+    const [kept, dropped] = await freeNumbers("blue", 2);
     await commitJerseyNumbers({
       actorPersonId,
       membershipId,
       seasonId,
       kit: "blue",
-      numbers: ["17", "42"],
+      numbers: [kept, dropped],
     });
 
     let held = await observer.query<{ number: number; effective_to: string | null }>(
@@ -352,15 +402,17 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
         where season_membership_id = $1::uuid and kit = 'blue'`,
       [membershipId],
     );
-    expect(held.rows.map((row) => row.number).sort()).toEqual([17, 42]);
+    expect(held.rows.map((row) => row.number).sort((a, b) => a - b)).toEqual(
+      [Number(kept), Number(dropped)].sort((a, b) => a - b),
+    );
     expect(held.rows.every((row) => row.effective_to === null)).toBe(true);
 
     // Backdated so unassigning 42 below supersedes rather than deletes — a
     // same-day correction deletes outright, proved in its own test below.
     await observer.query(
       `update public.jersey_assignments set effective_from = current_date - 1
-        where season_membership_id = $1::uuid and kit = 'blue' and number = 42`,
-      [membershipId],
+        where season_membership_id = $1::uuid and kit = 'blue' and number = $2::smallint`,
+      [membershipId, dropped],
     );
 
     await commitJerseyNumbers({
@@ -368,7 +420,7 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
       membershipId,
       seasonId,
       kit: "blue",
-      numbers: ["17"],
+      numbers: [kept],
     });
 
     held = await observer.query<{ number: number; effective_to: string | null }>(
@@ -378,8 +430,8 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
     );
     expect(held.rows).toHaveLength(2); // both rows still exist
     const current = held.rows.filter((row) => row.effective_to === null);
-    expect(current.map((row) => row.number)).toEqual([17]);
-    const superseded = held.rows.find((row) => row.number === 42);
+    expect(current.map((row) => row.number)).toEqual([Number(kept)]);
+    const superseded = held.rows.find((row) => row.number === Number(dropped));
     expect(superseded?.effective_to).not.toBeNull();
 
     // A second membership contending for the same number is refused. A fresh
@@ -405,7 +457,7 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
         membershipId: contenderMembership.rows[0].id,
         seasonId,
         kit: "blue",
-        numbers: ["17"],
+        numbers: [kept],
       }),
     ).rejects.toMatchObject({ rule: "roster_board_jersey_number_held_by_another_membership" });
 
@@ -419,16 +471,17 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
     await observer.query(`delete from public.people where id = $1::uuid`, [contender.rows[0].id]);
 
     const board = await listRosterBoard();
-    expect(board.jerseyHolders.blue["17"]).toBe(`${MARKER} Fixture`);
+    expect(board.jerseyHolders.blue[kept]).toBe(`${MARKER} Fixture`);
   });
 
   it("deletes a same-day unassignment rather than superseding it", async () => {
+    const [number] = await freeNumbers("white", 1);
     await commitJerseyNumbers({
       actorPersonId,
       membershipId,
       seasonId,
       kit: "white",
-      numbers: ["9"],
+      numbers: [number],
     });
     await commitJerseyNumbers({ actorPersonId, membershipId, seasonId, kit: "white", numbers: [] });
 
@@ -440,10 +493,22 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
   });
 });
 
-describe("coach group, formalwear, Blues, eligibility, availability, BPS — round trip", () => {
+describe("coaching groups, formalwear, Blues, eligibility, availability, BPS — round trip", () => {
   it("commits and reads back through listRosterBoard", async () => {
-    await commitCoachGroup({ actorPersonId, membershipId, seasonId, coachGroup: "Offense" });
-    await commitFormalwearItem({ actorPersonId, membershipId, seasonId, item: "tie", owned: true });
+    await commitCoachingGroups({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      groups: ["Offense", "Special Teams"],
+    });
+    await commitPositionGroups({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      side: "offence",
+      groups: ["Quarterbacks", "Wide Receivers"],
+    });
+    await commitFormalwearItems({ actorPersonId, membershipId, seasonId, items: ["tie"] });
     await commitBlues({ actorPersonId, membershipId, seasonId, value: "Half" });
     await commitEligibility({ actorPersonId, membershipId, seasonId, status: "eligible" });
     await commitAvailability({ actorPersonId, membershipId, level: "green" });
@@ -452,8 +517,9 @@ describe("coach group, formalwear, Blues, eligibility, availability, BPS — rou
     const board = await listRosterBoard();
     const row = board.rows.find((entry) => entry.membershipId === membershipId);
     expect(row).toMatchObject({
-      coachGroup: "Offense",
-      formalwear: { tie: true, bowtie: false, socks: false },
+      coachingGroups: ["Offense", "Special Teams"],
+      offensivePositionGroups: ["Quarterbacks", "Wide Receivers"],
+      formalwear: { tie: true, bowtie: false },
       blues: "Half",
       eligibility: "eligible",
       availability: "green",
@@ -466,6 +532,40 @@ describe("coach group, formalwear, Blues, eligibility, availability, BPS — rou
       [membershipId],
     );
     expect(confirmer.rows[0].confirmed_by_person_id).toBe(actorPersonId);
+  });
+
+  it("refuses a value outside the column's own vocabulary", async () => {
+    await expect(
+      commitCoachingGroups({ actorPersonId, membershipId, seasonId, groups: ["Kicking"] }),
+    ).rejects.toMatchObject({ rule: "membership_group_in_vocabulary" });
+    await expect(
+      commitPositionGroups({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        side: "defence",
+        groups: ["Quarterbacks"],
+      }),
+    ).rejects.toMatchObject({ rule: "membership_group_in_vocabulary" });
+  });
+
+  it("replaces the whole selection, uncapped, and takes an empty one", async () => {
+    await commitCoachingGroups({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      groups: ["Offense", "Defense", "Special Teams"],
+    });
+    let board = await listRosterBoard();
+    expect(board.rows.find((entry) => entry.membershipId === membershipId)?.coachingGroups).toEqual(
+      ["Defense", "Offense", "Special Teams"],
+    );
+
+    await commitCoachingGroups({ actorPersonId, membershipId, seasonId, groups: [] });
+    board = await listRosterBoard();
+    expect(board.rows.find((entry) => entry.membershipId === membershipId)?.coachingGroups).toEqual(
+      [],
+    );
   });
 });
 
@@ -560,25 +660,27 @@ describe("onboardingItems — the roster board's own onboarding columns", () => 
     expect(beforeRow.onboardingItems["kit_sorted"]).toMatchObject({ status: "pending" });
     expect(beforeRow.onboardingItems["subs_invoiced"]).toMatchObject({ status: "pending" });
 
-    const kitItemId = beforeRow.onboardingItems["kit_sorted"].id;
+    // Kit Distributed became derived in LAN-375, so the column that proves
+    // this is Subscription invoiced, which is still typed.
+    const invoicedItemId = beforeRow.onboardingItems["subs_invoiced"].id;
     await resolveOnboardingItem({
       actorPersonId,
       membershipId,
-      itemId: kitItemId,
+      itemId: invoicedItemId,
       status: "complete",
     });
 
     const after = await listRosterBoard();
     const afterRow = after.rows.find((entry) => entry.membershipId === membershipId)!;
-    expect(afterRow.onboardingItems["kit_sorted"]).toMatchObject({
-      id: kitItemId,
+    expect(afterRow.onboardingItems["subs_invoiced"]).toMatchObject({
+      id: invoicedItemId,
       status: "complete",
     });
     // Untouched items stay untouched — one column's edit is not a checklist-wide rewrite.
-    expect(afterRow.onboardingItems["subs_invoiced"]).toMatchObject({ status: "pending" });
+    expect(afterRow.onboardingItems["kit_sorted"]).toMatchObject({ status: "pending" });
   });
 
-  it("refuses Kit Distributed a waiver — B-001's binary reduction holds through the board's own action", async () => {
+  it("refuses Kit Distributed any hand-set state at all — it is derived (LAN-375)", async () => {
     const board = await listRosterBoard();
     const row = board.rows.find((entry) => entry.membershipId === membershipId)!;
     const kitItemId = row.onboardingItems["kit_sorted"]?.id;
@@ -666,5 +768,268 @@ describe("LAN-301 — no read overlaps a query already running on its own client
       ),
     );
     expect(overlaps).toBeGreaterThan(0);
+  });
+});
+
+describe("special teams assignments — LAN-374", () => {
+  it("mirrors the sheet exactly: the reference table and the application's own list agree", async () => {
+    const stored = await observer.query<{ squad: string; position_name: string }>(
+      `select squad::text as squad, position_name
+         from public.special_teams_squad_positions
+        order by squad, sort_order`,
+    );
+    const bySquad = new Map<string, string[]>();
+    for (const row of stored.rows) {
+      const list = bySquad.get(row.squad) ?? [];
+      list.push(row.position_name);
+      bySquad.set(row.squad, list);
+    }
+
+    expect([...bySquad.keys()].sort()).toEqual(
+      SPECIAL_TEAMS_SQUADS.map((squad) => squad.squad).sort(),
+    );
+    for (const squad of SPECIAL_TEAMS_SQUADS) {
+      expect(bySquad.get(squad.squad)).toEqual([...squad.positions]);
+    }
+  });
+
+  it("stores one pick per cell, blanks by deleting, and never touches a neighbouring cell", async () => {
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "starting",
+      positionName: "Longsnapper",
+    });
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "backup_2",
+      positionName: "Punter",
+    });
+
+    let board = await listRosterBoard();
+    let row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "starting")]).toBe("Longsnapper");
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "backup_2")]).toBe("Punter");
+    // Not a depth chart: the cells nobody filled in are simply absent.
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "backup_1")]).toBeUndefined();
+
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "starting",
+      positionName: null,
+    });
+    board = await listRosterBoard();
+    row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "starting")]).toBeUndefined();
+    expect(row?.specialTeams[specialTeamsCellKey("punt", "backup_2")]).toBe("Punter");
+
+    const stored = await observer.query(
+      `select 1 from public.special_teams_assignments
+        where season_membership_id = $1::uuid and squad = 'punt' and slot = 'starting'`,
+      [membershipId],
+    );
+    expect(stored.rows).toHaveLength(0);
+  });
+
+  it("lets the same position stand in several slots of a squad — no cross-cell rule", async () => {
+    for (const slot of SPECIAL_TEAMS_SLOTS) {
+      await commitSpecialTeamsAssignment({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        squad: "kickoff",
+        slot: slot.slot,
+        positionName: "Kicker",
+      });
+    }
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    for (const slot of SPECIAL_TEAMS_SLOTS) {
+      expect(row?.specialTeams[specialTeamsCellKey("kickoff", slot.slot)]).toBe("Kicker");
+    }
+  });
+
+  it("refuses a value another squad allows", async () => {
+    await expect(
+      commitSpecialTeamsAssignment({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        squad: "punt_return",
+        slot: "starting",
+        positionName: "Longsnapper",
+      }),
+    ).rejects.toMatchObject({ rule: "special_teams_assignments_value_in_squad" });
+  });
+
+  it("takes DEF ON FIELD on the two squads whose sheet carries it", async () => {
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      squad: "field_goal_block",
+      slot: "starting",
+      positionName: "DEF ON FIELD",
+    });
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.specialTeams[specialTeamsCellKey("field_goal_block", "starting")]).toBe(
+      "DEF ON FIELD",
+    );
+  });
+});
+
+describe("issued kit and the derived Kit Distributed flag — LAN-375", () => {
+  /** The item the flag lives on, for this fixture's membership. */
+  async function kitDistributedStatus(): Promise<string | null> {
+    const result = await observer.query<{ status: string }>(
+      `select i.status::text as status
+         from public.onboarding_items i
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.season_membership_id = $1::uuid and t.code = 'kit_sorted'`,
+      [membershipId],
+    );
+    return result.rows[0]?.status ?? null;
+  }
+
+  it("mirrors Clint's sheet exactly: the reference table and the application's own list agree", async () => {
+    const stored = await observer.query<{ item: string; value: string }>(
+      `select item::text as item, value from public.kit_item_options order by item, sort_order`,
+    );
+    const byItem = new Map<string, string[]>();
+    for (const row of stored.rows) {
+      const list = byItem.get(row.item) ?? [];
+      list.push(row.value);
+      byItem.set(row.item, list);
+    }
+
+    expect([...byItem.keys()].sort()).toEqual(KIT_ITEMS.map((item) => item.item).sort());
+    for (const item of KIT_ITEMS) {
+      expect(byItem.get(item.item)).toEqual([...item.values]);
+    }
+    // Clint's own spellings, reproduced rather than corrected.
+    expect(byItem.get("shoulder_pads")).toContain("Champro all porpose L");
+    expect(byItem.get("shoulder_pads")).toContain("Schutt skill S");
+  });
+
+  it("gives Braces 1 and Braces 2 the same list and keeps them independent", async () => {
+    const one = KIT_ITEMS.find((item) => item.item === "braces_1")!;
+    const two = KIT_ITEMS.find((item) => item.item === "braces_2")!;
+    expect(one.values).toEqual(two.values);
+
+    await commitKitItem({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "braces_1",
+      value: "Ankle - M",
+    });
+    await commitKitItem({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "braces_2",
+      value: "Ankle - M",
+    });
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.kit[kitCellKey("braces_1")]).toBe("Ankle - M");
+    expect(row?.kit[kitCellKey("braces_2")]).toBe("Ankle - M");
+  });
+
+  it("refuses a value from another item's list", async () => {
+    await expect(
+      commitKitItem({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item: "practice_jersey",
+        value: "Speedflex M",
+      }),
+    ).rejects.toMatchObject({ rule: "kit_issue_records_value_in_item" });
+  });
+
+  it("reads Kit Distributed from the five items, with Team Mouthguard outside the rule", async () => {
+    expect(KIT_DISTRIBUTED_ITEMS).toEqual([
+      "helmet",
+      "shoulder_pads",
+      "lower_pads",
+      "lowers",
+      "practice_jersey",
+    ]);
+
+    await commitKitItem({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "team_mouthguard",
+      value: "Yes",
+    });
+    expect(await kitDistributedStatus()).toBe("pending");
+
+    const values: Record<string, string> = {
+      helmet: "Air L",
+      shoulder_pads: "Riddell Skill L",
+      lower_pads: "7 Pad Girdle",
+      lowers: "Yes - Solid Blue",
+      practice_jersey: "Blue",
+    };
+    for (const item of KIT_DISTRIBUTED_ITEMS) {
+      expect(await kitDistributedStatus()).toBe("pending");
+      await commitKitItem({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item,
+        value: values[item],
+      });
+    }
+    expect(await kitDistributedStatus()).toBe("complete");
+
+    // And back again the moment one of the five is blanked.
+    await commitKitItem({ actorPersonId, membershipId, seasonId, item: "lowers", value: null });
+    expect(await kitDistributedStatus()).toBe("pending");
+
+    // Every flip is in the item's own history, as `system`.
+    const history = await observer.query<{ to_status: string; actor_kind: string }>(
+      `select h.to_status::text as to_status, h.actor_kind::text as actor_kind
+         from public.onboarding_item_history h
+         join public.onboarding_items i on i.id = h.onboarding_item_id
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.season_membership_id = $1::uuid and t.code = 'kit_sorted'
+        order by h.occurred_at`,
+      [membershipId],
+    );
+    expect(history.rows.filter((row) => row.actor_kind === "system").length).toBeGreaterThanOrEqual(
+      2,
+    );
+  });
+
+  it("refuses a hand set of Kit Distributed", async () => {
+    const item = await observer.query<{ id: string }>(
+      `select i.id from public.onboarding_items i
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.season_membership_id = $1::uuid and t.code = 'kit_sorted'`,
+      [membershipId],
+    );
+    await expect(
+      resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: item.rows[0].id,
+        status: "complete",
+      }),
+    ).rejects.toMatchObject({ rule: "onboarding_item_derived_not_editable" });
   });
 });

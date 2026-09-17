@@ -39,14 +39,13 @@ import {
   FURTHER_OUT_HEADING,
   FURTHER_OUT_HELP,
   FURTHER_OUT_SUMMARY,
-  JOIN_WHATSAPP_GROUP,
   NEW_INVITATIONS_HEADING,
   PRIVACY_NOTE,
   PUBLIC_CALENDAR_LINK,
   pageHeading,
   STILL_NEED_ANSWER_HEADING,
-  WHATSAPP_GROUP_HEADING,
 } from "./presentation";
+import { PlayerWhatsAppGroupSection } from "@/components/player-whatsapp-group";
 import { FocusedPanel } from "./focused-panel";
 import { SummaryRow } from "./summary-row";
 
@@ -239,18 +238,7 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
           </Section>
         ) : null}
 
-        {groupLink !== null ? (
-          <Section title={WHATSAPP_GROUP_HEADING} testId="player-whatsapp-group">
-            <Button
-              href={groupLink}
-              variant="contained"
-              sx={{ minHeight: 48 }}
-              data-testid="player-whatsapp-group-link"
-            >
-              {JOIN_WHATSAPP_GROUP}
-            </Button>
-          </Section>
-        ) : null}
+        <PlayerWhatsAppGroupSection link={groupLink} />
 
         {home.outstandingCount === 0 ? (
           <Button href="/calendar" variant="outlined" sx={{ mt: 1, minHeight: 44 }}>

@@ -87,6 +87,8 @@ function formatClubMoment(moment: Date): string {
 
 export const HEADLINE_INVITED_LABEL = "Invited";
 export const HEADLINE_SAID_YES_LABEL = "Said yes";
+/** LAN-384 — beside Said yes on the club-link page. One word, a count, no judgment. */
+export const HEADLINE_SAID_NO_LABEL = "No";
 export const HEADLINE_SHOWED_LABEL = "Showed";
 
 const NOT_RECORDED_VALUE = "—";

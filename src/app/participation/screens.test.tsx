@@ -229,7 +229,7 @@ const OPERATOR: OperatorParticipation = {
   event: { ...EVENT, joiningUrl: JOINING_URL },
   questions: [LIFT],
   people: PEOPLE,
-  headline: { invited: 3, saidYes: 2, showed: 1, registerSaved: true },
+  headline: { invited: 3, saidYes: 2, saidNo: 1, showed: 1, registerSaved: true },
 };
 
 /** The same data, at the tier that has no delivery field and no joining URL. */
@@ -566,13 +566,15 @@ describe("the club-link page", () => {
     resetRsvpRateLimit();
   });
 
-  it("shows the event, the three numbers and the table", async () => {
+  it("shows the event, the four numbers and the table", async () => {
     readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
     const { container } = await renderClubLink("a-token");
 
     expect(container.textContent).toContain("Practice — hilary week 5");
     expect(screen.getByTestId("headline-invited").querySelector("p")?.textContent).toBe("3");
     expect(screen.getByTestId("headline-said-yes").querySelector("p")?.textContent).toBe("2");
+    // LAN-384: the No tile, beside Said yes, from the same query.
+    expect(screen.getByTestId("headline-said-no").querySelector("p")?.textContent).toBe("1");
     expect(screen.getByTestId("headline-showed").querySelector("p")?.textContent).toBe("1 / 3");
     expect(renderedNames(container)).toHaveLength(3);
   });

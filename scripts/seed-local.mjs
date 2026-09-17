@@ -402,6 +402,17 @@ const VOCAB_2026 = {
     ["CB", "Cornerback", "defence"],
     ["FS", "Free Safety", "defence"],
     ["SS", "Strong Safety", "defence"],
+    // LAN-387 — Stewart's assignments sheet adds these to the live vocabulary.
+    // The migration inserts the same seven into every non-archived season's
+    // vocabulary; they are here so a reset-and-seed and a migrated database
+    // hold the same list.
+    ["HB", "Half Back", "offence"],
+    ["OL", "Offensive Line", "offence"],
+    ["N", "Nickel", "defence"],
+    ["DL", "Defensive Line", "defence"],
+    ["OLB", "Outside Line Backer", "defence"],
+    ["ILB", "Inside Line Backer", "defence"],
+    ["E", "Edge", "defence"],
     // Source Data Analysis §11.1: four special-teams slots, 0% populated. The
     // structure is reproduced deliberately — the model must tolerate
     // anticipated-but-unused vocabulary.
@@ -545,6 +556,9 @@ const rows = {
   position_assignments: [],
   jersey_assignments: [],
   coach_group_assignments: [],
+  membership_position_groups: [],
+  special_teams_assignments: [],
+  kit_issue_records: [],
   formalwear_records: [],
   blues_awards: [],
   onboarding_item_types: [],
@@ -1151,12 +1165,11 @@ function weightedStatusFor(code, subsInvoicedStatus) {
       ]);
       return subsInvoicedStatus === "complete" ? drawn : "pending";
     }
-    // B-001: Kit Distributed is binary — Yes · No.
+    // LAN-375: Kit Distributed is derived from the kit issued, never drawn.
+    // Seeded pending and recomputed once every row is in (see the bottom of
+    // this file); the value here is only what it starts from.
     case "kit_sorted":
-      return weighted([
-        ["complete", 70],
-        ["pending", 30],
-      ]);
+      return "pending";
     // BUCS Play — Not invited · Invited · Claimed · Confirmed. Four states.
     case "bucs_play":
       return weighted([
@@ -1463,17 +1476,115 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
   // Coach group. Not everybody has one: the club assigns them as the coaching
   // staff settles, and the board's "Coach group" column has to render an empty
   // cell as readily as a filled one.
+  // LAN-387: several groups per player, uncapped. About one player in three
+  // trains with two of them, which is exactly the case the multi-select cell
+  // has to render.
   if (i % 4 !== 3) {
-    add("coach_group_assignments", {
-      id: uuid(),
-      season_membership_id: membership.id,
-      season_id: seasonCurrent.id,
-      coach_group: ["Offense", "Defense", "Special teams"][i % 3],
-      responsible_coach_person_id: people[9].id,
-      recorded_by_person_id: people[2].id,
-      created_at: "2026-10-02T09:00:00Z",
-      updated_at: "2026-10-02T09:00:00Z",
+    const groups = ["Offense", "Defense", "Special Teams"];
+    const held = [groups[i % 3]];
+    if (i % 3 === 0) held.push("Special Teams");
+    for (const coachGroup of new Set(held)) {
+      add("coach_group_assignments", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        coach_group: coachGroup,
+        responsible_coach_person_id: people[9].id,
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-02T09:00:00Z",
+        updated_at: "2026-10-02T09:00:00Z",
+      });
+    }
+  }
+
+  // LAN-375: issued kit. About two thirds of the squad have the five items
+  // Kit Distributed reads; the rest are part-way, which is what the derived
+  // flag has to show as No.
+  const KIT_SEED = [
+    ["helmet", ["Speedflex M", "Air L", "Xenith XL"]],
+    ["shoulder_pads", ["Riddell Skill L", "Schutt All purpose M", "Douglas Female S"]],
+    ["lower_pads", ["7 Pad Girdle", "5 Pad Girdle + Knee", "Set of pads"]],
+    ["lowers", ["Yes - Solid Blue", "Yes - Blue with Gold Stripe", "Other"]],
+    ["practice_jersey", ["Blue", "White", "Red"]],
+    ["loaner_cleats", ["Yes", "No"]],
+    ["team_mouthguard", ["Yes", "No"]],
+    ["team_gloves", ["Yes - OL/DL", "Yes - Skill", "No"]],
+    ["braces_1", ["Ankle - M", "Knee - L", "Shoulder"]],
+    ["braces_2", ["Ankle - S", "Knee - XXL", "Shoulder"]],
+    ["socks", ["Yes", "No"]],
+  ];
+  // i % 3 === 2 gets only the first three items, so its Kit Distributed reads No.
+  const kitItemsForThisPlayer = i % 3 === 2 ? KIT_SEED.slice(0, 3) : KIT_SEED;
+  if (i % 7 !== 6) {
+    kitItemsForThisPlayer.forEach(([item, values], index) => {
+      add("kit_issue_records", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        item,
+        value: values[(i + index) % values.length],
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-05T09:00:00Z",
+        updated_at: "2026-10-05T09:00:00Z",
+      });
     });
+  }
+
+  // LAN-374: special teams. Six squads, four cells each; the sheet is sparse,
+  // so most players hold a handful of cells and plenty hold none.
+  const SPECIAL_TEAMS_SEED = [
+    ["kick_return", ["Left Tackle", "Left Upback", "Middle Returner", "Right Guard"]],
+    ["kickoff", ["1 Gunner", "3 Heavy", "8 Linebacker", "Kicker"]],
+    ["punt", ["Longsnapper", "Left Wing", "Middle Wall", "Punter"]],
+    ["punt_return", ["Returner", "DEF ON FIELD"]],
+    ["field_goal", ["Holder", "Left TE", "Right Wing", "Kicker"]],
+    ["field_goal_block", ["DEF ON FIELD"]],
+  ];
+  const SPECIAL_TEAMS_SLOT_CODES = ["starting", "backup_1", "backup_2", "backup_3"];
+  if (i % 3 !== 2) {
+    const [squad, values] = SPECIAL_TEAMS_SEED[i % SPECIAL_TEAMS_SEED.length];
+    SPECIAL_TEAMS_SLOT_CODES.slice(0, 1 + (i % 3)).forEach((slot, index) => {
+      add("special_teams_assignments", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        squad,
+        slot,
+        position_name: values[index % values.length],
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-02T09:00:00Z",
+        updated_at: "2026-10-02T09:00:00Z",
+      });
+    });
+  }
+
+  // LAN-387: the offensive and defensive position groups, from Stewart's
+  // Coaching Assignments tab. Blank on about a quarter of the squad.
+  const OFFENSIVE_POSITION_GROUPS = [
+    "Offensive Line",
+    "Quarterbacks",
+    "Runningbacks",
+    "Wide Receivers",
+  ];
+  const DEFENSIVE_POSITION_GROUPS = ["Defensive Line", "Linebackers", "Defensive Backs"];
+  for (const [side, vocabulary] of [
+    ["offence", OFFENSIVE_POSITION_GROUPS],
+    ["defence", DEFENSIVE_POSITION_GROUPS],
+  ]) {
+    if (i % 4 === 3) continue;
+    const held = [vocabulary[i % vocabulary.length]];
+    if (i % 5 === 0) held.push(vocabulary[(i + 1) % vocabulary.length]);
+    for (const positionGroup of new Set(held)) {
+      add("membership_position_groups", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        side,
+        position_group: positionGroup,
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-02T09:00:00Z",
+      });
+    }
   }
 
   // Formalwear, reasked every season. The measured ownership rates are tie 79%,
@@ -5149,6 +5260,48 @@ const WRITE_PLAN = [
     "coach_group_assignments",
   ],
   [
+    "public.membership_position_groups",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "side",
+      "position_group",
+      "recorded_by_person_id",
+      "created_at",
+    ],
+    "membership_position_groups",
+  ],
+  [
+    "public.special_teams_assignments",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "squad",
+      "slot",
+      "position_name",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "special_teams_assignments",
+  ],
+  [
+    "public.kit_issue_records",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "item",
+      "value",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "kit_issue_records",
+  ],
+  [
     "public.formalwear_records",
     [
       "id",
@@ -5684,6 +5837,41 @@ try {
     await insertRows(client, table, columns, rows[key]);
     total += rows[key].length;
   }
+
+  // LAN-363: the Code of Conduct step renders the document itself. The club's
+  // real PDF is not in this repository and never will be until Brian puts it
+  // there, so the local fixture points the placeholder version at the
+  // synthetic sample committed under `public/documents/`. Local only — the
+  // migration that added the column deliberately set no path, so no deployed
+  // environment shows a sample document.
+  await client.query(
+    `update public.onboarding_agreement_versions
+        set pdf_path = $1
+      where agreement_type = 'code_of_conduct' and version_label = 'placeholder-v1'`,
+    ["/documents/sample-conduct-document.pdf"],
+  );
+
+  // LAN-375: Kit Distributed is derived from the kit issued, so the fixture
+  // computes it the way the application does rather than drawing it. The rows
+  // above are inserted table by table, and the trigger that maintains it can
+  // only fire on a membership whose onboarding item already exists, so this
+  // recomputes every one once everything is in.
+  await client.query(`
+    do $seed$
+    declare
+      membership record;
+    begin
+      for membership in
+        select i.season_membership_id
+          from public.onboarding_items i
+          join public.onboarding_item_types t on t.id = i.item_type_id
+         where t.code = 'kit_sorted'
+      loop
+        perform internal.refresh_kit_distributed(membership.season_membership_id);
+      end loop;
+    end;
+    $seed$;
+  `);
 
   await client.query("commit");
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { SxProps, Theme } from "@mui/material/styles";
 import Checkbox from "@mui/material/Checkbox";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
@@ -30,6 +31,7 @@ export default function JerseyPicker({
   onCommit,
   onClose,
   width,
+  sx,
 }: {
   held: readonly string[];
   /** Number → the name of whoever holds it this season, this kit. Includes this player's own numbers. */
@@ -37,6 +39,8 @@ export default function JerseyPicker({
   onCommit: (next: string[]) => void;
   onClose: () => void;
   width: number;
+  /** What the caller's own surface needs of the closed control — the board sends it the row's height (Brian's visual pass, item 4). */
+  sx?: SxProps<Theme>;
 }) {
   const [selected, setSelected] = useState<string[]>([...held]);
   const mine = new Set(selected);
@@ -56,7 +60,7 @@ export default function JerseyPicker({
       value={selected}
       onClose={close}
       renderValue={(value) => (value as string[]).join(", ") || "—"}
-      sx={{ width: Math.max(width - 24, 64) }}
+      sx={[{ width: Math.max(width - 24, 64) }, ...(Array.isArray(sx) ? sx : [sx])]}
       MenuProps={{
         slotProps: { paper: { sx: { maxHeight: 340, width: 260 } } },
       }}

@@ -11,6 +11,15 @@ import { missingRequiredFields } from "../person-required";
 import { isOxfordCollegeEmail } from "../person-validation";
 import type { Season } from "../seasons";
 import { BOARD_ELIGIBILITY_COMPETITION } from "./shared";
+import {
+  FORMALWEAR_ITEM_KEYS,
+  kitCellKey,
+  specialTeamsCellKey,
+  type KitItemCode,
+  type FormalwearItemKey,
+  type SpecialTeamsSlot,
+  type SpecialTeamsSquad,
+} from "./vocabulary";
 
 /**
  * The roster board's read path — LAN-186, `WP-roster-board`.
@@ -19,10 +28,9 @@ import { BOARD_ELIGIBILITY_COMPETITION } from "./shared";
  */
 
 export type BluesValue = "Full" | "Half" | "None";
-export type FormalwearItemKey = "tie" | "bowtie" | "socks";
 /** `public.bps_selections.is_selected`, plain yes/no — a roster attribute beside Blues and Formalwear, never an onboarding item. */
 export type BpsValue = "Yes" | "No";
-
+export type { FormalwearItemKey };
 interface PositionOption {
   code: string;
   label: string;
@@ -31,7 +39,6 @@ interface PositionOption {
 export interface PositionOptions {
   offence: PositionOption[];
   defence: PositionOption[];
-  specialTeams: PositionOption[];
 }
 
 export interface RosterBoardRow {
@@ -60,14 +67,23 @@ export interface RosterBoardRow {
   itemsResolved: number;
   requiredOutstanding: number;
 
-  // Season — editable in the cell.
+  // Membership, coaching, offensive, defensive and kit — editable in the cell.
+  /** The primary offence position. LAN-387 pairs it with a backup drawn from the same vocabulary; nothing says they differ. */
   offencePosition: string | null;
+  offenceBackupPosition: string | null;
   defencePosition: string | null;
-  specialTeamsPosition: string | null;
+  defenceBackupPosition: string | null;
   blueNumbers: string[];
   whiteNumbers: string[];
-  coachGroup: string | null;
+  /** Multi-select, uncapped (LAN-387). */
+  coachingGroups: string[];
+  offensivePositionGroups: string[];
+  defensivePositionGroups: string[];
   formalwear: Record<FormalwearItemKey, boolean>;
+  /** One entry per filled special-teams cell, keyed `st:<squad>:<slot>` — LAN-374. A blank cell is an absent key. */
+  specialTeams: Readonly<Record<string, string>>;
+  /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. A blank item is an absent key. */
+  kit: Readonly<Record<string, string>>;
   blues: BluesValue;
   /** `public.eligibility_status`, for the `club_play` competition, or `null`. */
   eligibility: string | null;
@@ -103,12 +119,11 @@ async function readPositionOptionsIn(tx: Tx, seasonId: string): Promise<Position
     [seasonId],
   );
 
-  const options: PositionOptions = { offence: [], defence: [], specialTeams: [] };
+  const options: PositionOptions = { offence: [], defence: [] };
   for (const row of result.rows) {
     const option = { code: row.code, label: row.label };
     if (row.side === "offence") options.offence.push(option);
     else if (row.side === "defence") options.defence.push(option);
-    else options.specialTeams.push(option);
   }
   return options;
 }
@@ -179,11 +194,10 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
     );
     const positionRows = await tx.query<{
       season_membership_id: string;
-      side: string;
+      slot: string;
       code: string;
-      created_at: Date;
     }>(
-      `select pa.season_membership_id, pa.side::text as side, pos.code, pa.created_at
+      `select pa.season_membership_id, pa.slot::text as slot, pos.code
          from public.position_assignments pa
          join public.positions pos on pos.id = pa.position_id
         where pa.season_id = $1::uuid and pa.effective_to is null`,
@@ -203,7 +217,19 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
     const coachGroupRows = await tx.query<{ season_membership_id: string; coach_group: string }>(
       `select season_membership_id, coach_group
          from public.coach_group_assignments
-        where season_id = $1::uuid`,
+        where season_id = $1::uuid
+        order by coach_group`,
+      [roster.season.id],
+    );
+    const positionGroupRows = await tx.query<{
+      season_membership_id: string;
+      side: string;
+      position_group: string;
+    }>(
+      `select season_membership_id, side::text as side, position_group
+         from public.membership_position_groups
+        where season_id = $1::uuid
+        order by position_group`,
       [roster.season.id],
     );
     const formalwearRows = await tx.query<{
@@ -213,6 +239,27 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
     }>(
       `select season_membership_id, item::text as item, ownership
          from public.formalwear_records
+        where season_id = $1::uuid`,
+      [roster.season.id],
+    );
+    const specialTeamsRows = await tx.query<{
+      season_membership_id: string;
+      squad: string;
+      slot: string;
+      position_name: string;
+    }>(
+      `select season_membership_id, squad::text as squad, slot::text as slot, position_name
+         from public.special_teams_assignments
+        where season_id = $1::uuid`,
+      [roster.season.id],
+    );
+    const kitRows = await tx.query<{
+      season_membership_id: string;
+      item: string;
+      value: string;
+    }>(
+      `select season_membership_id, item::text as item, value
+         from public.kit_issue_records
         where season_id = $1::uuid`,
       [roster.season.id],
     );
@@ -269,21 +316,15 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       aliasesByPerson.set(row.person_id, list);
     }
 
-    const offenceByMembership = new Map<string, string>();
-    const defenceByMembership = new Map<string, string>();
-    const specialTeamsByMembership = new Map<string, { code: string; createdAt: Date }>();
+    /** One map per slot — the primary pair and the backup pair are four independent facts. */
+    const positionBySlot: Record<string, Map<string, string>> = {
+      offence: new Map(),
+      offence_backup: new Map(),
+      defence: new Map(),
+      defence_backup: new Map(),
+    };
     for (const row of positionRows.rows) {
-      if (row.side === "offence") offenceByMembership.set(row.season_membership_id, row.code);
-      else if (row.side === "defence") defenceByMembership.set(row.season_membership_id, row.code);
-      else {
-        const existing = specialTeamsByMembership.get(row.season_membership_id);
-        if (!existing || row.created_at > existing.createdAt) {
-          specialTeamsByMembership.set(row.season_membership_id, {
-            code: row.code,
-            createdAt: row.created_at,
-          });
-        }
-      }
+      positionBySlot[row.slot]?.set(row.season_membership_id, row.code);
     }
 
     const blueByMembership = new Map<string, string[]>();
@@ -303,19 +344,46 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       if (name) holders[String(row.number)] = name;
     }
 
-    const coachGroupByMembership = new Map(
-      coachGroupRows.rows.map((row) => [row.season_membership_id, row.coach_group]),
-    );
+    const coachingGroupsByMembership = new Map<string, string[]>();
+    for (const row of coachGroupRows.rows) {
+      const list = coachingGroupsByMembership.get(row.season_membership_id) ?? [];
+      list.push(row.coach_group);
+      coachingGroupsByMembership.set(row.season_membership_id, list);
+    }
+    const offensiveGroupsByMembership = new Map<string, string[]>();
+    const defensiveGroupsByMembership = new Map<string, string[]>();
+    for (const row of positionGroupRows.rows) {
+      const target =
+        row.side === "offence" ? offensiveGroupsByMembership : defensiveGroupsByMembership;
+      const list = target.get(row.season_membership_id) ?? [];
+      list.push(row.position_group);
+      target.set(row.season_membership_id, list);
+    }
 
     const formalwearByMembership = new Map<string, Record<FormalwearItemKey, boolean>>();
     for (const row of formalwearRows.rows) {
+      if (!FORMALWEAR_ITEM_KEYS.includes(row.item as FormalwearItemKey)) continue;
       const current = formalwearByMembership.get(row.season_membership_id) ?? {
         tie: false,
         bowtie: false,
-        socks: false,
       };
       current[row.item as FormalwearItemKey] = row.ownership !== "No";
       formalwearByMembership.set(row.season_membership_id, current);
+    }
+
+    const specialTeamsByMembership = new Map<string, Record<string, string>>();
+    for (const row of specialTeamsRows.rows) {
+      const current = specialTeamsByMembership.get(row.season_membership_id) ?? {};
+      current[specialTeamsCellKey(row.squad as SpecialTeamsSquad, row.slot as SpecialTeamsSlot)] =
+        row.position_name;
+      specialTeamsByMembership.set(row.season_membership_id, current);
+    }
+
+    const kitByMembership = new Map<string, Record<string, string>>();
+    for (const row of kitRows.rows) {
+      const current = kitByMembership.get(row.season_membership_id) ?? {};
+      current[kitCellKey(row.item as KitItemCode)] = row.value;
+      kitByMembership.set(row.season_membership_id, current);
     }
 
     const bluesByMembership = new Map<string, BluesValue>();
@@ -362,7 +430,6 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         emergencyContact: hasEmergencyContact.has(entry.personId),
       };
       const missingCount = missingRequiredFields(entry.status as AssembledStatus, presence).length;
-      const special = specialTeamsByMembership.get(entry.membershipId);
 
       return {
         membershipId: entry.membershipId,
@@ -382,21 +449,25 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         itemsTotal: entry.itemsTotal,
         itemsResolved: entry.itemsResolved,
         requiredOutstanding: entry.requiredOutstanding,
-        offencePosition: offenceByMembership.get(entry.membershipId) ?? null,
-        defencePosition: defenceByMembership.get(entry.membershipId) ?? null,
-        specialTeamsPosition: special?.code ?? null,
+        offencePosition: positionBySlot.offence.get(entry.membershipId) ?? null,
+        offenceBackupPosition: positionBySlot.offence_backup.get(entry.membershipId) ?? null,
+        defencePosition: positionBySlot.defence.get(entry.membershipId) ?? null,
+        defenceBackupPosition: positionBySlot.defence_backup.get(entry.membershipId) ?? null,
         blueNumbers: (blueByMembership.get(entry.membershipId) ?? []).sort(
           (a, b) => Number(a) - Number(b),
         ),
         whiteNumbers: (whiteByMembership.get(entry.membershipId) ?? []).sort(
           (a, b) => Number(a) - Number(b),
         ),
-        coachGroup: coachGroupByMembership.get(entry.membershipId) ?? null,
+        coachingGroups: coachingGroupsByMembership.get(entry.membershipId) ?? [],
+        offensivePositionGroups: offensiveGroupsByMembership.get(entry.membershipId) ?? [],
+        defensivePositionGroups: defensiveGroupsByMembership.get(entry.membershipId) ?? [],
         formalwear: formalwearByMembership.get(entry.membershipId) ?? {
           tie: false,
           bowtie: false,
-          socks: false,
         },
+        specialTeams: specialTeamsByMembership.get(entry.membershipId) ?? {},
+        kit: kitByMembership.get(entry.membershipId) ?? {},
         blues: bluesByMembership.get(entry.membershipId) ?? "None",
         eligibility: eligibilityByMembership.get(entry.membershipId) ?? null,
         availability: availabilityByMembership.get(entry.membershipId) ?? null,

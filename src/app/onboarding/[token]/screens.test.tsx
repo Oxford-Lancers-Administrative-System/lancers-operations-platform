@@ -108,12 +108,14 @@ function agreementVersion(
   agreementType: "code_of_conduct" | "photo_release",
   versionLabel: string,
   body: string,
+  pdfPath: string | null = null,
 ) {
   return {
     id: `00000000-0000-4000-8000-00000000000${agreementType === "photo_release" ? "7" : "6"}`,
     agreementType,
     versionLabel,
     body,
+    pdfPath,
     effectiveFrom: new Date("2026-09-14T00:00:00Z"),
   } as const;
 }
@@ -306,6 +308,51 @@ describe("acceptance 9 — placeholder wording is labelled", () => {
     givenValid(view({ nextStep: "code_of_conduct" }));
     const { container } = await renderPage({ step: "code_of_conduct" });
     expect(container.textContent).toMatch(/PLACEHOLDER/);
+  });
+});
+
+// LAN-363 — the Code of Conduct is a PDF, rendered into the page.
+describe("the Code of Conduct document itself", () => {
+  function withPdf() {
+    const base = view({ nextStep: "code_of_conduct" });
+    return {
+      ...base,
+      agreementVersions: {
+        ...base.agreementVersions,
+        code_of_conduct: agreementVersion(
+          "code_of_conduct",
+          "placeholder-v1",
+          PLACEHOLDER_BODY,
+          "/documents/sample-conduct-document.pdf",
+        ),
+      },
+    };
+  }
+
+  it("renders the document and keeps the text of it, and the tick, alongside", async () => {
+    givenValid(withPdf());
+    const { container } = await renderPage({ step: "code_of_conduct" });
+
+    expect(container.querySelector('[data-testid="code-of-conduct-pdf"]')).not.toBeNull();
+    // Never an iframe: iOS Safari hands a framed PDF to its own viewer, and
+    // the application's own headers forbid framing anyway.
+    expect(container.querySelector("iframe")).toBeNull();
+    // The accessible version stays.
+    expect(container.querySelector('[data-testid="code-of-conduct-text"]')).not.toBeNull();
+    // A download link beside the viewer, never instead of it.
+    const download = container.querySelector('[data-testid="download-document"]');
+    expect(download?.getAttribute("href")).toBe("/documents/sample-conduct-document.pdf");
+    // The tick is unchanged: the consent is the tick, not having scrolled.
+    expect(container.querySelector('input[name="agree"]')).not.toBeNull();
+  });
+
+  it("renders the text alone, with no viewer and no download link, when the version has no PDF", async () => {
+    givenValid(view({ nextStep: "code_of_conduct" }));
+    const { container } = await renderPage({ step: "code_of_conduct" });
+
+    expect(container.querySelector('[data-testid="code-of-conduct-pdf"]')).toBeNull();
+    expect(container.querySelector('[data-testid="download-document"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-of-conduct-text"]')).not.toBeNull();
   });
 });
 
@@ -502,6 +549,31 @@ describe("F3 — the Done screen carries every approved section", () => {
     const { container: januaryRender } = await renderPage({ step: "done" });
     expect(januaryRender.textContent).toContain("3 January 2025");
     expect(januaryRender.textContent).not.toContain("15 August 2026");
+  });
+
+  // LAN-283: the players' group, offered as a link on the Done page, above the
+  // settled-and-outstanding summary. A link shown, never a tracked item.
+  it("offers the players' WhatsApp group when the link is configured, and nothing when it is not", async () => {
+    process.env.PLAYER_WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EXAMPLEPLAYERS";
+    givenValid(doneView());
+    const { container } = await renderPage({ step: "done" });
+    const button = container.querySelector('[data-testid="player-whatsapp-group-link"]');
+    expect(button?.getAttribute("href")).toBe("https://chat.whatsapp.com/EXAMPLEPLAYERS");
+    expect(container.textContent).toContain("The club's WhatsApp group");
+    // Above the summary, not below it.
+    const summary = container.querySelector('[data-testid="questionnaire-status"]');
+    if (summary) {
+      expect(
+        button!.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    // The sentence about messaging groups being the club's to tick off stays.
+    expect(container.textContent).toContain(WHAT_CLUB_HAS_HEADING);
+
+    delete process.env.PLAYER_WHATSAPP_GROUP_LINK;
+    givenValid(doneView());
+    const { container: unset } = await renderPage({ step: "done" });
+    expect(unset.querySelector('[data-testid="player-whatsapp-group"]')).toBeNull();
   });
 
   it("shows 'What the club now has', 'If something here is wrong', Close and the R3-G reassurance line", async () => {
@@ -805,22 +877,26 @@ describe("LAN-333 — the real BUCS Play and Hudl steps", () => {
     expect(unlabelled.textContent).not.toContain("undefined");
   });
 
-  it("carries the club's four Hudl steps and the join link when one is configured", async () => {
+  it("puts the join link in step one and says nothing else works first (LAN-283)", async () => {
     process.env.HUDL_JOIN_LINK = DUMMY_HUDL;
     const container = await hudlScreen();
     const steps = container.querySelector('[data-testid="hudl-steps"]');
-    const text = steps?.textContent ?? "";
+    const items = [...(steps?.querySelectorAll("li") ?? [])];
 
-    expect(text).toContain("Go to the club's Hudl join link.");
-    expect(text).toContain("Follow the steps to create an account");
-    expect(text).toContain("press submit");
-    expect(text).toContain("The phone number field can be left alone.");
-    expect(steps?.querySelectorAll("li")).toHaveLength(4);
+    expect(items).toHaveLength(4);
+    // The link is in the first step, not somewhere further down it.
+    expect(items[0].querySelector(`a[href="${DUMMY_HUDL}"]`)).not.toBeNull();
+    expect(items[0].textContent).toContain("Nothing below works until you have joined");
+    // The two steps after it refer back to it rather than standing alone.
+    expect(items[1].textContent).toContain("Once you have joined through the link above");
+    expect(items[2].textContent).toContain("Once you have joined through the link above");
+    expect(items[2].textContent).toContain("The phone number field can be left alone.");
+    // The app-store links stay last and stay optional.
+    expect(items[3].textContent).toContain("Optional");
+    const lastHrefs = [...items[3].querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(lastHrefs).toContain("https://apps.apple.com/us/app/hudl/id412223222");
+    expect(lastHrefs).toContain("https://play.google.com/store/apps/details?id=com.hudl.hudroid");
 
-    const hrefs = [...(steps?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain(DUMMY_HUDL);
-    expect(hrefs).toContain("https://apps.apple.com/us/app/hudl/id412223222");
-    expect(hrefs).toContain("https://play.google.com/store/apps/details?id=com.hudl.hudroid");
     expect(container.querySelector('[data-testid="hudl-link-missing"]')).toBeNull();
   });
 
@@ -829,7 +905,7 @@ describe("LAN-333 — the real BUCS Play and Hudl steps", () => {
     const steps = container.querySelector('[data-testid="hudl-steps"]');
 
     expect(steps?.querySelectorAll("li")).toHaveLength(4);
-    expect(steps?.textContent).toContain("Go to the club's Hudl join link.");
+    expect(steps?.textContent).toContain("Nothing below works until you have joined");
     expect(container.querySelector('[data-testid="hudl-link-missing"]')?.textContent).toBe(
       HUDL_LINK_NOT_PUBLISHED,
     );

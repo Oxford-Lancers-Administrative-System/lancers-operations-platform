@@ -1870,6 +1870,152 @@ export type Database = {
           },
         ]
       }
+      kit_issue_records: {
+        Row: {
+          created_at: string
+          id: string
+          item: Database["public"]["Enums"]["kit_item"]
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item: Database["public"]["Enums"]["kit_item"]
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item?: Database["public"]["Enums"]["kit_item"]
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kit_issue_records_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "kit_issue_records_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "kit_issue_records_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kit_issue_records_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "kit_issue_records_value_in_item"
+            columns: ["item", "value"]
+            isOneToOne: false
+            referencedRelation: "kit_item_options"
+            referencedColumns: ["item", "value"]
+          },
+        ]
+      }
+      kit_item_options: {
+        Row: {
+          item: Database["public"]["Enums"]["kit_item"]
+          sort_order: number
+          value: string
+        }
+        Insert: {
+          item: Database["public"]["Enums"]["kit_item"]
+          sort_order: number
+          value: string
+        }
+        Update: {
+          item?: Database["public"]["Enums"]["kit_item"]
+          sort_order?: number
+          value?: string
+        }
+        Relationships: []
+      }
+      membership_position_groups: {
+        Row: {
+          created_at: string
+          id: string
+          position_group: string
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          side: Database["public"]["Enums"]["position_side"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          position_group: string
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          side: Database["public"]["Enums"]["position_side"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          position_group?: string
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          side?: Database["public"]["Enums"]["position_side"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_position_groups_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "membership_position_groups_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "membership_position_groups_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_position_groups_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       messaging_schedules: {
         Row: {
           email_reminder_count: number
@@ -2216,6 +2362,7 @@ export type Database = {
           created_at: string
           effective_from: string
           id: string
+          pdf_path: string | null
           version_label: string
         }
         Insert: {
@@ -2224,6 +2371,7 @@ export type Database = {
           created_at?: string
           effective_from?: string
           id?: string
+          pdf_path?: string | null
           version_label: string
         }
         Update: {
@@ -2232,6 +2380,7 @@ export type Database = {
           created_at?: string
           effective_from?: string
           id?: string
+          pdf_path?: string | null
           version_label?: string
         }
         Relationships: []
@@ -2601,6 +2750,45 @@ export type Database = {
           },
         ]
       }
+      operator_preferences: {
+        Row: {
+          created_at: string
+          id: string
+          person_id: string
+          preferences: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          person_id: string
+          preferences?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          person_id?: string
+          preferences?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_preferences_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operator_preferences_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       people: {
         Row: {
           bafa_registration_number: string | null
@@ -2608,6 +2796,7 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           degree_field: string | null
+          erased_at: string | null
           expected_graduation_year: number | null
           family_name: string | null
           given_name: string
@@ -2628,6 +2817,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           degree_field?: string | null
+          erased_at?: string | null
           expected_graduation_year?: number | null
           family_name?: string | null
           given_name: string
@@ -2648,6 +2838,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           degree_field?: string | null
+          erased_at?: string | null
           expected_graduation_year?: number | null
           family_name?: string | null
           given_name?: string
@@ -2890,6 +3081,62 @@ export type Database = {
           {
             foreignKeyName: "person_emergency_contacts_recorded_by_person_id_fkey"
             columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
+      person_erasure_signoffs: {
+        Row: {
+          id: string
+          person_id: string
+          requested_on: string
+          role_codes: string[]
+          signed_at: string
+          signed_by_person_id: string
+        }
+        Insert: {
+          id?: string
+          person_id: string
+          requested_on: string
+          role_codes: string[]
+          signed_at?: string
+          signed_by_person_id: string
+        }
+        Update: {
+          id?: string
+          person_id?: string
+          requested_on?: string
+          role_codes?: string[]
+          signed_at?: string
+          signed_by_person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_erasure_signoffs_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_erasure_signoffs_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "person_erasure_signoffs_signed_by_person_id_fkey"
+            columns: ["signed_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_erasure_signoffs_signed_by_person_id_fkey"
+            columns: ["signed_by_person_id"]
             isOneToOne: false
             referencedRelation: "person_standing"
             referencedColumns: ["person_id"]
@@ -4327,6 +4574,96 @@ export type Database = {
           },
         ]
       }
+      special_teams_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          position_name: string
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          slot: Database["public"]["Enums"]["special_teams_slot"]
+          squad: Database["public"]["Enums"]["special_teams_squad"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          position_name: string
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          slot: Database["public"]["Enums"]["special_teams_slot"]
+          squad: Database["public"]["Enums"]["special_teams_squad"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          position_name?: string
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          slot?: Database["public"]["Enums"]["special_teams_slot"]
+          squad?: Database["public"]["Enums"]["special_teams_squad"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "special_teams_assignments_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "special_teams_assignments_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "special_teams_assignments_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "special_teams_assignments_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "special_teams_assignments_value_in_squad"
+            columns: ["squad", "position_name"]
+            isOneToOne: false
+            referencedRelation: "special_teams_squad_positions"
+            referencedColumns: ["squad", "position_name"]
+          },
+        ]
+      }
+      special_teams_squad_positions: {
+        Row: {
+          position_name: string
+          sort_order: number
+          squad: Database["public"]["Enums"]["special_teams_squad"]
+        }
+        Insert: {
+          position_name: string
+          sort_order: number
+          squad: Database["public"]["Enums"]["special_teams_squad"]
+        }
+        Update: {
+          position_name?: string
+          sort_order?: number
+          squad?: Database["public"]["Enums"]["special_teams_squad"]
+        }
+        Relationships: []
+      }
       terms: {
         Row: {
           academic_year: string
@@ -4960,6 +5297,18 @@ export type Database = {
         | "expired"
         | "cancelled"
       kit: "blue" | "white"
+      kit_item:
+        | "helmet"
+        | "shoulder_pads"
+        | "lower_pads"
+        | "lowers"
+        | "practice_jersey"
+        | "loaner_cleats"
+        | "team_mouthguard"
+        | "team_gloves"
+        | "braces_1"
+        | "braces_2"
+        | "socks"
       membership_entry: "new" | "returning"
       membership_status:
         | "onboarding"
@@ -5022,6 +5371,8 @@ export type Database = {
         | "kick_return"
         | "punt"
         | "field_goal"
+        | "offence_backup"
+        | "defence_backup"
       prospect_status:
         | "identified"
         | "engaged"
@@ -5048,6 +5399,14 @@ export type Database = {
         | "weather"
         | "other"
       season_status: "planning" | "open" | "active" | "closing" | "archived"
+      special_teams_slot: "starting" | "backup_1" | "backup_2" | "backup_3"
+      special_teams_squad:
+        | "kick_return"
+        | "kickoff"
+        | "punt"
+        | "punt_return"
+        | "field_goal"
+        | "field_goal_block"
       term_name: "michaelmas" | "hilary" | "trinity"
     }
     CompositeTypes: {
@@ -5229,6 +5588,19 @@ export const Constants = {
         "cancelled",
       ],
       kit: ["blue", "white"],
+      kit_item: [
+        "helmet",
+        "shoulder_pads",
+        "lower_pads",
+        "lowers",
+        "practice_jersey",
+        "loaner_cleats",
+        "team_mouthguard",
+        "team_gloves",
+        "braces_1",
+        "braces_2",
+        "socks",
+      ],
       membership_entry: ["new", "returning"],
       membership_status: [
         "onboarding",
@@ -5299,6 +5671,8 @@ export const Constants = {
         "kick_return",
         "punt",
         "field_goal",
+        "offence_backup",
+        "defence_backup",
       ],
       prospect_status: [
         "identified",
@@ -5329,6 +5703,15 @@ export const Constants = {
         "other",
       ],
       season_status: ["planning", "open", "active", "closing", "archived"],
+      special_teams_slot: ["starting", "backup_1", "backup_2", "backup_3"],
+      special_teams_squad: [
+        "kick_return",
+        "kickoff",
+        "punt",
+        "punt_return",
+        "field_goal",
+        "field_goal_block",
+      ],
       term_name: ["michaelmas", "hilary", "trinity"],
     },
   },

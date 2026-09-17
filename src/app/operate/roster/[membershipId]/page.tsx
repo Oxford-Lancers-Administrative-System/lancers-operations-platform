@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { isServiceError } from "@/lib/db";
 import { redactPersonRecord } from "@/lib/auth/person-authority";
+import { readOperatorPreferences } from "@/lib/services/operator-preferences";
 import { readPlayerRecord } from "@/lib/services/player-record";
 import type { PersonRecord } from "@/lib/services/person-record";
 import { gateShellPage } from "../../gate";
@@ -42,6 +43,10 @@ export default async function PlayerRecordPage({
     operator.roleCodes,
   ) as unknown as Partial<PersonRecord>;
 
+  // LAN-387, Brian's visual pass item 1: the record's groups are the board's
+  // groups, so they read the one setting the operator's account holds.
+  const preferences = await readOperatorPreferences(operator.personId);
+
   return (
     <PlayerRecordView
       record={result.data}
@@ -49,6 +54,7 @@ export default async function PlayerRecordPage({
       justCreated={justCreated}
       linkedExisting={linkedExisting}
       unsavedContacts={unsavedContacts}
+      initialCollapsedGroups={preferences.rosterCollapsedGroups}
     />
   );
 }

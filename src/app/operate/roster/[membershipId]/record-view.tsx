@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { Metric, MetricRow } from "@/components/metric";
@@ -20,7 +20,8 @@ import type { PersonRecord } from "@/lib/services/person-record";
 // LAN-266 requirement 2 asks for "the same words the queue already uses".
 import { formatChaseNext } from "@/app/operate/people/missing/chase-presentation";
 import type { OnboardingItemDisplay, PlayerRecordData } from "@/lib/services/player-record";
-import type { FormalwearItemKey, Kit, PositionColumn } from "@/lib/services/roster-board";
+import type { BpsValue, FormalwearItemKey, Kit, PositionColumn } from "@/lib/services/roster-board";
+import { parseKitCellKey, parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
 
 import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
@@ -28,16 +29,22 @@ import AttendanceSection from "./attendance-section";
 import SendOnboardingQuestionnaireButton, {
   sendStatusLines,
 } from "./send-onboarding-questionnaire-button";
+import { collapsedBandsFrom, type Band } from "../board-columns";
+import { saveCollapsedGroupsAction } from "../group-preference-actions";
 import { ENTRY_LABELS, formatDay, labelFor, MEMBERSHIP_STATUS_LABELS } from "../presentation";
 import {
   recordCommitAvailabilityAction,
   recordCommitBluesAction,
-  recordCommitCoachGroupAction,
+  recordCommitBpsAction,
+  recordCommitCoachingGroupsAction,
   recordCommitEligibilityAction,
   recordCommitEntryAction,
-  recordCommitFormalwearItemAction,
+  recordCommitFormalwearItemsAction,
   recordCommitJerseyNumbersAction,
   recordCommitPositionAction,
+  recordCommitPositionGroupsAction,
+  recordCommitKitItemAction,
+  recordCommitSpecialTeamsAssignmentAction,
   recordResolveOnboardingItemAction,
   recordSetStatusAction,
 } from "./record-actions";
@@ -56,6 +63,14 @@ import { currentContact, formatEmergencyContact, joinAliases } from "./record-vi
  * editor absent rather than disabled.
  */
 /** A departed or archived membership takes no writes (`closed`, below); the send is a write like any other — LAN-266. */
+/** Which position slot each of the four position fields writes — the same map the board keeps. */
+const POSITION_COLUMN_BY_KEY: Readonly<Record<string, PositionColumn>> = Object.freeze({
+  offencePosition: "offence",
+  offenceBackupPosition: "offenceBackup",
+  defencePosition: "defence",
+  defenceBackupPosition: "defenceBackup",
+});
+
 const CLOSED_MEMBERSHIP_REASON =
   "This membership is closed, so nothing further is sent to this player.";
 
@@ -71,6 +86,7 @@ export default function PlayerRecordView({
   justCreated,
   linkedExisting = false,
   unsavedContacts = [],
+  initialCollapsedGroups,
 }: {
   record: PlayerRecordData;
   /** Redacted for the viewer's role — `REQ-authority`. May be missing keys a category did not grant. */
@@ -80,6 +96,8 @@ export default function PlayerRecordView({
   linkedExisting?: boolean;
   /** LAN-257 — kinds the operator typed that were deliberately not written to that person. */
   unsavedContacts?: ("email" | "phone")[];
+  /** What this operator's account remembers about folded-up groups, or `undefined` where it remembers nothing (LAN-387). */
+  initialCollapsedGroups?: readonly string[] | undefined;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -91,6 +109,29 @@ export default function PlayerRecordView({
    * ever unavailable while a save was outstanding.
    */
   const [saving, setSaving] = useState<string | null>(null);
+  /**
+   * Which groups are folded away — the same setting the board reads and writes
+   * (LAN-387, Brian's visual pass item 1), because these are the same groups.
+   *
+   * The whole set is held here, not just the two groups this page can fold, so
+   * opening Kit on a record never forgets that the board had Coaching closed.
+   */
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<Band>>(() =>
+    collapsedBandsFrom(initialCollapsedGroups),
+  );
+  const toggleGroup = useCallback(
+    (group: Band, open: boolean) => {
+      // `<details>` reports its state rather than asking for one, so a report
+      // that agrees with what is already held is not a change to store.
+      if (collapsedGroups.has(group) === !open) return;
+      const next = new Set(collapsedGroups);
+      if (open) next.delete(group);
+      else next.add(group);
+      setCollapsedGroups(next);
+      void saveCollapsedGroupsAction([...next]);
+    },
+    [collapsedGroups],
+  );
 
   const closed = record.status === "departed" || record.status === "archived";
   const resolvedCount = record.onboardingItems.filter((item) =>
@@ -155,6 +196,30 @@ export default function PlayerRecordView({
     key: string,
     next: string | string[],
   ): (() => Promise<{ error: string | null }>) | null {
+    // LAN-374: one branch for all twenty-four special-teams cells.
+    const cell = parseSpecialTeamsCellKey(key);
+    if (cell) {
+      return () =>
+        recordCommitSpecialTeamsAssignmentAction({
+          membershipId: record.membershipId,
+          seasonId: record.seasonId,
+          squad: cell.squad,
+          slot: cell.slot,
+          positionName: (next as string) || null,
+        });
+    }
+
+    const kitItem = parseKitCellKey(key);
+    if (kitItem) {
+      return () =>
+        recordCommitKitItemAction({
+          membershipId: record.membershipId,
+          seasonId: record.seasonId,
+          item: kitItem,
+          value: (next as string) || null,
+        });
+    }
+
     switch (key) {
       case "status":
         return () =>
@@ -169,14 +234,10 @@ export default function PlayerRecordView({
             entry: next as "new" | "returning",
           });
       case "offencePosition":
+      case "offenceBackupPosition":
       case "defencePosition":
-      case "specialTeamsPosition": {
-        const column: PositionColumn =
-          key === "offencePosition"
-            ? "offence"
-            : key === "defencePosition"
-              ? "defence"
-              : "specialTeams";
+      case "defenceBackupPosition": {
+        const column = POSITION_COLUMN_BY_KEY[key];
         return () =>
           recordCommitPositionAction({
             membershipId: record.membershipId,
@@ -185,12 +246,35 @@ export default function PlayerRecordView({
             code: (next as string) || null,
           });
       }
-      case "coachGroup":
+      case "coachingGroups":
         return () =>
-          recordCommitCoachGroupAction({
+          recordCommitCoachingGroupsAction({
             membershipId: record.membershipId,
             seasonId: record.seasonId,
-            coachGroup: (next as string) || null,
+            groups: next as string[],
+          });
+      case "offensivePositionGroups":
+      case "defensivePositionGroups":
+        return () =>
+          recordCommitPositionGroupsAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            side: key === "offensivePositionGroups" ? "offence" : "defence",
+            groups: next as string[],
+          });
+      case "formalwear":
+        return () =>
+          recordCommitFormalwearItemsAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            items: next as FormalwearItemKey[],
+          });
+      case "bps":
+        return () =>
+          recordCommitBpsAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            value: next as BpsValue,
           });
       case "blues":
         return () =>
@@ -226,17 +310,6 @@ export default function PlayerRecordView({
       default:
         return null;
     }
-  }
-
-  function toggleFormalwear(item: FormalwearItemKey, owned: boolean) {
-    runCommit("formalwear", () =>
-      recordCommitFormalwearItemAction({
-        membershipId: record.membershipId,
-        seasonId: record.seasonId,
-        item,
-        owned,
-      }),
-    );
   }
 
   function resolveOnboardingItem(item: OnboardingItemDisplay, status: OnboardingItemStatus) {
@@ -454,7 +527,8 @@ export default function PlayerRecordView({
         fieldErrorMessage={fieldError?.message ?? null}
         setEditing={setEditing}
         commitSeasonField={commitSeasonField}
-        toggleFormalwear={toggleFormalwear}
+        collapsedGroups={collapsedGroups}
+        onToggleGroup={toggleGroup}
       />
 
       <Section variant="banded" band="attendance" title="Attendance" testId="attendance">

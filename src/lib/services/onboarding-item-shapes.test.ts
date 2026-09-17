@@ -80,16 +80,21 @@ describe("allowedItemStates — Brian's exact per-item lists, nothing else", () 
   });
 
   it("offers nothing at all for a derived item — no dropdown, ever", () => {
-    for (const code of ["contact_academic_details", "season_welcome_consent"]) {
+    // LAN-375 added Kit Distributed: still Yes/No on screen, but read from the
+    // kit issued rather than clicked.
+    for (const code of [
+      "contact_academic_details",
+      "season_welcome_consent",
+      KIT_DISTRIBUTED_ITEM_CODE,
+    ]) {
       expect(isDerivedItem(code)).toBe(true);
     }
   });
 
-  it("is not derived for any of the nine operator-ticked items", () => {
+  it("is not derived for any of the operator-ticked items", () => {
     for (const code of [
       SUBS_INVOICED_ITEM_CODE,
       SUBS_PAID_ITEM_CODE,
-      KIT_DISTRIBUTED_ITEM_CODE,
       "photo",
       "comms_groups",
       "hudl_access",

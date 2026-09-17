@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -13,6 +13,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { PinnedSelect } from "@/components/pinned-select";
 import { SAVING } from "@/components/record-field";
@@ -26,21 +27,34 @@ import type {
   FormalwearItemKey,
   BpsValue,
 } from "@/lib/services/roster-board";
+import { parseKitCellKey, parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
+import type { Band } from "./board-columns";
 import { setMembershipStatusAction } from "./actions";
 import {
   commitAvailabilityAction,
   commitBluesAction,
   commitBpsAction,
-  commitCoachGroupAction,
+  commitCoachingGroupsAction,
   commitEligibilityAction,
   commitEntryAction,
-  commitFormalwearItemAction,
+  commitFormalwearItemsAction,
   commitJerseyNumbersAction,
   commitOnboardingItemAction,
   commitPositionAction,
+  commitPositionGroupsAction,
+  commitKitItemAction,
+  commitSpecialTeamsAssignmentAction,
 } from "./board-actions";
 import { commitWithRetry } from "./board-action-state";
-import { PLAYER_COLUMN_WIDTH, type ColumnDef } from "./board-columns";
+import {
+  BOARD_ROW_HEIGHT,
+  collapsedBandsFrom,
+  displayColumns,
+  PLAYER_COLUMN_WIDTH,
+  squadBoundaryKeys,
+  type ColumnDef,
+} from "./board-columns";
+import { saveCollapsedGroupsAction } from "./group-preference-actions";
 import { applyBoard, filterOptionLabel, filterOptions, optionListLabel } from "./board-data";
 import AddPlayersMenu from "./add-players-menu";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
@@ -49,6 +63,17 @@ import RosterHeading from "./roster-heading";
 import BoardTableHead from "./roster-board-header";
 import { Cell } from "./roster-board-cell";
 import PlayerCard from "./roster-board-card";
+
+/** Which position slot each of the four position columns writes — one map, not a chain of ternaries. */
+const POSITION_COLUMN_BY_KEY: Readonly<Record<string, PositionColumn>> = Object.freeze({
+  offencePosition: "offence",
+  offenceBackupPosition: "offenceBackup",
+  defencePosition: "defence",
+  defenceBackupPosition: "defenceBackup",
+});
+
+/** How long a toggle settles before the account is told — folding four groups away is four clicks in about a second, and only where they end up is worth a write. */
+const COLLAPSE_SAVE_DELAY_MS = 600;
 
 function buildUrl(base: string, params: URLSearchParams): string {
   const query = params.toString();
@@ -67,6 +92,7 @@ export default function RosterBoard({
   initialFilters,
   initialSortKey,
   initialSortDirection,
+  initialCollapsedGroups,
 }: {
   operator: ResolvedOperator;
   columns: readonly ColumnDef[];
@@ -81,6 +107,8 @@ export default function RosterBoard({
   initialFilters: Readonly<Record<string, string>>;
   initialSortKey: string;
   initialSortDirection: "asc" | "desc";
+  /** What this operator's account remembers about folded-up groups, or `undefined` where it remembers nothing (LAN-387). */
+  initialCollapsedGroups: readonly string[] | undefined;
 }) {
   const [, startTransition] = useTransition();
   const [searchBox, setSearchBox] = useState(initialSearch);
@@ -93,6 +121,46 @@ export default function RosterBoard({
   const [cellError, setCellError] = useState<{ id: string; message: string } | null>(null);
   /** Which row's own save is in flight — LAN-380. `useTransition`'s own flag cannot answer it: the transition is over before the request is. */
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
+  /**
+   * Which groups are folded away — LAN-387. Special teams and Kit arrive closed
+   * for an operator who has never said otherwise; once they have, their own
+   * account answers instead (Brian's visual pass, item 1), on any device.
+   */
+  const [collapsedBands, setCollapsedBands] = useState<ReadonlySet<Band>>(() =>
+    collapsedBandsFrom(initialCollapsedGroups),
+  );
+
+  /**
+   * The stored preference, written behind the toggles rather than with them.
+   *
+   * Debounced because folding four groups away is four clicks in about a
+   * second, and each one would otherwise be its own round trip; the last state
+   * is the only one worth storing. Nothing on screen waits for it: the board
+   * already holds the truth while it is open, and a preference that failed to
+   * save is not worth interrupting an operator over.
+   */
+  const asArrived = useRef(true);
+  useEffect(() => {
+    // The state this board arrived holding is the state the account already
+    // stores, so writing it back would be a write per page load.
+    if (asArrived.current) {
+      asArrived.current = false;
+      return;
+    }
+    const groups = [...collapsedBands];
+    const timer = setTimeout(() => void saveCollapsedGroupsAction(groups), COLLAPSE_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [collapsedBands]);
+
+  const drawn = useMemo(() => displayColumns(columns, collapsedBands), [columns, collapsedBands]);
+  const toggleBand = useCallback((band: Band) => {
+    setCollapsedBands((current) => {
+      const next = new Set(current);
+      if (next.has(band)) next.delete(band);
+      else next.add(band);
+      return next;
+    });
+  }, []);
 
   const canManageStatus = roleCodesPermit(operator.roleCodes, "membership_activation");
   const seasonEmpty = totalInSeason === 0;
@@ -107,7 +175,9 @@ export default function RosterBoard({
    * now applied to the column-header row *and* every body cell — one rule, all
    * three boundaries, equally.
    */
-  const bandBoundaries = bandBoundaryKeys(columns);
+  const bandBoundaries = bandBoundaryKeys(drawn);
+  /** And the same seam, one level down, between one special-teams squad's four columns and the next — Brian's visual pass, item 5. */
+  const squadBoundaries = squadBoundaryKeys(drawn);
 
   /**
    * Search, filter and sort — applied here, over the one set of rows this page
@@ -223,6 +293,36 @@ export default function RosterBoard({
   }
 
   function commitFor(row: RosterBoardRow, column: ColumnDef, next: string | string[]) {
+    // LAN-374: one branch for all twenty-four special-teams cells, keyed by
+    // the column's own `st:<squad>:<slot>`.
+    const cell = parseSpecialTeamsCellKey(column.key);
+    if (cell) {
+      runCommit(row.membershipId, () =>
+        commitSpecialTeamsAssignmentAction({
+          membershipId: row.membershipId,
+          seasonId,
+          squad: cell.squad,
+          slot: cell.slot,
+          positionName: (next as string) || null,
+        }),
+      );
+      return;
+    }
+
+    // LAN-375: one branch for all eleven issued-kit items.
+    const kitItem = parseKitCellKey(column.key);
+    if (kitItem) {
+      runCommit(row.membershipId, () =>
+        commitKitItemAction({
+          membershipId: row.membershipId,
+          seasonId,
+          item: kitItem,
+          value: (next as string) || null,
+        }),
+      );
+      return;
+    }
+
     switch (column.key) {
       case "status":
         runCommit(row.membershipId, () =>
@@ -241,14 +341,10 @@ export default function RosterBoard({
         );
         return;
       case "offencePosition":
+      case "offenceBackupPosition":
       case "defencePosition":
-      case "specialTeamsPosition": {
-        const positionColumn: PositionColumn =
-          column.key === "offencePosition"
-            ? "offence"
-            : column.key === "defencePosition"
-              ? "defence"
-              : "specialTeams";
+      case "defenceBackupPosition": {
+        const positionColumn = POSITION_COLUMN_BY_KEY[column.key];
         runCommit(row.membershipId, () =>
           commitPositionAction({
             membershipId: row.membershipId,
@@ -259,12 +355,32 @@ export default function RosterBoard({
         );
         return;
       }
-      case "coachGroup":
+      case "coachingGroups":
         runCommit(row.membershipId, () =>
-          commitCoachGroupAction({
+          commitCoachingGroupsAction({
             membershipId: row.membershipId,
             seasonId,
-            coachGroup: (next as string) || null,
+            groups: next as string[],
+          }),
+        );
+        return;
+      case "offensivePositionGroups":
+      case "defensivePositionGroups":
+        runCommit(row.membershipId, () =>
+          commitPositionGroupsAction({
+            membershipId: row.membershipId,
+            seasonId,
+            side: column.key === "offensivePositionGroups" ? "offence" : "defence",
+            groups: next as string[],
+          }),
+        );
+        return;
+      case "formalwear":
+        runCommit(row.membershipId, () =>
+          commitFormalwearItemsAction({
+            membershipId: row.membershipId,
+            seasonId,
+            items: next as FormalwearItemKey[],
           }),
         );
         return;
@@ -340,12 +456,6 @@ export default function RosterBoard({
       default:
         return;
     }
-  }
-
-  function toggleFormalwear(row: RosterBoardRow, item: FormalwearItemKey, owned: boolean) {
-    runCommit(row.membershipId, () =>
-      commitFormalwearItemAction({ membershipId: row.membershipId, seasonId, item, owned }),
-    );
   }
 
   const pinned = (
@@ -481,8 +591,11 @@ export default function RosterBoard({
       >
         <Table size="small" stickyHeader sx={{ width: "max-content", minWidth: "100%" }}>
           <BoardTableHead
-            columns={columns}
+            columns={drawn}
+            collapsedBands={collapsedBands}
+            onToggleBand={toggleBand}
             bandBoundaries={bandBoundaries}
+            squadBoundaries={squadBoundaries}
             sortKey={sortKey}
             sortDirection={sortDirection}
             setSort={setSort}
@@ -503,39 +616,57 @@ export default function RosterBoard({
                     borderColor: "divider",
                     minWidth: PLAYER_COLUMN_WIDTH,
                     width: PLAYER_COLUMN_WIDTH,
+                    // Brian's visual pass, items 3 and 4. This cell used to set
+                    // the row's height for the whole board: its link was a
+                    // `Button`, and the theme gives a medium button the 44px
+                    // touch target, which made every row 57px tall for one word
+                    // of text. This table is drawn only from `md` up, where the
+                    // pointer is a mouse.
+                    height: BOARD_ROW_HEIGHT,
+                    py: 0,
+                    boxSizing: "border-box",
                   }}
                 >
-                  <Button
-                    href={`/operate/roster/${row.membershipId}`}
-                    sx={{
-                      textAlign: "left",
-                      justifyContent: "flex-start",
-                      p: 0,
-                      textTransform: "none",
-                      fontWeight: 600,
-                      minWidth: 0,
-                    }}
+                  {/* Saving and the last refusal sit *beside* the name rather
+                      than under it: a second line here grew the row the moment
+                      a pick was made and dropped it back when the save landed,
+                      which is exactly what item 4 refuses. Both truncate; the
+                      refusal carries its full text in a tooltip. */}
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: "baseline", minWidth: 0, overflow: "hidden" }}
                   >
-                    {row.displayName}
-                  </Button>
-                  {savingRowId === row.membershipId ? (
                     <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: "block" }}
-                      data-testid="row-saving"
+                      component="a"
+                      href={`/operate/roster/${row.membershipId}`}
+                      variant="body2"
+                      noWrap
+                      sx={{ fontWeight: 600, color: "primary.main", minWidth: 0 }}
                     >
-                      {SAVING}
+                      {row.displayName}
                     </Typography>
-                  ) : null}
-                  {cellError?.id === row.membershipId ? (
-                    <Typography variant="caption" color="error" sx={{ display: "block" }}>
-                      {cellError.message}
-                    </Typography>
-                  ) : null}
+                    {savingRowId === row.membershipId ? (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        noWrap
+                        data-testid="row-saving"
+                      >
+                        {SAVING}
+                      </Typography>
+                    ) : null}
+                    {cellError?.id === row.membershipId ? (
+                      <Tooltip title={cellError.message} placement="top">
+                        <Typography variant="caption" color="error" noWrap>
+                          {cellError.message}
+                        </Typography>
+                      </Tooltip>
+                    ) : null}
+                  </Stack>
                 </TableCell>
 
-                {columns.map((column) => (
+                {drawn.map((column) => (
                   <Cell
                     key={column.key}
                     row={row}
@@ -551,10 +682,10 @@ export default function RosterBoard({
                     }
                     canManageStatus={canManageStatus}
                     bandEnd={bandBoundaries.has(column.key)}
+                    squadEnd={squadBoundaries.has(column.key)}
                     onOpen={() => setEditing({ id: row.membershipId, key: column.key })}
                     onClose={() => setEditing(null)}
                     onCommit={(next) => commitFor(row, column, next)}
-                    onToggleFormalwear={(item, owned) => toggleFormalwear(row, item, owned)}
                   />
                 ))}
               </TableRow>

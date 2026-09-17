@@ -914,7 +914,7 @@ describe("the Roles page", () => {
     // `person_record_authority`, and eight until LAN-151 before that retired
     // the occurrence assertion. The index shows three and counts the rest,
     // and the seat's own page shows every one.
-    expect(container.textContent).toContain("and 6 more.");
+    expect(container.textContent).toContain("and 7 more.");
     expect(container.textContent).not.toContain("read the Monday exception and action report");
   });
 

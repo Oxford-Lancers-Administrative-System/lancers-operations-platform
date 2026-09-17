@@ -17,6 +17,14 @@
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 
 import { isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
+import {
+  KIT_ITEMS,
+  SPECIAL_TEAMS_SLOTS,
+  SPECIAL_TEAMS_SQUADS,
+  type KitItemCode,
+  type SpecialTeamsSlot,
+  type SpecialTeamsSquad,
+} from "./roster-board/vocabulary";
 
 const IMPORT_COLUMNS = [
   "first_name",
@@ -30,6 +38,54 @@ const IMPORT_COLUMNS = [
 
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
 
+/**
+ * The optional season-fact columns — LAN-374 and LAN-375. One column per cell
+ * of Stewart's and Clint's sheets, carried beside the person columns rather
+ * than folded into `ImportColumn`: they are a family, generated from the same
+ * vocabulary the board's own columns are, and a file that names none of them
+ * is exactly as valid as today's.
+ */
+interface SeasonFactImportColumnBase {
+  /** The header name, lower-case with underscores, as `normaliseHeaderCell` produces. */
+  readonly name: string;
+  /** Exactly what this cell accepts; anything else refuses the row. */
+  readonly options: readonly string[];
+}
+
+export type SeasonFactImportColumn =
+  | (SeasonFactImportColumnBase & {
+      readonly kind: "special_teams";
+      readonly squad: SpecialTeamsSquad;
+      readonly slot: SpecialTeamsSlot;
+    })
+  | (SeasonFactImportColumnBase & { readonly kind: "kit"; readonly item: KitItemCode });
+
+export const SEASON_FACT_IMPORT_COLUMNS: readonly SeasonFactImportColumn[] = Object.freeze([
+  ...SPECIAL_TEAMS_SQUADS.flatMap((squad) =>
+    SPECIAL_TEAMS_SLOTS.map((slot): SeasonFactImportColumn =>
+      Object.freeze({
+        name: `st_${squad.squad}_${slot.slot}`,
+        kind: "special_teams" as const,
+        squad: squad.squad,
+        slot: slot.slot,
+        options: squad.positions,
+      }),
+    ),
+  ),
+  ...KIT_ITEMS.map((item): SeasonFactImportColumn =>
+    Object.freeze({
+      name: `kit_${item.item}`,
+      kind: "kit" as const,
+      item: item.item,
+      options: item.values,
+    }),
+  ),
+]);
+
+function seasonFactColumn(name: string): SeasonFactImportColumn | undefined {
+  return SEASON_FACT_IMPORT_COLUMNS.find((column) => column.name === name);
+}
+
 /** Without these three a row has no meaning: a welcome needs a mobile, a person needs a name. */
 const REQUIRED_HEADER_COLUMNS: readonly ImportColumn[] = Object.freeze([
   "first_name",
@@ -42,7 +98,10 @@ export const MAX_IMPORT_BYTES = 1_048_576;
 const MAX_IMPORT_ROWS = 500;
 
 export function importTemplateCsv(): string {
-  return IMPORT_COLUMNS.join(",") + "\r\n";
+  return (
+    [...IMPORT_COLUMNS, ...SEASON_FACT_IMPORT_COLUMNS.map((column) => column.name)].join(",") +
+    "\r\n"
+  );
 }
 
 /** Whether a cell says anything at all — `./event-csv.ts`'s identical `said()`. */
@@ -67,6 +126,8 @@ export interface ParsedRosterRow {
   personalEmail: string | null;
   college: string | null;
   matriculationYear: number | null;
+  /** The optional season-fact cells this row filled in, by column name. A blank or absent column is an absent key. */
+  seasonFacts: Readonly<Record<string, string>>;
   /** Why this row can never apply, whatever a duplicate check finds. Empty means the row is shape-valid. */
   reasons: readonly string[];
 }
@@ -82,6 +143,27 @@ function parseMatriculationYear(cell: string, reasons: string[]): number | null 
   return value;
 }
 
+/** The season-fact cells this row said something in, proved against each column's own list. */
+function seasonFactsOf(
+  row: readonly string[],
+  index: SeasonFactIndex,
+  reasons: string[],
+): Record<string, string> {
+  const facts: Record<string, string> = {};
+  for (const [name, at] of Object.entries(index)) {
+    const column = seasonFactColumn(name);
+    if (!column || at === undefined) continue;
+    const value = trimmedOrNull(row[at] ?? "");
+    if (value === null) continue;
+    if (!column.options.includes(value)) {
+      reasons.push(`"${name}" reads "${value}". That is not one of that cell's values.`);
+      continue;
+    }
+    facts[name] = value;
+  }
+  return facts;
+}
+
 function cellsOf(row: readonly string[], index: HeaderIndex): Record<ImportColumn, string> {
   const cells = {} as Record<ImportColumn, string>;
   for (const column of IMPORT_COLUMNS) {
@@ -91,8 +173,13 @@ function cellsOf(row: readonly string[], index: HeaderIndex): Record<ImportColum
   return cells;
 }
 
-function parseRow(line: number, cells: Record<ImportColumn, string>): ParsedRosterRow {
-  const reasons: string[] = [];
+function parseRow(
+  line: number,
+  cells: Record<ImportColumn, string>,
+  seasonFacts: Record<string, string>,
+  seasonFactReasons: readonly string[],
+): ParsedRosterRow {
+  const reasons: string[] = [...seasonFactReasons];
 
   const firstName = trimmedOrNull(cells.first_name);
   if (!firstName) reasons.push('"first_name" is empty.');
@@ -138,12 +225,16 @@ function parseRow(line: number, cells: Record<ImportColumn, string>): ParsedRost
     personalEmail,
     college,
     matriculationYear,
+    seasonFacts: Object.freeze(seasonFacts),
     reasons,
   };
 }
 
 type HeaderIndex = Partial<Record<ImportColumn, number>>;
-type HeaderRead = { ok: true; index: HeaderIndex } | { ok: false; reason: string };
+type SeasonFactIndex = Record<string, number>;
+type HeaderRead =
+  | { ok: true; index: HeaderIndex; seasonFactIndex: SeasonFactIndex }
+  | { ok: false; reason: string };
 
 const NO_HEADER_REASON =
   "The file has no header row this importer recognises. Download the template and compare the first line.";
@@ -162,10 +253,22 @@ function isImportColumn(value: string): value is ImportColumn {
 function readHeader(rows: CsvTable): HeaderRead {
   const first = rows[0] ?? [];
   const index: HeaderIndex = {};
+  const seasonFactIndex: SeasonFactIndex = {};
   const seen = new Set<string>();
 
   for (let column = 0; column < first.length; column += 1) {
     const name = normaliseHeaderCell(first[column]);
+    if (seasonFactColumn(name)) {
+      if (seen.has(name)) {
+        return {
+          ok: false,
+          reason: `The header names "${name}" twice, so which column the importer should read cannot be worked out.`,
+        };
+      }
+      seen.add(name);
+      seasonFactIndex[name] = column;
+      continue;
+    }
     if (!isImportColumn(name)) continue;
     if (seen.has(name)) {
       return {
@@ -188,7 +291,7 @@ function readHeader(rows: CsvTable): HeaderRead {
     };
   }
 
-  return { ok: true, index };
+  return { ok: true, index, seasonFactIndex };
 }
 
 function withinFileKey(row: ParsedRosterRow): string | null {
@@ -254,7 +357,9 @@ export function readRosterImport(options: {
   for (const raw of parsed.rows.slice(1)) {
     line += 1;
     if (isEmptyCsvRow(raw)) continue;
-    rows.push(parseRow(line, cellsOf(raw, header.index)));
+    const seasonFactReasons: string[] = [];
+    const seasonFacts = seasonFactsOf(raw, header.seasonFactIndex, seasonFactReasons);
+    rows.push(parseRow(line, cellsOf(raw, header.index), seasonFacts, seasonFactReasons));
   }
 
   const duplicateOfLine = withinFileDuplicates(rows);
@@ -302,6 +407,8 @@ export interface RosterPlannedRow {
   outcome: RosterRowOutcome;
   name: string;
   cells: Readonly<Record<ImportColumn, string>>;
+  /** The optional season-fact cells this row filled in, by column name (LAN-374, LAN-375). */
+  seasonFacts: Readonly<Record<string, string>>;
   reasons: readonly string[];
   duplicate: { candidates: readonly RosterDuplicateCandidate[] } | null;
   matchedPersonId: string | null;

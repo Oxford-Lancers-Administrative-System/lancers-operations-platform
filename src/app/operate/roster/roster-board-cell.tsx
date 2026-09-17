@@ -9,11 +9,17 @@ import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { StatusPill } from "../board-filter-controls";
-import { bandOf, type ColumnDef } from "./board-columns";
+import {
+  BOARD_CELL_CONTROL_HEIGHT,
+  BOARD_ROW_HEIGHT,
+  bandOf,
+  SQUAD_BOUNDARY_BORDER,
+  type ColumnDef,
+} from "./board-columns";
 import { displayOf, NOT_RECORDED, onboardingLabel, optionListLabel, rawValue } from "./board-data";
 import JerseyPicker from "./jersey-picker";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
-import type { FormalwearItemKey, RosterBoardRow } from "@/lib/services/roster-board";
+import type { RosterBoardRow } from "@/lib/services/roster-board";
 
 const AVAILABILITY_COLOUR: Readonly<Record<string, string>> = Object.freeze({
   green: "#2e7d32",
@@ -33,10 +39,10 @@ export function Cell({
   canManageStatus,
   boardSaving,
   bandEnd,
+  squadEnd,
   onOpen,
   onClose,
   onCommit,
-  onToggleFormalwear,
 }: {
   row: RosterBoardRow;
   column: ColumnDef;
@@ -52,21 +58,56 @@ export function Cell({
   boardSaving?: boolean;
   /** Whether this column is the last in its band's run — see `bandBoundaryKeys`. */
   bandEnd: boolean;
+  /** Whether this column is the last of its special-teams squad's four — Brian's visual pass, item 5. */
+  squadEnd?: boolean;
   onOpen: () => void;
   onClose: () => void;
   onCommit: (next: string | string[]) => void;
-  onToggleFormalwear: (item: FormalwearItemKey, owned: boolean) => void;
 }) {
   const band = bandOf(column.band);
+  // LAN-387: a collapsed group leaves one narrow, empty cell so the row keeps
+  // its shape — the band header above it is what brings the columns back.
   const shell = {
     bgcolor: band.tint,
     minWidth: column.width,
     width: column.width,
     whiteSpace: "nowrap" as const,
-    // Same seam the band header draws, carried into the body (LAN-186 item 12).
-    borderRight: bandEnd ? 2 : 0,
-    borderRightColor: "background.paper",
+    // Brian's visual pass, items 3 and 4: one height, every state. `py: 0`
+    // rather than the theme's 6px is what lets a 26px control sit inside a
+    // 32px row without the row growing around it.
+    height: BOARD_ROW_HEIGHT,
+    py: 0,
+    px: 1.5,
+    boxSizing: "border-box" as const,
+    // Same seam the band header draws, carried into the body (LAN-186 item 12),
+    // and the squad rule inside a group where there is no seam to draw.
+    ...(bandEnd
+      ? { borderRight: 2, borderRightColor: "background.paper" }
+      : squadEnd
+        ? { borderRight: SQUAD_BOUNDARY_BORDER }
+        : { borderRight: 0 }),
   };
+
+  /**
+   * Every in-cell editor, drawn at the display state's own height — Brian's
+   * visual pass, item 4. A `size="small"` `Select` is 40px tall by default,
+   * which in a 32px row made the row jump as a cell opened and drop back as it
+   * closed. Nothing here is a different control; it is the same control told
+   * the height its cell already is.
+   */
+  const editorSx = {
+    height: BOARD_CELL_CONTROL_HEIGHT,
+    fontSize: 13,
+    "& .MuiSelect-select": {
+      minHeight: "unset",
+      py: 0,
+      lineHeight: `${BOARD_CELL_CONTROL_HEIGHT - 2}px`,
+    },
+  };
+
+  if (column.placeholder) {
+    return <TableCell sx={{ ...shell, p: 0 }} />;
+  }
 
   if (editing) {
     if (column.edit === "jersey") {
@@ -79,37 +120,34 @@ export function Cell({
             onCommit={onCommit}
             onClose={onClose}
             width={column.width}
+            sx={editorSx}
           />
         </TableCell>
       );
     }
 
     if (column.edit === "multiselect") {
-      const current = row.formalwear;
+      // LAN-387: the multi-select is the column's own list, not formalwear's.
+      // Every one of them is uncapped, and the whole selection is committed.
+      const current = (rawValue(row, column.key) as string[] | null) ?? [];
       return (
         <TableCell sx={shell}>
           <Select
             size="small"
             open
             multiple
-            value={(Object.keys(current) as FormalwearItemKey[]).filter((key) => current[key])}
+            value={current}
             onClose={onClose}
-            renderValue={(value) => (value as string[]).join(", ") || "—"}
-            sx={{ width: Math.max(column.width - 24, 64) }}
+            onChange={(event) => onCommit(event.target.value as string[])}
+            renderValue={() => displayOf(row, column)}
+            sx={{ ...editorSx, width: Math.max(column.width - 24, 64) }}
           >
-            {(column.options ?? []).map((option) => {
-              const key = option as FormalwearItemKey;
-              return (
-                <MenuItem
-                  key={option}
-                  value={option}
-                  onClick={() => onToggleFormalwear(key, !current[key])}
-                >
-                  <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={current[key]} />
-                  <ListItemText primary={column.optionLabels?.[option] ?? option} />
-                </MenuItem>
-              );
-            })}
+            {(column.options ?? []).map((option) => (
+              <MenuItem key={option} value={option}>
+                <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={current.includes(option)} />
+                <ListItemText primary={optionListLabel(column, option)} />
+              </MenuItem>
+            ))}
           </Select>
         </TableCell>
       );
@@ -132,7 +170,7 @@ export function Cell({
             onClose();
           }}
           renderValue={() => displayOf(row, column)}
-          sx={{ width: Math.max(column.width - 24, 64) }}
+          sx={{ ...editorSx, width: Math.max(column.width - 24, 64) }}
         >
           {column.key === "status" || column.edit === "onboarding" ? null : (
             <MenuItem value="">

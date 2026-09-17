@@ -94,8 +94,11 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "season_membership_status_events", column: "actor_person_id" },
   // The actor, not the subject (excluded below).
   { table: "season_messaging_consents", column: "recorded_by_person_id" },
+  { table: "kit_issue_records", column: "recorded_by_person_id" },
+  { table: "membership_position_groups", column: "recorded_by_person_id" },
   { table: "seasons", column: "closed_by_person_id" },
   { table: "seasons", column: "opened_by_person_id" },
+  { table: "special_teams_assignments", column: "recorded_by_person_id" },
   { table: "staging.legacy_roster_rows", column: "matched_person_id" },
   { table: "weekly_reports", column: "generated_by_person_id" },
 ];
@@ -113,6 +116,14 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
     column: "person_id",
     reason:
       "a login/seat — Mission 1's boundary; the active-seat refusal exists so this never needs re-pointing",
+  },
+  {
+    table: "operator_preferences",
+    column: "person_id",
+    reason:
+      "screen settings for a login, on the same boundary as `operator_accounts` (LAN-387): " +
+      "one row per person, so re-pointing would refuse against the survivor's own row or overwrite " +
+      "it with a merged-away duplicate's, and nothing about a human is in the row to carry across",
   },
   {
     table: "contact_points",
@@ -133,6 +144,20 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
     table: "recruitment_prospects",
     column: "person_id",
     reason: "combined per season before re-pointing",
+  },
+  {
+    table: "person_erasure_signoffs",
+    column: "person_id",
+    reason:
+      "a confirmation waiting for its pair, on a record that is being merged away — LAN-361: " +
+      "the erasure is re-started on the survivor rather than half-carried across",
+  },
+  {
+    table: "person_erasure_signoffs",
+    column: "signed_by_person_id",
+    reason:
+      "who signed, on the record being merged away — LAN-361: re-pointing it would make one " +
+      "person the signer twice and the second sign-off is the point",
   },
   {
     table: "season_messaging_consents",

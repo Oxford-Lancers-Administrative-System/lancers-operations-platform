@@ -121,6 +121,7 @@ function plan(overrides: Partial<RosterImportPlan> = {}): RosterImportPlan {
     digest: "abc123",
     rows: [
       {
+        seasonFacts: {},
         line: 2,
         outcome: "new",
         name: "Rosalind Penhaligon",
@@ -138,6 +139,7 @@ function plan(overrides: Partial<RosterImportPlan> = {}): RosterImportPlan {
         matchedPersonId: null,
       },
       {
+        seasonFacts: {},
         line: 3,
         outcome: "refused",
         name: "Beatrix Ashgrove",
@@ -166,6 +168,7 @@ function plan(overrides: Partial<RosterImportPlan> = {}): RosterImportPlan {
         matchedPersonId: null,
       },
       {
+        seasonFacts: {},
         line: 4,
         outcome: "refused",
         name: "Wrenfield",

@@ -47,6 +47,8 @@ export interface OnboardingAgreementVersion {
   agreementType: OnboardingAgreementType;
   versionLabel: string;
   body: string;
+  /** LAN-363: a path this deployment serves for the document itself, or `null`. The wording is still `body`. */
+  pdfPath: string | null;
   effectiveFrom: Date;
 }
 
@@ -70,6 +72,7 @@ interface VersionRow {
   agreement_type: OnboardingAgreementType;
   version_label: string;
   body: string;
+  pdf_path: string | null;
   effective_from: Date;
 }
 
@@ -79,6 +82,7 @@ function toVersion(row: VersionRow): OnboardingAgreementVersion {
     agreementType: row.agreement_type,
     versionLabel: row.version_label,
     body: row.body,
+    pdfPath: row.pdf_path,
     effectiveFrom: row.effective_from,
   };
 }
@@ -88,7 +92,8 @@ export async function readCurrentOnboardingAgreementVersionIn(
   agreementType: OnboardingAgreementType,
 ): Promise<OnboardingAgreementVersion> {
   const result = await tx.query<VersionRow>(
-    `select id, agreement_type::text as agreement_type, version_label, body, effective_from
+    `select id, agreement_type::text as agreement_type, version_label, body, pdf_path,
+            effective_from
        from public.onboarding_agreement_versions
       where agreement_type = $1::public.onboarding_agreement_type
       order by effective_from desc
