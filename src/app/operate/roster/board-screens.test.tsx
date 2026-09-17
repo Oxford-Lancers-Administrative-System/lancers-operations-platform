@@ -967,3 +967,25 @@ describe("which groups are folded away, remembered on the account", () => {
     ]);
   });
 });
+
+/**
+ * LAN-395 — Brian's visual pass on PR 191. The board scrolls vertically, so the
+ * container always draws a bar, and on a platform that overlays its scrollbars
+ * the bar was painted over the rightmost folded-up band (Kit): half its chevron
+ * and half its sideways name were under it. Reserving the gutter is the whole
+ * fix, so this asserts the reserved gutter and nothing else — jsdom lays out no
+ * scrollbar, so the only provable thing is that the rule reached the element.
+ */
+describe("the board's scrollbar gutter", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it("reserves the scrollbar's width on the scrolling element", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(window.getComputedStyle(board).getPropertyValue("scrollbar-gutter")).toBe("stable");
+    // The gutter only helps while this element is the one that scrolls.
+    expect(window.getComputedStyle(board).overflow).toBe("auto");
+  });
+});
