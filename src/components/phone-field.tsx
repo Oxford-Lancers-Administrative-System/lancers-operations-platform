@@ -96,7 +96,13 @@ export function PhoneField({
           fullWidth
           label={label}
           type="tel"
-          inputMode="tel"
+          // LAN-390 (Clint relaying Ian, 2026-09-17: "it pulls up a regular
+          // keyboard"). `inputMode="tel"` was written here as a bare prop,
+          // where MUI hands it to the root FormControl and it never reaches
+          // the `input` element at all — the box a person types into declared
+          // nothing, and the handset was left to guess from `type` alone.
+          // `htmlInput` is the slot that lands on the element.
+          slotProps={{ htmlInput: { inputMode: "tel" } }}
           // LAN-332. Was `tel-national`, and Chrome duly offered the operator
           // their own mobile on the invite form — the same autofill that put
           // the operator's name into "Event name" (LAN-324). Most numbers this
