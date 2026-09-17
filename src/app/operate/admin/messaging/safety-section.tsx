@@ -181,7 +181,7 @@ export default function MessagingSafetySection({
         {SAFETY_SECTION_HEADING}
       </Typography>
 
-      <Section title="State">
+      <Section title="State" headingLevel={3}>
         <Stack spacing={1}>
           <Line label="Now" value={SAFETY_STATE_LABELS[status.state]} testId="safety-state" />
           {status.pausedByName ? <Line label="Paused by" value={status.pausedByName} /> : null}
@@ -206,7 +206,7 @@ export default function MessagingSafetySection({
         </Stack>
       </Section>
 
-      <Section title="Waiting">
+      <Section title="Waiting" headingLevel={3}>
         <Stack spacing={1}>
           <Line
             label="Due now"
@@ -226,7 +226,7 @@ export default function MessagingSafetySection({
         </Stack>
       </Section>
 
-      <Section title={THRESHOLDS_SUMMARY} collapsible>
+      <Section title={THRESHOLDS_SUMMARY} collapsible headingLevel={3}>
         <Stack spacing={1}>
           {status.thresholds.map((row) => (
             <Line key={row.control} label={row.control} value={`${row.value} — ${row.effect}`} />
@@ -239,12 +239,12 @@ export default function MessagingSafetySection({
       </Section>
 
       {mayControl ? (
-        <Section title="Controls">
+        <Section title="Controls" headingLevel={3}>
           <GlobalControl status={status} />
         </Section>
       ) : null}
 
-      <Section title={HOLDS_HEADING}>
+      <Section title={HOLDS_HEADING} headingLevel={3}>
         {status.holds.length === 0 ? (
           <Typography variant="body2" color="text.secondary" data-testid="safety-no-holds">
             {NO_HOLDS}
@@ -269,7 +269,7 @@ export default function MessagingSafetySection({
         )}
       </Section>
 
-      <Section title={AUDIT_HEADING}>
+      <Section title={AUDIT_HEADING} headingLevel={3}>
         {status.audit.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
             {NO_AUDIT}

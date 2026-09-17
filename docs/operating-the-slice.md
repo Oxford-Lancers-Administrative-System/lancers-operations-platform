@@ -337,6 +337,46 @@ repair screen reports:
 Nothing was attempted, so nothing was spent: the attempt ceiling is untouched and
 pressing Retry after configuration is a complete repair.
 
+### 7b-0. Messaging safety, and why a message may be waiting
+
+**LAN-394, Brian 2026-09-17.** Every send in the application — the seven
+dispatchers, an operator's Retry, a reissue, a nudge, a chase, a recruitment ask
+— passes one admission guard before it reaches a provider. Nothing is off by
+default; the guard is on from the first deploy with the values below.
+
+| Control                | Value                                        | What happens                                                        |
+| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| Shared pacing          | 50 admitted attempts per rolling 5 minutes   | extra messages wait, then go on their own                           |
+| Per person, per number | 1 admission per rolling 5 minutes            | the next one waits                                                  |
+| Person or number limit | 10 per 24 hours, 30 per 7 days               | that recipient is held until somebody resumes it                    |
+| Emergency stop         | 3,000 admitted attempts per rolling 24 hours | all messaging pauses until somebody resumes it                      |
+| Capacity warning       | 2,400 in 24 hours                            | a warning; nothing stops                                            |
+| Provider cooldown      | 5 provider-side faults in 5 minutes          | that transport rests for 5 minutes, then one probe, then 10, 20, 30 |
+| Queue warning          | oldest waiting over 60 minutes               | a warning; nothing stops                                            |
+
+**What this looks like while you are walking the slice.** A message the guard
+holds back is **queued**, not failed. It keeps its attempt count, it keeps its
+link, it writes no failure reason, and it goes out on a later tick without
+anybody pressing anything. The place it says so is **Messaging safety**, at the
+bottom of Administration → Messaging schedule.
+
+Two consequences worth knowing before they surprise you:
+
+- **One person gets one message every five minutes.** An event whose invitation,
+  first reminder and email rung are all overdue for the same player drains one
+  rung per tick, not three in one. That is the point: a recovered backlog must
+  not arrive all at once.
+- **The automatic email fallback for a failed WhatsApp waits too.** It is a
+  second message to the same person seconds after the first, so it is paced like
+  any other. It is created immediately and sent on the next tick.
+
+**Pausing and resuming.** The two controls are at the bottom of Messaging
+schedule and are held by the President, Vice-President, Secretary and General
+Manager only — not the IT Officer, who can see the state but not change it. Each
+needs a reason, and each is recorded against the operator's name. There is no
+"send all now" and no "clear counters": resuming a scope clears the hold, not the
+usage, so a scope resumed while its allowance is still spent simply waits again.
+
 ### 7a. The safe local provider procedure
 
 **Corrected by LAN-181, F-L3.** This section used to have you run a hand-rolled

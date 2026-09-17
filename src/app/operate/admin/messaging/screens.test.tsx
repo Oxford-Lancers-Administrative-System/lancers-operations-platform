@@ -30,6 +30,19 @@ vi.mock("@/lib/services/onboarding-chase", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/onboarding-chase")>();
   return { ...actual, readOnboardingChaseSettings: vi.fn() };
 });
+// LAN-394. The page reads the messaging safety state alongside the schedule.
+vi.mock("@/lib/services/messaging-safety", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/messaging-safety")>();
+  return { ...actual, readMessagingSafetyStatus: vi.fn() };
+});
+vi.mock("./safety-actions", () => ({
+  pauseMessagingAction: vi.fn(() =>
+    Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
+  ),
+  resumeMessagingAction: vi.fn(() =>
+    Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
+  ),
+}));
 vi.mock("./actions", () => ({
   updateOneMessagingScheduleAction: vi.fn(() =>
     Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
@@ -57,6 +70,11 @@ import {
   readOnboardingChaseSettings,
   type OnboardingChaseSettings,
 } from "@/lib/services/onboarding-chase";
+import {
+  readMessagingSafetyStatus,
+  safetyThresholds,
+  type MessagingSafetyStatus,
+} from "@/lib/services/messaging-safety";
 import MessagingSchedulePage from "./page";
 import { updateOneMessagingScheduleAction } from "./actions";
 
@@ -237,6 +255,35 @@ function onboardingChaseSettings(
   };
 }
 
+/** The section's normal state: sending, nothing waiting, nothing held. */
+function safetyStatus(overrides: Partial<MessagingSafetyStatus> = {}): MessagingSafetyStatus {
+  return {
+    state: "sending_normally",
+    globalScopeId: "33333333-3333-4333-8333-333333333333",
+    globalVersion: 1,
+    pausedAt: null,
+    pausedByName: null,
+    pausedReason: null,
+    emergencyStopped: false,
+    lastChangeAt: new Date("2026-09-17T09:00:00Z"),
+    dueWaiting: 0,
+    oldestDueMinutes: 0,
+    scheduledAhead: 4,
+    queueWarning: false,
+    admittedInPacingWindow: 0,
+    admittedInDay: 12,
+    admittedInWeek: 40,
+    capacityWarning: false,
+    thresholds: safetyThresholds(),
+    holds: [],
+    unresolvedAttempts: 0,
+    oldestUnresolvedMinutes: 0,
+    audit: [],
+    policyDecision: "Brian, 17 September 2026",
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   cleanup();
@@ -244,6 +291,7 @@ beforeEach(() => {
   vi.mocked(listMessagingSchedulesWithPreview).mockResolvedValue(rows());
   vi.mocked(listRecruitmentCycleSteps).mockResolvedValue(cycleSteps());
   vi.mocked(readOnboardingChaseSettings).mockResolvedValue(onboardingChaseSettings());
+  vi.mocked(readMessagingSafetyStatus).mockResolvedValue(safetyStatus());
 });
 
 describe("who may open the messaging schedule", () => {
@@ -418,8 +466,10 @@ describe("one save button per row — OWNER-LAN171-04", () => {
     // collapsed onto one row), plus LAN-218's own Onboarding row — each is
     // its own form on the same one-row-one-save law, so the total grows with
     // the page rather than staying fixed at seven.
+    // LAN-394 added the eleventh: the Messaging safety section's one control,
+    // which obeys the same law — its own form, its own reason, its own submit.
     const forms = container.querySelectorAll("form");
-    expect(forms).toHaveLength(10);
+    expect(forms).toHaveLength(11);
     const cycleRows = screen.getAllByTestId("cycle-step-row");
     expect(cycleRows).toHaveLength(2);
     for (const row of cycleRows) expect(row.tagName).toBe("FORM");
@@ -454,11 +504,15 @@ describe("the page's three sections — W10, Brian 2026-08-31", () => {
     // and the reason `W11-01` was reshot to match.
     render(await MessagingSchedulePage());
 
+    // LAN-394 added the fourth, and Brian put it at the bottom: the controls
+    // that stop the club messaging anybody sit below the schedule they govern,
+    // with a link to them from the top of the page whenever they are in use.
     const headings = screen.getAllByRole("heading", { level: 2 });
     expect(headings.map((heading) => heading.textContent)).toEqual([
       "Recruitment",
       "Onboarding",
       "Event messaging",
+      "Messaging safety",
     ]);
   });
 
@@ -714,5 +768,160 @@ describe("a saved result never outlives the values it described — LAN-250", ()
     });
 
     expect(practiceRow.textContent).toContain(BLANK_REFUSAL);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-394 — the Messaging safety section
+// ---------------------------------------------------------------------------
+
+describe("Messaging safety — LAN-394", () => {
+  it("reads as Sending normally, and says what pausing does before anybody does it", async () => {
+    render(await MessagingSchedulePage());
+
+    expect(screen.getByTestId("safety-state")).toHaveTextContent("Sending normally");
+    // The one sentence the section carries. Somebody about to stop every
+    // message the club sends is owed the three facts that decide whether they
+    // should: what stops, what does not, and what may still arrive.
+    expect(screen.getByTestId("messaging-safety").textContent).toContain(
+      "Signups and replies continue to be saved",
+    );
+    expect(screen.queryByTestId("messaging-paused-banner")).not.toBeInTheDocument();
+  });
+
+  it("shows the limits, read-only, with the decision that set them", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    const section = screen.getByTestId("messaging-safety");
+    expect(section.textContent).toContain("50 per 5 minutes");
+    expect(section.textContent).toContain("3,000 per 24 hours");
+    expect(section.textContent).toContain("Brian, 17 September 2026");
+
+    // Read-only means read-only: the limits are constants in code, and there
+    // is nothing on this page that could change one.
+    const inputs = Array.from(container.querySelectorAll("input"))
+      .map((input) => input.getAttribute("name"))
+      .filter((name): name is string => name !== null);
+    expect(inputs).not.toContain("limit");
+    expect(section.textContent).not.toContain("send all now");
+    expect(section.textContent.toLowerCase()).not.toContain("clear counters");
+  });
+
+  it("puts a paused state at the top of the page as well as at the bottom", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({
+        state: "paused",
+        pausedAt: new Date("2026-09-17T10:00:00Z"),
+        pausedByName: "Rowan Ashfield",
+        pausedReason: "Imported the wrong number list",
+      }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    // The controls are at the bottom, as decided, so a paused state would
+    // otherwise be a scroll away on the one page that can end it.
+    expect(screen.getByTestId("messaging-paused-banner")).toHaveTextContent("Messaging is paused.");
+    expect(screen.getByTestId("safety-state")).toHaveTextContent("Paused");
+    expect(screen.getByTestId("safety-resume")).toBeInTheDocument();
+    expect(screen.queryByTestId("safety-pause")).not.toBeInTheDocument();
+  });
+
+  it("offers the controls to the core four and withholds them from the IT Officer", async () => {
+    for (const seat of ["president", "vice_president", "secretary", "general_manager"]) {
+      cleanup();
+      signedIn(administrator(seat));
+      render(await MessagingSchedulePage());
+      expect(screen.getByTestId("safety-pause"), seat).toBeInTheDocument();
+    }
+
+    // The IT Officer still opens the page and still reads the state — that is
+    // how a deployment is diagnosed — and is offered no control. The action
+    // behind each one guards independently.
+    cleanup();
+    signedIn(administrator("it_officer"));
+    render(await MessagingSchedulePage());
+    expect(screen.getByTestId("safety-state")).toBeInTheDocument();
+    expect(screen.queryByTestId("safety-pause")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("safety-resume")).not.toBeInTheDocument();
+  });
+
+  it("names a held number by the people it reaches, never by its fingerprint", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({
+        state: "messages_waiting",
+        dueWaiting: 3,
+        oldestDueMinutes: 7,
+        holds: [
+          {
+            scopeId: "55555555-5555-4555-8555-555555555555",
+            version: 2,
+            kind: "destination",
+            label: "One number or address",
+            reasonCode: "destination_hold",
+            since: new Date("2026-09-17T08:00:00Z"),
+            people: [
+              { personId: "p1", name: "Wilfred Ashcombe" },
+              { personId: "p2", name: "Marged Ashcombe" },
+            ],
+            shared: true,
+            pausedByName: null,
+            pausedReason: null,
+            cooldownUntil: null,
+          },
+        ],
+      }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    const hold = screen.getByTestId("safety-hold-destination");
+    expect(hold).toHaveTextContent("Wilfred Ashcombe, Marged Ashcombe");
+    expect(hold).toHaveTextContent("Shared by more than one person");
+    // The fingerprint is server-side only and never reaches a browser payload.
+    expect(screen.getByTestId("messaging-safety").textContent).not.toMatch(/[0-9a-f]{64}/);
+    expect(screen.getByTestId("safety-due")).toHaveTextContent("3 — oldest 7 min");
+  });
+
+  it("shows a provider cooldown as its own state rather than as a failure", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({
+        state: "provider_unavailable",
+        holds: [
+          {
+            scopeId: "66666666-6666-4666-8666-666666666666",
+            version: 3,
+            kind: "provider",
+            label: "WhatsApp",
+            reasonCode: "provider_cooldown",
+            since: new Date("2026-09-17T08:00:00Z"),
+            people: [],
+            shared: false,
+            pausedByName: null,
+            pausedReason: null,
+            cooldownUntil: new Date("2026-09-17T08:05:00Z"),
+          },
+        ],
+      }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    expect(screen.getByTestId("safety-state")).toHaveTextContent(
+      "Provider temporarily unavailable",
+    );
+    // A provider cools down on its own; there is nothing for an operator to
+    // resume, so nothing is offered.
+    expect(screen.queryByTestId("safety-resume-provider")).not.toBeInTheDocument();
+  });
+
+  it("says when safety state cannot be read, rather than that everything is fine", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({ state: "unavailable", globalScopeId: null }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    expect(screen.getByTestId("safety-state")).toHaveTextContent("Safety status unavailable");
   });
 });
