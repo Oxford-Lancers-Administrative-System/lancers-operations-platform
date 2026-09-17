@@ -2276,6 +2276,74 @@ describe("UX-40 — building the audience", () => {
   });
 
   /**
+   * LAN-388 — Clint, 2026-09-17: "If someone's status is onboarding, I can't
+   * invite them to any events. They aren't in the active group or the recruits
+   * group." Confirmed by Brian the same day: Onboarding is its own group here.
+   */
+  describe("Onboarding is its own group on the picker", () => {
+    const ONBOARDING_MEMBERSHIP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9";
+    const ONBOARDING_PERSON = "pppppppp-pppp-4ppp-8ppp-ppppppppppp9";
+
+    const WITH_ONBOARDING: AudienceCandidate[] = [
+      ...AUDIENCE,
+      candidate({
+        anchorId: ONBOARDING_MEMBERSHIP,
+        personId: ONBOARDING_PERSON,
+        displayName: "Wren Alderley",
+        standing: "Onboarding",
+        unit: null,
+        contact: "+44 7700 900109",
+        isOnboarding: true,
+        key: `player:${ONBOARDING_MEMBERSHIP}`,
+      }),
+    ];
+
+    async function openWithOnboarding() {
+      givenAudience(WITH_ONBOARDING, undefined, []);
+      vi.mocked(readEvent).mockResolvedValue(detail());
+      return render(await EventDetailPage(detailProps({ step: "audience" })));
+    }
+
+    it("offers an Onboarding button that counts them, and leaves Active alone", async () => {
+      await openWithOnboarding();
+
+      expect(screen.getByRole("button", { name: "Onboarding (1)" })).toBeEnabled();
+      // The defect: before this, they were in neither of these.
+      expect(screen.getByRole("button", { name: "All active players (3)" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Everyone active (4)" })).toBeVisible();
+    });
+
+    it("selects and counts them from that button", async () => {
+      await openWithOnboarding();
+
+      fireEvent.click(screen.getByRole("button", { name: "Onboarding (1)" }));
+
+      expect(screen.getByTestId("review-selection").textContent).toBe("Review 1 selected");
+      expect(screen.getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })).toBeChecked();
+      // Pressing Onboarding does not quietly light the Active groups.
+      expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("states their standing on their row, as a label and nothing more", async () => {
+      await openWithOnboarding();
+
+      const row = screen
+        .getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })
+        .closest("li");
+      expect(flatten(row?.textContent ?? null)).toContain("Player · Onboarding");
+    });
+
+    it("is a button an event with nobody onboarding cannot press", async () => {
+      await openBuilder();
+
+      expect(screen.getByRole("button", { name: "Onboarding (0)" })).toBeDisabled();
+    });
+  });
+
+  /**
    * LAN-295 — "Recruits should only ever be selectable and only ever be
    * available for a recruitment event. Every other event, they're non-factors."
    * (Brian, 2026-09-10.) The gate is `listAudienceCatalogueIn`, which no longer

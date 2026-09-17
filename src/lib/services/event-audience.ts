@@ -41,6 +41,7 @@ interface CandidateRow {
   unit: string | null;
   contact: string | null;
   is_bps: boolean;
+  is_onboarding: boolean;
 }
 
 /** LAN-306: one rule, in `person-name.ts`, and this list obeys it like every other surface. */
@@ -82,7 +83,8 @@ const RECRUIT_ARM = `
             initcap(rp.status::text) as standing,
             null as unit,
             ${CONTACT_EXPRESSION} as contact,
-            false as is_bps
+            false as is_bps,
+            false as is_onboarding
        from public.recruitment_prospects rp
        join public.people p on p.id = rp.person_id
       where rp.season_id = $1
@@ -109,37 +111,24 @@ export async function listAudienceCatalogueIn(
             ${UNIT_EXPRESSION} as unit,
             ${CONTACT_EXPRESSION} as contact,
             exists (select 1 from public.bps_selections bps
-                     where bps.season_membership_id = m.id and bps.is_selected) as is_bps
+                     where bps.season_membership_id = m.id and bps.is_selected) as is_bps,
+            m.status = 'onboarding' as is_onboarding
        from public.season_memberships m
        join public.people p on p.id = m.person_id
        cross join as_of
       where m.season_id = $1
-        and m.status = 'active'
-
-      union all
-
-     -- Correction round 2, item 7 (WP-operator-record, LAN-217): the player
-     -- arm above is active-only, and an onboarding membership is not
-     -- otherwise in this catalogue at all — but REQ-nothing-gates in the
-     -- packet states onboarding memberships count as players for event
-     -- audiences from the moment they are on the team, so a BPS selection on
-     -- one still has to reach this picker. Every row here already satisfies
-     -- is_selected, so it is never selectable except through the BPS group.
-     select 'player' as capacity,
-            m.id as anchor_id,
-            p.id as person_id,
-            p.given_name, p.family_name,
-              ${personDisplayAliasSql("p")} as display_alias,
-            initcap(m.status::text) as standing,
-            ${UNIT_EXPRESSION} as unit,
-            ${CONTACT_EXPRESSION} as contact,
-            true as is_bps
-       from public.season_memberships m
-       join public.people p on p.id = m.person_id
-       join public.bps_selections bps on bps.season_membership_id = m.id and bps.is_selected
-       cross join as_of
-      where m.season_id = $1
-        and m.status = 'onboarding'
+        -- LAN-388, Clint 2026-09-17: this arm was active-only, and an
+        -- onboarding membership reached the catalogue through a second arm
+        -- that required a BPS selection (WP-operator-record correction round
+        -- 2, item 7, on REQ-nothing-gates: an onboarding membership counts as
+        -- a player for event audiences from the moment they are on the team).
+        -- The consequence was that somebody mid-onboarding could not be
+        -- invited to anything unless they happened to be in the BPS. Both
+        -- standings are read here now, told apart by is_onboarding, and it is
+        -- AUDIENCE_GROUPS -- not this query -- that decides which group offers
+        -- which. The BPS group still offers both, which is what that second
+        -- arm existed to guarantee.
+        and m.status in ('active', 'onboarding')
 
       union all
 
@@ -151,7 +140,8 @@ export async function listAudienceCatalogueIn(
             r.name as standing,
             null as unit,
             ${CONTACT_EXPRESSION} as contact,
-            false as is_bps
+            false as is_bps,
+            false as is_onboarding
        from public.role_assignments ra
        join public.roles r on r.id = ra.role_id
        join public.people p on p.id = ra.person_id
@@ -178,6 +168,7 @@ export async function listAudienceCatalogueIn(
     if (existing) {
       existing.standing = `${existing.standing}, ${row.standing}`;
       existing.isBps = existing.isBps || row.is_bps;
+      existing.isOnboarding = existing.isOnboarding || row.is_onboarding;
       continue;
     }
     byKey.set(key, {
@@ -190,6 +181,7 @@ export async function listAudienceCatalogueIn(
       unit: row.unit,
       contact: row.contact,
       isBps: row.is_bps,
+      isOnboarding: row.is_onboarding,
     });
   }
 

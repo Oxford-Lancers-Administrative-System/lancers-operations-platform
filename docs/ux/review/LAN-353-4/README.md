@@ -33,3 +33,16 @@ names.
 The sign-up form is the one entry point of the ten that is not an HTML form —
 it saves from a button — so its refusal is a held Save button with its existing
 reason line, rather than a refused submission.
+
+## LAN-388 — the Onboarding group
+
+`/operate/events/[id]?step=audience`, on a practice draft, with the local seed's
+six mid-onboarding memberships.
+
+| File                             | State                                                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `*_picker_groups.png`            | The group row: **Onboarding (6)** beside the four Active groups and BPS.                                        |
+| `*_picker_onboarding-chosen.png` | Onboarding pressed: six people ticked, each row reading `Player · Onboarding`, and the Active groups untouched. |
+
+Before this, those six were in neither the Active groups nor the Recruits group,
+so there was no way to put them on an event at all.

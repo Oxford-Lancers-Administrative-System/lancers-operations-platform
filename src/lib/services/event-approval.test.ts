@@ -148,6 +148,22 @@ afterEach(async () => {
   await observer.query(`delete from public.audit_events where entity_id in ${ownPeople}`, [
     NAME_MARKER,
   ]);
+  // LAN-388's own fixture: a membership of this file's own making, mid-onboarding,
+  // so a test can prove the Onboarding group without depending on whether the
+  // seeded dataset happens to carry one. `season_memberships` references
+  // `people` on delete restrict, so it goes before the people row.
+  const ownMemberships = `(select id from public.season_memberships where person_id in ${ownPeople})`;
+  await observer.query(
+    `delete from public.season_membership_status_events where season_membership_id in ${ownMemberships}`,
+    [NAME_MARKER],
+  );
+  await observer.query(
+    `delete from public.bps_selections where season_membership_id in ${ownMemberships}`,
+    [NAME_MARKER],
+  );
+  await observer.query(`delete from public.season_memberships where person_id in ${ownPeople}`, [
+    NAME_MARKER,
+  ]);
   await observer.query("delete from public.people where given_name = $1", [NAME_MARKER]);
 });
 
@@ -2646,5 +2662,170 @@ describe("LAN-341 — a recruit who leaves recruitment between confirmation and 
       [recruitment.id, personId],
     );
     expect(recruitInvitation.rows[0].count).toBe("0");
+  });
+});
+
+/**
+ * LAN-388 — Clint, 2026-09-17: "If someone's status is onboarding, I can't
+ * invite them to any events. They aren't in the active group or the recruits
+ * group." Brian confirmed the same day that Onboarding is its own audience
+ * group rather than part of Active.
+ *
+ * The vocabulary half is proved in `audience-selection.test.ts`. What has to be
+ * proved here is the catalogue read: an onboarding membership used to reach it
+ * only if it also held a BPS selection, which is why somebody mid-onboarding
+ * could not be invited to anything at all. These run against the real database
+ * because the fix is in the SQL that reads the roster.
+ */
+describe("LAN-388 — somebody mid-onboarding can be invited", () => {
+  const ONBOARDING_GROUP = "onboarding";
+
+  /** This file's own onboarding membership, so the test does not depend on the seed carrying one. */
+  async function ownOnboardingMember(
+    seasonId: string,
+  ): Promise<{ personId: string; membershipId: string }> {
+    const person = await observer.query<{ id: string }>(
+      "insert into public.people (given_name, family_name) values ($1, 'Onboarding') returning id",
+      [NAME_MARKER],
+    );
+    const personId = person.rows[0].id;
+    const membership = await observer.query<{ id: string }>(
+      `insert into public.season_memberships (person_id, season_id, status, entry)
+       values ($1::uuid, $2::uuid, 'onboarding', 'new')
+       returning id`,
+      [personId, seasonId],
+    );
+    return { personId, membershipId: membership.rows[0].id };
+  }
+
+  /** The unnarrowed catalogue — this suite's `catalogueFor` filters to the seeded cohort. */
+  async function fullCatalogue(event: {
+    seasonId: string;
+    scheduledOn: string | null;
+    eventType: string;
+  }) {
+    return withTransaction((tx) =>
+      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
+    );
+  }
+
+  it("is in a practice event's catalogue, under Onboarding and not under Active", async () => {
+    const practice = await newDraft();
+    const member = await ownOnboardingMember(practice.seasonId);
+
+    const catalogue = await fullCatalogue(practice);
+    const row = catalogue.candidates.find((candidate) => candidate.personId === member.personId);
+
+    expect(row).toBeDefined();
+    expect(row!.capacity).toBe("player"); // the player ladder, exactly as an Active player
+    expect(row!.anchorId).toBe(member.membershipId); // invariant P8
+    expect(row!.standing).toBe("Onboarding");
+    expect(row!.isOnboarding).toBe(true);
+
+    const onboardingKeys = groupSelectionKeys(catalogue.candidates, ONBOARDING_GROUP);
+    expect(onboardingKeys).toContain(row!.key);
+    // The point of a separate group: the Active groups do not quietly gain them.
+    expect(groupSelectionKeys(catalogue.candidates, "active_players")).not.toContain(row!.key);
+    expect(groupSelectionKeys(catalogue.candidates, "everyone_active")).not.toContain(row!.key);
+  });
+
+  it("is counted in the audience and invited on approval, like an active player", async () => {
+    const practice = await newDraft();
+    const member = await ownOnboardingMember(practice.seasonId);
+    const key = selectionKey("player", member.membershipId);
+
+    await approve(practice.id, [key]);
+
+    const counts = await countsFor(practice.id);
+    expect(counts.audience).toBe(1);
+    expect(counts.invitations).toBe(1);
+
+    const invitation = await observer.query<{ capacity: string; season_membership_id: string }>(
+      "select capacity::text as capacity, season_membership_id from public.invitations where event_id = $1",
+      [practice.id],
+    );
+    expect(invitation.rows[0].capacity).toBe("player");
+    expect(invitation.rows[0].season_membership_id).toBe(member.membershipId);
+
+    // What the event page, the approval review and the cancel screen all read.
+    expect((await readEventAudienceGroupSummary(practice.id)).total).toBe(1);
+  });
+
+  it("names the group on the event page once the whole group is chosen", async () => {
+    // `summariseAudienceGroups` names a group only when every person in it is
+    // chosen — the same rule every other group obeys — so this presses the
+    // button rather than ticking one name.
+    const practice = await newDraft();
+    await ownOnboardingMember(practice.seasonId);
+    const catalogue = await fullCatalogue(practice);
+    const onboardingKeys = groupSelectionKeys(catalogue.candidates, ONBOARDING_GROUP);
+    expect(onboardingKeys.length).toBeGreaterThan(0);
+
+    await approve(practice.id, onboardingKeys);
+
+    const summary = await readEventAudienceGroupSummary(practice.id);
+    expect(summary.groups).toContain("Onboarding");
+    expect(summary.others).toBe(0);
+    expect(summary.total).toBe(onboardingKeys.length);
+  });
+
+  it("gives somebody both mid-onboarding and a live recruit one row and one invitation", async () => {
+    // P9 / LAN-293 / LAN-294. Recruitment is the one class where both groups
+    // are on the picker at once, so it is the only place the collision shows.
+    const recruitment = await newDraft({
+      templateId: SEEDED_TEMPLATE_IDS.recruitment,
+      scheduledOn: "2026-11-20",
+    });
+    const member = await ownOnboardingMember(recruitment.seasonId);
+    await observer.query(
+      `insert into public.recruitment_prospects (person_id, season_id, status, source)
+       values ($1::uuid, $2::uuid, 'engaged', 'other')`,
+      [member.personId, recruitment.seasonId],
+    );
+
+    const catalogue = await fullCatalogue(recruitment);
+    const theirs = catalogue.candidates.filter(
+      (candidate) => candidate.personId === member.personId,
+    );
+    // Once per role in the picker — one player row, one recruit row.
+    expect(theirs.map((candidate) => candidate.capacity).sort()).toEqual(["player", "recruit"]);
+    expect(audiencePeople(theirs)).toHaveLength(1);
+
+    const onboardingKeys = groupSelectionKeys(catalogue.candidates, ONBOARDING_GROUP);
+    const recruitKeys = groupSelectionKeys(catalogue.candidates, "recruits");
+    expect(onboardingKeys).toContain(selectionKey("player", member.membershipId));
+    expect(recruitKeys).toContain(selectionKey("recruit", member.personId));
+
+    await approve(recruitment.id, [
+      selectionKey("player", member.membershipId),
+      selectionKey("recruit", member.personId),
+    ]);
+
+    const rows = await observer.query<{ person_id: string; capacity: string }>(
+      `select invitee_person_id as person_id, capacity::text as capacity
+         from public.event_audience_members where event_id = $1`,
+      [recruitment.id],
+    );
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0].capacity).toBe("player"); // the player ladder wins, per CAPACITY_PRECEDENCE
+    expect((await countsFor(recruitment.id)).invitations).toBe(1);
+  });
+
+  it("still offers a BPS selection held on an onboarding membership", async () => {
+    // REQ-nothing-gates (WP-operator-record correction round 2, item 7). The
+    // union arm that guaranteed this is gone; the group carries it now.
+    const practice = await newDraft();
+    const member = await ownOnboardingMember(practice.seasonId);
+    await observer.query(
+      `insert into public.bps_selections (season_membership_id, season_id, is_selected, recorded_by_person_id)
+       values ($1::uuid, $2::uuid, true, $3::uuid)`,
+      [member.membershipId, practice.seasonId, actorPersonId],
+    );
+
+    const catalogue = await fullCatalogue(practice);
+    const key = selectionKey("player", member.membershipId);
+
+    expect(groupSelectionKeys(catalogue.candidates, "bps")).toContain(key);
+    expect(groupSelectionKeys(catalogue.candidates, ONBOARDING_GROUP)).toContain(key);
   });
 });
