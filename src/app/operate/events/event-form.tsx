@@ -113,6 +113,9 @@ export default function EventForm({
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [
     ...(initialQuestions ?? []),
   ]);
+  // LAN-391: which fields the last type change replaced, so the operator sees
+  // it before they save rather than discovering it afterwards. Labels only.
+  const [resetByTypeChange, setResetByTypeChange] = useState<string[]>([]);
 
   const term = useMemo(
     () => deriveTermCoordinate(scheduledOn === "" ? null : scheduledOn, terms),
@@ -130,15 +133,26 @@ export default function EventForm({
     setTemplateId(next);
     if (!was || !now) return;
 
-    if (where === was.deliveryMode) setWhere(now.deliveryMode);
-    if (venue === was.venue) setVenue(now.venue);
-    if (description === was.description) setDescription(now.description);
-    if (requiredEquipment === was.requiredEquipment) {
-      setRequiredEquipment(now.requiredEquipment);
-    }
-    if (attendance === was.attendance) setAttendance(now.attendance);
+    // LAN-391: the same replacements, named as they are made. A field the
+    // operator wrote themselves is never in this list, because it is never
+    // replaced.
+    const reset: string[] = [];
+    const replace = (label: string, held: string, wasDefault: string, apply: () => void) => {
+      if (held !== wasDefault) return;
+      apply();
+      if (wasDefault !== "") reset.push(label);
+    };
+
+    replace("Where", where, was.deliveryMode, () => setWhere(now.deliveryMode));
+    replace("Venue", venue, was.venue, () => setVenue(now.venue));
+    replace("Description", description, was.description, () => setDescription(now.description));
+    replace("Required equipment", requiredEquipment, was.requiredEquipment, () =>
+      setRequiredEquipment(now.requiredEquipment),
+    );
+    replace("Attendance", attendance, was.attendance, () => setAttendance(now.attendance));
     if (!endTouched && startsAt !== "") {
       setEndsAt(endTimeFromStart(startsAt, now.durationMinutes) ?? "");
+      if (was.durationMinutes !== now.durationMinutes) reset.push("End");
     }
 
     // D42: template questions leave with the old type; operator's own stay.
@@ -146,6 +160,9 @@ export default function EventForm({
       ...current.filter((question) => question.fromTemplate !== "true"),
       ...now.questions,
     ]);
+    if (was.questions.length > 0 || now.questions.length > 0) reset.push("Questions");
+
+    setResetByTypeChange(reset);
   }
 
   /** D78 — entering a start fills the end from the type's default length. */
@@ -199,6 +216,7 @@ export default function EventForm({
           templateId={templateId}
           templateList={templateList}
           onTemplateChange={changeTemplate}
+          resetByTypeChange={resetByTypeChange}
           scheduledOn={scheduledOn}
           scheduledOnDate={scheduledOnDate}
           onScheduledOnDateChange={setScheduledOnDate}

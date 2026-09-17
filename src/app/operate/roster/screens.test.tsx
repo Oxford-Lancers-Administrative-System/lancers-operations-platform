@@ -209,15 +209,18 @@ describe("UX-10 — Add player", () => {
     // Four fields, still — but Phone is now the shared two-part control
     // (LAN-211), so it renders as a country-code select plus a number box,
     // and the value the form posts travels on that control's own hidden
-    // input rather than on the visible one. The three plain text boxes are
+    // input rather than on the visible one. LAN-389 puts a confirm box under
+    // that number box; it is nameless on purpose, because a control with no
+    // name is not in the form data at all. The three plain text boxes are
     // therefore what carries a `name` here, and the phone's `name` is
     // asserted on the hidden input below, where it actually lives.
     const rendered = screen.getAllByRole("textbox").map((input) => input.getAttribute("name"));
-    expect(rendered).toEqual(["givenName", "familyName", "email", null]);
+    expect(rendered).toEqual(["givenName", "familyName", "email", null, null]);
 
     const phone = document.querySelector('input[type="hidden"][name="phone"]');
     expect(phone).not.toBeNull();
     expect(screen.getByLabelText("Country code for phone")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Confirm phone/)).toBeInTheDocument();
   });
 
   it("does not ask for a nickname", () => {
@@ -572,5 +575,49 @@ describe("an operator who may not be here", () => {
     await expect(NewReturnerPage()).rejects.toThrow(
       "REDIRECT:/login?redirectTo=%2Foperate%2Froster%2Fnew",
     );
+  });
+});
+
+/**
+ * LAN-389, entry point 8 of 10 (Clint, 2026-09-17).
+ */
+describe("the confirm box under Phone — Add player", () => {
+  beforeEach(async () => {
+    await renderIntakeAt({
+      step: "details",
+      values: { givenName: "", familyName: "", email: "", phone: "" },
+      errors: {},
+    });
+    vi.mocked(submitReturnerIntake).mockClear();
+  });
+
+  it("refuses a mismatch, and starts no duplicate check", async () => {
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "07700900123" } });
+    fireEvent.change(screen.getByLabelText(/^Confirm phone/), {
+      target: { value: "07700900132" },
+    });
+
+    await act(async () => {
+      fireEvent.submit(document.querySelector("form")!);
+    });
+
+    expect(submitReturnerIntake).not.toHaveBeenCalled();
+    expect(screen.getByText("Does not match the number above.")).toBeInTheDocument();
+  });
+
+  it("lets the same number through, and posts only the first", async () => {
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "07700900123" } });
+    fireEvent.change(screen.getByLabelText(/^Confirm phone/), {
+      target: { value: "07700900123" },
+    });
+
+    await act(async () => {
+      fireEvent.submit(document.querySelector("form")!);
+    });
+
+    expect(submitReturnerIntake).toHaveBeenCalled();
+    const posted = vi.mocked(submitReturnerIntake).mock.calls[0][1];
+    expect(posted.get("phone")).toBe("+447700900123");
+    expect([...posted.keys()].filter((key) => key.toLowerCase().includes("confirm"))).toEqual([]);
   });
 });

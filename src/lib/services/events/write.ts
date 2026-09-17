@@ -3,7 +3,11 @@ import "server-only";
 import crypto from "node:crypto";
 
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
-import { listAudienceCatalogueIn, resolveSelection } from "../event-audience";
+import {
+  capacitiesForEventType,
+  listAudienceCatalogueIn,
+  resolveSelection,
+} from "../event-audience";
 import {
   readTemplateInheritanceIn,
   templateAudienceKeys,
@@ -190,7 +194,21 @@ export async function updateEventDraft(
     const before = await readEventIn(tx, eventId);
     const term = deriveTermCoordinate(input.scheduledOn, await listTermWindows(tx));
 
-    // origin and template_id are deliberately absent from this statement — see relocations.md.
+    // LAN-391 (Clint, 2026-09-16: "it didn't want to change event type once the
+    // draft is saved"). `template_id` and `event_type` used to be deliberately
+    // absent from this statement, so the Type control let an operator choose a
+    // new type, the form posted it, and the save dropped it on the floor: no
+    // refusal, no message, the old type back on reopen. Brian, 2026-09-17: a
+    // draft's type can be changed; it is fixed once approved, and the approved
+    // path (`event-amendment/amend.ts`) still never writes either column.
+    //
+    // The pair moves together because `events_template_fkey` is composite
+    // (LAN-265): the class is read off the template rather than taken from the
+    // caller, so the row can never claim a class its template does not have.
+    const inherited = await readTemplateInheritanceIn(tx, input.templateId);
+    const typeChanged = before.templateId !== input.templateId;
+
+    // origin is deliberately absent from this statement — see relocations.md.
     const updated = await tx.query<{ id: string }>(
       `update public.events
           set name = $2,
@@ -198,6 +216,7 @@ export async function updateEventDraft(
               delivery_mode = $6::public.event_delivery_mode, venue = $7,
               description = $8, required_equipment = $9, joining_url = $10,
               term_id = $11, week_number = $12, is_mandatory = $13,
+              template_id = $14::uuid, event_type = $15::public.event_type,
               updated_at = now()
         where id = $1 and status = 'draft'
        returning id`,
@@ -215,6 +234,8 @@ export async function updateEventDraft(
         term.termId,
         term.weekNumber,
         input.isMandatory,
+        input.templateId,
+        inherited.eventType,
       ],
     );
 
@@ -225,6 +246,19 @@ export async function updateEventDraft(
     }
 
     if (questions !== undefined) await writeEventQuestionsIn(tx, eventId, questions); // undefined means "not about the questions" — do not clear them
+
+    // The audience *class* follows the type. D46/LAN-295 keeps recruits to
+    // Recruitment events, so a draft that was recruitment and is now a practice
+    // is holding rows its own picker would no longer offer — and approval would
+    // invite them. Only the class is applied: everybody the new type still
+    // offers stays chosen, because the operator chose them.
+    const droppedFromAudience = typeChanged
+      ? await tx.query(
+          `delete from public.event_audience_members
+            where event_id = $1 and capacity::text <> all($2::text[])`,
+          [eventId, capacitiesForEventType(inherited.eventType)],
+        )
+      : null;
 
     await recordAudit(tx, {
       actorPersonId,
@@ -238,6 +272,15 @@ export async function updateEventDraft(
         isMandatory: input.isMandatory,
         weekNumber: term.weekNumber,
         ...(questions === undefined ? {} : { questionCount: questions.length }),
+        ...(typeChanged
+          ? {
+              templateId: input.templateId,
+              eventType: inherited.eventType,
+              previousTemplateId: before.templateId,
+              previousEventType: before.eventType,
+              audienceDroppedByTypeChange: droppedFromAudience?.rowCount ?? 0,
+            }
+          : {}),
       },
     });
 

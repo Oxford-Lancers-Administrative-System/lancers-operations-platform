@@ -1845,6 +1845,40 @@ describe("the invitation flow", () => {
     });
 
     /**
+     * LAN-389, entry point 10 of 10 (Clint, 2026-09-17). The number is
+     * optional here, so an empty one asks nothing; a number that is entered is
+     * confirmed. The control sits outside both forms on this screen, so the
+     * refusal arrives as a held Send button rather than a refused submit.
+     */
+    it("holds the invitation while the confirm box disagrees", async () => {
+      const { container } = await typePhone("07700 900123");
+
+      fireEvent.change(screen.getByTestId("invite-phone-field-confirm").querySelector("input")!, {
+        target: { value: "07700 900132" },
+      });
+
+      expect(screen.getByText("Does not match the number above.")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Send invitation" })).toBeDisabled();
+      expect(container.textContent).toContain("Correct the phone number to send.");
+    });
+
+    it("releases it once the two agree, still posting only the first", async () => {
+      const { container } = await typePhone("07700 900123");
+
+      fireEvent.change(screen.getByTestId("invite-phone-field-confirm").querySelector("input")!, {
+        target: { value: "07700900123" },
+      });
+
+      expect(screen.queryByText("Does not match the number above.")).toBeNull();
+      for (const value of postedPhones(container)) expect(value).toBe("+447700900123");
+      // The confirm box carries no name, so nothing in either form posts it.
+      const named = [...container.querySelectorAll("input[name]")].map((input) =>
+        input.getAttribute("name"),
+      );
+      expect(named.filter((name) => name?.toLowerCase().includes("confirm"))).toEqual([]);
+    });
+
+    /**
      * LAN-324's token, on the form Brian was looking at when he found this one.
      * Chrome ignores `autocomplete="off"` on a field it reads as a person's
      * name, address or telephone — which is every field in this section — and

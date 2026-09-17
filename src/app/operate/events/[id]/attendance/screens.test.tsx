@@ -13,7 +13,7 @@
  * which is what `container.textContent` gets closest to.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
@@ -69,6 +69,12 @@ vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
 // LAN-156. The event detail reads its change history; this file is about the
 // register panel, so the reader is stubbed empty and is proved in
 // `../change-screens.test.tsx` and `src/lib/services/event-amendment.test.ts`.
+// LAN-389. Only the confirm-box pair below submits the walk-up form, and what
+// it proves is whether the submission happens at all.
+vi.mock("./actions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./actions")>();
+  return { ...actual, recordWalkUpAction: vi.fn() };
+});
 vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();
   return { ...actual, readEventChangeHistory: vi.fn(async () => []) };
@@ -103,6 +109,8 @@ import {
   describeCoachLock,
   REGISTER_NOT_YET_HEADLINE,
 } from "./presentation";
+import { recordWalkUpAction } from "./actions";
+import { EMPTY_WALK_UP_STATE } from "./action-state";
 import AttendancePage from "./page";
 import { filterParticipants } from "./attendance-filter-logic";
 import { AttendanceRow } from "./attendance-row";
@@ -936,6 +944,52 @@ describe("UX-73 — add walk-up attendance", () => {
     // The deferral is still real — it is in the code and in this ticket's
     // contract — it is just not something the interface talks about.
     expect(container.textContent).not.toMatch(/LAN-\d+/);
+  });
+
+  /**
+   * LAN-389, entry point 9 of 10 (Clint, 2026-09-17). One shot on a pitch: a
+   * mistyped walk-up number is the contact lost for good.
+   */
+  it("refuses a mismatched phone, and records no walk-up", async () => {
+    vi.mocked(recordWalkUpAction).mockClear();
+    vi.mocked(recordWalkUpAction).mockResolvedValue(EMPTY_WALK_UP_STATE);
+    render(await AttendancePage(attendanceProps({ add: "walk-up" })));
+
+    fireEvent.change(screen.getByRole("textbox", { name: /^Phone/ }), {
+      target: { value: "07700900123" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /^Confirm phone/ }), {
+      target: { value: "07700900132" },
+    });
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId("walk-up-form"));
+    });
+
+    expect(recordWalkUpAction).not.toHaveBeenCalled();
+    expect(screen.getByText("Does not match the number above.")).toBeTruthy();
+  });
+
+  it("records the walk-up once the two entries agree, posting only the first", async () => {
+    vi.mocked(recordWalkUpAction).mockClear();
+    vi.mocked(recordWalkUpAction).mockResolvedValue(EMPTY_WALK_UP_STATE);
+    render(await AttendancePage(attendanceProps({ add: "walk-up" })));
+
+    fireEvent.change(screen.getByRole("textbox", { name: /^Phone/ }), {
+      target: { value: "07700900123" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /^Confirm phone/ }), {
+      target: { value: "07700900123" },
+    });
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId("walk-up-form"));
+    });
+
+    expect(recordWalkUpAction).toHaveBeenCalled();
+    const posted = vi.mocked(recordWalkUpAction).mock.calls[0][1];
+    expect(posted.get("phone")).toBe("+447700900123");
+    expect([...posted.keys()].filter((key) => key.toLowerCase().includes("confirm"))).toEqual([]);
   });
 
   it('confirms with a short label, not a paragraph — Brian, 2026-08-31: "Walkup added" is enough', async () => {

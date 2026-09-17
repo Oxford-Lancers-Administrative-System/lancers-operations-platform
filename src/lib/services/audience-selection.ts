@@ -25,11 +25,18 @@ export interface AudienceCandidate {
   unit: string | null; // UX-40 Unit column: playing unit for a player, null otherwise
   contact: string | null; // UX-40 Contact column: phone where there is one, else email
   isBps?: boolean; // WP-operator-record (LAN-217) R2#7 — narrows a player row; see relocations.md
+  isOnboarding?: boolean; // LAN-388: a player-capacity row whose membership is mid-onboarding, not active
 }
 
 // public.audience_group, in full — the closed vocabulary a template's default audience is stored in (D43, D46).
 export type AudienceGroupKey =
-  "everyone_active" | "active_players" | "active_coaches" | "active_committee" | "recruits" | "bps";
+  | "everyone_active"
+  | "active_players"
+  | "active_coaches"
+  | "active_committee"
+  | "onboarding"
+  | "recruits"
+  | "bps";
 
 /** A derived group offered on UX-40. Data, so the screen enumerates rather than hard-codes. */
 export interface AudienceGroup {
@@ -39,6 +46,14 @@ export interface AudienceGroup {
   eventTypes?: readonly string[]; // absent means every type; D46 puts recruits on Recruitment alone
   requiresBps?: boolean; // correction round 2 item 7: narrows to isBps candidates, on top of capacities
   templateEligible?: boolean; // false excludes from a template's default-audience picker; see relocations.md
+  /**
+   * LAN-388 — how this group treats a mid-onboarding membership. Absent means
+   * it excludes them, which is the decision (Clint, confirmed by Brian,
+   * 2026-09-17): Onboarding is its own group, never folded into Active.
+   * `"only"` is that group; `"include"` is for a group whose membership is
+   * decided by something other than standing.
+   */
+  onboarding?: "only" | "include";
 }
 
 // The system-derived groups the club has, and no others (D43, D44, D47) — keys match public.audience_group exactly.
@@ -63,6 +78,17 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
     label: "All active committee",
     capacities: Object.freeze(["committee" as const]),
   }),
+  // LAN-388. Clint: an Onboarding person was in neither the active group nor
+  // the recruits group, so there was no way to invite them to anything. Their
+  // own group, on every event class an Active player is offered on; they hold
+  // the player capacity and are invited on the player ladder, exactly as an
+  // Active player is.
+  Object.freeze({
+    key: "onboarding" as const,
+    label: "Onboarding",
+    capacities: Object.freeze(["player" as const]),
+    onboarding: "only" as const,
+  }),
   // D46/LAN-295: recruits are kept out of the catalogue entirely off Recruitment events — see relocations.md.
   Object.freeze({
     key: "recruits" as const,
@@ -76,6 +102,12 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
     label: "All Active BPS",
     capacities: Object.freeze(["player" as const]),
     requiresBps: true,
+    // REQ-nothing-gates (WP-operator-record): an onboarding membership counts
+    // as a player for event audiences from the moment they are on the team, so
+    // a BPS selection on one has always reached this group. LAN-388 makes the
+    // catalogue carry every onboarding membership rather than only the
+    // selected ones, and this keeps that group answering the same way.
+    onboarding: "include" as const,
   }),
 ]);
 
@@ -84,6 +116,20 @@ export function groupsForEventType(eventType: string): readonly AudienceGroup[] 
   return AUDIENCE_GROUPS.filter(
     (group) => group.eventTypes === undefined || group.eventTypes.includes(eventType),
   );
+}
+
+/**
+ * The capacities any group offers for this event type — the audience *class*,
+ * as opposed to the audience. LAN-391 needs it: when a draft's type changes,
+ * the rows the new class cannot offer (a recruit on anything but Recruitment,
+ * D46) have to leave with the old type.
+ */
+export function capacitiesForEventType(eventType: string): AudienceCapacity[] {
+  const offered = new Set<AudienceCapacity>();
+  for (const group of groupsForEventType(eventType)) {
+    for (const capacity of group.capacities) offered.add(capacity);
+  }
+  return [...offered];
 }
 
 // The groups a template's default-audience picker may offer — groupsForEventType minus templateEligible: false.
@@ -232,6 +278,17 @@ export function resolveSelection(
   return { ok: true, members };
 }
 
+/**
+ * LAN-388 — whether one candidate's standing is what the group is about. A
+ * candidate that is not a mid-onboarding membership (every coach, every
+ * committee seat, every recruit, every active player) is only ever excluded by
+ * the Onboarding group itself.
+ */
+function matchesOnboarding(group: AudienceGroup, candidate: AudienceCandidate): boolean {
+  if (candidate.isOnboarding !== true) return group.onboarding !== "only";
+  return group.onboarding === "only" || group.onboarding === "include";
+}
+
 // The selection keys a derived group expands to; called only when an operator presses the group's button.
 export function groupSelectionKeys(
   candidates: readonly AudienceCandidate[],
@@ -242,7 +299,9 @@ export function groupSelectionKeys(
   return candidates
     .filter(
       (candidate) =>
-        group.capacities.includes(candidate.capacity) && (!group.requiresBps || candidate.isBps),
+        group.capacities.includes(candidate.capacity) &&
+        (!group.requiresBps || candidate.isBps) &&
+        matchesOnboarding(group, candidate),
     )
     .map((candidate) => candidate.key);
 }

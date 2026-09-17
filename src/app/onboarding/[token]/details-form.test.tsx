@@ -202,6 +202,13 @@ describe("what the player typed survives a failed submit", () => {
       name: labelStartingWith("Mobile phone"),
     }) as HTMLInputElement;
     fireEvent.change(numberBox, { target: { value: "398393" } });
+    // LAN-389: a changed number is confirmed before the form will post it at
+    // all, so a test about what survives a *server* refusal has to get past
+    // the control's own refusal first.
+    fireEvent.change(
+      screen.getByRole("textbox", { name: labelStartingWith("Confirm mobile phone") }),
+      { target: { value: "398393" } },
+    );
 
     await submit(container);
 
@@ -240,5 +247,50 @@ describe("the two game-day identifiers", () => {
     expect(container.textContent).toContain(FIELD_STUDENT_NUMBER_HINT);
     expect(container.textContent).not.toMatch(/BAFA/i);
     expect(container.querySelector('[name="bafa_registration_number"]')).toBeNull();
+  });
+});
+
+/**
+ * LAN-389, entry point 2 of 10 (Clint, 2026-09-17). This is the door Ian came
+ * through, and the one his mistyped number came in on.
+ */
+describe("the confirm box under Mobile phone", () => {
+  it("refuses a mismatch, and saves nothing", async () => {
+    vi.mocked(saveDetails).mockClear();
+    const { container } = renderForm();
+
+    fireEvent.change(screen.getByRole("textbox", { name: labelStartingWith("Mobile phone") }), {
+      target: { value: "07700900123" },
+    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: labelStartingWith("Confirm mobile phone") }),
+      { target: { value: "07700900132" } },
+    );
+
+    await submit(container);
+
+    expect(saveDetails).not.toHaveBeenCalled();
+    expect(screen.getByText("Does not match the number above.")).toBeTruthy();
+  });
+
+  it("lets the same number through, and posts only the first", async () => {
+    vi.mocked(saveDetails).mockClear();
+    vi.mocked(saveDetails).mockResolvedValue({ values: EMPTY_DETAILS_VALUES, errors: {} });
+    const { container } = renderForm();
+
+    fireEvent.change(screen.getByRole("textbox", { name: labelStartingWith("Mobile phone") }), {
+      target: { value: "07700900123" },
+    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: labelStartingWith("Confirm mobile phone") }),
+      { target: { value: "07700900123" } },
+    );
+
+    await submit(container);
+
+    expect(saveDetails).toHaveBeenCalled();
+    const posted = vi.mocked(saveDetails).mock.calls[0][1];
+    expect(posted.get("mobile")).toBe("+447700900123");
+    expect([...posted.keys()].filter((key) => key.toLowerCase().includes("confirm"))).toEqual([]);
   });
 });

@@ -1,0 +1,25 @@
+-- LAN-388 — Clint, 2026-09-17: "If someone's status is onboarding, I can't
+-- invite them to any events. They aren't in the active group or the recruits
+-- group." Confirmed by Brian the same day: Onboarding is its own audience
+-- group on the picker, not folded into Active.
+--
+-- The picker's vocabulary is `AUDIENCE_GROUPS` in
+-- `src/lib/services/audience-selection.ts`, which is pure and needs no
+-- migration. This one exists for the other half of D43/D47: a template's
+-- default audience is *stored*, as `public.audience_group`, and a group the
+-- enum does not carry cannot be pre-chosen on a template. `bps` needed exactly
+-- this migration for exactly this reason (D-003, 20260904120000), and the
+-- decision here says templates may pre-choose Onboarding like any other group.
+--
+-- `alter type ... add value` cannot run in the same transaction as a statement
+-- that uses the new value (docs/migration-runbook.md), so it is the only
+-- statement in this file.
+--
+-- Nothing else changes. `onboarding` carries no per-event-type restriction the
+-- way `recruits` does (`event_template_audience_groups_recruits_are_recruitment_only`):
+-- the decision is that Onboarding people are offered on the same event classes
+-- Active players are offered on. The template read and write paths
+-- (`event-templates/`) resolve any stored group generically, so there is no
+-- group-specific code there to update.
+
+alter type public.audience_group add value if not exists 'onboarding';

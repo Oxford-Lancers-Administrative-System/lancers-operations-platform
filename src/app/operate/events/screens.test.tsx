@@ -1696,6 +1696,37 @@ describe("the edit view — UX-31 against an existing draft", () => {
     );
   });
 
+  /**
+   * LAN-391 — Clint, 2026-09-16: "it didn't want to change event type once the
+   * draft is saved." The reproduction was that the control was *not* locked:
+   * the change was accepted on screen and dropped on save. Brian, 2026-09-17:
+   * a draft's type can be changed. These prove the editor half — the control
+   * is live on a saved draft and the new type is what the form posts.
+   */
+  describe("LAN-391 — the type on a saved draft", () => {
+    it("is a live control, not a fixed one", async () => {
+      vi.mocked(readEvent).mockResolvedValue(detail());
+
+      render(await EditEventPage(editProps()));
+
+      const type = screen.getByRole("combobox", { name: "Type" });
+      expect(type.getAttribute("aria-disabled")).not.toBe("true");
+      expect(type.textContent).toBe(SEEDED_TEMPLATE_NAMES.practice);
+    });
+
+    it("posts the type the operator chose", async () => {
+      vi.mocked(readEvent).mockResolvedValue(detail());
+      const { container } = render(await EditEventPage(editProps()));
+
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+      fireEvent.click(screen.getByRole("option", { name: SEEDED_TEMPLATE_NAMES.social }));
+
+      expect(container.querySelector<HTMLInputElement>('input[name="templateId"]')?.value).toBe(
+        SEEDED_TEMPLATE_IDS.social,
+      );
+    });
+  });
+
   it("refuses to open an editor for a cancelled event", async () => {
     // LAN-318 opened this route to an approved event's questions; a cancelled
     // event is asking nobody anything, so it is still refused outright.
@@ -2273,6 +2304,74 @@ describe("UX-40 — building the audience", () => {
     fireEvent.click(morgan());
     expect(morgan()).not.toBeChecked();
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
+  });
+
+  /**
+   * LAN-388 — Clint, 2026-09-17: "If someone's status is onboarding, I can't
+   * invite them to any events. They aren't in the active group or the recruits
+   * group." Confirmed by Brian the same day: Onboarding is its own group here.
+   */
+  describe("Onboarding is its own group on the picker", () => {
+    const ONBOARDING_MEMBERSHIP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9";
+    const ONBOARDING_PERSON = "pppppppp-pppp-4ppp-8ppp-ppppppppppp9";
+
+    const WITH_ONBOARDING: AudienceCandidate[] = [
+      ...AUDIENCE,
+      candidate({
+        anchorId: ONBOARDING_MEMBERSHIP,
+        personId: ONBOARDING_PERSON,
+        displayName: "Wren Alderley",
+        standing: "Onboarding",
+        unit: null,
+        contact: "+44 7700 900109",
+        isOnboarding: true,
+        key: `player:${ONBOARDING_MEMBERSHIP}`,
+      }),
+    ];
+
+    async function openWithOnboarding() {
+      givenAudience(WITH_ONBOARDING, undefined, []);
+      vi.mocked(readEvent).mockResolvedValue(detail());
+      return render(await EventDetailPage(detailProps({ step: "audience" })));
+    }
+
+    it("offers an Onboarding button that counts them, and leaves Active alone", async () => {
+      await openWithOnboarding();
+
+      expect(screen.getByRole("button", { name: "Onboarding (1)" })).toBeEnabled();
+      // The defect: before this, they were in neither of these.
+      expect(screen.getByRole("button", { name: "All active players (3)" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Everyone active (4)" })).toBeVisible();
+    });
+
+    it("selects and counts them from that button", async () => {
+      await openWithOnboarding();
+
+      fireEvent.click(screen.getByRole("button", { name: "Onboarding (1)" }));
+
+      expect(screen.getByTestId("review-selection").textContent).toBe("Review 1 selected");
+      expect(screen.getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })).toBeChecked();
+      // Pressing Onboarding does not quietly light the Active groups.
+      expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("states their standing on their row, as a label and nothing more", async () => {
+      await openWithOnboarding();
+
+      const row = screen
+        .getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })
+        .closest("li");
+      expect(flatten(row?.textContent ?? null)).toContain("Player · Onboarding");
+    });
+
+    it("is a button an event with nobody onboarding cannot press", async () => {
+      await openBuilder();
+
+      expect(screen.getByRole("button", { name: "Onboarding (0)" })).toBeDisabled();
+    });
   });
 
   /**
@@ -3133,6 +3232,36 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     typeTime("Start", "20", "00");
 
     expect(valueOf("endsAt")).toBe("22:00");
+  });
+
+  /**
+   * LAN-391: "the editor shows which fields it reset before the operator
+   * saves, as a label or state, not a paragraph."
+   */
+  it("names the fields the new type replaced, and nothing it left alone", async () => {
+    twoTemplates();
+    render(await NewEventPage(newProps()));
+    fireEvent.change(screen.getByRole("textbox", { name: /Description/ }), {
+      target: { value: "Walkthrough only — the pitch is frozen." },
+    });
+
+    chooseType("Social");
+
+    const reset = flatten(screen.getByTestId("type-change-reset").textContent);
+    expect(reset).toContain("Venue");
+    expect(reset).toContain("Required equipment");
+    expect(reset).toContain("Questions");
+    // The one the operator wrote is not in the list, because it was not reset.
+    expect(reset).not.toContain("Description");
+    // A label and its values, not a sentence about what happened.
+    expect(reset).not.toMatch(/\b(because|so that|which means)\b/);
+  });
+
+  it("says nothing at all until a type change actually replaces something", async () => {
+    twoTemplates();
+    render(await NewEventPage(newProps()));
+
+    expect(screen.queryByTestId("type-change-reset")).toBeNull();
   });
 
   it("leaves an end the operator set themselves", async () => {

@@ -244,6 +244,7 @@ describe("a recruits group, on the Recruitment type alone (D46)", () => {
         PLAYERS,
         COACHES,
         COMMITTEE,
+        "onboarding",
         "bps",
       ]);
     }
@@ -255,6 +256,7 @@ describe("a recruits group, on the Recruitment type alone (D46)", () => {
       PLAYERS,
       COACHES,
       COMMITTEE,
+      "onboarding",
       "recruits",
       "bps",
     ]);
@@ -582,5 +584,130 @@ describe("the recruits group is Recruitment's alone", () => {
     expect(groupsForEventType(RECRUITMENT_EVENT_TYPE).map((group) => group.key)).toContain(
       "recruits",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-388 — Onboarding as its own group
+// ---------------------------------------------------------------------------
+
+/**
+ * Clint, 2026-09-17: "If someone's status is onboarding, I can't invite them
+ * to any events. They aren't in the active group or the recruits group."
+ * Confirmed by Brian the same day: Onboarding is its own group, not folded
+ * into Active.
+ *
+ * The fixture is the awkward case as well as the plain one: **Wren** is
+ * mid-onboarding, **Fen** is mid-onboarding *and* a live recruit, and **Bo**
+ * from the club above is an ordinary active player. The BPS row is here too,
+ * because an onboarding membership has always been allowed to hold a BPS
+ * selection (REQ-nothing-gates) and that must not change.
+ */
+const WREN = "person-wren";
+const FEN = "person-fen";
+
+function onboardingPlayer(
+  anchorId: string,
+  personId: string,
+  displayName: string,
+  isBps = false,
+): AudienceCandidate {
+  return {
+    ...candidate("player", anchorId, personId, displayName),
+    standing: "Onboarding",
+    isOnboarding: true,
+    isBps,
+  };
+}
+
+const MID_SEASON: AudienceCandidate[] = [
+  candidate("player", "membership-bo", "person-bo", "Bo Rivers"),
+  onboardingPlayer("membership-wren", WREN, "Wren Alderley"),
+  onboardingPlayer("membership-fen", FEN, "Fen Coldstream"),
+  { ...candidate("recruit", FEN, FEN, "Fen Coldstream"), standing: "Committed" },
+];
+
+const ONBOARDING = "onboarding";
+
+describe("Onboarding is its own audience group", () => {
+  it("offers the people no other group would, and counts them", () => {
+    expect(groupSize(MID_SEASON, ONBOARDING)).toBe(2);
+    expect(groupSelectionKeys(MID_SEASON, ONBOARDING)).toEqual([
+      selectionKey("player", "membership-wren"),
+      selectionKey("player", "membership-fen"),
+    ]);
+  });
+
+  it("keeps them out of Active, which is the whole point of a separate group", () => {
+    expect(groupSize(MID_SEASON, PLAYERS)).toBe(1);
+    expect(groupSize(MID_SEASON, EVERYONE)).toBe(1);
+    expect(groupSelectionKeys(MID_SEASON, PLAYERS)).toEqual([
+      selectionKey("player", "membership-bo"),
+    ]);
+  });
+
+  it("is offered on every event class an active player is offered on", () => {
+    for (const type of ["practice", "game", "social", "meeting", "chalk", "recruitment"]) {
+      expect(groupsForEventType(type).map((group) => group.key)).toContain(ONBOARDING);
+    }
+  });
+
+  it("can be pre-chosen on a template, like every other group", () => {
+    expect(templateGroupsForEventType("practice").map((group) => group.key)).toContain(ONBOARDING);
+  });
+
+  it("still lets a BPS selection on an onboarding membership reach the BPS group", () => {
+    // REQ-nothing-gates (WP-operator-record correction round 2, item 7). The
+    // arm that used to carry this is gone; the group carries it now.
+    const withBps = [
+      ...MID_SEASON,
+      onboardingPlayer("membership-hale", "person-hale", "Hale Tunstall", true),
+    ];
+
+    expect(groupSelectionKeys(withBps, "bps")).toEqual([selectionKey("player", "membership-hale")]);
+  });
+
+  it("gives a person who is both onboarding and a recruit one row, and one write", () => {
+    // P9 / LAN-293 / LAN-294. Both groups offer Fen; ticking both resolves to
+    // one member, on the player ladder, because player wins the precedence.
+    const both = new Set([
+      ...groupSelectionKeys(MID_SEASON, ONBOARDING),
+      ...groupSelectionKeys(MID_SEASON, "recruits"),
+    ]);
+    const resolution = resolveSelection(MID_SEASON, [...both]);
+
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) return;
+    const fen = resolution.members.filter((member) => member.personId === FEN);
+    expect(fen).toHaveLength(1);
+    expect(fen[0].capacity).toBe("player");
+    expect(fen[0].anchorId).toBe("membership-fen");
+
+    // And the two rows are one human in the picker.
+    const people = audiencePeople(MID_SEASON);
+    expect(people.filter((person) => person.personId === FEN)).toHaveLength(1);
+    expect(people.find((person) => person.personId === FEN)!.capacities).toEqual([
+      "player",
+      "recruit",
+    ]);
+  });
+
+  it("names the group in an audience summary rather than counting them as others", () => {
+    const summary = summariseAudienceGroups(
+      MID_SEASON,
+      groupSelectionKeys(MID_SEASON, ONBOARDING),
+      "practice",
+    );
+
+    expect(summary.groups).toContain("Onboarding");
+    expect(summary.others).toBe(0);
+    expect(summary.total).toBe(2);
+  });
+
+  it("lights and clears its button like any other group", () => {
+    const lit = toggleGroup(MID_SEASON, ONBOARDING, new Set());
+    expect(groupIsSelected(MID_SEASON, ONBOARDING, lit)).toBe(true);
+    expect(groupIsSelected(MID_SEASON, PLAYERS, lit)).toBe(false);
+    expect(toggleGroup(MID_SEASON, ONBOARDING, lit).size).toBe(0);
   });
 });
