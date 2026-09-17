@@ -110,6 +110,38 @@ beforeAll(async () => {
   operatorPersonId = anchor.rows[0].id;
 });
 
+/**
+ * Pauses the club's outbound messaging for the length of one test — LAN-394.
+ *
+ * Written directly rather than through `pauseMessagingIn`, because what is
+ * under test here is the **dispatcher**: that it asks the guard at all, and
+ * that a paused answer costs the message nothing. The control itself, its
+ * capability and its audit row are proved in
+ * `src/lib/services/messaging-safety.test.ts`.
+ */
+async function pauseAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = now(),
+            paused_by_person_id = (select person_id from public.operator_accounts limit 1),
+            paused_reason = 'Under test', version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
+async function resumeAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = null, paused_by_person_id = null, paused_reason = null,
+            version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
+const SAFETY_DEFERRAL_LEAVES_NOTHING_BEHIND = `select status::text as status, attempt_count,
+       last_error, safety_reason_code
+  from public.notification_jobs where id = $1`;
+
 afterEach(async () => {
   // LAN-394: this suite's holds and provider circuit go with its fixtures.
   await clearRecipientSafetyState(observer);
@@ -476,6 +508,51 @@ describe("declareRecruitmentCycleJobsIn", () => {
 });
 
 describe("dispatchRecruitmentCycleJob", () => {
+  it("sends nothing while messaging is paused, and costs the ask nothing — LAN-394", async () => {
+    const personId = await firstNameOnlyRecruit();
+    await grantConsentViaWalkUp(personId);
+    await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+    await addMobile(personId);
+    const jobId = (
+      await withTransaction((tx) =>
+        tx.query<{ id: string }>(
+          "select id from public.notification_jobs where idempotency_key = $1",
+          [`recruit-cycle:welcome:${personId}:${seasonId}`],
+        ),
+      )
+    ).rows[0].id;
+    await pauseAllMessaging();
+
+    const { sent, transport } = acceptingTransport();
+    try {
+      expect(await dispatchRecruitmentCycleJob(jobId, { source: CONFIGURED, transport })).toBe(
+        "deferred",
+      );
+    } finally {
+      await resumeAllMessaging();
+    }
+
+    expect(sent).toHaveLength(0);
+    const job = await withTransaction((tx) =>
+      tx.query<{ status: string; attempt_count: number; safety_reason_code: string | null }>(
+        SAFETY_DEFERRAL_LEAVES_NOTHING_BEHIND,
+        [jobId],
+      ),
+    );
+    expect(job.rows[0].status).toBe("pending");
+    expect(job.rows[0].attempt_count).toBe(0);
+    expect(job.rows[0].safety_reason_code).toBe("paused_by_operator");
+    // And no credential was minted for a message that never went, so the
+    // recruit's existing sign-up link is untouched.
+    const tokens = await withTransaction((tx) =>
+      tx.query<{ count: string }>(
+        "select count(*)::text as count from public.person_access_tokens where person_id = $1::uuid",
+        [personId],
+      ),
+    );
+    expect(tokens.rows[0].count).toBe("0");
+  });
+
   it("sends the welcome template, records an accepted attempt, and leaves the job processing", async () => {
     const personId = await firstNameOnlyRecruit();
     // An operator read-back grant: consent is granted, but never through the
@@ -651,7 +728,13 @@ describe("dispatchRecruitmentCycleJob", () => {
     }
     expect(secondAccepted).toBeGreaterThanOrEqual(2);
 
-    const names = sent.map((s) => (s.body.template as { name: string }).name);
+    // Only the WhatsApp sends have a template. A sweep is global, and with
+    // LAN-394's pacing this test now runs several ticks rather than one, so an
+    // ambient email job from the seeded dataset can land in the same transport
+    // — and an email payload has no `template` to read a name off.
+    const names = sent
+      .map((s) => (s.body.template as { name?: string } | undefined)?.name)
+      .filter((name): name is string => typeof name === "string");
     expect(names).toEqual(
       expect.arrayContaining([
         TEMPLATE_NAMES.recruit_welcome,

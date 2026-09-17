@@ -62,7 +62,7 @@ import {
  * resume.
  */
 
-export interface AdmissionRequest {
+interface AdmissionRequest {
   readonly jobId: string;
   /** The person this message is addressed to, where the job carries one. */
   readonly personId: string | null;
@@ -94,7 +94,7 @@ export interface AdmissionDeferred {
   readonly scopeKind: "global" | "provider" | "person" | "destination" | null;
 }
 
-export type Admission = AdmissionGranted | AdmissionDeferred;
+type Admission = AdmissionGranted | AdmissionDeferred;
 
 /** How the two windows are expressed to PostgreSQL, once. */
 const MINUTES = (n: number) => `${n} minutes`;
@@ -390,7 +390,7 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
  * just been deferred does not dominate the next tick ahead of work that has
  * never been looked at.
  */
-export const SAFETY_MINIMUM_WAIT_MINUTES = 5;
+const SAFETY_MINIMUM_WAIT_MINUTES = 5;
 
 export async function recordWaitingIn(
   tx: Tx,
@@ -414,7 +414,7 @@ export async function recordWaitingIn(
 }
 
 /** The waiting state one job is in, for a caller that has to show it. */
-export interface SafetyWaiting {
+interface SafetyWaiting {
   readonly jobId: string;
   readonly reasonCode: SafetyReasonCode;
   readonly nextEligibleAt: Date | null;

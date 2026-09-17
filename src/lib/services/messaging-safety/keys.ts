@@ -26,7 +26,7 @@ import crypto from "node:crypto";
  * hashed input, not beside it.
  */
 
-export const DESTINATION_KEY_VERSION = "v1";
+const DESTINATION_KEY_VERSION = "v1";
 
 /**
  * The fingerprint of the destination actually selected for sending.

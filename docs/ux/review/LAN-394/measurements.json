@@ -1,0 +1,18 @@
+{
+  "measured": [
+    {
+      "label": "desktop",
+      "requestedWidth": 1440,
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "label": "phone375",
+      "requestedWidth": 375,
+      "width": 375,
+      "height": 812
+    }
+  ],
+  "at": "2026-09-17T20:14:45.453Z",
+  "origin": "http://127.0.0.1:3010"
+}

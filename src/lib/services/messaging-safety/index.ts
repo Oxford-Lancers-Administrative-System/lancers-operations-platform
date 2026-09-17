@@ -21,65 +21,44 @@ import "server-only";
  *   * `keys.ts` — how a destination is counted without storing it twice.
  *   * `monitor.ts` — the independent, count-only alert route.
  *   * `status.ts` — what the Messaging safety section reads.
+ *
+ * ## What this barrel re-exports, and what it deliberately does not
+ *
+ * Only the names something outside this directory actually uses. A barrel that
+ * re-exports everything is a barrel that hides which of its parts are internal,
+ * and the module's own seams — the lock helper, the reason-code table, the
+ * fingerprint's version — are internal on purpose. `npm run knip` holds this to
+ * it.
  */
 
 export {
   admitSendIn,
   readWaitingIn,
   recordWaitingIn,
-  SAFETY_MINIMUM_WAIT_MINUTES,
-  type Admission,
   type AdmissionDeferred,
   type AdmissionGranted,
-  type AdmissionRequest,
-  type SafetyWaiting,
 } from "./admission";
 
-export { destinationKey, DESTINATION_KEY_VERSION } from "./keys";
+export { destinationKey } from "./keys";
 
 export {
-  cloudRunMonitor,
-  emitSafetyEvent,
   emitSafetyHeartbeat,
-  SAFETY_ADMIN_PATH,
   SAFETY_HEARTBEAT_EVENT,
   SAFETY_LOG_EVENT,
   setSafetyMonitor,
-  type SafetyEvent,
-  type SafetyIncidentKind,
-  type SafetyIncidentPhase,
   type SafetyMonitor,
 } from "./monitor";
 
 export * from "./policy";
 
-export {
-  SAFETY_REASON_CODES,
-  SAFETY_REASON_LABELS,
-  waitingLabelFor,
-  WAITING_ALLOWANCE_LABEL,
-  WAITING_PAUSED_LABEL,
-  type SafetyReasonCode,
-} from "./reasons";
+export { waitingLabelFor, WAITING_ALLOWANCE_LABEL, type SafetyReasonCode } from "./reasons";
 
 export {
   GLOBAL_SCOPE_KEY,
-  lockScopeIn,
   pauseMessagingIn,
-  readActiveScopesIn,
   readScopeIn,
   reconcileSafetyAlertsIn,
   resumeMessagingIn,
-  safetyNowIn,
-  SAFETY_ALREADY_PAUSED_MESSAGE,
-  SAFETY_NOT_PAUSED_MESSAGE,
-  SAFETY_STALE_VERSION_MESSAGE,
-  SAFETY_STALE_VERSION_RULE,
-  SAFETY_STATE_MISSING_RULE,
-  type SafetyScope,
-  type SafetyScopeKind,
-  type ScopeTarget,
-  type SweepSafetyCounts,
 } from "./scopes";
 
 export { recordProviderOutcomeIn } from "./settlement";
@@ -90,7 +69,5 @@ export {
   safetyThresholds,
   type MessagingSafetyState,
   type MessagingSafetyStatus,
-  type SafetyAuditRow,
   type SafetyHoldRow,
-  type SafetyThresholdRow,
 } from "./status";

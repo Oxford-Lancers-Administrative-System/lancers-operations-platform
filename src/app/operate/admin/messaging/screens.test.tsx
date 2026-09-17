@@ -268,6 +268,7 @@ function safetyStatus(overrides: Partial<MessagingSafetyStatus> = {}): Messaging
     lastChangeAt: new Date("2026-09-17T09:00:00Z"),
     dueWaiting: 0,
     oldestDueMinutes: 0,
+    heldBySafety: 0,
     scheduledAhead: 4,
     queueWarning: false,
     admittedInPacingWindow: 0,

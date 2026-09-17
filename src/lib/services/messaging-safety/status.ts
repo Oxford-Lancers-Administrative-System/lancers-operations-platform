@@ -21,6 +21,8 @@ import {
   UNRESOLVED_ATTEMPT_MINUTES,
 } from "./policy";
 import type { SafetyReasonCode } from "./reasons";
+import { MAX_ATTEMPTS } from "../delivery";
+import { DUE_JOB_PREDICATE } from "../messaging-queue";
 import { GLOBAL_SCOPE_KEY, readActiveScopesIn, readScopeIn, policyMatches } from "./scopes";
 
 /**
@@ -41,7 +43,7 @@ import { GLOBAL_SCOPE_KEY, readActiveScopesIn, readScopeIn, policyMatches } from
 export type MessagingSafetyState =
   "sending_normally" | "messages_waiting" | "paused" | "provider_unavailable" | "unavailable";
 
-export interface SafetyThresholdRow {
+interface SafetyThresholdRow {
   readonly control: string;
   readonly value: string;
   readonly effect: string;
@@ -50,7 +52,8 @@ export interface SafetyThresholdRow {
 export interface SafetyHoldRow {
   readonly scopeId: string;
   readonly version: number;
-  readonly kind: "global" | "provider" | "person" | "destination";
+  /** Never `global`: that scope's control is the section's own, not a row here. */
+  readonly kind: "provider" | "person" | "destination";
   /** What the hold is on, in the club's words. Never a fingerprint. */
   readonly label: string;
   readonly reasonCode: SafetyReasonCode | null;
@@ -64,7 +67,7 @@ export interface SafetyHoldRow {
   readonly cooldownUntil: Date | null;
 }
 
-export interface SafetyAuditRow {
+interface SafetyAuditRow {
   readonly id: string;
   readonly occurredAt: Date;
   readonly action: string;
@@ -85,6 +88,8 @@ export interface MessagingSafetyStatus {
   /** Jobs whose moment has arrived and which have not been sent. */
   readonly dueWaiting: number;
   readonly oldestDueMinutes: number;
+  /** Jobs the guard is currently holding back. A queue, never a failure. */
+  readonly heldBySafety: number;
   /** Jobs the club has scheduled for a moment that has not arrived. Not a backlog. */
   readonly scheduledAhead: number;
   readonly queueWarning: boolean;
@@ -142,11 +147,6 @@ export function safetyThresholds(): readonly SafetyThresholdRow[] {
   ];
 }
 
-const DUE_JOB_PREDICATE = `
-  held_at is null
-  and status in ('pending', 'ready')
-  and coalesce(scheduled_for, created_at) <= now()`;
-
 /** Reads the section. Capability-checked here as well as on the page. */
 export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus> {
   await requireCapability("delivery_administration");
@@ -167,6 +167,7 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
         lastChangeAt: null,
         dueWaiting: 0,
         oldestDueMinutes: 0,
+        heldBySafety: 0,
         scheduledAhead: 0,
         queueWarning: false,
         admittedInPacingWindow: 0,
@@ -186,14 +187,29 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
       due: string;
       oldest_minutes: string | null;
       ahead: string;
+      held: string;
     }>(
-      `select
-         (select count(*)::text from public.notification_jobs where ${DUE_JOB_PREDICATE}) as due,
-         (select (extract(epoch from now() - min(coalesce(scheduled_for, created_at))) / 60)::int::text
-            from public.notification_jobs where ${DUE_JOB_PREDICATE}) as oldest_minutes,
+      // What the page counts as waiting is what the **sweep** would actually
+      // take. It was its own looser predicate for one afternoon, and on the
+      // seeded database that read "645 due, oldest 3,648 hours" — hundreds of
+      // historical jobs for events that have long since happened, which no
+      // sweep would ever claim and which an operator can do nothing about. A
+      // queue warning that fires on work nobody is waiting for is a warning
+      // nobody reads.
+      `with due as (
+         select coalesce(next_attempt_at, scheduled_for, created_at) as due_at
+           from public.notification_jobs
+          where ${DUE_JOB_PREDICATE}
+       )
+       select
+         (select count(*)::text from due) as due,
+         (select (extract(epoch from now() - min(due_at)) / 60)::int::text from due) as oldest_minutes,
          (select count(*)::text from public.notification_jobs
            where held_at is null and status in ('pending', 'ready')
-             and coalesce(scheduled_for, created_at) > now()) as ahead`,
+             and coalesce(scheduled_for, created_at) > now()) as ahead,
+         (select count(*)::text from public.notification_jobs
+           where safety_reason_code is not null and status in ('pending', 'ready')) as held`,
+      [MAX_ATTEMPTS],
     );
 
     const usage = await tx.query<{ pacing: string; day: string; week: string }>(
@@ -233,13 +249,17 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
 
     const holds: SafetyHoldRow[] = [];
     for (const scope of scopes) {
+      // The global row is the Controls section's own subject and already has a
+      // button there. Listing it again under "Active holds", with a second
+      // Resume beside it, would offer the same act twice and leave an operator
+      // wondering which one they pressed. The contract's list is of *scoped*
+      // holds — a provider, a person, a number.
+      if (scope.scopeKind === "global") continue;
       let label: string;
       let people: { personId: string; name: string }[] = [];
       let shared = false;
 
-      if (scope.scopeKind === "global") {
-        label = "All messaging";
-      } else if (scope.scopeKind === "provider") {
+      if (scope.scopeKind === "provider") {
         label = scope.scopeKey === "email" ? "Email" : "WhatsApp";
       } else if (scope.scopeKind === "person") {
         const person = await tx.query<{ id: string; name: string }>(
@@ -334,6 +354,7 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
       lastChangeAt: global.updatedAt,
       dueWaiting,
       oldestDueMinutes,
+      heldBySafety: Number(queue.rows[0].held),
       scheduledAhead: Number(queue.rows[0].ahead),
       queueWarning: oldestDueMinutes > QUEUE_WARNING_MINUTES,
       admittedInPacingWindow: Number(usage.rows[0].pacing),

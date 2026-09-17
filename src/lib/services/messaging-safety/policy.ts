@@ -98,7 +98,7 @@ export const GLOBAL_EMERGENCY_WINDOW_HOURS = 24;
  * stops. It exists so the first anybody hears of a busy day is not the club's
  * messaging stopping.
  */
-export const CAPACITY_WARNING_FRACTION = 0.8;
+const CAPACITY_WARNING_FRACTION = 0.8;
 export const CAPACITY_WARNING_THRESHOLD = Math.floor(
   GLOBAL_EMERGENCY_LIMIT * CAPACITY_WARNING_FRACTION,
 );
@@ -127,7 +127,7 @@ export const PROVIDER_FAULT_WINDOW_MINUTES = 5;
  * `BACKOFF_MINUTES`' own reason: an exponent is a number somebody tunes without
  * noticing where the last step moved to.
  */
-export const PROVIDER_COOLDOWN_MINUTES: readonly number[] = Object.freeze([5, 10, 20, 30]);
+const PROVIDER_COOLDOWN_MINUTES: readonly number[] = Object.freeze([5, 10, 20, 30]);
 
 /** The cooldown length for a stage, with the last entry repeating for ever. */
 export function cooldownMinutesForStage(stage: number): number {

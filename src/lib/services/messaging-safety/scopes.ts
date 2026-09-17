@@ -130,7 +130,7 @@ export async function safetyNowIn(tx: Tx): Promise<Date> {
   return result.rows[0].now;
 }
 
-export const SAFETY_STATE_MISSING_RULE = "messaging_safety_state_missing";
+const SAFETY_STATE_MISSING_RULE = "messaging_safety_state_missing";
 
 /**
  * Locks one scope, creating it on first sight.
@@ -241,16 +241,16 @@ export async function latchScopeIn(
 // The two operator controls
 // ---------------------------------------------------------------------------
 
-export const SAFETY_STALE_VERSION_RULE = "messaging_safety_stale_version";
-export const SAFETY_STALE_VERSION_MESSAGE =
+const SAFETY_STALE_VERSION_RULE = "messaging_safety_stale_version";
+const SAFETY_STALE_VERSION_MESSAGE =
   "The messaging safety state changed after this page was loaded, so nothing was done. " +
   "Reload and look at it again.";
 
-export const SAFETY_ALREADY_PAUSED_MESSAGE = "Messaging is already paused.";
-export const SAFETY_NOT_PAUSED_MESSAGE = "Messaging is not paused.";
+const SAFETY_ALREADY_PAUSED_MESSAGE = "Messaging is already paused.";
+const SAFETY_NOT_PAUSED_MESSAGE = "Messaging is not paused.";
 
 /** Which scope a control is acting on. The browser supplies these, so both are checked. */
-export interface ScopeTarget {
+interface ScopeTarget {
   readonly scopeId: string;
   readonly version: number;
 }

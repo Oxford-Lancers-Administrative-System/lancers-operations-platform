@@ -43,6 +43,7 @@ import {
   RESUME_REASON_LABEL,
   RESUME_SCOPE_LABEL,
   SAFETY_NORMAL_SENTENCE,
+  SAFETY_REASON_LABELS,
   SAFETY_SECTION_HEADING,
   SAFETY_STATE_LABELS,
   SHARED_DESTINATION_LABEL,
@@ -213,7 +214,15 @@ export default function MessagingSafetySection({
             value={queueLabel(status.dueWaiting, status.oldestDueMinutes)}
             testId="safety-due"
           />
-          <Line label="Scheduled later" value={String(status.scheduledAhead)} />
+          <Line
+            label="Held by safety"
+            value={status.heldBySafety === 0 ? "None" : String(status.heldBySafety)}
+            testId="safety-held-count"
+          />
+          <Line
+            label="Scheduled later"
+            value={status.scheduledAhead === 0 ? "None" : String(status.scheduledAhead)}
+          />
           <Line
             label="Outcome unknown"
             value={
@@ -258,6 +267,9 @@ export default function MessagingSafetySection({
                   value={holdLabel(hold)}
                 />
                 <Line label="Since" value={when(hold.since)} />
+                {hold.reasonCode ? (
+                  <Line label="Why" value={SAFETY_REASON_LABELS[hold.reasonCode]} />
+                ) : null}
                 {hold.cooldownUntil ? (
                   <Line label="Until" value={when(hold.cooldownUntil)} />
                 ) : null}

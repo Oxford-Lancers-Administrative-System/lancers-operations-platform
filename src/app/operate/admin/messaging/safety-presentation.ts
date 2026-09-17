@@ -1,4 +1,8 @@
-import type { MessagingSafetyState, SafetyHoldRow } from "@/lib/services/messaging-safety";
+import type {
+  MessagingSafetyState,
+  SafetyHoldRow,
+  SafetyReasonCode,
+} from "@/lib/services/messaging-safety";
 
 /**
  * The Messaging safety section's own words — LAN-394.
@@ -36,6 +40,29 @@ export const RESUME_SCOPE_LABEL = "RESUME";
 export const PAUSE_REASON_LABEL = "Why is messaging being paused?";
 export const RESUME_REASON_LABEL = "Why is messaging being resumed?";
 export const REASON_REQUIRED = "Say why, then press the button again.";
+
+/**
+ * What an operator reads for each safe reason code — labels and states, never
+ * an explanation (`docs/ux/standards.md`; no narrative text in the application
+ * frame).
+ *
+ * Here rather than beside the codes themselves, and that is not tidiness: the
+ * section is a client component, and every runtime value it imports from
+ * `@/lib/services/messaging-safety` would drag the server barrel — and with it
+ * `pg` and `next/headers` — into the browser bundle. The barrel is
+ * `server-only`; this file is words.
+ */
+export const SAFETY_REASON_LABELS: Readonly<Record<SafetyReasonCode, string>> = Object.freeze({
+  paused_by_operator: "Messaging paused",
+  global_emergency_stop: "Emergency stop",
+  shared_pacing: "Waiting for the sending allowance",
+  person_pacing: "Waiting — one message per person at a time",
+  destination_pacing: "Waiting — one message per number at a time",
+  person_hold: "Held — this person's limit reached",
+  destination_hold: "Held — this number's limit reached",
+  provider_cooldown: "Provider temporarily unavailable",
+  safety_unavailable: "Safety status unavailable",
+});
 
 export const THRESHOLDS_SUMMARY = "Limits and current use";
 export const HOLDS_HEADING = "Active holds";

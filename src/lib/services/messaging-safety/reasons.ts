@@ -32,41 +32,12 @@ export type SafetyReasonCode =
   /** Safety state could not be read, so nothing is sent. Never "sending normally". */
   | "safety_unavailable";
 
-export const SAFETY_REASON_CODES: readonly SafetyReasonCode[] = Object.freeze([
-  "paused_by_operator",
-  "global_emergency_stop",
-  "shared_pacing",
-  "person_pacing",
-  "destination_pacing",
-  "person_hold",
-  "destination_hold",
-  "provider_cooldown",
-  "safety_unavailable",
-]);
-
-/**
- * What an operator reads for each code — labels and states, never an
- * explanation (`docs/ux/standards.md`; no narrative text in the application
- * frame).
- */
-export const SAFETY_REASON_LABELS: Readonly<Record<SafetyReasonCode, string>> = Object.freeze({
-  paused_by_operator: "Messaging paused",
-  global_emergency_stop: "Emergency stop",
-  shared_pacing: "Waiting for the sending allowance",
-  person_pacing: "Waiting — one message per person at a time",
-  destination_pacing: "Waiting — one message per number at a time",
-  person_hold: "Held — this person's limit reached",
-  destination_hold: "Held — this number's limit reached",
-  provider_cooldown: "Provider temporarily unavailable",
-  safety_unavailable: "Safety status unavailable",
-});
-
 /**
  * The two sentences a queued message shows. One is a pause and the other is an
  * allowance, and telling them apart is the difference between "somebody
  * stopped this" and "this is its turn shortly".
  */
-export const WAITING_PAUSED_LABEL = "Queued — messaging paused";
+const WAITING_PAUSED_LABEL = "Queued — messaging paused";
 export const WAITING_ALLOWANCE_LABEL = "Queued — waiting for the sending allowance";
 
 export function waitingLabelFor(code: SafetyReasonCode): string {

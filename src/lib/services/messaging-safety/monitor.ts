@@ -42,12 +42,12 @@ export type SafetyIncidentKind =
   "global_emergency_stop" | "capacity_warning" | "queue_warning" | "provider_cooldown";
 
 /** Where an incident is in its life. */
-export type SafetyIncidentPhase = "open" | "still_open" | "recovered";
+type SafetyIncidentPhase = "open" | "still_open" | "recovered";
 
 /** The scope category — a category, never a key, and never a person. */
-export type SafetyScopeCategory = "global" | "provider";
+type SafetyScopeCategory = "global" | "provider";
 
-export interface SafetyEvent {
+interface SafetyEvent {
   readonly kind: SafetyIncidentKind;
   readonly phase: SafetyIncidentPhase;
   readonly scope: SafetyScopeCategory;
@@ -63,7 +63,7 @@ export interface SafetyEvent {
 }
 
 /** Where the operator goes. A path, not a link with anything in it. */
-export const SAFETY_ADMIN_PATH = "/operate/admin/messaging";
+const SAFETY_ADMIN_PATH = "/operate/admin/messaging";
 
 /**
  * The name every LAN-394 log line carries, and the one thing a Cloud Monitoring
@@ -96,7 +96,7 @@ export type SafetyMonitor = (record: Readonly<Record<string, unknown>>) => void;
  * can fail closed on the path whose whole job is to be reachable when the rest
  * is not.
  */
-export const cloudRunMonitor: SafetyMonitor = (record) => {
+const cloudRunMonitor: SafetyMonitor = (record) => {
   // stdout, deliberately: that is Cloud Run's own logging contract, and the one
   // route out of this process that a paused message queue cannot affect.
   console.log(JSON.stringify(record));

@@ -5832,6 +5832,21 @@ try {
     `truncate table ${WRITE_PLAN.map(([table]) => table).join(", ")} restart identity cascade`,
   );
 
+  // LAN-394. The messaging safety machinery rows the migration created.
+  //
+  // They are not part of the dataset and carry no fact about anybody — a global
+  // switch and two provider circuits — but the truncate above reaches them:
+  // `messaging_safety_scopes` has two actor columns referencing `public.people`,
+  // so `truncate … cascade` empties it. Without this the seeded database opens
+  // the Messaging safety section reading "Safety status unavailable" until
+  // something sends, which is honest but is not the state the club is in.
+  await client.query(
+    `insert into public.messaging_safety_scopes (scope_kind, scope_key, policy_version)
+     values ('global', 'global', 'lan-394-v1'), ('provider', 'whatsapp', null),
+            ('provider', 'email', null)
+     on conflict (scope_kind, scope_key) do nothing`,
+  );
+
   let total = 0;
   for (const [table, columns, key] of WRITE_PLAN) {
     await insertRows(client, table, columns, rows[key]);
