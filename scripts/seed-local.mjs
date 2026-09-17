@@ -5867,7 +5867,7 @@ try {
           join public.onboarding_item_types t on t.id = i.item_type_id
          where t.code = 'kit_sorted'
       loop
-        perform public.refresh_kit_distributed(membership.season_membership_id);
+        perform internal.refresh_kit_distributed(membership.season_membership_id);
       end loop;
     end;
     $seed$;

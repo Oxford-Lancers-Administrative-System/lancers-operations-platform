@@ -836,11 +836,14 @@ deliberately outside the rule (Brian, 2026-09-16).
 
 Three things carry it together:
 
-- `public.refresh_kit_distributed(uuid)` recomputes one membership's item and,
+- `internal.refresh_kit_distributed(uuid)` recomputes one membership's item and,
   when it moves, writes the item's own `onboarding_item_history` row as
   `system`. When it flipped is still recorded.
 - The `kit_issue_records_refresh_flag` trigger fires that function on every
-  insert, update and delete of an issued-kit row.
+  insert, update and delete of an issued-kit row. Both live in the `internal`
+  schema rather than `public`: `public` is what the Data API is configured to
+  expose, and a browser-safe key listing an RPC that rewrites an onboarding
+  item is what `tests/rls-posture.test.ts` refuses.
 - `isDerivedItem` in `src/lib/services/onboarding-item-shapes.ts` names
   `kit_sorted`, so `resolveOnboardingItem` refuses a hand set and neither the
   board cell nor the record row opens a control.

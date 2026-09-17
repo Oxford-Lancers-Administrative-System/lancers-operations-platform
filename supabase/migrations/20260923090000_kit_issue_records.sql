@@ -190,7 +190,15 @@ comment on table public.kit_issue_records is
 -- 3. Kit Distributed, derived
 -- ---------------------------------------------------------------------------
 
-create or replace function public.refresh_kit_distributed(target_membership_id uuid)
+-- The two functions live outside `public` on purpose. Anything in `public` is
+-- in the schema the Data API is configured to expose, and a browser-safe key
+-- listing an RPC that rewrites an onboarding item is exactly what
+-- `tests/rls-posture.test.ts` exists to refuse. `internal` is exposed to
+-- nothing; `service_role` is granted usage and execute at the end of this file
+-- and no other role is.
+create schema if not exists internal;
+
+create or replace function internal.refresh_kit_distributed(target_membership_id uuid)
 returns void
 language plpgsql
 security invoker
@@ -240,10 +248,10 @@ begin
 end;
 $$;
 
-comment on function public.refresh_kit_distributed(uuid) is
+comment on function internal.refresh_kit_distributed(uuid) is
   'Recomputes one membership''s Kit Distributed onboarding item from its issued kit — complete when Helmet, Shoulder Pads, Lower Pads, Lowers and Practice Jersey all carry a value (LAN-375). Team Mouthguard is deliberately not in the rule.';
 
-create or replace function public.kit_issue_records_refresh_flag()
+create or replace function internal.kit_issue_records_refresh_flag()
 returns trigger
 language plpgsql
 security invoker
@@ -251,13 +259,13 @@ set search_path = public, pg_temp
 as $$
 begin
   if tg_op = 'DELETE' then
-    perform public.refresh_kit_distributed(old.season_membership_id);
+    perform internal.refresh_kit_distributed(old.season_membership_id);
     return old;
   end if;
 
-  perform public.refresh_kit_distributed(new.season_membership_id);
+  perform internal.refresh_kit_distributed(new.season_membership_id);
   if tg_op = 'UPDATE' and old.season_membership_id <> new.season_membership_id then
-    perform public.refresh_kit_distributed(old.season_membership_id);
+    perform internal.refresh_kit_distributed(old.season_membership_id);
   end if;
   return new;
 end;
@@ -265,7 +273,7 @@ $$;
 
 create trigger kit_issue_records_refresh_flag
   after insert or update or delete on public.kit_issue_records
-  for each row execute function public.kit_issue_records_refresh_flag();
+  for each row execute function internal.kit_issue_records_refresh_flag();
 
 -- Every membership starts from the rule rather than from whatever was last
 -- typed. Nothing has kit rows yet, so this reads every Kit Distributed item as
@@ -281,7 +289,7 @@ begin
       join public.onboarding_item_types t on t.id = i.item_type_id
      where t.code = 'kit_sorted'
   loop
-    perform public.refresh_kit_distributed(membership.season_membership_id);
+    perform internal.refresh_kit_distributed(membership.season_membership_id);
   end loop;
 end;
 $$;
@@ -299,5 +307,11 @@ revoke all on table public.kit_item_options, public.kit_issue_records
 grant select on table public.kit_item_options to service_role;
 grant select, insert, update, delete on table public.kit_issue_records to service_role;
 
-revoke all on function public.refresh_kit_distributed(uuid) from public;
-revoke all on function public.kit_issue_records_refresh_flag() from public;
+revoke all on schema internal from public;
+revoke all on function internal.refresh_kit_distributed(uuid) from public;
+revoke all on function internal.kit_issue_records_refresh_flag() from public;
+
+-- The trigger's own body calls `refresh_kit_distributed`, and that inner call
+-- is checked at run time against whoever is writing the row.
+grant usage on schema internal to service_role;
+grant execute on function internal.refresh_kit_distributed(uuid) to service_role;

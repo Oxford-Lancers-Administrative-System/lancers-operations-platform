@@ -5202,10 +5202,7 @@ export type Database = {
       }
     }
     Functions: {
-      refresh_kit_distributed: {
-        Args: { target_membership_id: string }
-        Returns: undefined
-      }
+      [_ in never]: never
     }
     Enums: {
       attendance_presence: "present" | "absent" | "late" | "excused"

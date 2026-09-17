@@ -163,6 +163,18 @@ async function cleanUp(): Promise<void> {
       where given_name in ($1, $2, $3) or family_name in ($1, $2, $4)`,
     [MARKER, SUBJECT.givenName, ERASED_DISPLAY_NAME, SUBJECT.familyName],
   );
+  // Ahead of the early return: an operator login this suite minted outlives
+  // its person row, and GoTrue's own directory read fails on a row it left
+  // behind — so this runs whether or not there is anybody left to delete.
+  await observer.query(
+    `delete from public.operator_accounts where auth_user_id in (
+       select id from auth.users where email like $1)`,
+    [`${MARKER.toLowerCase()}-%@invalid.example`],
+  );
+  await observer.query(`delete from auth.users where email like $1`, [
+    `${MARKER.toLowerCase()}-%@invalid.example`,
+  ]);
+
   const people = ids.rows.map((row) => row.id);
   if (people.length === 0) return;
 
@@ -449,23 +461,44 @@ describe("the two sign-offs", () => {
 });
 
 describe("who may be erased", () => {
-  // An operator account needs a real `auth.users` row behind it, so this reads
-  // a seeded one rather than minting a login — which is also the case that
-  // matters: somebody who can still sign in.
+  // An operator account needs a real `auth.users` row behind it, so this mints
+  // one rather than hoping the seed has an active operator — CI resets without
+  // the seed, and a fixture that depends on somebody else's rows is a fixture
+  // that passes for the wrong reason locally and fails there.
   it("refuses a person who still holds a live operator account, and says why", async () => {
-    const account = await observer.query<{ person_id: string }>(
-      `select person_id from public.operator_accounts where is_active limit 1`,
+    // A fresh address each run: `auth.users` keeps email unique, and a fixture
+    // that reuses one fails the second time it is run against a database that
+    // was not reset in between.
+    const accountEmail = `${MARKER.toLowerCase()}-${Date.now()}@invalid.example`;
+    const authUser = await observer.query<{ id: string }>(
+      // Empty strings, not nulls, for the token columns: GoTrue reads them
+      // into Go strings, and a null makes its whole directory read fail —
+      // which is a broken Auth service for every other suite, not a failure
+      // here.
+      `insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+                               email_confirmed_at, created_at, updated_at,
+                               confirmation_token, recovery_token,
+                               email_change_token_new, email_change)
+       values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+               'authenticated', 'authenticated', $1, '', now(), now(), now(),
+               '', '', '', '')
+       returning id`,
+      [accountEmail],
     );
-    expect(account.rows[0], "the seed needs at least one active operator").toBeDefined();
+    await observer.query(
+      `insert into public.operator_accounts (person_id, auth_user_id, is_active, login_email)
+       values ($1::uuid, $2::uuid, true, $3)`,
+      [subjectId, authUser.rows[0].id, accountEmail],
+    );
 
-    const state = await readErasureState(account.rows[0].person_id);
+    const state = await readErasureState(subjectId);
     expect(state.eligibility.eligible).toBe(false);
     expect(state.eligibility.blockers.map((entry) => entry.rule)).toContain(
       "erasure_operator_account_live",
     );
 
     await expect(
-      confirmErasure({ personId: account.rows[0].person_id, requestedOn: "2026-09-10" }),
+      confirmErasure({ personId: subjectId, requestedOn: "2026-09-10" }),
     ).rejects.toMatchObject({ rule: "erasure_person_not_eligible" });
   });
 
