@@ -461,11 +461,21 @@ export async function joinApprovedEventIn(
   const beforeTheEvent = args.sendAt.getTime() < args.eventStartsAt.getTime();
 
   if (invitationId === null || !consented || !beforeTheEvent) {
-    return {
-      audienceMemberId,
-      declared: false,
-      withheldBecause: consented ? "event_starts_first" : "no_consent",
-    };
+    const withheldBecause = consented ? "event_starts_first" : "no_consent";
+    // Written on the invitation itself, because the fact has to outlive this
+    // call: `invitation_response_state` reads any pending invitation as
+    // `awaiting_response`, which would put somebody nobody ever messaged into
+    // `nonresponse_queue`, the Follow-ups list and the Monday report's "no
+    // answer" column, to be chased about a message that was never sent. With
+    // the reason recorded the view answers `never_asked` instead and every one
+    // of those queues leaves them alone. See the column's own comment.
+    if (invitationId !== null) {
+      await tx.query(
+        `update public.invitations set message_withheld_reason = $2 where id = $1::uuid`,
+        [invitationId, withheldBecause],
+      );
+    }
+    return { audienceMemberId, declared: false, withheldBecause };
   }
 
   await declareInvitationJobIn(tx, invitationId, args.sendAt);

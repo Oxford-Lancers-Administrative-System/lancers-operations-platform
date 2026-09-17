@@ -8,7 +8,6 @@ import {
   listAudienceCatalogueIn,
   resolveSelection,
 } from "../event-audience";
-import { groupsForEventType } from "../audience-selection";
 import {
   readTemplateInheritanceIn,
   templateAudienceKeys,
@@ -208,6 +207,31 @@ export async function updateEventDraft(
     // caller, so the row can never claim a class its template does not have.
     const inherited = await readTemplateInheritanceIn(tx, input.templateId);
     const typeChanged = before.templateId !== input.templateId;
+    const classChanged = before.eventType !== inherited.eventType;
+
+    // LAN-392, and the reason this runs *before* the update rather than beside
+    // the audience prune below: `event_audience_groups_event_fkey` references
+    // `events (id, event_type)`, so while any group row still names the old
+    // class the `set event_type = ...` statement is refused outright —
+    // "violates foreign key constraint ... is still referenced from table
+    // event_audience_groups". An operator who pressed a group button on a
+    // draft's audience, saved, and then picked a template of another class got
+    // a database refusal and could not change the type at all, which is exactly
+    // what LAN-391 says a draft must allow.
+    //
+    // Every group goes, not only the ones the new class no longer offers, and
+    // the exclusions with them: a class change re-applies the new template's
+    // default audience, so the group rule and the deselections that qualified
+    // it are both answers to a question that is no longer being asked. The next
+    // save of the audience records the new ones.
+    const droppedGroups = classChanged
+      ? await tx.query(`delete from public.event_audience_groups where event_id = $1`, [eventId])
+      : null;
+    const droppedExclusions = classChanged
+      ? await tx.query(`delete from public.event_audience_exclusions where event_id = $1`, [
+          eventId,
+        ])
+      : null;
 
     // origin is deliberately absent from this statement — see relocations.md.
     const updated = await tx.query<{ id: string }>(
@@ -261,20 +285,6 @@ export async function updateEventDraft(
         )
       : null;
 
-    // LAN-392: the stored group *rule* follows the class for the same reason
-    // the rows do. A `recruits` rule left on a draft that is now a practice
-    // would violate `event_audience_groups_recruits_are_recruitment_only` the
-    // moment it was written and, worse, would be a rule to invite recruits to
-    // an event whose own picker does not offer them.
-    const droppedGroups = typeChanged
-      ? await tx.query(
-          `delete from public.event_audience_groups
-            where event_id = $1
-              and audience_group::text <> all($2::text[])`,
-          [eventId, groupsForEventType(inherited.eventType).map((group) => group.key)],
-        )
-      : null;
-
     await recordAudit(tx, {
       actorPersonId,
       action: "event.draft_updated",
@@ -295,6 +305,7 @@ export async function updateEventDraft(
               previousEventType: before.eventType,
               audienceDroppedByTypeChange: droppedFromAudience?.rowCount ?? 0,
               audienceGroupsDroppedByTypeChange: droppedGroups?.rowCount ?? 0,
+              audienceExclusionsDroppedByTypeChange: droppedExclusions?.rowCount ?? 0,
             }
           : {}),
       },

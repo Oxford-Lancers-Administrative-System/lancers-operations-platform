@@ -531,6 +531,72 @@ describe("A — assigning a role", () => {
     expect(await auditActions(personId)).toEqual(["administration.role.assigned"]);
   });
 
+  /**
+   * The correction round's F2 (review of PR 193, 2026-09-17).
+   *
+   * LAN-392's decision 9 makes a seat write a group change, so `assignRole`
+   * now calls the audience group rule — and the rule needs a season. Reading
+   * it with `readCurrentSeasonIn` made the whole seat write depend on one:
+   * that function refuses with "There is no season currently open", so
+   * seating an officer between seasons failed with a message about events.
+   * A committee seat is a club-scoped year and has nothing to do with a
+   * season, and the rule's own invariant is that it never aborts the write
+   * that triggered it.
+   *
+   * Every operating season is stood down for the length of this test and put
+   * back in the `finally`, on the same borrow-and-restore model
+   * `vacateThePresidency` uses; the database suites run one file at a time
+   * (ADR 0029), so nothing else observes the gap.
+   */
+  it("assigns a committee seat with no season in an operating status, and declares nothing", async () => {
+    const operating = await observer.query<{ id: string; status: string }>(
+      `select id, status::text as status from public.seasons
+        where status in ('open', 'active', 'closing')`,
+    );
+    expect(operating.rowCount).toBeGreaterThan(0);
+    // `planning`, not `archived`: `seasons_closing_is_recorded` demands a
+    // closed_at and a closer on an archived season, and inventing those would
+    // be writing a fiction into the seed. `planning` is outside
+    // `OPERATING_SEASON_STATUSES` too, which is all this test needs.
+    await observer.query(
+      `update public.seasons set status = 'planning'
+        where status in ('open', 'active', 'closing')`,
+    );
+
+    try {
+      const personId = await insertPerson("assign-no-season");
+
+      const result = await assignRole({
+        operator: administrator(),
+        personId,
+        roleCode: "kit_manager",
+      });
+
+      expect(result.effectiveFrom).toBe(today);
+      expect(await auditActions(personId)).toEqual(["administration.role.assigned"]);
+
+      // Nothing was declared for them, because there was no season to declare
+      // anything in — and nothing was refused either.
+      const audience = await observer.query(
+        "select 1 from public.event_audience_members where invitee_person_id = $1::uuid",
+        [personId],
+      );
+      expect(audience.rowCount).toBe(0);
+      const jobs = await observer.query(
+        "select 1 from public.notification_jobs where person_id = $1::uuid",
+        [personId],
+      );
+      expect(jobs.rowCount).toBe(0);
+    } finally {
+      for (const season of operating.rows) {
+        await observer.query(
+          "update public.seasons set status = $2::public.season_status where id = $1",
+          [season.id, season.status],
+        );
+      }
+    }
+  });
+
   it("hangs a coaching seat off the season instead, because the role says so", async () => {
     const personId = await insertPerson("assign-coach");
     const result = await assignRole({

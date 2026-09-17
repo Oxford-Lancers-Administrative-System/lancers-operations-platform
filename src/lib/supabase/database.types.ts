@@ -1833,6 +1833,7 @@ export type Database = {
           expires_at: string | null
           id: string
           issued_at: string | null
+          message_withheld_reason: string | null
           participant_id: string | null
           person_id: string | null
           season_id: string
@@ -1849,6 +1850,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           issued_at?: string | null
+          message_withheld_reason?: string | null
           participant_id?: string | null
           person_id?: string | null
           season_id: string
@@ -1865,6 +1867,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           issued_at?: string | null
+          message_withheld_reason?: string | null
           participant_id?: string | null
           person_id?: string | null
           season_id?: string

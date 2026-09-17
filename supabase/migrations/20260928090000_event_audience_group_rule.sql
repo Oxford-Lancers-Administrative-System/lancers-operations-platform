@@ -75,9 +75,18 @@ create table public.event_audience_groups (
   chosen_at timestamptz not null default now(),
   chosen_by_person_id uuid references public.people (id),
   constraint event_audience_groups_key unique (event_id, audience_group),
+  -- `on update cascade` is the belt to `updateEventDraft`'s braces (LAN-391,
+  -- corrected 2026-09-17). A draft's type can be changed, and a composite key
+  -- referencing `(id, event_type)` makes the class an *updatable* referenced
+  -- value: without the cascade, the `update public.events ... set event_type`
+  -- that a type change performs is refused outright while any row here still
+  -- points at the old class. The service clears this event's groups before it
+  -- writes the new type, so the cascade should never have anything to carry;
+  -- it is here so that a future writer who forgets cannot turn a legal edit
+  -- into a database refusal.
   constraint event_audience_groups_event_fkey
     foreign key (event_id, event_type)
-    references public.events (id, event_type) on delete cascade,
+    references public.events (id, event_type) on update cascade on delete cascade,
   -- D46/LAN-295 at the event, exactly as
   -- `event_template_audience_groups_recruits_are_recruitment_only` states it at
   -- the template: recruits are not in a non-recruitment event's catalogue at
@@ -169,8 +178,13 @@ create index event_audience_members_added_by_group_idx
 -- Cancelled and draft events get nothing: a draft records its groups when it is
 -- next saved, and a cancelled event has no audience to grow.
 
+-- `coalesce(e.approved_at, now())` rather than `e.approved_at`: `chosen_at` is
+-- `not null` and `events.approved_at` is not. Every writer in the tree sets it
+-- and every approved row here has it, so this is theoretical locally — but a
+-- migration that can only be proved unfailable by auditing historic hosted rows
+-- is not one anybody should run on hosted data.
 insert into public.event_audience_groups (event_id, event_type, audience_group, chosen_at)
-select e.id, e.event_type, g.audience_group, e.approved_at
+select e.id, e.event_type, g.audience_group, coalesce(e.approved_at, now())
   from public.events e
   join public.event_template_audience_groups g on g.template_id = e.template_id
  where e.status = 'approved'
@@ -193,3 +207,77 @@ revoke all on table public.event_audience_groups, public.event_audience_exclusio
 grant select, insert, update, delete
   on table public.event_audience_groups, public.event_audience_exclusions
   to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 7. An invitation nobody was ever sent is not an invitation nobody answered
+-- ---------------------------------------------------------------------------
+--
+-- Brian's decision 7 says an operator-added recruit with no consent evidence
+-- gets "the audience row and the invitation, declare no job", and decision 3
+-- says the same of an event that will have started by the invitation's own send
+-- time. Both leave a `pending` invitation behind with nothing ever declared
+-- against it — and `invitation_response_state` reads any pending invitation as
+-- `awaiting_response`, which puts the person in `nonresponse_queue` and in the
+-- Monday report's "no answer" column. They would be chased, by the Follow-ups
+-- queue and by the President's escalation, about a message nobody ever sent.
+--
+-- The invitation therefore records *why* no message was declared, and the two
+-- views that mean "asked and did not answer" stop counting it. The column is
+-- the smallest thing that can carry the fact: `notification_jobs` cannot,
+-- because the whole point is that no job exists.
+
+alter table public.invitations
+  add column message_withheld_reason text
+    constraint invitations_message_withheld_reason_vocabulary check (
+      message_withheld_reason is null
+      or message_withheld_reason in ('no_consent', 'event_starts_first'));
+
+comment on column public.invitations.message_withheld_reason is
+  'LAN-392. Why this invitation was written with no invitation message declared against it: `no_consent` (Brian''s decision 7 — an operator-added recruit with no opt-in evidence) or `event_starts_first` (decision 3 — the event will have started by the send time). Null on every invitation whose message was declared, which is nearly all of them. Nobody carrying a reason is ever chased: `invitation_response_state` reports them as `never_asked` rather than `awaiting_response`, so `nonresponse_queue`, the Follow-ups list and the Monday report all leave them alone.';
+
+-- Rebuilt in place. The column list and its types are unchanged, so
+-- `nonresponse_queue`, `uninvited_audience_members` and
+-- `rsvp_attendance_mismatches` keep reading it without being dropped, and the
+-- privileges `create or replace view` preserves are restated below anyway.
+-- `security_invoker = true` is restated because a view without it runs with its
+-- owner's rights and postgres bypasses RLS (ADR 0010).
+--
+-- `never_asked` sits after `cancelled` and before `expired` deliberately: a
+-- cancelled invitation is already out of every queue and `cancelled` is the
+-- more informative word for it, while an *expired* one is not — a withheld
+-- invitation carries the event's own deadline, so it would silently become
+-- `expired_without_response` and walk straight back into the chase queue the
+-- moment the deadline passed.
+create or replace view public.invitation_response_state with (security_invoker = true) as
+select
+  a.id as audience_member_id,
+  a.event_id,
+  a.season_id,
+  a.capacity,
+  a.season_membership_id,
+  a.person_id,
+  i.id as invitation_id,
+  i.status as invitation_status,
+  i.expires_at,
+  case
+    when i.id is null then 'never_invited'
+    when r.response = 'yes' then 'responded_yes'
+    when r.response = 'no' then 'responded_no'
+    when i.status = 'cancelled' then 'cancelled'
+    when i.message_withheld_reason is not null then 'never_asked'
+    when i.status = 'expired' then 'expired_without_response'
+    else 'awaiting_response'
+  end as response_state,
+  r.responded_at,
+  r.reason,
+  r.raw_capture
+from public.event_audience_members a
+join public.events e on e.id = a.event_id
+left join public.invitations i on i.audience_member_id = a.id
+left join public.current_rsvp r on r.invitation_id = i.id;
+
+comment on view public.invitation_response_state is
+  'Invariant P7''s five-way partition, plus LAN-392''s sixth: `never_asked` is an audience member holding an invitation against which no message was ever declared (see invitations.message_withheld_reason). It is not an unanswered ask, so `nonresponse_queue` excludes it.';
+
+revoke all on public.invitation_response_state from anon, authenticated, service_role;
+grant select on public.invitation_response_state to service_role;

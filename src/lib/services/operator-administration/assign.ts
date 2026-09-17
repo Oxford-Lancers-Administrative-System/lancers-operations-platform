@@ -3,7 +3,7 @@ import type { ResolvedOperator } from "@/lib/auth/operator";
 import { withTransaction } from "@/lib/db";
 import { recordAdministrationEvent } from "../administration-audit";
 import { applyAudienceGroupRuleIn } from "../event-audience-rule";
-import { readCurrentSeasonIn } from "../seasons";
+import { findCurrentSeasonIn } from "../seasons";
 import type { AdministrationOperatingYear } from "../administration-events";
 import {
   insertRoleAssignmentIn,
@@ -86,12 +86,22 @@ export async function assignRole(params: AssignRoleParams): Promise<RoleAssignme
     // rule-add. The season is the club's current one: a club-scoped committee
     // seat has no season of its own, and the rule only ever acts on events in
     // the season the club is operating.
-    await applyAudienceGroupRuleIn(tx, {
-      personId: params.personId,
-      seasonId: (await readCurrentSeasonIn(tx)).id,
-      trigger: "seat_assigned",
-      actorPersonId: actor.personId,
-    });
+    // The season is read defensively and the rule skipped where the club has
+    // none in an operating status. `readCurrentSeasonIn` refuses with "no
+    // current season", and a committee seat is a club-scoped year rather than a
+    // season's — so seating an officer during a gap between seasons must not
+    // fail because of a rule about event audiences. The rule's own invariant is
+    // that it never aborts the write that triggered it; that holds for the
+    // season lookup too.
+    const currentSeason = await findCurrentSeasonIn(tx);
+    if (currentSeason !== null) {
+      await applyAudienceGroupRuleIn(tx, {
+        personId: params.personId,
+        seasonId: currentSeason.id,
+        trigger: "seat_assigned",
+        actorPersonId: actor.personId,
+      });
+    }
 
     await recordAdministrationEvent(tx, {
       action: "administration.role.assigned",

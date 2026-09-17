@@ -5,7 +5,7 @@ import type { ResolvedOperator } from "@/lib/auth/operator";
 import { ConstraintViolated, InvalidTransition, withTransaction } from "@/lib/db";
 import { recordAdministrationEvent } from "../administration-audit";
 import { applyAudienceGroupRuleIn } from "../event-audience-rule";
-import { readCurrentSeasonIn } from "../seasons";
+import { findCurrentSeasonIn } from "../seasons";
 import {
   currentDateIn,
   insertRoleAssignmentIn,
@@ -195,14 +195,23 @@ export async function replaceRoleHolder(
     // outgoing holder's seat now ends on the handover date, so their unsent
     // rule-adds to events after it come back off, and the successor's seat now
     // exists, so events after it add them.
-    const handoverSeasonId = (await readCurrentSeasonIn(tx)).id;
-    for (const personId of [outgoing.personId, params.successorPersonId]) {
-      await applyAudienceGroupRuleIn(tx, {
-        personId,
-        seasonId: handoverSeasonId,
-        trigger: "seat_replaced",
-        actorPersonId: actor.personId,
-      });
+    // The season is read defensively and the rule skipped where the club has
+    // none in an operating status. `readCurrentSeasonIn` refuses with "no
+    // current season", and a committee seat is a club-scoped year rather than a
+    // season's — so seating an officer during a gap between seasons must not
+    // fail because of a rule about event audiences. The rule's own invariant is
+    // that it never aborts the write that triggered it; that holds for the
+    // season lookup too.
+    const handoverSeason = await findCurrentSeasonIn(tx);
+    if (handoverSeason !== null) {
+      for (const personId of [outgoing.personId, params.successorPersonId]) {
+        await applyAudienceGroupRuleIn(tx, {
+          personId,
+          seasonId: handoverSeason.id,
+          trigger: "seat_replaced",
+          actorPersonId: actor.personId,
+        });
+      }
     }
 
     return {

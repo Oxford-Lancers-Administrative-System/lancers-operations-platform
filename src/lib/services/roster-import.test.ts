@@ -42,6 +42,10 @@ import {
   readRosterImportContext,
 } from "./roster-import";
 import { resolveOpenSeason } from "./roster";
+import { groupSelectionKeys } from "./audience-selection";
+import { approveEvent, saveEventAudience } from "./event-approval";
+import { listAudienceCatalogueIn } from "./event-audience";
+import { createEventDraft } from "./events";
 
 const MARKER = "LAN215RosterImport";
 
@@ -662,5 +666,130 @@ describe("applyRosterImport", () => {
       [`${MARKER}Batch%`],
     );
     expect(rows.rowCount).toBe(2);
+  });
+});
+
+/**
+ * LAN-392, Brian's decision 8: "The roster CSV import (`roster-import.ts`) does
+ * NOT trigger the rule."
+ *
+ * `tests/audience-group-rule-writers.test.ts` proves this door passes
+ * `applyAudienceGroupRule: false` by reading the source. That is a proof about
+ * the call site, not about what the import does, and the two are only the same
+ * thing while `enterReturningPlayer` honours the flag — which is precisely what
+ * could change without anybody noticing. Sixty rows against every approved
+ * event that chose Onboarding is hundreds of messages from one mis-parsed file,
+ * and this module has no undo path.
+ */
+describe("applyRosterImport and the audience group rule", () => {
+  const PRACTICE_TEMPLATE_ID = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+
+  async function approvedOnboardingEvent(): Promise<string> {
+    const day = new Date();
+    day.setDate(day.getDate() + 9);
+    const event = await createEventDraft(actorPersonId, {
+      name: `${MARKER} onboarding practice`,
+      templateId: PRACTICE_TEMPLATE_ID,
+      scheduledOn: day.toISOString().slice(0, 10),
+      startsAt: "19:00",
+      endsAt: "21:00",
+      venue: "University Parks",
+      isMandatory: false,
+      deliveryMode: "in_person",
+      description: null,
+      requiredEquipment: null,
+      joiningUrl: null,
+    });
+    const keys = await withTransaction(async (tx) => {
+      const catalogue = await listAudienceCatalogueIn(
+        tx,
+        event.seasonId,
+        event.scheduledOn,
+        event.eventType,
+      );
+      return groupSelectionKeys(catalogue.candidates, "onboarding");
+    });
+    await saveEventAudience(actorPersonId, event.id, keys, ["onboarding"]);
+    await approveEvent(actorPersonId, event.id);
+    return event.id;
+  }
+
+  async function forgetEvent(eventId: string): Promise<void> {
+    const invitations = "(select id from public.invitations where event_id = $1::uuid)";
+    await observer.query(
+      `delete from public.delivery_attempts where notification_job_id in
+         (select id from public.notification_jobs where event_id = $1::uuid)`,
+      [eventId],
+    );
+    await observer.query("delete from public.notification_jobs where event_id = $1::uuid", [
+      eventId,
+    ]);
+    await observer.query(
+      `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
+      [eventId],
+    );
+    await observer.query("delete from public.invitations where event_id = $1::uuid", [eventId]);
+    await observer.query("delete from public.event_messaging_plans where event_id = $1::uuid", [
+      eventId,
+    ]);
+    await observer.query("delete from public.schedule_changes where event_id = $1::uuid", [
+      eventId,
+    ]);
+    await observer.query(
+      "delete from public.audit_events where entity_table = 'events' and entity_id = $1::uuid",
+      [eventId],
+    );
+    await observer.query("delete from public.events where id = $1::uuid", [eventId]);
+  }
+
+  it("creates no audience row for an approved event whose groups the import's people match", async () => {
+    const eventId = await approvedOnboardingEvent();
+    try {
+      const audienceBefore = await observer.query(
+        "select 1 from public.event_audience_members where event_id = $1::uuid",
+        [eventId],
+      );
+
+      const first = givenNameFor("NoAutoAdd");
+      const csvText = csvOf([
+        {
+          firstName: first,
+          lastName: familyNameFor("NoAutoAdd"),
+          mobile: mobileFor(),
+          college: "Brasenose",
+          year: "2024",
+        },
+      ]);
+      const proposal = await planRosterImport({ csvText });
+      expect(proposal.ok).toBe(true);
+      if (!proposal.ok) return;
+
+      const applied = await applyRosterImport({ csvText, digest: proposal.plan.digest });
+      expect(applied.created).toBe(1);
+
+      const person = await observer.query<{ id: string }>(
+        "select id from public.people where given_name = $1",
+        [first],
+      );
+      // Onboarding is exactly the group this event was built from, and they are
+      // now in it — the returner intake would have added them. The bulk door
+      // does not.
+      const status = await membershipStatusFor(person.rows[0].id);
+      expect(status).toBe("onboarding");
+
+      const mine = await observer.query(
+        `select 1 from public.event_audience_members
+          where event_id = $1::uuid and invitee_person_id = $2::uuid`,
+        [eventId, person.rows[0].id],
+      );
+      expect(mine.rowCount).toBe(0);
+      const audienceAfter = await observer.query(
+        "select 1 from public.event_audience_members where event_id = $1::uuid",
+        [eventId],
+      );
+      expect(audienceAfter.rowCount).toBe(audienceBefore.rowCount);
+    } finally {
+      await forgetEvent(eventId);
+    }
   });
 });

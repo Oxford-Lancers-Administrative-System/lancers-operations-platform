@@ -115,7 +115,7 @@ export async function recordWalkUpAttendance(
 
   return withTransaction(async (tx) => {
     const event = await requireOpenRegister(tx, eventId, now);
-    const target = await mintWalkUpProspect(tx, event, {
+    const target = await mintWalkUpProspect(tx, event, actorPersonId, {
       givenName,
       familyName,
       phone,
@@ -389,6 +389,7 @@ async function resolveParticipant(
 async function mintWalkUpProspect(
   tx: Tx,
   event: EventDetail,
+  actorPersonId: string,
   input: {
     givenName: string;
     familyName: string;
@@ -438,7 +439,11 @@ async function mintWalkUpProspect(
     personId,
     seasonId: event.seasonId,
     trigger: "walk_up_recorded",
-    actorPersonId: null,
+    // The operator taking the register. This door has one, unlike the public
+    // sign-up, and the audit exists so a send can be traced back to whoever
+    // caused it — leaving it null would say "nobody did this" of an action an
+    // operator deliberately took.
+    actorPersonId,
   });
 
   return { capacity: "recruit", membershipId: null, personId };

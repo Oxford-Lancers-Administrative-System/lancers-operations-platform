@@ -20,7 +20,7 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 
-import { closePool, isServiceError, type ServiceError } from "@/lib/db";
+import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
 import {
   derivedEventState,
   EVENT_STATUS_FILTERS,
@@ -35,6 +35,9 @@ import {
   validateEventDraft,
   type EventDraftInput,
 } from "./events";
+import { groupSelectionKeys } from "./audience-selection";
+import { saveEventAudience } from "./event-approval";
+import { listAudienceCatalogueIn } from "./event-audience";
 import { JOINING_URL_MESSAGE } from "./event-input";
 import { readCurrentSeason } from "./seasons";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -617,6 +620,64 @@ describe("LAN-391 — a draft's type can be changed", () => {
       previousEventType: "practice",
       audienceDroppedByTypeChange: 0,
     });
+  });
+
+  /**
+   * The correction round's F1 (review of PR 193, 2026-09-17).
+   *
+   * LAN-392 gave `event_audience_groups` a composite foreign key to
+   * `events (id, event_type)`, which makes the class an updatable referenced
+   * value. Until this was fixed, an operator who pressed a group button on a
+   * draft's audience picker, saved, and then chose a template of another class
+   * got "The database refused this change because it breaks one of the club's
+   * recorded rules. Nothing was saved." and could not change the type at all —
+   * the refusal LAN-391 exists to remove, reintroduced through another table.
+   *
+   * The service now clears this draft's groups and exclusions before it writes
+   * the new class, and the key carries `on update cascade` behind that.
+   */
+  it("changes the type even when a group was pressed, and clears the stored rule", async () => {
+    const event = await createEventDraft(actorPersonId, draft({ templateId: RECRUITMENT }));
+
+    // The picker's own save, with the Recruits button pressed and one recruit
+    // taken back out — so the draft holds a group row and an exclusion row.
+    const keys = await withTransaction(async (tx) => {
+      const catalogue = await listAudienceCatalogueIn(
+        tx,
+        event.seasonId,
+        event.scheduledOn,
+        event.eventType,
+      );
+      return groupSelectionKeys(catalogue.candidates, "recruits");
+    });
+    expect(keys.length).toBeGreaterThan(1);
+    await saveEventAudience(actorPersonId, event.id, keys.slice(1), ["recruits"]);
+
+    const storedGroups = async () =>
+      (
+        await observer.query("select 1 from public.event_audience_groups where event_id = $1", [
+          event.id,
+        ])
+      ).rowCount;
+    const storedExclusions = async () =>
+      (
+        await observer.query("select 1 from public.event_audience_exclusions where event_id = $1", [
+          event.id,
+        ])
+      ).rowCount;
+
+    expect(await storedGroups()).toBe(1);
+    expect(await storedExclusions()).toBe(1);
+
+    // The edit that used to be refused.
+    const edited = await updateEventDraft(actorPersonId, event.id, draft({ templateId: SOCIAL }));
+
+    expect(edited.eventType).toBe("social");
+    expect(await storedType(event.id)).toEqual({ template_id: SOCIAL, event_type: "social" });
+    // A class change re-applies the new template's defaults, so the old rule
+    // and the deselections that qualified it both go.
+    expect(await storedGroups()).toBe(0);
+    expect(await storedExclusions()).toBe(0);
   });
 
   it("refuses the whole edit once the event is no longer a draft", async () => {
