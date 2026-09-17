@@ -61,6 +61,7 @@
  * | Role management           | President, General Manager, IT Officer         | Brian, 18 Aug 2026 |
  * | Person record authority   | President, VP, Secretary, General Manager      | Brian, 28 Aug 2026 |
  * | Roster bulk import        | The four offices, plus General Manager         | W1, Brian 1 Sep 2026 |
+ * | Person erasure            | President, VP, Secretary, General Manager      | Brian, 16 Sep 2026 |
  *
  * **Every capability above also lists `it_officer`.** Brian decided on 15
  * August 2026 (LAN-124) that the IT Officer is the club's administrative seat
@@ -104,7 +105,8 @@ export type CapabilityKey =
   | "delivery_administration"
   | "leadership_report"
   | "person_record_authority"
-  | "roster_bulk_import";
+  | "roster_bulk_import"
+  | "person_erasure";
 
 export interface Capability {
   readonly key: CapabilityKey;
@@ -223,6 +225,29 @@ export const LEADERSHIP_TIERS: Readonly<Record<string, LeadershipTier>> = Object
   president: "presiding",
   it_officer: "technical_administration",
 });
+
+/**
+ * The four seats LAN-361's erasure rule turns on, and the two of them it asks
+ * for first — Brian, 16 September 2026.
+ *
+ * Here for the same reason `LEADERSHIP_TIERS` is: this module is the only file
+ * in `src/` allowed to name a role code (`tests/capability-map-single-source.test.ts`
+ * scans for it). The *rule* — two confirmations, from two people, and another
+ * of the four where one person holds both of the first two — lives in
+ * `src/lib/services/person-erasure/`. Neither file has both.
+ */
+export const CORE_FOUR_ROLE_CODES: readonly string[] = Object.freeze([
+  "president",
+  "vice_president",
+  "secretary",
+  "general_manager",
+]);
+
+/** The two the rule asks for first. The other two stand in only when one person holds both. */
+export const REQUIRED_ERASURE_SIGNOFF_ROLE_CODES: readonly string[] = Object.freeze([
+  "president",
+  "general_manager",
+]);
 
 /** The seat each tier is, so a refusal can name it without a code literal. */
 export const LEADERSHIP_TIER_SEATS: Readonly<Record<LeadershipTier, string>> = Object.freeze({
@@ -831,6 +856,36 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    * (`vice_president` included, `is_constitutional_office`) plus the General
    * Manager, which is exactly that grant.
    */
+  /**
+   * Anonymising a person at their own request, and exporting everything held
+   * about one — LAN-361, Brian 2026-09-16.
+   *
+   * Its own capability rather than a corner of `person_record_authority`: that
+   * one is "may this operator edit people", and this one ends a person's
+   * identity in the club's records for good. The two sign-offs the action
+   * demands are a separate rule again, in `person-erasure.ts`; holding this
+   * capability lets an operator start the act and confirm their own half of
+   * it, never complete it alone.
+   *
+   * **The IT Officer is deliberately not on this list**, and it is the only
+   * capability in this file they do not hold. Brian's decision of 16 September
+   * 2026 names the core four — President, Vice-President, Secretary, General
+   * Manager — and this is the one action whose whole purpose is to destroy
+   * personal data irreversibly. The administrative seat that exists to keep
+   * the system running is not the seat that decides a person stops existing in
+   * it. Widening this is Brian's, not an implementer's.
+   */
+  person_erasure: capability({
+    key: "person_erasure",
+    action: "anonymise a person at their own request, and export everything held about one",
+    roleCodes: CORE_FOUR_ROLE_CODES,
+    decision:
+      'Brian, 16 September 2026 (LAN-361): "a new narrow capability for this, granted to ' +
+      'the core four" — President, Vice-President, Secretary and General Manager. The IT ' +
+      "Officer is not on it, which is the one deliberate exception to the 15 August 2026 " +
+      "(LAN-124) rule that the administrative seat holds every capability in this file.",
+  }),
+
   roster_bulk_import: capability({
     key: "roster_bulk_import",
     action: "bulk import a season's roster from a file",

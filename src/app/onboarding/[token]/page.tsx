@@ -21,7 +21,7 @@ import {
   withUniformTerminalTiming,
 } from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
-import { resolveHudlJoinLink } from "@/lib/services/player-config";
+import { resolveHudlJoinLink, resolvePlayerGroupLink } from "@/lib/services/player-config";
 import {
   readQuestionnaireViewIn,
   STEP_ORDER,
@@ -119,7 +119,9 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
         {page === "already-complete" ? (
           <AlreadyCompletePage />
         ) : page === "done" ? (
-          <DonePage view={view} token={token} />
+          // LAN-283. Configuration, never a literal: `null` until Brian sets
+          // PLAYER_WHATSAPP_GROUP_LINK, and then nothing is rendered.
+          <DonePage view={view} token={token} playerGroupLink={resolvePlayerGroupLink()} />
         ) : page === "details" ? (
           <DetailsStepPage view={view} token={token} />
         ) : page === "code_of_conduct" || page === "photo_release" ? (

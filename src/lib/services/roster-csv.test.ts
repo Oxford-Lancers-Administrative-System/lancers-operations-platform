@@ -16,6 +16,7 @@ import {
   importTemplateCsv,
   readRosterImport,
   refuseOversizedRosterFile,
+  SEASON_FACT_IMPORT_COLUMNS,
 } from "./roster-csv";
 
 /**
@@ -25,9 +26,11 @@ import {
  */
 const HEADER = "first_name,last_name,mobile,personal_email,college,matriculation_year";
 
-/** What the downloadable template offers, which does name every column. */
-const TEMPLATE_HEADER =
-  "first_name,middle_name,last_name,mobile,personal_email,college,matriculation_year";
+/** What the downloadable template offers, which does name every column — the person columns, then the optional season-fact ones (LAN-374, LAN-375). */
+const TEMPLATE_HEADER = [
+  "first_name,middle_name,last_name,mobile,personal_email,college,matriculation_year",
+  ...SEASON_FACT_IMPORT_COLUMNS.map((column) => column.name),
+].join(",");
 
 function csv(...rows: string[]): string {
   return [HEADER, ...rows].join("\r\n") + "\r\n";
@@ -258,5 +261,38 @@ describe("size and row limits", () => {
   it("refuses a header row with nobody under it", () => {
     const result = readRosterImport({ csvText: HEADER + "\r\n" });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("the optional season-fact columns — LAN-374, LAN-375", () => {
+  it("is absent from a file that names none of them, and never a reason to refuse a row", () => {
+    const result = readRosterImport({
+      csvText: csv("Rosalind,Penhaligon,07700900001,,Balliol,2024"),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.read.rows[0].seasonFacts).toEqual({});
+    expect(result.read.rows[0].reasons).toEqual([]);
+  });
+
+  it("reads a cell the file does name, and refuses a value that cell does not allow", () => {
+    const header = `${HEADER},st_punt_starting`;
+    const good = readRosterImport({
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Longsnapper"].join("\r\n"),
+    });
+    expect(good.ok).toBe(true);
+    if (good.ok) {
+      expect(good.read.rows[0].seasonFacts).toEqual({ st_punt_starting: "Longsnapper" });
+      expect(good.read.rows[0].reasons).toEqual([]);
+    }
+
+    const bad = readRosterImport({
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Kicker"].join("\r\n"),
+    });
+    expect(bad.ok).toBe(true);
+    if (bad.ok) {
+      expect(bad.read.rows[0].seasonFacts).toEqual({});
+      expect(bad.read.rows[0].reasons[0]).toContain("st_punt_starting");
+    }
   });
 });

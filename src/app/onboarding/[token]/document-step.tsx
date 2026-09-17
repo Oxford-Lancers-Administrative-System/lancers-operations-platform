@@ -11,6 +11,7 @@
  */
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
 import { Notice } from "@/components/notice";
 import { Surface } from "@/components/surface";
 import { CheckField } from "@/components/field";
@@ -25,6 +26,7 @@ import type { QuestionnaireView } from "@/lib/services/player-questionnaire";
 
 import { agreeDocument } from "./actions";
 import { AgreementBlocks } from "./agreement-text";
+import { PdfDocumentView } from "./pdf-document-view";
 import { PhotoReleaseForm } from "./photo-release-form";
 import {
   AGREE_AND_CONTINUE,
@@ -32,6 +34,8 @@ import {
   CODE_OF_CONDUCT_HEADING,
   CODE_OF_CONDUCT_LEAD,
   DOCUMENT_PRIVACY_NOTE,
+  DOCUMENT_TEXT_HEADING,
+  DOWNLOAD_DOCUMENT,
   MUST_AGREE_ERROR,
   PHOTO_RELEASE_HEADING,
   PHOTO_RELEASE_LEAD,
@@ -106,6 +110,27 @@ export function DocumentStepPage({
           </Box>
         ) : isCodeOfConduct ? (
           <>
+            {/* LAN-363: the document itself, where the version carries one, and
+                the text of it underneath as the accessible version — never one
+                instead of the other. */}
+            {version.pdfPath ? (
+              <>
+                <PdfDocumentView path={version.pdfPath} testId="code-of-conduct-pdf" />
+                <Box sx={{ mt: 1 }}>
+                  <Button
+                    href={version.pdfPath}
+                    download
+                    size="small"
+                    data-testid="download-document"
+                  >
+                    {DOWNLOAD_DOCUMENT}
+                  </Button>
+                </Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, mt: 2, mb: 0.5 }}>
+                  {DOCUMENT_TEXT_HEADING}
+                </Typography>
+              </>
+            ) : null}
             <Box
               sx={{
                 border: "1px solid rgba(0,0,0,0.23)",
@@ -115,6 +140,7 @@ export function DocumentStepPage({
                 overflow: "auto",
                 bgcolor: "background.paper",
               }}
+              data-testid="code-of-conduct-text"
             >
               <AgreementBlocks blocks={sections.flatMap((section) => section.blocks)} />
             </Box>

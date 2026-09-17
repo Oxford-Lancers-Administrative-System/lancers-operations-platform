@@ -16,6 +16,13 @@ export default function DataDeletionPage() {
         title="Request data deletion"
         intro="You can ask the club to delete personal information held about you in the Oxford Lancers operations platform. You do not need to sign in to make a request."
       />
+      <PolicySection title="Who the request goes to">
+        <Typography>
+          The <strong>University of Oxford</strong> is the data controller. Oxford University
+          Lancers American Football Club administers the platform on its behalf, and the General
+          Manager handles requests.
+        </Typography>
+      </PolicySection>
       <PolicySection title="Contact the General Manager">
         <PrivacyContact />
         <Typography>
@@ -30,9 +37,16 @@ export default function DataDeletionPage() {
       </PolicySection>
       <PolicySection title="What happens next">
         <Typography>
-          The General Manager will coordinate the request with the people who administer the
-          platform. The club may need to confirm your identity before acting, so that somebody else
-          cannot request deletion of your records.
+          A request has to come from a contact address or number already on your record, or be
+          verified with an officer in person — so that somebody else cannot ask for your records to
+          be deleted. The club has one month to respond.
+        </Typography>
+        <Typography>
+          Deletion means anonymisation. Your name, contact details, date of birth and the other
+          facts that identify you are removed and cannot be recovered. What the club did — the
+          attendance, the responses, the agreements — stays, pointing at a record with no name on
+          it, because that is the club’s record of its own seasons rather than a record about you.
+          Two club officers have to approve it before anything happens.
         </Typography>
         <Typography>
           Deletion rights depend on the circumstances. The club will explain what can be deleted and

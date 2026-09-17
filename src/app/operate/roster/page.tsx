@@ -1,4 +1,5 @@
 import { isServiceError } from "@/lib/db";
+import { readOperatorPreferences } from "@/lib/services/operator-preferences";
 import { listRosterBoard } from "@/lib/services/roster-board";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
@@ -45,6 +46,10 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
 
   const redactedRows = data.rows.map((row) => redactRow(row, columns)) as typeof data.rows;
 
+  // LAN-387, Brian's visual pass item 1: which groups this operator folded away
+  // last time, from their own account rather than from this browser.
+  const preferences = await readOperatorPreferences(operator.personId);
+
   return (
     <RosterBoard
       operator={operator}
@@ -58,6 +63,7 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
       initialFilters={filters}
       initialSortKey={sortKey}
       initialSortDirection={sortDirection}
+      initialCollapsedGroups={preferences.rosterCollapsedGroups}
     />
   );
 }

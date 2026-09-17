@@ -61,3 +61,8 @@ supabase/scenarios.json
 showcase-manifest.json
 showcase-checklists/
 showcase-rollback-residue.sql
+
+# pdf.js's worker and standard fonts, copied out of `pdfjs-dist` by
+# `scripts/copy-pdfjs-assets.mjs` at build and dev start (LAN-363). Generated,
+# version-locked to the dependency, never committed.
+/public/pdfjs/

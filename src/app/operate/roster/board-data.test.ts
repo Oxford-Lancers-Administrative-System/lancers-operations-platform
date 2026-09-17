@@ -13,7 +13,6 @@ import {
 const POSITION_OPTIONS = {
   offence: [{ code: "QB", label: "Quarterback" }],
   defence: [{ code: "CB", label: "Cornerback" }],
-  specialTeams: [{ code: "KO", label: "Kickoff" }],
 };
 
 function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
@@ -37,11 +36,16 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     requiredOutstanding: 0,
     offencePosition: null,
     defencePosition: null,
-    specialTeamsPosition: null,
+    offenceBackupPosition: null,
+    defenceBackupPosition: null,
     blueNumbers: [],
     whiteNumbers: [],
-    coachGroup: null,
-    formalwear: { tie: false, bowtie: false, socks: false },
+    coachingGroups: [],
+    offensivePositionGroups: [],
+    defensivePositionGroups: [],
+    formalwear: { tie: false, bowtie: false },
+    specialTeams: {},
+    kit: {},
     blues: "None",
     eligibility: null,
     availability: null,

@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { NotRecorded } from "@/components/fact";
-import { RecordRow as Row, SAVING } from "@/components/record-field";
+import { FIELD_EDITOR_SX, FieldStatus, RecordRow as Row } from "@/components/record-field";
 import JerseyPicker from "../jersey-picker";
 
 /** The board's own jersey picker — the fuller editor W6 keeps, since the board shows only the predominant number. */
@@ -40,6 +40,7 @@ export default function JerseyField({
           onCommit={onCommit}
           onClose={onClose}
           width={264}
+          sx={FIELD_EDITOR_SX}
         />
       ) : (
         <Box
@@ -70,20 +71,7 @@ export default function JerseyField({
           )}
         </Box>
       )}
-      {saving ? (
-        <Typography
-          variant="caption"
-          sx={{ display: "block", color: "text.secondary", mt: 0.25 }}
-          data-testid="field-saving"
-        >
-          {SAVING}
-        </Typography>
-      ) : null}
-      {error ? (
-        <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.25 }}>
-          {error}
-        </Typography>
-      ) : null}
+      <FieldStatus saving={saving} error={error} />
     </Row>
   );
 }

@@ -297,6 +297,23 @@ Four properties this arrangement is built to have, and which tests hold it to:
 An operator with no currently-effective seat is still a legitimate operator: they
 open the shell, and are refused each privileged action individually.
 
+**One capability is narrower than every other, and deliberately excludes the IT
+Officer** (LAN-361, Brian 2026-09-16). `person_erasure` is what lets an operator
+anonymise a person at their own request and export everything held about one. It
+is granted to the core four — President, Vice-President, Secretary, General
+Manager — and to nobody else, which makes it the single exception to the 15
+August 2026 rule that the administrative seat holds every capability in the map.
+The act destroys personal data irreversibly, and the seat that exists to keep
+the system running is not the seat that decides a person stops existing in it.
+
+Holding the capability is not enough to carry the act out. Two people must each
+confirm as separate recorded acts — the President and the General Manager, or,
+where one person holds both seats, another of the core four — and nothing is
+anonymised until both have. That rule lives in
+`src/lib/services/person-erasure/`, in the same shape as the target-level
+authority below: the capability answers "may this operator start it at all", and
+the sign-off rule answers "may it happen yet".
+
 **One actor is narrowed rather than granted** (LAN-110). An operator whose only
 capability-bearing seat is a coaching one — any of the ten fixed coaching seats
 since LAN-129 widened the grant from the original three — receives the

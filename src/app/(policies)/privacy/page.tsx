@@ -18,8 +18,9 @@ export default function PrivacyPage() {
       />
       <PolicySection title="Who is responsible">
         <Typography>
-          Oxford University Lancers American Football Club is the data controller for the club
-          information it holds in this platform. The General Manager is the club’s privacy contact.
+          The <strong>University of Oxford</strong> is the data controller for the club information
+          held in this platform. Oxford University Lancers American Football Club administers it as
+          part of the University, and the General Manager is the club’s privacy contact.
         </Typography>
         <PrivacyContact />
       </PolicySection>
@@ -66,8 +67,23 @@ export default function PrivacyPage() {
         </Typography>
         <Typography>
           The platform uses Google Cloud and Supabase for hosting, storage and account services,
-          Meta’s WhatsApp Business Platform for WhatsApp delivery, and email delivery services for
-          email. These services receive the information needed to provide their part of the service.
+          Firebase Hosting for the public site, GitHub for the code and the deployment pipeline,
+          Meta’s WhatsApp Business Platform for WhatsApp delivery, and Resend for email delivery.
+          These services receive the information needed to provide their part of the service.
+        </Typography>
+      </PolicySection>
+      <PolicySection title="How long information is kept">
+        <Typography>
+          A recruit who never joins is anonymised at the end of the season they were approached in.
+          An alumnus’s record is kept unless they ask for it to be removed. Message and delivery
+          logs are kept for the season they belong to. A private link stays usable until the season
+          closes, plus a short grace period. An anonymised record — a tombstone carrying no name, no
+          contact details and no date of birth — is kept indefinitely, because the attendance,
+          responses and agreements that point at it are the club’s record of its own seasons.
+        </Typography>
+        <Typography>
+          These periods are the club’s policy. They are not yet enforced automatically: an officer
+          carries them out, and the platform does not delete anything on a timer.
         </Typography>
       </PolicySection>
       <PolicySection title="Your choices and requests">
@@ -84,6 +100,10 @@ export default function PrivacyPage() {
         <Typography>
           <strong>Right to object:</strong> you can object to processing based on legitimate
           interests and to use of your information for direct marketing.
+        </Typography>
+        <Typography>
+          A request has to come from a contact address or number already on your record, or be
+          verified with an officer in person. The club has one month to respond.
         </Typography>
         <Typography>
           See <Link href="/data-deletion">how to request data deletion</Link> for the information to

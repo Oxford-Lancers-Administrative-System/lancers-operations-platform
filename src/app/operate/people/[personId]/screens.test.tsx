@@ -17,6 +17,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("@/lib/services/person-record", () => ({ readPersonRecord: vi.fn() }));
 vi.mock("@/lib/services/seasons", () => ({ readCurrentSeason: vi.fn() }));
+// LAN-361 — the record reads the erasure panel's own state for an operator who
+// holds the capability. Mocked with the ordinary answer: an eligible person,
+// nobody having confirmed yet.
+vi.mock("@/lib/services/person-erasure", () => ({ readErasureState: vi.fn() }));
 vi.mock("@/lib/services/people-directory", () => ({
   listMergedPredecessors: vi.fn(),
   listPersonRoleAssignments: vi.fn(),
@@ -29,6 +33,7 @@ import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
 import { readCurrentSeason } from "@/lib/services/seasons";
+import { readErasureState } from "@/lib/services/person-erasure";
 import {
   listMergedPredecessors,
   listPersonRoleAssignments,
@@ -105,12 +110,23 @@ function stubReads(
     seasons?: unknown[];
     history?: unknown[];
     predecessors?: unknown[];
+    erasure?: unknown;
   } = {},
 ) {
   vi.mocked(listPersonRoleAssignments).mockResolvedValue((overrides.roles as never) ?? []);
   vi.mocked(listPersonSeasons).mockResolvedValue((overrides.seasons as never) ?? []);
   vi.mocked(readPersonHistory).mockResolvedValue((overrides.history as never) ?? []);
   vi.mocked(listMergedPredecessors).mockResolvedValue((overrides.predecessors as never) ?? []);
+  vi.mocked(readErasureState).mockResolvedValue(
+    (overrides.erasure as never) ??
+      ({
+        personId: "person-1",
+        eligibility: { eligible: true, blockers: [], alreadyErased: false },
+        signOffs: [],
+        stillNeeded: ["president", "general_manager"],
+        viewerMayConfirm: true,
+      } as never),
+  );
   vi.mocked(readCurrentSeason).mockResolvedValue({
     id: "s1",
     label: "2026-27",
@@ -435,5 +451,95 @@ describe("an email nobody has classified yet", () => {
 
     render(await PersonRecordPage(pageProps("p1")));
     expect(screen.queryByText("Email · not classified")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-361 — the erasure panel, at the bottom of the record
+// ---------------------------------------------------------------------------
+
+describe("the data-protection panel", () => {
+  it("offers the export and the action when the person is eligible", async () => {
+    signedInAs(["president"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord());
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("person-1")));
+
+    const panel = screen.getByTestId("section-data-protection");
+    expect(within(panel).getByTestId("export-person")).toBeInTheDocument();
+    expect(within(panel).getByTestId("open-erasure-dialog")).toBeInTheDocument();
+    expect(within(panel).queryByTestId("erasure-blocked")).toBeNull();
+  });
+
+  it("states why it refuses, rather than offering a control that would fail", async () => {
+    signedInAs(["president"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord());
+    stubReads({
+      erasure: {
+        personId: "person-1",
+        eligibility: {
+          eligible: false,
+          alreadyErased: false,
+          blockers: [
+            {
+              rule: "erasure_operator_account_live",
+              reason: "This person still holds an operator account.",
+            },
+          ],
+        },
+        signOffs: [],
+        stillNeeded: ["president", "general_manager"],
+        viewerMayConfirm: true,
+      },
+    });
+
+    render(await PersonRecordPage(pageProps("person-1")));
+
+    const panel = screen.getByTestId("section-data-protection");
+    expect(within(panel).getByTestId("erasure-blocked").textContent).toContain(
+      "still holds an operator account",
+    );
+    expect(within(panel).queryByTestId("open-erasure-dialog")).toBeNull();
+  });
+
+  it("names who has confirmed and who is still needed", async () => {
+    signedInAs(["president"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord());
+    stubReads({
+      erasure: {
+        personId: "person-1",
+        eligibility: { eligible: true, blockers: [], alreadyErased: false },
+        signOffs: [
+          {
+            signedByPersonId: "signer-1",
+            signedByName: "Wren Ashcombe",
+            roleCodes: ["president"],
+            roleLabel: "President",
+            signedAt: new Date("2026-09-15T10:00:00Z"),
+            requestedOn: "2026-09-10",
+          },
+        ],
+        stillNeeded: ["general_manager"],
+        viewerMayConfirm: false,
+      },
+    });
+
+    render(await PersonRecordPage(pageProps("person-1")));
+
+    const signoffs = screen.getByTestId("erasure-signoffs").textContent ?? "";
+    expect(signoffs).toContain("Wren Ashcombe");
+    expect(signoffs).toContain("President");
+    expect(signoffs).toContain("General Manager");
+  });
+
+  it("is absent entirely for an operator who does not hold the capability", async () => {
+    signedInAs(["treasurer"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord());
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("person-1")));
+
+    expect(screen.queryByTestId("section-data-protection")).toBeNull();
   });
 });

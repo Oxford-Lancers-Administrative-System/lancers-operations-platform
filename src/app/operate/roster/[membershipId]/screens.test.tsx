@@ -35,6 +35,15 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/player-record", () => ({ readPlayerRecord: vi.fn() }));
+vi.mock("@/lib/services/operator-preferences", () => ({
+  // LAN-387: the record reads the operator's own folded-group setting on load.
+  // These screens prove what the record draws, not where the setting is kept.
+  readOperatorPreferences: vi.fn().mockResolvedValue({}),
+  writeRosterCollapsedGroups: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../group-preference-actions", () => ({
+  saveCollapsedGroupsAction: vi.fn().mockResolvedValue(undefined),
+}));
 // Every commit this record makes, mocked so opening and committing a field in
 // these tests never reaches a service or a database — the writes themselves
 // are proved for real in `roster-board.test.ts` and `membership.test.ts`,
@@ -57,7 +66,9 @@ vi.mock("./record-actions", () => ({
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import type { OnboardingItem } from "@/lib/services/membership";
+import { readOperatorPreferences } from "@/lib/services/operator-preferences";
 import { readPlayerRecord } from "@/lib/services/player-record";
+import { saveCollapsedGroupsAction } from "../group-preference-actions";
 import type {
   AttendanceEvent,
   PlayerRecordData,
@@ -123,16 +134,22 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
     season: {
       offencePosition: null,
       defencePosition: null,
-      specialTeamsPosition: null,
+      offenceBackupPosition: null,
+      defenceBackupPosition: null,
       blueNumbers: [],
       whiteNumbers: [],
-      coachGroup: null,
-      formalwear: { tie: false, bowtie: false, socks: false },
+      coachingGroups: [],
+      offensivePositionGroups: [],
+      defensivePositionGroups: [],
+      bps: "No" as const,
+      formalwear: { tie: false, bowtie: false },
+      specialTeams: {},
+      kit: {},
       blues: "None",
       eligibility: null,
       availability: null,
     },
-    positionOptions: { offence: [], defence: [], specialTeams: [] },
+    positionOptions: { offence: [], defence: [] },
     jerseyHolders: { blue: {}, white: {} },
     otherSeasons: [],
     attendance: [],
@@ -315,7 +332,7 @@ describe("UX-13 — the confirmation says what the intake actually did", () => {
   });
 });
 
-describe("Person · Onboarding · Season banding", () => {
+describe("Person · Onboarding · Membership banding", () => {
   beforeEach(() => {
     givenRecord({
       onboardingItems: [
@@ -344,7 +361,7 @@ describe("Person · Onboarding · Season banding", () => {
     expect(
       within(screen.getByTestId("section-onboarding")).getByText("Onboarding"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Season · 2026-27")).toBeInTheDocument();
+    expect(screen.getByText("Membership · 2026-27")).toBeInTheDocument();
   });
 
   it("routes a durable person fact to the person record rather than editing it here", async () => {
@@ -488,8 +505,8 @@ describe("W6 — Subscription paid is the one item Waived applies to", () => {
 // B-001 (correction round 2, Brian): "Kit sorted" is renamed "Kit
 // Distributed" and reduced to yes/no — no waived, no claimed, no reopen
 // offered on this one item, same as every other binary item now.
-describe("B-001 — Kit Distributed is binary", () => {
-  it("shows Yes/No only, never Waived or Not applicable or a Reopen option", async () => {
+describe("Kit Distributed — still Yes/No, no longer typed (LAN-375)", () => {
+  it("shows the flag and opens no control at all", async () => {
     givenRecord({
       onboardingItems: [
         historyItem({ code: "kit_sorted", label: "Kit Distributed", status: "complete" }),
@@ -500,38 +517,71 @@ describe("B-001 — Kit Distributed is binary", () => {
     const row = screen
       .getByText("Kit Distributed")
       .closest('[data-testid="record-row"]') as HTMLElement;
-    const { fireEvent } = await import("@testing-library/react");
     expect(within(row).getByText("Yes")).toBeVisible();
-    fireEvent.click(within(row).getByTestId("editable-field"));
-
-    expect(await screen.findByRole("option", { name: "Yes" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "No" })).toBeInTheDocument();
-    for (const forbidden of ["Waived", "Not applicable", "Reopen", "Complete"]) {
-      expect(screen.queryByRole("option", { name: forbidden })).not.toBeInTheDocument();
-    }
+    // Derived: the click target a typed item carries is simply not there.
+    expect(within(row).queryByTestId("editable-field")).not.toBeInTheDocument();
   });
 
-  it("answering No commits pending directly — no separate reopen verb, no reason field", async () => {
+  it("puts the eleven issued-kit items in the Kit group, Braces 1 and Braces 2 among them", async () => {
+    givenRecord({});
+    render(await PlayerRecordPage(pageProps()));
+
+    const kit = screen.getByTestId("section-kit");
+    for (const label of [
+      "Helmet",
+      "Shoulder Pads",
+      "Lower Pads",
+      "Lowers",
+      "Practice Jersey",
+      "Loaner Cleats",
+      "Team Mouthguard",
+      "Team Gloves",
+      "Braces 1",
+      "Braces 2",
+      "Socks",
+      "Formalwear",
+    ]) {
+      expect(within(kit).getByText(label)).toBeInTheDocument();
+    }
+  });
+});
+
+// D-002: `waived` is offered by exactly one item's own list — Subscription
+// paid — so this row needs Subscription invoiced complete alongside it
+// (the same blank-until-invoiced gating every other suite proves).
+describe("W6 — Subscription paid is the one item Waived applies to", () => {
+  it("saves a waiver with no reason field drawn at all — the reason stops being solicited", async () => {
     givenRecord({
       onboardingItems: [
-        historyItem({ code: "kit_sorted", label: "Kit Distributed", status: "complete" }),
+        historyItem({
+          id: "item-invoiced",
+          code: "subs_invoiced",
+          label: "Subscription invoiced",
+          status: "complete",
+        }),
+        historyItem({
+          id: "item-paid",
+          code: "subs_paid",
+          label: "Subscription paid",
+          status: "pending",
+        }),
       ],
     });
     render(await PlayerRecordPage(pageProps()));
 
     const row = screen
-      .getByText("Kit Distributed")
+      .getByText("Subscription paid")
       .closest('[data-testid="record-row"]') as HTMLElement;
     const { fireEvent, act } = await import("@testing-library/react");
     fireEvent.click(within(row).getByTestId("editable-field"));
-    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "No" })));
+    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Waived" })));
 
     expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
       membershipId: MEMBERSHIP_ID,
-      itemId: "item-1",
-      status: "pending",
+      itemId: "item-paid",
+      status: "waived",
     });
-    expect(screen.queryByTestId("onboarding-waiver-reason")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Why is this waived/)).not.toBeInTheDocument();
   });
 });
 
@@ -1725,5 +1775,61 @@ describe("LAN-380 — a season fact being saved", () => {
     expect(recordCommitJerseyNumbersAction).toHaveBeenCalledTimes(2);
     expect(within(jerseyRow()).queryByText(COULD_NOT_SAVE)).not.toBeInTheDocument();
     expect(within(jerseyRow()).queryByTestId("field-saving")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The record's groups are the board's groups, so they read the one setting the
+ * operator's account holds — LAN-387, Brian's visual pass item 1.
+ */
+describe("which groups are folded away, remembered on the account", () => {
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+    vi.mocked(saveCollapsedGroupsAction).mockClear();
+    vi.mocked(readOperatorPreferences).mockResolvedValue({});
+  });
+
+  it("closes Special teams and Kit for an operator who has never said otherwise", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.getByTestId("section-kit")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-special-teams")).not.toHaveAttribute("open");
+  });
+
+  it("opens the groups the account does not list", async () => {
+    vi.mocked(readOperatorPreferences).mockResolvedValue({ rosterCollapsedGroups: ["kit"] });
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    // Only Kit is listed, so only Kit stays folded — Special teams opens even
+    // though it is one of the two the board closes by default.
+    expect(screen.getByTestId("section-kit")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-special-teams")).toHaveAttribute("open");
+  });
+
+  it("keeps a group only the board can fold when one is toggled here", async () => {
+    // The board had Coaching closed too. Opening Kit on a record must not be
+    // the thing that forgets it.
+    vi.mocked(readOperatorPreferences).mockResolvedValue({
+      rosterCollapsedGroups: ["coaching", "kit", "specialTeams"],
+    });
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    const kit = screen.getByTestId("section-kit");
+    await act(async () => {
+      // jsdom does not implement the disclosure's own toggling, so the state
+      // change and the event it fires are both made here.
+      (kit as HTMLDetailsElement).open = true;
+      fireEvent(kit, new Event("toggle", { bubbles: false }));
+    });
+
+    expect(saveCollapsedGroupsAction).toHaveBeenCalledTimes(1);
+    expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]].sort()).toEqual([
+      "coaching",
+      "specialTeams",
+    ]);
   });
 });

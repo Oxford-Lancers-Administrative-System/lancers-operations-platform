@@ -9,5 +9,8 @@ supabase/.temp/
 supabase/.branches/
 src/lib/supabase/database.types.ts
 
+# pdf.js's worker and standard fonts, copied out of `pdfjs-dist` (LAN-363).
+public/pdfjs/
+
 # Agent worktrees are checkouts of this repository, not source of it.
 .claude/worktrees/

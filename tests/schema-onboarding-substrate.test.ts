@@ -267,6 +267,43 @@ describe("onboarding_agreement_versions / onboarding_agreements", () => {
     ]);
   });
 
+  // LAN-363: `pdf_path` is a path this deployment serves, never an address
+  // somewhere else. A leading `//` is protocol-relative — a browser resolves
+  // it against the current protocol onto whatever host follows — and a
+  // leading `/\` is the same trick, since a browser normalises that leading
+  // backslash to a slash before it resolves the address.
+  it("refuses a protocol-relative pdf_path", async () => {
+    await expectRejected(
+      client,
+      `insert into public.onboarding_agreement_versions
+         (agreement_type, version_label, body, pdf_path)
+       values ('code_of_conduct', $1, 'x', '//evil.example.com/x.pdf')`,
+      [`fixture-pdf-path-${Math.random()}`],
+      /onboarding_agreement_versions_pdf_path_is_local/,
+    );
+  });
+
+  it("refuses a backslash-led pdf_path", async () => {
+    await expectRejected(
+      client,
+      `insert into public.onboarding_agreement_versions
+         (agreement_type, version_label, body, pdf_path)
+       values ('code_of_conduct', $1, 'x', '/\\evil.example.com/x.pdf')`,
+      [`fixture-pdf-path-${Math.random()}`],
+      /onboarding_agreement_versions_pdf_path_is_local/,
+    );
+  });
+
+  it("accepts a real local pdf_path", async () => {
+    await expectAccepted(
+      client,
+      `insert into public.onboarding_agreement_versions
+         (agreement_type, version_label, body, pdf_path)
+       values ('code_of_conduct', $1, 'x', '/documents/x.pdf')`,
+      [`fixture-pdf-path-${Math.random()}`],
+    );
+  });
+
   // LAN-347. Nullable, because rows recorded under the placeholder have none
   // and history is not rewritten; the service refuses a new one whose wording
   // asks for it. Blank is refused by the database either way.

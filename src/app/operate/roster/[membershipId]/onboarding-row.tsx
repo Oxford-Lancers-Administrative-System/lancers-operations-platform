@@ -4,7 +4,7 @@ import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { NotRecorded } from "@/components/fact";
-import { RecordRow as Row } from "@/components/record-field";
+import { FIELD_EDITOR_SX, FieldStatus, RecordRow as Row } from "@/components/record-field";
 import { StatusChip } from "@/components/status-chip";
 import type { OnboardingItemStatus } from "@/lib/services/membership";
 import {
@@ -132,7 +132,9 @@ export default function OnboardingRow({
       <Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5, mb: 0.5 }}
+        // Its own line above the value: the row's value slot is a flex line
+        // now (Brian's visual pass, item 4), and these flags are not the value.
+        sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5, flexBasis: "100%" }}
       >
         {item.isRequired ? (
           <StatusChip domain="onboardingItem" status="required" label="Required" />
@@ -155,7 +157,7 @@ export default function OnboardingRow({
           onClose={onClose}
           onChange={(event) => onResolve(event.target.value as OnboardingItemStatus)}
           renderValue={() => closedLabel}
-          sx={{ minWidth: 220 }}
+          sx={{ ...FIELD_EDITOR_SX, minWidth: 220 }}
         >
           {states.map((status) => (
             <MenuItem key={status} value={status}>
@@ -192,11 +194,7 @@ export default function OnboardingRow({
           )}
         </Box>
       )}
-      {error ? (
-        <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.25 }}>
-          {error}
-        </Typography>
-      ) : null}
+      <FieldStatus error={error} />
     </Row>
   );
 }

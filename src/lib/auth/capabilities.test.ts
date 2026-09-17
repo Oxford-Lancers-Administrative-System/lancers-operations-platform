@@ -621,10 +621,22 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
   // Brian's decision of 15 August 2026. Asserted positively and literally,
   // because the seat holding everything is precisely the kind of grant that
   // should never be arrived at by a rule, a default or an inheritance.
-  it("holds every capability in the map", () => {
+  // LAN-361 added the one exception, and named it here so it cannot be
+  // widened by accident: `person_erasure` is the core four's alone, on
+  // Brian's decision of 16 September 2026.
+  const NOT_THE_IT_OFFICERS: readonly string[] = ["person_erasure"];
+
+  it("holds every capability in the map except the one deliberately withheld", () => {
     for (const key of CAPABILITY_KEYS) {
-      expect(roleCodesPermit(["it_officer"], key), key).toBe(true);
+      expect(roleCodesPermit(["it_officer"], key), key).toBe(!NOT_THE_IT_OFFICERS.includes(key));
     }
+  });
+
+  it("is refused person erasure, which belongs to the core four alone", () => {
+    expect(roleCodesPermit(["it_officer"], "person_erasure")).toBe(false);
+    expect(permittedSet("person_erasure")).toEqual(
+      ["president", "vice_president", "secretary", "general_manager"].sort(),
+    );
   });
 
   it("holds role management, alongside the two seats LAN-129 added", () => {
@@ -685,6 +697,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "event_calendar_management",
         "leadership_report",
         "membership_activation",
+        "person_erasure",
         "person_record_authority",
         "role_management",
         "roster_bulk_import",

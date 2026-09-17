@@ -10,17 +10,24 @@ export type {
   RosterBoardRow,
 } from "./read";
 export { listRosterBoard, readPositionOptions } from "./read";
+export { SPECIAL_TEAMS_SLOTS, SPECIAL_TEAMS_SQUADS, specialTeamsCellKey } from "./vocabulary";
+export type { SpecialTeamsSlot, SpecialTeamsSquad } from "./vocabulary";
+export { commitSpecialTeamsAssignment } from "./write-special-teams";
+export { commitKitItem } from "./write-kit";
+export { KIT_DISTRIBUTED_ITEMS, KIT_ITEMS, kitCellKey } from "./vocabulary";
+export type { KitItemCode } from "./vocabulary";
 export type { PositionColumn } from "./write-position";
 export { commitPosition } from "./write-position";
 export type { Kit } from "./write-jersey";
 export { commitJerseyNumbers } from "./write-jersey";
-export type { AvailabilityLevel, EligibilityStatus } from "./write-misc";
+export type { AvailabilityLevel, EligibilityStatus, PositionGroupSide } from "./write-misc";
 export {
   commitAvailability,
   commitBlues,
   commitBps,
-  commitCoachGroup,
+  commitCoachingGroups,
   commitEligibility,
   commitEntry,
-  commitFormalwearItem,
+  commitFormalwearItems,
+  commitPositionGroups,
 } from "./write-misc";

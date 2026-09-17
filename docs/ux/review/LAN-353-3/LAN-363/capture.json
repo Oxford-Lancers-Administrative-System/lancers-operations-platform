@@ -1,0 +1,18 @@
+[
+  {
+    "engine": "chromium",
+    "measuredWidth": 375,
+    "horizontalOverflow": false,
+    "canvasPages": 5,
+    "cspViolations": [],
+    "consoleErrors": []
+  },
+  {
+    "engine": "webkit",
+    "measuredWidth": 375,
+    "horizontalOverflow": false,
+    "canvasPages": 5,
+    "cspViolations": [],
+    "consoleErrors": []
+  }
+]

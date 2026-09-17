@@ -56,10 +56,17 @@ const ITEM_STATE_LISTS: Readonly<Record<string, readonly ItemState[]>> = Object.
   ]),
 }) as Readonly<Record<string, readonly ItemState[]>>;
 
-/** Items completed from other recorded facts, never a board column or editable control. */
+/**
+ * Items completed from other recorded facts, never an editable control.
+ * `kit_sorted` joined them in LAN-375: it is still the Onboarding group's red
+ * flag and still shows Yes or No, but it reads the issued kit rather than an
+ * operator's click. Its state list above stays, because the cell still has to
+ * be able to say which of the two it is.
+ */
 const DERIVED_ITEM_CODES: ReadonlySet<string> = new Set([
   "contact_academic_details",
   "season_welcome_consent",
+  KIT_DISTRIBUTED_ITEM_CODE,
 ]);
 
 export function isDerivedItem(code: string): boolean {

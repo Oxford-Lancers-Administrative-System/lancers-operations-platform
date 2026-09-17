@@ -21,6 +21,11 @@ export interface BoardSort {
 }
 
 export function rawValue(row: RosterBoardRow, key: string): string | string[] | number | null {
+  // LAN-374: the twenty-four special-teams cells are one family, keyed
+  // `st:<squad>:<slot>`, not twenty-four cases.
+  if (key.startsWith("st:")) return row.specialTeams[key] ?? null;
+  // LAN-375: the eleven issued-kit items, keyed `kit:<item>`.
+  if (key.startsWith("kit:")) return row.kit[key] ?? null;
   switch (key) {
     case "college":
       return row.college;
@@ -42,16 +47,22 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.entry;
     case "offencePosition":
       return row.offencePosition;
+    case "offenceBackupPosition":
+      return row.offenceBackupPosition;
     case "defencePosition":
       return row.defencePosition;
-    case "specialTeamsPosition":
-      return row.specialTeamsPosition;
+    case "defenceBackupPosition":
+      return row.defenceBackupPosition;
     case "blueNumbers":
       return row.blueNumbers;
     case "whiteNumbers":
       return row.whiteNumbers;
-    case "coachGroup":
-      return row.coachGroup;
+    case "coachingGroups":
+      return row.coachingGroups;
+    case "offensivePositionGroups":
+      return row.offensivePositionGroups;
+    case "defensivePositionGroups":
+      return row.defensivePositionGroups;
     case "formalwear":
       return (Object.keys(row.formalwear) as (keyof typeof row.formalwear)[]).filter(
         (item) => row.formalwear[item],
@@ -106,7 +117,12 @@ function comparable(row: RosterBoardRow, key: string): string | number | null {
   return Number.isNaN(asNumber) ? value : asNumber;
 }
 
-const CODE_ONLY_COLUMNS = new Set(["offencePosition", "defencePosition", "specialTeamsPosition"]);
+const CODE_ONLY_COLUMNS = new Set([
+  "offencePosition",
+  "offenceBackupPosition",
+  "defencePosition",
+  "defenceBackupPosition",
+]);
 
 // Display text for a column's option code — label alone, never the code
 // beside it (LAN-186 item 9). Positions are the exception: the club's
@@ -119,8 +135,11 @@ function optionLabel(column: ColumnDef, code: string): string {
   if (column.key === "availability") return labelFor(AVAILABILITY_LABELS, code);
   if (column.key === "formalwear") return labelFor(FORMALWEAR_LABELS, code);
   // D-002 (round 6, LAN-217): code is always a real OnboardingItemStatus now.
-  if (column.edit === "onboarding") {
-    return itemStateLabel(column.itemCode ?? "", code as OnboardingItemStatus);
+  // Keyed on `itemCode`, not on `edit`: LAN-375 made Kit Distributed derived,
+  // so it is an onboarding item that opens no control and still has to say
+  // "Yes" rather than "complete".
+  if (column.itemCode) {
+    return itemStateLabel(column.itemCode, code as OnboardingItemStatus);
   }
   return column.optionLabels?.[code] ?? code;
 }
@@ -131,7 +150,7 @@ export function filterOptions(
 ): readonly string[] {
   if (column.key === "missing") return ["Yes", "No"];
   if (column.key === "contactable") return ["Has mobile", "Has email", "Neither"];
-  if (column.options && column.edit !== "onboarding") return [...column.options];
+  if (column.options && !column.itemCode) return [...column.options];
 
   const seen = new Set<string>();
   let blanks = false;
@@ -235,7 +254,7 @@ export function displayOf(row: RosterBoardRow, column: ColumnDef): string {
     if (value.length === 0) return column.edit === "none" ? "—" : NOT_RECORDED;
     return value.map((entry) => optionLabel(column, entry)).join(", ");
   }
-  if (column.edit === "select" || column.edit === "onboarding")
+  if (column.edit === "select" || column.edit === "onboarding" || column.itemCode)
     return optionLabel(column, String(value));
   return String(value);
 }

@@ -15,7 +15,9 @@ import {
   type RosterImportPlanResult,
   type RosterImportTotals,
   type RosterPlannedRow,
+  SEASON_FACT_IMPORT_COLUMNS,
 } from "./roster-csv";
+import { commitKitItem, commitSpecialTeamsAssignment } from "./roster-board";
 import {
   enterReturningPlayer,
   findPersonCandidates,
@@ -123,6 +125,7 @@ async function planRow(
       outcome: "refused",
       name,
       cells,
+      seasonFacts: row.seasonFacts,
       reasons: row.reasons,
       duplicate: null,
       matchedPersonId: null,
@@ -137,6 +140,7 @@ async function planRow(
       outcome: "new",
       name,
       cells,
+      seasonFacts: row.seasonFacts,
       reasons: [],
       duplicate: null,
       matchedPersonId: null,
@@ -153,6 +157,7 @@ async function planRow(
           outcome: "unchanged",
           name,
           cells,
+          seasonFacts: row.seasonFacts,
           reasons: [],
           duplicate: null,
           matchedPersonId: confirmed.personId,
@@ -162,6 +167,7 @@ async function planRow(
           outcome: "carried_forward",
           name,
           cells,
+          seasonFacts: row.seasonFacts,
           reasons: [],
           duplicate: null,
           matchedPersonId: confirmed.personId,
@@ -177,6 +183,7 @@ async function planRow(
       outcome: "refused",
       name,
       cells,
+      seasonFacts: row.seasonFacts,
       reasons: [UNANSWERED_DUPLICATE_REASON],
       duplicate: duplicateView,
       matchedPersonId: null,
@@ -189,6 +196,7 @@ async function planRow(
       outcome: "new",
       name,
       cells,
+      seasonFacts: row.seasonFacts,
       reasons: [],
       duplicate: duplicateView,
       matchedPersonId: null,
@@ -202,6 +210,7 @@ async function planRow(
       outcome: "refused",
       name,
       cells,
+      seasonFacts: row.seasonFacts,
       reasons: [STALE_ANSWER_REASON],
       duplicate: duplicateView,
       matchedPersonId: null,
@@ -214,6 +223,7 @@ async function planRow(
       outcome: "unchanged",
       name,
       cells,
+      seasonFacts: row.seasonFacts,
       reasons: [],
       duplicate: duplicateView,
       matchedPersonId: chosen.personId,
@@ -225,10 +235,49 @@ async function planRow(
     outcome: "carried_forward",
     name,
     cells,
+    seasonFacts: row.seasonFacts,
     reasons: [],
     duplicate: duplicateView,
     matchedPersonId: chosen.personId,
   };
+}
+
+/**
+ * The optional season-fact cells one imported row filled in. Written after the
+ * membership exists, one commit per cell, never in bulk SQL: the commit
+ * functions are where a cell's vocabulary and its audit record live.
+ */
+async function writeSeasonFacts(
+  actorPersonId: string,
+  membershipId: string,
+  seasonId: string,
+  facts: Readonly<Record<string, string>>,
+): Promise<number> {
+  let written = 0;
+  for (const column of SEASON_FACT_IMPORT_COLUMNS) {
+    const value = facts[column.name];
+    if (value === undefined) continue;
+    if (column.kind === "special_teams") {
+      await commitSpecialTeamsAssignment({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        squad: column.squad,
+        slot: column.slot,
+        positionName: value,
+      });
+    } else {
+      await commitKitItem({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item: column.item,
+        value,
+      });
+    }
+    written += 1;
+  }
+  return written;
 }
 
 /** A fingerprint of what confirming would write (FNV-1a, `event-csv.ts`'s idiom) — catches the roster moving between read and apply. */
@@ -380,6 +429,7 @@ export async function applyRosterImport(request: RosterApplyRequest): Promise<Ro
     let created = 0;
     let carriedForward = 0;
     let welcomesQueued = 0;
+    let seasonFactsWritten = 0;
 
     for (const row of plan.rows) {
       if (row.outcome !== "new" && row.outcome !== "carried_forward") continue;
@@ -402,6 +452,17 @@ export async function applyRosterImport(request: RosterApplyRequest): Promise<Ro
             : { kind: "existing", personId: row.matchedPersonId as string },
       });
 
+      // LAN-374 / LAN-375: the optional season-fact columns, written through
+      // the same commit functions the board's own cells use, so one rule
+      // decides what a cell accepts and one audit trail records it. Every
+      // value was proved against its own list at read time.
+      seasonFactsWritten += await writeSeasonFacts(
+        operator.personId,
+        result.membershipId,
+        result.seasonId,
+        row.seasonFacts,
+      );
+
       if (row.outcome === "new") created += 1;
       else carriedForward += 1;
       if (result.welcomeQueued) welcomesQueued += 1;
@@ -421,6 +482,7 @@ export async function applyRosterImport(request: RosterApplyRequest): Promise<Ro
         unchanged: plan.totals.unchanged,
         refused: plan.totals.refused,
         welcomesQueued,
+        seasonFactsWritten,
         digest: plan.digest,
       },
     });
