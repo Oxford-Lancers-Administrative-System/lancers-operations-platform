@@ -642,6 +642,9 @@ export type Database = {
           provider_message_id: string | null
           requested_at: string
           rsvp_access_token_id: string | null
+          safety_admitted_at: string | null
+          safety_destination_key: string | null
+          safety_person_id: string | null
         }
         Insert: {
           accepted_at?: string | null
@@ -655,6 +658,9 @@ export type Database = {
           provider_message_id?: string | null
           requested_at?: string
           rsvp_access_token_id?: string | null
+          safety_admitted_at?: string | null
+          safety_destination_key?: string | null
+          safety_person_id?: string | null
         }
         Update: {
           accepted_at?: string | null
@@ -668,6 +674,9 @@ export type Database = {
           provider_message_id?: string | null
           requested_at?: string
           rsvp_access_token_id?: string | null
+          safety_admitted_at?: string | null
+          safety_destination_key?: string | null
+          safety_person_id?: string | null
         }
         Relationships: [
           {
@@ -683,6 +692,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rsvp_access_tokens"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_attempts_safety_person_id_fkey"
+            columns: ["safety_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_attempts_safety_person_id_fkey"
+            columns: ["safety_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
           },
         ]
       }
@@ -2016,6 +2039,113 @@ export type Database = {
           },
         ]
       }
+      messaging_safety_scopes: {
+        Row: {
+          capacity_alert_at: string | null
+          consecutive_faults: number
+          cooldown_stage: number
+          cooldown_until: string | null
+          created_at: string
+          first_fault_at: string | null
+          id: string
+          incident_alert_at: string | null
+          latch_reason_code: string | null
+          latched_at: string | null
+          paused_at: string | null
+          paused_by_person_id: string | null
+          paused_reason: string | null
+          policy_version: string | null
+          probe_generation: number
+          queue_alert_at: string | null
+          resume_reason: string | null
+          resumed_at: string | null
+          resumed_by_person_id: string | null
+          scope_key: string
+          scope_kind: Database["public"]["Enums"]["messaging_safety_scope_kind"]
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          capacity_alert_at?: string | null
+          consecutive_faults?: number
+          cooldown_stage?: number
+          cooldown_until?: string | null
+          created_at?: string
+          first_fault_at?: string | null
+          id?: string
+          incident_alert_at?: string | null
+          latch_reason_code?: string | null
+          latched_at?: string | null
+          paused_at?: string | null
+          paused_by_person_id?: string | null
+          paused_reason?: string | null
+          policy_version?: string | null
+          probe_generation?: number
+          queue_alert_at?: string | null
+          resume_reason?: string | null
+          resumed_at?: string | null
+          resumed_by_person_id?: string | null
+          scope_key: string
+          scope_kind: Database["public"]["Enums"]["messaging_safety_scope_kind"]
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          capacity_alert_at?: string | null
+          consecutive_faults?: number
+          cooldown_stage?: number
+          cooldown_until?: string | null
+          created_at?: string
+          first_fault_at?: string | null
+          id?: string
+          incident_alert_at?: string | null
+          latch_reason_code?: string | null
+          latched_at?: string | null
+          paused_at?: string | null
+          paused_by_person_id?: string | null
+          paused_reason?: string | null
+          policy_version?: string | null
+          probe_generation?: number
+          queue_alert_at?: string | null
+          resume_reason?: string | null
+          resumed_at?: string | null
+          resumed_by_person_id?: string | null
+          scope_key?: string
+          scope_kind?: Database["public"]["Enums"]["messaging_safety_scope_kind"]
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_safety_scopes_paused_by_person_id_fkey"
+            columns: ["paused_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_safety_scopes_paused_by_person_id_fkey"
+            columns: ["paused_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "messaging_safety_scopes_resumed_by_person_id_fkey"
+            columns: ["resumed_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_safety_scopes_resumed_by_person_id_fkey"
+            columns: ["resumed_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       messaging_schedules: {
         Row: {
           email_reminder_count: number
@@ -2166,6 +2296,9 @@ export type Database = {
           last_error: string | null
           next_attempt_at: string | null
           person_id: string | null
+          safety_block_scope_id: string | null
+          safety_reason_code: string | null
+          safety_retry_at: string | null
           scheduled_for: string | null
           status: Database["public"]["Enums"]["notification_job_status"]
           template_variables: Json
@@ -2191,6 +2324,9 @@ export type Database = {
           last_error?: string | null
           next_attempt_at?: string | null
           person_id?: string | null
+          safety_block_scope_id?: string | null
+          safety_reason_code?: string | null
+          safety_retry_at?: string | null
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["notification_job_status"]
           template_variables?: Json
@@ -2216,6 +2352,9 @@ export type Database = {
           last_error?: string | null
           next_attempt_at?: string | null
           person_id?: string | null
+          safety_block_scope_id?: string | null
+          safety_reason_code?: string | null
+          safety_retry_at?: string | null
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["notification_job_status"]
           template_variables?: Json
@@ -2284,6 +2423,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "person_standing"
             referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "notification_jobs_safety_block_scope_id_fkey"
+            columns: ["safety_block_scope_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_safety_scopes"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -5327,6 +5473,11 @@ export type Database = {
         | "granted"
         | "refused"
         | "withdrawn"
+      messaging_safety_scope_kind:
+        | "global"
+        | "provider"
+        | "person"
+        | "destination"
       nonresponse_threshold: "escalation"
       notification_channel: "whatsapp" | "email" | "sms" | "manual"
       notification_job_status:
@@ -5622,6 +5773,12 @@ export const Constants = {
         "granted",
         "refused",
         "withdrawn",
+      ],
+      messaging_safety_scope_kind: [
+        "global",
+        "provider",
+        "person",
+        "destination",
       ],
       nonresponse_threshold: ["escalation"],
       notification_channel: ["whatsapp", "email", "sms", "manual"],

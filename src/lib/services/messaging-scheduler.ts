@@ -23,7 +23,21 @@ import {
   MAX_ATTEMPTS,
   concludeExpiredDeliveries,
   dispatchJob,
+  type DispatchOutcome,
 } from "./delivery";
+import {
+  admitSendIn,
+  clearExpiredSafetyFieldsIn,
+  emitSafetyHeartbeat,
+  readWaitingIn,
+  reconcileSafetyAlertsIn,
+  recordProviderOutcomeIn,
+  recordWaitingIn,
+  SHARED_PACING_WINDOW_MINUTES,
+  waitingLabelFor,
+  WAITING_ALLOWANCE_LABEL,
+  type AdmissionGranted,
+} from "./messaging-safety";
 import {
   hasGrantedSeasonMessagingConsentIn,
   hasGrantedViaSignupFormIn,
@@ -99,6 +113,14 @@ export interface SweepSummary {
   readonly accepted: number;
   readonly refused: number;
   readonly skipped: number;
+  /** LAN-394. Candidates the safety guard held back. Nothing was attempted. */
+  readonly deferred: number;
+  /** LAN-394. Candidates looked at, which is not the same as attempted. */
+  readonly examined: number;
+  /** LAN-394. Jobs still due when the tick finished. */
+  readonly dueWaiting: number;
+  /** LAN-394. How long the oldest of those has been waiting, in minutes. */
+  readonly oldestDueMinutes: number;
   /** Invitations flagged as unanswered past their threshold, this tick. */
   readonly flagsRaised: number;
   /** Escalations created, at most one per event. */
@@ -576,6 +598,49 @@ async function raiseDueEscalations(): Promise<{
 // ---------------------------------------------------------------------------
 
 /**
+ * Lock, then claim — LAN-394.
+ *
+ * Every dispatcher in this file used to take its job with a single
+ * `update … where status in (…)`, which both decided the race and spent the
+ * attempt in one statement. The safety guard has to run between those two
+ * things: it needs the job and its chosen recipient to decide, and it must be
+ * able to decide "not yet" without having incremented anything.
+ *
+ * So each dispatcher now selects its row `for update` under exactly the
+ * predicate its `update` used to carry — which gives the identical mutual
+ * exclusion, because a read-committed locker re-evaluates the WHERE after the
+ * lock is granted — and calls this when it has decided to go ahead.
+ *
+ * Returning a closure rather than a flag keeps "the claim has not been taken"
+ * unrepresentable at the call site: there is nothing to forget to check, only a
+ * function to call or not call.
+ */
+function jobClaimIn(tx: Tx, jobId: string, attemptsSoFar: number) {
+  let attemptNumber = attemptsSoFar + 1;
+  let taken = false;
+  return {
+    /** What this attempt's number will be, or is. */
+    get attemptNumber(): number {
+      return attemptNumber;
+    },
+    async take(): Promise<number> {
+      if (taken) return attemptNumber;
+      const claimed = await tx.query<{ attempt_count: number }>(
+        `update public.notification_jobs
+            set status = 'processing', claimed_at = now(), claimed_by = $2,
+                attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+          where id = $1
+          returning attempt_count`,
+        [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`],
+      );
+      attemptNumber = claimed.rows[0].attempt_count;
+      taken = true;
+      return attemptNumber;
+    },
+  };
+}
+
+/**
  * Every job whose moment has arrived.
  *
  * Two quite different kinds of "due" in one predicate, and the distinction is
@@ -592,14 +657,40 @@ async function raiseDueEscalations(): Promise<{
  * even counted as attempted. LAN-156's hold means the event was amended after
  * the job was queued; sending it would deliver a superseded venue.
  */
-async function readDueJobs(
-  limit: number,
-): Promise<readonly { id: string; jobType: string; idempotencyKey: string }[]> {
+interface DueJob {
+  readonly id: string;
+  readonly jobType: string;
+  readonly idempotencyKey: string;
+  /** The cursor this row sits at, for the keyset page that follows it. */
+  readonly dueAt: Date;
+}
+
+async function readDueJobs(limit: number, after: DueJob | null = null): Promise<readonly DueJob[]> {
   return withTransaction(async (tx) => {
-    const result = await tx.query<{ id: string; job_type: string; idempotency_key: string }>(
-      `select id, job_type::text as job_type, idempotency_key
+    const result = await tx.query<{
+      id: string;
+      job_type: string;
+      idempotency_key: string;
+      due_at: Date;
+    }>(
+      `select id, job_type::text as job_type, idempotency_key,
+              coalesce(next_attempt_at, scheduled_for, created_at) as due_at
          from public.notification_jobs
         where held_at is null
+          -- LAN-394. Two cheap exclusions, before the limit rather than after
+          -- it, and they are what stops a blocked recipient filling every page.
+          --
+          -- A job the guard deferred carries its own not-before; until that
+          -- passes there is no point claiming it only to be deferred again. And
+          -- a job held back by a scope that is still paused or latched is not a
+          -- candidate at all — an operator's resume is what makes it one, and
+          -- that resume clears these columns itself.
+          and (safety_retry_at is null or safety_retry_at <= now())
+          and not exists (
+            select 1 from public.messaging_safety_scopes s
+             where s.id = notification_jobs.safety_block_scope_id
+               and (s.paused_at is not null or s.latched_at is not null)
+          )
           -- The rungs this package schedules, the escalation it raises,
           -- OWNER-LAN173-03's two notices, LAN-367's question-change re-ask,
           -- and LAN-203's own recruitment cycle messages.
@@ -729,17 +820,39 @@ async function readDueJobs(
             (status in ('pending', 'ready') and coalesce(scheduled_for, created_at) <= now())
             or (status = 'failed' and next_attempt_at is not null and next_attempt_at <= now())
           )
-        order by coalesce(next_attempt_at, scheduled_for, created_at)
+          -- LAN-394. The keyset. Without it a sweep that deferred its first
+          -- fifty candidates would fetch the same fifty again on the next page
+          -- for ever; with it, each page starts after the last row examined.
+          -- The id breaks the tie, because a whole event's ladder shares one
+          -- created_at (see NOTIFICATION_JOB_RECENCY_ORDER) and an ordering
+          -- with no total key is an ordering PostgreSQL may vary.
+          and ($3::timestamptz is null
+               or (coalesce(next_attempt_at, scheduled_for, created_at), id) > ($3::timestamptz, $4::uuid))
+        order by coalesce(next_attempt_at, scheduled_for, created_at), id
         limit $2`,
-      [MAX_ATTEMPTS, limit],
+      [MAX_ATTEMPTS, limit, after?.dueAt ?? null, after?.id ?? null],
     );
     return result.rows.map((row) => ({
       id: row.id,
       jobType: row.job_type,
       idempotencyKey: row.idempotency_key,
+      dueAt: row.due_at,
     }));
   });
 }
+
+/**
+ * How many candidates one tick may look at, as opposed to send.
+ *
+ * LAN-394. `SWEEP_BATCH_LIMIT` bounds provider calls; this bounds reads. The
+ * two used to be the same number, which is why fifty due jobs for one blocked
+ * recipient could fill an entire tick and leave an unrelated fifty-first
+ * waiting five minutes for nothing. Two hundred and fifty is a budget to be
+ * measured against the forty-five second deadline, not a guarantee: against
+ * unlimited job creation no finite scan promises fairness, which is what the
+ * queue-age warning is for.
+ */
+export const SWEEP_SCAN_LIMIT = 250;
 
 /**
  * One tick.
@@ -753,6 +866,8 @@ export async function runMessagingSweep(
     source?: EnvironmentSource;
     transport?: Transport;
     limit?: number;
+    /** LAN-394. How many candidates this tick may examine, as opposed to send. */
+    scanLimit?: number;
   } = {},
 ): Promise<SweepSummary> {
   const raised = await raiseDueEscalations();
@@ -771,58 +886,141 @@ export async function runMessagingSweep(
   // is nothing to conclude.
   const deliveriesExpired = await concludeExpiredDeliveries(options);
 
-  const due = await readDueJobs(options.limit ?? SWEEP_BATCH_LIMIT);
+  // LAN-394. The retention sweep: eight days on, the two identifying counting
+  // fields are cleared together. One indexed update on a tick that is running
+  // anyway, and it touches no delivery history.
+  await withTransaction((tx) => clearExpiredSafetyFieldsIn(tx));
+
+  const sendLimit = options.limit ?? SWEEP_BATCH_LIMIT;
+  const scanLimit = options.scanLimit ?? SWEEP_SCAN_LIMIT;
 
   let accepted = 0;
   let refused = 0;
   let skipped = 0;
+  let deferred = 0;
+  let examined = 0;
   const deadline = Date.now() + SWEEP_BUDGET_MS;
 
-  for (const job of due) {
-    if (Date.now() >= deadline) {
-      skipped += 1;
-      continue;
-    }
-    try {
-      const outcome =
-        job.jobType === "escalation"
-          ? await dispatchEscalationJob(job.id, options)
-          : job.jobType === "cancellation_notice"
-            ? await dispatchNoticeJob(job.id, options)
-            : // readDueJobs's own WHERE clause admits an 'other' row only when
-              // its idempotency_key carries the recruit-cycle: prefix
-              // (LAN-203), the onboarding-welcome: prefix (LAN-215), the
-              // onboarding-chase:/onboarding-nudge: prefixes or the
-              // onboarding-chase-escalation: prefix (LAN-218), so every
-              // 'other' row reaching this loop is one of those five.
-              job.jobType === "other"
-              ? job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
-                ? await dispatchOnboardingWelcomeJob(job.id, options)
-                : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
-                    job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
-                  ? await dispatchOnboardingChaseJob(job.id, options)
-                  : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
-                    ? await dispatchOnboardingChaseEscalationJob(job.id, options)
-                    : await dispatchRecruitmentCycleJob(job.id, options)
-              : await dispatchJob(job.id, { ...options, automatic: true });
+  // LAN-394. Stable keyset pages rather than one fixed slice, so a run of
+  // candidates the guard defers does not consume the whole tick. The tick stops
+  // on whichever comes first: the send limit, the scan limit, the deadline, or
+  // running out of due work.
+  let cursor: DueJob | null = null;
+  const due: DueJob[] = [];
+  outer: while (examined < scanLimit && accepted + refused < sendLimit) {
+    if (Date.now() >= deadline) break;
+    const page = await readDueJobs(Math.min(sendLimit, scanLimit - examined), cursor);
+    if (page.length === 0) break;
 
-      if (outcome === "accepted") accepted += 1;
-      else if (outcome === "refused") refused += 1;
-      else skipped += 1;
-    } catch {
-      // Per job, for the reason the approval loop is: one job that throws must
-      // not stop the other forty-nine. The failure is already durable on the
-      // job row — `dispatchJob` records it — and what is discarded here is a
-      // summary nobody reads.
-      refused += 1;
+    for (const job of page) {
+      cursor = job;
+      examined += 1;
+      due.push(job);
+      if (accepted + refused >= sendLimit) break outer;
+      if (examined > scanLimit) break outer;
+      if (Date.now() >= deadline) {
+        skipped += 1;
+        break outer;
+      }
+      try {
+        const outcome =
+          job.jobType === "escalation"
+            ? await dispatchEscalationJob(job.id, options)
+            : job.jobType === "cancellation_notice"
+              ? await dispatchNoticeJob(job.id, options)
+              : // readDueJobs's own WHERE clause admits an 'other' row only when
+                // its idempotency_key carries the recruit-cycle: prefix
+                // (LAN-203), the onboarding-welcome: prefix (LAN-215), the
+                // onboarding-chase:/onboarding-nudge: prefixes or the
+                // onboarding-chase-escalation: prefix (LAN-218), so every
+                // 'other' row reaching this loop is one of those five.
+                job.jobType === "other"
+                ? job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
+                  ? await dispatchOnboardingWelcomeJob(job.id, options)
+                  : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
+                      job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
+                    ? await dispatchOnboardingChaseJob(job.id, options)
+                    : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
+                      ? await dispatchOnboardingChaseEscalationJob(job.id, options)
+                      : await dispatchRecruitmentCycleJob(job.id, options)
+                : await dispatchJob(job.id, { ...options, automatic: true });
+
+        if (outcome === "accepted") accepted += 1;
+        else if (outcome === "refused") refused += 1;
+        // LAN-394. Counted apart from both. A deferral is not an attempt, so it
+        // must not be reported as one, and it is not a job with nothing to do,
+        // so it must not be reported as skipped either.
+        else if (outcome === "deferred") deferred += 1;
+        else skipped += 1;
+      } catch {
+        // Per job, for the reason the approval loop is: one job that throws must
+        // not stop the other forty-nine. The failure is already durable on the
+        // job row — `dispatchJob` records it — and what is discarded here is a
+        // summary nobody reads.
+        refused += 1;
+      }
     }
+
+    if (page.length < Math.min(sendLimit, scanLimit - examined + page.length)) break;
   }
+
+  // LAN-394. What is still waiting, reported separately from what was tried,
+  // and the two conditions that warn without stopping anything.
+  const backlog = await withTransaction(async (tx) => {
+    const row = await tx.query<{
+      due: string;
+      oldest_minutes: string | null;
+      admitted_day: string;
+      admitted_pacing: string;
+    }>(
+      `select
+         (select count(*)::text from public.notification_jobs
+           where held_at is null and status in ('pending', 'ready')
+             and coalesce(scheduled_for, created_at) <= now()) as due,
+         (select (extract(epoch from now() - min(coalesce(scheduled_for, created_at))) / 60)::int::text
+            from public.notification_jobs
+           where held_at is null and status in ('pending', 'ready')
+             and coalesce(scheduled_for, created_at) <= now()) as oldest_minutes,
+         (select count(*)::text from public.delivery_attempts
+           where safety_admitted_at > now() - interval '24 hours') as admitted_day,
+         (select count(*)::text from public.delivery_attempts
+           where safety_admitted_at > now() - ($1 || ' minutes')::interval) as admitted_pacing`,
+      [String(SHARED_PACING_WINDOW_MINUTES)],
+    );
+    const counts = {
+      admittedInDay: Number(row.rows[0].admitted_day),
+      admittedInPacingWindow: Number(row.rows[0].admitted_pacing),
+      dueWaiting: Number(row.rows[0].due),
+      oldestDueMinutes: Number(row.rows[0].oldest_minutes ?? 0),
+    };
+    await reconcileSafetyAlertsIn(tx, counts);
+    return counts;
+  });
+
+  // LAN-394. The heartbeat, on every tick and whatever it did. A scheduler that
+  // has stopped produces no incident at all — it holds nothing back and sends
+  // nothing — so the only way silence is ever noticed is by alerting on the
+  // absence of this line.
+  emitSafetyHeartbeat({
+    examined,
+    accepted,
+    refused,
+    deferred,
+    skipped,
+    dueWaiting: backlog.dueWaiting,
+    oldestDueMinutes: backlog.oldestDueMinutes,
+    admittedInDay: backlog.admittedInDay,
+  });
 
   return {
     dispatched: accepted + refused,
     accepted,
     refused,
     skipped,
+    deferred,
+    examined,
+    dueWaiting: backlog.dueWaiting,
+    oldestDueMinutes: backlog.oldestDueMinutes,
     flagsRaised: raised.flagsRaised,
     escalationsCreated: raised.escalationsCreated,
     escalationsHeld: raised.escalationsHeld,
@@ -867,7 +1065,7 @@ export async function runMessagingSweep(
 export async function dispatchEscalationJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<"accepted" | "refused" | "skipped"> {
+): Promise<DispatchOutcome> {
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       "select channel::text as channel from public.notification_jobs where id = $1 and job_type = 'escalation'",
@@ -905,11 +1103,16 @@ export async function dispatchEscalationJob(
   // cases from one another; the outward kind does not need to.
   type EscalationOutcome =
     | { readonly kind: "no-send" }
+    // LAN-394. The safety guard is holding this escalation back. An escalation
+    // is a message like any other and takes its turn on the same allowance —
+    // there is no urgent bypass in this version (Brian, 17 September 2026).
+    | { readonly kind: "deferred" }
     | {
         readonly kind: "send";
         readonly attemptId: string;
         readonly attemptNumber: number;
         readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
       };
 
   const claim = await withTransaction(
@@ -919,28 +1122,28 @@ export async function dispatchEscalationJob(
       outcome: EscalationOutcome;
       fallbackId: string | null;
     }> => {
-      const claimed = await tx.query<{
+      const locked = await tx.query<{
         id: string;
         event_id: string;
         person_id: string;
         attempt_count: number;
       }>(
-        `update public.notification_jobs
-          set status = 'processing', claimed_at = now(), claimed_by = $2,
-              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
-        where id = $1
-          and job_type = 'escalation'
-          and status in ('pending', 'ready', 'failed')
-          and held_at is null
-          and attempt_count < $3
-          and event_id is not null
-          and person_id is not null
-        returning id, event_id, person_id, attempt_count`,
-        [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+        `select id, event_id, person_id, attempt_count
+           from public.notification_jobs
+          where id = $1
+            and job_type = 'escalation'
+            and status in ('pending', 'ready', 'failed')
+            and held_at is null
+            and attempt_count < $2
+            and event_id is not null
+            and person_id is not null
+          for update`,
+        [jobId, MAX_ATTEMPTS],
       );
 
-      const job = claimed.rows[0];
+      const job = locked.rows[0];
       if (!job) return { outcome: { kind: "no-send" }, fallbackId: null };
+      const claiming = jobClaimIn(tx, jobId, job.attempt_count);
 
       const details = await tx.query<{
         event_name: string;
@@ -984,7 +1187,7 @@ export async function dispatchEscalationJob(
           tx,
           jobId,
           EVENT_HAS_NO_START_TIME_REASON,
-          job.attempt_count,
+          await claiming.take(),
           context.channel,
           context.provider.name,
         );
@@ -1028,7 +1231,7 @@ export async function dispatchEscalationJob(
           tx,
           jobId,
           context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
-          job.attempt_count,
+          await claiming.take(),
           context.channel,
           context.provider.name,
         );
@@ -1037,19 +1240,43 @@ export async function dispatchEscalationJob(
         return { outcome: { kind: "no-send" }, fallbackId };
       }
 
+      // LAN-394. After the recipient is chosen and before anything is spent.
+      const admission = await admitSendIn(tx, {
+        jobId,
+        personId: job.person_id,
+        channel: context.channel,
+        recipient,
+      });
+      if (!admission.admitted) {
+        await recordWaitingIn(tx, jobId, admission, new Date());
+        return { outcome: { kind: "deferred" }, fallbackId: null };
+      }
+
+      const attemptNumber = await claiming.take();
+
       const attempt = await tx.query<{ id: string }>(
         `insert into public.delivery_attempts
-         (notification_job_id, attempt_number, channel, provider)
-       values ($1, $2, $3, $4)
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning id`,
-        [jobId, job.attempt_count, context.channel, context.provider.name],
+        [
+          jobId,
+          attemptNumber,
+          context.channel,
+          context.provider.name,
+          admission.admittedAt,
+          admission.personId,
+          admission.destinationKey,
+        ],
       );
 
       return {
         outcome: {
           kind: "send",
           attemptId: attempt.rows[0].id,
-          attemptNumber: job.attempt_count,
+          attemptNumber,
+          safety: admission,
           message: {
             kind: "escalation" as const,
             recipient,
@@ -1085,12 +1312,15 @@ export async function dispatchEscalationJob(
 
   if (claim.fallbackId) await dispatchEscalationFallbackBestEffort(claim.fallbackId, options);
 
+  if (claim.outcome.kind === "deferred") return "deferred";
   if (claim.outcome.kind !== "send") return "skipped";
   const claimed = claim.outcome;
 
   const outcome = await context.provider.send(claimed.message);
 
   const secondFallbackId = await withTransaction(async (tx) => {
+    await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
+
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts
@@ -1339,7 +1569,7 @@ function parseRecruitCycleKey(
 export async function dispatchRecruitmentCycleJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<"accepted" | "refused" | "skipped"> {
+): Promise<DispatchOutcome> {
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       `select channel::text as channel from public.notification_jobs
@@ -1369,36 +1599,39 @@ export async function dispatchRecruitmentCycleJob(
 
   type CycleOutcome =
     | { readonly kind: "no-send" }
+    /** LAN-394. Waiting on the shared allowance; nothing spent. */
+    | { readonly kind: "deferred" }
     | {
         readonly kind: "send";
         readonly attemptId: string;
         readonly attemptNumber: number;
         readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
       };
 
   const claim = await withTransaction(async (tx): Promise<CycleOutcome> => {
-    const claimed = await tx.query<{
+    const locked = await tx.query<{
       id: string;
       idempotency_key: string;
       person_id: string;
       attempt_count: number;
     }>(
-      `update public.notification_jobs
-          set status = 'processing', claimed_at = now(), claimed_by = $2,
-              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+      `select id, idempotency_key, person_id, attempt_count
+         from public.notification_jobs
         where id = $1
           and job_type = 'other'
           and idempotency_key like '${RECRUIT_CYCLE_KEY_PREFIX}%'
           and status in ('pending', 'ready', 'failed')
           and held_at is null
-          and attempt_count < $3
+          and attempt_count < $2
           and person_id is not null
-        returning id, idempotency_key, person_id, attempt_count`,
-      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+        for update`,
+      [jobId, MAX_ATTEMPTS],
     );
 
-    const job = claimed.rows[0];
+    const job = locked.rows[0];
     if (!job) return { kind: "no-send" };
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
 
     const parsed = parseRecruitCycleKey(job.idempotency_key);
     if (!parsed) return { kind: "no-send" };
@@ -1422,7 +1655,7 @@ export async function dispatchRecruitmentCycleJob(
         tx,
         jobId,
         RECRUIT_CYCLE_NOT_ELIGIBLE_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -1438,7 +1671,7 @@ export async function dispatchRecruitmentCycleJob(
         tx,
         jobId,
         RECRUIT_CYCLE_NOT_CONSENTED_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -1466,7 +1699,7 @@ export async function dispatchRecruitmentCycleJob(
         tx,
         jobId,
         RECRUIT_CYCLE_ALREADY_COMPLETE_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -1506,12 +1739,28 @@ export async function dispatchRecruitmentCycleJob(
         tx,
         jobId,
         NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
       return { kind: "no-send" };
     }
+
+    // LAN-394. Before the tokens below, deliberately: a deferral here mints
+    // nothing, so the recruit's existing sign-up link is not superseded by a
+    // message that was never sent.
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return { kind: "deferred" };
+    }
+
+    const attemptNumber = await claiming.take();
 
     // Minted here, at dispatch, never persisted at declaration —
     // `player-answer-tokens.ts`'s own rule (a previously issued plaintext
@@ -1547,18 +1796,31 @@ export async function dispatchRecruitmentCycleJob(
       formUrl = signupUrl(context.appBaseUrl, formIssued.token);
     }
 
+    // LAN-394. The accounting goes on the attempt row itself, in the same
+    // transaction as the claim: an admitted attempt is a row that already
+    // exists, and there is no second ledger to keep in step with it.
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
-         (notification_job_id, attempt_number, channel, provider)
-       values ($1, $2, $3, $4)
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning id`,
-      [jobId, job.attempt_count, context.channel, context.provider.name],
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
+      ],
     );
 
     return {
       kind: "send",
       attemptId: attempt.rows[0].id,
-      attemptNumber: job.attempt_count,
+      attemptNumber,
+      safety: admission,
       message: {
         kind: CYCLE_MESSAGE_KIND[step],
         recipient,
@@ -1577,12 +1839,19 @@ export async function dispatchRecruitmentCycleJob(
     };
   });
 
+  // LAN-394. `deferred` is its own answer: the message is waiting, not refused
+  // and not unnecessary.
+  if (claim.kind === "deferred") return "deferred";
   if (claim.kind !== "send") return "skipped";
   const claimed = claim;
 
   const outcome = await context.provider.send(claimed.message);
 
   await withTransaction(async (tx) => {
+    // LAN-394. What this answer says about the provider, before what it says
+    // about this message.
+    await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
+
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts
@@ -1694,7 +1963,7 @@ function parseOnboardingWelcomeKey(idempotencyKey: string): string | null {
 export async function dispatchOnboardingWelcomeJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<"accepted" | "refused" | "skipped"> {
+): Promise<DispatchOutcome> {
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       `select channel::text as channel from public.notification_jobs
@@ -1724,36 +1993,39 @@ export async function dispatchOnboardingWelcomeJob(
 
   type WelcomeOutcome =
     | { readonly kind: "no-send" }
+    /** LAN-394. Waiting on the shared allowance; nothing spent. */
+    | { readonly kind: "deferred" }
     | {
         readonly kind: "send";
         readonly attemptId: string;
         readonly attemptNumber: number;
         readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
       };
 
   const claim = await withTransaction(async (tx): Promise<WelcomeOutcome> => {
-    const claimed = await tx.query<{
+    const locked = await tx.query<{
       id: string;
       idempotency_key: string;
       person_id: string;
       attempt_count: number;
     }>(
-      `update public.notification_jobs
-          set status = 'processing', claimed_at = now(), claimed_by = $2,
-              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+      `select id, idempotency_key, person_id, attempt_count
+         from public.notification_jobs
         where id = $1
           and job_type = 'other'
           and idempotency_key like '${ONBOARDING_WELCOME_KEY_PREFIX}%'
           and status in ('pending', 'ready', 'failed')
           and held_at is null
-          and attempt_count < $3
+          and attempt_count < $2
           and person_id is not null
-        returning id, idempotency_key, person_id, attempt_count`,
-      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+        for update`,
+      [jobId, MAX_ATTEMPTS],
     );
 
-    const job = claimed.rows[0];
+    const job = locked.rows[0];
     if (!job) return { kind: "no-send" };
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
 
     const membershipId = parseOnboardingWelcomeKey(job.idempotency_key);
     if (!membershipId) return { kind: "no-send" };
@@ -1773,7 +2045,7 @@ export async function dispatchOnboardingWelcomeJob(
         tx,
         jobId,
         ONBOARDING_WELCOME_MEMBERSHIP_GONE_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -1786,7 +2058,7 @@ export async function dispatchOnboardingWelcomeJob(
         tx,
         jobId,
         ONBOARDING_WELCOME_NOT_CONSENTED_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -1826,7 +2098,7 @@ export async function dispatchOnboardingWelcomeJob(
         tx,
         jobId,
         NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -1848,18 +2120,47 @@ export async function dispatchOnboardingWelcomeJob(
     });
     const formUrl = onboardingUrl(context.appBaseUrl, issued.token);
 
+    // LAN-394. The accounting goes on the attempt row itself, in the same
+    // transaction as the claim: an admitted attempt is a row that already
+    // exists, and there is no second ledger to keep in step with it.
+    // LAN-394. Everything above this line is a read; everything below it is a
+    // mutation. The guard runs exactly here, so a deferral costs this message
+    // nothing at all — no attempt, no token, no failure, no fallback.
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return { kind: "deferred" };
+    }
+
+    const attemptNumber = await claiming.take();
+
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
-         (notification_job_id, attempt_number, channel, provider)
-       values ($1, $2, $3, $4)
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning id`,
-      [jobId, job.attempt_count, context.channel, context.provider.name],
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
+      ],
     );
 
     return {
       kind: "send",
       attemptId: attempt.rows[0].id,
-      attemptNumber: job.attempt_count,
+      attemptNumber,
+      safety: admission,
       message: {
         kind: "onboarding_welcome",
         recipient,
@@ -1875,12 +2176,19 @@ export async function dispatchOnboardingWelcomeJob(
     };
   });
 
+  // LAN-394. `deferred` is its own answer: the message is waiting, not refused
+  // and not unnecessary.
+  if (claim.kind === "deferred") return "deferred";
   if (claim.kind !== "send") return "skipped";
   const claimed = claim;
 
   const outcome = await context.provider.send(claimed.message);
 
   await withTransaction(async (tx) => {
+    // LAN-394. What this answer says about the provider, before what it says
+    // about this message.
+    await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
+
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts
@@ -2167,7 +2475,7 @@ async function raiseDueOnboardingChaseEscalations(): Promise<{
 export async function dispatchOnboardingChaseEscalationJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<"accepted" | "refused" | "skipped"> {
+): Promise<DispatchOutcome> {
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null; template_variables: { outstandingCount?: number } }>(
       `select channel::text as channel, template_variables
@@ -2199,31 +2507,34 @@ export async function dispatchOnboardingChaseEscalationJob(
 
   type EscalationOutcome =
     | { readonly kind: "no-send" }
+    /** LAN-394. Waiting on the shared allowance; nothing spent. */
+    | { readonly kind: "deferred" }
     | {
         readonly kind: "send";
         readonly attemptId: string;
         readonly attemptNumber: number;
         readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
       };
 
   const claim = await withTransaction(async (tx): Promise<EscalationOutcome> => {
-    const claimed = await tx.query<{ id: string; person_id: string; attempt_count: number }>(
-      `update public.notification_jobs
-          set status = 'processing', claimed_at = now(), claimed_by = $2,
-              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+    const locked = await tx.query<{ id: string; person_id: string; attempt_count: number }>(
+      `select id, person_id, attempt_count
+         from public.notification_jobs
         where id = $1
           and job_type = 'other'
           and idempotency_key like '${ONBOARDING_CHASE_ESCALATION_KEY_PREFIX}%'
           and status in ('pending', 'ready', 'failed')
           and held_at is null
-          and attempt_count < $3
+          and attempt_count < $2
           and person_id is not null
-        returning id, person_id, attempt_count`,
-      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+        for update`,
+      [jobId, MAX_ATTEMPTS],
     );
 
-    const job = claimed.rows[0];
+    const job = locked.rows[0];
     if (!job) return { kind: "no-send" };
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
 
     const contacts = await tx.query<{
       kind: string;
@@ -2258,25 +2569,54 @@ export async function dispatchOnboardingChaseEscalationJob(
         tx,
         jobId,
         context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
       return { kind: "no-send" };
     }
 
+    // LAN-394. The accounting goes on the attempt row itself, in the same
+    // transaction as the claim: an admitted attempt is a row that already
+    // exists, and there is no second ledger to keep in step with it.
+    // LAN-394. Everything above this line is a read; everything below it is a
+    // mutation. The guard runs exactly here, so a deferral costs this message
+    // nothing at all — no attempt, no token, no failure, no fallback.
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return { kind: "deferred" };
+    }
+
+    const attemptNumber = await claiming.take();
+
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
-         (notification_job_id, attempt_number, channel, provider)
-       values ($1, $2, $3, $4)
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning id`,
-      [jobId, job.attempt_count, context.channel, context.provider.name],
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
+      ],
     );
 
     return {
       kind: "send",
       attemptId: attempt.rows[0].id,
-      attemptNumber: job.attempt_count,
+      attemptNumber,
+      safety: admission,
       message: {
         kind: "onboarding_chase_escalation",
         recipient,
@@ -2292,12 +2632,19 @@ export async function dispatchOnboardingChaseEscalationJob(
     };
   });
 
+  // LAN-394. `deferred` is its own answer: the message is waiting, not refused
+  // and not unnecessary.
+  if (claim.kind === "deferred") return "deferred";
   if (claim.kind !== "send") return "skipped";
   const claimed = claim;
 
   const outcome = await context.provider.send(claimed.message);
 
   await withTransaction(async (tx) => {
+    // LAN-394. What this answer says about the provider, before what it says
+    // about this message.
+    await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
+
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts
@@ -2396,7 +2743,7 @@ function parseOnboardingChaseOrNudgeKey(idempotencyKey: string): string | null {
 export async function dispatchOnboardingChaseJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<"accepted" | "refused" | "skipped"> {
+): Promise<DispatchOutcome> {
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       `select channel::text as channel from public.notification_jobs where id = $1 and job_type = 'other'`,
@@ -2425,23 +2772,25 @@ export async function dispatchOnboardingChaseJob(
 
   type ChaseOutcome =
     | { readonly kind: "no-send" }
+    /** LAN-394. Waiting on the shared allowance; nothing spent. */
+    | { readonly kind: "deferred" }
     | {
         readonly kind: "send";
         readonly attemptId: string;
         readonly attemptNumber: number;
         readonly message: OutboundMessage;
+        readonly safety: AdmissionGranted;
       };
 
   const claim = await withTransaction(async (tx): Promise<ChaseOutcome> => {
-    const claimed = await tx.query<{
+    const locked = await tx.query<{
       id: string;
       idempotency_key: string;
       person_id: string;
       attempt_count: number;
     }>(
-      `update public.notification_jobs
-          set status = 'processing', claimed_at = now(), claimed_by = $2,
-              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+      `select id, idempotency_key, person_id, attempt_count
+         from public.notification_jobs
         where id = $1
           and job_type = 'other'
           and (
@@ -2450,14 +2799,15 @@ export async function dispatchOnboardingChaseJob(
           )
           and status in ('pending', 'ready', 'failed')
           and held_at is null
-          and attempt_count < $3
+          and attempt_count < $2
           and person_id is not null
-        returning id, idempotency_key, person_id, attempt_count`,
-      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+        for update`,
+      [jobId, MAX_ATTEMPTS],
     );
 
-    const job = claimed.rows[0];
+    const job = locked.rows[0];
     if (!job) return { kind: "no-send" };
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
 
     const membershipId = parseOnboardingChaseOrNudgeKey(job.idempotency_key);
     if (!membershipId) return { kind: "no-send" };
@@ -2477,7 +2827,7 @@ export async function dispatchOnboardingChaseJob(
         tx,
         jobId,
         ONBOARDING_CHASE_MEMBERSHIP_GONE_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -2493,7 +2843,7 @@ export async function dispatchOnboardingChaseJob(
         tx,
         jobId,
         ONBOARDING_CHASE_UNDER_18_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -2506,7 +2856,7 @@ export async function dispatchOnboardingChaseJob(
         tx,
         jobId,
         ONBOARDING_CHASE_NOT_CONSENTED_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -2546,7 +2896,7 @@ export async function dispatchOnboardingChaseJob(
         tx,
         jobId,
         NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -2566,18 +2916,47 @@ export async function dispatchOnboardingChaseJob(
     });
     const formUrl = onboardingUrl(context.appBaseUrl, issued.token);
 
+    // LAN-394. The accounting goes on the attempt row itself, in the same
+    // transaction as the claim: an admitted attempt is a row that already
+    // exists, and there is no second ledger to keep in step with it.
+    // LAN-394. Everything above this line is a read; everything below it is a
+    // mutation. The guard runs exactly here, so a deferral costs this message
+    // nothing at all — no attempt, no token, no failure, no fallback.
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return { kind: "deferred" };
+    }
+
+    const attemptNumber = await claiming.take();
+
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
-         (notification_job_id, attempt_number, channel, provider)
-       values ($1, $2, $3, $4)
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning id`,
-      [jobId, job.attempt_count, context.channel, context.provider.name],
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
+      ],
     );
 
     return {
       kind: "send",
       attemptId: attempt.rows[0].id,
-      attemptNumber: job.attempt_count,
+      attemptNumber,
+      safety: admission,
       message: {
         kind: "onboarding_chase",
         recipient,
@@ -2591,12 +2970,19 @@ export async function dispatchOnboardingChaseJob(
     };
   });
 
+  // LAN-394. `deferred` is its own answer: the message is waiting, not refused
+  // and not unnecessary.
+  if (claim.kind === "deferred") return "deferred";
   if (claim.kind !== "send") return "skipped";
   const claimed = claim;
 
   const outcome = await context.provider.send(claimed.message);
 
   await withTransaction(async (tx) => {
+    // LAN-394. What this answer says about the provider, before what it says
+    // about this message.
+    await recordProviderOutcomeIn(tx, context.channel, outcome, claimed.safety.probeGeneration);
+
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts
@@ -2656,7 +3042,19 @@ export async function dispatchOnboardingChaseJob(
 export interface OnboardingNudgeResult {
   readonly personId: string;
   readonly membershipId: string;
-  readonly outcome: "accepted" | "refused" | "skipped" | "membership_not_found";
+  /**
+   * LAN-394 added `deferred`. The nudge was created and is queued behind the
+   * sending allowance; nothing failed, and pressing the button again would
+   * create a second nudge rather than make the first one go faster.
+   *
+   * Deliberately NOT coalesced with an existing waiting nudge. Each press is an
+   * intentional act by a named operator and `T11-batch-nudge` proves each one
+   * gets its own job, its own key and its own token; collapsing two presses
+   * into one message is a product decision nobody has taken.
+   */
+  readonly outcome: "accepted" | "refused" | "skipped" | "deferred" | "membership_not_found";
+  /** LAN-394. When the guard expects to let it through, where that is knowable. */
+  readonly waitingUntil?: Date | null;
 }
 
 /**
@@ -2711,7 +3109,16 @@ export async function sendOnboardingNudges(
     }
 
     const outcome = await dispatchOnboardingChaseJob(membership.jobId, options);
-    results.push({ personId: membership.personId, membershipId, outcome });
+    const waiting =
+      outcome === "deferred"
+        ? await withTransaction((tx) => readWaitingIn(tx, membership.jobId))
+        : null;
+    results.push({
+      personId: membership.personId,
+      membershipId,
+      outcome,
+      waitingUntil: waiting?.nextEligibleAt ?? null,
+    });
   }
   return results;
 }
@@ -2723,6 +3130,12 @@ export async function sendOnboardingNudges(
 export type EventChaseOutcome =
   | "accepted"
   | "refused"
+  /**
+   * LAN-394. Created and waiting on the sending allowance. Never `refused`:
+   * the provider was not asked, no attempt was spent, and the invitee's
+   * existing link is untouched.
+   */
+  | "deferred"
   | "not_outstanding"
   /** Recruit capacity: `REQ-never-harsh` allows one invitation and one follow-up, and no more. */
   | "not_chaseable";
@@ -2855,7 +3268,7 @@ export async function sendEventChases(
     // `issueTokenIn` refuses an event that has started or been cancelled and
     // that refusal travels out through the claim transaction — one such
     // invitation must be one refusal, not the end of the batch.
-    let outcome: "accepted" | "refused" | "skipped";
+    let outcome: DispatchOutcome;
     try {
       outcome = await dispatchJob(prepared.jobId, options);
     } catch {
@@ -2863,6 +3276,19 @@ export async function sendEventChases(
     }
     if (outcome === "accepted") {
       results.push({ invitationId, outcome: "accepted", reason: null });
+      continue;
+    }
+
+    // LAN-394. A chase the guard deferred is queued, not refused. It must not
+    // read `last_error` below — that column means "what the provider said
+    // about a delivery that was attempted", and nothing was attempted here.
+    if (outcome === "deferred") {
+      const waiting = await withTransaction((tx) => readWaitingIn(tx, prepared.jobId));
+      results.push({
+        invitationId,
+        outcome: "deferred",
+        reason: waiting ? waitingLabelFor(waiting.reasonCode) : WAITING_ALLOWANCE_LABEL,
+      });
       continue;
     }
 
@@ -2927,7 +3353,7 @@ export const CANCELLATION_NOTICE_SAFE_REASON = "The club has cancelled this even
 export async function dispatchNoticeJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<"accepted" | "refused" | "skipped"> {
+): Promise<DispatchOutcome> {
   const resolution = resolveDeliveryProvider(options.source ?? process.env, options.transport);
 
   if (!resolution.ok) {
@@ -2945,7 +3371,7 @@ export async function dispatchNoticeJob(
   const context = resolution.context;
 
   const claim = await withTransaction(async (tx) => {
-    const claimed = await tx.query<{
+    const locked = await tx.query<{
       id: string;
       invitation_id: string;
       event_id: string;
@@ -2957,21 +3383,21 @@ export async function dispatchNoticeJob(
       // is still checked: an amendment that held this job's siblings before
       // the event was ever cancelled should not have this one slip past that
       // hold through a different door.
-      `update public.notification_jobs
-          set status = 'processing', claimed_at = now(), claimed_by = $2,
-              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+      `select id, invitation_id, event_id, person_id, attempt_count
+         from public.notification_jobs
         where id = $1
           and job_type = 'cancellation_notice'
           and status in ('pending', 'ready', 'failed')
           and held_at is null
-          and attempt_count < $3
+          and attempt_count < $2
           and invitation_id is not null
-        returning id, invitation_id, event_id, person_id, attempt_count`,
-      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+        for update`,
+      [jobId, MAX_ATTEMPTS],
     );
 
-    const job = claimed.rows[0];
+    const job = locked.rows[0];
     if (!job) return null;
+    const claiming = jobClaimIn(tx, jobId, job.attempt_count);
 
     const details = await tx.query<{
       event_name: string;
@@ -3021,7 +3447,7 @@ export async function dispatchNoticeJob(
         tx,
         jobId,
         EVENT_HAS_NO_START_TIME_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
@@ -3062,26 +3488,55 @@ export async function dispatchNoticeJob(
         tx,
         jobId,
         context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
+        await claiming.take(),
         context.channel,
         context.provider.name,
       );
       return null;
     }
 
+    // LAN-394. The accounting goes on the attempt row itself, in the same
+    // transaction as the claim: an admitted attempt is a row that already
+    // exists, and there is no second ledger to keep in step with it.
+    // LAN-394. Everything above this line is a read; everything below it is a
+    // mutation. The guard runs exactly here, so a deferral costs this message
+    // nothing at all — no attempt, no token, no failure, no fallback.
+    const admission = await admitSendIn(tx, {
+      jobId,
+      personId: job.person_id,
+      channel: context.channel,
+      recipient,
+    });
+    if (!admission.admitted) {
+      await recordWaitingIn(tx, jobId, admission, new Date());
+      return "deferred" as const;
+    }
+
+    const attemptNumber = await claiming.take();
+
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts
-         (notification_job_id, attempt_number, channel, provider)
-       values ($1, $2, $3, $4)
+         (notification_job_id, attempt_number, channel, provider,
+          safety_admitted_at, safety_person_id, safety_destination_key)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning id`,
-      [jobId, job.attempt_count, context.channel, context.provider.name],
+      [
+        jobId,
+        attemptNumber,
+        context.channel,
+        context.provider.name,
+        admission.admittedAt,
+        admission.personId,
+        admission.destinationKey,
+      ],
     );
 
     const known = detail.display_alias?.trim();
 
     return {
       attemptId: attempt.rows[0].id,
-      attemptNumber: job.attempt_count,
+      attemptNumber,
+      safety: admission,
       message: {
         kind: "cancellation" as const,
         recipient,
@@ -3100,11 +3555,15 @@ export async function dispatchNoticeJob(
     };
   });
 
+  if (claim === "deferred") return "deferred";
   if (claim === null) return "skipped";
 
   const outcome = await context.provider.send(claim.message);
 
   await withTransaction(async (tx) => {
+    // LAN-394. See `dispatchEscalationJob` — the circuit is settled first.
+    await recordProviderOutcomeIn(tx, context.channel, outcome, claim.safety.probeGeneration);
+
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts

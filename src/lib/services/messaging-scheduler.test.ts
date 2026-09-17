@@ -41,7 +41,12 @@ import {
 } from "./messaging-scheduler";
 import { stopChasingIn } from "./rsvp";
 import { escalationCarriesNoPersonalData } from "@/lib/delivery/templates";
-import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+  seededIdentityCreatedAt,
+} from "../../../tests/helpers/service-layer";
 
 // LAN-181, F-W1. Every sweep call below is real work against the shared local
 // database — a claim per due job, up to `SWEEP_BATCH_LIMIT` (50) of them, not
@@ -221,6 +226,8 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const scope = `${MARKER}%`;
   const events = "(select id from public.events where name like $1)";
   const jobs = `(select id from public.notification_jobs where event_id in ${events})`;
@@ -562,7 +569,15 @@ describe("a due rung", () => {
     const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
     const { sent, transport } = acceptingTransport();
 
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. Three overdue rungs for one person no longer go out in one
+    // tick: the guard admits one message per person per five minutes, which is
+    // exactly what stops a recovered backlog arriving all at once. What this
+    // test is about is that the third rung goes by *email*, so the windows are
+    // cleared between ticks rather than waited out.
+    for (let tick = 0; tick < 6; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     expect(sent.some((request) => request.url.endsWith("/emails"))).toBe(true);
     const emailRequest = sent.find((request) => request.url.endsWith("/emails"))!;
@@ -673,6 +688,9 @@ describe("time-based backoff", () => {
     );
 
     const { transport } = acceptingTransport();
+    // LAN-394: the retry is a second message to the same person, so the pacing
+    // window is cleared. The backoff is what is under test.
+    await agePastSafetyPacing(observer);
     await runMessagingSweep({ source: CONFIGURED, transport });
 
     const jobs = await jobsFor(target.eventId);
@@ -1118,6 +1136,12 @@ describe("F-B1, mechanism 1 — the escalation resolves a channel the recipient 
     await makePresident(target.personId);
 
     const { sent, transport } = acceptingTransport();
+    // LAN-394. The fixture's President is also this event's invitee, so the
+    // invitation rung is admitted first and the escalation's email fallback is
+    // paced behind it. Two ticks, with the window cleared between, is what a
+    // real five minutes would do.
+    await runMessagingSweep({ source: CONFIGURED, transport });
+    await agePastSafetyPacing(observer);
     await runMessagingSweep({ source: CONFIGURED, transport });
 
     const original = await observer.query<{

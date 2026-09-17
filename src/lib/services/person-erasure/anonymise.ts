@@ -92,6 +92,39 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
   );
 
   // -------------------------------------------------------------------------
+  // LAN-394. The messaging safety machinery's two identifying fields, and any
+  // hold that was recorded against this person or one of their destinations.
+  //
+  // Order matters: the destination scopes can only be found *through* the
+  // attempts, so they go first and the fields are cleared after. The attempt
+  // rows themselves stay, with their outcome, provider reference and failure
+  // reason intact — an erasure anonymises a person, it does not delete the
+  // club's record of what it did. `safety_admitted_at` stays for the same
+  // reason: the global accounting is about volume, not about anybody.
+  // -------------------------------------------------------------------------
+
+  deleted.messaging_safety_scopes = await run(
+    tx,
+    `delete from public.messaging_safety_scopes
+      where (scope_kind = 'person' and scope_key = $1::text)
+         or (scope_kind = 'destination'
+             and scope_key in (
+               select a.safety_destination_key
+                 from public.delivery_attempts a
+                where a.safety_person_id = $1::uuid
+                  and a.safety_destination_key is not null))`,
+    [personId],
+  );
+
+  scrubbed.delivery_attempts_safety = await run(
+    tx,
+    `update public.delivery_attempts
+        set safety_person_id = null, safety_destination_key = null
+      where safety_person_id = $1::uuid`,
+    [personId],
+  );
+
+  // -------------------------------------------------------------------------
   // Scrubbed: the record of what happened stays, the words that named them go.
   // -------------------------------------------------------------------------
 
@@ -118,13 +151,24 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
         select id from public.notification_jobs where person_id = $1::uuid)`,
     [personId, ERASED_TEXT],
   );
-  // The provider's own message id is unique across attempts, so it is nulled
-  // rather than replaced: one fixed string in every row would collide.
+  // The provider's own message id is unique across attempts, so it cannot be
+  // replaced by one fixed string — and it cannot simply be nulled either.
+  //
+  // Nulling it was what this did, and it made erasing anybody the club had
+  // actually reached fail outright: `delivery_attempts_acceptance_names_its_message`
+  // requires an accepted attempt to name the message the provider accepted,
+  // and every delivered message has both. Found by LAN-394's own erasure test,
+  // which was the first to erase a person with an accepted attempt behind them.
+  //
+  // So it is replaced by a value derived from the row's own id: unique by
+  // construction, carries no provider reference, and leaves the fact that the
+  // provider accepted something exactly as true as it was.
   scrubbed.delivery_attempts = await run(
     tx,
     `update public.delivery_attempts
         set failure_reason = case when failure_reason is null then null else $2 end,
-            provider_message_id = null
+            provider_message_id =
+              case when provider_message_id is null then null else 'erased:' || id::text end
       where notification_job_id in (
         select id from public.notification_jobs where person_id = $1::uuid)`,
     [personId, ERASED_TEXT],

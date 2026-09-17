@@ -574,6 +574,7 @@ describe("approval is what starts distribution", () => {
       accepted: 3,
       refused: 0,
       skipped: 0,
+      deferred: 0,
     });
   });
 

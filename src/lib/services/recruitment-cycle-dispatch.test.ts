@@ -31,7 +31,12 @@ import { dispatchRecruitmentCycleJob, runMessagingSweep } from "./messaging-sche
 import { finishRecruitmentAddIn } from "./recruitment-add";
 import { resolveRecruitmentInterestTokenIn } from "./recruitment-interest-tokens";
 import { createPerson } from "./person-create";
-import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+  seededIdentityCreatedAt,
+} from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN203CycleSuite";
 
@@ -106,6 +111,8 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const people = "(select id from public.people where given_name = $1)";
   await observer.query(
     `delete from public.recruitment_questionnaire_responses
@@ -612,8 +619,16 @@ describe("dispatchRecruitmentCycleJob", () => {
     await backdate();
 
     const { sent, transport } = acceptingTransport();
-    const firstSweep = await runMessagingSweep({ source: CONFIGURED, transport });
-    expect(firstSweep.accepted).toBeGreaterThanOrEqual(2);
+    // LAN-394. The welcome track is two messages to the same recruit, and the
+    // guard admits one per person per five minutes — so what used to be one
+    // tick is now two, which is the whole point of the pacing. Counted across
+    // the ticks, the same two messages go out.
+    let firstAccepted = 0;
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      firstAccepted += (await runMessagingSweep({ source: CONFIGURED, transport })).accepted;
+    }
+    expect(firstAccepted).toBeGreaterThanOrEqual(2);
 
     // The recruit then goes on to complete the sign-up form itself — the
     // fact that reaches the interest track (`hasGrantedViaSignupFormIn`),
@@ -629,8 +644,12 @@ describe("dispatchRecruitmentCycleJob", () => {
     await grantConsent(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     await backdate();
-    const secondSweep = await runMessagingSweep({ source: CONFIGURED, transport });
-    expect(secondSweep.accepted).toBeGreaterThanOrEqual(2);
+    let secondAccepted = 0;
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      secondAccepted += (await runMessagingSweep({ source: CONFIGURED, transport })).accepted;
+    }
+    expect(secondAccepted).toBeGreaterThanOrEqual(2);
 
     const names = sent.map((s) => (s.body.template as { name: string }).name);
     expect(names).toEqual(
@@ -813,9 +832,17 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
 
     const sinkRecords: SinkRecord[] = [];
     const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
-    const swept = await runMessagingSweep({ source: CONFIGURED, transport: sink });
+    // LAN-394. The welcome track declares two messages for this recruit and
+    // the guard admits one per person per five minutes, so which of the two
+    // goes first depends on the tie-break between two jobs backdated to the
+    // same instant. Two ticks reaches both.
+    let accepted = 0;
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      accepted += (await runMessagingSweep({ source: CONFIGURED, transport: sink })).accepted;
+    }
 
-    expect(swept.accepted).toBeGreaterThanOrEqual(1);
+    expect(accepted).toBeGreaterThanOrEqual(1);
     const welcome = sinkRecords.find(
       (r) =>
         (r.payload as { template: { name: string } }).template.name ===
@@ -863,7 +890,14 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
 
     const sinkRecords: SinkRecord[] = [];
     const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
-    await runMessagingSweep({ source: CONFIGURED, transport: sink });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: sink });
+    }
 
     const welcome = sinkRecords.find(
       (r) =>
@@ -905,7 +939,14 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
     );
 
     const { transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     // Nothing exists to claim, so the sweep can send this recruit nothing —
     // asserted on their own rows, not on the sink, which other fixtures in
@@ -936,7 +977,14 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
     );
 
     const { transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     // The sweep also claims unrelated seeded jobs. Assert this recruit's
     // own attempts, so a due seeded message cannot contaminate the proof.
@@ -1047,6 +1095,10 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
       transport: createDeliverySink(CONFIGURED, { write: (record) => askSink.push(record) }),
     });
     const reminderSink: SinkRecord[] = [];
+    // LAN-394: the reminder is the recruit's second message inside a second,
+    // which the guard paces. The ask-then-reminder *order* is what this test
+    // proves, so the window is cleared between the two.
+    await agePastSafetyPacing(observer);
     const reminderOutcome = await dispatchRecruitmentCycleJob(await jobIdFor("interest_reminder"), {
       source: CONFIGURED,
       transport: createDeliverySink(CONFIGURED, { write: (record) => reminderSink.push(record) }),

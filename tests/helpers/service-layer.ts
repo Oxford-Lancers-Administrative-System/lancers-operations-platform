@@ -179,3 +179,98 @@ export async function seededActorPersonId(client: pg.Client): Promise<string> {
   }
   return actor.rows[0].id;
 }
+
+/**
+ * Winds this suite's messaging safety accounting back — LAN-394.
+ *
+ * ## Why a suite ever needs this
+ *
+ * The guard admits at most one message per person, and independently per
+ * destination, in any rolling five minutes, and holds a recipient outright at
+ * ten in a day (Brian, 17 September 2026). That is the intended behaviour and
+ * `src/lib/services/messaging-safety.test.ts` proves every part of it directly.
+ *
+ * But a great many older suites deliberately compress days of club life into
+ * one second: a failure and its retry, four rungs of a chase, two sweep-and-
+ * deliver rounds, an escalation to an office holder who has already received
+ * this suite's last six messages. Against the real clock those are days apart;
+ * against the test's clock they are one transaction after another, and the
+ * accounting sees a burst that in production could not happen.
+ *
+ * Calling this between such steps is the honest way to say "and then some time
+ * passed". It backdates the admission timestamps by two days, which clears the
+ * five-minute pacing window and the twenty-four-hour ceiling, and releases any
+ * recipient hold those compressed bursts latched. The **weekly** ceiling still
+ * applies, and so does the global emergency ceiling, so a suite that genuinely
+ * sent a recipient thirty messages would still be stopped.
+ *
+ * It is deliberately not a way to switch the guard off, and there is no such
+ * way: the thresholds are constants with a decision on them, and nothing in the
+ * application reads an environment variable to relax them.
+ */
+export async function agePastSafetyPacing(client: pg.Client): Promise<void> {
+  await client.query(
+    `update public.delivery_attempts
+        set safety_admitted_at = safety_admitted_at - interval '2 days'
+      where safety_admitted_at is not null
+        and safety_admitted_at > now() - interval '2 days'`,
+  );
+  // A hold latched by a burst that only the test's compressed clock made
+  // possible is not evidence of anything, and leaving it would refuse the next
+  // step for a reason that does not exist. Person and destination scopes only:
+  // the global row and the provider circuits are untouched.
+  await client.query(
+    `update public.messaging_safety_scopes
+        set latched_at = null, latch_reason_code = null, incident_alert_at = null
+      where scope_kind in ('person', 'destination')`,
+  );
+  // A job the guard deferred while a window was full is eligible again the
+  // moment the window is not; without this it would keep its not-before and the
+  // next sweep in the same test would skip it.
+  await client.query(
+    `update public.notification_jobs
+        set safety_retry_at = null, safety_block_scope_id = null, safety_reason_code = null
+      where safety_retry_at is not null`,
+  );
+}
+
+/**
+ * Removes the recipient-level messaging safety state a suite's fixtures
+ * produced — LAN-394.
+ *
+ * A person or destination hold is durable on purpose: it survives a restart and
+ * the rolling window ageing out, and only an operator resume clears it. That is
+ * exactly right in production and exactly wrong in a suite whose teardown
+ * deletes the attempts the hold was counted from — the hold would outlive its
+ * own evidence and refuse the next test's fixtures for reasons nothing in that
+ * test can see.
+ *
+ * So a suite that tears its `delivery_attempts` down tears these down with
+ * them. It is the teardown's other half, not a way to weaken the guard: the
+ * global and provider scopes are deliberately untouched, and nothing here runs
+ * inside a test.
+ */
+export async function clearRecipientSafetyState(client: pg.Client): Promise<void> {
+  // The provider circuits too, and for the same reason. A suite that makes a
+  // provider refuse five times in a row — which several do, deliberately, to
+  // reach the attempt ceiling — opens a real five-minute cooldown, and that
+  // cooldown is correct: five account-level rate limits in five minutes is a
+  // provider to leave alone. Carrying it into the next test file would refuse
+  // fixtures for a reason nothing in that file can see.
+  await client.query(
+    `update public.messaging_safety_scopes
+        set consecutive_faults = 0, first_fault_at = null,
+            cooldown_until = null, cooldown_stage = 0, incident_alert_at = null
+      where scope_kind = 'provider'`,
+  );
+  await client.query(
+    `update public.notification_jobs
+        set safety_retry_at = null, safety_block_scope_id = null, safety_reason_code = null
+      where safety_block_scope_id in (
+        select id from public.messaging_safety_scopes
+         where scope_kind in ('person', 'destination'))`,
+  );
+  await client.query(
+    "delete from public.messaging_safety_scopes where scope_kind in ('person', 'destination')",
+  );
+}

@@ -30,7 +30,11 @@ import { closePool, withTransaction } from "@/lib/db";
 import { withdrawSeasonMessagingConsentIn } from "./messaging-consent";
 import { dispatchOnboardingWelcomeJob, runMessagingSweep } from "./messaging-scheduler";
 import { enterReturningPlayer, resolveOpenSeason } from "./roster";
-import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
+import {
+  clearRecipientSafetyState,
+  openObserver,
+  seededActorPersonId,
+} from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN215WelcomeDispatch";
 
@@ -87,6 +91,8 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const people = "(select id from public.people where given_name like $1)";
   await observer.query(
     `delete from public.delivery_results

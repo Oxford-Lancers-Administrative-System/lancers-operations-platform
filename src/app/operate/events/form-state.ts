@@ -39,6 +39,13 @@ export const EMPTY_FORM_STATE: EventFormState = {
 
 export interface EventTransitionState {
   error: string | null;
+  /**
+   * LAN-394. A true thing that is not a failure — currently "the message is
+   * queued behind the sending allowance". Separate from `error` because a
+   * refusal and a queue read differently and must look different: one is a
+   * refusal Notice, the other is information.
+   */
+  notice?: string | null;
 }
 
-export const EMPTY_TRANSITION_STATE: EventTransitionState = { error: null };
+export const EMPTY_TRANSITION_STATE: EventTransitionState = { error: null, notice: null };
