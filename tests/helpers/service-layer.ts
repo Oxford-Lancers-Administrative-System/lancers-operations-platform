@@ -199,10 +199,17 @@ export async function seededActorPersonId(client: pg.Client): Promise<string> {
  *
  * Calling this between such steps is the honest way to say "and then some time
  * passed". It backdates the admission timestamps by two days, which clears the
- * five-minute pacing window and the twenty-four-hour ceiling, and releases any
- * recipient hold those compressed bursts latched. The **weekly** ceiling still
- * applies, and so does the global emergency ceiling, so a suite that genuinely
- * sent a recipient thirty messages would still be stopped.
+ * five-minute pacing window and the twenty-four-hour ceiling. The **weekly**
+ * ceiling still applies, and so does the global emergency ceiling, so a suite
+ * that genuinely sent a recipient thirty messages would still be stopped.
+ *
+ * ## What it deliberately does not do
+ *
+ * It does not clear a latched hold (LAN-394 review, B-03). A hold survives the
+ * window ageing out — that is the whole of what makes it a hold — and a helper
+ * sixty call sites deep that quietly released one would mask exactly the
+ * regression `messaging-safety.test.ts` exists to catch. A suite that genuinely
+ * needs a hold released says so itself, with `clearRecipientSafetyState`.
  *
  * It is deliberately not a way to switch the guard off, and there is no such
  * way: the thresholds are constants with a decision on them, and nothing in the
@@ -214,15 +221,6 @@ export async function agePastSafetyPacing(client: pg.Client): Promise<void> {
         set safety_admitted_at = safety_admitted_at - interval '2 days'
       where safety_admitted_at is not null
         and safety_admitted_at > now() - interval '2 days'`,
-  );
-  // A hold latched by a burst that only the test's compressed clock made
-  // possible is not evidence of anything, and leaving it would refuse the next
-  // step for a reason that does not exist. Person and destination scopes only:
-  // the global row and the provider circuits are untouched.
-  await client.query(
-    `update public.messaging_safety_scopes
-        set latched_at = null, latch_reason_code = null, incident_alert_at = null
-      where scope_kind in ('person', 'destination')`,
   );
   // A job the guard deferred while a window was full is eligible again the
   // moment the window is not; without this it would keep its not-before and the

@@ -27,7 +27,12 @@
 -- whole application's outbound; `provider` is one of the two transports;
 -- `person` and `destination` are the two independent ways one recipient is
 -- counted (Brian, 17 September 2026: per-destination counting stays, and a
--- genuinely shared number may therefore need a manual resume).
+-- genuinely shared number may therefore need a manual resume). The global and
+-- provider rows are created below and are permanent. A person or destination
+-- row exists only while something is held against it: it is written when a hold
+-- is recorded, and the retention sweep deletes it eight days after it stopped
+-- holding anything, so this table never becomes a list of everybody the club
+-- has messaged.
 create type public.messaging_safety_scope_kind as enum (
   'global',
   'provider',
@@ -163,7 +168,7 @@ create table public.messaging_safety_scopes (
 );
 
 comment on table public.messaging_safety_scopes is
-  'LAN-394. Durable safety state for outbound application messaging: one global row, one per provider, and one per person or destination that has been held. Machinery, not a club concept -- it records switches and circuit state, never a fact about a human. Thresholds live in code (src/lib/services/messaging-safety/policy.ts), not here.';
+  'LAN-394. Durable safety state for outbound application messaging: one global row, one per provider, and one per person or destination that has been held. A person or destination row is written only when a hold is recorded against it -- an ordinary admission reads an absent row as "no hold" and creates nothing -- and the scheduler sweep removes it again once it has held nothing for eight days. Machinery, not a club concept -- it records switches and circuit state, never a fact about a human. Thresholds live in code (src/lib/services/messaging-safety/policy.ts), not here.';
 
 comment on column public.messaging_safety_scopes.scope_key is
   'What this scope is about inside its kind: `global`, a provider name, a Person id, or a channel-namespaced destination fingerprint. Deliberately not a foreign key -- merge combines these explicitly and erasure removes them.';

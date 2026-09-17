@@ -28,6 +28,7 @@ import {
 import {
   admitSendIn,
   clearExpiredSafetyFieldsIn,
+  clearExpiredSafetyScopesIn,
   emitSafetyHeartbeat,
   readWaitingIn,
   reconcileSafetyAlertsIn,
@@ -745,9 +746,13 @@ export async function runMessagingSweep(
   const deliveriesExpired = await concludeExpiredDeliveries(options);
 
   // LAN-394. The retention sweep: eight days on, the two identifying counting
-  // fields are cleared together. One indexed update on a tick that is running
-  // anyway, and it touches no delivery history.
-  await withTransaction((tx) => clearExpiredSafetyFieldsIn(tx));
+  // fields are cleared together, and any recipient scope row that is no longer
+  // holding anything goes with them. One indexed update and one narrow delete
+  // on a tick that is running anyway, and neither touches delivery history.
+  await withTransaction(async (tx) => {
+    await clearExpiredSafetyFieldsIn(tx);
+    await clearExpiredSafetyScopesIn(tx);
+  });
 
   const sendLimit = options.limit ?? SWEEP_BATCH_LIMIT;
   const scanLimit = options.scanLimit ?? SWEEP_SCAN_LIMIT;
@@ -764,7 +769,6 @@ export async function runMessagingSweep(
   // on whichever comes first: the send limit, the scan limit, the deadline, or
   // running out of due work.
   let cursor: DueJob | null = null;
-  const due: DueJob[] = [];
   outer: while (examined < scanLimit && accepted + refused < sendLimit) {
     if (Date.now() >= deadline) break;
     const page = await readDueJobs(Math.min(sendLimit, scanLimit - examined), cursor);
@@ -773,7 +777,6 @@ export async function runMessagingSweep(
     for (const job of page) {
       cursor = job;
       examined += 1;
-      due.push(job);
       if (accepted + refused >= sendLimit) break outer;
       if (examined > scanLimit) break outer;
       if (Date.now() >= deadline) {

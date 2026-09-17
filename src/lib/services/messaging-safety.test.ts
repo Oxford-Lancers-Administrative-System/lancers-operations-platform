@@ -30,6 +30,7 @@ import { runMessagingSweep } from "./messaging-scheduler";
 import {
   admitSendIn,
   clearExpiredSafetyFieldsIn,
+  clearExpiredSafetyScopesIn,
   destinationKey,
   GLOBAL_EMERGENCY_LIMIT,
   GLOBAL_SCOPE_KEY,
@@ -88,6 +89,19 @@ function uniquePhone(): string {
   // Ofcom's reserved drama range is 07700 900000–900999: never dialled, and
   // wide enough for every fixture this file makes.
   return `07700 900${String(phoneSerial).padStart(3, "0")}`;
+}
+
+/**
+ * The form the guard actually handles.
+ *
+ * Every fixture's number is recorded in national form, and `selectMobileNumber`
+ * converts it before anything is sent — so `07700 900001` is what the roster
+ * holds and `447700900001` is what reaches a provider, is fingerprinted, and
+ * could leak. A test that greps for the national form is looking for a string
+ * the sending path never produces (LAN-394 review, B-02).
+ */
+function e164(phone: string): string {
+  return `44${phone.replace(/\D/g, "").slice(1)}`;
 }
 
 /**
@@ -382,6 +396,15 @@ async function seedAdmissions(
   );
 }
 
+/** How many admitted attempts are already inside the rolling emergency window. */
+async function admittedInDay(): Promise<number> {
+  const result = await observer.query<{ count: string }>(
+    `select count(*)::text as count from public.delivery_attempts
+      where safety_admitted_at > now() - interval '24 hours'`,
+  );
+  return Number(result.rows[0].count);
+}
+
 async function globalScope() {
   return withTransaction((tx) => readScopeIn(tx, "global", GLOBAL_SCOPE_KEY));
 }
@@ -608,6 +631,163 @@ describe("a recipient hold contains one recipient", () => {
       [held.personId],
     );
     expect(Number(stillCounted.rows[0].count)).toBe(RECIPIENT_DAILY_LIMIT);
+  });
+});
+
+describe("a recipient hold is durable", () => {
+  /**
+   * LAN-394 review, B-03.
+   *
+   * The count check and the latch check both defer a recipient who has just
+   * reached their ceiling, so a test that only seeds the ceiling proves the
+   * count and says nothing about the hold. What makes a hold a hold is that it
+   * survives the thing that clears the count: every window ageing out, and a
+   * restart. Deleting both latch checks from `admitSendIn` makes both of these
+   * fail; deleting neither is what the design promises.
+   */
+  it("holds a person after every window has aged out and the pool has restarted, until a resume clears that one scope", async () => {
+    const held = await invitee("DurablePersonHold");
+    const other = await invitee("DurablePersonOther");
+
+    await seedAdmissions(held.jobId, RECIPIENT_DAILY_LIMIT, {
+      personId: held.personId,
+      ageMinutes: 120,
+    });
+
+    expect(await dispatchJob(held.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "deferred",
+    );
+    const scope = await withTransaction((tx) => readScopeIn(tx, "person", held.personId));
+    expect(scope?.latchedAt).not.toBeNull();
+
+    // Two days on: the five-minute, twenty-four-hour and seven-day windows are
+    // all empty for this person, exactly as the global stop's own test does it.
+    await observer.query(
+      "update public.delivery_attempts set safety_admitted_at = safety_admitted_at - interval '2 days' where safety_admitted_at is not null",
+    );
+    // A restart, so nothing in memory can be what is holding them.
+    await closePool();
+
+    const transport = accepts();
+    expect(await dispatchJob(held.jobId, { source: CONFIGURED, transport })).toBe("deferred");
+    expect(transport).not.toHaveBeenCalled();
+    expect((await jobRow(held.jobId)).safety_reason_code).toBe("person_hold");
+    expect(await attemptCount(held.jobId)).toBe(RECIPIENT_DAILY_LIMIT);
+
+    // And it is one person's hold, not a state of the club.
+    expect(await dispatchJob(other.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "accepted",
+    );
+
+    // The operator's resume is the only thing that ends it.
+    await withTransaction((tx) =>
+      resumeMessagingIn(tx, { scopeId: scope!.id, version: scope!.version }, "Reviewed the list"),
+    );
+    const afterResume = accepts();
+    expect(await dispatchJob(held.jobId, { source: CONFIGURED, transport: afterResume })).toBe(
+      "accepted",
+    );
+    expect(afterResume).toHaveBeenCalled();
+  }, 60_000);
+
+  it("holds a destination on the same terms, and resuming it clears nothing else", async () => {
+    const held = await invitee("DurableDestinationHold");
+    const key = destinationKey("whatsapp", e164(held.phone));
+
+    // Counted against the number only: nothing here reaches this person's own
+    // ceiling, so the destination hold is the only thing that can defer them.
+    await seedAdmissions(held.jobId, RECIPIENT_DAILY_LIMIT, {
+      destination: key,
+      ageMinutes: 120,
+    });
+
+    expect(await dispatchJob(held.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "deferred",
+    );
+    expect((await jobRow(held.jobId)).safety_reason_code).toBe("destination_hold");
+    const scope = await withTransaction((tx) => readScopeIn(tx, "destination", key));
+    expect(scope?.latchedAt).not.toBeNull();
+    // The person themselves was never held, so they have no scope row at all.
+    expect(await withTransaction((tx) => readScopeIn(tx, "person", held.personId))).toBeNull();
+
+    await observer.query(
+      "update public.delivery_attempts set safety_admitted_at = safety_admitted_at - interval '2 days' where safety_admitted_at is not null",
+    );
+    await closePool();
+
+    const transport = accepts();
+    expect(await dispatchJob(held.jobId, { source: CONFIGURED, transport })).toBe("deferred");
+    expect(transport).not.toHaveBeenCalled();
+    expect((await jobRow(held.jobId)).safety_reason_code).toBe("destination_hold");
+
+    await withTransaction((tx) =>
+      resumeMessagingIn(tx, { scopeId: scope!.id, version: scope!.version }, "Checked the number"),
+    );
+    const afterResume = accepts();
+    expect(await dispatchJob(held.jobId, { source: CONFIGURED, transport: afterResume })).toBe(
+      "accepted",
+    );
+    // The global stop is untouched by a destination being resumed.
+    const global = await globalScope();
+    expect(global?.latchedAt).toBeNull();
+    expect(global?.pausedAt).toBeNull();
+  }, 60_000);
+});
+
+describe("the safety table holds holds, and nothing else", () => {
+  /**
+   * LAN-394 review, B-01. The table's comment, ADR 0039 and the data-model map
+   * all say "one per person or destination **that has been held**". An ordinary
+   * admission must therefore leave nothing behind: a row per recipient the club
+   * has ever messaged would be a permanent, unbounded store of person ids and
+   * destination fingerprints with no retention at all.
+   */
+  it("records no scope row for a recipient an ordinary send does not hold", async () => {
+    const target = await invitee("NoScopeRow");
+    const key = destinationKey("whatsapp", e164(target.phone));
+
+    expect(await dispatchJob(target.jobId, { source: CONFIGURED, transport: accepts() })).toBe(
+      "accepted",
+    );
+
+    const rows = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.messaging_safety_scopes
+        where (scope_kind = 'person' and scope_key = $1)
+           or (scope_kind = 'destination' and scope_key = $2)`,
+      [target.personId, key],
+    );
+    expect(rows.rows[0].count).toBe("0");
+  });
+
+  it("removes a recipient scope that is holding nothing once the retention window has passed", async () => {
+    const resumed = await invitee("SweptScope");
+    const stillHeld = await invitee("KeptScope");
+
+    // One scope that was held and has been resumed, and one that is still
+    // holding, both last touched nine days ago.
+    await observer.query(
+      `insert into public.messaging_safety_scopes (scope_kind, scope_key, updated_at)
+       values ('person', $1, now() - interval '9 days')`,
+      [resumed.personId],
+    );
+    await observer.query(
+      `insert into public.messaging_safety_scopes
+         (scope_kind, scope_key, latched_at, latch_reason_code, updated_at)
+       values ('person', $1, now() - interval '9 days', 'person_hold', now() - interval '9 days')`,
+      [stillHeld.personId],
+    );
+
+    const removed = await withTransaction((tx) => clearExpiredSafetyScopesIn(tx));
+    expect(removed).toBeGreaterThanOrEqual(1);
+
+    expect(await withTransaction((tx) => readScopeIn(tx, "person", resumed.personId))).toBeNull();
+    // A live hold is never swept, however old it is: only a resume ends one.
+    expect(
+      await withTransaction((tx) => readScopeIn(tx, "person", stillHeld.personId)),
+    ).not.toBeNull();
+    // And neither are the rows the migration created.
+    expect(await globalScope()).not.toBeNull();
+    expect(await withTransaction((tx) => readScopeIn(tx, "provider", "whatsapp"))).not.toBeNull();
   });
 });
 
@@ -874,9 +1054,24 @@ describe("the independent alert route", () => {
     try {
       const holder = await invitee("AlertHolder");
       const last = await invitee("AlertLast");
-      await seedAdmissions(holder.jobId, GLOBAL_EMERGENCY_LIMIT - 1, {
+      // The fixture whose dispatch opens the incident is `last`, so `last` is
+      // what the assertions below have to be able to see. It gets an email
+      // address as well as a number, because the alert route would carry either
+      // one just as easily.
+      const lastEmail = `alertlast.${last.personId.slice(0, 8)}@example.invalid`;
+      await observer.query(
+        `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+         values ($1, 'email', $2, false)`,
+        [last.personId, lastEmail],
+      );
+      // Seeded to one below the ceiling *net of whatever is already inside the
+      // window*, so `last`'s own send is the admission that trips it. Without
+      // that the stop is already tripped when the dispatch arrives, the guard
+      // refuses before it has a recipient in hand, and the one path that holds
+      // the destination while it emits is never exercised.
+      await seedAdmissions(holder.jobId, GLOBAL_EMERGENCY_LIMIT - 1 - (await admittedInDay()), {
         personId: holder.personId,
-        destination: destinationKey("whatsapp", holder.phone),
+        destination: destinationKey("whatsapp", e164(holder.phone)),
         ageMinutes: 120,
       });
       await dispatchJob(last.jobId, { source: CONFIGURED, transport: accepts() });
@@ -885,15 +1080,82 @@ describe("the independent alert route", () => {
         (record) => record.event === SAFETY_LOG_EVENT && record.kind === "global_emergency_stop",
       );
       expect(opened).toBeDefined();
+      // The admitted path, not the refusal: this is the send that reached the
+      // ceiling rather than one turned away after it.
+      expect((opened!.counts as { admittedInDay: number }).admittedInDay).toBe(
+        GLOBAL_EMERGENCY_LIMIT,
+      );
       expect(Object.keys(opened!).sort()).toEqual(
         ["counts", "event", "kind", "page", "phase", "reasonCode", "scope", "severity"].sort(),
       );
 
+      // Everything that names the person this incident was opened by, in every
+      // form the sending path produces: the id, both halves of the name, the
+      // number as the roster holds it and as a provider receives it, the email
+      // address, and the fingerprints of both destinations.
       const serialised = JSON.stringify(records);
-      expect(serialised).not.toContain(holder.personId);
+      for (const forbidden of [
+        last.personId,
+        MARKER,
+        "AlertLast",
+        last.phone.replace(/\s/g, ""),
+        e164(last.phone),
+        lastEmail,
+        destinationKey("whatsapp", e164(last.phone)),
+        destinationKey("email", lastEmail),
+        holder.personId,
+        holder.phone.replace(/\s/g, ""),
+        e164(holder.phone),
+        destinationKey("whatsapp", e164(holder.phone)),
+      ]) {
+        expect(serialised).not.toContain(forbidden);
+      }
+    } finally {
+      setSafetyMonitor(previous);
+    }
+  }, 60_000);
+
+  it("says the stop is over by the same route the stop was announced on", async () => {
+    // LAN-394 review, B-04. A resume is the only exit from the emergency stop
+    // and it nulls the incident timestamp, so the sweep's reconciler can never
+    // report the recovery: the line has to come from the resume itself.
+    const records: Record<string, unknown>[] = [];
+    const previous = setSafetyMonitor((record) => records.push({ ...record }));
+    try {
+      const holder = await invitee("RecoveryHolder");
+      const last = await invitee("RecoveryLast");
+      await seedAdmissions(holder.jobId, GLOBAL_EMERGENCY_LIMIT - 1, { ageMinutes: 120 });
+      await dispatchJob(last.jobId, { source: CONFIGURED, transport: accepts() });
+
+      const stopped = await globalScope();
+      expect(stopped?.latchedAt).not.toBeNull();
+
+      // Only what the resume itself says.
+      records.length = 0;
+      await withTransaction((tx) =>
+        resumeMessagingIn(
+          tx,
+          { scopeId: stopped!.id, version: stopped!.version },
+          "Checked the import and it was one list, not forty",
+        ),
+      );
+
+      const recovered = records.filter((record) => record.phase === "recovered");
+      expect(recovered).toHaveLength(1);
+      expect(recovered[0].kind).toBe("global_emergency_stop");
+      expect(recovered[0].event).toBe(SAFETY_LOG_EVENT);
+      expect(Object.keys(recovered[0]).sort()).toEqual(
+        ["counts", "event", "kind", "page", "phase", "reasonCode", "scope", "severity"].sort(),
+      );
+      expect(Object.values(recovered[0].counts as Record<string, unknown>)).toEqual(
+        Object.values(recovered[0].counts as Record<string, unknown>).map(Number),
+      );
+
+      // Counts and codes, and not the operator's typed reason or the person the
+      // last admitted message went to.
+      const serialised = JSON.stringify(recovered);
+      expect(serialised).not.toContain("Checked the import");
       expect(serialised).not.toContain(last.personId);
-      expect(serialised).not.toContain(holder.phone.replace(/\s/g, ""));
-      expect(serialised).not.toContain(destinationKey("whatsapp", holder.phone));
       expect(serialised).not.toContain(MARKER);
     } finally {
       setSafetyMonitor(previous);
@@ -955,7 +1217,7 @@ describe("the identifying counting fields", () => {
     await dispatchJob(target.jobId, { source: CONFIGURED, transport: accepts() });
 
     // A hold on the number this person was messaged at.
-    const key = destinationKey("whatsapp", `44${target.phone.replace(/\D/g, "").slice(1)}`);
+    const key = destinationKey("whatsapp", e164(target.phone));
     await observer.query(
       `insert into public.messaging_safety_scopes (scope_kind, scope_key, latched_at, latch_reason_code)
        select 'destination', a.safety_destination_key, now(), 'destination_hold'
@@ -982,6 +1244,56 @@ describe("the identifying counting fields", () => {
       "select count(*)::text as count from public.messaging_safety_scopes where scope_kind = 'destination'",
     );
     expect(scopes.rows[0].count).toBe("0");
+  });
+
+  it("removes an erased person's destination hold even after their attempts stopped naming it", async () => {
+    // LAN-394 review, B-01. The reviewer's replay: erasure found a destination
+    // scope only through `delivery_attempts.safety_destination_key`, and the
+    // eight-day sweep had just nulled it — so a person erased nine days after
+    // their last message left their number's fingerprint in this table for
+    // ever. Erasure now computes the fingerprints from the contact points it is
+    // about to delete.
+    const target = await invitee("ErasedLate");
+    await dispatchJob(target.jobId, { source: CONFIGURED, transport: accepts() });
+
+    const attempt = await observer.query<{ safety_destination_key: string | null }>(
+      "select safety_destination_key from public.delivery_attempts where notification_job_id = $1",
+      [target.jobId],
+    );
+    const key = attempt.rows[0].safety_destination_key;
+    // The fingerprint the sender wrote is the one the contact point produces:
+    // if these ever diverge, erasure by contact point would find nothing.
+    expect(key).toBe(destinationKey("whatsapp", e164(target.phone)));
+
+    await observer.query(
+      `insert into public.messaging_safety_scopes (scope_kind, scope_key, latched_at, latch_reason_code)
+       values ('destination', $1, now(), 'destination_hold')
+       on conflict (scope_kind, scope_key) do nothing`,
+      [key],
+    );
+
+    // Nine days later, and the retention sweep has run: the attempt no longer
+    // says who it was for.
+    await observer.query(
+      `update public.delivery_attempts
+          set safety_admitted_at = now() - ($2 || ' days')::interval
+        where notification_job_id = $1`,
+      [target.jobId, String(SAFETY_FIELD_RETENTION_DAYS + 1)],
+    );
+    expect(await withTransaction((tx) => clearExpiredSafetyFieldsIn(tx))).toBeGreaterThanOrEqual(1);
+    const orphaned = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.delivery_attempts where safety_destination_key = $1",
+      [key],
+    );
+    expect(orphaned.rows[0].count).toBe("0");
+
+    await withTransaction((tx) => anonymisePersonIn(tx, target.personId));
+
+    const survived = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.messaging_safety_scopes where scope_key = $1",
+      [key],
+    );
+    expect(survived.rows[0].count).toBe("0");
   });
 });
 

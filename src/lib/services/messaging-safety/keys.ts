@@ -2,6 +2,8 @@ import "server-only";
 
 import crypto from "node:crypto";
 
+import { toE164 } from "@/lib/delivery/phone-shape";
+
 /**
  * How a destination is counted without storing a second copy of it. LAN-394.
  *
@@ -44,4 +46,51 @@ export function destinationKey(channel: "whatsapp" | "email", recipient: string)
     .createHash("sha256")
     .update(`${DESTINATION_KEY_VERSION}:${channel}:${normalised}`, "utf8")
     .digest("hex");
+}
+
+/** One recorded contact point, as the two senders read it. */
+export interface ContactPointValue {
+  readonly kind: string;
+  readonly rawValue: string;
+  readonly normalisedValue: string | null;
+}
+
+/**
+ * Every destination fingerprint one person's recorded contact points could
+ * have produced.
+ *
+ * This exists for erasure, and for one specific reason (LAN-394 review, B-01):
+ * a destination scope is keyed by a fingerprint, and the only other way to find
+ * it — the `safety_destination_key` on the person's own delivery attempts — has
+ * been null since the eight-day retention sweep cleared it. An erasure carried
+ * out nine days after somebody's last message would otherwise leave their
+ * number's fingerprint in this table for ever. So erasure computes the
+ * fingerprints from the contact points themselves, while it still holds them.
+ *
+ * Deliberately generous: both the normalised and the raw form of every value,
+ * on whichever channel could send to it, because the sender picks one of those
+ * forms and an erasure that guessed the wrong one would leave the row behind.
+ * A fingerprint of a value this person does not hold simply matches nothing.
+ */
+export function destinationKeysForContactPoints(
+  contacts: readonly ContactPointValue[],
+  defaultCallingCode: string,
+): readonly string[] {
+  const keys = new Set<string>();
+  for (const contact of contacts) {
+    for (const value of [contact.normalisedValue, contact.rawValue]) {
+      const trimmed = value?.trim() ?? "";
+      if (trimmed === "") continue;
+
+      // `selectEmailAddress` lower-cases and trims whatever is in an `email`
+      // row; `selectMobileNumber` converts a phone row to E.164 or refuses.
+      if (contact.kind === "email") {
+        keys.add(destinationKey("email", trimmed));
+        continue;
+      }
+      const e164 = toE164(trimmed, defaultCallingCode);
+      if (e164) keys.add(destinationKey("whatsapp", e164));
+    }
+  }
+  return [...keys];
 }

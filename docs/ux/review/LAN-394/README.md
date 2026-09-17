@@ -18,6 +18,7 @@ are readable.
 | `desktop-messaging-paused.png`, `phone375-messaging-paused.png` | Paused                                            | The notice at the top of the page, linking to the section. The controls are at the bottom, so a paused state would otherwise be a scroll away on the one page that can end it.    |
 | `desktop-safety-paused.png`, `phone375-safety-paused.png`       | Paused                                            | Who paused it, their reason, when — and **Resume messaging** in place of **Pause messaging**. Exactly one of the two is ever offered.                                             |
 | `desktop-messaging-held.png`, `phone375-messaging-held.png`     | Provider temporarily unavailable, one person held | The whole page in the state an operator would open it in after something went wrong.                                                                                              |
+| `desktop-safety-limits.png`                                     | Sending normally, disclosure open                 | "Limits and current use" expanded: every threshold, read-only, with the current use beside it and the decision line under it. There is no input, no stepper and no save.          |
 | `desktop-safety-held.png`, `phone375-safety-held.png`           | Provider temporarily unavailable, one person held | The holds list: a person named by name with their own **Resume**, and the WhatsApp circuit with the time it rests until and no control, because a provider cools down on its own. |
 
 ## What to check
@@ -25,10 +26,10 @@ are readable.
 1. **The order.** Current state, then the one sentence, then what is waiting,
    then the limits and current use, then the controls, then active holds, then
    recent changes. That is the approved UX contract's order exactly.
-2. **The limits are read-only.** There is no input, no stepper and no save
-   anywhere in "Limits and current use" — they are constants in code with the
-   decision line under them, and the section shows "Set by — Brian, 17 September
-   2026".
+2. **The limits are read-only.** `desktop-safety-limits.png` is that section
+   open. There is no input, no stepper and no save anywhere in it — they are
+   constants in code with the decision line under them, and the section shows
+   "Set by — Brian, 17 September 2026".
 3. **There is no "send all now" and no "clear counters".** Neither exists, on
    either width.
 4. **A held number is named by the people it reaches**, never by its
@@ -52,6 +53,13 @@ slot's own port with the seeded synthetic dataset. The three states were set up
 by writing the safety scope rows directly — a pause, a person hold and a
 provider cooldown — because reaching them for real would mean sending three
 thousand messages, ten to one person, and breaking a provider.
+
+`phone375-safety-normal.png` and `desktop-safety-limits.png` were taken in a
+second pass after the independent review (A-07). The page's app bar is sticky,
+so an element capture of the section scrolled to the top of the viewport had the
+bar sitting over the "Now" line; for the section-only captures the bar is taken
+out of the flow first, which is why the section reads from its first row. The
+whole-page captures are untouched and still show the bar where it belongs.
 
 The login is an **agent-only** local account created for this capture, not
 Brian's review account: that credential is not initialized in this worktree, and

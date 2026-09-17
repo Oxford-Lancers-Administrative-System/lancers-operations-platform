@@ -398,3 +398,34 @@ export async function clearExpiredSafetyFieldsIn(tx: Tx): Promise<number> {
   );
   return result.rowCount ?? 0;
 }
+
+/**
+ * Removes recipient scope rows that hold nothing any more.
+ *
+ * The other half of the same retention decision, and the reason this table can
+ * be described honestly as "one row per person or destination that has been
+ * held" (LAN-394 review, B-01). A recipient row only ever exists because
+ * something was held; once the hold has been resumed and eight days have
+ * passed with nothing further recorded against it, the row is a person id or a
+ * destination fingerprint that nothing is using, so it goes — on the same tick,
+ * by the same rule, as the two identifying fields on the attempts themselves.
+ *
+ * Deliberately narrow, three times over: `person` and `destination` scopes
+ * only, so the global row and the two provider circuits can never be touched;
+ * nothing currently paused, latched or cooling down; and nothing a waiting job
+ * still points at, so a deferral can never lose the name of what is holding it.
+ */
+export async function clearExpiredSafetyScopesIn(tx: Tx): Promise<number> {
+  const result = await tx.query(
+    `delete from public.messaging_safety_scopes s
+      where s.scope_kind in ('person', 'destination')
+        and s.paused_at is null
+        and s.latched_at is null
+        and s.cooldown_until is null
+        and s.updated_at < now() - $1::interval
+        and not exists (
+          select 1 from public.notification_jobs j where j.safety_block_scope_id = s.id)`,
+    [`${SAFETY_FIELD_RETENTION_DAYS} days`],
+  );
+  return result.rowCount ?? 0;
+}

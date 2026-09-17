@@ -21,6 +21,7 @@ import type { SafetyReasonCode } from "./reasons";
 import {
   GLOBAL_SCOPE_KEY,
   latchScopeIn,
+  lockOrCreateScopeIn,
   lockScopeIn,
   openIncidentIn,
   policyMatches,
@@ -150,7 +151,7 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
   // 1. The global row, first and always. Every admission, every settlement and
   //    every operator control takes this lock before any other, which is what
   //    makes the order total.
-  const global = await lockScopeIn(tx, "global", GLOBAL_SCOPE_KEY);
+  const global = await lockOrCreateScopeIn(tx, "global", GLOBAL_SCOPE_KEY);
   if (!global || !policyMatches(global)) {
     // No safety state, or state set up for a different revision of the policy.
     // Neither is a reason to send: "Safety status unavailable" is the honest
@@ -170,7 +171,7 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
 
   // 3. The provider circuit. WhatsApp and email are independent scopes, so one
   //    being unreachable never stops the other.
-  const provider = await lockScopeIn(tx, "provider", request.channel);
+  const provider = await lockOrCreateScopeIn(tx, "provider", request.channel);
   if (!provider) return deferred("safety_unavailable", null, global);
   if (provider.pausedAt) return deferred("paused_by_operator", null, provider);
 
@@ -185,7 +186,14 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
   // provider is well again.
   const isProbe = provider.cooldownStage > 0 && provider.cooldownUntil !== null;
 
-  // 4. The recipient's two scopes, in the fixed order.
+  // 4. The recipient's two scopes, in the fixed order — read, never created.
+  //
+  //    A person or a destination that has never been held has no row here, and
+  //    an absent row is read as "no hold". Ordinary sending therefore leaves no
+  //    trace in this table at all: the only rows in it are holds, and the
+  //    retention sweep takes them away again once they hold nothing. The
+  //    exclusion two concurrent claimers need is the global row above, which
+  //    this transaction is still holding.
   const key = destinationKey(request.channel, request.recipient);
   const personScope = request.personId ? await lockScopeIn(tx, "person", request.personId) : null;
   if (personScope?.latchedAt) return deferred("person_hold", null, personScope);
@@ -277,7 +285,9 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
       )
     ).count;
     if (personDay >= RECIPIENT_DAILY_LIMIT || personWeek >= RECIPIENT_WEEKLY_LIMIT) {
-      const scope = personScope ?? (await lockScopeIn(tx, "person", request.personId));
+      // The hold is recorded now, which is the moment this person's scope row
+      // is allowed to exist at all.
+      const scope = personScope ?? (await lockOrCreateScopeIn(tx, "person", request.personId));
       if (scope) await latchScopeIn(tx, scope.id, "person_hold");
       return deferred("person_hold", null, scope);
     }
@@ -290,7 +300,7 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
     await countAdmitted(tx, now, DAYS(RECIPIENT_WEEKLY_WINDOW_DAYS), "safety_destination_key", key)
   ).count;
   if (destinationDay >= RECIPIENT_DAILY_LIMIT || destinationWeek >= RECIPIENT_WEEKLY_LIMIT) {
-    const scope = destinationScope ?? (await lockScopeIn(tx, "destination", key));
+    const scope = destinationScope ?? (await lockOrCreateScopeIn(tx, "destination", key));
     if (scope) await latchScopeIn(tx, scope.id, "destination_hold");
     return deferred("destination_hold", null, scope);
   }
@@ -331,14 +341,14 @@ export async function admitSendIn(tx: Tx, request: AdmissionRequest): Promise<Ad
     request.personId &&
     (personDay + 1 >= RECIPIENT_DAILY_LIMIT || personWeek + 1 >= RECIPIENT_WEEKLY_LIMIT)
   ) {
-    const scope = personScope ?? (await lockScopeIn(tx, "person", request.personId));
+    const scope = personScope ?? (await lockOrCreateScopeIn(tx, "person", request.personId));
     if (scope) await latchScopeIn(tx, scope.id, "person_hold");
   }
   if (
     destinationDay + 1 >= RECIPIENT_DAILY_LIMIT ||
     destinationWeek + 1 >= RECIPIENT_WEEKLY_LIMIT
   ) {
-    const scope = destinationScope ?? (await lockScopeIn(tx, "destination", key));
+    const scope = destinationScope ?? (await lockOrCreateScopeIn(tx, "destination", key));
     if (scope) await latchScopeIn(tx, scope.id, "destination_hold");
   }
 

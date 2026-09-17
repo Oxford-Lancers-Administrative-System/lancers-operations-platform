@@ -360,8 +360,16 @@ link, it writes no failure reason, and it goes out on a later tick without
 anybody pressing anything. The place it says so is **Messaging safety**, at the
 bottom of Administration → Messaging schedule.
 
-Two consequences worth knowing before they surprise you:
+Three consequences worth knowing before they surprise you:
 
+- **A backlog drains at about 25 messages a tick, not 50.** The shared allowance
+  is 50 in any rolling five minutes and the scheduler ticks every five minutes,
+  so a tick's own admissions are still inside the window when the next tick
+  starts and only the rest of the allowance is left. In steady state that
+  settles at about half the headline rate — roughly 25 a tick, about 300 an
+  hour. A backlog of 350 first messages therefore takes something over an hour
+  to clear rather than half of one, and 1,250 takes most of a morning. Nothing
+  is lost and nothing needs pressing; it is slower than the table alone reads.
 - **One person gets one message every five minutes.** An event whose invitation,
   first reminder and email rung are all overdue for the same player drains one
   rung per tick, not three in one. That is the point: a recovered backlog must

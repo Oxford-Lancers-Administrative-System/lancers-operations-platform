@@ -133,10 +133,50 @@ export async function safetyNowIn(tx: Tx): Promise<Date> {
 const SAFETY_STATE_MISSING_RULE = "messaging_safety_state_missing";
 
 /**
+ * Locks one scope if it exists, and creates nothing.
+ *
+ * This is the read a decision uses. A person or a destination the club has
+ * never had to hold has **no row at all** — the table holds one row per person
+ * or destination *that has been held*, which is what the table comment, ADR
+ * 0039 and the data-model map say, and what an absent row means here is "no
+ * hold", never "make one" (LAN-394 review, B-01). Creating a row on every
+ * ordinary admission would accumulate a permanent server-side record of every
+ * person and every number the club has ever messaged, which is precisely the
+ * personal data this feature gives an eight-day life everywhere else.
+ *
+ * ## Where the mutual exclusion comes from when there is no row to lock
+ *
+ * Every admission takes the global row with `for update` before it reaches a
+ * recipient check, and holds it to commit. Two concurrent claimers therefore
+ * cannot both read "no hold" and both admit: the second one waits for the
+ * first's commit and counts it. The `for update` here still matters for the
+ * rows that do exist — a hold being resumed while an admission reads it — but
+ * the global row is what makes the recipient checks exclusive, and it is what
+ * `admits exactly one of two concurrent claims` proves.
+ */
+export async function lockScopeIn(
+  tx: Tx,
+  kind: SafetyScopeKind,
+  key: string,
+): Promise<SafetyScope | null> {
+  const existing = await tx.query<ScopeRow>(
+    `select ${SCOPE_COLUMNS}
+       from public.messaging_safety_scopes
+      where scope_kind = $1::public.messaging_safety_scope_kind and scope_key = $2
+      for update`,
+    [kind, key],
+  );
+  return existing.rows[0] ? toScope(existing.rows[0]) : null;
+}
+
+/**
  * Locks one scope, creating it on first sight.
  *
- * A person or destination scope legitimately does not exist until something
- * needs to record a hold against it, so it is inserted on demand.
+ * Used for exactly two things: the global and provider rows, which must exist
+ * for anything to be decided at all, and the moment a hold is actually
+ * recorded against a person or a destination. A recipient row is therefore
+ * evidence that something was held, and the retention sweep removes it again
+ * once it holds nothing (`clearExpiredSafetyScopesIn`).
  *
  * The global and provider rows are created by the migration, and are re-created
  * here if they are somehow absent. That is not a permissive default: the row
@@ -152,19 +192,13 @@ const SAFETY_STATE_MISSING_RULE = "messaging_safety_state_missing";
  * cannot be reached — is still a fault, and still stops the send: the query
  * throws, and the throw takes the claim transaction down with it.
  */
-export async function lockScopeIn(
+export async function lockOrCreateScopeIn(
   tx: Tx,
   kind: SafetyScopeKind,
   key: string,
 ): Promise<SafetyScope | null> {
-  const existing = await tx.query<ScopeRow>(
-    `select ${SCOPE_COLUMNS}
-       from public.messaging_safety_scopes
-      where scope_kind = $1::public.messaging_safety_scope_kind and scope_key = $2
-      for update`,
-    [kind, key],
-  );
-  if (existing.rows[0]) return toScope(existing.rows[0]);
+  const existing = await lockScopeIn(tx, kind, key);
+  if (existing) return existing;
 
   await tx.query(
     `insert into public.messaging_safety_scopes (scope_kind, scope_key, policy_version)
@@ -173,14 +207,7 @@ export async function lockScopeIn(
     [kind, key, kind === "global" ? POLICY_VERSION : null],
   );
 
-  const created = await tx.query<ScopeRow>(
-    `select ${SCOPE_COLUMNS}
-       from public.messaging_safety_scopes
-      where scope_kind = $1::public.messaging_safety_scope_kind and scope_key = $2
-      for update`,
-    [kind, key],
-  );
-  return created.rows[0] ? toScope(created.rows[0]) : null;
+  return lockScopeIn(tx, kind, key);
 }
 
 /** Reads one scope without locking it. For the page, never for a decision. */
@@ -339,6 +366,16 @@ export async function pauseMessagingIn(
  * allowance is still spent simply defers again, with the next eligible time
  * shown. That is deliberate: there is no "clear counters" and no "send all
  * now".
+ *
+ * ## The recovery line
+ *
+ * A resume is the only exit from the global emergency stop, and it nulls
+ * `incident_alert_at` in the same statement — so the sweep's reconciler, which
+ * reports a recovery by noticing that timestamp against a scope that is no
+ * longer stopped, would never see it. The line is therefore emitted here
+ * (LAN-394 review, B-04). Without it the two office holders are told by the
+ * independent route that the club's messaging has stopped and never told by the
+ * same route that it has started again.
  */
 export async function resumeMessagingIn(
   tx: Tx,
@@ -391,6 +428,29 @@ export async function resumeMessagingIn(
       where safety_block_scope_id = $1`,
     [scope.id],
   );
+
+  if (
+    scope.scopeKind === "global" &&
+    wasLatched &&
+    scope.latchReasonCode === "global_emergency_stop"
+  ) {
+    const admitted = await tx.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.delivery_attempts
+        where safety_admitted_at > now() - $1::interval`,
+      [`${GLOBAL_EMERGENCY_WINDOW_HOURS} hours`],
+    );
+    emitSafetyEvent({
+      kind: "global_emergency_stop",
+      phase: "recovered",
+      scope: "global",
+      reasonCode: "global_emergency_stop",
+      counts: {
+        admittedInDay: Number(admitted.rows[0].count),
+        allowance: GLOBAL_EMERGENCY_LIMIT,
+      },
+    });
+  }
 
   await recordAudit(tx, {
     actorPersonId: operator.personId,

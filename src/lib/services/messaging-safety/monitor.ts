@@ -24,7 +24,9 @@ import "server-only";
  *
  * `emitSafetyEvent` is therefore deliberately narrow: it takes a fixed shape,
  * not a payload. There is no `detail` field to widen later by accident, and
- * `tests/messaging-safety-alerts.test.ts` asserts on the exact key set.
+ * `src/lib/services/messaging-safety.test.ts` — "carries counts and codes, and
+ * never a person" — asserts on the exact key set and greps every identifying
+ * value of the fixture that opened the incident out of what was emitted.
  *
  * ## Why delivery is not guaranteed and that is fine
  *
@@ -32,9 +34,21 @@ import "server-only";
  * notification channel can bounce. The durable status is the Messaging safety
  * section, which reads the database. This route exists so that somebody is
  * *told*, not so that being told is the mechanism anything depends on — and an
- * alert that fails must never fail the write that caused it, which is why every
- * caller emits after its transaction has committed and why this function cannot
- * throw.
+ * alert that fails must never fail the write that caused it, which is why this
+ * function cannot throw.
+ *
+ * ## Where it is emitted from, and what that costs
+ *
+ * `admitSendIn`, `openIncidentIn`, `resumeMessagingIn` and
+ * `recordProviderOutcomeIn` all emit **inside** their transaction, not after it
+ * commits. A transaction that rolls back after emitting therefore leaves a line
+ * describing an incident that did not durably happen. That is the safe
+ * direction and it is chosen deliberately: an alert about a stop that was
+ * rolled back sends somebody to look at a page that says "Sending normally",
+ * while the reverse — committing a stop and losing the alert — is the failure
+ * this whole route exists to prevent. The sweep's reconciler re-reports what is
+ * genuinely still open on the next tick, so a spurious line is corrected by the
+ * durable state within five minutes.
  */
 
 /** Which of the four things is being reported. */

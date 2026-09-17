@@ -55,7 +55,11 @@ lifecycle.**
 4. Durable state is one table, `messaging_safety_scopes`: a global row, one per
    provider, and one per person or destination that has been held. Pause (a
    person deciding) and latch (a threshold tripping) are separate columns, so
-   resuming one never clears the other.
+   resuming one never clears the other. A recipient row is written **only when a
+   hold is actually recorded** — an ordinary admission reads an absent row as
+   "no hold" and creates nothing — and the same eight-day sweep removes it again
+   once it holds nothing. The exclusion two concurrent claimers need comes from
+   the global row, which every admission locks first and holds to commit.
 5. **The thresholds live in code**, as named constants with the decision beside
    them, and are shown read-only on the page. A limit stored as data is a limit
    somebody can move without a decision, and the point of the feature is that
@@ -120,10 +124,17 @@ notification channel are the owner's to create.
 - **Destination fingerprints are not anonymisation.** SHA-256 over a small
   enumerable input space is personal data that is inconvenient to read, and it
   is treated as personal data: server storage only, eight days, and never in a
-  log or a browser payload.
+  log or a browser payload. An erasure removes a held destination's scope by
+  the fingerprints of the person's own contact points, computed before those
+  contact points are deleted, because the other route to it — the
+  `safety_destination_key` on their attempts — has been null since the eight-day
+  sweep cleared it. A destination two people share therefore loses its hold when
+  either of them is erased; that is the same trade as per-destination counting,
+  taken in the direction erasure requires.
 - **Rolling back to a pre-guard revision re-opens unguarded egress.** Stop the
   scheduler first.
 - **Older suites had to say "and then some time passed".** Several tests
   compress days of club life into one second; `agePastSafetyPacing` in
   `tests/helpers/service-layer.ts` is how they declare that, and it weakens
-  nothing — the weekly and global ceilings still apply.
+  nothing — it moves the clock, never a latch, and the weekly and global
+  ceilings still apply.

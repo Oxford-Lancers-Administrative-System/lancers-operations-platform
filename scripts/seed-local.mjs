@@ -5840,6 +5840,13 @@ try {
   // so `truncate … cascade` empties it. Without this the seeded database opens
   // the Messaging safety section reading "Safety status unavailable" until
   // something sends, which is honest but is not the state the club is in.
+  // The policy version below is POLICY_VERSION from
+  // src/lib/services/messaging-safety/policy.ts, copied rather than imported
+  // for the same reason the phone and email normalisation further down is
+  // copied: this script is plain ESM run by node, with no TypeScript loader,
+  // and nothing in scripts/ imports from src/. Drift fails closed — the
+  // application refuses to send and the section reads "Safety status
+  // unavailable" — rather than two revisions each enforcing their own ceiling.
   await client.query(
     `insert into public.messaging_safety_scopes (scope_kind, scope_key, policy_version)
      values ('global', 'global', 'lan-394-v1'), ('provider', 'whatsapp', null),

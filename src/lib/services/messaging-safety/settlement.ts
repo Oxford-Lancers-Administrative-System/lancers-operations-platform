@@ -8,7 +8,7 @@ import {
   PROVIDER_FAULT_STREAK,
   PROVIDER_FAULT_WINDOW_MINUTES,
 } from "./policy";
-import { lockScopeIn, safetyNowIn } from "./scopes";
+import { lockOrCreateScopeIn, safetyNowIn } from "./scopes";
 
 /**
  * What the provider's answer does to its circuit. LAN-394.
@@ -49,7 +49,7 @@ export async function recordProviderOutcomeIn(
   outcome: SendOutcome,
   observedProbeGeneration: number,
 ): Promise<void> {
-  const provider = await lockScopeIn(tx, "provider", channel);
+  const provider = await lockOrCreateScopeIn(tx, "provider", channel);
   if (!provider) return;
 
   if (provider.probeGeneration !== observedProbeGeneration) return;

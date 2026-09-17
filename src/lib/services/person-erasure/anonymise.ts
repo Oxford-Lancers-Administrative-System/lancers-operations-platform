@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { Tx } from "@/lib/db";
+import { resolveDefaultCallingCode } from "@/lib/delivery/config";
+import { destinationKeysForContactPoints } from "../messaging-safety";
 import { ERASED_DISPLAY_NAME, ERASED_TEXT } from "./shared";
 
 /**
@@ -39,6 +41,30 @@ async function run(tx: Tx, sql: string, params: unknown[]): Promise<number> {
 export async function anonymisePersonIn(tx: Tx, personId: string): Promise<ErasureCounts> {
   const deleted: Record<string, number> = {};
   const scrubbed: Record<string, number> = {};
+
+  // LAN-394. Read before anything is deleted, because it is the only thing
+  // that can still find this person's destination scopes: those rows are keyed
+  // by a fingerprint of the number or address itself, and the other route to
+  // them — `delivery_attempts.safety_destination_key` — has been null since the
+  // eight-day retention sweep cleared it. Computed here, used below, and the
+  // contact points themselves are gone two statements later.
+  const contacts = await tx.query<{
+    kind: string;
+    raw_value: string;
+    normalised_value: string | null;
+  }>(
+    `select kind::text as kind, raw_value, normalised_value
+       from public.contact_points where person_id = $1::uuid`,
+    [personId],
+  );
+  const destinationKeys = destinationKeysForContactPoints(
+    contacts.rows.map((row) => ({
+      kind: row.kind,
+      rawValue: row.raw_value,
+      normalisedValue: row.normalised_value,
+    })),
+    resolveDefaultCallingCode(),
+  );
 
   // -------------------------------------------------------------------------
   // Deleted outright: these rows are the person's contact details and nothing
@@ -95,12 +121,23 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
   // LAN-394. The messaging safety machinery's two identifying fields, and any
   // hold that was recorded against this person or one of their destinations.
   //
-  // Order matters: the destination scopes can only be found *through* the
-  // attempts, so they go first and the fields are cleared after. The attempt
-  // rows themselves stay, with their outcome, provider reference and failure
-  // reason intact — an erasure anonymises a person, it does not delete the
-  // club's record of what it did. `safety_admitted_at` stays for the same
-  // reason: the global accounting is about volume, not about anybody.
+  // Two routes to the destination scopes, because either one alone leaves a
+  // fingerprint behind. The fingerprints computed from the contact points above
+  // find a hold on a number whose attempts are older than the eight-day
+  // retention window, where `safety_destination_key` has already been nulled;
+  // the attempts still find a hold on a destination the person no longer has a
+  // contact point for. The fields are cleared after both.
+  //
+  // The attempt rows themselves stay, with their outcome, provider reference
+  // and failure reason intact — an erasure anonymises a person, it does not
+  // delete the club's record of what it did. `safety_admitted_at` stays for the
+  // same reason: the global accounting is about volume, not about anybody.
+  //
+  // A destination two people share loses its hold when either of them is
+  // erased. That is the same trade Brian accepted for per-destination counting
+  // on 17 September 2026, taken in the direction erasure requires: a
+  // fingerprint of an erased person's number does not stay in the database so
+  // that somebody else's hold can keep referring to it.
   // -------------------------------------------------------------------------
 
   deleted.messaging_safety_scopes = await run(
@@ -108,12 +145,13 @@ export async function anonymisePersonIn(tx: Tx, personId: string): Promise<Erasu
     `delete from public.messaging_safety_scopes
       where (scope_kind = 'person' and scope_key = $1::text)
          or (scope_kind = 'destination'
-             and scope_key in (
-               select a.safety_destination_key
-                 from public.delivery_attempts a
-                where a.safety_person_id = $1::uuid
-                  and a.safety_destination_key is not null))`,
-    [personId],
+             and (scope_key = any($2::text[])
+                  or scope_key in (
+                    select a.safety_destination_key
+                      from public.delivery_attempts a
+                     where a.safety_person_id = $1::uuid
+                       and a.safety_destination_key is not null)))`,
+    [personId, destinationKeys],
   );
 
   scrubbed.delivery_attempts_safety = await run(

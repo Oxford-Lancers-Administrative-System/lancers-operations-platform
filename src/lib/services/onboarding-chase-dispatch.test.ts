@@ -145,10 +145,6 @@ async function resumeAllMessaging(): Promise<void> {
   );
 }
 
-const SAFETY_DEFERRAL_LEAVES_NOTHING_BEHIND = `select status::text as status, attempt_count,
-       last_error, safety_reason_code
-  from public.notification_jobs where id = $1`;
-
 afterEach(async () => {
   // LAN-394: this suite's holds and provider circuit go with its fixtures.
   await clearRecipientSafetyState(observer);
@@ -1000,6 +996,85 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
     expect(escalation.rows[0].status).toBe("pending");
     expect(escalation.rows[0].attempt_count).toBe(0);
     expect(escalation.rows[0].safety_reason_code).toBe("paused_by_operator");
+  }, 60_000);
+
+  it("defers the exhaustion escalation at the dispatcher, and costs it nothing — LAN-394", async () => {
+    // LAN-394 review, A-02. The other six dispatchers each have a behavioural
+    // proof that a paused answer costs the message nothing; this one had only
+    // the source-callsite check. The dispatcher is called directly here, so
+    // what is under test is its own handling of a deferral rather than the
+    // sweep's selection.
+    const { personId, membershipId } = await createArrival();
+    await grantConsent(personId);
+    await setChase({ firstChaseAfterHours: 0, chaseCount: 1, chaseIntervalDays: 1 });
+
+    const { transport: chaseTransport } = acceptingTransport();
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: chaseTransport });
+    }
+    const chaseJob = await chaseJobId(membershipId, 1);
+    const attempt = await observer.query<{ provider_message_id: string }>(
+      "select provider_message_id from public.delivery_attempts where notification_job_id = $1",
+      [chaseJob],
+    );
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${MARKER}-deferred-escalation-${chaseJob}`,
+        providerMessageId: attempt.rows[0].provider_message_id,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    await pauseAllMessaging();
+    try {
+      // The sweep raises the escalation job; paused, it sends nothing.
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+
+      const raised = await observer.query<{ id: string }>(
+        `select id from public.notification_jobs where idempotency_key like $1`,
+        [`${ONBOARDING_CHASE_ESCALATION_KEY_PREFIX}%`],
+      );
+      expect(raised.rows.length).toBeGreaterThanOrEqual(1);
+      const escalationJobId = raised.rows[0].id;
+
+      const { sent, transport } = acceptingTransport();
+      expect(
+        await dispatchOnboardingChaseEscalationJob(escalationJobId, {
+          source: CONFIGURED,
+          transport,
+        }),
+      ).toBe("deferred");
+      expect(sent).toHaveLength(0);
+
+      const job = await observer.query<{
+        status: string;
+        attempt_count: number;
+        last_error: string | null;
+        safety_reason_code: string | null;
+      }>(
+        `select status::text as status, attempt_count, last_error, safety_reason_code
+           from public.notification_jobs where id = $1`,
+        [escalationJobId],
+      );
+      expect(job.rows[0].status).toBe("pending");
+      expect(job.rows[0].attempt_count).toBe(0);
+      expect(job.rows[0].last_error).toBeNull();
+      expect(job.rows[0].safety_reason_code).toBe("paused_by_operator");
+
+      const attempts = await observer.query<{ count: string }>(
+        "select count(*)::text as count from public.delivery_attempts where notification_job_id = $1",
+        [escalationJobId],
+      );
+      expect(attempts.rows[0].count).toBe("0");
+    } finally {
+      await resumeAllMessaging();
+    }
   }, 60_000);
 
   it("carries a count and a link, and no name — never a person's identity", async () => {

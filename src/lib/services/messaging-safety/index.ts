@@ -39,7 +39,7 @@ export {
   type AdmissionGranted,
 } from "./admission";
 
-export { destinationKey } from "./keys";
+export { destinationKey, destinationKeysForContactPoints } from "./keys";
 
 export {
   emitSafetyHeartbeat,
@@ -65,6 +65,7 @@ export { recordProviderOutcomeIn } from "./settlement";
 
 export {
   clearExpiredSafetyFieldsIn,
+  clearExpiredSafetyScopesIn,
   readMessagingSafetyStatus,
   safetyThresholds,
   type MessagingSafetyState,
