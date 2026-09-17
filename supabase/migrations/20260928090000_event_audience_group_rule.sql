@@ -60,13 +60,21 @@ alter table public.events
 -- 2. The groups an event was built from
 -- ---------------------------------------------------------------------------
 
+-- Both tables below carry a surrogate `id` beside their natural key. It is not
+-- decoration: the owner-run showcase rollback walks every foreign key to
+-- `public.people` and deletes what it finds by `id`, and refuses by name to
+-- follow a table that has none. The natural key is what the rule is keyed on
+-- and stays a unique constraint, which is what `on conflict` resolves against;
+-- the surrogate is what that rollback can hold on to.
+
 create table public.event_audience_groups (
+  id uuid primary key default gen_random_uuid(),
   event_id uuid not null,
   event_type public.event_type not null,
   audience_group public.audience_group not null,
   chosen_at timestamptz not null default now(),
   chosen_by_person_id uuid references public.people (id),
-  constraint event_audience_groups_key primary key (event_id, audience_group),
+  constraint event_audience_groups_key unique (event_id, audience_group),
   constraint event_audience_groups_event_fkey
     foreign key (event_id, event_type)
     references public.events (id, event_type) on delete cascade,
@@ -99,11 +107,12 @@ create index event_audience_groups_group_idx
 -- this person. LAN-393's hand-add is the one door that clears it.
 
 create table public.event_audience_exclusions (
+  id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events (id) on delete cascade,
   person_id uuid not null references public.people (id),
   excluded_at timestamptz not null default now(),
   excluded_by_person_id uuid references public.people (id),
-  constraint event_audience_exclusions_key primary key (event_id, person_id)
+  constraint event_audience_exclusions_key unique (event_id, person_id)
 );
 
 comment on table public.event_audience_exclusions is

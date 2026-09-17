@@ -201,10 +201,12 @@ function questionsForm(overrides: { id?: string; prompt?: string } = {}): FormDa
 const STORED_QUESTION_ID = "44444444-4444-4444-8444-444444444444";
 
 /** A confirmed audience, as the builder posts it: repeated `audienceKey` fields. */
-function approvalForm(keys: string[] = [PLAYER_KEY, COACH_KEY]): FormData {
+function approvalForm(keys: string[] = [PLAYER_KEY, COACH_KEY], groups: string[] = []): FormData {
   const form = new FormData();
   form.set("eventId", EVENT_ID);
   for (const key of keys) form.append("audienceKey", key);
+  // LAN-392: the builder posts the pressed group buttons beside the keys.
+  for (const group of groups) form.append("audienceGroup", group);
   return form;
 }
 
@@ -642,10 +644,12 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
       `REDIRECT:/operate/events/${EVENT_ID}?step=review`,
     );
 
-    expect(saveEventAudience).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, [
-      PLAYER_KEY,
-      COACH_KEY,
-    ]);
+    expect(saveEventAudience).toHaveBeenCalledWith(
+      OPERATOR_PERSON_ID,
+      EVENT_ID,
+      [PLAYER_KEY, COACH_KEY],
+      [],
+    );
   });
 
   it.each(NON_CALENDAR_ROLES)("refuses %s in the action", async (code) => {
@@ -671,7 +675,31 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
     // Duplicates included: de-duplication is the service's job, done against a
     // catalogue read inside the transaction. An action that filtered here would
     // be a second implementation of the rule.
-    expect(saveEventAudience).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, keys);
+    expect(saveEventAudience).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, keys, []);
+  });
+
+  /**
+   * LAN-392. The pressed groups travel beside the keys and are passed through
+   * exactly as posted: which of them this event's type actually offers is the
+   * service's answer, decided against a catalogue read inside the transaction,
+   * and an action that filtered here would be a second implementation of it.
+   */
+  it("passes the pressed groups through beside the keys", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+
+    await expect(
+      saveEventAudienceAction(
+        EMPTY_TRANSITION_STATE,
+        approvalForm([PLAYER_KEY], ["active_players", "recruits"]),
+      ),
+    ).rejects.toThrow("REDIRECT:");
+
+    expect(saveEventAudience).toHaveBeenCalledWith(
+      OPERATOR_PERSON_ID,
+      EVENT_ID,
+      [PLAYER_KEY],
+      ["active_players", "recruits"],
+    );
   });
 
   it("saves an empty selection rather than refusing it", async () => {
@@ -683,7 +711,7 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
       "REDIRECT:",
     );
 
-    expect(saveEventAudience).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, []);
+    expect(saveEventAudience).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, [], []);
   });
 
   it("shows a refusal to change an approved event's audience as a sentence", async () => {

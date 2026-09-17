@@ -92,10 +92,10 @@ begin
     raise exception 'LAN-76 pilot cleanup refused: a PILOT-LAN-76 event has passed approval. An approved or cancelled event is never removed by a scenario cleanup.';
   end if;
 
-  -- (c) Rows PostgreSQL would remove WITHOUT being asked. Both `on delete
-  --     cascade` foreign keys pointing at public.events are listed here. A
-  --     LAN-76 scenario event has neither, so any that exist mean the event
-  --     stopped being a scenario event.
+  -- (c) Rows PostgreSQL would remove WITHOUT being asked. Every `on delete
+  --     cascade` foreign key pointing at public.events is listed here. A
+  --     LAN-76 scenario event has none of them, so any that exist mean the
+  --     event stopped being a scenario event.
   if exists (
     select 1 from public.event_audience_members a
      join public.events e on e.id = a.event_id
@@ -110,6 +110,26 @@ begin
      where e.name like '%PILOT-LAN-76%'
   ) then
     raise exception 'LAN-76 pilot cleanup refused: event_questions rows hang off a scenario event and would be cascade-deleted.';
+  end if;
+
+  -- LAN-392 added two more `on delete cascade` foreign keys to public.events:
+  -- the audience groups an approved event keeps, and the people an approver
+  -- took out of one. A LAN-76 scenario event is a draft with neither, so
+  -- either existing means it stopped being a scenario event.
+  if exists (
+    select 1 from public.event_audience_groups g
+     join public.events e on e.id = g.event_id
+     where e.name like '%PILOT-LAN-76%'
+  ) then
+    raise exception 'LAN-76 pilot cleanup refused: event_audience_groups rows hang off a scenario event and would be cascade-deleted.';
+  end if;
+
+  if exists (
+    select 1 from public.event_audience_exclusions x
+     join public.events e on e.id = x.event_id
+     where e.name like '%PILOT-LAN-76%'
+  ) then
+    raise exception 'LAN-76 pilot cleanup refused: event_audience_exclusions rows hang off a scenario event and would be cascade-deleted.';
   end if;
 
   -- (d) Rows PostgreSQL would silently null out. The staging check is nested

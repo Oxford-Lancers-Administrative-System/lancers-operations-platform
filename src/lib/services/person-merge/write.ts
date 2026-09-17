@@ -57,6 +57,11 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "delivery_results", column: "actor_person_id" },
   { table: "event_audience_members", column: "added_by_person_id" },
   { table: "event_audience_members", column: "person_id" },
+  // LAN-392. Who recorded the group, and who recorded the deselection — actor
+  // columns with no per-person uniqueness to collide on, like every other
+  // `*_by_person_id` above.
+  { table: "event_audience_groups", column: "chosen_by_person_id" },
+  { table: "event_audience_exclusions", column: "excluded_by_person_id" },
   { table: "event_messaging_plans", column: "frozen_by_person_id" },
   { table: "events", column: "approved_by_person_id" },
   { table: "events", column: "audience_confirmed_by_person_id" },
@@ -158,6 +163,16 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
     reason:
       "who signed, on the record being merged away — LAN-361: re-pointing it would make one " +
       "person the signer twice and the second sign-off is the point",
+  },
+  {
+    table: "event_audience_exclusions",
+    column: "person_id",
+    reason:
+      "keyed (event_id, person_id) — LAN-392: copied onto the survivor first, ignoring a " +
+      "conflict, and the absorbed record's own rows then left where they are. Blind " +
+      "re-pointing would collide wherever the survivor was already excluded from the same " +
+      "event, and dropping it instead would quietly undo an approver's deliberate " +
+      "deselection the next time the survivor's standing changed",
   },
   {
     table: "season_messaging_consents",
@@ -311,6 +326,34 @@ async function repointProspects(
 }
 
 /** Q-16: a season membership the operator archived to clear the overlap refusal stays on the merged-away record. */
+/**
+ * LAN-392. An audience exclusion says "this event's group rule must never add
+ * this human". Merging two records is the club deciding they are one human, so
+ * a deselection recorded against either of them still applies — otherwise the
+ * survivor's next status change would re-invite somebody an approver
+ * deliberately left out.
+ *
+ * Copied rather than re-pointed because the key is `(event_id, person_id)`: a
+ * blind re-point collides wherever the survivor is already excluded from the
+ * same event. The absorbed record's rows stay where they are, inert, since the
+ * rule only ever reads the person it is acting for.
+ */
+async function carryAudienceExclusionsIn(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+): Promise<void> {
+  await tx.query(
+    `insert into public.event_audience_exclusions
+       (event_id, person_id, excluded_at, excluded_by_person_id)
+     select event_id, $1::uuid, excluded_at, excluded_by_person_id
+       from public.event_audience_exclusions
+      where person_id = $2::uuid
+     on conflict (event_id, person_id) do nothing`,
+    [survivorId, loserId],
+  );
+}
+
 async function repointSeasonMemberships(
   tx: Tx,
   survivorId: string,
@@ -588,6 +631,8 @@ export async function mergePersons(params: {
     // Q-3/Q-5: two more per-tuple-unique tables, same shape as consents above.
     await repointAgreements(tx, survivorPersonId, loserPersonId);
     await repointDisputes(tx, survivorPersonId, loserPersonId);
+    // LAN-392: the approver's deselections follow the human, not the record.
+    await carryAudienceExclusionsIn(tx, survivorPersonId, loserPersonId);
     await repointSeasonMemberships(
       tx,
       survivorPersonId,

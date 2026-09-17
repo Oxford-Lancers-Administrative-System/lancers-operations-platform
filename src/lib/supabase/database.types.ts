@@ -856,18 +856,21 @@ export type Database = {
           event_id: string
           excluded_at: string
           excluded_by_person_id: string | null
+          id: string
           person_id: string
         }
         Insert: {
           event_id: string
           excluded_at?: string
           excluded_by_person_id?: string | null
+          id?: string
           person_id: string
         }
         Update: {
           event_id?: string
           excluded_at?: string
           excluded_by_person_id?: string | null
+          id?: string
           person_id?: string
         }
         Relationships: [
@@ -922,6 +925,7 @@ export type Database = {
           chosen_by_person_id: string | null
           event_id: string
           event_type: Database["public"]["Enums"]["event_type"]
+          id: string
         }
         Insert: {
           audience_group: Database["public"]["Enums"]["audience_group"]
@@ -929,6 +933,7 @@ export type Database = {
           chosen_by_person_id?: string | null
           event_id: string
           event_type: Database["public"]["Enums"]["event_type"]
+          id?: string
         }
         Update: {
           audience_group?: Database["public"]["Enums"]["audience_group"]
@@ -936,6 +941,7 @@ export type Database = {
           chosen_by_person_id?: string | null
           event_id?: string
           event_type?: Database["public"]["Enums"]["event_type"]
+          id?: string
         }
         Relationships: [
           {

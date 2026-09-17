@@ -648,6 +648,33 @@ const GUARD_CASES: readonly GuardCase[] = [
   },
   {
     script: "cleanup",
+    message: "event_audience_groups rows hang off a scenario event",
+    cascadeTable: "public.event_audience_groups",
+    arrange: async (c) => {
+      const eventId = await createScenarioEvent(c);
+      await c.query(
+        `insert into public.event_audience_groups (event_id, event_type, audience_group)
+         select $1, e.event_type, 'active_players'
+           from public.events e where e.id = $1`,
+        [eventId],
+      );
+    },
+  },
+  {
+    script: "cleanup",
+    message: "event_audience_exclusions rows hang off a scenario event",
+    cascadeTable: "public.event_audience_exclusions",
+    arrange: async (c) => {
+      const eventId = await createScenarioEvent(c);
+      await c.query(
+        `insert into public.event_audience_exclusions (event_id, person_id)
+         values ($1, (select id from public.people limit 1))`,
+        [eventId],
+      );
+    },
+  },
+  {
+    script: "cleanup",
     message: "staging.legacy_event_rows reference a scenario event",
     cascadeTable: "staging.legacy_event_rows",
     arrange: async (c) => {
