@@ -44,18 +44,18 @@ gap after the last column, which is what "the scrollbar beside them" asks for.
 
 `LAN-392/desktop_event-with-late-joiner.png` and
 `LAN-392/phone375_event-with-late-joiner.png` are an approved recruitment event
-whose audience was built from the Recruits group, after recruits were added to
-the club with the event already approved.
+whose audience was built from the Recruits group, after one recruit — Tamsin
+Wrayburn — was added to the club with the event already approved.
 
 What to read on it:
 
-- **Audience — "9 confirmed", "Confirmed at approval, plus 3 added since."**
+- **Audience — "7 confirmed", "Confirmed at approval, plus 1 added since."**
   The count reflects the late joiners, and the line beside it no longer claims
   the whole audience was confirmed at approval, because it was not.
-- **Distribution — "9 invitations · 0 responses · 7 queued".** Computed from the
-  live rows, so the late joiners are in it.
-- **Everyone asked — 7**, with Tamsin Wrayburn's **Invitation Thu 20:19** beside
-  everybody else's **Invitation Wed 19:00**. That difference is the rule: the
+- **Distribution — "7 invitations · 0 responses · 7 queued".** Computed from the
+  live rows, so the late joiner is in it.
+- **Everyone asked — 7**, with Tamsin Wrayburn's invitation timed about ten
+  minutes from now beside everybody else's **Invitation Wed 19:00**. That difference is the rule: the
   event's own invitation instant for the people who were there at approval, and
   her own grace-delayed instant for the person who arrived afterwards. The rungs
   after it are the event's, shared with everyone.
@@ -71,7 +71,7 @@ approved event, below the amendment form.
 
 What to read on it:
 
-- **Add to audience**, with **Already invited 7** and **Can be added 37** — the
+- **Add to audience**, with **Already invited 7** and **Can be added 40** — the
   second number is the picker's own list, and every one of the seven already on
   the event is missing from it. The filter is by human, not by selection key, so
   somebody already invited as a committee member is not offered again as a
