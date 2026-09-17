@@ -123,7 +123,11 @@ async function pauseAllMessaging(): Promise<void> {
   await observer.query(
     `update public.messaging_safety_scopes
         set paused_at = now(),
-            paused_by_person_id = (select person_id from public.operator_accounts limit 1),
+            -- Any real Person. It was the first operator account's, which CI
+            -- does not have: the test job seeds the dataset but links no login,
+            -- so the subquery was null and the attribution constraint refused
+            -- the pause. A seeded database always has people.
+            paused_by_person_id = (select id from public.people order by created_at limit 1),
             paused_reason = 'Under test', version = version + 1, updated_at = now()
       where scope_kind = 'global'`,
   );
