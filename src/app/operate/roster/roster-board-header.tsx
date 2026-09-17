@@ -11,7 +11,10 @@ import {
   BAND_LABEL_INSET_PX,
   BAND_ROW_HEIGHT,
   bandOf,
+  COLLAPSED_LABEL_LINE_HEIGHT,
+  COLLAPSED_LABEL_MAX_HEIGHT,
   PLAYER_COLUMN_WIDTH,
+  SQUAD_BOUNDARY_BORDER,
   type Band,
   type ColumnDef,
 } from "./board-columns";
@@ -23,6 +26,7 @@ export default function BoardTableHead({
   collapsedBands,
   onToggleBand,
   bandBoundaries,
+  squadBoundaries,
   sortKey,
   sortDirection,
   setSort,
@@ -34,6 +38,8 @@ export default function BoardTableHead({
   collapsedBands: ReadonlySet<Band>;
   onToggleBand: (band: Band) => void;
   bandBoundaries: ReadonlySet<string>;
+  /** The last column of each special-teams squad — Brian's visual pass, item 5. */
+  squadBoundaries: ReadonlySet<string>;
   sortKey: string;
   sortDirection: "asc" | "desc";
   setSort: (key: string) => void;
@@ -150,6 +156,11 @@ export default function BoardTableHead({
           const band = bandOf(column.band);
           const filtered = (filters[column.key] ?? "") !== "";
           if (column.placeholder) {
+            // Brian's visual pass, item 2: a folded-up group used to be a bare
+            // strip of colour, so the two closed by default were told apart by
+            // hue alone. The name is written down the column instead — the
+            // spreadsheet's own answer to a column too narrow for its heading —
+            // which keeps the cell exactly as wide as it was.
             return (
               <TableCell
                 key={column.key}
@@ -159,10 +170,37 @@ export default function BoardTableHead({
                   minWidth: column.width,
                   width: column.width,
                   p: 0,
+                  verticalAlign: "bottom",
                   borderRight: bandBoundaries.has(column.key) ? 2 : 0,
                   borderRightColor: "background.paper",
                 }}
-              />
+              >
+                <Typography
+                  variant="caption"
+                  component="span"
+                  data-testid={`band-collapsed-label-${column.band}`}
+                  sx={{
+                    display: "block",
+                    // Bottom-to-top, the direction a vertical table heading is
+                    // conventionally read in.
+                    writingMode: "vertical-rl",
+                    transform: "rotate(180deg)",
+                    fontWeight: 700,
+                    fontSize: 10,
+                    letterSpacing: 0,
+                    lineHeight: `${COLLAPSED_LABEL_LINE_HEIGHT}px`,
+                    // Wraps down the column rather than running on: see the
+                    // note on `COLLAPSED_LABEL_MAX_HEIGHT`.
+                    whiteSpace: "normal",
+                    overflow: "hidden",
+                    height: COLLAPSED_LABEL_MAX_HEIGHT,
+                    py: 0.5,
+                    mx: "auto",
+                  }}
+                >
+                  {band.label}
+                </Typography>
+              </TableCell>
             );
           }
           return (
@@ -177,8 +215,13 @@ export default function BoardTableHead({
                 whiteSpace: "nowrap",
                 borderBottom: filtered ? 2 : 1,
                 borderBottomColor: filtered ? "primary.main" : "divider",
-                borderRight: bandBoundaries.has(column.key) ? 2 : 0,
-                borderRightColor: "background.paper",
+                // The white seam between two groups wins where a squad's last
+                // column is also its group's last — one boundary, not two.
+                ...(bandBoundaries.has(column.key)
+                  ? { borderRight: 2, borderRightColor: "background.paper" }
+                  : squadBoundaries.has(column.key)
+                    ? { borderRight: SQUAD_BOUNDARY_BORDER }
+                    : { borderRight: 0 }),
               }}
             >
               {column.groupHeading ? (

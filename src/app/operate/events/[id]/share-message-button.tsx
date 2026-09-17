@@ -9,7 +9,7 @@ import { shareMessageAction } from "./club-link-actions";
 
 /**
  * **Copy share message** — LAN-384. One button: it asks the server for the
- * four lines and puts them on the clipboard. No preview card, no send-to-
+ * six lines and puts them on the clipboard. No preview card, no send-to-
  * anything; the club cannot message groups, and this is the operator pasting
  * text into one themselves.
  */

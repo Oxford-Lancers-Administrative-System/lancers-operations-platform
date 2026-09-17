@@ -37,6 +37,7 @@ export function Fact({
   emphasis = false,
   multiline = false,
   labelItalic = false,
+  dense = false,
   testId,
 }: {
   label: string;
@@ -52,6 +53,12 @@ export function Fact({
   emphasis?: boolean;
   /** For a multi-line typed value where line breaks matter (LAN-264). `pre-line`, not `pre` — spaces still collapse. Off by default. */
   multiline?: boolean;
+  /**
+   * `inline` only — the tight row a record of one-word facts wants (Brian's
+   * visual pass of 2026-09-17, item 3: "rows are too tall"). The padding, not
+   * the type: the value is still `body2` and still one line of it.
+   */
+  dense?: boolean;
   testId?: string;
 }) {
   const rendered = isAbsent(value) ? (
@@ -93,7 +100,7 @@ export function Fact({
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={{ xs: 0.25, sm: 2 }}
-        sx={{ py: 1, alignItems: { sm: "baseline" } }}
+        sx={{ py: dense ? 0.25 : 1, alignItems: { sm: "baseline" } }}
         data-testid={testId ?? "fact"}
         data-label={label}
       >

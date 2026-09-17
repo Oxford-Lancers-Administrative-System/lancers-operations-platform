@@ -5,7 +5,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Typography from "@mui/material/Typography";
 import { NotRecorded } from "@/components/fact";
-import { RecordRow as Row, SAVING } from "@/components/record-field";
+import { FIELD_EDITOR_SX, FieldStatus, RecordRow as Row } from "@/components/record-field";
 
 /**
  * One uncapped multi-select record field — LAN-387. Formalwear used to be the
@@ -58,7 +58,7 @@ export default function MultiSelectField({
           onClose={onClose}
           onChange={(event) => onCommit(event.target.value as string[])}
           renderValue={(value) => (value as string[]).map(labelOf).join(", ") || "—"}
-          sx={{ minWidth: 220 }}
+          sx={{ ...FIELD_EDITOR_SX, minWidth: 220 }}
           MenuProps={{ slotProps: { paper: { sx: { maxHeight: 360 } } } }}
         >
           {options.map((option) => (
@@ -97,20 +97,7 @@ export default function MultiSelectField({
           )}
         </Box>
       )}
-      {saving ? (
-        <Typography
-          variant="caption"
-          sx={{ display: "block", color: "text.secondary", mt: 0.25 }}
-          data-testid="field-saving"
-        >
-          {SAVING}
-        </Typography>
-      ) : null}
-      {error ? (
-        <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.25 }}>
-          {error}
-        </Typography>
-      ) : null}
+      <FieldStatus saving={saving} error={error} />
     </Row>
   );
 }

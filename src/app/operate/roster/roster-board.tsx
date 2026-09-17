@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -13,6 +13,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { PinnedSelect } from "@/components/pinned-select";
 import { SAVING } from "@/components/record-field";
@@ -46,11 +47,14 @@ import {
 } from "./board-actions";
 import { commitWithRetry } from "./board-action-state";
 import {
-  COLLAPSED_BY_DEFAULT,
+  BOARD_ROW_HEIGHT,
+  collapsedBandsFrom,
   displayColumns,
   PLAYER_COLUMN_WIDTH,
+  squadBoundaryKeys,
   type ColumnDef,
 } from "./board-columns";
+import { saveCollapsedGroupsAction } from "./group-preference-actions";
 import { applyBoard, filterOptionLabel, filterOptions, optionListLabel } from "./board-data";
 import AddPlayersMenu from "./add-players-menu";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
@@ -67,6 +71,9 @@ const POSITION_COLUMN_BY_KEY: Readonly<Record<string, PositionColumn>> = Object.
   defencePosition: "defence",
   defenceBackupPosition: "defenceBackup",
 });
+
+/** How long a toggle settles before the account is told — folding four groups away is four clicks in about a second, and only where they end up is worth a write. */
+const COLLAPSE_SAVE_DELAY_MS = 600;
 
 function buildUrl(base: string, params: URLSearchParams): string {
   const query = params.toString();
@@ -85,6 +92,7 @@ export default function RosterBoard({
   initialFilters,
   initialSortKey,
   initialSortDirection,
+  initialCollapsedGroups,
 }: {
   operator: ResolvedOperator;
   columns: readonly ColumnDef[];
@@ -99,6 +107,8 @@ export default function RosterBoard({
   initialFilters: Readonly<Record<string, string>>;
   initialSortKey: string;
   initialSortDirection: "asc" | "desc";
+  /** What this operator's account remembers about folded-up groups, or `undefined` where it remembers nothing (LAN-387). */
+  initialCollapsedGroups: readonly string[] | undefined;
 }) {
   const [, startTransition] = useTransition();
   const [searchBox, setSearchBox] = useState(initialSearch);
@@ -111,8 +121,36 @@ export default function RosterBoard({
   const [cellError, setCellError] = useState<{ id: string; message: string } | null>(null);
   /** Which row's own save is in flight — LAN-380. `useTransition`'s own flag cannot answer it: the transition is over before the request is. */
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
-  /** Which groups are folded away — LAN-387. Special teams and Kit arrive closed; a closed group keeps one narrow cell so the row width holds at 375 px. */
-  const [collapsedBands, setCollapsedBands] = useState<ReadonlySet<Band>>(COLLAPSED_BY_DEFAULT);
+  /**
+   * Which groups are folded away — LAN-387. Special teams and Kit arrive closed
+   * for an operator who has never said otherwise; once they have, their own
+   * account answers instead (Brian's visual pass, item 1), on any device.
+   */
+  const [collapsedBands, setCollapsedBands] = useState<ReadonlySet<Band>>(() =>
+    collapsedBandsFrom(initialCollapsedGroups),
+  );
+
+  /**
+   * The stored preference, written behind the toggles rather than with them.
+   *
+   * Debounced because folding four groups away is four clicks in about a
+   * second, and each one would otherwise be its own round trip; the last state
+   * is the only one worth storing. Nothing on screen waits for it: the board
+   * already holds the truth while it is open, and a preference that failed to
+   * save is not worth interrupting an operator over.
+   */
+  const asArrived = useRef(true);
+  useEffect(() => {
+    // The state this board arrived holding is the state the account already
+    // stores, so writing it back would be a write per page load.
+    if (asArrived.current) {
+      asArrived.current = false;
+      return;
+    }
+    const groups = [...collapsedBands];
+    const timer = setTimeout(() => void saveCollapsedGroupsAction(groups), COLLAPSE_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [collapsedBands]);
 
   const drawn = useMemo(() => displayColumns(columns, collapsedBands), [columns, collapsedBands]);
   const toggleBand = useCallback((band: Band) => {
@@ -138,6 +176,8 @@ export default function RosterBoard({
    * three boundaries, equally.
    */
   const bandBoundaries = bandBoundaryKeys(drawn);
+  /** And the same seam, one level down, between one special-teams squad's four columns and the next — Brian's visual pass, item 5. */
+  const squadBoundaries = squadBoundaryKeys(drawn);
 
   /**
    * Search, filter and sort — applied here, over the one set of rows this page
@@ -555,6 +595,7 @@ export default function RosterBoard({
             collapsedBands={collapsedBands}
             onToggleBand={toggleBand}
             bandBoundaries={bandBoundaries}
+            squadBoundaries={squadBoundaries}
             sortKey={sortKey}
             sortDirection={sortDirection}
             setSort={setSort}
@@ -575,36 +616,54 @@ export default function RosterBoard({
                     borderColor: "divider",
                     minWidth: PLAYER_COLUMN_WIDTH,
                     width: PLAYER_COLUMN_WIDTH,
+                    // Brian's visual pass, items 3 and 4. This cell used to set
+                    // the row's height for the whole board: its link was a
+                    // `Button`, and the theme gives a medium button the 44px
+                    // touch target, which made every row 57px tall for one word
+                    // of text. This table is drawn only from `md` up, where the
+                    // pointer is a mouse.
+                    height: BOARD_ROW_HEIGHT,
+                    py: 0,
+                    boxSizing: "border-box",
                   }}
                 >
-                  <Button
-                    href={`/operate/roster/${row.membershipId}`}
-                    sx={{
-                      textAlign: "left",
-                      justifyContent: "flex-start",
-                      p: 0,
-                      textTransform: "none",
-                      fontWeight: 600,
-                      minWidth: 0,
-                    }}
+                  {/* Saving and the last refusal sit *beside* the name rather
+                      than under it: a second line here grew the row the moment
+                      a pick was made and dropped it back when the save landed,
+                      which is exactly what item 4 refuses. Both truncate; the
+                      refusal carries its full text in a tooltip. */}
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: "baseline", minWidth: 0, overflow: "hidden" }}
                   >
-                    {row.displayName}
-                  </Button>
-                  {savingRowId === row.membershipId ? (
                     <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: "block" }}
-                      data-testid="row-saving"
+                      component="a"
+                      href={`/operate/roster/${row.membershipId}`}
+                      variant="body2"
+                      noWrap
+                      sx={{ fontWeight: 600, color: "primary.main", minWidth: 0 }}
                     >
-                      {SAVING}
+                      {row.displayName}
                     </Typography>
-                  ) : null}
-                  {cellError?.id === row.membershipId ? (
-                    <Typography variant="caption" color="error" sx={{ display: "block" }}>
-                      {cellError.message}
-                    </Typography>
-                  ) : null}
+                    {savingRowId === row.membershipId ? (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        noWrap
+                        data-testid="row-saving"
+                      >
+                        {SAVING}
+                      </Typography>
+                    ) : null}
+                    {cellError?.id === row.membershipId ? (
+                      <Tooltip title={cellError.message} placement="top">
+                        <Typography variant="caption" color="error" noWrap>
+                          {cellError.message}
+                        </Typography>
+                      </Tooltip>
+                    ) : null}
+                  </Stack>
                 </TableCell>
 
                 {drawn.map((column) => (
@@ -623,6 +682,7 @@ export default function RosterBoard({
                     }
                     canManageStatus={canManageStatus}
                     bandEnd={bandBoundaries.has(column.key)}
+                    squadEnd={squadBoundaries.has(column.key)}
                     onOpen={() => setEditing({ id: row.membershipId, key: column.key })}
                     onClose={() => setEditing(null)}
                     onCommit={(next) => commitFor(row, column, next)}

@@ -11,6 +11,57 @@ import { StatusChip, type StatusDomain } from "./status-chip";
 /** The one word a field says while its own save is outstanding — LAN-380. A state, not a sentence. */
 export const SAVING = "Saving…";
 
+/**
+ * The height every state of a record field's value occupies — Brian's visual
+ * pass of 2026-09-17, item 4: "a row must not change height when a cell is
+ * edited or just after a pick".
+ *
+ * A record row's display state is one line of `body2`, about 20px; its editor
+ * is a `Select`, 40px out of the box. Opening one therefore grew its row and
+ * closing it dropped the row back. Both are given this slot instead, which is
+ * tall enough for the control and is what the read-only state reserves, so the
+ * row is the same height whatever it is doing.
+ */
+const FIELD_CONTROL_HEIGHT = 24;
+
+/** The same height, said to a `Select`, whose own padding is what makes it 40px. */
+export const FIELD_EDITOR_SX = {
+  height: FIELD_CONTROL_HEIGHT,
+  fontSize: 13,
+  "& .MuiSelect-select": {
+    minHeight: "unset",
+    py: 0,
+    lineHeight: `${FIELD_CONTROL_HEIGHT - 2}px`,
+  },
+} as const;
+
+/**
+ * What a field says about its own last save — LAN-380, drawn beside the value
+ * rather than under it (item 4). One shape for all five field components, so
+ * none of them can grow its row when the others do not.
+ */
+export function FieldStatus({ saving, error }: { saving?: boolean; error?: string | null }) {
+  return (
+    <>
+      {saving ? (
+        <Typography
+          variant="caption"
+          component="span"
+          sx={{ color: "text.secondary", ml: 1 }}
+          data-testid="field-saving"
+        >
+          {SAVING}
+        </Typography>
+      ) : null}
+      {error ? (
+        <Typography variant="caption" component="span" color="error" sx={{ ml: 1 }}>
+          {error}
+        </Typography>
+      ) : null}
+    </>
+  );
+}
+
 /** Interactive records retain their click-to-edit controls inside the kit's fact layout. */
 export function RecordRow({
   label,
@@ -28,9 +79,23 @@ export function RecordRow({
     <FactList>
       <Fact
         layout="inline"
+        dense
         label={label}
         labelItalic={labelItalic}
-        value={children}
+        value={
+          // The slot item 4 asks for: the display state reserves exactly what
+          // the editor needs, so neither is taller than the other.
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              minHeight: FIELD_CONTROL_HEIGHT,
+            }}
+          >
+            {children}
+          </Box>
+        }
         provenance={note}
         testId="record-row"
       />
@@ -95,7 +160,7 @@ export function RecordField({
           onChange={(event) => {
             onCommit?.(event.target.value);
           }}
-          sx={{ minWidth: 220 }}
+          sx={{ ...FIELD_EDITOR_SX, minWidth: 220 }}
           MenuProps={{ slotProps: { paper: { sx: { maxHeight: 360 } } } }}
         >
           <MenuItem value="">
@@ -138,23 +203,10 @@ export function RecordField({
           )}
         </Box>
       )}
-      {saving ? (
-        <Typography
-          variant="caption"
-          sx={{ display: "block", color: "text.secondary", mt: 0.25 }}
-          data-testid="field-saving"
-        >
-          {SAVING}
-        </Typography>
-      ) : null}
+      <FieldStatus saving={saving} error={error} />
       {note ? (
-        <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 0.25 }}>
+        <Typography variant="caption" component="span" sx={{ color: "text.disabled", ml: 1 }}>
           {note}
-        </Typography>
-      ) : null}
-      {error ? (
-        <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.25 }}>
-          {error}
         </Typography>
       ) : null}
     </RecordRow>

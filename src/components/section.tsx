@@ -61,6 +61,7 @@ export function Section({
   description,
   collapsible = false,
   defaultOpen = false,
+  onToggleOpen,
   summary,
   children,
   testId,
@@ -79,6 +80,15 @@ export function Section({
   collapsible?: boolean;
   /** Open on arrival. A long tail is closed; a section the reader came for is open. */
   defaultOpen?: boolean;
+  /**
+   * Told each time the reader opens or closes this section — LAN-387, Brian's
+   * visual pass item 1, where the roster's groups remember their state on the
+   * operator's account. The disclosure stays uncontrolled: `<details>` already
+   * holds its own state and this only reports it, so a save that is slow or
+   * fails never leaves the section disagreeing with the click that opened it.
+   * Only a client caller may pass it.
+   */
+  onToggleOpen?: (open: boolean) => void;
   /** What the closed disclosure says, when that is not the title. */
   summary?: string;
   /** Omitted for a section whose heading and description are the whole message (a register panel). */
@@ -141,6 +151,11 @@ export function Section({
           component="details"
           variant="outlined"
           open={defaultOpen || undefined}
+          onToggle={
+            onToggleOpen
+              ? (event) => onToggleOpen((event.currentTarget as HTMLDetailsElement).open)
+              : undefined
+          }
           sx={{
             overflow: "hidden",
             "& > summary": { cursor: "pointer", listStyle: "none" },

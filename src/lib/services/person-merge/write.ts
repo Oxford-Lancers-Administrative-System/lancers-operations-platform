@@ -118,6 +118,14 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
       "a login/seat — Mission 1's boundary; the active-seat refusal exists so this never needs re-pointing",
   },
   {
+    table: "operator_preferences",
+    column: "person_id",
+    reason:
+      "screen settings for a login, on the same boundary as `operator_accounts` (LAN-387): " +
+      "one row per person, so re-pointing would refuse against the survivor's own row or overwrite " +
+      "it with a merged-away duplicate's, and nothing about a human is in the row to carry across",
+  },
+  {
     table: "contact_points",
     column: "person_id",
     reason: "re-pointed with preference reconciliation",

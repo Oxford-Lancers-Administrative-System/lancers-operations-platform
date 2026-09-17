@@ -31,6 +31,15 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/roster-board", () => ({ listRosterBoard: vi.fn() }));
+vi.mock("@/lib/services/operator-preferences", () => ({
+  // LAN-387: the board reads the operator's own folded-group setting on load.
+  // These screens prove what the board draws, not where the setting is kept.
+  readOperatorPreferences: vi.fn().mockResolvedValue({}),
+  writeRosterCollapsedGroups: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("./group-preference-actions", () => ({
+  saveCollapsedGroupsAction: vi.fn().mockResolvedValue(undefined),
+}));
 // Every board cell's server action, mocked so opening and committing a cell in
 // these tests never reaches a service or a database — the writes themselves
 // are proved for real in `src/lib/services/roster-board.test.ts` and
@@ -56,7 +65,16 @@ import type { RosterBoardData, RosterBoardRow } from "@/lib/services/roster-boar
 import { listRosterBoard } from "@/lib/services/roster-board";
 import { setMembershipStatusAction } from "./actions";
 import { commitBpsAction } from "./board-actions";
+import { readOperatorPreferences } from "@/lib/services/operator-preferences";
+import { saveCollapsedGroupsAction } from "./group-preference-actions";
 import RosterPage from "./page";
+import {
+  BOARD_CELL_CONTROL_HEIGHT,
+  BOARD_ROW_HEIGHT,
+  buildColumns,
+  displayColumns,
+  squadBoundaryKeys,
+} from "./board-columns";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -770,5 +788,182 @@ describe("the phone card — a way into the record, not a miniature board", () =
     // card-opening link, or a tap meant for one would always fire the other.
     expect(open.contains(call)).toBe(false);
     expect(call.contains(open)).toBe(false);
+  });
+});
+
+/**
+ * Brian's visual pass of 2026-09-17, items 2 to 5.
+ *
+ * Item 4 is the one with a measurement in it — "a row must not change height
+ * when a cell is edited or just after a pick" — and the way it is kept true is
+ * that one exported token is the height of the row, of every cell in it, and of
+ * every state either can be in. jsdom does not lay a table out, so what is
+ * asserted here is that the token reaches every one of those places: the same
+ * number, from `board-columns.ts`, on the display cell, on the open editor and
+ * on the Player cell that used to set the row's height by itself.
+ */
+describe("the board's row height, its group seams and its folded-up groups", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  /** What emotion resolved for this element — the sx that actually landed, not the sx that was asked for. */
+  function styleOf(element: Element): CSSStyleDeclaration {
+    return window.getComputedStyle(element);
+  }
+
+  it("draws the row, its cells and its open editor at the one shared height (item 4)", async () => {
+    givenBoard({ rows: [row({ status: "onboarding" })] });
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    const bodyRow = within(board).getByTestId("roster-row");
+    const expected = `${BOARD_ROW_HEIGHT}px`;
+
+    // Every cell in the row, the pinned Player cell included.
+    const cells = [...bodyRow.querySelectorAll("td")];
+    expect(cells.length).toBeGreaterThan(10);
+    for (const cell of cells) expect(styleOf(cell).height).toBe(expected);
+
+    // And the same row once one of its cells is open: the editor is given the
+    // control height, so the cell it sits in is the height it already was.
+    await act(async () => {
+      fireEvent.click(editableCellFor("Onboarding"));
+    });
+    const control = bodyRow.querySelector(".MuiOutlinedInput-root");
+    expect(control).not.toBeNull();
+    expect(styleOf(control as Element).height).toBe(`${BOARD_CELL_CONTROL_HEIGHT}px`);
+    expect(styleOf((control as Element).closest("td") as Element).height).toBe(expected);
+    expect(BOARD_CELL_CONTROL_HEIGHT).toBeLessThan(BOARD_ROW_HEIGHT);
+  });
+
+  it("says Saving beside the player's name rather than under it (item 4)", async () => {
+    // Never settles, so the row is caught in the state Brian saw "just after a
+    // pick" rather than after it has already been put away.
+    vi.mocked(setMembershipStatusAction).mockImplementationOnce(() => new Promise(() => {}));
+    givenBoard({ rows: [row({ status: "onboarding" })] });
+    render(await RosterPage(pageProps()));
+
+    const bodyRow = within(screen.getByTestId("roster-board")).getByTestId("roster-row");
+    await act(async () => {
+      fireEvent.click(editableCellFor("Onboarding"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("option", { name: "Active" }));
+    });
+
+    const saving = within(bodyRow).getByTestId("row-saving");
+    // A sibling of the name inside the same one-line stack, never a second line
+    // under it — a second line is what grew the row and dropped it back.
+    expect(saving.closest("td")).toBe(bodyRow.querySelector("td"));
+    expect(styleOf(saving).display).not.toBe("block");
+    expect(styleOf(saving.closest("td") as Element).height).toBe(`${BOARD_ROW_HEIGHT}px`);
+  });
+
+  it("writes a folded-up group's name down its one narrow cell (item 2)", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    // Special teams and Kit arrive folded away.
+    const special = within(board).getByTestId("band-collapsed-label-specialTeams");
+    expect(special).toHaveTextContent("Special teams assignments");
+    expect(styleOf(special).writingMode).toBe("vertical-rl");
+    expect(within(board).getByTestId("band-collapsed-label-kit")).toHaveTextContent("Kit");
+
+    // Opening one takes its vertical label away — the group's own band names it.
+    await act(async () => {
+      fireEvent.click(within(board).getByTestId("band-toggle-kit"));
+    });
+    expect(within(board).queryByTestId("band-collapsed-label-kit")).not.toBeInTheDocument();
+    expect(within(board).getByText("Kit")).toBeInTheDocument();
+  });
+
+  it("closes each special-teams squad with a rule the next one starts after (item 5)", async () => {
+    const columns = buildColumns({
+      offence: [{ code: "QB", label: "Quarterback" }],
+      defence: [{ code: "CB", label: "Cornerback" }],
+    });
+    const drawn = displayColumns(columns, new Set());
+    const boundaries = squadBoundaryKeys(drawn);
+
+    // Six squads, so six last columns — and every one of them is a fourth slot.
+    expect(boundaries.size).toBe(6);
+    for (const key of boundaries) expect(key).toMatch(/^st:[a-z_]+:backup_3$/);
+    // Never a column that is not a special-teams cell.
+    expect(boundaries.has("status")).toBe(false);
+  });
+});
+
+/**
+ * Brian's visual pass, item 1: "which groups are open or closed is saved on the
+ * operator's account so it follows them between devices". The account is the
+ * only place it is kept — there is no browser storage anywhere in this path.
+ */
+describe("which groups are folded away, remembered on the account", () => {
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+    vi.mocked(saveCollapsedGroupsAction).mockClear();
+    vi.mocked(readOperatorPreferences).mockResolvedValue({});
+  });
+
+  it("closes Special teams and Kit for an operator who has never said otherwise", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(within(board).getByTestId("band-collapsed-label-specialTeams")).toBeInTheDocument();
+    expect(within(board).getByTestId("band-collapsed-label-kit")).toBeInTheDocument();
+  });
+
+  it("opens everything for an operator whose account stores an empty list", async () => {
+    vi.mocked(readOperatorPreferences).mockResolvedValue({ rosterCollapsedGroups: [] });
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    // A stored empty list is an answer — "I opened them all" — and is not the
+    // same as never having touched it.
+    const board = screen.getByTestId("roster-board");
+    expect(
+      within(board).queryByTestId("band-collapsed-label-specialTeams"),
+    ).not.toBeInTheDocument();
+    expect(within(board).queryByTestId("band-collapsed-label-kit")).not.toBeInTheDocument();
+    expect(within(board).getByText("Formalwear")).toBeInTheDocument();
+  });
+
+  it("folds away exactly the groups the account stores, and nothing else", async () => {
+    vi.mocked(readOperatorPreferences).mockResolvedValue({
+      // `notAGroup` is a stale setting, not an error: it is dropped.
+      rosterCollapsedGroups: ["coaching", "notAGroup"],
+    });
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(within(board).getByTestId("band-collapsed-label-coaching")).toBeInTheDocument();
+    expect(within(board).queryByTestId("band-collapsed-label-kit")).not.toBeInTheDocument();
+  });
+
+  it("writes the whole set back once the toggling has settled", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    // Nothing is written for simply arriving: what the board arrived holding is
+    // what the account already stores.
+    expect(saveCollapsedGroupsAction).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.click(within(board).getByTestId("band-toggle-kit"));
+      fireEvent.click(within(board).getByTestId("band-toggle-coaching"));
+    });
+    // Debounced: two clicks in a moment are one write, of where they ended up.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+    });
+
+    expect(saveCollapsedGroupsAction).toHaveBeenCalledTimes(1);
+    expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]].sort()).toEqual([
+      "coaching",
+      "specialTeams",
+    ]);
   });
 });

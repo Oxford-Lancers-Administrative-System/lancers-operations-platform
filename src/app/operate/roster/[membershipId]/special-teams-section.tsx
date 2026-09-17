@@ -1,6 +1,8 @@
+import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
+import { SQUAD_BOUNDARY_BORDER } from "../board-columns";
 import {
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
@@ -14,6 +16,8 @@ import {
  * to any other.
  */
 export default function SpecialTeamsSection({
+  open,
+  onToggleOpen,
   assignments,
   editing,
   locked,
@@ -22,6 +26,9 @@ export default function SpecialTeamsSection({
   setEditing,
   commitSeasonField,
 }: {
+  /** Whether this group arrives unfolded, from the operator's own account — LAN-387, Brian's visual pass item 1. */
+  open: boolean;
+  onToggleOpen: (open: boolean) => void;
   assignments: Readonly<Record<string, string>>;
   editing: string | null;
   locked: boolean;
@@ -37,9 +44,18 @@ export default function SpecialTeamsSection({
       title="Special teams assignments"
       testId="special-teams"
       collapsible
+      defaultOpen={open}
+      onToggleOpen={onToggleOpen}
     >
-      {SPECIAL_TEAMS_SQUADS.map((squad) => (
-        <div key={squad.squad} data-testid={`special-teams-squad-${squad.squad}`}>
+      {SPECIAL_TEAMS_SQUADS.map((squad, index) => (
+        <Box
+          key={squad.squad}
+          data-testid={`special-teams-squad-${squad.squad}`}
+          // Brian's visual pass, item 5: the same rule the board draws between
+          // one squad's four columns and the next, turned the way this page
+          // stacks them.
+          sx={index === 0 ? undefined : { borderTop: SQUAD_BOUNDARY_BORDER, mt: 1 }}
+        >
           <Typography variant="subtitle2" component="h3" sx={{ fontWeight: 700, mt: 1.5, mb: 0.5 }}>
             {squad.label}
           </Typography>
@@ -63,7 +79,7 @@ export default function SpecialTeamsSection({
               />
             );
           })}
-        </div>
+        </Box>
       ))}
     </Section>
   );

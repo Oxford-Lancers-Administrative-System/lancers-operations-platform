@@ -2,6 +2,7 @@ import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
 import type { PlayerRecordData } from "@/lib/services/player-record";
 import {
+  type Band,
   AVAILABILITY_LABELS,
   AVAILABILITY_VALUES,
   BLUES_VALUES,
@@ -38,6 +39,8 @@ export default function SeasonFactsSection({
   fieldErrorMessage,
   setEditing,
   commitSeasonField,
+  collapsedGroups,
+  onToggleGroup,
 }: {
   record: PlayerRecordData;
   editing: string | null;
@@ -48,6 +51,9 @@ export default function SeasonFactsSection({
   fieldErrorMessage: string | null;
   setEditing: (key: string | null) => void;
   commitSeasonField: (key: string, next: string | string[]) => void;
+  /** Which groups this operator has folded away, from their account — LAN-387, Brian's visual pass item 1. */
+  collapsedGroups: ReadonlySet<Band>;
+  onToggleGroup: (group: Band, open: boolean) => void;
 }) {
   const errorFor = (key: string) => (fieldErrorKey === key ? fieldErrorMessage : null);
   const savingOf = (key: string) => savingKey === key;
@@ -240,6 +246,8 @@ export default function SeasonFactsSection({
       </Section>
 
       <SpecialTeamsSection
+        open={!collapsedGroups.has("specialTeams")}
+        onToggleOpen={(open) => onToggleGroup("specialTeams", open)}
         assignments={record.season.specialTeams}
         editing={editing}
         locked={locked}
@@ -249,7 +257,15 @@ export default function SeasonFactsSection({
         commitSeasonField={commitSeasonField}
       />
 
-      <Section variant="banded" band="kit" title="Kit" testId="kit" collapsible>
+      <Section
+        variant="banded"
+        band="kit"
+        title="Kit"
+        testId="kit"
+        collapsible
+        defaultOpen={!collapsedGroups.has("kit")}
+        onToggleOpen={(open) => onToggleGroup("kit", open)}
+      >
         <KitItemsFields
           items={record.season.kit}
           editing={editing}

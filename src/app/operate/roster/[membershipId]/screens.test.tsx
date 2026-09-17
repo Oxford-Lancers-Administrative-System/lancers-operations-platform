@@ -35,6 +35,15 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/player-record", () => ({ readPlayerRecord: vi.fn() }));
+vi.mock("@/lib/services/operator-preferences", () => ({
+  // LAN-387: the record reads the operator's own folded-group setting on load.
+  // These screens prove what the record draws, not where the setting is kept.
+  readOperatorPreferences: vi.fn().mockResolvedValue({}),
+  writeRosterCollapsedGroups: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../group-preference-actions", () => ({
+  saveCollapsedGroupsAction: vi.fn().mockResolvedValue(undefined),
+}));
 // Every commit this record makes, mocked so opening and committing a field in
 // these tests never reaches a service or a database — the writes themselves
 // are proved for real in `roster-board.test.ts` and `membership.test.ts`,
@@ -57,7 +66,9 @@ vi.mock("./record-actions", () => ({
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import type { OnboardingItem } from "@/lib/services/membership";
+import { readOperatorPreferences } from "@/lib/services/operator-preferences";
 import { readPlayerRecord } from "@/lib/services/player-record";
+import { saveCollapsedGroupsAction } from "../group-preference-actions";
 import type {
   AttendanceEvent,
   PlayerRecordData,
@@ -1764,5 +1775,61 @@ describe("LAN-380 — a season fact being saved", () => {
     expect(recordCommitJerseyNumbersAction).toHaveBeenCalledTimes(2);
     expect(within(jerseyRow()).queryByText(COULD_NOT_SAVE)).not.toBeInTheDocument();
     expect(within(jerseyRow()).queryByTestId("field-saving")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The record's groups are the board's groups, so they read the one setting the
+ * operator's account holds — LAN-387, Brian's visual pass item 1.
+ */
+describe("which groups are folded away, remembered on the account", () => {
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+    vi.mocked(saveCollapsedGroupsAction).mockClear();
+    vi.mocked(readOperatorPreferences).mockResolvedValue({});
+  });
+
+  it("closes Special teams and Kit for an operator who has never said otherwise", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.getByTestId("section-kit")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-special-teams")).not.toHaveAttribute("open");
+  });
+
+  it("opens the groups the account does not list", async () => {
+    vi.mocked(readOperatorPreferences).mockResolvedValue({ rosterCollapsedGroups: ["kit"] });
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    // Only Kit is listed, so only Kit stays folded — Special teams opens even
+    // though it is one of the two the board closes by default.
+    expect(screen.getByTestId("section-kit")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-special-teams")).toHaveAttribute("open");
+  });
+
+  it("keeps a group only the board can fold when one is toggled here", async () => {
+    // The board had Coaching closed too. Opening Kit on a record must not be
+    // the thing that forgets it.
+    vi.mocked(readOperatorPreferences).mockResolvedValue({
+      rosterCollapsedGroups: ["coaching", "kit", "specialTeams"],
+    });
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    const kit = screen.getByTestId("section-kit");
+    await act(async () => {
+      // jsdom does not implement the disclosure's own toggling, so the state
+      // change and the event it fires are both made here.
+      (kit as HTMLDetailsElement).open = true;
+      fireEvent(kit, new Event("toggle", { bubbles: false }));
+    });
+
+    expect(saveCollapsedGroupsAction).toHaveBeenCalledTimes(1);
+    expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]].sort()).toEqual([
+      "coaching",
+      "specialTeams",
+    ]);
   });
 });

@@ -11,6 +11,7 @@ import {
   OFFENSIVE_POSITION_GROUP_VALUES,
   KIT_ITEMS,
   kitCellKey,
+  parseSpecialTeamsCellKey,
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
   specialTeamsCellKey,
@@ -48,6 +49,57 @@ export const BAND_ROW_HEIGHT = 28;
 
 /** The left inset every band header's label sits at — one rule, explicit rather than per-band. */
 export const BAND_LABEL_INSET_PX = 16;
+
+/**
+ * The height of one board row, and of every state of every cell in it — Brian's
+ * visual pass of 2026-09-17, items 3 and 4.
+ *
+ * Measured before the change: 57px a row, on a board whose cells hold one word.
+ * The cause was the Player cell's link, which was a `Button` and so carried the
+ * 44px touch target the theme gives every medium button. The board is drawn
+ * only from `md` up, where the pointer is a mouse and a 44px target buys
+ * nothing, so the name is a plain link now and the row is this token instead.
+ *
+ * It is one exported number rather than a value repeated in three files because
+ * of item 4: "a row must not change height when a cell is edited or just after
+ * a pick". A row grows when one cell's editor is taller than its display state,
+ * and the way to be sure none is, is for all of them to be told the same height
+ * from the same place. `board-screens.test.tsx` measures exactly that, on a
+ * rendered row and on the same row with one of its cells open.
+ */
+export const BOARD_ROW_HEIGHT = 32;
+
+/**
+ * What a cell's own control gets inside `BOARD_ROW_HEIGHT`: the row, less the
+ * 1px rule under it, less 2px of air above and below so a focused outline is
+ * not clipped. Every editor and every pill in a cell is drawn at this height.
+ */
+export const BOARD_CELL_CONTROL_HEIGHT = 26;
+
+/**
+ * The rule between one special-teams squad's four columns and the next —
+ * Brian's visual pass, item 5. Inside a group the columns had no vertical rule
+ * at all, so twenty-four special-teams columns read as one undivided run.
+ * Darker than the white seam that separates two groups, because this divides
+ * within a group rather than between them.
+ */
+export const SQUAD_BOUNDARY_BORDER = "2px solid rgba(33, 29, 28, 0.38)";
+
+/**
+ * How far down its column a folded-up group's name may run — Brian's visual
+ * pass, item 2.
+ *
+ * The name is written vertically, so its length is the header's height, and
+ * "Special teams assignments" set on one vertical line made the sticky header
+ * 160px tall before a single row was drawn. It wraps instead: two short lines
+ * down the column rather than one long one, which costs width the cell already
+ * has (a wrapped vertical line is 12px wide, and the cell is 28px) and buys the
+ * header back. Nothing is clipped at this length.
+ */
+export const COLLAPSED_LABEL_MAX_HEIGHT = 88;
+
+/** The vertical label's own line box — two of them fit the collapsed cell's width. */
+export const COLLAPSED_LABEL_LINE_HEIGHT = 12;
 
 const BANDS: readonly BandDef[] = Object.freeze([
   Object.freeze({
@@ -95,10 +147,29 @@ const BANDS: readonly BandDef[] = Object.freeze([
 /** Every band, in order — the board's group strip and the record's section order are the same list. */
 const BAND_ORDER: readonly Band[] = Object.freeze(BANDS.map((band) => band.key));
 
-/** Groups the board and the record open collapsed. The long tail, not the facts an operator came for. */
-export const COLLAPSED_BY_DEFAULT: ReadonlySet<Band> = Object.freeze(
+/** Groups the board and the record open collapsed when this operator has never said otherwise. The long tail, not the facts an operator came for. Read only through `collapsedBandsFrom`, so nothing can consult the default without first consulting the account. */
+const COLLAPSED_BY_DEFAULT: ReadonlySet<Band> = Object.freeze(
   new Set<Band>(["specialTeams", "kit"]),
 );
+
+function isBand(key: string): key is Band {
+  return (BAND_ORDER as readonly string[]).includes(key);
+}
+
+/**
+ * Which groups this operator has folded away — LAN-387, Brian's visual pass,
+ * item 1. `undefined` is "they have never touched it", which is the board's own
+ * default, and is deliberately not the same as a stored empty list: an operator
+ * who has opened everything gets everything open, on every device.
+ *
+ * Anything stored that is not a group is dropped rather than refused. The names
+ * here are presentation and may be renamed by a later release; a preference
+ * pointing at a group that no longer exists is a stale setting, not an error.
+ */
+export function collapsedBandsFrom(stored: readonly string[] | undefined): ReadonlySet<Band> {
+  if (stored === undefined) return COLLAPSED_BY_DEFAULT;
+  return new Set(stored.filter(isBand));
+}
 
 export function bandOf(key: Band): BandDef {
   const found = BANDS.find((band) => band.key === key);
@@ -132,7 +203,7 @@ export interface ColumnDef {
   readonly placeholder?: true;
 }
 
-/** The single cell a collapsed group occupies — the band header still names it, and one click brings the columns back. */
+/** The single cell a collapsed group occupies — its column header writes the group's name down it, and one click brings the columns back. */
 function collapsedPlaceholder(band: Band): ColumnDef {
   return Object.freeze({
     key: `group:${band}`,
@@ -160,6 +231,23 @@ export function displayColumns(
     else drawn.push(...inBand);
   }
   return drawn;
+}
+
+/**
+ * The last column of each special-teams squad's four — Brian's visual pass,
+ * item 5. Computed from the drawn columns rather than hard-coded, so a squad
+ * that is filtered, reordered or removed takes its own seam with it.
+ */
+export function squadBoundaryKeys(columns: readonly ColumnDef[]): ReadonlySet<string> {
+  const keys = new Set<string>();
+  columns.forEach((column, index) => {
+    const cell = parseSpecialTeamsCellKey(column.key);
+    if (!cell) return;
+    const next = columns[index + 1];
+    const nextCell = next ? parseSpecialTeamsCellKey(next.key) : null;
+    if (nextCell?.squad !== cell.squad) keys.add(column.key);
+  });
+  return keys;
 }
 
 export const STATUSES = Object.freeze(["onboarding", "active", "inactive", "departed", "archived"]);

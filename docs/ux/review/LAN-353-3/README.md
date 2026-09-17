@@ -8,15 +8,16 @@ desktop and 375×812 for the phone. No real member data appears in any of them.
 Everything here was captured against a **production build** (`npm run build`
 then `next start`), not `next dev`.
 
-| Folder     | Issue   | What it shows                                                                       |
-| ---------- | ------- | ----------------------------------------------------------------------------------- |
-| `LAN-387/` | LAN-387 | The roster board's new groups, and the membership record's matching sections        |
-| `LAN-374/` | LAN-374 | The Special teams assignments group — six squads, four slots each, board and record |
-| `LAN-375/` | LAN-375 | The Kit group — the issued-kit items and Formalwear, board and record               |
-| `LAN-283/` | LAN-283 | The onboarding Done page's WhatsApp offer, and the rewritten Hudl step              |
-| `LAN-384/` | LAN-384 | The club-link page's four tiles, and the operator's share panel with both buttons   |
-| `LAN-363/` | LAN-363 | The Code of Conduct step's PDF viewer at 375 px, in Chromium and in WebKit          |
-| `LAN-361/` | LAN-361 | The person record's Data protection panel, and the two-sign-off dialog              |
+| Folder      | Issue                     | What it shows                                                                       |
+| ----------- | ------------------------- | ----------------------------------------------------------------------------------- |
+| `LAN-387/`  | LAN-387                   | The roster board's new groups, and the membership record's matching sections        |
+| `LAN-374/`  | LAN-374                   | The Special teams assignments group — six squads, four slots each, board and record |
+| `LAN-375/`  | LAN-375                   | The Kit group — the issued-kit items and Formalwear, board and record               |
+| `LAN-283/`  | LAN-283                   | The onboarding Done page's WhatsApp offer, and the rewritten Hudl step              |
+| `LAN-384/`  | LAN-384                   | The club-link page's four tiles, and the operator's share panel with both buttons   |
+| `LAN-363/`  | LAN-363                   | The Code of Conduct step's PDF viewer at 375 px, in Chromium and in WebKit          |
+| `LAN-361/`  | LAN-361                   | The person record's Data protection panel, and the two-sign-off dialog              |
+| `feedback/` | LAN-387, LAN-374, LAN-384 | The six things Brian asked for from his pass of 2026-09-17                          |
 
 ## LAN-387, LAN-374, LAN-375 — the roster's groups
 
@@ -78,3 +79,34 @@ record, with the export and the action. `*-erasure-dialog.png` is the dialog:
 what the act is, that it cannot be undone, who has confirmed, who is still
 needed, and the date the person asked. Confirm is inert until a date is entered
 and the viewer is somebody who may confirm.
+
+## feedback/ — Brian's visual pass of 2026-09-17
+
+Six changes, taken against a production build of the finished code.
+
+| File                                              | What it shows                                                                                                                    |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `desktop_operate_roster.png`                      | The board at its new density: one row is 32 px, one line of text, measured in the browser                                        |
+| `desktop_operate_roster-collapsed-groups.png`     | The board scrolled to its right-hand end — Special teams assignments and Kit folded away, each naming itself down its own column |
+| `desktop_operate_roster-special-teams-squads.png` | The heavier rule between one squad's four columns and the next, with the group expanded                                          |
+| `desktop_operate_roster_<membershipId>.png`       | The membership record at the same density, with the two foldable groups closed                                                   |
+| `phone375_*`                                      | The same three routes at a measured 375 px                                                                                       |
+| `*_operate_events_<eventId>-share.png`            | The operator's share panel, with **Copy share message** beside the club link's own clipboard button                              |
+
+The share message itself is text on a clipboard rather than anything drawn, so
+the screenshot cannot show it. What the button copies, read back out of the
+clipboard on this build:
+
+```
+vs Ivybridge Ravens
+Sunday, 20 September, 14:00–16:30 at Iffley Road Astro
+17 yes
+10 no
+14 still to answer
+http://127.0.0.1:3000/e/<token>
+```
+
+A row's height does not move when a cell is opened or while it is saving. That
+is a measurement rather than a picture, so it is asserted in
+`src/app/operate/roster/board-screens.test.tsx` and was confirmed in a real
+browser at 32 px in both states.

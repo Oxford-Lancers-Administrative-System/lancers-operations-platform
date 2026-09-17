@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { Metric, MetricRow } from "@/components/metric";
@@ -29,6 +29,8 @@ import AttendanceSection from "./attendance-section";
 import SendOnboardingQuestionnaireButton, {
   sendStatusLines,
 } from "./send-onboarding-questionnaire-button";
+import { collapsedBandsFrom, type Band } from "../board-columns";
+import { saveCollapsedGroupsAction } from "../group-preference-actions";
 import { ENTRY_LABELS, formatDay, labelFor, MEMBERSHIP_STATUS_LABELS } from "../presentation";
 import {
   recordCommitAvailabilityAction,
@@ -84,6 +86,7 @@ export default function PlayerRecordView({
   justCreated,
   linkedExisting = false,
   unsavedContacts = [],
+  initialCollapsedGroups,
 }: {
   record: PlayerRecordData;
   /** Redacted for the viewer's role — `REQ-authority`. May be missing keys a category did not grant. */
@@ -93,6 +96,8 @@ export default function PlayerRecordView({
   linkedExisting?: boolean;
   /** LAN-257 — kinds the operator typed that were deliberately not written to that person. */
   unsavedContacts?: ("email" | "phone")[];
+  /** What this operator's account remembers about folded-up groups, or `undefined` where it remembers nothing (LAN-387). */
+  initialCollapsedGroups?: readonly string[] | undefined;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -104,6 +109,29 @@ export default function PlayerRecordView({
    * ever unavailable while a save was outstanding.
    */
   const [saving, setSaving] = useState<string | null>(null);
+  /**
+   * Which groups are folded away — the same setting the board reads and writes
+   * (LAN-387, Brian's visual pass item 1), because these are the same groups.
+   *
+   * The whole set is held here, not just the two groups this page can fold, so
+   * opening Kit on a record never forgets that the board had Coaching closed.
+   */
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<Band>>(() =>
+    collapsedBandsFrom(initialCollapsedGroups),
+  );
+  const toggleGroup = useCallback(
+    (group: Band, open: boolean) => {
+      // `<details>` reports its state rather than asking for one, so a report
+      // that agrees with what is already held is not a change to store.
+      if (collapsedGroups.has(group) === !open) return;
+      const next = new Set(collapsedGroups);
+      if (open) next.delete(group);
+      else next.add(group);
+      setCollapsedGroups(next);
+      void saveCollapsedGroupsAction([...next]);
+    },
+    [collapsedGroups],
+  );
 
   const closed = record.status === "departed" || record.status === "archived";
   const resolvedCount = record.onboardingItems.filter((item) =>
@@ -499,6 +527,8 @@ export default function PlayerRecordView({
         fieldErrorMessage={fieldError?.message ?? null}
         setEditing={setEditing}
         commitSeasonField={commitSeasonField}
+        collapsedGroups={collapsedGroups}
+        onToggleGroup={toggleGroup}
       />
 
       <Section variant="banded" band="attendance" title="Attendance" testId="attendance">

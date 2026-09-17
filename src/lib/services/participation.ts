@@ -549,6 +549,7 @@ export interface EventShareFacts {
   readonly startsAt: string | null;
   readonly endsAt: string | null;
   readonly venue: string | null;
+  readonly invited: number;
   readonly saidYes: number;
   readonly saidNo: number;
   readonly token: string;
@@ -583,6 +584,7 @@ export async function readEventShareFacts(
       startsAt: facts.startsAt,
       endsAt: facts.endsAt,
       venue: facts.venue,
+      invited: headline.invited,
       saidYes: headline.saidYes,
       saidNo: headline.saidNo,
       token: link.token,

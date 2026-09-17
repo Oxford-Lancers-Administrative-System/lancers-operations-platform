@@ -91,7 +91,7 @@ export function SharePanel({
             </Typography>
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
               <CopyLinkButton url={url} />
-              {/* LAN-384: the same link, wrapped in the four lines an operator
+              {/* LAN-384: the same link, wrapped in the six lines an operator
                   would otherwise retype into the group chat. */}
               <ShareMessageButton eventId={eventId} />
             </Stack>

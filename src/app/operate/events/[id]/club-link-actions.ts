@@ -31,7 +31,7 @@ export async function issueClubLinkAction(formData: FormData): Promise<void> {
 }
 
 /**
- * The four lines an operator pastes into a group chat — LAN-384. Reads the
+ * The six lines an operator pastes into a group chat — LAN-384. Reads the
  * same headline the event page and the club-link page both read, issues the
  * link where the event has none, and returns text; the clipboard is the
  * client's to write.
@@ -48,6 +48,7 @@ export async function shareMessageAction(params: {
         startsAt: facts.startsAt,
         endsAt: facts.endsAt,
         venue: facts.venue,
+        invited: facts.invited,
         saidYes: facts.saidYes,
         saidNo: facts.saidNo,
         url: clubLinkUrl(await publicOrigin(), facts.token),

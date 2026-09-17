@@ -2750,6 +2750,45 @@ export type Database = {
           },
         ]
       }
+      operator_preferences: {
+        Row: {
+          created_at: string
+          id: string
+          person_id: string
+          preferences: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          person_id: string
+          preferences?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          person_id?: string
+          preferences?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_preferences_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operator_preferences_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       people: {
         Row: {
           bafa_registration_number: string | null
