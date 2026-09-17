@@ -589,9 +589,12 @@ async function declareInvitationJobIn(tx: Tx, invitationId: string, at: Date): P
 
   // LAN-392, F6 (corrected 2026-09-17): the job and the reason are one fact, so
   // they are written in one place. `message_withheld_reason` means "no message
-  // was ever declared against this invitation" — `invitation_response_state`
+  // has ever gone out against this invitation" — `invitation_response_state`
   // answers `never_asked` on that basis alone, and every chase queue then
-  // leaves the person alone for good. Declaring a message and leaving the
+  // leaves the person alone for good. The rule itself is kept where a message
+  // actually goes out (`claimJobIn` in `delivery.ts`); this and the clear below
+  // are the earlier, narrower halves, which keep the column honest between the
+  // reschedule that makes a message possible and the sweep that sends it. Declaring a message and leaving the
   // reason standing would make the column a lie in the one direction nobody
   // ever notices: the message goes, nothing chases the silence, and no report
   // shows the gap. Today this invitation was written moments ago and carries no
@@ -629,6 +632,13 @@ async function declareInvitationJobIn(tx: Tx, invitationId: string, at: Date): P
  *   grant.
  *
  * A cancelled job is not a declared message, so it is not counted.
+ *
+ * This is not the backstop. `claimJobIn` clears the reason as it claims a send,
+ * which is what makes the column true of every route — the sweep, the
+ * operator's Retry after a failed job, Revoke and reissue — including the one
+ * where consent arrives and nobody reschedules again. This function only brings
+ * the clear forward to the reschedule, so the person is in the chase queue from
+ * the moment the message is genuinely owed rather than from the moment it goes.
  */
 export async function clearWithheldReasonsWhereDeclaredIn(
   tx: Tx,

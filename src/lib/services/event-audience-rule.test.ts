@@ -20,6 +20,7 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool, withTransaction, type Tx } from "@/lib/db";
+import { retryDelivery } from "./delivery";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn, selectionKey } from "./event-audience";
 import { applyAudienceGroupRuleIn, nextAutoAddSendAt } from "./event-audience-rule";
@@ -74,6 +75,14 @@ afterEach(async () => {
        (select id from public.notification_jobs where event_id in ${events})`,
     [scope],
   );
+  // `on delete restrict` to `notification_jobs`, and a refused send writes one
+  // (`recordUndeliverableIn`), so this has to go first or the job delete below
+  // fails and every later case in this file inherits the leftovers.
+  await observer.query(
+    `delete from public.delivery_results where notification_job_id in
+       (select id from public.notification_jobs where event_id in ${events})`,
+    [scope],
+  );
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
   await observer.query(
     `delete from public.rsvp_access_tokens where invitation_id in
@@ -107,6 +116,11 @@ afterEach(async () => {
   const ownProspects = `(select id from public.recruitment_prospects where person_id in ${ownPeople})`;
   await observer.query(
     `delete from public.delivery_attempts where notification_job_id in
+       (select id from public.notification_jobs where person_id in ${ownPeople})`,
+    [NAME_MARKER],
+  );
+  await observer.query(
+    `delete from public.delivery_results where notification_job_id in
        (select id from public.notification_jobs where person_id in ${ownPeople})`,
     [NAME_MARKER],
   );
@@ -1130,6 +1144,161 @@ describe("a reschedule that declares the message a withheld invitation never had
 
     const cleared = await withheldReasonFor(eventId, personId);
     expect(cleared.message_withheld_reason).toBeNull();
+    expect(await isChased(cleared.id)).toBe(true);
+  });
+});
+
+/**
+ * F6, the other half (corrected 2026-09-17). The reason the reschedule-time
+ * clear does not answer: consent arrives and *nobody reschedules again*. The
+ * job declared by the first reschedule is already pending, `claimJobIn`'s
+ * consent check now passes, and the ordinary sweep sends the invitation — with
+ * the reason still standing, because nothing between the grant and the send
+ * looked at it.
+ *
+ * So the rule is kept where a message actually goes out: `claimJobIn` clears
+ * the reason as it claims the job and writes the delivery attempt. Both cases
+ * here run the real send path — the scheduler's own sweep, and the operator's
+ * Retry after a refused job failed, which is the remedy `delivery.ts` documents
+ * for an invitation that reached the sweep before the consent did.
+ *
+ * Proved through a transport sink rather than by reading the column back
+ * alone, because the claim is about what happens when a message *goes*: the
+ * assertion is the message leaving, and then the person being chased like
+ * anybody else who has been asked and has not answered.
+ */
+describe("the send is what clears the withheld reason", () => {
+  const CONFIGURED = {
+    APP_BASE_URL: "https://lancers.example.org",
+    WHATSAPP_PHONE_NUMBER_ID: "5550001",
+    WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
+    WHATSAPP_APP_SECRET: "not-a-real-app-secret",
+    WHATSAPP_TEMPLATE_NAME: "event_invitation",
+    EMAIL_API_KEY: "not-a-real-key",
+    EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
+  };
+
+  /** A provider that accepts everything, and the record of what it was asked to send. */
+  function sink(): { sent: string[]; transport: (url: string) => Promise<Response> } {
+    const sent: string[] = [];
+    return {
+      sent,
+      transport: async (url: string) => {
+        sent.push(url);
+        return new Response(
+          JSON.stringify({
+            messaging_product: "whatsapp",
+            messages: [{ id: `wamid.${crypto.randomUUID()}` }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    };
+  }
+
+  /** Brought to the front of `readDueJobs`' queue, which is what its time coming looks like. */
+  async function makeDue(jobId: string): Promise<void> {
+    await observer.query(
+      "update public.notification_jobs set scheduled_for = now() - interval '30 days' where id = $1::uuid",
+      [jobId],
+    );
+  }
+
+  async function invitationJob(eventId: string, personId: string) {
+    const jobs = (await jobsFor(personId)).filter(
+      (job) => job.event_id === eventId && job.job_type === "invitation",
+    );
+    expect(jobs).toHaveLength(1);
+    return jobs[0];
+  }
+
+  async function responseStateOf(invitationId: string): Promise<string> {
+    const state = await observer.query<{ response_state: string }>(
+      "select response_state from public.invitation_response_state where invitation_id = $1::uuid",
+      [invitationId],
+    );
+    return state.rows[0].response_state;
+  }
+
+  it("clears it when consent arrives and the sweep sends, with no second reschedule", async () => {
+    const eventId = await approvedEventWithGroup("recruits", { scheduledOn: inDays(9) });
+    const { personId } = await addRecruit("Tallis", { consent: false });
+
+    const withheld = await withheldReasonFor(eventId, personId);
+    expect(withheld.message_withheld_reason).toBe("no_consent");
+
+    // One ordinary reschedule. The backfill declares the invitation job without
+    // asking why one was missing, and the reason correctly stands: `claimJobIn`
+    // is still refusing this send.
+    await rescheduleTo(eventId, inDays(11));
+    const job = await invitationJob(eventId, personId);
+    expect((await withheldReasonFor(eventId, personId)).message_withheld_reason).toBe("no_consent");
+
+    // Consent arrives through the function the public sign-up, the tokenised
+    // door and the questionnaire all call. Nothing else happens — in
+    // particular, nobody reschedules the event again.
+    await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, seasonId));
+    expect((await withheldReasonFor(eventId, personId)).message_withheld_reason).toBe("no_consent");
+
+    // The job's time comes and the ordinary sweep claims it.
+    await makeDue(job.id);
+    const provider = sink();
+    await runMessagingSweep({ source: CONFIGURED, transport: provider.transport, limit: 5 });
+    expect(provider.sent.length).toBeGreaterThan(0);
+
+    // The message went out for *this* invitation, not merely for something the
+    // sweep happened to pick up alongside it.
+    const attempts = await observer.query(
+      "select 1 from public.delivery_attempts where notification_job_id = $1::uuid",
+      [job.id],
+    );
+    expect(attempts.rowCount).toBeGreaterThan(0);
+
+    const cleared = await withheldReasonFor(eventId, personId);
+    expect(cleared.message_withheld_reason).toBeNull();
+    expect(await responseStateOf(cleared.id)).toBe("awaiting_response");
+    expect(await isChased(cleared.id)).toBe(true);
+  });
+
+  it("clears it on the operator's Retry after the unconsented job failed", async () => {
+    const eventId = await approvedEventWithGroup("recruits", { scheduledOn: inDays(9) });
+    const { personId } = await addRecruit("Underhill", { consent: false });
+
+    expect((await withheldReasonFor(eventId, personId)).message_withheld_reason).toBe("no_consent");
+    await rescheduleTo(eventId, inDays(11));
+    const job = await invitationJob(eventId, personId);
+
+    // The sweep reaches the job before the consent does. `claimJobIn` refuses
+    // the send, `recordUndeliverableIn` leaves the job `failed` with no
+    // `next_attempt_at`, and the reason is untouched — nothing was sent.
+    await makeDue(job.id);
+    const refused = sink();
+    await runMessagingSweep({ source: CONFIGURED, transport: refused.transport, limit: 5 });
+
+    const afterRefusal = await observer.query<{ status: string; last_error: string | null }>(
+      "select status::text as status, last_error from public.notification_jobs where id = $1::uuid",
+      [job.id],
+    );
+    expect(afterRefusal.rows[0].status).toBe("failed");
+    const stillWithheld = await withheldReasonFor(eventId, personId);
+    expect(stillWithheld.message_withheld_reason).toBe("no_consent");
+    expect(await isChased(stillWithheld.id)).toBe(false);
+
+    // The consent is recorded and an operator presses Retry on the delivery
+    // screen. A `failed` job is outside the reschedule-time clear's allow-list,
+    // so this route is the one the send-time clear has to carry by itself.
+    await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, seasonId));
+    const accepted = sink();
+    const outcome = await retryDelivery(actorPersonId, job.id, {
+      source: CONFIGURED,
+      transport: accepted.transport,
+    });
+    expect(outcome).toBe("accepted");
+    expect(accepted.sent.length).toBeGreaterThan(0);
+
+    const cleared = await withheldReasonFor(eventId, personId);
+    expect(cleared.message_withheld_reason).toBeNull();
+    expect(await responseStateOf(cleared.id)).toBe("awaiting_response");
     expect(await isChased(cleared.id)).toBe(true);
   });
 });

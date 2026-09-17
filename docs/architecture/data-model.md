@@ -756,7 +756,7 @@ No view is materialised, so there is no cache and nothing to drift.
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `current_availability`       | The standing Green/Orange/Red per membership                                                                                                                                                                                                                             |
 | `current_rsvp`               | The standing answer per invitation: the row **recorded last**, whoever recorded it (LAN-376). `responded_at` is the operator's statement of when the player told them and never ranks                                                                                    |
-| `invitation_response_state`  | Invariant P7's partition, computed from the resolved audience outward. Covers every event since D23 removed `solicits_response`. Six arms since LAN-392: `never_asked` is an invitation carrying a `message_withheld_reason`, so no message was ever declared against it |
+| `invitation_response_state`  | Invariant P7's partition, computed from the resolved audience outward. Covers every event since D23 removed `solicits_response`. Six arms since LAN-392: `never_asked` is an invitation carrying a `message_withheld_reason`, so no message has ever gone out against it |
 | `nonresponse_queue`          | Requirement 6's escalation queue — invitees who were asked and have not answered. A `never_asked` invitation is not one of them                                                                                                                                          |
 | `uninvited_audience_members` | People the approver confirmed who were never actually invited: an approval defect, deliberately kept out of the nonresponse queue                                                                                                                                        |
 | `rsvp_attendance_mismatches` | Requirement 7's flagged mismatches, over the full outer join of an occurred event's invitations and its attendance. Occurrence is **derived** here (D30): approved, and dated before today in Europe/London                                                              |
@@ -1122,13 +1122,17 @@ invitation with no job behind it, and a pending invitation reads as
 `nonresponse_queue`, the Follow-ups list and the Monday report's "no answer"
 column, to be chased about a message that was never sent. The invitation
 therefore carries `message_withheld_reason` (`no_consent` or
-`event_starts_first`, null on every invitation whose message was declared), and
+`event_starts_first`, null on every invitation a message has gone out for), and
 `invitation_response_state` answers `never_asked` for it instead —
 invariant P7's partition gains a sixth arm, and `nonresponse_queue`, which
 selects `awaiting_response` and `expired_without_response`, excludes it without
 being touched. `never_asked` is tested before `expired`, because a withheld
 invitation carries the event's own deadline and would otherwise walk back into
-the chase queue the moment that deadline passed.
+the chase queue the moment that deadline passed. The reason lapses where a
+message actually goes out — `claimJobIn` clears it as it claims the job and
+writes the delivery attempt — so a recruit whose consent arrives after the
+reason was written is messaged and then chased like everybody else, rather than
+disappearing from every queue for good.
 
 **A draft's type, and the composite key.** `event_audience_groups` references
 `events (id, event_type)`, which makes the event's class an _updatable_

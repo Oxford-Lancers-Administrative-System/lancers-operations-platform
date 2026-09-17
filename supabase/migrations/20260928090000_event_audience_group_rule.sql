@@ -230,6 +230,12 @@ grant select, insert, update, delete
 -- views that mean "asked and did not answer" stop counting it. The column is
 -- the smallest thing that can carry the fact: `notification_jobs` cannot,
 -- because the whole point is that no job exists.
+--
+-- What the reason claims is that no message has ever gone out, so it is
+-- cleared in the one place one does: `claimJobIn` clears it as it claims the
+-- job and writes the delivery attempt. A reason that outlived the message --
+-- consent arriving late, and the ordinary sweep then sending the invitation --
+-- left the person asked, silent and chased by nobody.
 
 alter table public.invitations
   add column message_withheld_reason text
@@ -238,7 +244,7 @@ alter table public.invitations
       or message_withheld_reason in ('no_consent', 'event_starts_first'));
 
 comment on column public.invitations.message_withheld_reason is
-  'LAN-392. Why this invitation was written with no invitation message declared against it: `no_consent` (Brian''s decision 7 — an operator-added recruit with no opt-in evidence) or `event_starts_first` (decision 3 — the event will have started by the send time). Null on every invitation whose message was declared, which is nearly all of them. Nobody carrying a reason is ever chased: `invitation_response_state` reports them as `never_asked` rather than `awaiting_response`, so `nonresponse_queue`, the Follow-ups list and the Monday report all leave them alone.';
+  'LAN-392. Why this invitation was written with no invitation message declared against it: `no_consent` (Brian''s decision 7 — an operator-added recruit with no opt-in evidence) or `event_starts_first` (decision 3 — the event will have started by the send time). Null on every invitation a message has gone out for, which is nearly all of them: the reason is cleared where the send is claimed, so it always means that nothing has ever been sent against this invitation. Nobody carrying a reason is ever chased: `invitation_response_state` reports them as `never_asked` rather than `awaiting_response`, so `nonresponse_queue`, the Follow-ups list and the Monday report all leave them alone.';
 
 -- Rebuilt in place. The column list and its types are unchanged, so
 -- `nonresponse_queue`, `uninvited_audience_members` and
@@ -282,7 +288,7 @@ left join public.invitations i on i.audience_member_id = a.id
 left join public.current_rsvp r on r.invitation_id = i.id;
 
 comment on view public.invitation_response_state is
-  'Invariant P7''s five-way partition, plus LAN-392''s sixth: `never_asked` is an audience member holding an invitation against which no message was ever declared (see invitations.message_withheld_reason). It is not an unanswered ask, so `nonresponse_queue` excludes it.';
+  'Invariant P7''s five-way partition, plus LAN-392''s sixth: `never_asked` is an audience member holding an invitation no message has ever gone out against (see invitations.message_withheld_reason, cleared when one does). It is not an unanswered ask, so `nonresponse_queue` excludes it.';
 
 revoke all on public.invitation_response_state from anon, authenticated, service_role;
 grant select on public.invitation_response_state to service_role;
