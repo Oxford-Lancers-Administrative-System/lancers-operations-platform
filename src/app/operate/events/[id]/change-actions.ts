@@ -11,6 +11,7 @@ import {
   renotifyEvent,
   type AmendableEvent,
 } from "@/lib/services/event-amendment";
+import { addEventAudienceMembers } from "@/lib/services/event-audience-amendment";
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "../form-state";
 import type { CancelFormState } from "./change-state";
@@ -126,6 +127,34 @@ export async function renotifyEventAction(
   revalidatePath(`/operate/events/${eventId}`);
   revalidatePath(`/operate/events/${eventId}/delivery`);
   redirect(`/operate/events/${eventId}?renotified=1`);
+}
+
+/**
+ * LAN-393 — adding a named person to an approved event's audience.
+ *
+ * Its own action for the same reason it is its own service: the amendment diff
+ * refuses an audience-only change outright. Guarded on `event_approval`, like
+ * the three above.
+ */
+export async function addEventAudienceAction(
+  _previous: EventTransitionState,
+  formData: FormData,
+): Promise<EventTransitionState> {
+  const operator = await requireCapability("event_approval");
+  const eventId = text(formData, "eventId");
+  const keys = formData
+    .getAll("audienceKey")
+    .filter((key): key is string => typeof key === "string");
+
+  try {
+    await addEventAudienceMembers(operator.personId, eventId, keys);
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+
+  revalidatePath(`/operate/events/${eventId}`);
+  revalidatePath(`/operate/events/${eventId}/delivery`);
+  redirect(`/operate/events/${eventId}?audienceAdded=1`);
 }
 
 /** `approved → cancelled` — W6. One operator, one action, no second approver. */

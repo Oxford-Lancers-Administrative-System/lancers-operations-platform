@@ -98,6 +98,12 @@ vi.mock("./change-actions", () => ({
   amendEventAction: vi.fn(async () => ({ issues: [], error: null, values: null })),
   cancelEventAction: vi.fn(async () => ({ error: null, reason: "" })),
   renotifyEventAction: vi.fn(async () => ({ error: null })),
+  addEventAudienceAction: vi.fn(async () => ({ error: null })),
+}));
+// LAN-393. The amend screen reads who can still be added; the write itself is
+// proved against the real database in `event-audience-amendment.test.ts`.
+vi.mock("@/lib/services/event-audience-amendment", () => ({
+  readAddableAudience: vi.fn(),
 }));
 
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
@@ -109,6 +115,7 @@ import {
   type AmendmentContext,
   type EventChangeEntry,
 } from "@/lib/services/event-amendment";
+import { readAddableAudience } from "@/lib/services/event-audience-amendment";
 import EventDetailPage from "./page";
 import AmendEventPage from "./amend/page";
 import CancelEventPage from "./cancel/page";
@@ -141,6 +148,7 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     venue: "Iffley Road Astro",
     isMandatory: true,
     registerSaved: false,
+    audienceAddedSinceApproval: 0,
     audienceCount: 37,
     invitationCount: 37,
     responseCount: 29,
@@ -248,7 +256,55 @@ beforeEach(() => {
   vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
   vi.mocked(readAmendmentContext).mockResolvedValue(context());
   vi.mocked(readEventChangeHistory).mockResolvedValue([]);
+  vi.mocked(readAddableAudience).mockResolvedValue(addable());
 });
+
+/** LAN-393: the people an approved event's audience can still be added to. */
+function addable(
+  candidates: {
+    key: string;
+    capacity: "player" | "coach" | "committee" | "recruit";
+    anchorId: string;
+    personId: string;
+    displayName: string;
+    standing: string;
+    unit: string | null;
+    contact: string | null;
+  }[] = [
+    {
+      key: "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      capacity: "player",
+      anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      personId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      displayName: "Wren Alderley",
+      standing: "Active",
+      unit: "Offence",
+      contact: null,
+    },
+    {
+      key: "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+      capacity: "player",
+      anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+      personId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+      displayName: "Quill Barrowman",
+      standing: "Onboarding",
+      unit: null,
+      contact: null,
+    },
+  ],
+  alreadyOnEvent = 37,
+) {
+  return {
+    candidates,
+    counts: {
+      player: candidates.filter((candidate) => candidate.capacity === "player").length,
+      coach: candidates.filter((candidate) => candidate.capacity === "coach").length,
+      committee: candidates.filter((candidate) => candidate.capacity === "committee").length,
+      recruit: candidates.filter((candidate) => candidate.capacity === "recruit").length,
+    },
+    alreadyOnEvent,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // W5-01 — the two ways out
@@ -937,5 +993,60 @@ describe("a cancelled event's page", () => {
     expect(flatten(screen.getByTestId("distribution-fact").textContent)).toContain(
       "37 invitations · 29 responses",
     );
+  });
+});
+
+/**
+ * LAN-393 — **Add to audience** on the amend screen.
+ *
+ * The control's whole job is to post the people it was given, so the assertions
+ * are on what the form would post and on what the screen refuses to offer. The
+ * write itself is proved against the real database.
+ */
+describe("LAN-393 — adding a named person to an approved event's audience", () => {
+  function postedKeys(): string[] {
+    return [...document.querySelectorAll('input[name="audienceKey"]')].map(
+      (input) => (input as HTMLInputElement).value,
+    );
+  }
+
+  it("offers only the people who are not already invited, and says how many of each there are", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    const panel = screen.getByTestId("section-add-to-audience");
+    expect(within(panel).getByTestId("already-on-event").textContent).toBe("37");
+    expect(within(panel).getByTestId("addable-count").textContent).toBe("2");
+    expect(within(panel).getByText("Wren Alderley")).toBeVisible();
+    expect(within(panel).getByText("Quill Barrowman")).toBeVisible();
+  });
+
+  it("posts the ticked person's key, and nothing until one is ticked", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    expect(postedKeys()).toEqual([]);
+    expect(screen.getByTestId("add-to-audience-submit")).toBeDisabled();
+
+    fireEvent.click(
+      within(screen.getByTestId("section-add-to-audience")).getAllByRole("checkbox")[0],
+    );
+
+    expect(postedKeys()).toEqual(["player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2"]);
+    expect(screen.getByTestId("add-to-audience-submit")).toBeEnabled();
+    expect(screen.getByTestId("add-to-audience-submit").textContent).toBe("Add 1 to audience");
+  });
+
+  it("says so rather than showing an empty list when everybody is already invited", async () => {
+    vi.mocked(readAddableAudience).mockResolvedValue(addable([], 40));
+    render(await AmendEventPage(amendProps()));
+
+    expect(screen.getByTestId("nobody-to-add")).toBeVisible();
+    expect(screen.queryByTestId("add-to-audience-submit")).toBeNull();
+  });
+
+  it("is not offered at all on an event that has already started", async () => {
+    vi.mocked(readAmendmentContext).mockResolvedValue(context({ isFuture: false }));
+    render(await AmendEventPage(amendProps()));
+
+    expect(screen.queryByTestId("section-add-to-audience")).toBeNull();
   });
 });

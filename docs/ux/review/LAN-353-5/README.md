@@ -62,3 +62,23 @@ What to read on it:
 
 Every person shown is the local synthetic seed. The 375px shot is the same page
 at phone width.
+
+## LAN-393 — an operator adds a named person to an approved event
+
+`LAN-393/desktop_amend-add-to-audience.png` and
+`LAN-393/phone375_amend-add-to-audience.png` are the amend screen of the same
+approved event, below the amendment form.
+
+What to read on it:
+
+- **Add to audience**, with **Already invited 7** and **Can be added 37** — the
+  second number is the picker's own list, and every one of the seven already on
+  the event is missing from it. The filter is by human, not by selection key, so
+  somebody already invited as a committee member is not offered again as a
+  player.
+- The same rows the draft's picker draws, and the same search and capacity
+  filters.
+- **Add 0 to audience**, disabled until a name is ticked.
+
+The panel is drawn only while the event is still ahead: the service refuses an
+event that has started, and a control that can only be refused is not a control.
