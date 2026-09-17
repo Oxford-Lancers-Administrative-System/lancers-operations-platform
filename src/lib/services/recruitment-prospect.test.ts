@@ -93,6 +93,33 @@ function acceptingTransport() {
   return { sent, transport };
 }
 
+/**
+ * Which of a sweep's sends went to this person — LAN-394.
+ *
+ * `runMessagingSweep` is global, and the seeded dataset has due work of its own,
+ * so "the sweep sent nothing" was only ever true of this fixture. It held by
+ * luck while a tick sent nothing ambient at all; with the guard pacing a tick
+ * and this suite running two of them, ambient traffic became visible and the
+ * assertion started counting other people's messages. Scoped to the number this
+ * person is actually reachable at, it says what it always meant.
+ */
+async function sendsAddressedTo(
+  personId: string,
+  sent: readonly { body: Record<string, unknown> }[],
+): Promise<number> {
+  const contact = await observer.query<{ digits: string }>(
+    `select regexp_replace(coalesce(normalised_value, raw_value), '[^0-9]', '', 'g') as digits
+       from public.contact_points
+      where person_id = $1::uuid and kind = 'phone'`,
+    [personId],
+  );
+  const theirs = contact.rows.map((row) => row.digits.replace(/^0/, "44"));
+  return sent.filter((record) => {
+    const to = typeof record.body.to === "string" ? record.body.to : "";
+    return theirs.some((digits) => to.endsWith(digits.slice(-9)));
+  }).length;
+}
+
 beforeAll(async () => {
   observer = await openObserver();
   const anchor = await observer.query<{ id: string }>(
@@ -415,7 +442,7 @@ describe("updateRecruitmentProspectStatusIn — the exits, W13", () => {
       await agePastSafetyPacing(observer);
       await runMessagingSweep({ source: CONFIGURED, transport });
     }
-    expect(sent).toHaveLength(0);
+    expect(await sendsAddressedTo(personId, sent)).toBe(0);
   });
 });
 
@@ -1187,7 +1214,7 @@ describe("LAN-341 — a status change cancels what is still in flight", () => {
       await agePastSafetyPacing(observer);
       await runMessagingSweep({ source: CONFIGURED, transport });
     }
-    expect(sent).toHaveLength(0);
+    expect(await sendsAddressedTo(personId, sent)).toBe(0);
   }, 30_000);
 
   it("leaves the same person's player invitation alone — only the recruit capacity is stood down", async () => {
