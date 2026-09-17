@@ -586,6 +586,85 @@ async function declareInvitationJobIn(tx: Tx, invitationId: string, at: Date): P
      on conflict (idempotency_key) do nothing`,
     [invitationId, at],
   );
+
+  // LAN-392, F6 (corrected 2026-09-17): the job and the reason are one fact, so
+  // they are written in one place. `message_withheld_reason` means "no message
+  // was ever declared against this invitation" — `invitation_response_state`
+  // answers `never_asked` on that basis alone, and every chase queue then
+  // leaves the person alone for good. Declaring a message and leaving the
+  // reason standing would make the column a lie in the one direction nobody
+  // ever notices: the message goes, nothing chases the silence, and no report
+  // shows the gap. Today this invitation was written moments ago and carries no
+  // reason, so the statement clears nothing; it is here so the rule holds of the
+  // function that declares the message rather than of the order its callers
+  // happen to run in.
+  await tx.query(
+    `update public.invitations
+        set message_withheld_reason = null
+      where id = $1::uuid and message_withheld_reason is not null`,
+    [invitationId],
+  );
+}
+
+/**
+ * The other half of the same rule, for the one path that declares a message
+ * against an invitation this module withheld one from:
+ * `backfillInvitationJobsIn` in `event-amendment/amend.ts`, which a reschedule
+ * runs unconditionally and which declares the invitation job for every
+ * invitation on the event, including one the rule deliberately left bare.
+ *
+ * A withheld invitation is not simply re-armed by that backfill, because the
+ * reason it was withheld may or may not still hold, and the column has to keep
+ * meaning what the view reads it as:
+ *
+ * - `event_starts_first` lapses the moment there is runway again. The test is
+ *   the event's own start against the instant the job now carries — set by
+ *   `scheduleEventLadderIn` and the amendment's rung loop, which is why this
+ *   runs after both rather than beside the backfill.
+ * - `no_consent` does not lapse just because a job exists: the backfill
+ *   declares one for an unconsented recruit too, and `claimJobIn` refuses it at
+ *   send time. Clearing it then would put somebody who will never be messaged
+ *   back into the chase queue — A11's defect inverted. It lapses only once
+ *   consent is on file, which the public sign-up doors and the questionnaire
+ *   grant.
+ *
+ * A cancelled job is not a declared message, so it is not counted.
+ */
+export async function clearWithheldReasonsWhereDeclaredIn(
+  tx: Tx,
+  eventId: string,
+): Promise<number> {
+  const cleared = await tx.query<{ id: string }>(
+    `update public.invitations i
+        set message_withheld_reason = null
+       from public.events e
+      where e.id = i.event_id
+        and i.event_id = $1::uuid
+        and i.message_withheld_reason is not null
+        and exists (
+          select 1
+            from public.notification_jobs j
+           where j.invitation_id = i.id
+             and j.job_type = 'invitation'
+             and j.status in ('pending', 'ready', 'processing', 'completed')
+             and j.scheduled_for is not null
+             and j.scheduled_for < (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
+                                     at time zone 'Europe/London')
+        and (i.message_withheld_reason <> 'no_consent'
+             or exists (
+               select 1
+                 from public.season_messaging_consents c
+                where c.season_id = i.season_id
+                  and c.state = 'granted'
+                  and c.person_id = coalesce(
+                        i.person_id,
+                        (select m.person_id
+                           from public.season_memberships m
+                          where m.id = i.season_membership_id))))
+     returning i.id`,
+    [eventId],
+  );
+  return cleared.rowCount ?? 0;
 }
 
 /**

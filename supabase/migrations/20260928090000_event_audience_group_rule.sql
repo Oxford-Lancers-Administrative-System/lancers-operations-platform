@@ -75,15 +75,20 @@ create table public.event_audience_groups (
   chosen_at timestamptz not null default now(),
   chosen_by_person_id uuid references public.people (id),
   constraint event_audience_groups_key unique (event_id, audience_group),
-  -- `on update cascade` is the belt to `updateEventDraft`'s braces (LAN-391,
-  -- corrected 2026-09-17). A draft's type can be changed, and a composite key
-  -- referencing `(id, event_type)` makes the class an *updatable* referenced
-  -- value: without the cascade, the `update public.events ... set event_type`
-  -- that a type change performs is refused outright while any row here still
-  -- points at the old class. The service clears this event's groups before it
-  -- writes the new type, so the cascade should never have anything to carry;
-  -- it is here so that a future writer who forgets cannot turn a legal edit
-  -- into a database refusal.
+  -- `on update cascade` (LAN-391, corrected 2026-09-17). A draft's type can be
+  -- changed, and a composite key referencing `(id, event_type)` makes the class
+  -- an *updatable* referenced value: without the cascade, the `update
+  -- public.events ... set event_type` that a type change performs is refused
+  -- outright while any row here still points at the old class.
+  --
+  -- It carries a group the new class still permits, and no further (LAN-392,
+  -- F7, corrected 2026-09-17): a `recruits` row cascaded on to a
+  -- non-recruitment class then fails
+  -- `event_audience_groups_recruits_are_recruitment_only` below, and the type
+  -- change is refused after all. So `updateEventDraft` clearing this event's
+  -- groups before it writes the new type is the fix, not a convenience this
+  -- cascade backs up; what the cascade adds is that a class change leaving
+  -- every group legal is not refused by write ordering alone.
   constraint event_audience_groups_event_fkey
     foreign key (event_id, event_type)
     references public.events (id, event_type) on update cascade on delete cascade,

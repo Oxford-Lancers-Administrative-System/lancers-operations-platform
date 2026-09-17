@@ -3,6 +3,7 @@ import "server-only";
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
 import { recordAudit } from "../audit";
+import { clearWithheldReasonsWhereDeclaredIn } from "../event-audience-rule";
 import { deriveTermCoordinate, type EventDraftInput } from "../event-input";
 import { lockEventIn, readEventIn, type EventDetail } from "../events";
 import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "../messaging-schedule";
@@ -390,6 +391,17 @@ async function recomputeScheduleOnRescheduleIn(
         and status in ('pending', 'ready', 'failed')`,
     [eventId, JOB_CANCELLED_BY_RESCHEDULE, keptRungs],
   );
+
+  // LAN-392, F6 (corrected 2026-09-17). `backfillInvitationJobsIn` above
+  // declares the invitation job the audience group rule withheld, and the rungs
+  // follow it, so the person is messaged after all. Their invitation still
+  // carried `message_withheld_reason`, which `invitation_response_state` reads
+  // as `never_asked` — so they were messaged and then permanently absent from
+  // `nonresponse_queue`, the Follow-ups queue, the President's escalation and
+  // the Monday report's "no answer" column. Last, because the reason lapses
+  // against the instant the job finally carries, which the two statements above
+  // are what settle.
+  await clearWithheldReasonsWhereDeclaredIn(tx, eventId);
 
   return { responseDeadlineAt: plan.responseDeadlineAt };
 }

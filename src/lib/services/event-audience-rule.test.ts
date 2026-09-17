@@ -25,6 +25,7 @@ import { listAudienceCatalogueIn, selectionKey } from "./event-audience";
 import { applyAudienceGroupRuleIn, nextAutoAddSendAt } from "./event-audience-rule";
 import { amendApprovedEvent, cancelEvent } from "./event-amendment";
 import { createEventDraft, type EventDraftInput } from "./events";
+import { grantSeasonMessagingConsentIn } from "./messaging-consent";
 import { runMessagingSweep } from "./messaging-scheduler";
 import { finishRecruitmentAddIn } from "./recruitment-add";
 import { signUpAnonymouslyIn, signUpWithTokenIn } from "./recruitment-signup";
@@ -284,6 +285,116 @@ async function invitationsFor(eventId: string, personId: string) {
     [eventId, personId],
   );
   return result.rows;
+}
+
+/** One invitation and the reason, if any, that no message was declared against it. */
+async function withheldReasonFor(eventId: string, personId: string) {
+  const result = await observer.query<{ id: string; message_withheld_reason: string | null }>(
+    `select i.id, i.message_withheld_reason
+       from public.invitations i
+       join public.event_audience_members a on a.id = i.audience_member_id
+      where i.event_id = $1::uuid and a.invitee_person_id = $2::uuid`,
+    [eventId, personId],
+  );
+  return result.rows[0];
+}
+
+/** Whether one invitation is being chased — the queue behind Follow-ups, the escalation and the Monday report. */
+async function isChased(invitationId: string): Promise<boolean> {
+  const result = await observer.query(
+    "select 1 from public.nonresponse_queue where invitation_id = $1::uuid",
+    [invitationId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** One instant, as the London wall-clock date and time the events table stores. */
+function londonWallClock(at: Date): { on: string; at: string } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+      .formatToParts(at)
+      .map((part) => [part.type, part.value]),
+  );
+  return { on: `${parts.year}-${parts.month}-${parts.day}`, at: `${parts.hour}:${parts.minute}` };
+}
+
+/**
+ * Six approved taster events, fifteen minutes apart from a quarter of an hour
+ * from now, so the five-an-hour cap pushes the sixth invitation an hour out —
+ * past the start of the event it is about. The rule walks them in start order,
+ * so the sixth, at +40, is the one whose message is withheld.
+ *
+ * The start times are written behind the service's back, exactly as the
+ * already-started case does it, so nothing here depends on approval accepting
+ * an event forty minutes away.
+ */
+async function sixImminentTasters(): Promise<string[]> {
+  const eventIds: string[] = [];
+  for (let index = 0; index < 6; index += 1) {
+    eventIds.push(
+      await approvedEventWithGroup("recruits", {
+        name: `${NAME_MARKER} imminent taster ${index}`,
+        scheduledOn: inDays(3),
+      }),
+    );
+  }
+
+  const offsets = [15, 20, 25, 30, 35, 40];
+  for (let index = 0; index < eventIds.length; index += 1) {
+    const when = londonWallClock(new Date(Date.now() + offsets[index] * 60 * 1000));
+    await observer.query(
+      `update public.events
+          set scheduled_on = $2::date, starts_at = $3::time, ends_at = null
+        where id = $1::uuid`,
+      [eventIds[index], when.on, when.at],
+    );
+  }
+  return eventIds;
+}
+
+/** The ordinary operator act: move one approved event to another day, changing nothing else. */
+async function rescheduleTo(eventId: string, scheduledOn: string): Promise<void> {
+  const event = await observer.query<{
+    name: string;
+    template_id: string;
+    starts_at: string | null;
+    ends_at: string | null;
+    delivery_mode: string;
+    venue: string | null;
+    is_mandatory: boolean;
+  }>(
+    `select name, template_id, starts_at::text as starts_at, ends_at::text as ends_at,
+            delivery_mode::text as delivery_mode, venue, is_mandatory
+       from public.events where id = $1::uuid`,
+    [eventId],
+  );
+  const row = event.rows[0];
+  await amendApprovedEvent(
+    actorPersonId,
+    eventId,
+    {
+      name: row.name,
+      templateId: row.template_id,
+      scheduledOn,
+      startsAt: row.starts_at?.slice(0, 5) ?? "19:00",
+      endsAt: row.ends_at?.slice(0, 5) ?? null,
+      deliveryMode: row.delivery_mode as EventDraftInput["deliveryMode"],
+      venue: row.venue,
+      description: null,
+      requiredEquipment: null,
+      joiningUrl: null,
+      isMandatory: row.is_mandatory,
+    },
+    { notify: false, silenceConfirmed: true },
+  );
 }
 
 async function jobsFor(personId: string) {
@@ -856,49 +967,8 @@ describe("the other doors", () => {
  * accepting an event forty minutes away.
  */
 describe("an event that will have started by the invitation's own send time", () => {
-  /** One instant, as the London wall-clock date and time the events table stores. */
-  function londonWallClock(at: Date): { on: string; at: string } {
-    const parts = Object.fromEntries(
-      new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/London",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-        .formatToParts(at)
-        .map((part) => [part.type, part.value]),
-    );
-    return { on: `${parts.year}-${parts.month}-${parts.day}`, at: `${parts.hour}:${parts.minute}` };
-  }
-
   it("adds the row and the invitation, declares nothing, and never chases it", async () => {
-    const eventIds: string[] = [];
-    for (let index = 0; index < 6; index += 1) {
-      eventIds.push(
-        await approvedEventWithGroup("recruits", {
-          name: `${NAME_MARKER} imminent taster ${index}`,
-          scheduledOn: inDays(3),
-        }),
-      );
-    }
-
-    // Fifteen minutes apart, starting a quarter of an hour from now. The rule
-    // walks them in start order, so the sixth is the one at +40 — inside the
-    // hour the cap pushes its own invitation past.
-    const offsets = [15, 20, 25, 30, 35, 40];
-    for (let index = 0; index < eventIds.length; index += 1) {
-      const when = londonWallClock(new Date(Date.now() + offsets[index] * 60 * 1000));
-      await observer.query(
-        `update public.events
-            set scheduled_on = $2::date, starts_at = $3::time, ends_at = null
-          where id = $1::uuid`,
-        [eventIds[index], when.on, when.at],
-      );
-    }
-
+    const eventIds = await sixImminentTasters();
     const { personId } = await addRecruit("Pike");
 
     // Every one of the six holds the row and the invitation. Brian's decision
@@ -976,6 +1046,91 @@ describe("an event that will have started by the invitation's own send time", ()
       [invitation.rows[0].id],
     );
     expect(queued.rowCount).toBe(0);
+  });
+});
+
+/**
+ * F6 (corrected 2026-09-17). `message_withheld_reason` claims that no message
+ * was ever declared against the invitation, and `invitation_response_state`
+ * answers `never_asked` on that claim alone. A reschedule makes the claim
+ * false: `backfillInvitationJobsIn` declares the invitation job for every
+ * invitation on the event without asking why one was missing, and
+ * `scheduleEventLadderIn` puts the rungs behind it. The person is messaged, and
+ * with the reason still standing they are permanently out of
+ * `nonresponse_queue`, the Follow-ups queue, the President's escalation and the
+ * Monday report's "no answer" column — messaged, silent, and chased by nobody.
+ *
+ * Both cases here are ordinary operator acts, and the second carries the
+ * opposite half of the rule: a job existing is not the same as a message that
+ * can go, so the unconsented recruit keeps their reason until consent is on
+ * file. Clearing it any earlier would put somebody `claimJobIn` will refuse to
+ * message back into the chase queue.
+ */
+describe("a reschedule that declares the message a withheld invitation never had", () => {
+  it("clears `event_starts_first` and chases the person like everybody else", async () => {
+    const eventIds = await sixImminentTasters();
+    const { personId } = await addRecruit("Rowntree");
+    const lastEventId = eventIds[5];
+
+    // The precondition, asserted rather than assumed: the sixth invitation is
+    // the withheld one, it holds no job, and nothing is chasing it.
+    const before = await withheldReasonFor(lastEventId, personId);
+    expect(before.message_withheld_reason).toBe("event_starts_first");
+    expect(
+      (await jobsFor(personId)).filter(
+        (job) => job.event_id === lastEventId && job.job_type === "invitation",
+      ),
+    ).toHaveLength(0);
+    expect(await isChased(before.id)).toBe(false);
+
+    // An operator moves that taster to next week. There is runway now.
+    await rescheduleTo(lastEventId, inDays(7));
+
+    const declared = (await jobsFor(personId)).filter(
+      (job) => job.event_id === lastEventId && job.job_type === "invitation",
+    );
+    expect(declared).toHaveLength(1);
+    expect(declared[0].scheduled_for).not.toBeNull();
+
+    const after = await withheldReasonFor(lastEventId, personId);
+    expect(after.message_withheld_reason).toBeNull();
+
+    const state = await observer.query<{ response_state: string }>(
+      "select response_state from public.invitation_response_state where invitation_id = $1::uuid",
+      [after.id],
+    );
+    expect(state.rows[0].response_state).toBe("awaiting_response");
+    expect(await isChased(after.id)).toBe(true);
+  });
+
+  it("holds `no_consent` until consent is on file, then clears it", async () => {
+    const eventId = await approvedEventWithGroup("recruits", { scheduledOn: inDays(9) });
+    const { personId } = await addRecruit("Sable", { consent: false });
+
+    const withheld = await withheldReasonFor(eventId, personId);
+    expect(withheld.message_withheld_reason).toBe("no_consent");
+
+    // A reschedule declares the job regardless of consent — the backfill asks
+    // no question — and `claimJobIn` is what refuses the send. So the job
+    // existing is not the message being declarable, and the reason must stand.
+    await rescheduleTo(eventId, inDays(11));
+
+    const jobs = (await jobsFor(personId)).filter(
+      (job) => job.event_id === eventId && job.job_type === "invitation",
+    );
+    expect(jobs).toHaveLength(1);
+    const stillWithheld = await withheldReasonFor(eventId, personId);
+    expect(stillWithheld.message_withheld_reason).toBe("no_consent");
+    expect(await isChased(stillWithheld.id)).toBe(false);
+
+    // They then sign up themselves and grant consent for the season, and the
+    // event moves again. Now the message really will go, so the reason goes.
+    await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, seasonId));
+    await rescheduleTo(eventId, inDays(13));
+
+    const cleared = await withheldReasonFor(eventId, personId);
+    expect(cleared.message_withheld_reason).toBeNull();
+    expect(await isChased(cleared.id)).toBe(true);
   });
 });
 
