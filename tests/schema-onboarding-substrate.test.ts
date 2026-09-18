@@ -645,6 +645,67 @@ describe("internal.reset_superseded_code_of_conduct", () => {
     );
     expect(item.status).toBe("pending");
   });
+
+  it("touches only the code_of_conduct item on a membership that also carries another complete item", async () => {
+    // The function's own lookup filters on `t.code = 'code_of_conduct'` as
+    // well as the membership id. Without that filter, a membership carrying
+    // more than one complete item would let the lookup match the wrong row —
+    // flipping an unrelated item back to pending and writing a false `system`
+    // history row against it, while the whole rest of the suite (which never
+    // gives a membership a second complete item) stays green.
+    const placeholder = await one<{ id: string }>(
+      client,
+      "select id from public.onboarding_agreement_versions where agreement_type = 'code_of_conduct' and version_label = 'placeholder-v1'",
+    );
+
+    // Inserted before the Code of Conduct item on purpose: without the
+    // function's own `t.code = 'code_of_conduct'` filter, the membership-only
+    // lookup has no ordering, so it is this earlier row that a naive scan
+    // would surface first.
+    const bucsPlayTypeId = await insertItemType({ code: "bucs_play" });
+    const bucsPlayItem = await one<{ id: string }>(
+      client,
+      `insert into public.onboarding_items (season_membership_id, season_id, item_type_id, status, completed_on)
+       values ($1, $2, $3, 'complete', current_date) returning id`,
+      [base.membershipId, base.seasonId, bucsPlayTypeId],
+    );
+    const bucsPlayHistory = await one<{ id: string }>(
+      client,
+      `insert into public.onboarding_item_history
+         (onboarding_item_id, season_membership_id, from_status, to_status, actor_kind, reason)
+       values ($1, $2, 'pending', 'complete', 'system', 'fixture: pre-existing complete state')
+       returning id`,
+      [bucsPlayItem.id, base.membershipId],
+    );
+
+    const { itemId: codeOfConductItemId } = await insertCodeOfConductItem("complete");
+    await insertAgreement(placeholder.id);
+
+    await client.query("select internal.reset_superseded_code_of_conduct($1)", [base.membershipId]);
+
+    const codeOfConductItem = await one<{ status: string }>(
+      client,
+      "select status::text as status from public.onboarding_items where id = $1",
+      [codeOfConductItemId],
+    );
+    expect(codeOfConductItem.status).toBe("pending");
+
+    const bucsPlayAfter = await one<{ status: string; completed_on: string | null }>(
+      client,
+      "select status::text as status, completed_on from public.onboarding_items where id = $1",
+      [bucsPlayItem.id],
+    );
+    expect(bucsPlayAfter.status).toBe("complete");
+    expect(bucsPlayAfter.completed_on).not.toBeNull();
+
+    const bucsPlayHistoryRows = await client.query<{ id: string }>(
+      "select id from public.onboarding_item_history where onboarding_item_id = $1",
+      [bucsPlayItem.id],
+    );
+    // Unchanged: still exactly the one pre-existing row, no new history
+    // written against the unrelated item.
+    expect(bucsPlayHistoryRows.rows).toEqual([{ id: bucsPlayHistory.id }]);
+  });
 });
 
 describe("onboarding_chase_settings", () => {
