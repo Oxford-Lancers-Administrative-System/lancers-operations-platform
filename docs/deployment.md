@@ -379,8 +379,14 @@ whitespace-free token — the comment above the flag in `deploy.yml` explains
 why, and `tests/deployment-configuration.test.ts` parses that token on
 whitespace — and a display-name value would split the flag mid-value and
 silently drop every setting after it, rather than fail loudly. This is
-enforced by convention rather than by code: Resend accepts a bare address, and
-the message simply carries no display name.
+enforced by convention rather than by code: Resend accepts a bare address.
+
+The message is **not** unnamed as a result. LAN-398 puts the club's own name in
+front of that address in code — `EMAIL_FROM_DISPLAY_NAME` in
+`src/lib/delivery/email.ts` — so every email the app sends arrives as
+`Oxford University Lancers American Football Club <events@oxfordlancers.com>`.
+There is nothing to configure, and nothing with a space in it ever reaches the
+flag.
 
 **There is no recipient allowlist, on any deployment.** LAN-287 removed
 `DELIVERY_RECIPIENT_ALLOWLIST` and `DELIVERY_EMAIL_ALLOWLIST` (Brian's LAN-168

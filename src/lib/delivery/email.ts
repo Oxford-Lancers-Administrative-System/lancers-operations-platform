@@ -48,6 +48,42 @@ import { templateFor } from "./templates";
 export const EMAIL_PROVIDER = "resend";
 
 /**
+ * The name an email from the club arrives under. LAN-398, Brian 2026-09-18.
+ *
+ * The club's university mailbox shows in iPhone Mail as "Oxford University
+ * Lancers American Football Club"; the app's own mail showed as two initials
+ * and an address, because `from` carried a bare address and nothing else. This
+ * is the club's full name, written out, and it is the bar the club set.
+ *
+ * It lives here rather than in the environment on purpose. `deploy.yml` folds
+ * `--set-env-vars` into one whitespace-free token, so a value with spaces in it
+ * splits the flag mid-value and silently drops every setting after it
+ * (`docs/deployment.md`; `tests/deployment-configuration.test.ts` parses that
+ * token on whitespace). `EMAIL_FROM_ADDRESS` therefore stays a bare address
+ * exactly as that pipeline requires, and the name in front of it is a fact
+ * about the club rather than about the deployment — every deployment sends as
+ * the same club.
+ */
+export const EMAIL_FROM_DISPLAY_NAME = "Oxford University Lancers American Football Club";
+
+/**
+ * The `from` header: the club's name, then the deployment's verified address.
+ *
+ * The angle-bracket form is what Resend documents and what every client parses
+ * into a display name. The address is taken *out* of `fromAddress` rather than
+ * assumed bare: `.env.example` documented the `Name <address>` form until this
+ * change, so a deployment may still be carrying one, and concatenating a
+ * display name onto a value that already has one produces `A <B <c@d>>` — which
+ * Resend refuses with a terminal 422 on every send. The address itself is
+ * unchanged either way.
+ */
+export function emailFromHeader(fromAddress: string): string {
+  const angled = /<([^<>]+)>\s*$/.exec(fromAddress);
+  const address = (angled ? angled[1] : fromAddress).trim();
+  return `${EMAIL_FROM_DISPLAY_NAME} <${address}>`;
+}
+
+/**
  * How long one send may take.
  *
  * The same fifteen seconds the WhatsApp adapter allows, and for the same
@@ -122,7 +158,7 @@ export function buildEmailBody(
   const lines = template.body(message);
 
   return {
-    from: config.fromAddress,
+    from: emailFromHeader(config.fromAddress),
     to: [config.recipientOverride ?? message.recipient],
     subject: template.subject(message),
     text: lines.join("\n\n"),
