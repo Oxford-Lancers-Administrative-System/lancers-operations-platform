@@ -72,12 +72,11 @@ afterAll(async () => {
 });
 
 describe("readCurrentOnboardingAgreementVersionIn", () => {
-  it("reads the seeded labelled placeholder for each document", async () => {
+  it("reads a version for each document type", async () => {
     const codeOfConduct = await withTransaction((tx) =>
       readCurrentOnboardingAgreementVersionIn(tx, "code_of_conduct"),
     );
-    expect(codeOfConduct.versionLabel).toBe("placeholder-v1");
-    expect(codeOfConduct.body).toMatch(/Placeholder/);
+    expect(codeOfConduct.agreementType).toBe("code_of_conduct");
 
     const photoRelease = await withTransaction((tx) =>
       readCurrentOnboardingAgreementVersionIn(tx, "photo_release"),
@@ -148,13 +147,29 @@ describe("readCurrentOnboardingAgreementVersionIn", () => {
     ]);
   });
 
-  it("leaves the Code of Conduct's placeholder exactly where it was", async () => {
+  // LAN-356. The club's own 2026 Code of Conduct replaces the LAN-214
+  // placeholder as the current version — the same `readCurrentOnboardingAgreementVersionIn`
+  // "latest by effective_from" rule the photo release's own version bump used.
+  it("reads the club's 2026 Code of Conduct as the current version", async () => {
     const version = await withTransaction((tx) =>
       readCurrentOnboardingAgreementVersionIn(tx, "code_of_conduct"),
     );
-    expect(version.versionLabel).toBe("placeholder-v1");
-    expect(isPlaceholderVersion(version.versionLabel)).toBe(true);
+    expect(version.versionLabel).toBe("2026-v1");
+    expect(version.pdfPath).toBe("/documents/oulafc-code-of-conduct-2026.pdf");
+    expect(isPlaceholderVersion(version.versionLabel)).toBe(false);
     expect(bodyRequiresPrintedName(version.body)).toBe(false);
+
+    // The document's own words, transcribed exactly (LAN-356 decision 2) — the
+    // title, the first numbered point, "Willfully" preserved, and a bullet
+    // from one of the sub-lists.
+    expect(version.body).toContain(
+      "## Code of Conduct for the Oxford University Lancers American Football Club (OULAFC)",
+    );
+    expect(version.body).toContain(
+      "1. The Oxford University Lancers American Football Club (“the Club”) does not tolerate any form of harassment",
+    );
+    expect(version.body).toContain("- Willfully disregard BAFA regulations.");
+    expect(version.body).toContain("16. Members of the club should:");
   });
 });
 
@@ -201,7 +216,7 @@ describe("recordOnboardingAgreementIn", () => {
 
   // LAN-347. The wording decides what the record has to carry: the photo
   // release's version declares a printed name, so an agreement without one is
-  // refused; the Code of Conduct's placeholder declares none and records none.
+  // refused; the Code of Conduct's current version declares none and records none.
   it("refuses a photo release agreement with no printed name", async () => {
     const personId = await insertPerson("noname");
 

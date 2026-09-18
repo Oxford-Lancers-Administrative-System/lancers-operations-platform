@@ -257,8 +257,11 @@ describe("onboarding_agreement_versions / onboarding_agreements", () => {
          from public.onboarding_agreement_versions
         order by agreement_type, effective_from`,
     );
+    // LAN-356: the club's own 2026 document is now current; the placeholder
+    // stays on record under it.
     expect(result.rows.filter((r) => r.v === "code_of_conduct").map((r) => r.label)).toEqual([
       "placeholder-v1",
+      "2026-v1",
     ]);
     // Oldest first: the placeholder is still on record, under the real form.
     expect(result.rows.filter((r) => r.v === "photo_release").map((r) => r.label)).toEqual([
@@ -496,6 +499,151 @@ describe("onboarding_agreement_versions / onboarding_agreements", () => {
       [agreement.id],
     );
     await client.query("rollback to savepoint role_switch");
+  });
+});
+
+// LAN-356, decision 3: a player who ticked the retired placeholder has not
+// agreed to the club's 2026 Code of Conduct. `internal.reset_superseded_code_of_conduct`
+// is the mechanism — it mirrors LAN-375's `internal.refresh_kit_distributed`,
+// called once per membership from the migration's own backfill, and callable
+// directly here the same way a future version bump's migration would call it.
+describe("internal.reset_superseded_code_of_conduct", () => {
+  async function insertCodeOfConductItem(status: string): Promise<{
+    itemTypeId: string;
+    itemId: string;
+  }> {
+    const itemTypeId = await insertItemType({ code: "code_of_conduct" });
+    const completedOn = status === "complete" ? new Date().toISOString().slice(0, 10) : null;
+    const item = await one<{ id: string }>(
+      client,
+      `insert into public.onboarding_items (season_membership_id, season_id, item_type_id, status, completed_on)
+       values ($1, $2, $3, $4::public.onboarding_item_status, $5::date)
+       returning id`,
+      [base.membershipId, base.seasonId, itemTypeId, status, completedOn],
+    );
+    return { itemTypeId, itemId: item.id };
+  }
+
+  async function insertAgreement(versionId: string): Promise<string> {
+    const agreement = await one<{ id: string }>(
+      client,
+      `insert into public.onboarding_agreements (person_id, season_id, agreement_type, agreement_version_id)
+       values ($1, $2, 'code_of_conduct', $3) returning id`,
+      [base.personId, base.seasonId, versionId],
+    );
+    return agreement.id;
+  }
+
+  it("reads pending after the migration when the live agreement was to the placeholder, and complete after ticking the new one — acceptance for decision 3", async () => {
+    const placeholder = await one<{ id: string }>(
+      client,
+      "select id from public.onboarding_agreement_versions where agreement_type = 'code_of_conduct' and version_label = 'placeholder-v1'",
+    );
+    const current = await one<{ id: string }>(
+      client,
+      `select id from public.onboarding_agreement_versions
+        where agreement_type = 'code_of_conduct'
+        order by effective_from desc limit 1`,
+    );
+    expect(current.id).not.toBe(placeholder.id); // the 2026 document, not the placeholder
+
+    const { itemId } = await insertCodeOfConductItem("complete");
+    const agreementId = await insertAgreement(placeholder.id);
+
+    await client.query("select internal.reset_superseded_code_of_conduct($1)", [base.membershipId]);
+
+    const item = await one<{ status: string; completed_on: string | null }>(
+      client,
+      "select status::text as status, completed_on from public.onboarding_items where id = $1",
+      [itemId],
+    );
+    expect(item.status).toBe("pending");
+    expect(item.completed_on).toBeNull();
+
+    const agreement = await one<{ reopened_at: string | null }>(
+      client,
+      "select reopened_at from public.onboarding_agreements where id = $1",
+      [agreementId],
+    );
+    expect(agreement.reopened_at).not.toBeNull(); // kept as history, not deleted
+
+    const history = await one<{ from_status: string; to_status: string; actor_kind: string }>(
+      client,
+      `select from_status::text as from_status, to_status::text as to_status, actor_kind::text as actor_kind
+         from public.onboarding_item_history
+        where onboarding_item_id = $1 order by occurred_at desc limit 1`,
+      [itemId],
+    );
+    expect(history).toEqual({
+      from_status: "complete",
+      to_status: "pending",
+      actor_kind: "system",
+    });
+
+    // Ticking the new document — a fresh agreement, the item completed again.
+    await insertAgreement(current.id);
+    await client.query(
+      "update public.onboarding_items set status = 'complete', completed_on = current_date where id = $1",
+      [itemId],
+    );
+    const reAgreed = await one<{ status: string }>(
+      client,
+      "select status::text as status from public.onboarding_items where id = $1",
+      [itemId],
+    );
+    expect(reAgreed.status).toBe("complete");
+  });
+
+  it("is a no-op once the live agreement already matches the current version", async () => {
+    const current = await one<{ id: string }>(
+      client,
+      `select id from public.onboarding_agreement_versions
+        where agreement_type = 'code_of_conduct'
+        order by effective_from desc limit 1`,
+    );
+    const { itemId } = await insertCodeOfConductItem("complete");
+    const agreementId = await insertAgreement(current.id);
+
+    await client.query("select internal.reset_superseded_code_of_conduct($1)", [base.membershipId]);
+
+    const item = await one<{ status: string }>(
+      client,
+      "select status::text as status from public.onboarding_items where id = $1",
+      [itemId],
+    );
+    expect(item.status).toBe("complete");
+    const agreement = await one<{ reopened_at: string | null }>(
+      client,
+      "select reopened_at from public.onboarding_agreements where id = $1",
+      [agreementId],
+    );
+    expect(agreement.reopened_at).toBeNull();
+  });
+
+  it("is a no-op when the item is complete with no backing agreement row (F2 fallback)", async () => {
+    const { itemId } = await insertCodeOfConductItem("complete");
+
+    await client.query("select internal.reset_superseded_code_of_conduct($1)", [base.membershipId]);
+
+    const item = await one<{ status: string }>(
+      client,
+      "select status::text as status from public.onboarding_items where id = $1",
+      [itemId],
+    );
+    expect(item.status).toBe("complete");
+  });
+
+  it("is a no-op when the item is not complete", async () => {
+    const { itemId } = await insertCodeOfConductItem("pending");
+
+    await client.query("select internal.reset_superseded_code_of_conduct($1)", [base.membershipId]);
+
+    const item = await one<{ status: string }>(
+      client,
+      "select status::text as status from public.onboarding_items where id = $1",
+      [itemId],
+    );
+    expect(item.status).toBe("pending");
   });
 });
 

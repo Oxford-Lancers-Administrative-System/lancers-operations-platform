@@ -4,7 +4,7 @@
 -- supplied as a PDF, sha256 ab082021d715fd6bc171fe487192b3eadcf201ade1ce50346f757746c5ff68f1)
 -- replaces the LAN-214 placeholder in the versioned slot. Committed at
 -- `public/documents/oulafc-code-of-conduct-2026.pdf`, byte-identical to the
--- source.
+-- source. Two things:
 --
 --   1. One new `onboarding_agreement_versions` row, `agreement_type =
 --      'code_of_conduct'`, `version_label = '2026-v1'`. `body` is the
@@ -23,8 +23,29 @@
 --      current version a coin toss. The `placeholder-v1` row stays: an
 --      agreement already recorded against it must keep resolving to the
 --      words that were shown.
--- No RLS or grant change: every table this touches already carries the
--- grants LAN-214 gave it.
+--
+--   2. A player who ticked the placeholder has not agreed to 2026-v1
+--      (Brian, decision 3). `internal.reset_superseded_code_of_conduct`
+--      mirrors LAN-375's `internal.refresh_kit_distributed` — a function in
+--      the `internal` schema, invoker security, exposed to nothing the Data
+--      API can reach — and does the smallest correct thing for one
+--      membership: when its Code of Conduct item is `complete` and the
+--      agreement behind that completion does not point at the current
+--      version, it stamps the stale `onboarding_agreements` row
+--      `reopened_at` (LAN-347's own reopen shape — kept as history, never
+--      deleted) and resets the item to `pending`, writing the item's own
+--      `system` history row. A no-op otherwise. This migration calls it once
+--      for every membership whose item is already complete, exactly as the
+--      kit migration recomputed every existing membership for its own rule
+--      — the three real players who may have ticked the placeholder are
+--      asked again once this migration applies. Nothing about
+--      `onboarding_agreements` or `onboarding_agreement_versions`'s own
+--      insert-only posture changes: the function only ever stamps
+--      `reopened_at` on a row already permitted to carry that stamp, and it
+--      inserts no new agreement of its own.
+--
+-- No RLS or grant change beyond the one function: every table this touches
+-- already carries the grants LAN-214/LAN-240/LAN-347/LAN-375 gave it.
 
 -- ---------------------------------------------------------------------------
 -- 1. The document itself, in the versioned slot
@@ -97,3 +118,98 @@ $body$,
     where agreement_type = 'code_of_conduct')
 );
 
+-- ---------------------------------------------------------------------------
+-- 2. Re-asking a player whose agreement no longer covers the current version
+-- ---------------------------------------------------------------------------
+
+create or replace function internal.reset_superseded_code_of_conduct(target_membership_id uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  item_row record;
+  membership_row record;
+  current_version_id uuid;
+  agreement_row record;
+begin
+  select i.id, i.status
+    into item_row
+    from public.onboarding_items i
+    join public.onboarding_item_types t on t.id = i.item_type_id
+   where i.season_membership_id = target_membership_id and t.code = 'code_of_conduct'
+   for update of i;
+
+  -- No configured item, or not complete: nothing this player agreed to is stale.
+  if not found or item_row.status <> 'complete' then
+    return;
+  end if;
+
+  select person_id, season_id
+    into membership_row
+    from public.season_memberships
+   where id = target_membership_id;
+
+  select id
+    into current_version_id
+    from public.onboarding_agreement_versions
+   where agreement_type = 'code_of_conduct'
+   order by effective_from desc
+   limit 1;
+
+  select a.id, a.agreement_version_id
+    into agreement_row
+    from public.onboarding_agreements a
+   where a.person_id = membership_row.person_id
+     and a.season_id = membership_row.season_id
+     and a.agreement_type = 'code_of_conduct'
+     and a.reopened_at is null
+   for update of a;
+
+  -- No live agreement, or it already matches the current version: settled.
+  if not found or agreement_row.agreement_version_id = current_version_id then
+    return;
+  end if;
+
+  update public.onboarding_agreements
+     set reopened_at = now()
+   where id = agreement_row.id;
+
+  update public.onboarding_items
+     set status = 'pending'::public.onboarding_item_status,
+         completed_on = null,
+         updated_at = now()
+   where id = item_row.id;
+
+  insert into public.onboarding_item_history
+    (onboarding_item_id, season_membership_id, from_status, to_status, actor_kind, reason)
+  values
+    (item_row.id, target_membership_id, 'complete', 'pending', 'system',
+     'The Code of Conduct 2026-v1 supersedes the version this was agreed to (LAN-356).');
+end;
+$$;
+
+comment on function internal.reset_superseded_code_of_conduct(uuid) is
+  'Re-asks the Code of Conduct when the version this membership agreed to is no longer current (LAN-356): reopens the stale onboarding_agreements row (kept as history) and resets the item to pending, recording the change as system in its own history. A no-op when the item is not complete or the agreement already matches the current version.';
+
+revoke all on function internal.reset_superseded_code_of_conduct(uuid) from public;
+grant execute on function internal.reset_superseded_code_of_conduct(uuid) to service_role;
+
+-- Every membership whose Code of Conduct is already complete, checked against
+-- the version just inserted above — the same "recompute every existing
+-- membership" shape the kit migration used for its own rule.
+do $$
+declare
+  membership record;
+begin
+  for membership in
+    select i.season_membership_id
+      from public.onboarding_items i
+      join public.onboarding_item_types t on t.id = i.item_type_id
+     where t.code = 'code_of_conduct' and i.status = 'complete'
+  loop
+    perform internal.reset_superseded_code_of_conduct(membership.season_membership_id);
+  end loop;
+end;
+$$;
