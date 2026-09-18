@@ -35,7 +35,7 @@ import { updateRecruitmentProspectStatusIn } from "./recruitment-prospect";
 import { flipRecruitmentProspectToJoinedIn } from "./recruitment-prospect/flip";
 import { enterReturningPlayer } from "./roster";
 import { commitBps } from "./roster-board";
-import { openObserver } from "../../../tests/helpers/service-layer";
+import { agePastSafetyPacing, openObserver } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN392GroupRuleSuite";
 const RECRUITMENT_TEMPLATE_ID = "ae03257b-292e-5a97-b6ef-c3a6a2b839d7";
@@ -1288,6 +1288,13 @@ describe("the send is what clears the withheld reason", () => {
     // screen. A `failed` job is outside the reschedule-time clear's allow-list,
     // so this route is the one the send-time clear has to carry by itself.
     await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, seasonId));
+    // LAN-394. The refused sweep above still admitted this person through the
+    // messaging safety guard before `claimJobIn` declined to send, and the
+    // guard admits one message per person per five minutes. A Retry pressed a
+    // second later is deferred, correctly and unhelpfully — the window is aged
+    // out here so what this test measures is the send-time clear rather than
+    // the pacing allowance.
+    await agePastSafetyPacing(observer);
     const accepted = sink();
     const outcome = await retryDelivery(actorPersonId, job.id, {
       source: CONFIGURED,
