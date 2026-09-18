@@ -3,7 +3,7 @@ import "server-only";
 import type { EmailConfig } from "./config";
 import { renderEmailHtml } from "./email-shell";
 import type { DeliveryProvider, OutboundMessage, SendOutcome, Transport } from "./provider";
-import { templateFor } from "./templates";
+import { RECRUIT_STOP_MESSAGES_LABEL, templateFor } from "./templates";
 
 /**
  * The automated email transport. LAN-169, on Resend.
@@ -154,7 +154,8 @@ export const NO_USABLE_EMAIL_REASON =
  * and it is the copy Meta's classifier approved. `html` puts the identical
  * lines, escaped, one `<p>` each, inside the club's shell (`./email-shell.ts`).
  * There is still no second rendering to keep in step: there is one body, in a
- * frame.
+ * frame. The one line that moves is the Stop line, from the end of the message
+ * to the signature block — see below, and see `email-shell.ts` on why.
  */
 export function buildEmailBody(
   config: EmailConfig,
@@ -165,12 +166,24 @@ export function buildEmailBody(
 
   const subject = template.subject(message);
 
+  // `stopLine()` puts `Stop messages: <url>` last, on the four recruit kinds
+  // that carry one and nowhere else (LAN-372). In the HTML it belongs with the
+  // signature rather than with the message, so it is separated here and the
+  // shell signs off with it. Same line, same wording, moved and not copied.
+  // `text` is assembled from the untouched `lines` and is unaffected.
+  const stop = lines.at(-1)?.startsWith(`${RECRUIT_STOP_MESSAGES_LABEL}: `) === true;
+
   return {
     from: emailFromHeader(config.fromAddress),
     to: [config.recipientOverride ?? message.recipient],
     subject,
     text: lines.join("\n\n"),
-    html: renderEmailHtml({ appBaseUrl: config.appBaseUrl, subject, lines }),
+    html: renderEmailHtml({
+      appBaseUrl: config.appBaseUrl,
+      subject,
+      lines: stop ? lines.slice(0, -1) : lines,
+      stopLine: stop ? (lines.at(-1) ?? null) : null,
+    }),
     ...(config.replyToAddress ? { reply_to: config.replyToAddress } : {}),
   };
 }

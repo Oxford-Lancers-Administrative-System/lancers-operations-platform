@@ -37,14 +37,35 @@
  * Outlook will otherwise invert a light message in dark mode, and the crest is
  * Oxford Blue ink on transparency — inverted, it goes to navy on near-black.
  * Declaring the scheme is what stops a client guessing.
+ *
+ * ## The signature block, and where the Stop line goes
+ *
+ * Below the message: the crest again at 32px, the club's name written out in
+ * full, and the privacy notice. It is the same information the `from` line
+ * carries, said once more where a reader looks for it, and it is the only place
+ * in the email with a link the template did not put there.
+ *
+ * `stopLine()` puts `Stop messages: <url>` last in the body of the four recruit
+ * kinds that carry one, and nowhere else — LAN-372: a recruit may ask the club
+ * to stop messaging them, and a roster player asking the same thing is asking
+ * to leave the team, which is a membership conversation. That line is signature
+ * material, so the shell renders that same paragraph — same wording, same
+ * escaping, same `<p>` — in the signature block rather than in the message, and
+ * nowhere twice. Nothing here decides *whether* it appears: the template did,
+ * and this only reads what the template decided. The `text` part is unchanged
+ * either way, and still carries the line exactly where it always did.
  */
 
 /** Oxford Blue. `primary.main` — the club navy. */
 const NAVY = "#002147";
+/** Oxford Royal Blue. `primary.light` — the one link colour. */
+const LINK = "#1D42A6";
 /** Gold. `secondary.main` — "one accent band per page, a gold rule". */
 const GOLD = "#C09723";
 /** Oxford Charcoal. `text.primary` — all body text. */
 const INK = "#211D1C";
+/** Charcoal 70%. `text.secondary` — the signature block. */
+const MUTED = "#5A5754";
 /** Charcoal 12% over white. `divider`, resolved: Word has no `rgba()`. */
 const RULE = "#E4E4E4";
 /** Warm off-white / white. `background.default` and `background.paper`. */
@@ -67,12 +88,16 @@ const FACE =
 const BODY_TYPE = `font-family:${FACE};font-size:15px;line-height:22px;`;
 /** `h2` — 22/28, 700. The club's name beside the crest. */
 const NAME_TYPE = `font-family:${FACE};font-size:22px;line-height:28px;font-weight:700;`;
+/** `body2` — 13/18, 400. The signature block, quieter than the message. */
+const SIGN_TYPE = `font-family:${FACE};font-size:13px;line-height:18px;`;
 
 /** The gap between paragraphs, matching the blank line the text part uses. */
 const PARAGRAPH = 'style="margin:0 0 16px 0;"';
 
 /** How the club's name is written beside the mark — `BrandMark`'s own wording. */
 const CLUB_SHORT_NAME = "Oxford Lancers";
+/** How it is written out in full, in the signature and in the `from` line. */
+const CLUB_FULL_NAME = "Oxford University Lancers American Football Club";
 
 /**
  * The mark's own proportions, 1017.75 × 860.5 in `crest.svg`'s units.
@@ -140,6 +165,8 @@ interface EmailShell {
   readonly subject: string;
   /** The template's body lines, in order, unchanged. */
   readonly lines: readonly string[];
+  /** The line `stopLine()` put last, where it put one. Signed off with, not sent. */
+  readonly stopLine: string | null;
 }
 
 /**
@@ -149,10 +176,29 @@ interface EmailShell {
  * a `max-width`, so at 375px it is the viewport less the 16px gutter either
  * side, and nothing scrolls sideways.
  */
-export function renderEmailHtml({ appBaseUrl, subject, lines }: EmailShell): string {
+export function renderEmailHtml({ appBaseUrl, subject, lines, stopLine }: EmailShell): string {
   const paragraphs = lines
     .map((line) => `<p ${PARAGRAPH}>${escapeHtml(line)}</p>`)
     .join("\n        ");
+
+  // The privacy notice is a link on the application's own origin, so it shares
+  // the crest's fate when there is no origin to name: nothing relative goes
+  // into an email, and the club's name is still signed.
+  const signature = [
+    beside(
+      // Empty alt deliberately. The same mark, beside the same club name, a
+      // second time in one message: a screen reader announcing "Oxford Lancers
+      // crest" again is noise, not information.
+      crest(appBaseUrl, 32, ""),
+      `<span style="${SIGN_TYPE}color:${MUTED};">${CLUB_FULL_NAME}</span>`,
+    ),
+    ...(appBaseUrl === ""
+      ? []
+      : [
+          `<p style="margin:12px 0 0 0;"><a href="${appBaseUrl}/privacy" style="color:${LINK};text-decoration:underline;">Privacy notice</a></p>`,
+        ]),
+    ...(stopLine === null ? [] : [`<p style="margin:12px 0 0 0;">${escapeHtml(stopLine)}</p>`]),
+  ].join("\n        ");
 
   return `<!doctype html>
 <html lang="en">
@@ -174,8 +220,13 @@ export function renderEmailHtml({ appBaseUrl, subject, lines }: EmailShell): str
           </td>
         </tr>
         <tr>
-          <td style="padding:24px;${BODY_TYPE}color:${INK};">
+          <td style="padding:24px 24px 8px 24px;${BODY_TYPE}color:${INK};">
         ${paragraphs}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 24px 24px 24px;border-top:1px solid ${RULE};${SIGN_TYPE}color:${MUTED};">
+        ${signature}
           </td>
         </tr>
       </table>

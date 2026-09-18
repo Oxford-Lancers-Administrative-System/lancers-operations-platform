@@ -96,6 +96,14 @@ export const FIXTURE_MESSAGE: OutboundMessage = {
   stopUrl: "https://app.oxfordlancers.example/stop/stop-token",
 };
 
+/** The four kinds `stopLine()` renders for today. LAN-372. */
+const KINDS_WITH_A_STOP_LINE: readonly MessageKind[] = [
+  "recruit_welcome",
+  "recruit_details_reminder",
+  "recruit_interest_ask",
+  "recruit_interest_reminder",
+];
+
 export function renderedParts(kind: MessageKind): { text: string; html: string } {
   const body = buildEmailBody(FIXTURE_CONFIG, { ...FIXTURE_MESSAGE, kind }) as {
     text: string;
@@ -130,8 +138,35 @@ describe("the HTML part", () => {
   it.each(MESSAGE_KINDS)("carries every body line of %s escaped in its own paragraph", (kind) => {
     const { text, html } = renderedParts(kind);
     for (const line of text.split("\n\n")) {
+      // The Stop line is the one that moves, into the signature block, where it
+      // keeps its wording and its own paragraph. Asserted below.
+      if (line.startsWith("Stop messages: ")) continue;
       expect(html).toContain(`<p style="margin:0 0 16px 0;">${escaped(line)}</p>`);
     }
+  });
+
+  it.each(MESSAGE_KINDS)(
+    "signs %s off with the club's full name and the privacy notice",
+    (kind) => {
+      const { html } = renderedParts(kind);
+      expect(html).toContain("Oxford University Lancers American Football Club");
+      expect(html).toContain('href="https://app.oxfordlancers.example/privacy"');
+    },
+  );
+
+  it.each(MESSAGE_KINDS)("offers Stop on %s only where that kind carries it today", (kind) => {
+    // LAN-372: a recruit may ask the club to stop messaging them; a roster
+    // player asking the same thing is asking to leave the team, which is a
+    // membership conversation and not an opt-out. The shell does not decide
+    // this — it reads whether `stopLine()` put a line there, and signs off with
+    // exactly that line. Never twice: it is moved out of the message, not
+    // copied into the signature.
+    const { text, html } = renderedParts(kind);
+    const carries = KINDS_WITH_A_STOP_LINE.includes(kind);
+    expect(html.includes("Stop messages")).toBe(carries);
+    expect(html.split("Stop messages").length - 1).toBe(carries ? 1 : 0);
+    // And the text part keeps it exactly where it has always been: last.
+    expect(text.split("\n\n").at(-1)?.startsWith("Stop messages: ")).toBe(carries);
   });
 
   it.each(MESSAGE_KINDS)("puts the crest and the club's name above %s", (kind) => {
@@ -159,6 +194,10 @@ describe("the HTML part", () => {
     };
     expect(html.html).not.toContain("<img");
     expect(html.html).toContain(">Oxford Lancers<");
+    // The club is still signed. What goes is the image and the one link the
+    // shell adds: nothing relative belongs in an email either.
+    expect(html.html).toContain("Oxford University Lancers American Football Club");
+    expect(html.html).not.toContain("<a ");
   });
 });
 
