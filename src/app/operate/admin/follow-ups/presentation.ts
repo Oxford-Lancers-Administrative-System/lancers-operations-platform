@@ -57,6 +57,17 @@ export function chaseProblemNotice(refused: number): string {
   return refused === 1 ? "1 person could not be chased:" : `${refused} people could not be chased:`;
 }
 
+/**
+ * LAN-394. Chases that exist and have not gone out yet. Deliberately a separate
+ * sentence from `chaseProblemNotice`: nothing could not be chased, and sending
+ * an operator to look at a record would waste their time.
+ */
+export function chaseWaitingNotice(waiting: number): string {
+  return waiting === 1
+    ? "1 chase is queued — waiting for the sending allowance:"
+    : `${waiting} chases are queued — waiting for the sending allowance:`;
+}
+
 export const CHASE_NOBODY_SELECTED = "Select at least one person to chase.";
 
 /** A refusal the delivery path recorded no sentence for — the claim itself threw. */

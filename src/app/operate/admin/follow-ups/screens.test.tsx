@@ -151,6 +151,7 @@ beforeEach(() => {
     error: null,
     accepted: 0,
     refusals: [],
+    waiting: [],
     notOutstandingInvitationIds: [],
   });
   signedInAs(["secretary"]);
@@ -619,6 +620,7 @@ describe("chasing several people from the queue — LAN-322", () => {
       error: null,
       accepted: 2,
       refusals: [],
+      waiting: [],
       notOutstandingInvitationIds: [],
     });
     await renderPage();
@@ -646,6 +648,7 @@ describe("chasing several people from the queue — LAN-322", () => {
       error: null,
       accepted: 1,
       refusals: [{ invitationId: "invitation-2", reason: NO_NUMBER }],
+      waiting: [],
       notOutstandingInvitationIds: [],
     });
     await renderPage();
@@ -676,6 +679,7 @@ describe("chasing several people from the queue — LAN-322", () => {
         { invitationId: "invitation-2", reason: NO_NUMBER },
         { invitationId: "invitation-3", reason: UNCONFIGURED },
       ],
+      waiting: [],
       notOutstandingInvitationIds: [],
     });
     await renderPage();
@@ -712,6 +716,7 @@ describe("chasing several people from the queue — LAN-322", () => {
         { invitationId: "invitation-2", reason: UNCONFIGURED },
         { invitationId: "invitation-3", reason: UNCONFIGURED },
       ],
+      waiting: [],
       notOutstandingInvitationIds: [],
     });
     await renderPage();
@@ -750,6 +755,7 @@ describe("chasing several people from the queue — LAN-322", () => {
         invitationId: person.invitationId,
         reason: NO_NUMBER,
       })),
+      waiting: [],
       notOutstandingInvitationIds: [],
     });
     await renderPage();

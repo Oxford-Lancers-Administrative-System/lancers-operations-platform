@@ -5,6 +5,7 @@ import type { Transport } from "@/lib/delivery";
 import type { EnvironmentSource } from "@/lib/delivery/config";
 import { MAX_ATTEMPTS } from "../delivery";
 import { dispatchRecruitmentCycleJob } from "../messaging-scheduler";
+import { readWaitingIn } from "../messaging-safety";
 import { recordAudit } from "../audit";
 import {
   declareRecruitmentCycleJobsIn,
@@ -121,7 +122,14 @@ export async function sendRecruitmentQuestionnaire(
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<
   Omit<SendRecruitmentQuestionnaireResult, "jobId"> & {
-    delivery?: "accepted" | "refused" | "skipped";
+    /**
+     * LAN-394 added `deferred`: the ask was declared and its job exists, and
+     * the send is waiting on the club's sending allowance. The recruit's
+     * existing open request is untouched, because nothing was minted.
+     */
+    delivery?: "accepted" | "refused" | "skipped" | "deferred";
+    /** LAN-394. When the guard expects to let it through, where that is knowable. */
+    waitingUntil?: Date | null;
   }
 > {
   const { jobId, ...result } = await withTransaction((tx) =>
@@ -129,5 +137,10 @@ export async function sendRecruitmentQuestionnaire(
   );
   if (!jobId) return result;
   const delivery = await dispatchRecruitmentCycleJob(jobId, options);
-  return { ...result, delivery };
+  if (delivery !== "deferred") return { ...result, delivery };
+
+  // The recruitment ask has a deterministic person/season/step job key, so the
+  // job this returns is the one already waiting rather than a second request.
+  const waiting = await withTransaction((tx) => readWaitingIn(tx, jobId));
+  return { ...result, delivery, waitingUntil: waiting?.nextEligibleAt ?? null };
 }

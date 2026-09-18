@@ -337,6 +337,75 @@ repair screen reports:
 Nothing was attempted, so nothing was spent: the attempt ceiling is untouched and
 pressing Retry after configuration is a complete repair.
 
+### 7b-0. Messaging safety, and why a message may be waiting
+
+**LAN-394, Brian 2026-09-17.** Every send in the application — the seven
+dispatchers, an operator's Retry, a reissue, a nudge, a chase, a recruitment ask
+— passes one admission guard before it reaches a provider. Nothing is off by
+default; the guard is on from the first deploy with the values below.
+
+| Control                | Value                                        | What happens                                                        |
+| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| Shared pacing          | 50 admitted attempts per rolling 5 minutes   | extra messages wait, then go on their own                           |
+| Per person, per number | 1 admission per rolling 5 minutes            | the next one waits                                                  |
+| Person or number limit | 10 per 24 hours, 30 per 7 days               | that recipient is held until somebody resumes it                    |
+| Emergency stop         | 3,000 admitted attempts per rolling 24 hours | all messaging pauses until somebody resumes it                      |
+| Capacity warning       | 2,400 in 24 hours                            | a warning; nothing stops                                            |
+| Provider cooldown      | 5 provider-side faults in 5 minutes          | that transport rests for 5 minutes, then one probe, then 10, 20, 30 |
+| Queue warning          | oldest waiting over 60 minutes               | a warning; nothing stops                                            |
+
+**What this looks like while you are walking the slice.** A message the guard
+holds back is **queued**, not failed. It keeps its attempt count, it keeps its
+link, it writes no failure reason, and it goes out on a later tick without
+anybody pressing anything. The place it says so is **Messaging safety**, at the
+bottom of Administration → Messaging schedule.
+
+Three consequences worth knowing before they surprise you:
+
+- **A backlog drains at about 25 messages a tick, not 50.** The shared allowance
+  is 50 in any rolling five minutes and the scheduler ticks every five minutes,
+  so a tick's own admissions are still inside the window when the next tick
+  starts and only the rest of the allowance is left. In steady state that
+  settles at about half the headline rate — roughly 25 a tick, about 300 an
+  hour. A backlog of 350 first messages therefore takes something over an hour
+  to clear rather than half of one, and 1,250 takes most of a morning. Nothing
+  is lost and nothing needs pressing; it is slower than the table alone reads.
+- **One person gets one message every five minutes.** An event whose invitation,
+  first reminder and email rung are all overdue for the same player drains one
+  rung per tick, not three in one. That is the point: a recovered backlog must
+  not arrive all at once.
+- **The automatic email fallback for a failed WhatsApp waits too.** It is a
+  second message to the same person seconds after the first, so it is paced like
+  any other. It is created immediately and sent on the next tick.
+
+**What the section shows, in the order it shows it.** Brian, 18 September 2026:
+this is an emergency page, and somebody arriving at it has two jobs — stop a
+runaway, and find and clear a blockage. So it opens on **Messaging status** — a
+Status row carrying exactly one of **Sending normally**, **Messages waiting**,
+**Provider cooling down**, **Paused** or **Emergency stop** on the application's
+own status chip, then Reason, By and Last change, then the one control. Then
+**Messages sent** — how many were sent in the last five minutes, hour and 24
+hours, each against its ceiling, reading **Nearing limit** at 80 % of one and
+**At limit** at it. Then **Waiting** — what is due now, and one row per blocking
+cause with the act that clears it. Then **People held back**, one person line per
+held person or number with their own Resume. The limits table and the recent
+changes are below those, and the limits are collapsed.
+
+Every element is a component the application already uses elsewhere — Brian, the
+same day: "The UX at the top is completely invented. We should find UX we already
+use in the app and do that." The page's `Section`, the record pages' label–value
+rows, the one status-chip vocabulary, the schedule form's own fields and action
+bar, and the boards' person-line card.
+
+**Pausing and resuming.** The control is at the top of Messaging safety and is
+held by the President, Vice-President, Secretary and General Manager only — not
+the IT Officer, who can see the state but not change it. Each needs a reason, and
+a one-tap preset — **Runaway sends**, **Provider outage**, **Testing** — is a
+complete one; the free-text field beside it adds to whichever preset was chosen.
+Each is recorded against the operator's name. There is no "send all now" and no
+"clear counters": resuming a scope clears the hold, not the usage, so a scope
+resumed while its allowance is still spent simply waits again.
+
 ### 7a. The safe local provider procedure
 
 **Corrected by LAN-181, F-L3.** This section used to have you run a hand-rolled

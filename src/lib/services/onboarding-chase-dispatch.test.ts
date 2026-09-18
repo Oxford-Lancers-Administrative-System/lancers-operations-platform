@@ -43,7 +43,12 @@ import {
 } from "./onboarding-chase";
 import { setMembershipStatus } from "./membership";
 import { enterReturningPlayer, resolveOpenSeason } from "./roster";
-import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+  seededActorPersonId,
+} from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN218ChaseDispatch";
 
@@ -108,7 +113,41 @@ beforeAll(async () => {
   openSeasonId = season.id;
 });
 
+/**
+ * Pauses the club's outbound messaging for the length of one test — LAN-394.
+ *
+ * Written directly rather than through `pauseMessagingIn`, because what is
+ * under test here is the **dispatcher**: that it asks the guard at all, and
+ * that a paused answer costs the message nothing. The control itself, its
+ * capability and its audit row are proved in
+ * `src/lib/services/messaging-safety.test.ts`.
+ */
+async function pauseAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = now(),
+            -- Any real Person. It was the first operator account's, which CI
+            -- does not have: the test job seeds the dataset but links no login,
+            -- so the subquery was null and the attribution constraint refused
+            -- the pause. A seeded database always has people.
+            paused_by_person_id = (select id from public.people order by created_at limit 1),
+            paused_reason = 'Under test', version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
+async function resumeAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = null, paused_by_person_id = null, paused_reason = null,
+            version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const people = "(select id from public.people where given_name like $1)";
   // The onboarding-chase job family, cast wide: every automated chase, nudge
   // and exhaustion marker carries this suite's own `person_id` (the marker's
@@ -254,13 +293,57 @@ async function makeUnder18(personId: string): Promise<void> {
 }
 
 describe("declareDueOnboardingChasesIn, via runMessagingSweep", () => {
+  it("sends nothing while messaging is paused, and costs the chase nothing — LAN-394", async () => {
+    const { personId, membershipId } = await createArrival();
+    await grantConsent(personId);
+    await setChase({ firstChaseAfterHours: 0, chaseCount: 4, chaseIntervalDays: 3 });
+
+    // One tick declares and dispatches the welcome and the chase; with
+    // messaging paused, neither goes out and neither is spent.
+    await pauseAllMessaging();
+    const { sent, transport } = acceptingTransport();
+    try {
+      for (let tick = 0; tick < 2; tick += 1) {
+        await agePastSafetyPacing(observer);
+        await runMessagingSweep({ source: CONFIGURED, transport });
+      }
+    } finally {
+      await resumeAllMessaging();
+    }
+
+    expect(sent).toHaveLength(0);
+    const jobId = await chaseJobId(membershipId, 1);
+    expect(jobId).not.toBeNull();
+    const job = await observer.query<{
+      status: string;
+      attempt_count: number;
+      last_error: string | null;
+      safety_reason_code: string | null;
+    }>(
+      `select status::text as status, attempt_count, last_error, safety_reason_code
+         from public.notification_jobs where id = $1`,
+      [jobId],
+    );
+    expect(job.rows[0].status).toBe("pending");
+    expect(job.rows[0].attempt_count).toBe(0);
+    expect(job.rows[0].last_error).toBeNull();
+    expect(job.rows[0].safety_reason_code).toBe("paused_by_operator");
+  });
+
   it("declares and sends the first automated chase once the configured delay has passed", async () => {
     const { personId, membershipId } = await createArrival();
     await grantConsent(personId);
     await setChase({ firstChaseAfterHours: 0, chaseCount: 4, chaseIntervalDays: 3 });
 
     const { sent, transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     const jobId = await chaseJobId(membershipId, 1);
     expect(jobId).not.toBeNull();
@@ -277,14 +360,28 @@ describe("declareDueOnboardingChasesIn, via runMessagingSweep", () => {
     await setChase({ firstChaseAfterHours: 0, chaseCount: 4, chaseIntervalDays: 3 });
 
     const { transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     expect(await chaseJobId(membershipId, 1)).toBeNull();
 
     // Same person, consent now granted, but the delay has not passed.
     await grantConsent(personId);
     await setChase({ firstChaseAfterHours: 999, chaseCount: 4, chaseIntervalDays: 3 });
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
     expect(await chaseJobId(membershipId, 1)).toBeNull();
   });
 
@@ -299,7 +396,14 @@ describe("declareDueOnboardingChasesIn, via runMessagingSweep", () => {
     // membership's own chase was never declared, never that nothing at all
     // was sent this tick.
     const { transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     expect(await chaseJobId(membershipId, 1)).toBeNull();
   });
@@ -311,7 +415,14 @@ describe("declareDueOnboardingChasesIn, via runMessagingSweep", () => {
     await setMembershipStatus({ actorPersonId, membershipId, status: "departed" });
 
     const { transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     expect(await chaseJobId(membershipId, 1)).toBeNull();
   });
@@ -325,7 +436,14 @@ describe("REQ-cap-delivered — the count is spent only on delivered messages", 
     await setChase({ firstChaseAfterHours: 0, chaseCount: 4, chaseIntervalDays: 3 });
 
     const { transport: deliveredTransport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport: deliveredTransport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: deliveredTransport });
+    }
     const deliveredJobId = await chaseJobId(deliveredMembershipId, 1);
     expect(deliveredJobId).not.toBeNull();
 
@@ -362,7 +480,14 @@ describe("REQ-cap-delivered — the count is spent only on delivered messages", 
     await grantConsent(failedPersonId);
 
     const { transport: failedTransport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport: failedTransport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: failedTransport });
+    }
     const failedJobId = await chaseJobId(failedMembershipId, 1);
     expect(failedJobId).not.toBeNull();
 
@@ -424,7 +549,14 @@ describe("REQ-cap-delivered — the count is spent only on delivered messages", 
 
     // And no automated chase advances to ordinal 2 in its place.
     const { transport: sweepAgain } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport: sweepAgain });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: sweepAgain });
+    }
     expect(await chaseJobId(failedMembershipId, 2)).toBeNull();
   });
 });
@@ -575,7 +707,14 @@ describe("REQ-operator-nudge — each selected person gets their own compiled as
 
     // Exhaust the one automated chase this membership is allowed.
     const { transport: chaseTransport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport: chaseTransport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: chaseTransport });
+    }
     const chaseJob = await chaseJobId(membershipId, 1);
     const attempt = await observer.query<{ provider_message_id: string }>(
       "select provider_message_id from public.delivery_attempts where notification_job_id = $1",
@@ -599,11 +738,19 @@ describe("REQ-operator-nudge — each selected person gets their own compiled as
     expect(progress.get(membershipId)?.deliveredCount).toBe(1);
 
     // Now nudge, twice in a row — both must be accepted, neither refused.
+    //
+    // LAN-394: two nudges to one person seconds apart are paced, and that is
+    // the decided behaviour. What this test is about is the *cap* — a nudge is
+    // unlimited and outside it — so the pacing window is cleared between the
+    // two presses. Each press still creates its own job with its own link
+    // (`T11-batch-nudge`); neither is coalesced into the other.
     const { sent, transport } = acceptingTransport();
+    await agePastSafetyPacing(observer);
     const [firstNudge] = await sendOnboardingNudges(actorPersonId, [membershipId], {
       source: CONFIGURED,
       transport,
     });
+    await agePastSafetyPacing(observer);
     const [secondNudge] = await sendOnboardingNudges(actorPersonId, [membershipId], {
       source: CONFIGURED,
       transport,
@@ -723,7 +870,14 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
     // message for this to be the cohort test it claims to be.
     for (let ordinal = 1; ordinal <= 2; ordinal += 1) {
       const { transport: chaseTransport } = acceptingTransport();
-      await runMessagingSweep({ source: CONFIGURED, transport: chaseTransport });
+      // LAN-394. One message per person per five minutes, so a backlog for one
+      // person drains a rung per tick. Two ticks with the window cleared
+      // between them is what two real ticks would do; a job already claimed
+      // is not selected again, so this cannot send anything twice.
+      for (let tick = 0; tick < 2; tick += 1) {
+        await agePastSafetyPacing(observer);
+        await runMessagingSweep({ source: CONFIGURED, transport: chaseTransport });
+      }
 
       for (const membershipId of [first.membershipId, second.membershipId]) {
         const jobId = await chaseJobId(membershipId, ordinal);
@@ -755,7 +909,12 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
     }
 
     const { sent, transport } = acceptingTransport();
+    await agePastSafetyPacing(observer);
     const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. The escalation this tick raised is itself a message, to the
+    // office holder, and it is paced behind anything already sent to them.
+    await agePastSafetyPacing(observer);
+    await runMessagingSweep({ source: CONFIGURED, transport });
     expect(summary.onboardingChasesExhausted).toBeGreaterThanOrEqual(2);
 
     const escalationJobs = await observer.query<{ id: string; template_variables: unknown }>(
@@ -771,9 +930,152 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
     // A second, identical sweep must not raise a second escalation for the
     // same, already-marked cohort.
     const { sent: secondSent, transport: secondTransport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport: secondTransport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: secondTransport });
+    }
     expect(secondSent.some(isOnboardingChaseEscalationSend)).toBe(false);
   });
+
+  it("raises no exhaustion escalation while messaging is paused — LAN-394", async () => {
+    const { personId, membershipId } = await createArrival();
+    await grantConsent(personId);
+    await setChase({ firstChaseAfterHours: 0, chaseCount: 1, chaseIntervalDays: 1 });
+
+    // Exhaust the one automated chase, so the escalation is genuinely due.
+    const { transport: chaseTransport } = acceptingTransport();
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: chaseTransport });
+    }
+    const chaseJob = await chaseJobId(membershipId, 1);
+    const attempt = await observer.query<{ provider_message_id: string }>(
+      "select provider_message_id from public.delivery_attempts where notification_job_id = $1",
+      [chaseJob],
+    );
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${MARKER}-paused-exhaust-${chaseJob}`,
+        providerMessageId: attempt.rows[0].provider_message_id,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    await pauseAllMessaging();
+    const { sent, transport } = acceptingTransport();
+    try {
+      for (let tick = 0; tick < 2; tick += 1) {
+        await agePastSafetyPacing(observer);
+        await runMessagingSweep({ source: CONFIGURED, transport });
+      }
+    } finally {
+      await resumeAllMessaging();
+    }
+
+    // The cohort is still marked exhausted — that is bookkeeping, not a send —
+    // and the escalation job exists and has gone nowhere.
+    expect(sent.some(isOnboardingChaseEscalationSend)).toBe(false);
+    const escalation = await observer.query<{
+      status: string;
+      attempt_count: number;
+      safety_reason_code: string | null;
+    }>(
+      `select status::text as status, attempt_count, safety_reason_code
+         from public.notification_jobs where idempotency_key like $1`,
+      [`${ONBOARDING_CHASE_ESCALATION_KEY_PREFIX}%`],
+    );
+    expect(escalation.rows.length).toBeGreaterThanOrEqual(1);
+    expect(escalation.rows[0].status).toBe("pending");
+    expect(escalation.rows[0].attempt_count).toBe(0);
+    expect(escalation.rows[0].safety_reason_code).toBe("paused_by_operator");
+  }, 60_000);
+
+  it("defers the exhaustion escalation at the dispatcher, and costs it nothing — LAN-394", async () => {
+    // LAN-394 review, A-02. The other six dispatchers each have a behavioural
+    // proof that a paused answer costs the message nothing; this one had only
+    // the source-callsite check. The dispatcher is called directly here, so
+    // what is under test is its own handling of a deferral rather than the
+    // sweep's selection.
+    const { personId, membershipId } = await createArrival();
+    await grantConsent(personId);
+    await setChase({ firstChaseAfterHours: 0, chaseCount: 1, chaseIntervalDays: 1 });
+
+    const { transport: chaseTransport } = acceptingTransport();
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: chaseTransport });
+    }
+    const chaseJob = await chaseJobId(membershipId, 1);
+    const attempt = await observer.query<{ provider_message_id: string }>(
+      "select provider_message_id from public.delivery_attempts where notification_job_id = $1",
+      [chaseJob],
+    );
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${MARKER}-deferred-escalation-${chaseJob}`,
+        providerMessageId: attempt.rows[0].provider_message_id,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    await pauseAllMessaging();
+    try {
+      // The sweep raises the escalation job; paused, it sends nothing.
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+
+      const raised = await observer.query<{ id: string }>(
+        `select id from public.notification_jobs where idempotency_key like $1`,
+        [`${ONBOARDING_CHASE_ESCALATION_KEY_PREFIX}%`],
+      );
+      expect(raised.rows.length).toBeGreaterThanOrEqual(1);
+      const escalationJobId = raised.rows[0].id;
+
+      const { sent, transport } = acceptingTransport();
+      expect(
+        await dispatchOnboardingChaseEscalationJob(escalationJobId, {
+          source: CONFIGURED,
+          transport,
+        }),
+      ).toBe("deferred");
+      expect(sent).toHaveLength(0);
+
+      const job = await observer.query<{
+        status: string;
+        attempt_count: number;
+        last_error: string | null;
+        safety_reason_code: string | null;
+      }>(
+        `select status::text as status, attempt_count, last_error, safety_reason_code
+           from public.notification_jobs where id = $1`,
+        [escalationJobId],
+      );
+      expect(job.rows[0].status).toBe("pending");
+      expect(job.rows[0].attempt_count).toBe(0);
+      expect(job.rows[0].last_error).toBeNull();
+      expect(job.rows[0].safety_reason_code).toBe("paused_by_operator");
+
+      const attempts = await observer.query<{ count: string }>(
+        "select count(*)::text as count from public.delivery_attempts where notification_job_id = $1",
+        [escalationJobId],
+      );
+      expect(attempts.rows[0].count).toBe("0");
+    } finally {
+      await resumeAllMessaging();
+    }
+  }, 60_000);
 
   it("carries a count and a link, and no name — never a person's identity", async () => {
     const { personId, membershipId } = await createArrival();
@@ -785,7 +1087,14 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
 
     for (let ordinal = 1; ordinal <= 2; ordinal += 1) {
       const { transport } = acceptingTransport();
-      await runMessagingSweep({ source: CONFIGURED, transport });
+      // LAN-394. One message per person per five minutes, so a backlog for one
+      // person drains a rung per tick. Two ticks with the window cleared
+      // between them is what two real ticks would do; a job already claimed
+      // is not selected again, so this cannot send anything twice.
+      for (let tick = 0; tick < 2; tick += 1) {
+        await agePastSafetyPacing(observer);
+        await runMessagingSweep({ source: CONFIGURED, transport });
+      }
       const jobId = await chaseJobId(membershipId, ordinal);
       const attempt = await observer.query<{ provider_message_id: string }>(
         "select provider_message_id from public.delivery_attempts where notification_job_id = $1",
@@ -810,7 +1119,14 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
     }
 
     const { sent, transport: sweepTransport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport: sweepTransport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: sweepTransport });
+    }
 
     const escalation = sent.find(isOnboardingChaseEscalationSend);
     expect(escalation).toBeTruthy();
@@ -838,7 +1154,14 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
 
     try {
       const { transport } = acceptingTransport();
-      await runMessagingSweep({ source: CONFIGURED, transport });
+      // LAN-394. One message per person per five minutes, so a backlog for one
+      // person drains a rung per tick. Two ticks with the window cleared
+      // between them is what two real ticks would do; a job already claimed
+      // is not selected again, so this cannot send anything twice.
+      for (let tick = 0; tick < 2; tick += 1) {
+        await agePastSafetyPacing(observer);
+        await runMessagingSweep({ source: CONFIGURED, transport });
+      }
       const jobId = await chaseJobId(membershipId, 1);
       const attempt = await observer.query<{ provider_message_id: string }>(
         "select provider_message_id from public.delivery_attempts where notification_job_id = $1",
@@ -857,7 +1180,12 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
       );
 
       const { sent, transport: sweepTransport } = acceptingTransport();
+      await agePastSafetyPacing(observer);
       const summary = await runMessagingSweep({ source: CONFIGURED, transport: sweepTransport });
+      // LAN-394. The escalation this tick raised is itself a message, to the
+      // office holder, and it is paced behind anything already sent to them.
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: sweepTransport });
 
       expect(summary.onboardingEscalationsHeld).toBe(1);
       expect(summary.onboardingEscalationsCreated).toBe(0);

@@ -219,9 +219,44 @@ export interface OutboundMessage {
  */
 export type InvitationMessage = OutboundMessage;
 
+/**
+ * Whose fault a refusal is — LAN-394.
+ *
+ * `retryable` says whether trying again could work. This says something
+ * different and orthogonal: whether the *provider* is the thing that is unwell.
+ * The messaging safety circuit cools a provider down after a run of
+ * provider-scoped faults, and it must never do so because one number is not on
+ * WhatsApp or one template has been paused — a single unroutable recipient
+ * would otherwise stop the club messaging anybody.
+ *
+ * It is a classification the adapter makes from the provider's own structured
+ * error code, never by reading a human sentence, which is why it lives here
+ * beside `retryable` rather than being inferred later from `reason`.
+ *
+ *   * `provider` — the transport itself: a timeout, a DNS failure, a 5xx, an
+ *     account-wide rate limit, an expired credential.
+ *   * `recipient` — this destination: not a WhatsApp account, not permitted,
+ *     opted out, blocked, or rate-limited for this pair alone.
+ *   * `message` — this content: a template that does not match, is missing,
+ *     paused or disabled.
+ *   * `configuration` — this deployment is not set up, so nothing was called.
+ */
+export type SendFaultScope = "provider" | "recipient" | "message" | "configuration";
+
 export type SendOutcome =
   | { readonly status: "accepted"; readonly providerMessageId: string }
-  | { readonly status: "refused"; readonly reason: string; readonly retryable: boolean };
+  | {
+      readonly status: "refused";
+      readonly reason: string;
+      readonly retryable: boolean;
+      /**
+       * Optional, so a fake transport in an existing test keeps compiling. An
+       * unclassified refusal counts as **not** provider-scoped, which is the
+       * safe default: the circuit stays closed rather than opening on evidence
+       * nobody supplied.
+       */
+      readonly faultScope?: SendFaultScope;
+    };
 
 /**
  * A parsed inbound callback.
