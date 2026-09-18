@@ -215,6 +215,27 @@ async function png(svg, size, ground = null) {
 }
 
 /**
+ * A PNG of `svg` at its own aspect ratio, `height` tall — LAN-398.
+ *
+ * The icons above are square because an icon slot is square. The mark is not:
+ * it is 1017.75 × 860.5 in its own units, and an email header shows it at its
+ * own shape beside the club's name, exactly as the application shell does.
+ *
+ * Raster and not SVG because this one is consumed by mail clients. Outlook on
+ * Windows draws HTML through Word, which does not render an SVG `<img>` at all;
+ * a vector crest there is an empty box. Every client renders a PNG.
+ */
+async function rasterAtHeight(svg, height) {
+  const view = attribute(openTag(svg), "viewBox").split(/\s+/).map(Number);
+  const width = Math.round((height * view[2]) / view[3]);
+  return sharp(Buffer.from(svg), { density: densityFor(svg, width) })
+    .resize(width, height, { fit: "fill" })
+    .ensureAlpha(1)
+    .png({ compressionLevel: 9, palette: false })
+    .toBuffer();
+}
+
+/**
  * An `.ico` holding PNG frames.
  *
  * ICO has carried PNG payloads since Windows Vista and every browser this app
@@ -273,14 +294,23 @@ async function main() {
     "scripts/generate-brand-assets.mjs.";
 
   await put(path.join(brand, "crest.svg"), crop(logo, logoBox, `White. ${provenance}`));
-  await put(
-    path.join(brand, "crest-blue.svg"),
-    crop(
-      recolourWhite(logo, NAVY),
-      logoBox,
-      `Oxford Blue ${NAVY}, for light grounds. ${provenance}`,
-    ),
+  const crestBlue = crop(
+    recolourWhite(logo, NAVY),
+    logoBox,
+    `Oxford Blue ${NAVY}, for light grounds. ${provenance}`,
   );
+  await put(path.join(brand, "crest-blue.svg"), crestBlue);
+
+  // -- LAN-398: the crest in every email -----------------------------------
+  // The blue variant, because an email's shell is a white card on the same
+  // warm off-white ground the application uses, and the white variant would
+  // disappear into it. The header shows this 48px tall and the signature block
+  // 32px, so the committed raster is the 2x of the larger of the two and both
+  // slots scale it down. `@1x` is the matching non-retina rendition, offered
+  // through `srcset`; a client that ignores `srcset` takes the 2x from `src`
+  // and is sharp either way.
+  await put(path.join(brand, "crest-email.png"), await rasterAtHeight(crestBlue, 96));
+  await put(path.join(brand, "crest-email@1x.png"), await rasterAtHeight(crestBlue, 48));
 
   // -- LAN-269, LAN-385: the icons -----------------------------------------
   // Everything below is one SVG rendered at six sizes. The badge already is an

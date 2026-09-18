@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { EmailConfig } from "./config";
+import { renderEmailHtml } from "./email-shell";
 import type { DeliveryProvider, OutboundMessage, SendOutcome, Transport } from "./provider";
 import { templateFor } from "./templates";
 
@@ -146,9 +147,14 @@ export const NO_USABLE_EMAIL_REASON =
  * club is saying.
  *
  * Both a text and an HTML part, because a text-only email lands in more spam
- * filters and an HTML-only one is unreadable in a client that refuses HTML. The
- * HTML is the same lines, escaped — there is no second rendering to keep in
- * step.
+ * filters and an HTML-only one is unreadable in a client that refuses HTML.
+ *
+ * The two parts are the same lines. `text` is those lines and nothing else, and
+ * LAN-398 left it alone deliberately — it is what a client refusing HTML shows,
+ * and it is the copy Meta's classifier approved. `html` puts the identical
+ * lines, escaped, one `<p>` each, inside the club's shell (`./email-shell.ts`).
+ * There is still no second rendering to keep in step: there is one body, in a
+ * frame.
  */
 export function buildEmailBody(
   config: EmailConfig,
@@ -157,22 +163,16 @@ export function buildEmailBody(
   const template = templateFor(message);
   const lines = template.body(message);
 
+  const subject = template.subject(message);
+
   return {
     from: emailFromHeader(config.fromAddress),
     to: [config.recipientOverride ?? message.recipient],
-    subject: template.subject(message),
+    subject,
     text: lines.join("\n\n"),
-    html: lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("\n"),
+    html: renderEmailHtml({ appBaseUrl: config.appBaseUrl, subject, lines }),
     ...(config.replyToAddress ? { reply_to: config.replyToAddress } : {}),
   };
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 /** Resend's success shape, as far as this adapter is willing to look at it. */

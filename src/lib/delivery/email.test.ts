@@ -83,8 +83,10 @@ describe("the request body", () => {
     // outstanding.
     expect(body.text).not.toContain("Michaelmas week 3");
     // Both parts, because a text-only email lands in more spam filters and an
-    // HTML-only one is unreadable in a client that refuses HTML. Same lines.
-    expect(body.html).toContain("<p>");
+    // HTML-only one is unreadable in a client that refuses HTML. Same lines:
+    // LAN-398 gave the HTML part the club's shell and left each line its own
+    // paragraph inside it. `email-parts.test.ts` holds that to all fifteen.
+    expect(body.html).toContain("<p ");
     expect(body.html).toContain("Iffley Road");
   });
 
