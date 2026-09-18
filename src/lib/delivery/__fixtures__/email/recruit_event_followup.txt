@@ -1,0 +1,9 @@
+Hello Jamie, your response for Michaelmas week 3 on Wednesday 14 October, 20:00 is still outstanding.
+
+Venue: Iffley Road.
+
+Please let us know below whether you would like to attend. No need to decide in advance.
+
+Yes I can come: https://app.oxfordlancers.example/a/yes/yes-token
+
+No thanks: https://app.oxfordlancers.example/a/no/no-token

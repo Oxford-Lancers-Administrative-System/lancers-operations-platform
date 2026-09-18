@@ -178,7 +178,22 @@ export interface EmailConfig {
   readonly apiBaseUrl: string;
   /** Secret. The provider API key. Never rendered, logged or returned. */
   readonly apiKey: string;
-  /** The verified sending address, e.g. `Oxford Lancers <events@…>`. */
+  /**
+   * The application's own public origin, without a trailing slash.
+   *
+   * LAN-398: the email shell shows the club's crest, and a mail client has no
+   * page to resolve a relative path against — the `<img>` has to name an
+   * absolute URL on a host the recipient can reach. The same `APP_BASE_URL`
+   * every signed link in the message is already built from.
+   *
+   * It may be empty, because `APP_BASE_URL` is deliberately not on
+   * `EMAIL_ENVIRONMENT_VARIABLES`: the email path refuses only for what it
+   * cannot invent, and a missing base URL costs a logo, not a send. The shell
+   * leaves the crest out rather than emit a path that is a broken-image icon in
+   * every client.
+   */
+  readonly appBaseUrl: string;
+  /** The verified sending address. Bare — see `docs/deployment.md` and `email.ts`. */
   readonly fromAddress: string;
   /** Where a reply goes, where the club sets one. */
   readonly replyToAddress: string | null;
@@ -476,6 +491,7 @@ export function resolveEmailConfig(source: EnvironmentSource = process.env): Ema
     config: {
       apiBaseUrl: withDefault("EMAIL_API_BASE_URL", source).replace(/\/+$/, ""),
       apiKey: trimmed("EMAIL_API_KEY", source),
+      appBaseUrl,
       fromAddress: trimmed("EMAIL_FROM_ADDRESS", source),
       replyToAddress: replyTo === "" ? null : replyTo,
       recipientOverride: override === "" ? null : override.toLowerCase(),

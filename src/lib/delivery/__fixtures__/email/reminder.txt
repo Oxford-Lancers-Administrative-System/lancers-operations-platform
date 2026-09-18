@@ -1,0 +1,13 @@
+Jamie, the club still needs your answer.
+
+Wednesday 14 October, 20:00
+
+Venue: Iffley Road.
+
+18 other people have already said yes.
+
+Please respond now. Your answer affects numbers, transport and coaching plans.
+
+Yes view details: https://app.oxfordlancers.example/a/yes/yes-token
+
+No give reason: https://app.oxfordlancers.example/a/no/no-token

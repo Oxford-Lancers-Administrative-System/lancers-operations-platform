@@ -20,6 +20,7 @@ import {
   NO_USABLE_EMAIL_REASON,
   buildEmailBody,
   createEmailProvider,
+  emailFromHeader,
   interpretEmailResponse,
   looksLikeAnEmailAddress,
 } from "./email";
@@ -28,7 +29,12 @@ import type { OutboundMessage } from "./provider";
 const CONFIG: EmailConfig = {
   apiBaseUrl: "https://api.resend.example",
   apiKey: "test-key-not-a-real-one",
-  fromAddress: "Oxford Lancers <events@lancers.example>",
+  // The origin the shell builds the crest's `src` from. `email-parts.test.ts`
+  // is where that rendering is asserted; this suite only needs it to resolve.
+  appBaseUrl: "https://app.oxfordlancers.example",
+  // Bare, because that is the shape `docs/deployment.md` requires of
+  // `EMAIL_FROM_ADDRESS` and the shape LAN-398 prepends the club's name to.
+  fromAddress: "events@lancers.example",
   replyToAddress: null,
   recipientOverride: null,
 };
@@ -67,7 +73,9 @@ describe("the request body", () => {
       html: string;
     };
 
-    expect(body.from).toBe(CONFIG.fromAddress);
+    expect(body.from).toBe(
+      "Oxford University Lancers American Football Club <events@lancers.example>",
+    );
     expect(body.to).toEqual(["jamie@example.com"]);
     expect(body.subject).toBe("Action required: RSVP for Michaelmas week 3");
     expect(body.text).toContain("the club still needs your answer");
@@ -78,9 +86,30 @@ describe("the request body", () => {
     // outstanding.
     expect(body.text).not.toContain("Michaelmas week 3");
     // Both parts, because a text-only email lands in more spam filters and an
-    // HTML-only one is unreadable in a client that refuses HTML. Same lines.
-    expect(body.html).toContain("<p>");
+    // HTML-only one is unreadable in a client that refuses HTML. Same lines:
+    // LAN-398 gave the HTML part the club's shell and left each line its own
+    // paragraph inside it. `email-parts.test.ts` holds that to all fifteen.
+    expect(body.html).toContain("<p ");
     expect(body.html).toContain("Iffley Road");
+  });
+
+  it("arrives from the club by name, whatever shape the address was configured in", () => {
+    // LAN-398, Brian 2026-09-18: the bar is the club's university mailbox,
+    // which iPhone Mail shows as its full name. The address is the
+    // deployment's and is never rewritten; the second case is the deployment
+    // that still carries the `Name <address>` form `.env.example` used to
+    // document, which must not compose into `A <B <c@d>>` and a terminal 422.
+    expect(emailFromHeader("events@lancers.example")).toBe(
+      "Oxford University Lancers American Football Club <events@lancers.example>",
+    );
+    expect(emailFromHeader("Oxford Lancers <events@lancers.example>")).toBe(
+      "Oxford University Lancers American Football Club <events@lancers.example>",
+    );
+    // The reply-to is a different address for a different purpose and is left
+    // exactly as the club set it.
+    expect(
+      buildEmailBody({ ...CONFIG, replyToAddress: "committee@lancers.example" }, MESSAGE),
+    ).toMatchObject({ reply_to: "committee@lancers.example" });
   });
 
   it("escapes the body rather than interpolating it into HTML", () => {

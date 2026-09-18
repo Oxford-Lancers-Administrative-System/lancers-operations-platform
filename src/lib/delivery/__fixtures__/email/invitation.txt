@@ -1,0 +1,9 @@
+Hello Jamie, you are on the team sheet for Michaelmas week 3 on Wednesday 14 October, 20:00.
+
+Venue: Iffley Road.
+
+Please respond by Tuesday 13 October, 20:00. Thank you.
+
+Yes view details: https://app.oxfordlancers.example/a/yes/yes-token
+
+No give reason: https://app.oxfordlancers.example/a/no/no-token
