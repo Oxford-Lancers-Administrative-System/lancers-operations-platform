@@ -43,7 +43,12 @@ export default function TermsPage() {
       </PolicySection>
       <PolicySection title="Club arrangements">
         <Typography>
-          The platform records club arrangements; it does not replace the club’s Code of Conduct,
+          The platform records club arrangements; it does not replace the{" "}
+          {/* LAN-356: the club's 2026 document, the same file the onboarding step links and
+              downloads (`onboarding_agreement_versions.pdf_path` for the current `code_of_conduct`
+              version). A static link rather than a database read: this page is public and carries
+              no season context to resolve a version against. */}
+          <Link href="/documents/oulafc-code-of-conduct-2026.pdf">club’s Code of Conduct</Link>,
           participation requirements or separately presented agreements. Contact the club if an
           event detail or record appears incorrect.
         </Typography>
