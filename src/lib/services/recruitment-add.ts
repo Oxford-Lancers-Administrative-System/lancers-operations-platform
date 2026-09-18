@@ -3,6 +3,7 @@ import "server-only";
 import { todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, InvalidTransition, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
+import { applyAudienceGroupRuleIn } from "./event-audience-rule";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import { addRecruitmentProspectNoteIn } from "./recruitment-prospect";
 import { RECRUITMENT_ADD_OPT_IN_OPTIONS } from "./recruitment-vocabulary";
@@ -309,6 +310,19 @@ export async function finishRecruitmentAddIn(
 
   // Unconditional (LAN-305), and idempotent: a second add declares nothing new.
   const declared = await declareRecruitmentCycleJobsIn(tx, personId, seasonId);
+
+  // LAN-392, and after the cycle deliberately: the auto-add invitation is
+  // scheduled a minute behind the welcome this declares, never in front of it,
+  // and the rule can only see a welcome that already exists. It is also after
+  // the consent branch above, so a recruit whose opt-in evidence was left blank
+  // gets the audience row and the invitation and no declared job — Brian's
+  // decision 7, checked where `scheduleEventLadderIn` checks the same thing.
+  await applyAudienceGroupRuleIn(tx, {
+    personId,
+    seasonId,
+    trigger: "recruit_added_by_operator",
+    actorPersonId,
+  });
 
   return {
     prospectId,

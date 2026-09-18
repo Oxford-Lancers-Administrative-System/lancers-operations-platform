@@ -42,7 +42,7 @@ import { QuestionList } from "./question-list";
 import {
   APPROVED_HEADLINE,
   APPROVED_NOTHING_SENT_YET,
-  AUDIENCE_FROZEN_AT_APPROVAL,
+  describeAudienceProvenance,
   DELIVERY_MODE_LABELS,
   DERIVED_STATE_LABELS,
   describeAttendance,
@@ -333,7 +333,7 @@ export function EventDetailView({
                   ? undefined
                   : proposed
                     ? "Saved against this draft. Nothing is sent until it is approved."
-                    : AUDIENCE_FROZEN_AT_APPROVAL
+                    : describeAudienceProvenance(event.audienceAddedSinceApproval)
               }
               testId="audience-fact"
             />

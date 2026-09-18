@@ -851,9 +851,126 @@ export type Database = {
           },
         ]
       }
+      event_audience_exclusions: {
+        Row: {
+          event_id: string
+          excluded_at: string
+          excluded_by_person_id: string | null
+          id: string
+          person_id: string
+        }
+        Insert: {
+          event_id: string
+          excluded_at?: string
+          excluded_by_person_id?: string | null
+          id?: string
+          person_id: string
+        }
+        Update: {
+          event_id?: string
+          excluded_at?: string
+          excluded_by_person_id?: string | null
+          id?: string
+          person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_audience_exclusions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_exclusions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_audience_exclusions_excluded_by_person_id_fkey"
+            columns: ["excluded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_exclusions_excluded_by_person_id_fkey"
+            columns: ["excluded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "event_audience_exclusions_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_exclusions_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
+      event_audience_groups: {
+        Row: {
+          audience_group: Database["public"]["Enums"]["audience_group"]
+          chosen_at: string
+          chosen_by_person_id: string | null
+          event_id: string
+          event_type: Database["public"]["Enums"]["event_type"]
+          id: string
+        }
+        Insert: {
+          audience_group: Database["public"]["Enums"]["audience_group"]
+          chosen_at?: string
+          chosen_by_person_id?: string | null
+          event_id: string
+          event_type: Database["public"]["Enums"]["event_type"]
+          id?: string
+        }
+        Update: {
+          audience_group?: Database["public"]["Enums"]["audience_group"]
+          chosen_at?: string
+          chosen_by_person_id?: string | null
+          event_id?: string
+          event_type?: Database["public"]["Enums"]["event_type"]
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_audience_groups_chosen_by_person_id_fkey"
+            columns: ["chosen_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_groups_chosen_by_person_id_fkey"
+            columns: ["chosen_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "event_audience_groups_event_fkey"
+            columns: ["event_id", "event_type"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id", "event_type"]
+          },
+        ]
+      }
       event_audience_members: {
         Row: {
           added_at: string
+          added_by_group: Database["public"]["Enums"]["audience_group"] | null
           added_by_person_id: string | null
           capacity: Database["public"]["Enums"]["invitation_capacity"]
           event_id: string
@@ -866,6 +983,7 @@ export type Database = {
         }
         Insert: {
           added_at?: string
+          added_by_group?: Database["public"]["Enums"]["audience_group"] | null
           added_by_person_id?: string | null
           capacity: Database["public"]["Enums"]["invitation_capacity"]
           event_id: string
@@ -878,6 +996,7 @@ export type Database = {
         }
         Update: {
           added_at?: string
+          added_by_group?: Database["public"]["Enums"]["audience_group"] | null
           added_by_person_id?: string | null
           capacity?: Database["public"]["Enums"]["invitation_capacity"]
           event_id?: string
@@ -1714,6 +1833,7 @@ export type Database = {
           expires_at: string | null
           id: string
           issued_at: string | null
+          message_withheld_reason: string | null
           participant_id: string | null
           person_id: string | null
           season_id: string
@@ -1730,6 +1850,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           issued_at?: string | null
+          message_withheld_reason?: string | null
           participant_id?: string | null
           person_id?: string | null
           season_id: string
@@ -1746,6 +1867,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           issued_at?: string | null
+          message_withheld_reason?: string | null
           participant_id?: string | null
           person_id?: string | null
           season_id?: string

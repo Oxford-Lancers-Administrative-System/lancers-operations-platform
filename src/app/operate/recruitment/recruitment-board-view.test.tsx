@@ -24,6 +24,7 @@ vi.mock("./board-actions", () => ({
 }));
 
 import { flipRecruitmentProspectAction, setRecruitmentStatusAction } from "./board-actions";
+import { BOARD_SCROLLBAR_GUTTER_PX } from "../roster/board-columns";
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
 import type { Season } from "@/lib/services/seasons";
 import RecruitmentBoardView from "./recruitment-board-view";
@@ -287,5 +288,23 @@ describe("W-2, walk correction — Played before / Watched before are capitalise
     renderBoard([row({ playedBefore: null, watchedBefore: null })]);
     const boardRow = within(screen.getByTestId("recruitment-row-prospect-1"));
     expect(boardRow.getAllByText("Not recorded").length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+/**
+ * LAN-395's other board. `recruitment-board-view.tsx` shares the roster
+ * board's scroll container shape and the same constant, so the bar lands on
+ * this board's last column for the same reason and is fixed by the same two
+ * rules. Asserted here rather than taken on trust from the roster's own test:
+ * they are two elements in two files, and only one of them was reported.
+ */
+describe("the board's scrollbar gutter — LAN-395", () => {
+  it("reserves the scrollbar's width on the scrolling element", () => {
+    renderBoard([row()]);
+
+    const table = screen.getByTestId("recruitment-board-table");
+    expect(window.getComputedStyle(table).getPropertyValue("scrollbar-gutter")).toBe("stable");
+    expect(window.getComputedStyle(table).paddingRight).toBe(`${BOARD_SCROLLBAR_GUTTER_PX}px`);
+    expect(window.getComputedStyle(table).overflow).toBe("auto");
   });
 });

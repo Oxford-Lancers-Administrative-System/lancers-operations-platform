@@ -8,8 +8,11 @@ import {
   EMPTY_AUDIENCE_RULE,
   listAudienceCatalogueIn,
   resolveSelection,
+  groupSelectionKeys,
   type AudienceCapacity,
+  type AudienceCatalogue,
 } from "../event-audience";
+import { groupsForEventType } from "../audience-selection";
 import { lockEventIn, readEventIn, type EventDetail } from "../events";
 import { readCurrentSeasonIn } from "../seasons";
 import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "../messaging-schedule";
@@ -57,10 +60,22 @@ async function assertOperatingSeason(tx: Tx, event: EventDetail): Promise<void> 
 }
 
 // Wholesale replacement, not a diff — deleting first is safe only while a draft (P1). Empty is accepted here, refused only at approval (E1b).
+//
+// LAN-392 adds `groups`: which group buttons the operator actually pressed.
+// That is a third thing the save records, not a derivation of the first two,
+// because the first two cannot be told apart afterwards —
+// `summariseAudienceGroups` reports a group only when every person it would
+// invite is selected, so "pressed All active players and then unticked Sam" and
+// "ticked those forty-one names one at a time" store identical rows. The
+// pressed groups are this event's rule once it is approved, and the people
+// those groups would have invited but who are not selected are its exclusions.
+// Both are written here, beside the audience, in the same wholesale
+// replacement, and both are inert until the event is approved.
 export async function saveEventAudience(
   actorPersonId: string,
   eventId: string,
   keys: readonly string[],
+  groups: readonly string[] = [],
 ): Promise<AudienceMember[]> {
   requireActor(actorPersonId);
 
@@ -113,16 +128,98 @@ export async function saveEventAudience(
       );
     }
 
+    const rule = await saveAudienceGroupRuleIn(tx, {
+      eventId,
+      eventType: event.eventType,
+      actorPersonId,
+      catalogue,
+      groups,
+      chosen: new Set(members.map((member) => member.personId)),
+    });
+
     await recordAudit(tx, {
       actorPersonId,
       action: "event.audience_proposed",
       entityTable: "events",
       entityId: eventId,
-      context: { audienceSize: members.length, byCapacity: countByCapacity(members) },
+      context: {
+        audienceSize: members.length,
+        byCapacity: countByCapacity(members),
+        // LAN-392: the rule this audience carries past approval, so the record
+        // of what was proposed says what was proposed, groups and all.
+        audienceGroups: rule.groups,
+        exclusions: rule.exclusions,
+      },
     });
 
     return readAudienceIn(tx, eventId, catalogue);
   });
+}
+
+/**
+ * The group rule and its exclusions — LAN-392, written with the audience it
+ * belongs to and replaced wholesale with it.
+ *
+ * A group reaches this only if the event's own type offers it
+ * (`groupsForEventType`), which is the service-layer half of the same rule
+ * `event_audience_groups_recruits_are_recruitment_only` states in the schema: a
+ * `recruits` rule on a practice could only ever be a mistake, and the picker
+ * never offers one. Anything else a client sends is dropped rather than
+ * refused, because a group that has been retired from the vocabulary is not an
+ * error the operator can do anything about.
+ *
+ * An exclusion is "in a chosen group, not selected", resolved against the same
+ * catalogue the operator was looking at. It is keyed per (event, person) and
+ * not per group, because no operator unticking a name is thinking about which
+ * group the name came from.
+ */
+async function saveAudienceGroupRuleIn(
+  tx: Tx,
+  args: {
+    eventId: string;
+    eventType: string;
+    actorPersonId: string;
+    catalogue: AudienceCatalogue;
+    groups: readonly string[];
+    chosen: ReadonlySet<string>;
+  },
+): Promise<{ groups: string[]; exclusions: number }> {
+  const offered = new Set(groupsForEventType(args.eventType).map((group) => group.key));
+  const kept = [...new Set(args.groups)].filter((group) => offered.has(group as never));
+
+  const excluded = new Set<string>();
+  for (const group of kept) {
+    for (const key of groupSelectionKeys(args.catalogue.candidates, group)) {
+      const candidate = args.catalogue.candidates.find((entry) => entry.key === key);
+      if (candidate && !args.chosen.has(candidate.personId)) excluded.add(candidate.personId);
+    }
+  }
+
+  await tx.query("delete from public.event_audience_groups where event_id = $1", [args.eventId]);
+  await tx.query("delete from public.event_audience_exclusions where event_id = $1", [
+    args.eventId,
+  ]);
+
+  if (kept.length > 0) {
+    await tx.query(
+      `insert into public.event_audience_groups
+         (event_id, event_type, audience_group, chosen_by_person_id)
+       select $1::uuid, $2::public.event_type, g::public.audience_group, $4::uuid
+         from unnest($3::text[]) as g`,
+      [args.eventId, args.eventType, kept, args.actorPersonId],
+    );
+  }
+
+  if (excluded.size > 0) {
+    await tx.query(
+      `insert into public.event_audience_exclusions
+         (event_id, person_id, excluded_by_person_id)
+       select $1::uuid, p::uuid, $3::uuid from unnest($2::text[]) as p`,
+      [args.eventId, [...excluded], args.actorPersonId],
+    );
+  }
+
+  return { groups: kept, exclusions: excluded.size };
 }
 
 // Approves a draft and releases its invitations, atomically. Takes no audience — whatever

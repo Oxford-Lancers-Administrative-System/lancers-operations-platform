@@ -200,12 +200,29 @@ export async function scheduleEventLadderIn(
   // instant. The recruit statement runs unconditionally; on every event type
   // but Recruitment there are no recruit-capacity invitations to match, so it
   // is a no-op there rather than a branch to remember.
+  //
+  // LAN-392, A6 (corrected 2026-09-17): the anchor is the *later* of the plan's
+  // instant and the job's own, for an invitation the audience group rule
+  // declared. A late joiner's invitation carries two things this plan knows
+  // nothing about — the ten-minute grace, which is the window an operator has
+  // to undo a mis-click before anything is sent, and their place in the
+  // five-an-hour queue. Re-anchoring them to `plan.invitationAt` discarded
+  // both, so a reschedule during somebody's grace window sent the message
+  // immediately, and a sixth auto-add queued an hour out jumped to the front.
+  // `greatest` is scoped to `added_by_group is not null`: everybody the
+  // approver confirmed still moves to the plan's instant in both directions,
+  // which is what a reschedule is for.
   const anchoredPlayers = await tx.query(
     `update public.notification_jobs j
-        set scheduled_for = $2::timestamptz,
+        set scheduled_for = case
+              when a.added_by_group is not null and j.scheduled_for is not null
+                then greatest(j.scheduled_for, $2::timestamptz)
+              else $2::timestamptz
+            end,
             ladder_rung = 0,
             updated_at = now()
        from public.invitations i
+       left join public.event_audience_members a on a.id = i.audience_member_id
       where j.invitation_id = i.id
         and j.event_id = $1 and j.job_type = 'invitation' and j.status in ('pending', 'ready')
         and i.capacity <> 'recruit'`,
@@ -216,10 +233,15 @@ export async function scheduleEventLadderIn(
   if (plan.recruitLadder) {
     const result = await tx.query(
       `update public.notification_jobs j
-          set scheduled_for = $2::timestamptz,
+          set scheduled_for = case
+                when a.added_by_group is not null and j.scheduled_for is not null
+                  then greatest(j.scheduled_for, $2::timestamptz)
+                else $2::timestamptz
+              end,
               ladder_rung = 0,
               updated_at = now()
          from public.invitations i
+         left join public.event_audience_members a on a.id = i.audience_member_id
         where j.invitation_id = i.id
           and j.event_id = $1 and j.job_type = 'invitation' and j.status in ('pending', 'ready')
           and i.capacity = 'recruit'`,

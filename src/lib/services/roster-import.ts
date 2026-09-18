@@ -450,6 +450,13 @@ export async function applyRosterImport(request: RosterApplyRequest): Promise<Ro
           row.outcome === "new"
             ? { kind: "new", confirmed: true }
             : { kind: "existing", personId: row.matchedPersonId as string },
+        // LAN-392, Brian's decision 8: the CSV import does not trigger the
+        // audience group rule. The one-at-a-time intake does, and this is the
+        // same function — so the difference is said here, at the bulk door,
+        // rather than hidden inside it. Sixty rows against every approved event
+        // that chose Onboarding is hundreds of messages from one mis-parsed
+        // file, and this module has no undo path to take them back with.
+        applyAudienceGroupRule: false,
       });
 
       // LAN-374 / LAN-375: the optional season-fact columns, written through

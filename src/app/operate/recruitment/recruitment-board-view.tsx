@@ -27,6 +27,10 @@ import {
   FilterButton,
   groupRuns,
 } from "../board-filter-controls";
+// The gutter is defined once, on the board it was reported against (LAN-395),
+// and shared rather than copied: two boards drawing different reserves would
+// be the bug back again on whichever one was missed.
+import { BOARD_SCROLLBAR_GUTTER_PX } from "../roster/board-columns";
 import {
   BAND_LABEL_INSET_PX,
   BAND_ROW_HEIGHT,
@@ -323,6 +327,11 @@ export default function RecruitmentBoardView({
               display: { xs: "none", md: "block" },
               maxHeight: "calc(100dvh - 320px)",
               overflow: "auto",
+              // LAN-395, the same two rules the roster board carries: this is
+              // the roster board's scroll container, so the bar lands on this
+              // board's last column for the same reason.
+              scrollbarGutter: "stable",
+              pr: `${BOARD_SCROLLBAR_GUTTER_PX}px`,
             }}
             data-testid="recruitment-board-table"
           >

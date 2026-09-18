@@ -45,6 +45,13 @@ export interface ApprovalPreview {
   unreachable: readonly UnreachableAudienceMember[]; // W1's exception table; W6 owns correction and recovery
   questions: EventQuestion[]; // amendment W4-A1: approving the event means approving what these people are asked
   groupSummary: AudienceGroupSummary; // named by groups before people, so the approver checks a shape
+  /**
+   * LAN-392. The group buttons this event's audience was last saved with —
+   * what the picker re-presses when the operator comes back to it, and the rule
+   * the event keeps once it is approved. Never inferred from the audience: see
+   * `saveEventAudience` for why the two cannot be told apart afterwards.
+   */
+  audienceGroups: string[];
   missing: string[]; // the fields D16 requires and this event has not got; empty when ready
 }
 

@@ -3,6 +3,7 @@ import "server-only";
 import { todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
+import { applyAudienceGroupRuleIn } from "./event-audience-rule";
 import { grantSeasonMessagingConsentIn } from "./messaging-consent";
 import { findPersonMatchingGivenNameAndPhoneIn } from "./person-duplicate";
 import {
@@ -385,6 +386,15 @@ export async function signUpAnonymouslyIn(
   // interest ask and its reminder — and nothing at all once Questionnaire B
   // is answered, which is the declarer's own rule, not a second copy of it.
   await declareRecruitmentCycleJobsIn(tx, personId, params.seasonId);
+  // LAN-392, Brian's decision 8: the public sign-up doors trigger the group
+  // rule. Placed after the consent grant and the cycle so the invitation is
+  // declarable and lands behind the welcome rather than in front of it.
+  await applyAudienceGroupRuleIn(tx, {
+    personId,
+    seasonId: params.seasonId,
+    trigger: "recruit_signed_up",
+    actorPersonId: null, // there is no operator at this door, and the audit says so
+  });
   await recordRecruitmentSignupCodeUseIn(tx, params.code);
 
   await recordAudit(tx, {
@@ -421,6 +431,12 @@ export async function signUpWithTokenIn(
   const prospect = await ensureProspectIn(tx, params.personId, params.seasonId, SELF_ENTRY_SOURCE);
   await grantSeasonMessagingConsentIn(tx, params.personId, params.seasonId);
   await declareRecruitmentCycleJobsIn(tx, params.personId, params.seasonId); // LAN-305, as the QR door above.
+  await applyAudienceGroupRuleIn(tx, {
+    personId: params.personId,
+    seasonId: params.seasonId,
+    trigger: "recruit_signed_up",
+    actorPersonId: null,
+  });
 
   await recordAudit(tx, {
     actorLabel: "recruit: WhatsApp sign-up link",

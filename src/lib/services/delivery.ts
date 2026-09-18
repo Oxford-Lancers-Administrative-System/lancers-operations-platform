@@ -586,6 +586,36 @@ async function claimJobIn(
     [jobId, job.attempt_count, context.channel, context.provider.name, token.tokenId],
   );
 
+  // LAN-392, F6 (second correction, 2026-09-17). A message is now going out
+  // against this invitation, so `message_withheld_reason` — which claims none
+  // ever has — stops being true here, and is cleared here.
+  //
+  // This is the place, and not the places a message is merely *planned*.
+  // Every send in this application passes through this one claim: the
+  // scheduler's sweep, the operator's Retry after a job failed, and Revoke and
+  // reissue all reach it, and every refusal above returns before it — an
+  // unconsented recruit, a held job, an answered reminder, an event with no
+  // start time, a person with no route. So the reason survives exactly as long
+  // as nothing is sent, which is what the column says of itself.
+  //
+  // Leaving it standing was the defect. `invitation_response_state` answers
+  // `never_asked` on this column alone, so a recruit whose consent arrived
+  // after the reason was written — by the public sign-up, the questionnaire or
+  // an operator's record — was messaged and then dropped out of
+  // `nonresponse_queue`, the Follow-ups queue, the President's escalation and
+  // the Monday report's "no answer" column: asked, silent, chased by nobody,
+  // and invisible on every screen that exists to show the gap.
+  //
+  // Not scoped to `invitation` jobs, deliberately: any message that reaches a
+  // person against this invitation — a reminder, a change notice — falsifies
+  // the claim just as completely.
+  await tx.query(
+    `update public.invitations
+        set message_withheld_reason = null
+      where id = $1::uuid and message_withheld_reason is not null`,
+    [job.invitation_id],
+  );
+
   const known = detail.display_alias?.trim();
 
   return {

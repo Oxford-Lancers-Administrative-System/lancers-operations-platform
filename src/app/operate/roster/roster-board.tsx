@@ -48,6 +48,7 @@ import {
 import { commitWithRetry } from "./board-action-state";
 import {
   BOARD_ROW_HEIGHT,
+  BOARD_SCROLLBAR_GUTTER_PX,
   collapsedBandsFrom,
   displayColumns,
   PLAYER_COLUMN_WIDTH,
@@ -586,6 +587,12 @@ export default function RosterBoard({
           display: { xs: "none", md: "block" },
           maxHeight: "calc(100dvh - 300px)",
           overflow: "auto",
+          // LAN-395: keep the vertical scrollbar off the last folded-up band.
+          // See `BOARD_SCROLLBAR_GUTTER_PX` for why it takes both rules. The
+          // padding is only ever visible at the far right of the scroll, after
+          // the last column, so nothing else about the board moves.
+          scrollbarGutter: "stable",
+          pr: `${BOARD_SCROLLBAR_GUTTER_PX}px`,
         }}
         data-testid="roster-board"
       >

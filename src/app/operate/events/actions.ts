@@ -314,9 +314,15 @@ export async function saveEventAudienceAction(
   const keys = formData
     .getAll("audienceKey")
     .filter((key): key is string => typeof key === "string");
+  // LAN-392: which group buttons were pressed, posted beside the keys rather
+  // than inferred from them. The service decides which of them this event's
+  // type actually offers.
+  const groups = formData
+    .getAll("audienceGroup")
+    .filter((group): group is string => typeof group === "string");
 
   try {
-    await saveEventAudience(operator.personId, eventId, keys);
+    await saveEventAudience(operator.personId, eventId, keys, groups);
   } catch (error) {
     return { error: messageFor(error) };
   }

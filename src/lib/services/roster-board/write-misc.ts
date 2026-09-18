@@ -2,6 +2,7 @@ import "server-only";
 
 import { ConstraintViolated, NotFound, withTransaction } from "@/lib/db";
 import { recordAudit } from "../audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
 import type { BluesValue, BpsValue } from "./read";
 import {
   COACHING_GROUP_VALUES,
@@ -285,6 +286,23 @@ export async function commitBps(params: {
        do update set is_selected = excluded.is_selected, updated_at = now()`,
       [params.membershipId, params.seasonId, isSelected, params.actorPersonId],
     );
+
+    // LAN-392: `bps` is a derived audience group, so selecting somebody into
+    // the BPS adds them to every approved future event that chose it, and
+    // deselecting them takes back an unsent rule-add.
+    const bpsMember = await tx.query<{ person_id: string }>(
+      `select person_id from public.season_memberships where id = $1::uuid`,
+      [params.membershipId],
+    );
+    const bpsPersonId = bpsMember.rows[0]?.person_id ?? null;
+    if (bpsPersonId !== null) {
+      await applyAudienceGroupRuleIn(tx, {
+        personId: bpsPersonId,
+        seasonId: params.seasonId,
+        trigger: "bps_selection_changed",
+        actorPersonId: params.actorPersonId,
+      });
+    }
 
     await recordAudit(tx, {
       actorPersonId: params.actorPersonId,

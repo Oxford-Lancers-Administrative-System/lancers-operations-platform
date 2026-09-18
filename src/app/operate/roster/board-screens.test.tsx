@@ -71,6 +71,7 @@ import RosterPage from "./page";
 import {
   BOARD_CELL_CONTROL_HEIGHT,
   BOARD_ROW_HEIGHT,
+  BOARD_SCROLLBAR_GUTTER_PX,
   buildColumns,
   displayColumns,
   squadBoundaryKeys,
@@ -965,5 +966,35 @@ describe("which groups are folded away, remembered on the account", () => {
       "coaching",
       "specialTeams",
     ]);
+  });
+});
+
+/**
+ * LAN-395 — Brian's visual pass on PR 191. The board scrolls vertically, so the
+ * container always draws a bar, and on a platform that overlays its scrollbars
+ * the bar was painted over the rightmost folded-up band (Kit): half its chevron
+ * and half its sideways name were under it. Reserving the gutter is the whole
+ * fix, so this asserts the reserved gutter and nothing else — jsdom lays out no
+ * scrollbar, so the only provable thing is that the rules reached the element.
+ *
+ * Both rules, not one. `scrollbar-gutter: stable` reserves nothing at all on a
+ * platform that overlays its scrollbars, which is the platform the defect was
+ * reported on (macOS): there the padding is the whole fix, and the measurement
+ * in `docs/ux/review/LAN-353-5/README.md` — 11px clear before, 27px after — is
+ * the padding's, not the gutter rule's. A test that asserted only the rule that
+ * does nothing here would let the reported defect come back green.
+ */
+describe("the board's scrollbar gutter", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it("reserves the scrollbar's width on the scrolling element", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(window.getComputedStyle(board).getPropertyValue("scrollbar-gutter")).toBe("stable");
+    expect(window.getComputedStyle(board).paddingRight).toBe(`${BOARD_SCROLLBAR_GUTTER_PX}px`);
+    // The gutter only helps while this element is the one that scrolls.
+    expect(window.getComputedStyle(board).overflow).toBe("auto");
   });
 });

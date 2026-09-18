@@ -162,6 +162,7 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     description: null,
     requiredEquipment: null,
     joiningUrl: null,
+    audienceAddedSinceApproval: 0,
     audienceCount: 5,
     invitationCount: 5,
     responseCount: 3,

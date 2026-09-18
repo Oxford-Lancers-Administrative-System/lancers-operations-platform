@@ -53,6 +53,25 @@ export async function readCurrentSeason(): Promise<Season> {
 }
 
 export async function readCurrentSeasonIn(tx: Tx): Promise<Season> {
+  const season = await findCurrentSeasonIn(tx);
+  if (season === null) {
+    throw new NotFound(NO_CURRENT_SEASON_MESSAGE, { rule: NO_CURRENT_SEASON_RULE });
+  }
+  return season;
+}
+
+/**
+ * The same read, answering `null` instead of refusing.
+ *
+ * For callers whose own work does not depend on there being a season — a
+ * committee seat is a club-scoped year, and the roles screen has a first-class
+ * no-season state — but which want the season when there is one. LAN-392's
+ * group rule is the case that made this necessary: seating somebody is a group
+ * change, but a club with no season in an operating status must still be able
+ * to seat an officer, and `readCurrentSeasonIn`'s refusal would otherwise abort
+ * the seat write over a rule that has nothing to say about it.
+ */
+export async function findCurrentSeasonIn(tx: Tx): Promise<Season | null> {
   const result = await tx.query<SeasonRow>(
     `select id, label, status, starts_on, ends_on
        from public.seasons
@@ -63,9 +82,7 @@ export async function readCurrentSeasonIn(tx: Tx): Promise<Season> {
   );
 
   const row = result.rows[0];
-  if (!row) {
-    throw new NotFound(NO_CURRENT_SEASON_MESSAGE, { rule: NO_CURRENT_SEASON_RULE });
-  }
+  if (!row) return null;
 
   return {
     id: row.id,

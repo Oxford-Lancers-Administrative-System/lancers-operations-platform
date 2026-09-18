@@ -47,6 +47,23 @@ export interface BandDef {
 
 export const BAND_ROW_HEIGHT = 28;
 
+/**
+ * The strip kept clear down the right-hand edge of a board's scroll container,
+ * so the vertical scrollbar has somewhere of its own to be — LAN-395, from
+ * Brian's visual pass on PR 191: the bar was painted over the rightmost
+ * folded-up band (Kit), hiding half its chevron and half its sideways name.
+ *
+ * Two rules are needed because there are two kinds of scrollbar and only one of
+ * them is reachable from CSS. Where the platform lays scrollbars out in flow,
+ * `scrollbar-gutter: stable` reserves the width and the bar sits in it. Where
+ * the platform *overlays* them — macOS with a trackpad, which is what Brian
+ * reported — the bar has zero layout width, `scrollbar-gutter` reserves
+ * nothing by definition, and the only thing that moves the last column out
+ * from under the bar is real padding at the end of the scrollable area. This
+ * is that padding: wide enough for the widest overlay bar macOS draws.
+ */
+export const BOARD_SCROLLBAR_GUTTER_PX = 16;
+
 /** The left inset every band header's label sits at — one rule, explicit rather than per-band. */
 export const BAND_LABEL_INSET_PX = 16;
 

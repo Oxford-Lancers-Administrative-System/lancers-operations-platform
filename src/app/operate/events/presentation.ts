@@ -142,7 +142,20 @@ export const APPROVED_NOTHING_SENT_YET =
   "delivery, and delivery status will follow from the results of those jobs.";
 
 /** LAN-156 dropped the "not editable afterwards" sentence — D49/D50 reversed it. */
-export const AUDIENCE_FROZEN_AT_APPROVAL = "Confirmed at approval.";
+const AUDIENCE_FROZEN_AT_APPROVAL = "Confirmed at approval.";
+
+/**
+ * LAN-392/LAN-393. An approved event's audience can now grow — by its stored
+ * group rule, or by an operator adding somebody by hand — so "Confirmed at
+ * approval." stops being true the first time it does. This says what actually
+ * happened instead of leaving the older sentence to go quietly wrong.
+ */
+export function describeAudienceProvenance(addedSinceApproval: number): string {
+  if (addedSinceApproval === 0) return AUDIENCE_FROZEN_AT_APPROVAL;
+  return addedSinceApproval === 1
+    ? "Confirmed at approval, plus 1 added since."
+    : `Confirmed at approval, plus ${addedSinceApproval} added since.`;
+}
 
 /** One state among several — see {@link describeDistribution}. */
 const NOTHING_DELIVERED_YET = "nothing delivered yet";

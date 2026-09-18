@@ -88,3 +88,40 @@ enforce this: a player row's `person_id` is null and a committee row's
 - **Open:** amending an approved event's date does not recompute its invitations'
   deadlines, and adding a late invitee remains unbuilt. Both belong to the
   amendment workflow, which no issue owns yet — see LAN-77's owner clarification.
+
+## Amendment, 2026-09-17 — the freeze is "never reduced", not "never grows"
+
+Added to this ADR rather than into it: the decision above stands as written, and
+this says what LAN-392 and LAN-393 changed about it and why.
+
+Clint, 2026-09-17: "If I make an event with an audience and I want to add more
+people to the audience (which happens a lot during recruitment) I can't do that
+right now." Brian, four minutes later: "if the status of somebody changes (for
+example, when a recruit gets added), they should automatically be added to the
+recruitment event."
+
+Two doors now reach an approved event's audience, and both only ever add.
+
+- **LAN-392, the group rule.** An approved event stores the derived audience
+  groups it was built from (`event_audience_groups`) and the people the approver
+  took out of them (`event_audience_exclusions`). While it is approved and has
+  not started, a person whose standing moves them into one of those groups is
+  added to the audience and invited under that event's own frozen plan.
+- **LAN-393, the hand-add.** An operator may name a person and add them to an
+  approved event that has not started, through a service of its own —
+  `saveEventAudience` guards on `draft` and is a wholesale replace, and
+  `amendApprovedEvent` refuses an audience-only change outright.
+
+**What "frozen" means now.** The approver's list is never reduced and never
+re-resolved. Nobody is removed by a rule, no confirmed row is rewritten, no
+capacity on an existing row is upgraded, and neither door can reach a person the
+approver unticked — that deselection is recorded, and only an operator naming
+them specifically clears it. What the original decision forbade, it still
+forbids: an audience that silently re-resolves against the live roster between
+approval and the send.
+
+**The last paragraph of "Consequences" is now answered.** "Adding a late invitee
+remains unbuilt" was true when this ADR was written. It is built, and it is built
+the way that paragraph anticipated — adding them to the audience and inviting
+them in one transaction — rather than by relaxing the `draft` guard on either
+existing write path, both of which are unchanged.

@@ -8,6 +8,7 @@ import {
   type Tx,
 } from "@/lib/db";
 import { recordAudit } from "../audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
 import { actorRequirement } from "../actor";
 import {
   isAttendancePresence,
@@ -114,7 +115,7 @@ export async function recordWalkUpAttendance(
 
   return withTransaction(async (tx) => {
     const event = await requireOpenRegister(tx, eventId, now);
-    const target = await mintWalkUpProspect(tx, event, {
+    const target = await mintWalkUpProspect(tx, event, actorPersonId, {
       givenName,
       familyName,
       phone,
@@ -388,6 +389,7 @@ async function resolveParticipant(
 async function mintWalkUpProspect(
   tx: Tx,
   event: EventDetail,
+  actorPersonId: string,
   input: {
     givenName: string;
     familyName: string;
@@ -427,6 +429,22 @@ async function mintWalkUpProspect(
      values ($1::uuid, $2::uuid, 'identified', $3, $4::date)`,
     [personId, event.seasonId, `Walk-up at ${event.name}`, event.scheduledOn],
   );
+
+  // LAN-392, Brian's decision 8: the walk-up form creates a recruit, so it is a
+  // group change like any other. This person has no consent row yet — the
+  // walk-up's own messaging authorisation is a separate decision made a few
+  // lines up the call stack — so the rule adds the audience row and the
+  // invitation and declares nothing where consent is absent.
+  await applyAudienceGroupRuleIn(tx, {
+    personId,
+    seasonId: event.seasonId,
+    trigger: "walk_up_recorded",
+    // The operator taking the register. This door has one, unlike the public
+    // sign-up, and the audit exists so a send can be traced back to whoever
+    // caused it — leaving it null would say "nobody did this" of an action an
+    // operator deliberately took.
+    actorPersonId,
+  });
 
   return { capacity: "recruit", membershipId: null, personId };
 }
