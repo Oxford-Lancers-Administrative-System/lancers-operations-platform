@@ -4,9 +4,7 @@
   "slot": "overflow",
   "loginVerified": true,
   "seededStatesVerified": true,
-  "routes": [
-    "/operate/admin/messaging"
-  ],
+  "routes": ["/operate/admin/messaging"],
   "viewports": [
     {
       "label": "phone375",
