@@ -123,11 +123,15 @@ the word from the owning vocabulary module. Nothing here renames a state.
 | `success` outlined | —                                  | Upcoming (derived) | —                                      | —                  | —                         | —                                        |
 | `primary` outlined | Player (type)                      | —                  | —                                      | —                  | —                         | —                                        |
 
-Two rows the brief did not list, added because two screens show them:
+Three rows the brief did not list, added because the screens show them:
 onboarding items (Complete `success` filled; Pending or Outstanding `warning`
 outlined; Waived and Not applicable `neutral` outlined; the Required and
-Never-blocks flags `neutral` outlined) and availability (Green `success`,
-Orange `warning`, Red `error`, filled). Event **type** keeps its own hue set on
+Never-blocks flags `neutral` outlined), availability (Green `success`,
+Orange `warning`, Red `error`, filled) and messaging safety (Sending normally
+`success` filled; Messages waiting and Provider cooling down `warning` filled;
+Paused, Emergency stop and Safety status unavailable `error` filled; and the two
+derived send-rate readings, Nearing limit `warning` outlined and At limit
+`error` outlined — LAN-394). Event **type** keeps its own hue set on
 the calendar — colour = type, words = status (LAN-114) — to be picked from the
 club palette when that surface is migrated; it is not a status and never a
 `StatusChip`.

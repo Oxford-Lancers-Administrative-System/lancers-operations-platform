@@ -17,10 +17,16 @@ import type {
  *
  * Brian's visual pass of 18 September 2026: "This is an emergency page. When I
  * get here I need to work immediately." Two jobs, in this order — stop a
- * runaway, then find and clear a blockage — and the section is now arranged as
- * the answers to them. Everything derived is derived here rather than in the
+ * runaway, then find and clear a blockage — and the section is arranged as the
+ * answers to them. Everything derived is derived here rather than in the
  * component, so the arithmetic that decides amber from red is something a test
  * can call directly.
+ *
+ * His second pass the same day settled the words: "The narrative UI is really
+ * terrible. 'Is it running away?' — for God's sake, have a professional tone.
+ * Just say what the thing is: how many messages were sent in the last 24
+ * hours." So every heading here is a noun phrase and every row is a label and
+ * a value. The order and the content are unchanged.
  */
 
 export const SAFETY_SECTION_HEADING = "Messaging safety";
@@ -35,23 +41,6 @@ export const SAFETY_STATE_LABELS: Readonly<Record<MessagingSafetyState, string>>
   unavailable: "Safety status unavailable",
 });
 
-/** What a status line is coloured, in the theme's semantic roles. */
-export type SafetySeverity = "success" | "warning" | "error";
-
-/**
- * One colour per state, and only these three. A status nobody can read is the
- * same emergency as a status that says stopped, so `unavailable` is red.
- */
-export const SAFETY_STATE_SEVERITY: Readonly<Record<MessagingSafetyState, SafetySeverity>> =
-  Object.freeze({
-    sending_normally: "success",
-    messages_waiting: "warning",
-    provider_cooling_down: "warning",
-    paused: "error",
-    emergency_stopped: "error",
-    unavailable: "error",
-  });
-
 /**
  * The one sentence. It is here because a person about to stop every message the
  * club sends is owed the three facts that decide whether they should: what
@@ -65,8 +54,9 @@ export const SAFETY_NORMAL_SENTENCE =
 export const PAUSE_LABEL = "Pause messaging";
 export const RESUME_LABEL = "Resume messaging";
 export const RESUME_SCOPE_LABEL = "Resume";
-export const PAUSE_REASON_LABEL = "Why is messaging being paused?";
-export const RESUME_REASON_LABEL = "Why is messaging being resumed?";
+/** Noun phrases, not questions — Brian, 18 September 2026, second pass. */
+export const PAUSE_REASON_LABEL = "Reason for pausing";
+export const RESUME_REASON_LABEL = "Reason for resuming";
 export const REASON_NOTES_LABEL = "Anything else (optional)";
 export const REASON_REQUIRED = "Choose a reason, then press the button again.";
 
@@ -106,19 +96,32 @@ const SAFETY_REASON_LABELS: Readonly<Record<SafetyReasonCode, string>> = Object.
   safety_unavailable: "Safety status unavailable",
 });
 
-export const RUNAWAY_HEADING = "Is it running away?";
-export const STUCK_HEADING = "Is it stuck?";
+/** The section's own heading, and its five sub-headings. All noun phrases. */
+export const STATUS_HEADING = "Messaging status";
+export const SENT_HEADING = "Messages sent";
+export const WAITING_HEADING = "Waiting";
 export const THRESHOLDS_SUMMARY = "Limits and current use";
 /** Brian, 18 September 2026: "Active holds" told him nothing. These are people. */
 export const HOLDS_HEADING = "People held back";
 export const AUDIT_HEADING = "Recent changes";
 export const NO_HOLDS = "Nobody";
 export const NO_AUDIT = "None recorded";
-export const NOTHING_BLOCKING = "Nothing is holding messages.";
+/** The status block's four rows. */
+export const STATUS_LABEL = "Status";
+export const REASON_LABEL = "Reason";
+export const BY_LABEL = "By";
+export const LAST_CHANGE_LABEL = "Last change";
+/** The one row "Waiting" carries when no cause is holding anything. */
+export const HOLDING_LABEL = "Holding";
+export const NOTHING_HOLDING = "Nothing";
 export const DUE_NOW_LABEL = "Due now";
+/** A held person's two facts, on their card. */
+export const HOLD_SINCE_LABEL = "Since";
+export const HOLD_NOTE_LABEL = "Note";
+/** The value a row carries where nothing governs it, or nobody may act on it. */
 const NO_LIMIT = "—";
 
-/** Where the two "see it" links in "Is it stuck?" land. */
+/** Where the two links under "Waiting" land. */
 export const CONTROL_ANCHOR = "messaging-safety-control";
 export const HOLDS_ANCHOR = "messaging-safety-holds";
 
@@ -198,11 +201,21 @@ export function heldBackRows(status: MessagingSafetyStatus): readonly SafetyHold
 }
 
 // ---------------------------------------------------------------------------
-// "Is it running away?"
+// "Messages sent"
 // ---------------------------------------------------------------------------
 
 /** Amber below the limit, red at it, and nothing at all below that. */
 export type RateSeverity = "neutral" | "warning" | "error";
+
+/**
+ * The word a reading carries beside its number, or none. Colour is never the
+ * only signal — the chip's own rule — so an amber row says what amber means.
+ */
+export const RATE_CHIP_STATUS: Readonly<Record<Exclude<RateSeverity, "neutral">, string>> =
+  Object.freeze({ warning: "nearing_limit", error: "at_limit" });
+
+export const RATE_CHIP_LABELS: Readonly<Record<Exclude<RateSeverity, "neutral">, string>> =
+  Object.freeze({ warning: "Nearing limit", error: "At limit" });
 
 /** Eighty per cent, the same fraction the capacity warning already uses. */
 const RUNAWAY_WARNING_FRACTION = 0.8;
@@ -223,17 +236,22 @@ function rateSeverity(used: number, limit: number | null): RateSeverity {
   return "neutral";
 }
 
-/** What "of 50" reads as, and what a window with no ceiling reads as. */
-export function rateLimitLabel(limit: number | null): string {
-  return limit === null ? NO_LIMIT : `of ${limit.toLocaleString("en-GB")}`;
+/**
+ * `1,450 of 3,000`, or the count alone where no ceiling governs the window —
+ * Brian, 18 September 2026: "Just say what the thing is: how many messages
+ * were sent in the last 24 hours."
+ */
+export function rateValue(row: SafetyRateRow): string {
+  const used = row.used.toLocaleString("en-GB");
+  return row.limit === null ? used : `${used} of ${row.limit.toLocaleString("en-GB")}`;
 }
 
 /**
- * The runaway tell, in one glance: five minutes, an hour, a day, each against
- * its ceiling. The hour has none — it is the window that shows a runaway
- * building between a tick and a day.
+ * How many were sent, in three windows: five minutes, an hour, a day, each
+ * against its ceiling. The hour has none — it is the window that shows a
+ * runaway building between a tick and a day.
  */
-export function runawayRows(status: MessagingSafetyStatus): readonly SafetyRateRow[] {
+export function sentRows(status: MessagingSafetyStatus): readonly SafetyRateRow[] {
   const windows: readonly {
     key: SafetyRateRow["key"];
     label: string;
@@ -256,16 +274,19 @@ export function runawayRows(status: MessagingSafetyStatus): readonly SafetyRateR
 }
 
 // ---------------------------------------------------------------------------
-// "Is it stuck?"
+// "Waiting"
 // ---------------------------------------------------------------------------
 
-/** One thing that is holding messages, and the one act that clears it. */
+/**
+ * One thing that is holding messages, as a label and a value — the same shape
+ * as every other row in the section, rather than a sentence with a dash in it.
+ */
 export interface SafetyBlocker {
   readonly id: string;
   /** What is blocking, in the club's words. */
-  readonly text: string;
-  /** What clears it: a control to press, a link to follow, or time passing. */
-  readonly action: string;
+  readonly label: string;
+  /** What clears it, or how many there are: the row's value. */
+  readonly value: string;
   /** Where that control is, when it is on this page. */
   readonly href: string | null;
 }
@@ -295,8 +316,8 @@ export function safetyBlockers(
   if (status.state === "emergency_stopped" || status.state === "paused") {
     blockers.push({
       id: "global",
-      text: SAFETY_STATE_LABELS[status.state],
-      action: mayControl ? RESUME_SCOPE_LABEL : "",
+      label: SAFETY_STATE_LABELS[status.state],
+      value: mayControl ? RESUME_SCOPE_LABEL : NO_LIMIT,
       href: mayControl ? `#${CONTROL_ANCHOR}` : null,
     });
   }
@@ -305,8 +326,8 @@ export function safetyBlockers(
     if (hold.kind !== "provider" || !hold.cooldownUntil) continue;
     blockers.push({
       id: hold.scopeId,
-      text: `${hold.label} cooling down until ${clockTime(hold.cooldownUntil)}`,
-      action: "clears itself",
+      label: `${hold.label} cooling down`,
+      value: `until ${clockTime(hold.cooldownUntil)}`,
       href: null,
     });
   }
@@ -315,8 +336,8 @@ export function safetyBlockers(
   if (held > 0) {
     blockers.push({
       id: "holds",
-      text: `${held} ${held === 1 ? "person" : "people"} held back`,
-      action: "see below",
+      label: HOLDS_HEADING,
+      value: String(held),
       href: `#${HOLDS_ANCHOR}`,
     });
   }

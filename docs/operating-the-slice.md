@@ -380,16 +380,22 @@ Three consequences worth knowing before they surprise you:
 
 **What the section shows, in the order it shows it.** Brian, 18 September 2026:
 this is an emergency page, and somebody arriving at it has two jobs — stop a
-runaway, and find and clear a blockage. So it opens on one coloured line saying
-exactly one of **Sending normally**, **Messages waiting**, **Provider cooling
-down**, **Paused** or **Emergency stop**, with the reason, the operator and the
-time beside it and the one control in the same block. Then **Is it running
-away?** — admissions in the last five minutes, hour and 24 hours, each against
-its ceiling, amber at 80 % of it and red at it. Then **Is it stuck?** — what is
-due now, and one line per blocking cause with the act that clears it. Then
-**People held back**, one card per held person or number with their own Resume.
-The limits table and the recent changes are below those, and the limits are
-collapsed.
+runaway, and find and clear a blockage. So it opens on **Messaging status** — a
+Status row carrying exactly one of **Sending normally**, **Messages waiting**,
+**Provider cooling down**, **Paused** or **Emergency stop** on the application's
+own status chip, then Reason, By and Last change, then the one control. Then
+**Messages sent** — how many were sent in the last five minutes, hour and 24
+hours, each against its ceiling, reading **Nearing limit** at 80 % of one and
+**At limit** at it. Then **Waiting** — what is due now, and one row per blocking
+cause with the act that clears it. Then **People held back**, one person line per
+held person or number with their own Resume. The limits table and the recent
+changes are below those, and the limits are collapsed.
+
+Every element is a component the application already uses elsewhere — Brian, the
+same day: "The UX at the top is completely invented. We should find UX we already
+use in the app and do that." The page's `Section`, the record pages' label–value
+rows, the one status-chip vocabulary, the schedule form's own fields and action
+bar, and the boards' person-line card.
 
 **Pausing and resuming.** The control is at the top of Messaging safety and is
 held by the President, Vice-President, Secretary and General Manager only — not

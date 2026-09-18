@@ -2,127 +2,90 @@
 
 /**
  * **Messaging safety** — the last section of the Messaging schedule page.
- * LAN-394, Brian 17 September 2026, rearranged after his visual pass of
- * 18 September.
+ * LAN-394, Brian 17 September 2026, rearranged after his first visual pass of
+ * 18 September and re-dressed after his second the same day.
  *
  * "This is an emergency page. When I get here I need to work immediately."
- * Two jobs, in this order: stop a runaway, then find and clear a blockage.
- * The section is the answers to them, top to bottom — one coloured status line
- * with the control beside it, "Is it running away?", "Is it stuck?", the people
- * held back, and only then the limits and the history. There is no "send all
- * now", no "clear counters" and no override, because none of those is a thing
- * anybody decided the club should be able to do.
+ * Two jobs, in this order: stop a runaway, then find and clear a blockage. The
+ * order and the content are his — status and control, how many were sent, what
+ * is waiting, who is held back, then the limits and the history. There is no
+ * "send all now", no "clear counters" and no override, because none of those
+ * is a thing anybody decided the club should be able to do.
  *
- * At 375px every row stacks and every control is full width, and the status and
- * its control are the whole of the first screen. The holds are a list of cards
- * rather than a table for the reason every other phone surface here uses cards:
- * a table with four columns at 375px is either scrolled sideways or unreadable,
- * and this is the screen somebody opens in a hurry.
+ * The dress is not this section's own. "The UX at the top is completely
+ * invented. We should find UX we already use in the app and do that." So every
+ * element here is a component the application already uses somewhere else: the
+ * page's own `Section`, `Fact`/`FactList` label–value rows as on every record,
+ * `StatusChip` from the one status vocabulary, `ChoiceField`/`Field`/
+ * `ActionBar` exactly as the Messaging schedule form above it, and `RowCard`
+ * for a person line as on the roster and Administration boards. Nothing is
+ * coloured by a panel of its own; the one coloured thing is the chip, in the
+ * semantic colours it already owns.
+ *
+ * At 375px every row stacks and every control is full width, which is what
+ * those components already do.
  */
 
 import { useActionState, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import MuiLink from "@mui/material/Link";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { ActionBar } from "@/components/action-bar";
+import { Fact, FactGrid, FactList } from "@/components/fact";
 import { ChoiceField, Field } from "@/components/field";
+import { RowCard, RowCardList } from "@/components/row-card";
 import { Section } from "@/components/section";
+import { StatusChip } from "@/components/status-chip";
 import { Outcome as AdminOutcome, useOutcomeSlot } from "@/components/outcome-slot";
 import type { MessagingSafetyStatus, SafetyHoldRow } from "@/lib/services/messaging-safety";
 import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
 import { pauseMessagingAction, resumeMessagingAction } from "./safety-actions";
 import {
   AUDIT_HEADING,
+  BY_LABEL,
   CONTROL_ANCHOR,
   DUE_NOW_LABEL,
   formatMoment,
   heldBackRows,
+  HOLD_NOTE_LABEL,
+  HOLD_SINCE_LABEL,
+  HOLDING_LABEL,
   HOLDS_ANCHOR,
   HOLDS_HEADING,
   holdLabel,
   holdPersonHref,
   holdWhy,
+  LAST_CHANGE_LABEL,
   NO_AUDIT,
   NO_HOLDS,
-  NOTHING_BLOCKING,
+  NOTHING_HOLDING,
   PAUSE_LABEL,
   PAUSE_REASON_LABEL,
   queueLabel,
-  rateLimitLabel,
+  RATE_CHIP_LABELS,
+  RATE_CHIP_STATUS,
+  rateValue,
+  REASON_LABEL,
   REASON_NOTES_LABEL,
   REASON_PRESETS,
   RESUME_LABEL,
   RESUME_REASON_LABEL,
   RESUME_SCOPE_LABEL,
-  RUNAWAY_HEADING,
-  runawayRows,
   SAFETY_NORMAL_SENTENCE,
   SAFETY_SECTION_HEADING,
   SAFETY_STATE_LABELS,
-  SAFETY_STATE_SEVERITY,
   safetyBlockers,
+  SENT_HEADING,
+  sentRows,
   SHARED_DESTINATION_LABEL,
-  STUCK_HEADING,
+  STATUS_HEADING,
+  STATUS_LABEL,
   THRESHOLDS_SUMMARY,
-  type RateSeverity,
+  WAITING_HEADING,
 } from "./safety-presentation";
-
-/** One label and one value, stacked at 375px and side by side above it. */
-function Line({
-  label,
-  value,
-  testId,
-  colour,
-  tight = false,
-}: {
-  label: string;
-  value: string;
-  testId?: string;
-  /** A palette path, for the one value a threshold has turned amber. */
-  colour?: string;
-  /**
-   * Label and value beside each other at every width, rather than pushed to
-   * opposite edges of the row. For the status block, where the row is half the
-   * page wide and "Reason" a hand's breadth from its own value reads as two
-   * unrelated facts.
-   */
-  tight?: boolean;
-}) {
-  return (
-    <Stack
-      direction={tight ? "row" : { xs: "column", sm: "row" }}
-      spacing={tight ? 2 : { xs: 0, sm: 2 }}
-      sx={{
-        justifyContent: tight ? "flex-start" : "space-between",
-        alignItems: tight ? "baseline" : { sm: "baseline" },
-      }}
-      data-testid={testId}
-    >
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        sx={tight ? { minWidth: 96, flexShrink: 0 } : undefined}
-      >
-        {label}
-      </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 500, color: colour }}>
-        {value}
-      </Typography>
-    </Stack>
-  );
-}
-
-/** The tint a severity sits on, and the colour its number is written in. */
-const RATE_COLOURS: Readonly<Record<RateSeverity, { bg: string; border: string; text: string }>> =
-  Object.freeze({
-    neutral: { bg: "background.paper", border: "divider", text: "text.primary" },
-    warning: { bg: "warning.light", border: "warning.main", text: "warning.main" },
-    error: { bg: "error.light", border: "error.main", text: "error.main" },
-  });
 
 /**
  * The reason, for either control. A preset is a complete reason on its own —
@@ -194,7 +157,11 @@ function ResumeScopeForm({ hold }: { hold: SafetyHoldRow }) {
   );
 }
 
-/** The global PAUSE / RESUME pair. Exactly one of them is offered. */
+/**
+ * The global PAUSE / RESUME pair, in the page's own form idiom — the same
+ * `ChoiceField`, `Field` and `ActionBar` the Messaging schedule rows above it
+ * use. Exactly one of the two is offered.
+ */
 function GlobalControl({ status }: { status: MessagingSafetyStatus }) {
   const paused = status.pausedAt !== null || status.emergencyStopped;
   const slot = useOutcomeSlot("safety-global");
@@ -209,137 +176,112 @@ function GlobalControl({ status }: { status: MessagingSafetyStatus }) {
     <Box component="form" action={action} onSubmit={() => slot.claim()}>
       <input type="hidden" name="scopeId" value={status.globalScopeId} />
       <input type="hidden" name="version" value={status.globalVersion} />
-      <Stack spacing={1.5}>
+      <Stack spacing={2}>
         <ReasonFields label={paused ? RESUME_REASON_LABEL : PAUSE_REASON_LABEL} />
-        {/*
-         * The button in flow rather than in an `ActionBar`: the bar carries a
-         * phone-width ground and rule of its own, which inside this coloured
-         * block reads as a white seam across it, and a single control on an
-         * emergency panel has no foot to sit in.
-         */}
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={pending}
-          sx={{ minHeight: 44, alignSelf: { xs: "stretch", md: "flex-start" } }}
-          data-testid={paused ? "safety-resume" : "safety-pause"}
-        >
-          {paused ? RESUME_LABEL : PAUSE_LABEL}
-        </Button>
+        <ActionBar
+          sticky={false}
+          primary={
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={pending}
+              sx={{ minHeight: 44 }}
+              data-testid={paused ? "safety-resume" : "safety-pause"}
+            >
+              {paused ? RESUME_LABEL : PAUSE_LABEL}
+            </Button>
+          }
+        />
+        {/* The one sentence, under the button the person is about to press. */}
+        <Typography variant="body2" color="text.secondary">
+          {SAFETY_NORMAL_SENTENCE}
+        </Typography>
         {slot.showing ? <AdminOutcome state={state} /> : null}
       </Stack>
     </Box>
   );
 }
 
-/** Item 1 and item 2: what is happening, why, who, when — and the one control. */
-function StatusAndControl({
+/** What is happening, why, who, when — and the one control, in the same block. */
+function StatusSection({
   status,
   mayControl,
 }: {
   status: MessagingSafetyStatus;
   mayControl: boolean;
 }) {
-  const severity = SAFETY_STATE_SEVERITY[status.state];
-
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: { xs: 2, md: 3 },
-        bgcolor: `${severity}.light`,
-        borderColor: `${severity}.main`,
-        borderLeftWidth: 8,
-        borderLeftStyle: "solid",
-        borderLeftColor: `${severity}.main`,
-      }}
-      data-testid="safety-status-block"
-      data-severity={severity}
-    >
-      <Box
-        sx={{
-          display: "grid",
-          gap: { xs: 2, md: 4 },
-          gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) minmax(0, 22rem)" },
-          alignItems: "start",
-        }}
+    <Section title={STATUS_HEADING} headingLevel={3}>
+      <Stack
+        spacing={2}
+        id={CONTROL_ANCHOR}
+        sx={{ scrollMarginTop: 96 }}
+        data-testid="safety-status-block"
       >
-        <Stack spacing={1} sx={{ minWidth: 0 }}>
-          <Typography
-            variant="h1"
-            component="p"
-            sx={{ color: `${severity}.main` }}
-            data-testid="safety-state"
-          >
-            {SAFETY_STATE_LABELS[status.state]}
-          </Typography>
-          <Stack spacing={0.25}>
-            {status.pausedReason ? <Line label="Reason" value={status.pausedReason} tight /> : null}
-            {status.pausedByName ? <Line label="By" value={status.pausedByName} tight /> : null}
-            <Line
-              label="Last change"
-              value={formatMoment(status.pausedAt ?? status.lastChangeAt)}
-              tight
-            />
-          </Stack>
-        </Stack>
-
-        <Stack spacing={1} id={CONTROL_ANCHOR} sx={{ minWidth: 0, scrollMarginTop: 96 }}>
-          {mayControl ? (
-            <>
-              <GlobalControl status={status} />
-              {/* The one sentence, where the person about to press it will read it. */}
-              <Typography variant="body2" color="text.secondary">
-                {SAFETY_NORMAL_SENTENCE}
-              </Typography>
-            </>
-          ) : null}
-        </Stack>
-      </Box>
-    </Paper>
-  );
-}
-
-/** Item 3. The runaway tell, and it has to be readable in one glance. */
-function RunawaySection({ status }: { status: MessagingSafetyStatus }) {
-  return (
-    <Section title={RUNAWAY_HEADING} headingLevel={3}>
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-        }}
-      >
-        {runawayRows(status).map((row) => {
-          const colours = RATE_COLOURS[row.severity];
-          return (
-            <Paper
-              key={row.key}
-              variant="outlined"
-              sx={{ p: 2, minWidth: 0, bgcolor: colours.bg, borderColor: colours.border }}
-              data-testid={`safety-rate-${row.key}`}
-              data-severity={row.severity}
-            >
-              <Typography variant="h2" component="p" sx={{ color: colours.text }}>
-                {row.used.toLocaleString("en-GB")}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {row.label}
-              </Typography>
-              <Typography variant="caption" component="p" color="text.secondary">
-                {rateLimitLabel(row.limit)}
-              </Typography>
-            </Paper>
-          );
-        })}
-      </Box>
+        <FactList>
+          <Fact
+            layout="inline"
+            dense
+            label={STATUS_LABEL}
+            value={
+              <StatusChip
+                domain="messagingSafety"
+                status={status.state}
+                label={SAFETY_STATE_LABELS[status.state]}
+                testId="safety-state"
+              />
+            }
+          />
+          {/* An absent reason or operator reads "not recorded" in the one style
+              the application uses for it, never blank and never a dash. */}
+          <Fact layout="inline" dense label={REASON_LABEL} value={status.pausedReason} />
+          <Fact layout="inline" dense label={BY_LABEL} value={status.pausedByName} />
+          <Fact
+            layout="inline"
+            dense
+            label={LAST_CHANGE_LABEL}
+            value={formatMoment(status.pausedAt ?? status.lastChangeAt)}
+          />
+        </FactList>
+        {mayControl ? <GlobalControl status={status} /> : null}
+      </Stack>
     </Section>
   );
 }
 
-/** Item 4. What is due, what is blocking it, and the act that clears each one. */
-function StuckSection({
+/** How many were sent, in three windows, each against the ceiling that governs it. */
+function SentSection({ status }: { status: MessagingSafetyStatus }) {
+  return (
+    <Section title={SENT_HEADING} headingLevel={3}>
+      <FactList>
+        {sentRows(status).map((row) => (
+          <Fact
+            key={row.key}
+            layout="inline"
+            dense
+            label={row.label}
+            testId={`safety-rate-${row.key}`}
+            value={
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                <Typography variant="body2">{rateValue(row)}</Typography>
+                {row.severity === "neutral" ? null : (
+                  <StatusChip
+                    domain="messagingSafety"
+                    status={RATE_CHIP_STATUS[row.severity]}
+                    label={RATE_CHIP_LABELS[row.severity]}
+                  />
+                )}
+              </Stack>
+            }
+          />
+        ))}
+      </FactList>
+    </Section>
+  );
+}
+
+/** What is due, what is blocking it, and the act that clears each one. */
+function WaitingSection({
   status,
   mayControl,
 }: {
@@ -349,69 +291,78 @@ function StuckSection({
   const blockers = safetyBlockers(status, mayControl);
 
   return (
-    <Section title={STUCK_HEADING} headingLevel={3}>
-      <Stack spacing={1.5}>
-        <Line
+    <Section title={WAITING_HEADING} headingLevel={3}>
+      <FactList>
+        <Fact
+          layout="inline"
+          dense
           label={DUE_NOW_LABEL}
           value={queueLabel(status.dueWaiting, status.oldestDueMinutes)}
+          emphasis={status.queueWarning}
           testId="safety-due"
-          colour={status.queueWarning ? "warning.main" : undefined}
         />
 
         {blockers.length === 0 ? (
-          <Typography variant="body2" data-testid="safety-nothing-blocking">
-            {NOTHING_BLOCKING}
-          </Typography>
+          <Fact
+            layout="inline"
+            dense
+            label={HOLDING_LABEL}
+            value={NOTHING_HOLDING}
+            testId="safety-nothing-blocking"
+          />
         ) : (
-          <Stack spacing={0.75}>
-            {blockers.map((blocker) => (
-              <Typography key={blocker.id} variant="body1" data-testid="safety-blocker">
-                {blocker.text}
-                {blocker.action === "" ? null : (
-                  <>
-                    {" — "}
-                    {blocker.href ? (
-                      <MuiLink component={Link} href={blocker.href}>
-                        {blocker.action}
-                      </MuiLink>
-                    ) : (
-                      blocker.action
-                    )}
-                  </>
-                )}
-              </Typography>
-            ))}
-          </Stack>
+          blockers.map((blocker) => (
+            <Fact
+              key={blocker.id}
+              layout="inline"
+              dense
+              label={blocker.label}
+              testId="safety-blocker"
+              value={
+                blocker.href ? (
+                  <MuiLink component={Link} href={blocker.href} variant="body2">
+                    {blocker.value}
+                  </MuiLink>
+                ) : (
+                  blocker.value
+                )
+              }
+            />
+          ))
         )}
 
         {/* Secondary, and deliberately quiet: three counts that say what the
-            queue is made of once the two questions above have been answered. */}
-        <Stack spacing={0.25}>
-          <Line
-            label="Messages held back"
-            value={status.heldBySafety === 0 ? "None" : String(status.heldBySafety)}
-            testId="safety-held-count"
-          />
-          <Line
-            label="Scheduled later"
-            value={status.scheduledAhead === 0 ? "None" : String(status.scheduledAhead)}
-          />
-          <Line
-            label="Outcome unknown"
-            value={
-              status.unresolvedAttempts === 0
-                ? "None"
-                : `${status.unresolvedAttempts} — oldest ${status.oldestUnresolvedMinutes} min`
-            }
-            testId="safety-unresolved"
-          />
-        </Stack>
-      </Stack>
+            queue is made of once the two rows above have been read. */}
+        <Fact
+          layout="inline"
+          dense
+          label="Messages held back"
+          value={status.heldBySafety === 0 ? "None" : String(status.heldBySafety)}
+          testId="safety-held-count"
+        />
+        <Fact
+          layout="inline"
+          dense
+          label="Scheduled later"
+          value={status.scheduledAhead === 0 ? "None" : String(status.scheduledAhead)}
+        />
+        <Fact
+          layout="inline"
+          dense
+          label="Outcome unknown"
+          value={
+            status.unresolvedAttempts === 0
+              ? "None"
+              : `${status.unresolvedAttempts} — oldest ${status.oldestUnresolvedMinutes} min`
+          }
+          testId="safety-unresolved"
+        />
+      </FactList>
     </Section>
   );
 }
 
-/** Item 5. One card per held person or number, each with its own resume. */
+/** One person line per held person or number, each with its own resume. */
 function HeldBackSection({
   status,
   mayControl,
@@ -429,44 +380,38 @@ function HeldBackSection({
             {NO_HOLDS}
           </Typography>
         ) : (
-          <Stack spacing={1.5}>
+          <RowCardList at="all">
             {held.map((hold) => {
               const href = holdPersonHref(hold);
               const name = holdLabel(hold);
               return (
-                <Paper
+                <RowCard
                   key={hold.scopeId}
-                  variant="outlined"
-                  sx={{ p: 2 }}
-                  data-testid={`safety-hold-${hold.kind}`}
-                >
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={2}
-                    sx={{ justifyContent: "space-between", alignItems: { sm: "flex-start" } }}
-                  >
-                    <Stack spacing={0.25} sx={{ minWidth: 0, flexGrow: 1 }}>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {href ? (
-                          <MuiLink component={Link} href={href}>
-                            {name}
-                          </MuiLink>
-                        ) : (
-                          name
-                        )}
-                      </Typography>
-                      <Line label="Why" value={holdWhy(hold)} tight />
-                      <Line label="Since" value={formatMoment(hold.since)} tight />
+                  testId={`safety-hold-${hold.kind}`}
+                  title={
+                    href ? (
+                      <MuiLink component={Link} href={href}>
+                        {name}
+                      </MuiLink>
+                    ) : (
+                      name
+                    )
+                  }
+                  sublines={[
+                    <FactGrid key="facts" columns={2}>
+                      <Fact label={REASON_LABEL} value={holdWhy(hold)} />
+                      <Fact label={HOLD_SINCE_LABEL} value={formatMoment(hold.since)} />
                       {hold.shared ? (
-                        <Line label="Note" value={SHARED_DESTINATION_LABEL} tight />
+                        <Fact label={HOLD_NOTE_LABEL} value={SHARED_DESTINATION_LABEL} />
                       ) : null}
-                    </Stack>
-                    {mayControl ? <ResumeScopeForm hold={hold} /> : null}
-                  </Stack>
-                </Paper>
+                    </FactGrid>,
+                  ]}
+                  actions={mayControl ? <ResumeScopeForm hold={hold} /> : undefined}
+                  actionWidth={320}
+                />
               );
             })}
-          </Stack>
+          </RowCardList>
         )}
       </Section>
     </Box>
@@ -487,22 +432,48 @@ export default function MessagingSafetySection({
         {SAFETY_SECTION_HEADING}
       </Typography>
 
-      <StatusAndControl status={status} mayControl={mayControl} />
-      <RunawaySection status={status} />
-      <StuckSection status={status} mayControl={mayControl} />
+      <StatusSection status={status} mayControl={mayControl} />
+      <SentSection status={status} />
+      <WaitingSection status={status} mayControl={mayControl} />
       <HeldBackSection status={status} mayControl={mayControl} />
 
       <Section title={THRESHOLDS_SUMMARY} collapsible headingLevel={3}>
-        <Stack spacing={1}>
+        <FactList>
           {status.thresholds.map((row) => (
-            <Line key={row.control} label={row.control} value={`${row.value} — ${row.effect}`} />
+            <Fact
+              key={row.control}
+              layout="inline"
+              dense
+              label={row.control}
+              value={`${row.value} — ${row.effect}`}
+            />
           ))}
-          <Line label="Used, last 5 minutes" value={String(status.admittedInPacingWindow)} />
-          <Line label="Used, last hour" value={String(status.admittedInHour)} />
-          <Line label="Used, last 24 hours" value={String(status.admittedInDay)} />
-          <Line label="Used, last 7 days" value={String(status.admittedInWeek)} />
-          <Line label="Set by" value={status.policyDecision} />
-        </Stack>
+          <Fact
+            layout="inline"
+            dense
+            label="Used, last 5 minutes"
+            value={String(status.admittedInPacingWindow)}
+          />
+          <Fact
+            layout="inline"
+            dense
+            label="Used, last hour"
+            value={String(status.admittedInHour)}
+          />
+          <Fact
+            layout="inline"
+            dense
+            label="Used, last 24 hours"
+            value={String(status.admittedInDay)}
+          />
+          <Fact
+            layout="inline"
+            dense
+            label="Used, last 7 days"
+            value={String(status.admittedInWeek)}
+          />
+          <Fact layout="inline" dense label="Set by" value={status.policyDecision} />
+        </FactList>
       </Section>
 
       <Section title={AUDIT_HEADING} headingLevel={3}>
@@ -511,15 +482,17 @@ export default function MessagingSafetySection({
             {NO_AUDIT}
           </Typography>
         ) : (
-          <Stack spacing={1}>
+          <FactList>
             {status.audit.map((entry) => (
-              <Line
+              <Fact
                 key={entry.id}
+                layout="inline"
+                dense
                 label={formatMoment(entry.occurredAt)}
                 value={`${entry.action === "messaging_safety.paused" ? "Paused" : "Resumed"} — ${entry.actorName}`}
               />
             ))}
-          </Stack>
+          </FactList>
         )}
       </Section>
     </Stack>

@@ -806,33 +806,41 @@ function hold(overrides: Partial<SafetyHoldRow> = {}): SafetyHoldRow {
 }
 
 describe("Messaging safety — LAN-394", () => {
-  it("opens on the status and the control, then the two questions, then the rest", async () => {
+  it("opens on the status and the control, then the counts, then the rest", async () => {
     render(await MessagingSchedulePage());
 
     const section = screen.getByTestId("messaging-safety");
     const headings = within(section)
       .getAllByRole("heading", { level: 3 })
       .map((heading) => heading.textContent);
+    // Brian's second pass of 18 September 2026: "The narrative UI is really
+    // terrible. 'Is it running away?' — for God's sake, have a professional
+    // tone." Same order, same content, noun phrases throughout.
     expect(headings).toEqual([
-      "Is it running away?",
-      "Is it stuck?",
+      "Messaging status",
+      "Messages sent",
+      "Waiting",
       "People held back",
       "Limits and current use",
       "Recent changes",
     ]);
+    for (const heading of headings) expect(heading).not.toContain("?");
 
     // The status and its control come before any of them: an emergency page
     // opens on what is happening and the one control that changes it.
     const text = section.textContent;
-    expect(text.indexOf("Sending normally")).toBeLessThan(text.indexOf("Is it running away?"));
-    expect(text.indexOf("Pause messaging")).toBeLessThan(text.indexOf("Is it running away?"));
+    expect(text.indexOf("Sending normally")).toBeLessThan(text.indexOf("Messages sent"));
+    expect(text.indexOf("Pause messaging")).toBeLessThan(text.indexOf("Messages sent"));
   });
 
-  it("reads as Sending normally, in green, and says what pausing does under the control", async () => {
+  it("reads as Sending normally, on the application's own green chip", async () => {
     render(await MessagingSchedulePage());
 
-    expect(screen.getByTestId("safety-state")).toHaveTextContent("Sending normally");
-    expect(screen.getByTestId("safety-status-block")).toHaveAttribute("data-severity", "success");
+    const chip = screen.getByTestId("safety-state");
+    expect(chip).toHaveTextContent("Sending normally");
+    // The one status vocabulary's colours, not a panel painted by this section.
+    expect(chip).toHaveAttribute("data-domain", "messagingSafety");
+    expect(chip.className).toMatch(/MuiChip-colorSuccess/);
     // The one sentence the section carries. Somebody about to stop every
     // message the club sends is owed the three facts that decide whether they
     // should: what stops, what does not, and what may still arrive.
@@ -842,19 +850,50 @@ describe("Messaging safety — LAN-394", () => {
     expect(screen.queryByTestId("messaging-paused-banner")).not.toBeInTheDocument();
   });
 
+  it("dresses every part of the section in a component the application already uses", async () => {
+    // Brian, 18 September 2026: "The UX at the top is completely invented. We
+    // should find UX we already use in the app and do that." The status, the
+    // counts and what is waiting are all `Fact` rows; the held people are
+    // `RowCard`s; the state is a `StatusChip`; there is no panel of this
+    // section's own.
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(safetyStatus({ holds: [hold()] }));
+
+    const { container } = render(await MessagingSchedulePage());
+    const section = screen.getByTestId("messaging-safety");
+
+    // `StatusChip`, from the one vocabulary.
+    expect(screen.getByTestId("safety-state")).toHaveAttribute("data-domain", "messagingSafety");
+    // `Fact` rows, carrying their own label — the record pages' own idiom.
+    for (const [testId, label] of [
+      ["safety-rate-day", "Last 24 hours"],
+      ["safety-due", "Due now"],
+      ["safety-held-count", "Messages held back"],
+    ] as const) {
+      expect(screen.getByTestId(testId), testId).toHaveAttribute("data-label", label);
+    }
+    expect(within(section).getAllByTestId("fact").length).toBeGreaterThan(0);
+    // `RowCard`, the person line the roster and Administration boards use.
+    expect(screen.getByTestId("safety-hold-person").className).toMatch(/MuiCard-root/);
+    // And nothing of this section's own: the invented status panel carried a
+    // severity of its own, and there is no longer anything to carry one.
+    expect(container.querySelector("[data-severity]")).toBeNull();
+  });
+
   it.each([
-    ["messages_waiting", "Messages waiting", "warning"],
-    ["provider_cooling_down", "Provider cooling down", "warning"],
-    ["paused", "Paused", "error"],
-    ["emergency_stopped", "Emergency stop", "error"],
-    ["unavailable", "Safety status unavailable", "error"],
-  ] as const)("says %s as one coloured line", async (state, label, severity) => {
+    ["messages_waiting", "Messages waiting", "Warning"],
+    ["provider_cooling_down", "Provider cooling down", "Warning"],
+    ["paused", "Paused", "Error"],
+    ["emergency_stopped", "Emergency stop", "Error"],
+    ["unavailable", "Safety status unavailable", "Error"],
+  ] as const)("says %s on a chip in the vocabulary's own colour", async (state, label, colour) => {
     vi.mocked(readMessagingSafetyStatus).mockResolvedValue(safetyStatus({ state }));
 
     render(await MessagingSchedulePage());
 
-    expect(screen.getByTestId("safety-state")).toHaveTextContent(label);
-    expect(screen.getByTestId("safety-status-block")).toHaveAttribute("data-severity", severity);
+    const chip = screen.getByTestId("safety-state");
+    expect(chip).toHaveTextContent(label);
+    expect(chip).toHaveAttribute("data-status", state);
+    expect(chip.className).toMatch(new RegExp(`MuiChip-color${colour}`));
   });
 
   it("carries why, who and when in the same block as the state", async () => {
@@ -908,45 +947,58 @@ describe("Messaging safety — LAN-394", () => {
     expect(note).not.toBeRequired();
   });
 
-  it("shows five minutes, an hour and a day against their limits", async () => {
+  it("says how many were sent in five minutes, an hour and a day", async () => {
+    // Brian, 18 September 2026: "Just say what the thing is: how many messages
+    // were sent in the last 24 hours."
     vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
       safetyStatus({ admittedInPacingWindow: 4, admittedInHour: 120, admittedInDay: 1_450 }),
     );
 
     render(await MessagingSchedulePage());
 
-    expect(screen.getByTestId("safety-rate-pacing")).toHaveTextContent("of 50");
-    expect(screen.getByTestId("safety-rate-day")).toHaveTextContent("of 3,000");
-    expect(screen.getByTestId("safety-rate-day")).toHaveTextContent("1,450");
-    // No ceiling governs an hour, and the row says so rather than inventing one.
-    expect(screen.getByTestId("safety-rate-hour")).toHaveTextContent("120");
-    expect(screen.getByTestId("safety-rate-hour")).toHaveTextContent("—");
-    for (const key of ["pacing", "hour", "day"]) {
-      expect(screen.getByTestId(`safety-rate-${key}`)).toHaveAttribute("data-severity", "neutral");
-    }
+    const rows = ["pacing", "hour", "day"].map((key) => screen.getByTestId(`safety-rate-${key}`));
+    expect(rows.map((row) => row.getAttribute("data-label"))).toEqual([
+      "Last 5 minutes",
+      "Last hour",
+      "Last 24 hours",
+    ]);
+    expect(rows[0]).toHaveTextContent("4 of 50");
+    expect(rows[2]).toHaveTextContent("1,450 of 3,000");
+    // No ceiling governs an hour, so the row is the count and nothing else.
+    expect(rows[1]).toHaveTextContent("120");
+    expect(rows[1].textContent).not.toContain("of");
+    // Below every threshold, so no row carries a word about one.
+    for (const row of rows) expect(within(row).queryByText(/limit/i)).not.toBeInTheDocument();
   });
 
   it.each([
-    [39, 2_399, "neutral"],
-    [40, 2_400, "warning"],
-    [50, 3_000, "error"],
-  ] as const)("turns %s in five minutes and %s in a day %s", async (pacing, day, severity) => {
+    [39, 2_399, null],
+    [40, 2_400, "Nearing limit"],
+    [50, 3_000, "At limit"],
+  ] as const)("reads %s in five minutes and %s in a day as %s", async (pacing, day, word) => {
     vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
       safetyStatus({ admittedInPacingWindow: pacing, admittedInDay: day }),
     );
 
     render(await MessagingSchedulePage());
 
-    expect(screen.getByTestId("safety-rate-pacing")).toHaveAttribute("data-severity", severity);
-    expect(screen.getByTestId("safety-rate-day")).toHaveAttribute("data-severity", severity);
+    for (const key of ["pacing", "day"]) {
+      const row = screen.getByTestId(`safety-rate-${key}`);
+      // Colour is never the only signal: an amber reading says amber in words.
+      if (word === null) {
+        expect(within(row).queryByText(/limit/i), key).not.toBeInTheDocument();
+      } else {
+        expect(within(row).getByText(word), key).toBeInTheDocument();
+      }
+    }
   });
 
   it("says nothing is holding messages when nothing is", async () => {
     render(await MessagingSchedulePage());
 
-    expect(screen.getByTestId("safety-nothing-blocking")).toHaveTextContent(
-      "Nothing is holding messages.",
-    );
+    const row = screen.getByTestId("safety-nothing-blocking");
+    expect(row).toHaveAttribute("data-label", "Holding");
+    expect(row).toHaveTextContent("Nothing");
     expect(screen.queryAllByTestId("safety-blocker")).toHaveLength(0);
     expect(screen.getByTestId("safety-no-holds")).toHaveTextContent("Nobody");
   });
@@ -975,11 +1027,14 @@ describe("Messaging safety — LAN-394", () => {
 
     render(await MessagingSchedulePage());
 
-    const blockers = screen.getAllByTestId("safety-blocker").map((line) => line.textContent);
+    // One label–value row per cause, in the same idiom as every other row.
+    const blockers = screen
+      .getAllByTestId("safety-blocker")
+      .map((row) => [row.getAttribute("data-label"), row.textContent]);
     expect(blockers).toEqual([
-      "Paused — Resume",
-      expect.stringMatching(/^WhatsApp cooling down until \d{2}:\d{2} — clears itself$/),
-      "1 person held back — see below",
+      ["Paused", "PausedResume"],
+      ["WhatsApp cooling down", expect.stringMatching(/^WhatsApp cooling downuntil \d{2}:\d{2}$/)],
+      ["People held back", "People held back1"],
     ]);
     expect(screen.getByTestId("safety-due")).toHaveTextContent("3 — oldest 7 min");
     expect(screen.queryByTestId("safety-nothing-blocking")).not.toBeInTheDocument();
@@ -1042,7 +1097,10 @@ describe("Messaging safety — LAN-394", () => {
     // A provider cools down on its own; there is nothing for an operator to
     // resume, so nothing is offered.
     expect(screen.queryByTestId("safety-resume-provider")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("safety-blocker")[0]).toHaveTextContent("clears itself");
+    // It appears under Waiting instead, as the cause it is, with the time it ends.
+    const blocker = screen.getAllByTestId("safety-blocker")[0];
+    expect(blocker).toHaveAttribute("data-label", "WhatsApp cooling down");
+    expect(blocker.textContent).toMatch(/until \d{2}:\d{2}$/);
   });
 
   it("names a held number by the people it reaches, never by its fingerprint", async () => {

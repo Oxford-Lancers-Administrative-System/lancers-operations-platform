@@ -325,7 +325,7 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
     const holds: SafetyHoldRow[] = [];
     for (const scope of scopes) {
       // The global row is the Controls section's own subject and already has a
-      // button there. Listing it again under "Active holds", with a second
+      // button there. Listing it again under "People held back", with a second
       // Resume beside it, would offer the same act twice and leave an operator
       // wondering which one they pressed. The contract's list is of *scoped*
       // holds — a provider, a person, a number.
