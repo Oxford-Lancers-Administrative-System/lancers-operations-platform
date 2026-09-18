@@ -178,6 +178,17 @@ They take the tokens and the band colours and are otherwise untouched.
   the name, on every page reached without a session.
 - The crest file is `public/brand/crest.svg`, supplied by Brian from the Figma;
   the wordmark is set in Geist unless the export brings one.
+- **Email carries the same mark and the same palette, in its own shell.** Every
+  message the app sends through Resend is wrapped by
+  `src/lib/delivery/email-shell.ts`: the crest at 48px and "Oxford Lancers" over
+  a gold rule, the body at `body1` in Charcoal, and a signature block with the
+  crest at 32px, the club's name in full and the privacy notice. One 600px
+  column, fluid to 375px. Inline styles only and a raster crest
+  (`public/brand/crest-email.png`), because no mail client fetches a stylesheet
+  and Outlook draws HTML through Word, which renders neither `max-width` on a
+  `div` nor an SVG `<img>`. Geist is named in the stack and never fetched; a
+  reader without it lands on their platform's UI face. Evidence:
+  `review/LAN-398/`. LAN-398, Brian 2026-09-18.
 - **The root is the sign-in page.** `/` renders the sign-in screen; there is no
   separate landing page. What stood at `/` was LAN-71's bootstrap scaffold,
   which described the repository as an "infrastructure scaffold" whose only job

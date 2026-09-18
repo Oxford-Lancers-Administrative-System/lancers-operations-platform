@@ -84,12 +84,18 @@ const PAPER = "#FFFFFF";
 const FACE =
   "Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
-/** `body1` — 15/22, 400. The application's body size, unchanged. */
-const BODY_TYPE = `font-family:${FACE};font-size:15px;line-height:22px;`;
+/**
+ * `body1` — 15/22, 400. The application's body size, unchanged.
+ *
+ * `word-break` because several bodies end in a signed link printed in full, and
+ * a token is one unbreakable word wider than a phone. Without it the column
+ * stops being 600px and the message scrolls sideways.
+ */
+const BODY_TYPE = `font-family:${FACE};font-size:15px;line-height:22px;word-break:break-word;`;
 /** `h2` — 22/28, 700. The club's name beside the crest. */
 const NAME_TYPE = `font-family:${FACE};font-size:22px;line-height:28px;font-weight:700;`;
 /** `body2` — 13/18, 400. The signature block, quieter than the message. */
-const SIGN_TYPE = `font-family:${FACE};font-size:13px;line-height:18px;`;
+const SIGN_TYPE = `font-family:${FACE};font-size:13px;line-height:18px;word-break:break-word;`;
 
 /** The gap between paragraphs, matching the blank line the text part uses. */
 const PARAGRAPH = 'style="margin:0 0 16px 0;"';

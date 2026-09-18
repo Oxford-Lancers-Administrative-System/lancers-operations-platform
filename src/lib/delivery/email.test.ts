@@ -29,6 +29,9 @@ import type { OutboundMessage } from "./provider";
 const CONFIG: EmailConfig = {
   apiBaseUrl: "https://api.resend.example",
   apiKey: "test-key-not-a-real-one",
+  // The origin the shell builds the crest's `src` from. `email-parts.test.ts`
+  // is where that rendering is asserted; this suite only needs it to resolve.
+  appBaseUrl: "https://app.oxfordlancers.example",
   // Bare, because that is the shape `docs/deployment.md` requires of
   // `EMAIL_FROM_ADDRESS` and the shape LAN-398 prepends the club's name to.
   fromAddress: "events@lancers.example",

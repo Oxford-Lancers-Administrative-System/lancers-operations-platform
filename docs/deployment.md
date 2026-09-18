@@ -388,6 +388,13 @@ front of that address in code — `EMAIL_FROM_DISPLAY_NAME` in
 There is nothing to configure, and nothing with a space in it ever reaches the
 flag.
 
+**The crest in an email is served by the application itself**, at
+`${APP_BASE_URL}/brand/crest-email.png`, so it ships with the revision and needs
+no bucket, no CDN and no DNS. `APP_BASE_URL` must therefore be the origin a
+recipient can actually reach; a revision whose `APP_BASE_URL` is wrong sends
+mail with a broken image, not mail that fails. Nothing here is a secret — it is
+a public logo, and Gmail proxies and caches it like any other.
+
 **There is no recipient allowlist, on any deployment.** LAN-287 removed
 `DELIVERY_RECIPIENT_ALLOWLIST` and `DELIVERY_EMAIL_ALLOWLIST` (Brian's LAN-168
 decision of 2 September 2026): membership supplies a player's eligibility, a
