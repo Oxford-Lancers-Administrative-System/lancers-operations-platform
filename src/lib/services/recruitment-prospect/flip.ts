@@ -3,6 +3,7 @@ import "server-only";
 import { InvalidTransition, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
 import { recordAudit } from "../audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
 import { generateOnboardingItems } from "../membership";
 import { emitOnboardingOpenedWelcomeIn } from "../onboarding-welcome";
 import { revokePersonTokenIn } from "../player-answer-tokens";
@@ -146,6 +147,21 @@ export async function flipRecruitmentProspectToJoinedIn(
       seasonId: row.season_id,
       cancelledCycleJobs, // LAN-341: how many queued recruitment steps this flip stood down
     },
+  });
+
+  // LAN-392. This one write crosses two groups at once: the person leaves
+  // `recruits` and joins `onboarding`. Brian's decision 1 — "treats them as if
+  // they had been in the new group at approval" — so they are added to every
+  // approved future event whose stored groups hold Onboarding. The audience
+  // insert ignores a conflict on the human, which is what stops this flip
+  // failing outright for a recruit who is already in a recruitment event's
+  // audience: invariant P9's unique index would otherwise refuse the second
+  // row and roll the whole flip back.
+  await applyAudienceGroupRuleIn(tx, {
+    personId: row.person_id,
+    seasonId: row.season_id,
+    trigger: "recruit_flipped_to_onboarding",
+    actorPersonId,
   });
 
   return { membershipId };

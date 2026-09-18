@@ -191,6 +191,22 @@ begin
     raise exception 'LAN-93 pilot cleanup refused: event_audience_members rows hang off the scenario event and would be cascade-deleted.';
   end if;
 
+  -- LAN-392's two additions, on the same reasoning as the two above: both
+  -- cascade from public.events, and the scenario event carries neither.
+  if exists (
+    select 1 from public.event_audience_groups
+     where event_id = '00930093-0093-4093-8093-000000000006'
+  ) then
+    raise exception 'LAN-93 pilot cleanup refused: event_audience_groups rows hang off the scenario event and would be cascade-deleted.';
+  end if;
+
+  if exists (
+    select 1 from public.event_audience_exclusions
+     where event_id = '00930093-0093-4093-8093-000000000006'
+  ) then
+    raise exception 'LAN-93 pilot cleanup refused: event_audience_exclusions rows hang off the scenario event and would be cascade-deleted.';
+  end if;
+
   if exists (
     select 1 from public.onboarding_item_types
      where season_id = '00930093-0093-4093-8093-000000000003'

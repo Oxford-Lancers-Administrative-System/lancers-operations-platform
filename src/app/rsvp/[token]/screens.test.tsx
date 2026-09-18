@@ -543,29 +543,37 @@ describe("rate limiting", () => {
     expect(text).not.toMatch(/current answer/i);
   });
 
-  it("keeps the uniform terminal response for the per-address bucket a guesser reaches", async () => {
-    givenToken("valid");
+  // This one renders the page RATE_LIMIT_MAX_PER_ADDRESS + 5 times, which is
+  // ~2 s on a quiet machine and past the 5 s default on a loaded CI runner
+  // (main's push run failed on it twice at 8bc2166d). The budget is the
+  // render count's, not a sign of slowness in the page.
+  it(
+    "keeps the uniform terminal response for the per-address bucket a guesser reaches",
+    { timeout: 60_000 },
+    async () => {
+      givenToken("valid");
 
-    let refusals = 0;
-    for (let attempt = 0; attempt < RATE_LIMIT_MAX_PER_ADDRESS + 5; attempt += 1) {
-      // A fresh token each time, exactly as a guesser presents one: the
-      // per-link bucket is never filled, the per-address one eventually is.
-      try {
-        render(
-          await RsvpPage({
-            params: Promise.resolve({
-              token: `${TOKEN.slice(0, 39)}${String(attempt).padStart(4, "0")}`,
+      let refusals = 0;
+      for (let attempt = 0; attempt < RATE_LIMIT_MAX_PER_ADDRESS + 5; attempt += 1) {
+        // A fresh token each time, exactly as a guesser presents one: the
+        // per-link bucket is never filled, the per-address one eventually is.
+        try {
+          render(
+            await RsvpPage({
+              params: Promise.resolve({
+                token: `${TOKEN.slice(0, 39)}${String(attempt).padStart(4, "0")}`,
+              }),
+              searchParams: Promise.resolve({}),
             }),
-            searchParams: Promise.resolve({}),
-          }),
-        );
-      } catch (error) {
-        expect((error as Error).message).toBe("NEXT_NOT_FOUND");
-        refusals += 1;
+          );
+        } catch (error) {
+          expect((error as Error).message).toBe("NEXT_NOT_FOUND");
+          refusals += 1;
+        }
       }
-    }
-    expect(refusals).toBeGreaterThan(0);
-  });
+      expect(refusals).toBeGreaterThan(0);
+    },
+  );
 
   it("says so in the log, because the player is told nothing", async () => {
     // The uniform response is what makes throttling undiscoverable: a player

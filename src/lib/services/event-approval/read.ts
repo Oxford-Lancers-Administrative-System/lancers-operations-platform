@@ -107,9 +107,21 @@ export async function readApprovalPreview(eventId: string): Promise<ApprovalPrev
           .map((member) => `${member.capacity}:${member.anchorId}`),
         event.eventType,
       ),
+      audienceGroups: await readAudienceGroupsIn(tx, eventId),
       missing: missingForApproval(event),
     };
   });
+}
+
+/** The group rule stored against an event (LAN-392), in the picker's own order. */
+async function readAudienceGroupsIn(tx: Tx, eventId: string): Promise<string[]> {
+  const result = await tx.query<{ audience_group: string }>(
+    `select audience_group::text as audience_group
+       from public.event_audience_groups
+      where event_id = $1::uuid`,
+    [eventId],
+  );
+  return result.rows.map((row) => row.audience_group);
 }
 
 /** The audience saved against an event, for a screen that only wants to show it. */

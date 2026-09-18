@@ -243,6 +243,7 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
 function detail(overrides: Partial<EventDetail> = {}): EventDetail {
   return {
     ...listEntry(),
+    audienceAddedSinceApproval: 0,
     description: null,
     requiredEquipment: null,
     joiningUrl: null,
@@ -549,6 +550,9 @@ function givenAudience(
         .map((member) => `${member.capacity}:${member.anchorId}`),
       "practice",
     ),
+    // LAN-392: the stored group rule. Empty for these screens, which are not
+    // about it — the builder's own test is where the pressed groups are proved.
+    audienceGroups: [],
     missing: [],
   });
 }
@@ -2441,6 +2445,54 @@ describe("UX-40 — building the audience", () => {
       ].sort(),
     );
   });
+
+  /**
+   * LAN-392. The pressed group is a third thing the form posts, beside the
+   * keys, because it cannot be recovered from them: untick one of the three and
+   * every derivation of "All active players was chosen" goes out with them,
+   * along with the fact that the one person was left out on purpose. The event
+   * keeps that pressed group as its rule once it is approved, so what is posted
+   * here is what a recruit joining next Tuesday falls into.
+   */
+  function postedGroups(): string[] {
+    return [...document.querySelectorAll('input[name="audienceGroup"]')].map(
+      (input) => (input as HTMLInputElement).value,
+    );
+  }
+
+  it("posts the group that was pressed, beside the keys", async () => {
+    await openBuilder();
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    expect(postedGroups()).toEqual(["active_players"]);
+  });
+
+  it("keeps posting the group after one of its people is unticked", async () => {
+    await openBuilder();
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(screen.getAllByRole("checkbox")[0]);
+
+    // Two keys, and still the group: this pair is exactly what makes an
+    // exclusion recordable — the group is the rule, and the missing person is
+    // the deliberate deselection.
+    expect(document.querySelectorAll('input[name="audienceKey"]')).toHaveLength(2);
+    expect(postedGroups()).toEqual(["active_players"]);
+  });
+
+  it("stops posting the group when the group button is pressed off", async () => {
+    await openBuilder();
+    const button = screen.getByRole("button", { name: "All active players (3)" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(postedGroups()).toEqual([]);
+    expect(document.querySelectorAll('input[name="audienceKey"]')).toHaveLength(0);
+  });
+
+  it("clears the pressed groups with the selection", async () => {
+    await openBuilder();
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(postedGroups()).toEqual([]);
+  });
 });
 
 describe("UX-42 — an empty audience is refused before anything is written", () => {
@@ -2639,8 +2691,8 @@ describe("UX-41 — confirming exactly who will be asked", () => {
 });
 
 describe("UX-43 — the event is approved", () => {
-  function approved() {
-    return detail({ status: "approved", audienceCount: 3, invitationCount: 3 });
+  function approved(overrides: Partial<EventDetail> = {}) {
+    return detail({ status: "approved", audienceCount: 3, invitationCount: 3, ...overrides });
   }
 
   it("reports what now exists, and that none of it has been delivered", async () => {
@@ -2656,6 +2708,49 @@ describe("UX-43 — the event is approved", () => {
     expect(flatten(screen.getByTestId("audience-fact").textContent)).toContain("3 confirmed");
     expect(flatten(screen.getByTestId("distribution-fact").textContent)).toContain(
       "nothing delivered yet",
+    );
+  });
+
+  /**
+   * LAN-392/LAN-393. "Confirmed at approval." was true while an approved
+   * audience could not grow. It can now — by the event's stored group rule, or
+   * by an operator adding somebody by hand — so the line says what happened
+   * rather than going quietly wrong the first time somebody joins late.
+   */
+  it("still says confirmed at approval while nobody has joined since", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approved({ audienceAddedSinceApproval: 0 }));
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+
+    render(await EventDetailPage(detailProps()));
+
+    const audience = flatten(screen.getByTestId("audience-fact").textContent);
+    expect(audience).toContain("Confirmed at approval.");
+    expect(audience).not.toContain("added since");
+  });
+
+  it("counts the late joiners beside the confirmed audience", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      approved({ audienceCount: 5, audienceAddedSinceApproval: 2 }),
+    );
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+
+    render(await EventDetailPage(detailProps()));
+
+    const audience = flatten(screen.getByTestId("audience-fact").textContent);
+    expect(audience).toContain("5 confirmed");
+    expect(audience).toContain("Confirmed at approval, plus 2 added since.");
+  });
+
+  it("says one rather than 1 person, in the singular", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      approved({ audienceCount: 4, audienceAddedSinceApproval: 1 }),
+    );
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("audience-fact").textContent)).toContain(
+      "Confirmed at approval, plus 1 added since.",
     );
   });
 

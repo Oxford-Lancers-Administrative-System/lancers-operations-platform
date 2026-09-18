@@ -8,11 +8,13 @@ import {
   readAmendmentContext,
   type AmendmentContext,
 } from "@/lib/services/event-amendment";
+import { readAddableAudience } from "@/lib/services/event-audience-amendment";
 import type { RawEventDraft, TermWindow } from "@/lib/services/event-input";
 import { gateShellPage } from "../../../gate";
 import { formatDetailWhen, labelFor, STATUS_LABELS } from "../../presentation";
 import { AMEND_HEADLINE_PREFIX } from "../change-presentation";
 import AmendForm from "./amend-form";
+import { AddToAudience } from "./add-to-audience";
 
 /**
  * W5 — amending an approved event, on its own route (not a mode of `/edit`,
@@ -29,8 +31,15 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
 
   let context: AmendmentContext;
   let terms: TermWindow[];
+  let addable: Awaited<ReturnType<typeof readAddableAudience>>;
   try {
-    [context, terms] = await Promise.all([readAmendmentContext(id), listTermWindows()]);
+    [context, terms, addable] = await Promise.all([
+      readAmendmentContext(id),
+      listTermWindows(),
+      // LAN-393. Read here rather than inside the client component so the
+      // "already invited" filter is the server's answer, not the browser's.
+      readAddableAudience(id),
+    ]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <Refusal message={error.message} />;
@@ -95,6 +104,18 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
         unsentMessages={context.unsentMessages}
         isFuture={context.isFuture}
       />
+
+      {/* LAN-393. Only while the event is still ahead: the service refuses an
+          event that has started, and a control that can only be refused is not
+          a control. */}
+      {context.isFuture ? (
+        <AddToAudience
+          eventId={event.id}
+          candidates={addable.candidates}
+          counts={addable.counts}
+          alreadyOnEvent={addable.alreadyOnEvent}
+        />
+      ) : null}
     </Stack>
   );
 }

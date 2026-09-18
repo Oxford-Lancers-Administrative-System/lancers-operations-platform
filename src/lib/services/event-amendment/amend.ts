@@ -3,6 +3,7 @@ import "server-only";
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
 import { recordAudit } from "../audit";
+import { clearWithheldReasonsWhereDeclaredIn } from "../event-audience-rule";
 import { deriveTermCoordinate, type EventDraftInput } from "../event-input";
 import { lockEventIn, readEventIn, type EventDetail } from "../events";
 import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "../messaging-schedule";
@@ -306,6 +307,21 @@ async function backfillInvitationJobsIn(tx: Tx, eventId: string): Promise<number
   return created.rowCount ?? 0;
 }
 
+/**
+ * An invitation job whose audience row the LAN-392 group rule added after the
+ * event was approved, and which still carries an instant of its own. Written
+ * once and interpolated because the same predicate is needed twice in one
+ * statement; it takes no parameter and no caller value, so there is nothing
+ * here to inject.
+ */
+const LATE_JOINER_INVITATION = `j.job_type = 'invitation'
+              and j.scheduled_for is not null
+              and exists (
+                select 1
+                  from public.invitations i
+                  join public.event_audience_members a on a.id = i.audience_member_id
+                 where i.id = j.invitation_id and a.added_by_group is not null)`;
+
 // W8, REQ-reschedule-recomputes, OD-1/Q6 (ADR 0021's deliberate answer): recomputes the response
 // deadline and everything counted from it, resolved asOf this amendment's own moment. Also the
 // F-A2/F-C3 repair path for an event that has never had a messaging plan at all — see relocations.md
@@ -339,15 +355,27 @@ async function recomputeScheduleOnRescheduleIn(
 
   const keptRungs = plan.rungs.map((rung) => rung.rung);
   for (const rung of plan.rungs) {
+    // LAN-392, A6 (corrected 2026-09-17): a late joiner's *invitation* keeps
+    // the later of the two instants. The same rule `scheduleEventLadderIn`
+    // applies to the anchor it writes, restated here because this loop runs
+    // after it and would otherwise undo it — rung 0 is the invitation rung, and
+    // this statement matches on the rung alone. The ten-minute grace and the
+    // five-an-hour queue are facts about the person, not about the event, and a
+    // reschedule has nothing to say about either. Every other job, and every
+    // invitation the approver's own audience holds, moves to the plan's instant
+    // in both directions, which is what a reschedule is for.
     await tx.query(
-      `update public.notification_jobs
-          set scheduled_for = $3::timestamptz,
-              next_attempt_at = case when next_attempt_at is not null then $3::timestamptz
-                                      else next_attempt_at end,
+      `update public.notification_jobs j
+          set scheduled_for = case when ${LATE_JOINER_INVITATION} then greatest(j.scheduled_for, $3::timestamptz)
+                                   else $3::timestamptz end,
+              next_attempt_at = case
+                when j.next_attempt_at is null then j.next_attempt_at
+                when ${LATE_JOINER_INVITATION} then greatest(j.scheduled_for, $3::timestamptz)
+                else $3::timestamptz end,
               channel = $4::public.notification_channel,
               updated_at = now()
-        where event_id = $1 and ladder_rung = $2
-          and status in ('pending', 'ready', 'failed')`,
+        where j.event_id = $1 and j.ladder_rung = $2
+          and j.status in ('pending', 'ready', 'failed')`,
       [eventId, rung.rung, rung.at, rung.channel],
     );
   }
@@ -363,6 +391,17 @@ async function recomputeScheduleOnRescheduleIn(
         and status in ('pending', 'ready', 'failed')`,
     [eventId, JOB_CANCELLED_BY_RESCHEDULE, keptRungs],
   );
+
+  // LAN-392, F6 (corrected 2026-09-17). `backfillInvitationJobsIn` above
+  // declares the invitation job the audience group rule withheld, and the rungs
+  // follow it, so the person is messaged after all. Their invitation still
+  // carried `message_withheld_reason`, which `invitation_response_state` reads
+  // as `never_asked` — so they were messaged and then permanently absent from
+  // `nonresponse_queue`, the Follow-ups queue, the President's escalation and
+  // the Monday report's "no answer" column. Last, because the reason lapses
+  // against the instant the job finally carries, which the two statements above
+  // are what settle.
+  await clearWithheldReasonsWhereDeclaredIn(tx, eventId);
 
   return { responseDeadlineAt: plan.responseDeadlineAt };
 }

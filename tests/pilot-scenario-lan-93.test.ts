@@ -806,6 +806,30 @@ const GUARD_CASES: readonly GuardCase[] = [
   },
   {
     script: "cleanup",
+    message: "event_audience_groups rows hang off the scenario event",
+    afterSetup: true,
+    cascadeTable: "public.event_audience_groups",
+    arrange: async (c) =>
+      void (await c.query(
+        `insert into public.event_audience_groups (event_id, event_type, audience_group)
+         select $1, e.event_type, 'active_players'
+           from public.events e where e.id = $1`,
+        [ID.event],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "event_audience_exclusions rows hang off the scenario event",
+    afterSetup: true,
+    cascadeTable: "public.event_audience_exclusions",
+    arrange: async (c, d) =>
+      void (await c.query(
+        "insert into public.event_audience_exclusions (event_id, person_id) values ($1, $2)",
+        [ID.event, d.personId],
+      )),
+  },
+  {
+    script: "cleanup",
     message: "onboarding_item_types rows hang off the scenario season",
     afterSetup: true,
     cascadeTable: "public.onboarding_item_types",

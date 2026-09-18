@@ -46,6 +46,8 @@ export interface AudienceBuilderProps {
   candidates: AudienceCandidate[];
   counts: Record<AudienceCapacity, number>;
   initialKeys: string[];
+  /** LAN-392: the group buttons this audience was last saved with. */
+  initialGroups: string[];
   templateGroups: AudienceGroupKey[];
 }
 
@@ -58,6 +60,7 @@ export function AudienceBuilder({
   candidates,
   counts,
   initialKeys,
+  initialGroups,
   templateGroups,
 }: AudienceBuilderProps) {
   const groups = groupsForEventType(eventType);
@@ -65,6 +68,17 @@ export function AudienceBuilder({
     .filter((group) => templateGroups.includes(group.key))
     .map((group) => group.label);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(initialKeys));
+  // LAN-392. Which group buttons were *pressed*, remembered rather than
+  // inferred. The lit state below is still inference — "is everybody this group
+  // would invite already ticked" — and it has to stay that way, because ticking
+  // the last missing name by hand should light the button. But inference cannot
+  // answer the question the event needs answered after approval: untick one
+  // recruit and every derivation of "the Recruits group was chosen" goes out,
+  // along with the fact that the one person was left out on purpose. So the
+  // press is recorded here, travels with the save, and becomes the event's rule.
+  const [pressedGroups, setPressedGroups] = useState<ReadonlySet<string>>(
+    () => new Set(initialGroups),
+  );
   const [search, setSearch] = useState("");
   const [capacity, setCapacity] = useState<"all" | AudienceCapacity>("all");
   const [unit, setUnit] = useState<string>("all");
@@ -123,7 +137,14 @@ export function AudienceBuilder({
   }
 
   function pressGroup(groupKey: string) {
+    const turningOn = !groupIsSelected(candidates, groupKey, selected);
     setSelected((current) => toggleGroup(candidates, groupKey, current));
+    setPressedGroups((current) => {
+      const next = new Set(current);
+      if (turningOn) next.add(groupKey);
+      else next.delete(groupKey);
+      return next;
+    });
   }
 
   return (
@@ -162,7 +183,10 @@ export function AudienceBuilder({
               size="small"
               color="error"
               disabled={selected.size === 0}
-              onClick={() => setSelected(new Set())}
+              onClick={() => {
+                setSelected(new Set());
+                setPressedGroups(new Set());
+              }}
               sx={{ minHeight: 40 }}
             >
               Clear selection
@@ -264,6 +288,9 @@ export function AudienceBuilder({
           <input type="hidden" name="eventId" value={eventId} />
           {keys.map((key) => (
             <input key={key} type="hidden" name="audienceKey" value={key} />
+          ))}
+          {[...pressedGroups].map((group) => (
+            <input key={group} type="hidden" name="audienceGroup" value={group} />
           ))}
           <ActionBar
             primary={

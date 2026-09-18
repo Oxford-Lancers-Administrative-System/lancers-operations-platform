@@ -2,6 +2,7 @@ import "server-only";
 
 import { Conflict, ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "../audit";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
 import { generateOnboardingItems } from "../membership";
 import { emitOnboardingOpenedWelcomeIn } from "../onboarding-welcome";
 import { commitAvailability } from "../roster-board";
@@ -29,6 +30,17 @@ export async function enterReturningPlayer(params: {
   actorPersonId: string;
   input: ReturnerIntakeInput;
   decision: IntakeDecision;
+  /**
+   * LAN-392, Brian's decision 8. The returner intake triggers the audience
+   * group rule; the roster CSV import, which reuses this function once per row,
+   * does not. Sixty returners in one transaction against every approved event
+   * that chose Onboarding is hundreds of WhatsApp messages from one mis-parsed
+   * file, and unlike the one-at-a-time intake there is no undo path in
+   * `roster-import.ts`. Defaulting to `true` is deliberate: a new caller that
+   * has not thought about it gets the rule, and the one caller that has
+   * thought about it says so at its own call site.
+   */
+  applyAudienceGroupRule?: boolean;
 }): Promise<ReturnerIntakeResult> {
   const { actorPersonId, decision } = params;
   const input = normaliseInput(params.input);
@@ -106,6 +118,19 @@ export async function enterReturningPlayer(params: {
           contact_kinds_recorded: contactsRecorded.map((contact) => contact.kind),
           alias_recorded: aliasCreated,
         },
+      });
+    }
+
+    // LAN-392: a returner intake creates an Onboarding membership, which is a
+    // real audience group since LAN-388, so the same rule applies here as to
+    // any other status write. The CSV import deliberately does not call this
+    // (Brian's decision 8) — see `roster-import.ts`.
+    if (params.applyAudienceGroupRule !== false) {
+      await applyAudienceGroupRuleIn(tx, {
+        personId,
+        seasonId: season.id,
+        trigger: "returner_entered",
+        actorPersonId,
       });
     }
 

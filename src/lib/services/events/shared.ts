@@ -24,6 +24,14 @@ export interface EventListEntry {
 }
 
 export interface EventDetail extends EventListEntry {
+  /**
+   * LAN-392/LAN-393. How many of `audienceCount` arrived after the event was
+   * approved — by its stored group rule, or by an operator adding them by hand.
+   * On the detail page only, because it exists for one sentence on that page:
+   * "Confirmed at approval." stopped being true the moment an approved
+   * audience could grow, and this is what makes it say what happened instead.
+   */
+  audienceAddedSinceApproval: number;
   description: string | null; // event detail — UX-32/UX-33; D18
   requiredEquipment: string | null; // D17
   joiningUrl: string | null; // public since LAN-284 (reversed REQ-no-joining-url)
