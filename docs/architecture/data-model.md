@@ -856,6 +856,39 @@ outstanding-items notice and the chase all read `onboarding_items` already. The
 migration recomputes every existing membership, so a value recorded by hand
 before it is superseded and its history says so.
 
+### The Code of Conduct's 2026 document supersedes the placeholder (LAN-356)
+
+`20260930090000_code_of_conduct_2026.sql` inserts one new
+`onboarding_agreement_versions` row — `code_of_conduct`, `2026-v1` — carrying
+the club's own approved document (Brian, 2026-09-18), transcribed and
+proofread against the source PDF: sixteen numbered points (`1. ` .. `16. `)
+with `- ` bullets under points 3, 7, 9, 10, 11 and 16, and the title as a
+`## ` heading. `pdf_path` points at `public/documents/oulafc-code-of-conduct-2026.pdf`,
+committed byte-identical to the source. Its `effective_from` is one second
+after the placeholder's own, the same tie-break LAN-347 used for the photo
+release, so it is unambiguously the current version by the ordinary "latest by
+`effective_from`" rule (`readCurrentOnboardingAgreementVersionIn`) — there is
+still no separate "current version" flag or column anywhere in this schema.
+The `placeholder-v1` row stays: an agreement already recorded against it must
+keep resolving to the words that were shown.
+
+A player who ticked the placeholder has not agreed to `2026-v1` (decision 3).
+`internal.reset_superseded_code_of_conduct(uuid)` mirrors LAN-375's
+`internal.refresh_kit_distributed` — a function in the `internal` schema,
+exposed to nothing the Data API can reach — and does the smallest correct
+thing for one membership: when its Code of Conduct item is `complete` and the
+live agreement behind that completion does not point at the current version,
+it stamps the stale `onboarding_agreements` row `reopened_at` (LAN-347's own
+reopen shape — kept as history, never deleted) and resets the item to
+`pending`, writing the item's own `system` history row; a no-op otherwise,
+including when the item was never actually backed by an agreement row at all
+(the F2 fallback). Unlike `refresh_kit_distributed`, nothing calls it on an
+ongoing trigger — there is no continuously-changing input to react to, only
+the one historical event of a version becoming current — so the migration
+calls it once for every membership whose item is already complete, the same
+"recompute every existing membership" shape LAN-375 used for its own rule. A
+future version bump would call it again from its own migration.
+
 ## Invariant enforcement matrix
 
 Every invariant in frozen model §4, and the layer that carries it. Test IDs
