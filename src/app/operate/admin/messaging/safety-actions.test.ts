@@ -69,6 +69,45 @@ describe("the messaging safety controls", () => {
     expect(vi.mocked(pauseMessagingIn)).not.toHaveBeenCalled();
   });
 
+  // Brian, 18 September 2026: on the screen somebody opens because the club is
+  // firing messages at everybody, a one-tap preset is a complete reason.
+  it("accept a preset on its own as the reason", async () => {
+    const state = await pauseMessagingAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      form({ ...SCOPE, reasonPreset: "Runaway sends", reason: "" }),
+    );
+
+    expect(state.error).toBeNull();
+    expect(vi.mocked(pauseMessagingIn)).toHaveBeenCalledWith(
+      expect.anything(),
+      { scopeId: SCOPE.scopeId, version: 4 },
+      "Runaway sends",
+    );
+  });
+
+  it("record the preset and the note together when both are given", async () => {
+    await resumeMessagingAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      form({ ...SCOPE, reasonPreset: "Testing", reason: "Checked the audit reads both" }),
+    );
+
+    expect(vi.mocked(resumeMessagingIn)).toHaveBeenCalledWith(
+      expect.anything(),
+      { scopeId: SCOPE.scopeId, version: 4 },
+      "Testing — Checked the audit reads both",
+    );
+  });
+
+  it("refuse when neither a preset nor a note was given", async () => {
+    const state = await resumeMessagingAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      form({ ...SCOPE, reasonPreset: "  ", reason: "  " }),
+    );
+
+    expect(state.error).toBe(REASON_REQUIRED);
+    expect(vi.mocked(resumeMessagingIn)).not.toHaveBeenCalled();
+  });
+
   it("refuse a submission that does not say which scope or which version", async () => {
     const state = await resumeMessagingAction(
       EMPTY_ADMIN_ACTION_STATE,

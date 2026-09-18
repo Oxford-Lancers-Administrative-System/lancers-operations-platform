@@ -39,9 +39,29 @@ import { GLOBAL_SCOPE_KEY, readActiveScopesIn, readScopeIn, policyMatches } from
  * could copy somewhere. The fingerprint never leaves the server.
  */
 
-/** The five states the section can be in, in the order the UX contract lists them. */
+/**
+ * The middle window of the runaway row group. A read window, not a threshold:
+ * nothing in `policy.ts` governs an hour, and nothing here may.
+ */
+const RUNAWAY_HOUR_WINDOW_HOURS = 1;
+
+/**
+ * The one thing the section says first, in the order Brian's 18 September 2026
+ * visual pass lists them: green, amber, amber, red, red, and the read that
+ * failed.
+ *
+ * `paused` and `emergency_stopped` are separate states rather than one "paused"
+ * with a footnote because they are two different mornings. A person paused this
+ * on purpose and can say why; the ceiling tripping means the club has already
+ * sent three thousand messages in a day and nobody noticed.
+ */
 export type MessagingSafetyState =
-  "sending_normally" | "messages_waiting" | "paused" | "provider_unavailable" | "unavailable";
+  | "sending_normally"
+  | "messages_waiting"
+  | "provider_cooling_down"
+  | "paused"
+  | "emergency_stopped"
+  | "unavailable";
 
 interface SafetyThresholdRow {
   readonly control: string;
@@ -65,6 +85,15 @@ export interface SafetyHoldRow {
   readonly pausedByName: string | null;
   readonly pausedReason: string | null;
   readonly cooldownUntil: Date | null;
+  /**
+   * Which ceiling this recipient actually reached, read back from the attempts
+   * rather than stored. The latch reason code says `person_hold`, which is true
+   * and useless to somebody deciding whether to resume: ten in a day is a
+   * mistake this afternoon and thirty in a week is a mistake all week. `null`
+   * once the counting fields have aged out (`SAFETY_FIELD_RETENTION_DAYS`), and
+   * the reason code is shown instead.
+   */
+  readonly limitReached: "daily" | "weekly" | null;
 }
 
 interface SafetyAuditRow {
@@ -94,8 +123,21 @@ export interface MessagingSafetyStatus {
   readonly scheduledAhead: number;
   readonly queueWarning: boolean;
   readonly admittedInPacingWindow: number;
+  /**
+   * Admissions in the last rolling hour. No ceiling governs an hour; it is here
+   * because five minutes is too short to see a runaway building and a day is
+   * too long to notice one starting (Brian, 18 September 2026).
+   */
+  readonly admittedInHour: number;
   readonly admittedInDay: number;
   readonly admittedInWeek: number;
+  /**
+   * The two ceilings the first row group is read against, carried from
+   * `policy.ts` rather than imported by the section: the section is a client
+   * component and the policy module travels through a `server-only` barrel.
+   */
+  readonly pacingLimit: number;
+  readonly dayLimit: number;
   readonly capacityWarning: boolean;
   readonly thresholds: readonly SafetyThresholdRow[];
   readonly holds: readonly SafetyHoldRow[];
@@ -147,6 +189,34 @@ export function safetyThresholds(): readonly SafetyThresholdRow[] {
   ];
 }
 
+/**
+ * Which of the two recipient ceilings a held person or number actually reached.
+ *
+ * Read back rather than stored, and read the same way the guard counted it, so
+ * the answer on the page is the answer the guard gave. The day is checked
+ * first: both can be true at once, and the shorter window is the one that says
+ * what is happening today.
+ */
+async function limitReachedFor(
+  tx: Tx,
+  kind: "person" | "destination",
+  scopeKey: string,
+): Promise<"daily" | "weekly" | null> {
+  const column = kind === "person" ? "safety_person_id::text" : "safety_destination_key";
+  const counted = await tx.query<{ day: string; week: string }>(
+    `select
+       count(*) filter (where safety_admitted_at > now() - $2::interval)::text as day,
+       count(*) filter (where safety_admitted_at > now() - $3::interval)::text as week
+     from public.delivery_attempts
+    where safety_admitted_at is not null and ${column} = $1`,
+    [scopeKey, `${RECIPIENT_DAILY_WINDOW_HOURS} hours`, `${RECIPIENT_WEEKLY_WINDOW_DAYS} days`],
+  );
+
+  if (Number(counted.rows[0].day) >= RECIPIENT_DAILY_LIMIT) return "daily";
+  if (Number(counted.rows[0].week) >= RECIPIENT_WEEKLY_LIMIT) return "weekly";
+  return null;
+}
+
 /** Reads the section. Capability-checked here as well as on the page. */
 export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus> {
   await requireCapability("delivery_administration");
@@ -171,8 +241,11 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
         scheduledAhead: 0,
         queueWarning: false,
         admittedInPacingWindow: 0,
+        admittedInHour: 0,
         admittedInDay: 0,
         admittedInWeek: 0,
+        pacingLimit: SHARED_PACING_LIMIT,
+        dayLimit: GLOBAL_EMERGENCY_LIMIT,
         capacityWarning: false,
         thresholds,
         holds: [],
@@ -212,15 +285,17 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
       [MAX_ATTEMPTS],
     );
 
-    const usage = await tx.query<{ pacing: string; day: string; week: string }>(
+    const usage = await tx.query<{ pacing: string; hour: string; day: string; week: string }>(
       `select
          count(*) filter (where safety_admitted_at > now() - $1::interval)::text as pacing,
-         count(*) filter (where safety_admitted_at > now() - $2::interval)::text as day,
-         count(*) filter (where safety_admitted_at > now() - $3::interval)::text as week
+         count(*) filter (where safety_admitted_at > now() - $2::interval)::text as hour,
+         count(*) filter (where safety_admitted_at > now() - $3::interval)::text as day,
+         count(*) filter (where safety_admitted_at > now() - $4::interval)::text as week
        from public.delivery_attempts
       where safety_admitted_at is not null`,
       [
         `${SHARED_PACING_WINDOW_MINUTES} minutes`,
+        `${RUNAWAY_HOUR_WINDOW_HOURS} hours`,
         `${GLOBAL_EMERGENCY_WINDOW_HOURS} hours`,
         `${RECIPIENT_WEEKLY_WINDOW_DAYS} days`,
       ],
@@ -297,6 +372,10 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
         pausedByName: null,
         pausedReason: scope.pausedReason,
         cooldownUntil: scope.cooldownUntil,
+        limitReached:
+          scope.scopeKind === "provider"
+            ? null
+            : await limitReachedFor(tx, scope.scopeKind, scope.scopeKey),
       });
     }
 
@@ -333,12 +412,14 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
       (scope) => scope.scopeKind === "provider" && scope.cooldownUntil !== null,
     );
 
-    const state: MessagingSafetyState = global.pausedAt
-      ? "paused"
-      : global.latchedAt
+    // The ceiling tripping outranks a deliberate pause: if both are true the
+    // club needs to know the emergency stop is what it will have to clear.
+    const state: MessagingSafetyState = global.latchedAt
+      ? "emergency_stopped"
+      : global.pausedAt
         ? "paused"
         : coolingDown
-          ? "provider_unavailable"
+          ? "provider_cooling_down"
           : dueWaiting > 0
             ? "messages_waiting"
             : "sending_normally";
@@ -358,8 +439,11 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
       scheduledAhead: Number(queue.rows[0].ahead),
       queueWarning: oldestDueMinutes > QUEUE_WARNING_MINUTES,
       admittedInPacingWindow: Number(usage.rows[0].pacing),
+      admittedInHour: Number(usage.rows[0].hour),
       admittedInDay,
       admittedInWeek: Number(usage.rows[0].week),
+      pacingLimit: SHARED_PACING_LIMIT,
+      dayLimit: GLOBAL_EMERGENCY_LIMIT,
       capacityWarning: admittedInDay >= CAPACITY_WARNING_THRESHOLD,
       thresholds,
       holds,

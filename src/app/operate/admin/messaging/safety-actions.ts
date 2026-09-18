@@ -43,6 +43,22 @@ function target(formData: FormData): { scopeId: string; version: number } | null
   return { scopeId, version };
 }
 
+/**
+ * The recorded reason, from a one-tap preset and an optional note.
+ *
+ * Brian, 18 September 2026: the preset alone satisfies the requirement. What is
+ * stored is still one string, and still whatever the operator actually chose —
+ * the preset is not privileged over free text and neither is validated against
+ * a list, because a reason is a sentence for a person to read, not a code
+ * anything branches on.
+ */
+function reasonFrom(formData: FormData): string {
+  const preset = field(formData, "reasonPreset").trim();
+  const notes = field(formData, "reason").trim();
+  if (preset !== "" && notes !== "") return `${preset} — ${notes}`;
+  return preset !== "" ? preset : notes;
+}
+
 export async function pauseMessagingAction(
   _previous: AdminActionState,
   formData: FormData,
@@ -50,7 +66,7 @@ export async function pauseMessagingAction(
   await requireCapability("messaging_safety_authority");
 
   const scope = target(formData);
-  const reason = field(formData, "reason").trim();
+  const reason = reasonFrom(formData);
   if (!scope) return { ...EMPTY_ADMIN_ACTION_STATE, error: SAFETY_ACTION_FAILED };
   if (reason === "") return { ...EMPTY_ADMIN_ACTION_STATE, error: REASON_REQUIRED };
 
@@ -75,7 +91,7 @@ export async function resumeMessagingAction(
   await requireCapability("messaging_safety_authority");
 
   const scope = target(formData);
-  const reason = field(formData, "reason").trim();
+  const reason = reasonFrom(formData);
   if (!scope) return { ...EMPTY_ADMIN_ACTION_STATE, error: SAFETY_ACTION_FAILED };
   if (reason === "") return { ...EMPTY_ADMIN_ACTION_STATE, error: REASON_REQUIRED };
 

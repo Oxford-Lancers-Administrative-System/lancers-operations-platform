@@ -378,12 +378,27 @@ Three consequences worth knowing before they surprise you:
   second message to the same person seconds after the first, so it is paced like
   any other. It is created immediately and sent on the next tick.
 
-**Pausing and resuming.** The two controls are at the bottom of Messaging
-schedule and are held by the President, Vice-President, Secretary and General
-Manager only — not the IT Officer, who can see the state but not change it. Each
-needs a reason, and each is recorded against the operator's name. There is no
-"send all now" and no "clear counters": resuming a scope clears the hold, not the
-usage, so a scope resumed while its allowance is still spent simply waits again.
+**What the section shows, in the order it shows it.** Brian, 18 September 2026:
+this is an emergency page, and somebody arriving at it has two jobs — stop a
+runaway, and find and clear a blockage. So it opens on one coloured line saying
+exactly one of **Sending normally**, **Messages waiting**, **Provider cooling
+down**, **Paused** or **Emergency stop**, with the reason, the operator and the
+time beside it and the one control in the same block. Then **Is it running
+away?** — admissions in the last five minutes, hour and 24 hours, each against
+its ceiling, amber at 80 % of it and red at it. Then **Is it stuck?** — what is
+due now, and one line per blocking cause with the act that clears it. Then
+**People held back**, one card per held person or number with their own Resume.
+The limits table and the recent changes are below those, and the limits are
+collapsed.
+
+**Pausing and resuming.** The control is at the top of Messaging safety and is
+held by the President, Vice-President, Secretary and General Manager only — not
+the IT Officer, who can see the state but not change it. Each needs a reason, and
+a one-tap preset — **Runaway sends**, **Provider outage**, **Testing** — is a
+complete one; the free-text field beside it adds to whichever preset was chosen.
+Each is recorded against the operator's name. There is no "send all now" and no
+"clear counters": resuming a scope clears the hold, not the usage, so a scope
+resumed while its allowance is still spent simply waits again.
 
 ### 7a. The safe local provider procedure
 

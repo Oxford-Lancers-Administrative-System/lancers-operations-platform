@@ -1,0 +1,25 @@
+{
+  "url": "http://127.0.0.1:3010/login",
+  "headSha": "2cfa4d1d5a6522f6987e8446699505b334f48146",
+  "slot": "overflow",
+  "loginVerified": true,
+  "seededStatesVerified": true,
+  "routes": ["/operate/admin/messaging"],
+  "viewports": [
+    {
+      "label": "phone375",
+      "requestedWidth": 375,
+      "measuredWidth": 375,
+      "measuredHeight": 812,
+      "screenshot": "phone375_operate_admin_messaging.png"
+    },
+    {
+      "label": "desktop",
+      "requestedWidth": 1440,
+      "measuredWidth": 1440,
+      "measuredHeight": 900,
+      "screenshot": "desktop_operate_admin_messaging.png"
+    }
+  ],
+  "at": "2026-09-18T14:59:08.284Z"
+}

@@ -1,5 +1,10 @@
 # LAN-394 — Messaging safety, visual evidence
 
+> **Read `feedback/` first.** Brian's visual pass of 18 September 2026
+> rearranged the section, and the captures in the top-level folder below are of
+> the arrangement he asked to be changed. They are kept because they are the
+> evidence the independent review was given, not because they are current.
+
 What to look at, and what each capture is showing. Every one is
 `/operate/admin/messaging`, captured through a real application sign-in on the
 local stack at the exact head of this branch. Measured widths are in

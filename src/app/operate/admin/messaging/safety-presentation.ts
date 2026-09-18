@@ -1,5 +1,8 @@
+import { CLUB_TIME_ZONE } from "@/lib/club-time";
+import { SHORT_MONTHS } from "@/lib/services/event-vocabulary";
 import type {
   MessagingSafetyState,
+  MessagingSafetyStatus,
   SafetyHoldRow,
   SafetyReasonCode,
 } from "@/lib/services/messaging-safety";
@@ -8,38 +11,77 @@ import type {
  * The Messaging safety section's own words — LAN-394.
  *
  * Labels, values and states. The one sentence of prose in the whole section is
- * {@link SAFETY_NORMAL_SENTENCE}, which is the sentence the approved design
- * quotes and the only explanation the application frame carries; everything
- * else an operator needs to understand about the thresholds is outside the
- * frame, in `docs/operating-the-slice.md`.
+ * {@link SAFETY_NORMAL_SENTENCE}, which sits under the control that needs it;
+ * everything else an operator needs to understand about the thresholds is
+ * outside the frame, in `docs/operating-the-slice.md`.
+ *
+ * Brian's visual pass of 18 September 2026: "This is an emergency page. When I
+ * get here I need to work immediately." Two jobs, in this order — stop a
+ * runaway, then find and clear a blockage — and the section is now arranged as
+ * the answers to them. Everything derived is derived here rather than in the
+ * component, so the arithmetic that decides amber from red is something a test
+ * can call directly.
  */
 
 export const SAFETY_SECTION_HEADING = "Messaging safety";
 
-/** The five states, in the order the UX contract lists them. */
+/** The six states, in the order Brian's list gives them: green, amber, red. */
 export const SAFETY_STATE_LABELS: Readonly<Record<MessagingSafetyState, string>> = Object.freeze({
   sending_normally: "Sending normally",
   messages_waiting: "Messages waiting",
+  provider_cooling_down: "Provider cooling down",
   paused: "Paused",
-  provider_unavailable: "Provider temporarily unavailable",
+  emergency_stopped: "Emergency stop",
   unavailable: "Safety status unavailable",
 });
+
+/** What a status line is coloured, in the theme's semantic roles. */
+export type SafetySeverity = "success" | "warning" | "error";
+
+/**
+ * One colour per state, and only these three. A status nobody can read is the
+ * same emergency as a status that says stopped, so `unavailable` is red.
+ */
+export const SAFETY_STATE_SEVERITY: Readonly<Record<MessagingSafetyState, SafetySeverity>> =
+  Object.freeze({
+    sending_normally: "success",
+    messages_waiting: "warning",
+    provider_cooling_down: "warning",
+    paused: "error",
+    emergency_stopped: "error",
+    unavailable: "error",
+  });
 
 /**
  * The one sentence. It is here because a person about to stop every message the
  * club sends is owed the three facts that decide whether they should: what
- * stops, what does not, and what may still arrive.
+ * stops, what does not, and what may still arrive. It sits under the control,
+ * not above the status.
  */
 export const SAFETY_NORMAL_SENTENCE =
   "Pausing stops new application WhatsApp and email sends. Signups and replies continue to be " +
   "saved. Messages already in progress may still arrive.";
 
-export const PAUSE_LABEL = "PAUSE MESSAGING";
-export const RESUME_LABEL = "RESUME MESSAGING";
-export const RESUME_SCOPE_LABEL = "RESUME";
+export const PAUSE_LABEL = "Pause messaging";
+export const RESUME_LABEL = "Resume messaging";
+export const RESUME_SCOPE_LABEL = "Resume";
 export const PAUSE_REASON_LABEL = "Why is messaging being paused?";
 export const RESUME_REASON_LABEL = "Why is messaging being resumed?";
-export const REASON_REQUIRED = "Say why, then press the button again.";
+export const REASON_NOTES_LABEL = "Anything else (optional)";
+export const REASON_REQUIRED = "Choose a reason, then press the button again.";
+
+/**
+ * The one-tap reasons — Brian, 18 September 2026. A preset on its own is a
+ * complete reason: on the screen somebody opens because the club is firing
+ * messages at everybody, requiring them to type first is requiring them to
+ * compose a sentence before they can stop it. The free-text field beside them
+ * stays, and adds to whichever preset was chosen.
+ */
+export const REASON_PRESETS: readonly string[] = Object.freeze([
+  "Runaway sends",
+  "Provider outage",
+  "Testing",
+]);
 
 /**
  * What an operator reads for each safe reason code — labels and states, never
@@ -52,7 +94,7 @@ export const REASON_REQUIRED = "Say why, then press the button again.";
  * `pg` and `next/headers` — into the browser bundle. The barrel is
  * `server-only`; this file is words.
  */
-export const SAFETY_REASON_LABELS: Readonly<Record<SafetyReasonCode, string>> = Object.freeze({
+const SAFETY_REASON_LABELS: Readonly<Record<SafetyReasonCode, string>> = Object.freeze({
   paused_by_operator: "Messaging paused",
   global_emergency_stop: "Emergency stop",
   shared_pacing: "Waiting for the sending allowance",
@@ -60,15 +102,25 @@ export const SAFETY_REASON_LABELS: Readonly<Record<SafetyReasonCode, string>> = 
   destination_pacing: "Waiting — one message per number at a time",
   person_hold: "Held — this person's limit reached",
   destination_hold: "Held — this number's limit reached",
-  provider_cooldown: "Provider temporarily unavailable",
+  provider_cooldown: "Provider cooling down",
   safety_unavailable: "Safety status unavailable",
 });
 
+export const RUNAWAY_HEADING = "Is it running away?";
+export const STUCK_HEADING = "Is it stuck?";
 export const THRESHOLDS_SUMMARY = "Limits and current use";
-export const HOLDS_HEADING = "Active holds";
+/** Brian, 18 September 2026: "Active holds" told him nothing. These are people. */
+export const HOLDS_HEADING = "People held back";
 export const AUDIT_HEADING = "Recent changes";
-export const NO_HOLDS = "None";
+export const NO_HOLDS = "Nobody";
 export const NO_AUDIT = "None recorded";
+export const NOTHING_BLOCKING = "Nothing is holding messages.";
+export const DUE_NOW_LABEL = "Due now";
+const NO_LIMIT = "—";
+
+/** Where the two "see it" links in "Is it stuck?" land. */
+export const CONTROL_ANCHOR = "messaging-safety-control";
+export const HOLDS_ANCHOR = "messaging-safety-holds";
 
 /** The paused-state notice at the top of the page, which links to the section. */
 export const PAUSED_BANNER = "Messaging is paused.";
@@ -82,6 +134,28 @@ export function pausedNotice(): string {
 
 export function resumedNotice(): string {
   return "Messaging is resumed.";
+}
+
+function part(value: Date, options: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: CLUB_TIME_ZONE }).format(value);
+}
+
+/**
+ * `17 Sep 2026, 09:00` — a recorded moment, in the club's own time.
+ *
+ * The month comes from this repository's own table rather than from ICU, which
+ * renders September as "Sept" on some Node builds and is the one abbreviation
+ * `docs/ux/design-system.md` § 3 forbids outright.
+ */
+export function formatMoment(value: Date | string | null): string {
+  if (!value) return "—";
+  const moment = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(moment.getTime())) return "—";
+  const month = SHORT_MONTHS[Number(part(moment, { month: "numeric" })) - 1] ?? "";
+  return `${part(moment, { day: "numeric" })} ${month} ${part(moment, { year: "numeric" })}, ${part(
+    moment,
+    { hour: "2-digit", minute: "2-digit", hour12: false },
+  )}`;
 }
 
 export function queueLabel(dueWaiting: number, oldestDueMinutes: number): string {
@@ -99,6 +173,155 @@ export function holdLabel(hold: SafetyHoldRow): string {
     return hold.people.map((person) => person.name).join(", ");
   }
   return hold.label;
+}
+
+/**
+ * Why this person or number is held, in the words that decide whether to
+ * resume. Which ceiling was reached is read back from the attempts; once those
+ * counting fields have aged out the stored reason code is all there is.
+ */
+export function holdWhy(hold: SafetyHoldRow): string {
+  if (hold.limitReached === "daily") return "Daily limit reached";
+  if (hold.limitReached === "weekly") return "Weekly limit reached";
+  if (hold.reasonCode) return SAFETY_REASON_LABELS[hold.reasonCode];
+  return "Held";
+}
+
+/** The record to open, where the hold is on exactly one known person. */
+export function holdPersonHref(hold: SafetyHoldRow): string | null {
+  return hold.people.length === 1 ? `/operate/people/${hold.people[0].personId}` : null;
+}
+
+/** Everything under "People held back". A provider cooling down is not a person. */
+export function heldBackRows(status: MessagingSafetyStatus): readonly SafetyHoldRow[] {
+  return status.holds.filter((hold) => hold.kind !== "provider");
+}
+
+// ---------------------------------------------------------------------------
+// "Is it running away?"
+// ---------------------------------------------------------------------------
+
+/** Amber below the limit, red at it, and nothing at all below that. */
+export type RateSeverity = "neutral" | "warning" | "error";
+
+/** Eighty per cent, the same fraction the capacity warning already uses. */
+const RUNAWAY_WARNING_FRACTION = 0.8;
+
+export interface SafetyRateRow {
+  readonly key: "pacing" | "hour" | "day";
+  readonly label: string;
+  readonly used: number;
+  /** The ceiling this window is read against, or `null` where none governs it. */
+  readonly limit: number | null;
+  readonly severity: RateSeverity;
+}
+
+function rateSeverity(used: number, limit: number | null): RateSeverity {
+  if (limit === null || limit <= 0) return "neutral";
+  if (used >= limit) return "error";
+  if (used >= limit * RUNAWAY_WARNING_FRACTION) return "warning";
+  return "neutral";
+}
+
+/** What "of 50" reads as, and what a window with no ceiling reads as. */
+export function rateLimitLabel(limit: number | null): string {
+  return limit === null ? NO_LIMIT : `of ${limit.toLocaleString("en-GB")}`;
+}
+
+/**
+ * The runaway tell, in one glance: five minutes, an hour, a day, each against
+ * its ceiling. The hour has none — it is the window that shows a runaway
+ * building between a tick and a day.
+ */
+export function runawayRows(status: MessagingSafetyStatus): readonly SafetyRateRow[] {
+  const windows: readonly {
+    key: SafetyRateRow["key"];
+    label: string;
+    used: number;
+    limit: number | null;
+  }[] = [
+    {
+      key: "pacing",
+      label: "Last 5 minutes",
+      used: status.admittedInPacingWindow,
+      limit: status.pacingLimit,
+    },
+    { key: "hour", label: "Last hour", used: status.admittedInHour, limit: null },
+    { key: "day", label: "Last 24 hours", used: status.admittedInDay, limit: status.dayLimit },
+  ];
+  return windows.map((window) => ({
+    ...window,
+    severity: rateSeverity(window.used, window.limit),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// "Is it stuck?"
+// ---------------------------------------------------------------------------
+
+/** One thing that is holding messages, and the one act that clears it. */
+export interface SafetyBlocker {
+  readonly id: string;
+  /** What is blocking, in the club's words. */
+  readonly text: string;
+  /** What clears it: a control to press, a link to follow, or time passing. */
+  readonly action: string;
+  /** Where that control is, when it is on this page. */
+  readonly href: string | null;
+}
+
+/** `08:05`, for a cooldown that ends at a time rather than after a duration. */
+function clockTime(value: Date | string): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return part(date, { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+/**
+ * Every cause that is currently holding messages, each with its clearing
+ * action. Empty is the answer worth having: an operator who has been told
+ * nothing is blocking can stop looking here and look at the schedule.
+ */
+export function safetyBlockers(
+  status: MessagingSafetyStatus,
+  /**
+   * Whether this operator is offered the control. The IT Officer reads this
+   * section to diagnose a deployment and may not end a pause, so they are told
+   * what is blocking and never pointed at a control that is not there.
+   */
+  mayControl: boolean,
+): readonly SafetyBlocker[] {
+  const blockers: SafetyBlocker[] = [];
+
+  if (status.state === "emergency_stopped" || status.state === "paused") {
+    blockers.push({
+      id: "global",
+      text: SAFETY_STATE_LABELS[status.state],
+      action: mayControl ? RESUME_SCOPE_LABEL : "",
+      href: mayControl ? `#${CONTROL_ANCHOR}` : null,
+    });
+  }
+
+  for (const hold of status.holds) {
+    if (hold.kind !== "provider" || !hold.cooldownUntil) continue;
+    blockers.push({
+      id: hold.scopeId,
+      text: `${hold.label} cooling down until ${clockTime(hold.cooldownUntil)}`,
+      action: "clears itself",
+      href: null,
+    });
+  }
+
+  const held = heldBackRows(status).length;
+  if (held > 0) {
+    blockers.push({
+      id: "holds",
+      text: `${held} ${held === 1 ? "person" : "people"} held back`,
+      action: "see below",
+      href: `#${HOLDS_ANCHOR}`,
+    });
+  }
+
+  return blockers;
 }
 
 export const SAFETY_ACTION_FAILED =
