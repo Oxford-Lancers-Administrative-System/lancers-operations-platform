@@ -92,6 +92,12 @@ administrative seat holds every capability in the map;
 [`person_erasure`](../architecture.md) was the first, for the same kind of
 reason.
 
+> **Amended 2026-09-21 (LAN-407, Brian).** The IT Officer holds
+> `messaging_safety_authority` too. After the first production deploy Brian, in
+> that seat, could read the safety state but not pause it; the seat that
+> diagnoses a runaway from this section also stops it. `person_erasure` stays the
+> core four's alone and is now the only exception to the 15 August rule.
+
 ### Alerts
 
 Structured, count-only JSON on stdout, which Cloud Logging ingests and a

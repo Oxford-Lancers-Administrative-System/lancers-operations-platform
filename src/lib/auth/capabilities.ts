@@ -62,8 +62,9 @@
  * | Person record authority   | President, VP, Secretary, General Manager      | Brian, 28 Aug 2026 |
  * | Roster bulk import        | The four offices, plus General Manager         | W1, Brian 1 Sep 2026 |
  * | Person erasure            | President, VP, Secretary, General Manager      | Brian, 16 Sep 2026 |
+ * | Messaging safety authority| President, VP, Secretary, General Manager      | Brian, 21 Sep 2026 |
  *
- * **Every capability above also lists `it_officer`.** Brian decided on 15
+ * **Every capability above also lists `it_officer`, except person erasure.** Brian decided on 15
  * August 2026 (LAN-124) that the IT Officer is the club's administrative seat
  * and holds every privileged action in the slice. That is an administrative
  * grant rather than a demonstration affordance: `role_management` was held by
@@ -763,12 +764,12 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   messaging_safety_authority: capability({
     key: "messaging_safety_authority",
     action: "pause and resume the club's outbound messaging",
-    roleCodes: [...CORE_FOUR_ROLE_CODES],
+    roleCodes: [...CORE_FOUR_ROLE_CODES, "it_officer"],
     decision:
-      "Brian, 17 September 2026 (LAN-394): the core four only. `delivery_administration` also " +
-      "grants the IT Officer, and stopping or restarting every message the club sends is not an " +
-      "administrative act — the same distinction LAN-361 drew for `person_erasure`. Reading the " +
-      "safety state stays on `delivery_administration` with the rest of the page.",
+      "Brian, 21 September 2026 (LAN-407): the core four and the `it_officer`. The 17 September " +
+      "decision (LAN-394) withheld it from the IT Officer as LAN-361 did for `person_erasure`; " +
+      "Brian reversed that after the first production deploy, when the seat that diagnoses a " +
+      "runaway could read the safety state but not stop it. Erasure stays the core four's alone.",
   }),
 
   /**

@@ -1135,36 +1135,24 @@ describe("Messaging safety — LAN-394", () => {
     expect(screen.getByTestId("messaging-safety").textContent).not.toMatch(/[0-9a-f]{64}/);
   });
 
-  it("offers the controls to the core four and withholds them from the IT Officer", async () => {
-    for (const seat of ["president", "vice_president", "secretary", "general_manager"]) {
+  it("offers the controls to every seat that can open the page: the core four and the IT Officer", async () => {
+    for (const seat of [
+      "president",
+      "vice_president",
+      "secretary",
+      "general_manager",
+      "it_officer",
+    ]) {
       cleanup();
       signedIn(administrator(seat));
       render(await MessagingSchedulePage());
       expect(screen.getByTestId("safety-pause"), seat).toBeInTheDocument();
     }
 
-    // The IT Officer still opens the page and still reads the state — that is
-    // how a deployment is diagnosed — and is offered no control. The action
-    // behind each one guards independently.
-    cleanup();
-    signedIn(administrator("it_officer"));
-    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
-      safetyStatus({
-        state: "paused",
-        pausedAt: new Date("2026-09-17T10:00:00Z"),
-        holds: [hold()],
-      }),
-    );
-    render(await MessagingSchedulePage());
-    expect(screen.getByTestId("safety-state")).toBeInTheDocument();
-    expect(screen.queryByTestId("safety-pause")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("safety-resume")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("safety-resume-person")).not.toBeInTheDocument();
-    // …and is never pointed at a control that is not there.
-    expect(screen.getAllByTestId("safety-blocker")[0]).toHaveTextContent("Paused");
-    expect(
-      within(screen.getByTestId("messaging-safety")).queryByRole("link", { name: "Resume" }),
-    ).not.toBeInTheDocument();
+    // LAN-407 (Brian, 21 September 2026): the IT Officer holds the controls
+    // too, so every seat that can open this page can also pause it. The action
+    // behind each control still guards independently — `safety-actions.test.ts`
+    // proves a seat without the capability is refused at the server.
   });
 
   it("shows the limits, read-only, with the decision that set them", async () => {
