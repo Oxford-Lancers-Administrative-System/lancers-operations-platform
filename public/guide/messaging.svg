@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 884 932" width="884" height="932" role="img" aria-labelledby="diagram-title" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title id="diagram-title">How one message reaches one person</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5A5754" />
+    </marker>
+  </defs>
+  <rect width="884" height="932" fill="#F6F5F2" />
+  <g>
+    <rect x="20" y="20" width="26" height="14" rx="3.5" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="52" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">State</text>
+    <rect x="152" y="20" width="26" height="14" rx="3.5" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="184" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Operator acts</text>
+    <rect x="284" y="20" width="26" height="14" rx="3.5" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="316" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">App acts</text>
+    <polygon points="429,20 442,27 429,34 416,27" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="448" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Decision</text>
+    <polygon points="551.12,20 574,20 570.88,34 548,34" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="580" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Message sent</text>
+    <rect x="680" y="20" width="26" height="14" rx="7" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="712" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">End</text>
+  </g>
+  <g>
+    <polyline points="442,134 442,194" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="544,233 660,233" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="602" y="233" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Yes</text>
+    <polyline points="442,272 442,322" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="442" y="297" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">No</text>
+    <polyline points="442,400 442,435 122,435 122,450" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="282" y="435" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Recruit</text>
+    <polyline points="442,400 442,435 762,435 762,460" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="602" y="435" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">On the roster</text>
+    <polyline points="122,528 122,588" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="558" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Not granted</text>
+    <polyline points="122,528 122,563 442,563 442,588" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="282" y="563" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Granted</text>
+    <polyline points="762,518 762,588" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="762" y="553" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Nobody answers</text>
+    <polyline points="442,646 442,706" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="762,646 762,695 442,695 442,706" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="442,784 442,819 762,819 762,844" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="602" y="819" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Yes</text>
+    <polyline points="442,784 442,844" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="442" y="807" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">No — it</text>
+    <text x="442" y="821" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">failed</text>
+  </g>
+  <g>
+    <rect x="340" y="76" width="204" height="58" rx="8" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="442" y="105" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">A message becomes due</text>
+    <polygon points="442,194 544,233 442,272 340,233" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="442" y="225" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Paused, held or</text>
+    <text x="442" y="241" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">stopped?</text>
+    <rect x="660" y="204" width="204" height="58" rx="29" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="762" y="233" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Waits until resumed</text>
+    <polygon points="442,322 544,361 442,400 340,361" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="442" y="353" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Recruit, or on</text>
+    <text x="442" y="369" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">the roster?</text>
+    <polygon points="122,450 224,489 122,528 20,489" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="122" y="489" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Consent this season?</text>
+    <rect x="20" y="588" width="204" height="58" rx="29" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="122" y="617" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Nothing is sent</text>
+    <polygon points="674,460 864,460 850,518 660,518" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="762" y="481" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Invitation, reminders,</text>
+    <text x="762" y="497" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">email rung</text>
+    <polygon points="674,588 864,588 850,646 660,646" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="762" y="609" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Escalation to</text>
+    <text x="762" y="625" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">the President</text>
+    <polygon points="354,588 544,588 530,646 340,646" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="442" y="609" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Invitation, then one</text>
+    <text x="442" y="625" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">polite follow-up</text>
+    <polygon points="442,706 544,745 442,784 340,745" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="442" y="745" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">WhatsApp delivered?</text>
+    <polygon points="354,844 544,844 530,902 340,902" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="442" y="865" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">The same message</text>
+    <text x="442" y="881" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">by email</text>
+    <rect x="660" y="844" width="204" height="58" rx="29" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="762" y="873" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Delivered</text>
+  </g>
+</svg>

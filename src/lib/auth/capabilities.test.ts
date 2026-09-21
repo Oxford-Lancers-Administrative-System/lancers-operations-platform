@@ -218,6 +218,18 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "defensive_backs_coach",
     "special_teams_coach",
   ],
+  // LAN-399. The core four, and literally nobody else in the catalogue — the
+  // IT Officer included, which is what makes this grant different from every
+  // other non-coaching one.
+  operator_guide: [
+    "treasurer",
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    "it_officer",
+    ...FIXED_COACHES,
+  ],
   attendance_recording: [
     "treasurer",
     "social_secretary",
@@ -621,16 +633,18 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
   // Brian's decision of 15 August 2026. Asserted positively and literally,
   // because the seat holding everything is precisely the kind of grant that
   // should never be arrived at by a rule, a default or an inheritance.
-  // LAN-361 added the one exception, named here so it cannot be widened by
-  // accident: `person_erasure` is the core four's alone (Brian, 16 September
-  // 2026) because destroying somebody's record irreversibly is not an
-  // administrative act. LAN-394 briefly made `messaging_safety_authority` a
-  // second exception; Brian reversed that on 21 September 2026 (LAN-407) after
-  // the first production deploy left the seat that diagnoses a runaway able to
-  // read the safety state but not stop it.
-  const NOT_THE_IT_OFFICERS: readonly string[] = ["person_erasure"];
+  // LAN-361 added the first exception and LAN-399 the second, and both are
+  // named here so neither can be widened by accident. `person_erasure` is the
+  // core four's alone (Brian, 16 September 2026) because destroying somebody's
+  // record irreversibly is not an administrative act. `operator_guide` is
+  // theirs for a different reason (Brian, 21 September 2026): it carries no
+  // act at all, and the audience is simply a decided one. LAN-394 briefly made
+  // `messaging_safety_authority` an exception too; Brian reversed that on
+  // 21 September 2026 (LAN-407) after the first production deploy left the
+  // seat that diagnoses a runaway able to read the safety state but not stop it.
+  const NOT_THE_IT_OFFICERS: readonly string[] = ["person_erasure", "operator_guide"];
 
-  it("holds every capability in the map except the one deliberately withheld", () => {
+  it("holds every capability in the map except the three deliberately withheld", () => {
     for (const key of CAPABILITY_KEYS) {
       expect(roleCodesPermit(["it_officer"], key), key).toBe(!NOT_THE_IT_OFFICERS.includes(key));
     }
@@ -650,6 +664,17 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
     expect(roleCodesPermit(["it_officer"], "delivery_administration")).toBe(true);
     expect(permittedSet("messaging_safety_authority")).toEqual(
       ["president", "vice_president", "secretary", "general_manager", "it_officer"].sort(),
+    );
+  });
+
+  it("is refused the operator playbook, which is the core four's audience", () => {
+    // LAN-399. The third exception, asserted in the same shape as the other
+    // two so that adding `it_officer` to the grant fails here rather than
+    // quietly widening a decided audience. Unlike them it withholds no act:
+    // the capability gates a section of pages that only explain things.
+    expect(roleCodesPermit(["it_officer"], "operator_guide")).toBe(false);
+    expect(permittedSet("operator_guide")).toEqual(
+      ["president", "vice_president", "secretary", "general_manager"].sort(),
     );
   });
 
@@ -716,6 +741,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "leadership_report",
         "membership_activation",
         "messaging_safety_authority",
+        "operator_guide",
         "person_erasure",
         "person_record_authority",
         "role_management",

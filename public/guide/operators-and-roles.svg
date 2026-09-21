@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1008 1060" width="1008" height="1060" role="img" aria-labelledby="diagram-title" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title id="diagram-title">How an operator is invited, seated and stood down</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5A5754" />
+    </marker>
+  </defs>
+  <rect width="1008" height="1060" fill="#F6F5F2" />
+  <g>
+    <rect x="20" y="20" width="26" height="14" rx="3.5" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="52" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">State</text>
+    <rect x="152" y="20" width="26" height="14" rx="3.5" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="184" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Operator acts</text>
+    <rect x="284" y="20" width="26" height="14" rx="3.5" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="316" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">App acts</text>
+    <polygon points="429,20 442,27 429,34 416,27" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="448" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Decision</text>
+    <polygon points="551.12,20 574,20 570.88,34 548,34" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="580" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Message sent</text>
+    <rect x="680" y="20" width="26" height="14" rx="7" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="712" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">End</text>
+  </g>
+  <g>
+    <polyline points="566,134 566,204" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="566,262 566,322" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="464,361 348,361" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="406" y="361" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">No</text>
+    <polyline points="144,361 82,361 82,233 464,233" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="273" y="226" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Resend, or correct</text>
+    <text x="273" y="240" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">the address</text>
+    <polyline points="566,400 566,460" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="566" y="430" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Yes</text>
+    <polyline points="566,518 566,578" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="566" y="541" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">They follow</text>
+    <text x="566" y="555" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">the link</text>
+    <polyline points="566,656 566,716" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="566" y="686" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Yes</text>
+    <polyline points="668,745 784,745" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="726" y="738" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Deactivate</text>
+    <text x="726" y="752" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">access</text>
+    <polyline points="852,774 852,805 600,805 600,774" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="726" y="805" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Restore access</text>
+    <polyline points="566,774 566,844" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="566,902 566,972" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="566" y="937" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">End role</text>
+  </g>
+  <g>
+    <rect x="464" y="76" width="204" height="58" rx="8" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="566" y="97" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Invite operator:</text>
+    <text x="566" y="113" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">person, role, send</text>
+    <polygon points="478,204 668,204 654,262 464,262" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="566" y="233" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Invitation email</text>
+    <polygon points="566,322 668,361 566,400 464,361" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="566" y="361" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Delivered?</text>
+    <rect x="144" y="332" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="246" y="361" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Delivery failed</text>
+    <rect x="464" y="460" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="566" y="489" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Invitation pending</text>
+    <polygon points="566,578 668,617 566,656 464,617" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="566" y="617" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Password set?</text>
+    <rect x="464" y="716" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="566" y="745" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Active</text>
+    <rect x="784" y="716" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="886" y="745" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Deactivated</text>
+    <rect x="464" y="844" width="204" height="58" rx="8" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="566" y="865" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Assign, replace</text>
+    <text x="566" y="881" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">or end a role</text>
+    <rect x="464" y="972" width="204" height="58" rx="29" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="566" y="1001" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Not assigned</text>
+  </g>
+</svg>
