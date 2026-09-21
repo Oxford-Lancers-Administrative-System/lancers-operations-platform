@@ -97,6 +97,14 @@ export const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
 export const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
 
 /**
+ * LAN-411's exception, over **Attempted** rather than over **Failed**: a
+ * WhatsApp message Meta accepted an hour ago and has said nothing about since.
+ * Two words, nothing more (Brian, 2026-09-21) — the chase is unchanged and the
+ * follow-up is a human one.
+ */
+export const NOT_DELIVERED = "Not delivered";
+
+/**
  * LAN-296's exception, for the same reason the two above exist: a bare
  * **Cancelled** beside a recorded Yes named nothing, and the invitation, the
  * answer, the reminder and the event can each be cancelled. This says which,

@@ -9,9 +9,9 @@ import { ONBOARDING_ITEM_TYPES } from "./onboarding-item-shapes";
  * A season's onboarding item types, and the items every membership in it
  * should already have — LAN-396.
  *
- * Production, 2026-09-17: the 2026-27 season was opened by
- * `scripts/production/baseline/season-2026-27.sql`, which creates the season,
- * its terms, its positions and its committee year and no item types at all.
+ * Production, 2026-09-17: the 2026-27 season was opened by the owner-run
+ * baseline, which creates the season, its terms, its positions and its
+ * committee year and no item types at all.
  * Nothing in the application creates them either — a season is only ever
  * created by baseline SQL — so every 2026-27 membership was generated with no
  * onboarding items, and the roster board's onboarding cells were silently

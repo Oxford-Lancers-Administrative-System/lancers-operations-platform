@@ -194,6 +194,10 @@ Delivered never means responded. Attending is intent; Present is observed attend
 
 **Cancelled** is LAN-156's correction round 1, and is not a seventh provider status for the identical reason: `cancelEvent`'s own stand-down has never been offered to a provider either. It was previously rendered as **Failed**, with a **Retry** that then refused — R156-B2.
 
+**Not delivered** is LAN-411's (Brian, 2026-09-21), and is not a provider status at all: it is the _absence_ of one. A member who has never accepted WhatsApp's terms never receives the club's messages, and Meta reports that by saying nothing — it accepts the send, answers success, and then sends no callback of any kind. There is no API, field or status that says why. A healthy send shows `delivered` within seconds, so a WhatsApp attempt Meta accepted more than an hour ago that has still said nothing has, in practice, not arrived. The app cannot tell that person from one whose phone is switched off, so nothing stops for him: the club is told, and the chase carries on exactly as it did.
+
+It is an exception label over **Attempted**, in the same idiom as **Not dispatched — no channel** and **WhatsApp unresponsive**, and ranked below both. WhatsApp only — email has no delivered signal to be absent. It is derived at read time and never written: a stored result is authoritative under invariant M4, so writing one at the hour mark would make the late `delivered` callback permanently superseded, and would fire the email fallback and the retry ladder at somebody the club cannot reach. Because it is derived, it clears itself the moment that callback lands.
+
 **College email** is a club rule as well as a word, recorded on LAN-268 (Brian,
 2026-09-09): only `ox.ac.uk` or a subdomain of it is accepted, case-insensitively,
 on the recruitment sign-up door, add-by-hand, the player questionnaire's step 1

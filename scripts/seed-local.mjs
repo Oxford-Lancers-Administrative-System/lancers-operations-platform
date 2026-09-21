@@ -3705,6 +3705,12 @@ let noChannelEvent = null;
 let noChannelInvitee = null;
 let heldEvent = null;
 let heldInvitee = null;
+// LAN-411's one deliberate example: a WhatsApp send Meta accepted and has said
+// nothing about since. The whole point of the case is that there is nothing to
+// find — no callback, no result, no error — so the row has to be built rather
+// than fall out of any of the ladder stories.
+let notDeliveredEvent = null;
+let notDeliveredInvitee = null;
 
 jobEvents.forEach((event, index) => {
   const story = LADDER_STORIES[index % LADDER_STORIES.length];
@@ -3951,6 +3957,64 @@ jobEvents.forEach((event, index) => {
         // covers `genuine_failure`'s own rungs 1 and 2, at their own
         // `attempts` count and reason).
         addFailedAttempts(job, { channel, provider, count: attempts, reason: lastError });
+      }
+    }
+
+    /**
+     * LAN-411. One person who never accepted WhatsApp's terms.
+     *
+     * Meta takes the send, answers success, and then sends no callback at all
+     * — no `delivered`, no `read`, no `failed`. The job sits at `processing`
+     * for ever, and an hour later the club is told **Not delivered**. Nothing
+     * about the person changes and the chase carries on; the flag is advisory.
+     *
+     * Built by hand for the reason the case itself is hard: every other seeded
+     * state is evidence of something, and this one is the absence of it. The
+     * attempt is dated a day before the notional now, so it is past the hour
+     * whatever time of day the seed runs.
+     */
+    if (story === "genuine_failure" && position === 2 && notDeliveredEvent === null) {
+      const invitationJob = rows.notification_jobs.find(
+        (candidate) =>
+          candidate.invitation_id === invitation.id && candidate.job_type === "invitation",
+      );
+      if (invitationJob) {
+        const acceptedAt = shiftMinutes(NOW.toISOString(), -24 * 60);
+        invitationJob.status = "processing";
+        invitationJob.channel = "whatsapp";
+        invitationJob.attempt_count = 1;
+        invitationJob.automatic_attempts = 1;
+        invitationJob.next_attempt_at = null;
+        invitationJob.last_error = null;
+        invitationJob.claimed_at = acceptedAt;
+        invitationJob.claimed_by = "system: automated delivery";
+        invitationJob.person_id = invitationPersonId(invitation);
+        // The job's random `kind` above the loop may already have given it a
+        // history; this rewrites the whole of it, so that history goes first —
+        // the same collision the two scenarios below deal with.
+        rows.delivery_results = rows.delivery_results.filter(
+          (result) => result.notification_job_id !== invitationJob.id,
+        );
+        rows.delivery_attempts = rows.delivery_attempts.filter(
+          (attempt) => attempt.notification_job_id !== invitationJob.id,
+        );
+        add("delivery_attempts", {
+          id: uuid(),
+          notification_job_id: invitationJob.id,
+          attempt_number: 1,
+          channel: "whatsapp",
+          provider: "whatsapp-business",
+          // Meta answered with a message id: it accepted the send. That is the
+          // whole of what the club ever heard.
+          provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
+          requested_at: acceptedAt,
+          accepted_at: acceptedAt,
+          concluded_at: null,
+          failure_reason: null,
+        });
+        deliveryAttemptsSeeded += 1;
+        notDeliveredEvent = event;
+        notDeliveredInvitee = invitation;
       }
     }
 
@@ -6167,6 +6231,10 @@ try {
   }
   if (whatsappUnresponsiveEvent) {
     showDeliveryAs("WhatsApp unresponsive", whatsappUnresponsiveEvent, whatsappUnresponsiveInvitee);
+  }
+  // LAN-411.
+  if (notDeliveredEvent) {
+    showDeliveryAs("Not delivered (accepted, then silence)", notDeliveredEvent, notDeliveredInvitee);
   }
   console.log(
     `  ${"per-attempt diagnostics".padEnd(34)} any of the three events above\n${" ".repeat(37)}` +

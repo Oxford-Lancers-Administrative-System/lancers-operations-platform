@@ -2039,6 +2039,13 @@ export interface DeliveryCounts {
   readonly retryable: number;
   /** LAN-156. Messages an amendment stopped, and the number the amend screen quotes. */
   readonly held: number;
+  /**
+   * LAN-411. How many rows read **Not delivered** — the number the summary's
+   * own warning notice quotes. They are counted inside `attempted` as well,
+   * and deliberately: the four tiles are unchanged, and an undelivered message
+   * is still one the club is waiting on.
+   */
+  readonly notDelivered: number;
 }
 
 export interface DeliveryRow {
@@ -2083,6 +2090,19 @@ export interface DeliveryRow {
    * than a silent substitution.
    */
   readonly whatsappUnresponsive: boolean;
+  /**
+   * LAN-411. True only for a WhatsApp attempt Meta accepted more than
+   * `NOT_DELIVERED_AFTER_MINUTES` ago that has told us nothing since. A member
+   * who has never accepted WhatsApp's terms never receives the club's
+   * messages, and Meta reports it by silence: the send is accepted and no
+   * callback of any kind follows. The app cannot tell that person from one
+   * whose phone is switched off, so nothing stops for him — the club is told,
+   * and the chase carries on.
+   *
+   * An exception label over **Attempted**, in the same idiom as the two
+   * above, and derived at read time: see `NOT_DELIVERED_EXPRESSION`.
+   */
+  readonly notDelivered: boolean;
   /** Where **Open their record** goes for `noUsableRoute`. `null` for a walk-up. */
   readonly seasonMembershipId: string | null;
 }
@@ -2137,6 +2157,66 @@ export const DELIVERY_STATE_EXPRESSION = `
     when j.status = 'failed' and j.attempt_count < ${MAX_ATTEMPTS} then 'retryable'
     else 'failed'
   end`;
+
+/**
+ * How long a WhatsApp send Meta accepted may say nothing before the club is
+ * told it probably did not arrive — LAN-411, Brian 2026-09-21. One hour.
+ *
+ * Deliberately its own constant and not ADR 0039's: that rule is also sixty
+ * minutes and is about queue age, and the two have nothing to do with each
+ * other.
+ */
+export const NOT_DELIVERED_AFTER_MINUTES = 60;
+
+/**
+ * **Not delivered**, derived — LAN-411.
+ *
+ * A healthy WhatsApp send shows `delivered` within seconds. A row still at
+ * Attempted an hour later has, in practice, not arrived: Meta accepted it and
+ * then sent no callback at all, which is what happens to somebody who has
+ * never accepted WhatsApp's terms. There is no API, status or field that says
+ * so; the only signal is absence.
+ *
+ * Read at query time and **never written**. A `delivery_results` row is
+ * authoritative under invariant M4, so writing one at the hour mark would make
+ * a late `delivered` callback permanently `superseded`
+ * (`applyProviderCallback` above) — and it would fire the email fallback and
+ * the five-attempt ladder at somebody the club cannot reach. Derived, the
+ * label simply stops being true when the late callback lands.
+ *
+ * Four conditions, and each one is load-bearing:
+ *
+ *   * `channel = 'whatsapp'` — email has no delivered signal at all, so every
+ *     email invitation would otherwise read Not delivered at 61 minutes.
+ *   * `accepted_at` older than the threshold — requested is not accepted, and
+ *     the clock starts when Meta took it.
+ *   * no `delivered` **or** `read` callback. `read` and `sent` map to no
+ *     outcome (`src/lib/delivery/whatsapp-cloud.ts`) and write no result row,
+ *     so "no result" alone would call somebody who read the message
+ *     undelivered.
+ *   * no recorded outcome. A `failed` callback writes one and moves the job,
+ *     so a failure reads Failed or Retryable and never this: Not delivered
+ *     covers silence only.
+ *
+ * The label is only surfaced where the state is `attempted`; the expression is
+ * kept separate so the two readers of it cannot drift.
+ */
+export const NOT_DELIVERED_EXPRESSION = `
+  (j.channel = 'whatsapp' and exists (
+    select 1
+      from public.delivery_attempts a
+     where a.notification_job_id = j.id
+       and a.accepted_at is not null
+       and a.accepted_at < now() - interval '${NOT_DELIVERED_AFTER_MINUTES} minutes'
+       and a.concluded_at is null
+       and not exists (
+         select 1 from public.delivery_callbacks c
+          where c.delivery_attempt_id = a.id
+            and c.provider_status in ('delivered', 'read'))
+       and not exists (
+         select 1 from public.delivery_results r
+          where r.notification_job_id = a.notification_job_id
+            and r.attempt_number = a.attempt_number)))`;
 
 /**
  * The most recent recorded outcome for a job, joined laterally.
@@ -2246,6 +2326,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
       response_state: string | null;
       fallback_status: string | null;
       season_membership_id: string | null;
+      not_delivered: boolean;
     }>(
       `select j.id as job_id,
               j.invitation_id,
@@ -2253,6 +2334,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
               ${personDisplayAliasSql("p")} as display_alias,
               j.channel::text as channel,
               ${DELIVERY_STATE_EXPRESSION} as state,
+              ${NOT_DELIVERED_EXPRESSION} as not_delivered,
               j.attempt_count,
               (select max(a.requested_at) from public.delivery_attempts a
                 where a.notification_job_id = j.id) as last_attempt_at,
@@ -2316,6 +2398,10 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
           row.channel === "whatsapp" &&
           row.state === "failed" &&
           row.fallback_status === "completed",
+        // LAN-411: a label over **Attempted** and nothing else. A job that has
+        // reached any other state has been told something, and what it was
+        // told is what the row says.
+        notDelivered: row.state === "attempted" && row.not_delivered,
         seasonMembershipId: row.season_membership_id,
         // Independent of `state`, and deliberately so: UX-51 shows Result and
         // Retry as separate columns because a **Failed** delivery whose cause a
@@ -2368,6 +2454,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         failed: count("failed"),
         retryable: count("retryable"),
         held: count("held"),
+        notDelivered: mapped.filter((row) => row.notDelivered).length,
       },
       rows: mapped,
     };
@@ -2387,6 +2474,8 @@ export interface DiagnosticsAttempt {
   readonly requestedAt: Date;
   /** `'delivered' | 'failed' | 'rejected' | 'attempted' | 'sent'` — never a guess. */
   readonly outcome: string;
+  /** LAN-411 — this attempt is one of the silent ones. Derived, exactly as the row's own label is. */
+  readonly notDelivered: boolean;
   /** Never a phone number, a template id, or a message body. */
   readonly providerReference: string | null;
 }
@@ -2429,6 +2518,7 @@ export async function readEventDeliveryDiagnostics(
       accepted_at: Date | null;
       concluded_at: Date | null;
       provider_message_id: string | null;
+      not_delivered: boolean;
     }>(
       `select a.id as attempt_id,
               p.given_name, p.family_name,
@@ -2439,7 +2529,20 @@ export async function readEventDeliveryDiagnostics(
               r.outcome::text as recorded_outcome,
               a.accepted_at,
               a.concluded_at,
-              a.provider_message_id
+              a.provider_message_id,
+              -- LAN-411, per attempt rather than per job: the same four
+              -- conditions NOT_DELIVERED_EXPRESSION applies, so the filter
+              -- here selects exactly the attempts the event's own screens
+              -- call Not delivered.
+              (j.channel = 'whatsapp'
+                 and a.accepted_at is not null
+                 and a.accepted_at < now() - interval '${NOT_DELIVERED_AFTER_MINUTES} minutes'
+                 and a.concluded_at is null
+                 and not exists (
+                   select 1 from public.delivery_callbacks c
+                    where c.delivery_attempt_id = a.id
+                      and c.provider_status in ('delivered', 'read'))
+                 and r.outcome is null) as not_delivered
          from public.notification_jobs j
          join public.delivery_attempts a on a.notification_job_id = j.id
          left join public.delivery_results r
@@ -2463,6 +2566,7 @@ export async function readEventDeliveryDiagnostics(
         attemptNumber: row.attempt_number,
         requestedAt: row.requested_at,
         outcome,
+        notDelivered: row.not_delivered,
         providerReference: row.provider_message_id,
       };
     });

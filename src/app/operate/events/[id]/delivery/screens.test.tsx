@@ -88,6 +88,7 @@ function row(overrides: Partial<DeliveryRow> = {}): DeliveryRow {
     retryable: true,
     noUsableRoute: false,
     whatsappUnresponsive: false,
+    notDelivered: false,
     seasonMembershipId: null,
     ...overrides,
   };
@@ -107,6 +108,7 @@ function delivery(overrides: Partial<EventDelivery> = {}): EventDelivery {
       failed: 1,
       retryable: 1,
       held: 0,
+      notDelivered: 0,
       ...overrides.counts,
     },
     ...overrides,
@@ -229,6 +231,7 @@ describe("UX-50 — the overview", () => {
           failed: 0,
           retryable: 0,
           held: 4,
+          notDelivered: 0,
         },
       }),
     );
@@ -280,6 +283,7 @@ describe("UX-51 — the diagnostics table", () => {
     attemptNumber: 1,
     requestedAt: new Date("2026-08-14T20:05:00Z"),
     outcome: "failed",
+    notDelivered: false,
     providerReference: "wamid.HBgLNDQ",
   };
 
@@ -445,6 +449,7 @@ describe("W6 — Needs attention and the attempt log", () => {
         attemptNumber: 1,
         requestedAt: new Date("2026-08-14T20:05:00Z"),
         outcome: "failed",
+        notDelivered: false,
         providerReference: "wamid.HBgLNDQ",
       },
       {
@@ -454,6 +459,7 @@ describe("W6 — Needs attention and the attempt log", () => {
         attemptNumber: 1,
         requestedAt: new Date("2026-08-14T21:05:00Z"),
         outcome: "delivered",
+        notDelivered: false,
         providerReference: "re_9xKq",
       },
     ]);
@@ -476,6 +482,7 @@ describe("W6 — Needs attention and the attempt log", () => {
         attemptNumber: 1,
         requestedAt: new Date("2026-08-14T20:05:00Z"),
         outcome: "failed",
+        notDelivered: false,
         providerReference: null,
       },
       {
@@ -485,6 +492,7 @@ describe("W6 — Needs attention and the attempt log", () => {
         attemptNumber: 1,
         requestedAt: new Date("2026-08-14T20:05:00Z"),
         outcome: "delivered",
+        notDelivered: false,
         providerReference: null,
       },
     ]);
@@ -537,6 +545,9 @@ const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
     "Delivered",
     "Failed",
     "Retryable",
+    // LAN-411's one option, last, because it is an exception over Attempted
+    // rather than one of the five states.
+    "Not delivered",
   ],
   /** A search that matches nobody. Renders the filter, and no rows. */
   "diagnostics (nothing matches)": ["Delivery overview", "Back to event", "Clear filters"],
@@ -689,6 +700,7 @@ describe("every delivery view offers only the controls it is meant to", () => {
     attemptNumber: 1,
     requestedAt: new Date("2026-10-12T17:04:00Z"),
     outcome: "failed",
+    notDelivered: false,
     providerReference: "wamid.HBgLNDQ",
   };
 
@@ -1017,5 +1029,66 @@ describe("UX-52 — the repair panel offers exactly two controls", () => {
       .getAllByRole("button")
       .at(0);
     expect(retry).toBeDisabled();
+  });
+});
+
+/**
+ * LAN-411 — **Not delivered** on the delivery page.
+ *
+ * Brian, 2026-09-21. A fifth count tile was considered and rejected: the
+ * summary's four tiles are not per-state, `MetricRow` lays out two per line at
+ * 375 px, and a fifth would be a lone half-width tile. The idiom one line
+ * below is the conditional held-messages notice, so this is one of those.
+ */
+describe("the summary's Not delivered notice", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  function withNotDelivered(count: number) {
+    return delivery({
+      counts: {
+        audience: 42,
+        queued: count,
+        attempted: count,
+        delivered: 38,
+        failed: 0,
+        retryable: 0,
+        held: 0,
+        notDelivered: count,
+      },
+      rows: [row({ state: "attempted", notDelivered: true, retryable: false })],
+    });
+  }
+
+  it("says nothing at all when nothing is silent", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(delivery());
+    const { container } = await renderPage();
+    expect(container.querySelector('[data-testid="delivery-not-delivered"]')).toBeNull();
+  });
+
+  it("counts one message in the singular", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(withNotDelivered(1));
+    const { getByTestId } = await renderPage();
+    expect(getByTestId("delivery-not-delivered")).toHaveTextContent("1 message was not delivered.");
+  });
+
+  it("counts three in the plural, and leaves the four tiles alone", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(withNotDelivered(3));
+    const { getByTestId } = await renderPage();
+    expect(getByTestId("delivery-not-delivered")).toHaveTextContent(
+      "3 messages were not delivered.",
+    );
+    // The undelivered stay counted inside Queued, which is true: the club is
+    // still waiting on them.
+    expect(getByTestId("count-queued")).toHaveTextContent("6");
+    expect(getByTestId("delivery-counts").querySelectorAll("[data-testid^='count-']")).toHaveLength(
+      4,
+    );
+  });
+
+  it("leaves Needs attention exactly as it was — the flag is advisory", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(withNotDelivered(1));
+    const { container } = await renderPage();
+    // Attempted is not failed or retryable, so nobody needs attention here.
+    expect(container.querySelector('[data-testid="needs-attention"]')).toBeNull();
   });
 });

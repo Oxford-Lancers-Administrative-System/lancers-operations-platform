@@ -38,6 +38,7 @@ import {
   everyoneAsked,
   NOBODY_ASKED,
   NO_MATCHING_PEOPLE,
+  NOT_DELIVERED,
   NOT_DISPATCHED_NO_CHANNEL,
   NOTHING,
   presenceLabel,
@@ -146,10 +147,25 @@ function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
 function deliveryChipLabel(person: OperatorParticipationPerson, state: string): string {
   if (person.noUsableRoute) return NOT_DISPATCHED_NO_CHANNEL;
   if (person.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
+  // LAN-411: over Attempted, and ranked below both of the above.
+  if (person.notDelivered) return NOT_DELIVERED;
   // LAN-296's exception: what was cancelled was this person's reminders, and
   // the bare word could equally have meant the invitation or the event.
   if (person.remindersStopped) return REMINDERS_STOPPED;
   return DELIVERY_LABELS[state] ?? state;
+}
+
+/**
+ * Which chip style the Delivery cell draws — LAN-411.
+ *
+ * The state's own, as it always was, except for **Not delivered**: that reads
+ * over **Attempted**, whose style is the plain informational one, and the
+ * whole point of the label is that it is worth a reader's attention. The two
+ * older exceptions are left exactly as they were, drawing **Failed**'s style
+ * under their own words.
+ */
+function deliveryChipStatus(person: OperatorParticipationPerson, state: string): string {
+  return person.notDelivered ? "not_delivered" : state;
 }
 
 function DeliveryCell({
@@ -177,7 +193,11 @@ function DeliveryCell({
   }
   return (
     <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
-      <StatusChip domain="delivery" status={state} label={deliveryChipLabel(person, state)} />
+      <StatusChip
+        domain="delivery"
+        status={deliveryChipStatus(person, state)}
+        label={deliveryChipLabel(person, state)}
+      />
       {/* W4's chase position — null for an answered row, walk-up, or anybody `noUsableRoute` already explains. */}
       {person.chasePosition ? (
         <Typography variant="caption" color="text.secondary" data-testid="chase-position">

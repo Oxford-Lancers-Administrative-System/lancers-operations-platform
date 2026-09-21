@@ -58,6 +58,9 @@ export const STATUS_VOCABULARY: Readonly<
     retryable: filled("warning"),
     held: filled("warning"),
     whatsapp_unresponsive: filled("warning"),
+    // LAN-411. An exception label over Attempted, in the same tone as the
+    // exception beside it: no new colour, no new component.
+    not_delivered: filled("warning"),
     failed: filled("error"),
     no_channel: filled("error"),
     escalated: outlined("error"),

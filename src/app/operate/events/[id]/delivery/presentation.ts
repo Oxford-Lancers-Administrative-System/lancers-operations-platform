@@ -18,6 +18,8 @@ const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.fr
 /** W6's two named exceptions to the plain five-state vocabulary — `REQ-no-channel-backstop`, `REQ-whatsapp-outage-visible`. */
 const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
 const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
+/** LAN-411's third, over **Attempted** rather than over **Failed**, and ranked below both. Two words, nothing more (Brian, 2026-09-21). */
+export const NOT_DELIVERED = "Not delivered";
 
 export const NEEDS_ATTENTION_HEADING = "Needs attention";
 export const NEEDS_ATTENTION_NOTE =
@@ -29,12 +31,20 @@ export interface DeliveryExceptionFacts {
   readonly state: DeliveryState;
   readonly noUsableRoute: boolean;
   readonly whatsappUnresponsive: boolean;
+  /** LAN-411. Only ever true where `state` is `attempted`. */
+  readonly notDelivered?: boolean;
 }
 
 export function deliveryRowLabel(row: DeliveryExceptionFacts): string {
   if (row.noUsableRoute) return NOT_DISPATCHED_NO_CHANNEL;
   if (row.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
+  if (row.notDelivered) return NOT_DELIVERED;
   return DELIVERY_STATE_LABELS[row.state];
+}
+
+/** The summary's own conditional warning — LAN-411. Singular and plural, and nothing about what to do: the follow-up is a human one. */
+export function notDeliveredNotice(count: number): string {
+  return count === 1 ? "1 message was not delivered." : `${count} messages were not delivered.`;
 }
 
 export const TOKEN_LABELS: Readonly<Record<string, string>> = Object.freeze({
@@ -88,6 +98,9 @@ export const STATUS_FILTERS: readonly { value: string; label: string }[] = Objec
   ...FILTERABLE_STATES.map((state) =>
     Object.freeze({ value: state, label: DELIVERY_STATE_LABELS[state] }),
   ),
+  // LAN-411, last because it is an exception over Attempted rather than one of
+  // the five.
+  Object.freeze({ value: "not_delivered", label: NOT_DELIVERED }),
 ]);
 
 /** "Needs attention" is failed or retryable — the two an operator can act on. */
@@ -97,13 +110,27 @@ export function matchesStatusFilter(state: DeliveryState, filter: string): boole
   return state === filter;
 }
 
-/** `OWNER-LAN173-02`: filters an attempt's own recorded outcome, not a `DeliveryState` — an attempt has no queued/retryable of its own. */
-export function matchesAttemptStatusFilter(outcome: string, filter: string): boolean {
+/**
+ * `OWNER-LAN173-02`: filters an attempt's own recorded outcome, not a
+ * `DeliveryState` — an attempt has no queued or retryable of its own.
+ *
+ * LAN-411 adds the one exception, which is a property of the attempt rather
+ * than of its outcome: accepted, silent, and past the hour. **Attempted** then
+ * means the attempts that still read Attempted, so the two options never
+ * select the same row twice.
+ */
+export function matchesAttemptStatusFilter(
+  attempt: { readonly outcome: string; readonly notDelivered?: boolean },
+  filter: string,
+): boolean {
   if (filter === "") return true;
+  const { outcome } = attempt;
   if (filter === "attention" || filter === "failed")
     return outcome === "failed" || outcome === "rejected";
   if (filter === "delivered") return outcome === "delivered";
-  if (filter === "attempted") return outcome === "attempted" || outcome === "sent";
+  if (filter === "not_delivered") return attempt.notDelivered === true;
+  if (filter === "attempted")
+    return (outcome === "attempted" || outcome === "sent") && attempt.notDelivered !== true;
   return false;
 }
 

@@ -12,8 +12,6 @@ import {
   RESOLVED_ITEM_STATUS_CODES,
   SUBS_PAID_ITEM_CODE,
 } from "./onboarding-item-shapes";
-// A plain ESM script with no types; read here, never run.
-import { ONBOARDING_TYPES } from "../../../scripts/production/showcase/plan/reference.mjs";
 import { RESOLVED_ITEM_STATUSES } from "./membership";
 
 /**
@@ -187,10 +185,13 @@ describe("RESOLVED_ITEM_STATUS_CODES — the client-safe copy", () => {
 
 /**
  * LAN-396 — production, 2026-09-17: the 2026-27 season was opened with no
- * onboarding item types at all, because `season-2026-27.sql` did not create
+ * onboarding item types at all, because the owner-run baseline did not create
  * them and nothing in the application does either. The inventory lived in two
- * places the application could not read. This is the test that keeps the one
- * place it lives now, and the showcase plan, from drifting apart.
+ * places the application could not read; it lives in one now, and this is what
+ * pins its contents. `tests/onboarding-item-inventory.test.ts` is the other
+ * half — it compares this list against the showcase plan's own copy, and lives
+ * outside `src/` because nothing under `src/` may so much as name a
+ * production procedure.
  */
 describe("ONBOARDING_ITEM_TYPES — the approved item-and-ask inventory, written down once", () => {
   it("is the eleven, in order", () => {
@@ -221,18 +222,5 @@ describe("ONBOARDING_ITEM_TYPES — the approved item-and-ask inventory, written
         (type) => type.code,
       ),
     ).toEqual(["bucs_play", "hudl_access"]);
-  });
-
-  it("is the same list the showcase plan seats", () => {
-    const showcase = (
-      ONBOARDING_TYPES as readonly [string, string, boolean, boolean, string][]
-    ).map(([code, label, isRequired, isSubscription, verificationClass]) => ({
-      code,
-      label,
-      isRequired,
-      isSubscription,
-      verificationClass,
-    }));
-    expect(showcase).toEqual(ONBOARDING_ITEM_TYPES.map((type) => ({ ...type })));
   });
 });

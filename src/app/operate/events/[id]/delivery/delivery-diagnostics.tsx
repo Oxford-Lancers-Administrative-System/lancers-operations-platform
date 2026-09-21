@@ -36,7 +36,7 @@ export function Diagnostics({
   const needle = search.trim().toLowerCase();
   const rows = attempts.filter(
     (attempt) =>
-      matchesAttemptStatusFilter(attempt.outcome, status) &&
+      matchesAttemptStatusFilter(attempt, status) &&
       (needle === "" || attempt.inviteeName.toLowerCase().includes(needle)),
   );
 

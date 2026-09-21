@@ -23,18 +23,18 @@ export interface OnboardingItemTypeShape {
  * the approved item-and-ask inventory, and the one place it is written down
  * (LAN-396).
  *
- * Production, 2026-09-17: `scripts/production/baseline/season-2026-27.sql`
- * opened the 2026-27 season with no item types at all, because nothing in the
- * application creates them and the baseline did not either. Every membership
+ * Production, 2026-09-17: the owner-run baseline that opens the 2026-27 season
+ * created it with no item types at all, because nothing in the application
+ * creates them and the baseline did not either. Every membership
  * generated for that season therefore had no onboarding items, and the board's
  * onboarding cells were silently uneditable. Brian repaired it by hand the
  * same day. The list lived in two places then — the local seed and the
  * showcase reference — and in neither of them could the application read it.
  *
  * It lives in `./onboarding-item-types.json` so the three readers are one
- * list: this module, `scripts/seed-local.mjs`, and the showcase plan's
- * `reference.mjs`. `onboarding-item-shapes.test.ts` fails when any of them
- * drifts.
+ * list: this module, `scripts/seed-local.mjs`, and the showcase plan's own
+ * reference module. `tests/onboarding-item-inventory.test.ts` fails when any
+ * of them drifts.
  */
 export const ONBOARDING_ITEM_TYPES: readonly OnboardingItemTypeShape[] = Object.freeze(
   (ONBOARDING_ITEM_TYPE_ROWS as readonly OnboardingItemTypeShape[]).map((type) =>

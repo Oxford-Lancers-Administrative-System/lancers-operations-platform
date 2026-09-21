@@ -844,3 +844,40 @@ describe("chasing several people from the queue — LAN-322", () => {
     );
   });
 });
+
+/**
+ * LAN-411 — **Not delivered** on the queue.
+ *
+ * Fourth of five (Brian, 2026-09-21): Delivery problem, Escalation held,
+ * Escalated, Not delivered, Chasing. The precedence itself is proved against
+ * the real database in `follow-ups.test.ts`; this is the word on the screen
+ * and the row it sits on.
+ */
+describe("a person whose last message was never delivered", () => {
+  it("shows Not delivered, with what was sent and when beside it", async () => {
+    vi.mocked(readFollowUpsQueue).mockResolvedValue([
+      {
+        ...HAWKS,
+        people: [
+          {
+            ...HAWKS.people[0],
+            status: "not_delivered",
+            chasePosition: "WhatsApp 1 sent · WhatsApp 2 Fri 09:00",
+            lastDelivery: {
+              state: "attempted",
+              channel: "whatsapp",
+              at: new Date("2026-09-11T08:00:00Z"),
+            },
+          },
+        ],
+      },
+    ]);
+    await renderPage();
+
+    const row = screen.getAllByTestId("follow-ups-row")[0];
+    expect(row.textContent).toContain("Not delivered");
+    // The Last message column is untouched, and so is the chase.
+    expect(row.textContent).toContain("WhatsApp");
+    expect(row.textContent).toContain("WhatsApp 1 sent · WhatsApp 2 Fri 09:00");
+  });
+});
