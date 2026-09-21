@@ -31,14 +31,6 @@ export function PlaybookView({
 }) {
   return (
     <Stack spacing={3}>
-      {page.notYetMerged ? (
-        <Section title={BAND_HEADINGS.notYetMerged} testId="playbook-not-yet-merged">
-          <Typography variant="body2">
-            <Runs runs={page.notYetMerged} />
-          </Typography>
-        </Section>
-      ) : null}
-
       <Section title={BAND_HEADINGS.flowchart} testId="playbook-flowchart">
         <Box
           sx={{

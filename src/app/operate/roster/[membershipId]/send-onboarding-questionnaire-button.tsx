@@ -16,9 +16,15 @@ import { recordSendOnboardingQuestionnaireAction } from "./record-actions";
 const LABEL = "SEND ONBOARDING QUESTIONNAIRE";
 const RESEND_LABEL = "RESEND ONBOARDING QUESTIONNAIRE";
 
-/** `sendOnboardingNudges`'s four outcomes (requirement 3); refused/skipped uses the dispatcher's own stored reason. */
+/**
+ * `sendOnboardingNudges`'s outcomes (requirement 3); refused/skipped uses the
+ * dispatcher's own stored reason. LAN-394 added the fifth: the ask exists and
+ * is waiting on the club's sending allowance, which is a queue and not a
+ * failure — so it must not read as one, and it must not invite a second press.
+ */
 const OUTCOME_MESSAGE: Readonly<Record<string, string>> = Object.freeze({
   accepted: "Sent.",
+  deferred: "Queued — waiting for the sending allowance.",
   refused: "Not sent — the delivery attempt was refused.",
   skipped: "Not sent — this player may not be messaged, or delivery is not configured.",
   membership_not_found: "Not sent — this membership is no longer on file.",
@@ -100,7 +106,13 @@ export default function SendOnboardingQuestionnaireButton({
             ) : null}
             {slot.showing && result && !result.error && result.outcome ? (
               <Notice
-                severity={result.outcome === "accepted" ? "success" : "warning"}
+                severity={
+                  result.outcome === "accepted"
+                    ? "success"
+                    : result.outcome === "deferred"
+                      ? "info"
+                      : "warning"
+                }
                 testId="onboarding-send-questionnaire-outcome"
               >
                 {result.outcome === "accepted"

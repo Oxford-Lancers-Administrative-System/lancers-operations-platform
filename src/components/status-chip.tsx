@@ -24,7 +24,8 @@ export type StatusDomain =
   | "rsvp"
   | "operator"
   | "onboardingItem"
-  | "availability";
+  | "availability"
+  | "messagingSafety";
 
 const filled = (colour: StatusColour): StatusStyle => ({ colour, variant: "filled" });
 const outlined = (colour: StatusColour): StatusStyle => ({ colour, variant: "outlined" });
@@ -115,6 +116,21 @@ export const STATUS_VOCABULARY: Readonly<
     green: filled("success"),
     orange: filled("warning"),
     red: filled("error"),
+  }),
+  // LAN-394. The messaging safety state, and the two send-rate readings that
+  // are worth a word. Same semantic set as every other domain, so the section
+  // borrows the application's colours rather than painting its own panel.
+  messagingSafety: Object.freeze({
+    sending_normally: filled("success"),
+    messages_waiting: filled("warning"),
+    provider_cooling_down: filled("warning"),
+    paused: filled("error"),
+    emergency_stopped: filled("error"),
+    // A state nobody can read is the same emergency as a state that says stopped.
+    unavailable: filled("error"),
+    // Derived from a count against a ceiling, so outlined, not filled.
+    nearing_limit: outlined("warning"),
+    at_limit: outlined("error"),
   }),
 });
 

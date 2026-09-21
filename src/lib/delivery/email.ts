@@ -2,7 +2,13 @@ import "server-only";
 
 import type { EmailConfig } from "./config";
 import { renderEmailHtml } from "./email-shell";
-import type { DeliveryProvider, OutboundMessage, SendOutcome, Transport } from "./provider";
+import type {
+  DeliveryProvider,
+  OutboundMessage,
+  SendFaultScope,
+  SendOutcome,
+  Transport,
+} from "./provider";
 import { RECRUIT_STOP_MESSAGES_LABEL, templateFor } from "./templates";
 
 /**
@@ -105,6 +111,19 @@ export const EMAIL_TIMEOUT_MS = 15_000;
  */
 function retryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
+}
+
+/**
+ * Whose fault the refusal is, for LAN-394's provider circuit. From the status
+ * alone, never from the sentence: a credential or a 5xx is the provider being
+ * unwell, a malformed message is this message, and a refusal about one address
+ * is that address.
+ */
+function faultScopeFor(status: number): SendFaultScope {
+  if (status === 401 || status === 403) return "provider";
+  if (status === 422) return "message";
+  if (status === 429 || status === 408 || status >= 500) return "provider";
+  return "message";
 }
 
 function reasonFor(status: number): string {
@@ -212,10 +231,16 @@ export function interpretEmailResponse(status: number, body: unknown): SendOutco
       status: "refused",
       reason: "The email provider accepted the message without returning an identifier.",
       retryable: true,
+      faultScope: "provider",
     };
   }
 
-  return { status: "refused", reason: reasonFor(status), retryable: retryableStatus(status) };
+  return {
+    status: "refused",
+    reason: reasonFor(status),
+    retryable: retryableStatus(status),
+    faultScope: faultScopeFor(status),
+  };
 }
 
 /**
@@ -237,7 +262,12 @@ export function createEmailProvider(
       const addressed = config.recipientOverride ?? message.recipient;
 
       if (!looksLikeAnEmailAddress(addressed)) {
-        return { status: "refused", reason: NO_USABLE_EMAIL_REASON, retryable: false };
+        return {
+          status: "refused",
+          reason: NO_USABLE_EMAIL_REASON,
+          retryable: false,
+          faultScope: "recipient",
+        };
       }
 
       const controller = new AbortController();
@@ -274,6 +304,7 @@ export function createEmailProvider(
             ? "The email provider did not answer within the time allowed. This will be attempted again."
             : "The email provider could not be reached. This will be attempted again.",
           retryable: true,
+          faultScope: "provider",
         };
       } finally {
         clearTimeout(timer);

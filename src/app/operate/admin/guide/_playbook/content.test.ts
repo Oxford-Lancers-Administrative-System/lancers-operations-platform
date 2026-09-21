@@ -13,10 +13,14 @@
  *     verbatim in the application's own source, outside this folder;
  *   * every link under "Where to look" points at a route that exists;
  *   * the seat table is a projection of `capabilities.ts` and holds no data of
- *     its own; and
- *   * the one exemption — LAN-394's safety controls, described ahead of their
- *     merge on Brian's instruction — is held to being genuinely unmerged, so
- *     it deletes itself the day PR 195 lands.
+ *     its own.
+ *
+ * This file briefly carried a fourth family. The Messaging page was written
+ * against LAN-394 before it merged, and the three labels it quoted from that
+ * branch were exempted — with the exemption asserted to be genuinely absent
+ * from `src/`, so that the merge broke the test instead of leaving a stale
+ * caveat on the page. PR 195 merged, the assertion failed, and the exemption
+ * was deleted. That is what the mechanism was for.
  *
  * Plus the house prohibitions: no first person, no marketing, no personal data.
  */
@@ -164,8 +168,7 @@ describe("every quoted claim is true of the application", () => {
     ),
   );
 
-  it.each(rows)("%s", (_name, page, text) => {
-    if (page.unverifiedClaims?.includes(text)) return;
+  it.each(rows)("%s", (_name, _page, text) => {
     expect(APPLICATION_SOURCE).toContain(text);
   });
 
@@ -176,39 +179,8 @@ describe("every quoted claim is true of the application", () => {
   it("reads the application and not itself", () => {
     // The assertion above is worthless if the corpus includes the pages making
     // the claims. This is the guard on the guard.
-    expect(APPLICATION_SOURCE).not.toContain("unverifiedClaims");
+    expect(APPLICATION_SOURCE).not.toContain("PLAYBOOK_TITLE =");
     expect(APPLICATION_SOURCE).toContain("gateShellPage");
-  });
-});
-
-describe("the one exemption deletes itself when its branch merges", () => {
-  const exempt = PLAYBOOK_PAGES.flatMap((page) =>
-    (page.unverifiedClaims ?? []).map((text) => [page.slug, text] as [string, string]),
-  );
-
-  it("is LAN-394's messaging safety section and nothing else", () => {
-    expect(exempt.map(([slug]) => slug)).toEqual(["messaging", "messaging", "messaging"]);
-  });
-
-  it.each(exempt)("%s: %s is actually used on the page", (slug, text) => {
-    const page = playbookPage(slug);
-    expect(quotedClaims(page!).map((claim) => claim.text)).toContain(text);
-  });
-
-  it.each(exempt)("%s: %s is still absent from the application", (_slug, text) => {
-    // When PR 195 merges this fails, and the fix is to delete the entry —
-    // which is the only way an exemption stops being a permanent hole.
-    expect(APPLICATION_SOURCE).not.toContain(text);
-  });
-
-  it("says so on the page as well as in the pull request", () => {
-    const messaging = playbookPage("messaging");
-    expect(messaging?.notYetMerged).toBeDefined();
-    expect(runsToText(messaging!.notYetMerged!)).toMatch(/ahead of its release/);
-    for (const page of PLAYBOOK_PAGES) {
-      if (page.slug === "messaging") continue;
-      expect(page.notYetMerged, page.slug).toBeUndefined();
-    }
   });
 });
 
@@ -277,7 +249,6 @@ describe("the house prohibitions on what this copy may say", () => {
       ]),
       ...page.rules.map((rule) => `${rule.label} ${runsToText(rule.fact)}`),
       ...page.whereToLook.map((lookup) => `${lookup.label} ${runsToText(lookup.shows)}`),
-      page.notYetMerged ? runsToText(page.notYetMerged) : "",
     ].join(" "),
   ).join("\n");
 

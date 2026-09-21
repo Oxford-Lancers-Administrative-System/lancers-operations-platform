@@ -62,15 +62,16 @@
  * | Person record authority   | President, VP, Secretary, General Manager      | Brian, 28 Aug 2026 |
  * | Roster bulk import        | The four offices, plus General Manager         | W1, Brian 1 Sep 2026 |
  * | Person erasure            | President, VP, Secretary, General Manager      | Brian, 16 Sep 2026 |
+ * | Messaging safety          | President, VP, Secretary, General Manager      | Brian, 17 Sep 2026 |
  * | Operator playbook         | President, VP, Secretary, General Manager      | Brian, 21 Sep 2026 |
  *
- * **Every capability above also lists `it_officer`, except the last two.**
+ * **Every capability above also lists `it_officer`, except the last three.**
  * Brian decided on 15 August 2026 (LAN-124) that the IT Officer is the club's
  * administrative seat and holds every privileged action in the slice. That is
  * an administrative grant rather than a demonstration affordance:
- * `role_management` was held by nobody at all. `person_erasure` (LAN-361) and
- * `operator_guide` (LAN-399) are the two deliberate exceptions, each recorded
- * on its own entry below.
+ * `role_management` was held by nobody at all. `person_erasure` (LAN-361),
+ * `messaging_safety_authority` (LAN-394) and `operator_guide` (LAN-399) are the
+ * three deliberate exceptions, each recorded on its own entry below.
  *
  * `role_management` is no longer the IT Officer's alone. Brian widened it on 18
  * August 2026 (`DEC-role-management-authority`) to the President, the General
@@ -110,6 +111,7 @@ export type CapabilityKey =
   | "person_record_authority"
   | "roster_bulk_import"
   | "person_erasure"
+  | "messaging_safety_authority"
   | "operator_guide";
 
 export interface Capability {
@@ -743,6 +745,38 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   }),
 
   /**
+   * LAN-394. Stopping and restarting the club's outbound messaging.
+   *
+   * ## Why it is not `delivery_administration`
+   *
+   * That capability is the one the Messaging schedule page already sits on, and
+   * reusing it was the recommendation in the design. Brian narrowed it on 17
+   * September 2026: `delivery_administration` also grants the IT Officer, and
+   * deciding that the club stops talking to its members — or that it starts
+   * again after an emergency stop — is not an administrative act. It is the
+   * same reasoning that made `person_erasure` the first exception to the 15
+   * August 2026 rule that the administrative seat holds every capability here,
+   * and this is the second.
+   *
+   * The core four, and nobody else. The page itself stays on
+   * `delivery_administration`, so the IT Officer can still *read* what the
+   * safety state is — seeing that messaging is paused is how somebody
+   * diagnoses a deployment — and each control refuses them individually, which
+   * is the ordinary arrangement for a surface whose actions are narrower than
+   * its page.
+   */
+  messaging_safety_authority: capability({
+    key: "messaging_safety_authority",
+    action: "pause and resume the club's outbound messaging",
+    roleCodes: [...CORE_FOUR_ROLE_CODES],
+    decision:
+      "Brian, 17 September 2026 (LAN-394): the core four only. `delivery_administration` also " +
+      "grants the IT Officer, and stopping or restarting every message the club sends is not an " +
+      "administrative act — the same distinction LAN-361 drew for `person_erasure`. Reading the " +
+      "safety state stays on `delivery_administration` with the rest of the page.",
+  }),
+
+  /**
    * The Monday exception and action report — previewing it, generating a
    * snapshot, and reading a stored one.
    *
@@ -897,9 +931,10 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    * which screen an operator opens, what the app does between the steps, which
    * message goes to whom, and what each flow refuses. It grants no action.
    *
-   * It is the **second** capability the IT Officer does not hold, and the
-   * reason is not the one `person_erasure` has. Nothing here is dangerous to
-   * read; the audience is simply a decided one. Brian's decision of 21
+   * It is the **third** capability the IT Officer does not hold, and the reason
+   * is neither `person_erasure`'s nor `messaging_safety_authority`'s. Nothing
+   * here is dangerous to read and nothing here acts; the audience is simply a
+   * decided one. Brian's decision of 21
    * September 2026 names the core four — the seats that run the club's
    * workflows — and the guide is written to them, in their language, about the
    * work they do. Widening it is his, not an implementer's.
@@ -910,11 +945,12 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
     roleCodes: CORE_FOUR_ROLE_CODES,
     decision:
       'Brian, 21 September 2026 (LAN-399): "the audience is the core four" — President, ' +
-      "Vice-President, Secretary and General Manager. Like person_erasure and unlike every " +
-      "other entry here, it does not list it_officer: the 15 August 2026 (LAN-124) rule " +
-      "that the administrative seat holds every capability is about privileged acts, and " +
-      "this capability carries none. The existing How administration works page keeps its " +
-      "own role_management gate and is unaffected.",
+      "Vice-President, Secretary and General Manager. Like person_erasure and " +
+      "messaging_safety_authority, and unlike every other entry here, it does not list " +
+      "it_officer: the 15 August 2026 (LAN-124) rule that the administrative seat holds " +
+      "every capability is about privileged acts, and this capability carries none. The " +
+      "existing How administration works page keeps its own role_management gate and is " +
+      "unaffected.",
   }),
 
   roster_bulk_import: capability({

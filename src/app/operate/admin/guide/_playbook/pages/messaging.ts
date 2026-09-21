@@ -4,12 +4,15 @@ import type { PlaybookPage } from "../types";
 /**
  * Messaging — LAN-399.
  *
- * The one page in the playbook that describes work which has not merged. Brian
- * asked on 21 September 2026 for the safety controls to be written up now, "as
- * they will be once PR 195 merges, marked as such"; `notYetMerged` below is
- * that mark, and it is rendered on the page rather than buried in a pull
- * request. Everything else here is read off `src/lib/delivery/**`,
- * `messaging-schedule/**` and `messaging-consent.ts` on this branch.
+ * This page was written against LAN-394 before it merged, on Brian's
+ * instruction, and carried a "Not yet released" band and three exempted labels
+ * while PR 195 was open. PR 195 merged on 21 September 2026 and the exemption
+ * was deleted, which is what it was built to do: `content.test.ts` asserted
+ * that each exempted label was still *absent* from `src/`, so the merge failed
+ * the test rather than leaving a stale caveat on the page.
+ *
+ * Everything here is now read off `src/lib/delivery/**`,
+ * `messaging-schedule/**`, `messaging-safety/**` and `messaging-consent.ts`.
  */
 export const MESSAGING_PAGE: PlaybookPage = {
   slug: "messaging",
@@ -198,17 +201,4 @@ export const MESSAGING_PAGE: PlaybookPage = {
       shows: ["Whether somebody is reachable at all, and why a chase is not scheduled."],
     },
   ],
-  notYetMerged: [
-    "The ",
-    screen("Messaging safety"),
-    " section — pacing, per-person holds, the emergency stop, and pause and resume — is described here ahead of its release. Until it ships, ",
-    screen("Messaging schedule"),
-    " ends at ",
-    screen("Event messaging"),
-    " and there is no pause control on it. Everything else on this page is live.",
-  ],
-  // LAN-394, PR 195. Delete each line the day it merges — `content.test.ts`
-  // fails on an entry it can find in `src/`, so the list cannot outlive the
-  // branch.
-  unverifiedClaims: ["Messaging safety", "Pause messaging", "Resume messaging"],
 };

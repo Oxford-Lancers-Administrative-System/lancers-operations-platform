@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { sendEventChases } from "@/lib/services/messaging-scheduler";
+import { WAITING_ALLOWANCE_LABEL } from "@/lib/services/messaging-safety";
 import { CHASE_NOBODY_SELECTED, CHASE_REFUSAL_UNRECORDED, NOT_CHASEABLE } from "./presentation";
 
 /**
@@ -23,6 +24,8 @@ export interface ChaseActionResult {
   readonly accepted: number;
   /** Named on the row rather than counted — the screen holds the names, so it says them. */
   readonly refusals: readonly ChaseRefusal[];
+  /** LAN-394. Chases that exist and are waiting on the sending allowance. */
+  readonly waiting: readonly ChaseRefusal[];
   readonly notOutstandingInvitationIds: readonly string[];
 }
 
@@ -44,6 +47,7 @@ interface ChaseRefusal {
 const EMPTY: Omit<ChaseActionResult, "error"> = Object.freeze({
   accepted: 0,
   refusals: Object.freeze([]),
+  waiting: Object.freeze([]),
   notOutstandingInvitationIds: Object.freeze([]),
 });
 
@@ -65,6 +69,15 @@ export async function chaseSelectedAction(
     return {
       error: null,
       accepted: results.filter((result) => result.outcome === "accepted").length,
+      // LAN-394. Counted apart from both accepted and refused. The chase job
+      // exists and is waiting on the sending allowance; the invitee's link is
+      // untouched and no attempt was spent.
+      waiting: results
+        .filter((result) => result.outcome === "deferred")
+        .map((result) => ({
+          invitationId: result.invitationId,
+          reason: result.reason ?? WAITING_ALLOWANCE_LABEL,
+        })),
       // A recruit refused for `REQ-never-harsh` and a person the provider
       // would not take are both refusals to the operator: nothing was sent,
       // and the row says so.

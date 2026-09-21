@@ -45,7 +45,12 @@ import { listAudienceCatalogueIn } from "./event-audience";
 import { createEventDraft, type EventDraftInput } from "./events";
 import { withTransaction } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
-import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+  seededIdentityCreatedAt,
+} from "../../../tests/helpers/service-layer";
 import { readSeasonMessagingConsentIn } from "./messaging-consent";
 import { dispatchRecruitmentCycleJob } from "./messaging-scheduler";
 import { SINK_DIRECTORY, type SinkRecord } from "@/lib/delivery/local-sink";
@@ -95,6 +100,8 @@ beforeAll(async () => {
  * the scope expressible at all.
  */
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const scope = `${NAME_MARKER}%`;
   const events = "(select id from public.events where name like $1)";
   await observer.query(

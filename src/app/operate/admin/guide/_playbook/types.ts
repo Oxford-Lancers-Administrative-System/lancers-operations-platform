@@ -72,25 +72,6 @@ export interface PlaybookPage {
   readonly steps: readonly PlaybookStep[];
   readonly rules: readonly PlaybookRule[];
   readonly whereToLook: readonly PlaybookLookup[];
-  /**
-   * Something the page states that the application does not do yet.
-   *
-   * Exactly one page carries one: Messaging describes LAN-394's safety controls
-   * ahead of their merge, on Brian's instruction, and says so on the page
-   * rather than only in a pull request nobody reads afterwards.
-   */
-  readonly notYetMerged?: readonly GuideRun[];
-  /**
-   * Quoted claims `content.test.ts` may not find in `src/`, because the code
-   * that carries them has not merged yet.
-   *
-   * It is an allowlist with a short life. The test asserts both halves: that
-   * each entry really is used somewhere on this page, and that each entry
-   * really is absent from `src/`. The day the branch carrying it merges, the
-   * second assertion fails and the entry is deleted — which is the only way an
-   * exemption like this stops being a hole.
-   */
-  readonly unverifiedClaims?: readonly string[];
 }
 
 /** Flattens a run list to plain text, for assertions and for the index. */
@@ -127,7 +108,6 @@ export function quotedClaims(
   }
   for (const rule of page.rules) walk(rule.fact);
   for (const lookup of page.whereToLook) walk(lookup.shows);
-  if (page.notYetMerged) walk(page.notYetMerged);
 
   return claims;
 }

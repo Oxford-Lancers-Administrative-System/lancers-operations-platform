@@ -38,7 +38,11 @@ import {
 } from "./delivery";
 import { readFollowUpsQueue, countPeople } from "./follow-ups";
 import { sendEventChases } from "./messaging-scheduler";
-import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import {
+  clearRecipientSafetyState,
+  openObserver,
+  seededIdentityCreatedAt,
+} from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN173FollowUpsSuite";
 
@@ -128,6 +132,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const scope = `${MARKER}%`;
   const events = "(select id from public.events where name like $1)";
   const jobs = `(select id from public.notification_jobs where event_id in ${events})`;

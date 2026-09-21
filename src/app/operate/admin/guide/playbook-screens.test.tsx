@@ -220,22 +220,6 @@ describe("a workflow page", () => {
       "/operate/admin/guide/workflows",
     );
   });
-
-  it("marks the one page that describes work not yet released", async () => {
-    await renderWorkflow("messaging");
-
-    expect(screen.getByTestId("section-playbook-not-yet-merged")).toBeVisible();
-  });
-
-  it("does not mark the other seven", async () => {
-    for (const page of PLAYBOOK_PAGES) {
-      if (page.slug === "messaging") continue;
-      signedInAs("general_manager");
-      const { unmount } = await renderWorkflow(page.slug);
-      expect(screen.queryByTestId("section-playbook-not-yet-merged"), page.slug).toBeNull();
-      unmount();
-    }
-  });
 });
 
 describe("the seat table", () => {

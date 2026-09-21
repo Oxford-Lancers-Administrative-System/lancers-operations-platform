@@ -57,7 +57,8 @@ export default function SendQuestionnaireButton({
     error: string | null;
     created: readonly string[];
     reason: string | null;
-    delivery?: "accepted" | "refused" | "skipped";
+    delivery?: "accepted" | "refused" | "skipped" | "deferred";
+    waitingUntil?: Date | null;
   } | null>(null);
 
   function confirm() {
@@ -105,14 +106,25 @@ export default function SendQuestionnaireButton({
             ) : null}
             {slot.showing && result && !result.error && result.delivery ? (
               <Notice
-                severity={result.delivery === "accepted" ? "success" : "warning"}
+                severity={
+                  result.delivery === "accepted"
+                    ? "success"
+                    : result.delivery === "deferred"
+                      ? "info"
+                      : "warning"
+                }
                 testId={`recruitment-send-${track}-delivery`}
               >
                 {result.delivery === "accepted"
                   ? "Sent."
-                  : result.delivery === "refused"
-                    ? "Not sent — delivery could not be completed."
-                    : "Not sent — delivery is already in progress or this questionnaire is no longer eligible."}
+                  : // LAN-394. Queued, not failed: the ask exists, its job is
+                    // waiting on the club's sending allowance, and nothing the
+                    // recruit already holds has been superseded.
+                    result.delivery === "deferred"
+                    ? "Queued — waiting for the sending allowance."
+                    : result.delivery === "refused"
+                      ? "Not sent — delivery could not be completed."
+                      : "Not sent — delivery is already in progress or this questionnaire is no longer eligible."}
               </Notice>
             ) : null}
             {slot.showing &&

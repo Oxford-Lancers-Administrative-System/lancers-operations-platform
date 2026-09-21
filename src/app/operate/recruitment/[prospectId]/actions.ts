@@ -49,7 +49,10 @@ export async function sendRecruitmentQuestionnaireAction(params: {
 }): Promise<
   RecruitmentActionState & {
     created: readonly string[];
-    delivery?: "accepted" | "refused" | "skipped";
+    /** LAN-394 added `deferred`: declared and queued behind the sending allowance. */
+    delivery?: "accepted" | "refused" | "skipped" | "deferred";
+    /** LAN-394. When the guard expects to let it through, where that is knowable. */
+    waitingUntil?: Date | null;
     reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
   }
 > {
@@ -66,6 +69,7 @@ export async function sendRecruitmentQuestionnaireAction(params: {
       created: result.created,
       reason: result.reason,
       delivery: result.delivery,
+      waitingUntil: result.waitingUntil ?? null,
     };
   } catch (error) {
     return { ...stateFor(error), created: [], reason: null };

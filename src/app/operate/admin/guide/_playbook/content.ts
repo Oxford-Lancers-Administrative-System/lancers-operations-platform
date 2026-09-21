@@ -27,7 +27,6 @@ export const BAND_HEADINGS = Object.freeze({
   steps: "The steps",
   rules: "The rules",
   whereToLook: "Where to look",
-  notYetMerged: "Not yet released",
   capabilities: "What each seat may do",
 } as const);
 

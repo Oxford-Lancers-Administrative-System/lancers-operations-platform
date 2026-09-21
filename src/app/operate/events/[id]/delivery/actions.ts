@@ -37,6 +37,18 @@ export async function retryDeliveryAction(
 
   revalidatePath(`/operate/events/${eventId}/delivery`);
 
+  // LAN-394. Three answers, not two. A retry the messaging safety guard
+  // deferred was never offered to the provider: no attempt was spent, no link
+  // was superseded, and the invitation is queued. Saying "the provider did not
+  // accept this" about it would be false, and would invite a second press that
+  // achieves nothing.
+  if (outcome === "deferred") {
+    return {
+      error: null,
+      notice: "Queued — waiting for the sending allowance. Nothing was sent yet.",
+    };
+  }
+
   // "Failures are safely visible" — reporting a refused attempt as success would break it.
   return {
     error:
@@ -64,6 +76,18 @@ export async function revokeAndReissueAction(
   }
 
   revalidatePath(`/operate/events/${eventId}/delivery`);
+
+  // LAN-394. Revocation is an explicit security act and it has happened: the
+  // old link is dead either way. What changes is the truth about the
+  // replacement — waiting, not refused — and the operator is told both halves.
+  if (outcome === "deferred") {
+    return {
+      error: null,
+      notice:
+        "The previous link has been withdrawn. The replacement is queued — waiting for the " +
+        "sending allowance.",
+    };
+  }
 
   // Revocation happens first, so a refused send leaves no working link — the more destructive control gets the more honest answer.
   return {

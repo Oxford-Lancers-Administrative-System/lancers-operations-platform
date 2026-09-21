@@ -687,6 +687,71 @@ limits.
 gcloud run services logs read lancers-operations-platform --region europe-west2 --limit 100
 ```
 
+## Messaging safety alerting — LAN-394
+
+Two alert policies, created by hand in Cloud Monitoring. Nothing in this
+repository touches GCP, and neither policy needs a secret, an IAM grant or a
+service account.
+
+### Why alerting is a log line and not a message
+
+Everything else the club sends goes through the queue this feature exists to
+stop. An alert that told somebody by message that messaging had paused would be
+the one thing the pause guaranteed nobody received. So the route out is the one
+thing a paused queue cannot affect: structured JSON on stdout, which Cloud Run
+already captures.
+
+Every line carries a scope category, a safe reason code, aggregate counts and
+the admin page's path — and nothing else, ever. No phone number, no email
+address, no name, no person id, no destination fingerprint, no token URL, no
+message body, and no operator's typed reason. The durable status is the
+**Messaging safety** section of `/operate/admin/messaging`, which reads the
+database; these lines exist so that somebody is _told_, not so that being told
+is the mechanism anything depends on.
+
+### Policy 1 — an incident opened
+
+Cloud Monitoring → Alerting → **Create policy** → **Log-based alert**, in the
+project that runs Cloud Run.
+
+| Field                   | Value                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| Log query               | `resource.type="cloud_run_revision" jsonPayload.event="messaging_safety_incident"` |
+| Policy name             | `Messaging safety incident`                                                        |
+| Notification rate limit | one per 5 minutes                                                                  |
+| Incident autoclose      | 1 hour                                                                             |
+| Notification channel    | an email channel holding the President and the General Manager                     |
+| Documentation           | `/operate/admin/messaging`                                                         |
+
+That one query covers all four things the club is told about: the global
+emergency stop, the 80% capacity warning, the queue warning and a provider
+cooldown. Each line's `kind`, `phase` (`open`, `still_open`, `recovered`) and
+`counts` say which and how bad. An incident that stays open is re-reported at
+most once an hour, and a recovery line is emitted when the condition clears.
+
+### Policy 2 — the scheduler has gone silent
+
+A scheduler that has stopped sends nothing, holds nothing back and produces no
+incident at all, so a route that only reported incidents would report perfect
+health. The sweep therefore writes a heartbeat on **every** tick, whatever it
+did, and the second policy alerts on that line's _absence_.
+
+| Field                | Value                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| Log-based counter    | `resource.type="cloud_run_revision" jsonPayload.event="messaging_safety_heartbeat"` |
+| Condition            | metric **absent** for 30 minutes (the scheduler ticks every 5)                      |
+| Policy name          | `Messaging scheduler silent`                                                        |
+| Notification channel | the same email channel                                                              |
+
+### After creating them
+
+Send a test notification from the Monitoring console and confirm it arrives.
+Notification delivery is never guaranteed — a channel can bounce and a policy
+can be mis-filtered — which is why the operator page remains the durable status
+and this is a courtesy on top of it. Check
+[current observability pricing](https://cloud.google.com/products/observability/pricing)
+at the time of setup rather than assuming these are free.
+
 ## The public hostname — Firebase Hosting in front of Cloud Run
 
 `https://app.oxfordlancers.com` is **not** served by Cloud Run directly. Firebase
