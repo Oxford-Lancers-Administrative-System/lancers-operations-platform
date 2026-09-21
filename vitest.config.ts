@@ -140,6 +140,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/schema-operator-accounts.test.ts",
   "tests/schema-recruitment.test.ts",
   "tests/schema-restricted-fields.test.ts",
+  "tests/schema-roster-vocabulary.test.ts",
   "tests/schema-rsvp-delivery.test.ts",
   "tests/schema-security.test.ts",
   "tests/seed-onboarding-chase.test.ts",

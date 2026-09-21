@@ -420,6 +420,18 @@ const VOCAB_2026 = {
     ["KR", "Kick Return", "special_teams"],
     ["PUNT", "Punt", "special_teams"],
     ["FG", "Field Goal", "special_teams"],
+    // LAN-401 — Stewart's sided line codes. Last in the list rather than
+    // beside `T` and `G`, so no existing code's `sort_order` moves. That is
+    // also what the migration does to a live vocabulary: each new code lands
+    // past every row already there, and so at the end of its own side, which
+    // is the only ordering the board reads. `T` and `G` stay (Brian,
+    // 2026-09-21) — a coach who means "a guard, either side" still has a word
+    // for it. `DT` and `DE` are already above; this vocabulary always held
+    // them, and it is the production baseline that gains them.
+    ["LG", "Left Guard", "offence"],
+    ["RG", "Right Guard", "offence"],
+    ["LT", "Left Tackle", "offence"],
+    ["RT", "Right Tackle", "offence"],
   ],
 };
 

@@ -29,6 +29,28 @@ const BASELINE_SQL = readFileSync(
   "utf8",
 );
 
+/**
+ * How many positions the file seats, counted from the file itself — LAN-401.
+ *
+ * It was written down here as well until Stewart's vocabulary corrections
+ * showed what that costs: the baseline is an owner-run production procedure
+ * that agents may not edit, so its diff lands by Brian's hand, on his clock,
+ * and a number typed twice means the suite is wrong on one side of that moment
+ * whichever way it is set. Counted, it is right on both.
+ */
+const BASELINE_POSITION_COUNT = (() => {
+  const block = BASELINE_SQL.match(
+    /insert into public\.positions[\s\S]*?cross join \(values([\s\S]*?)\) as p\(/,
+  );
+  if (!block) {
+    throw new Error(
+      "The baseline's positions insert no longer has the `cross join (values …) as p(` shape " +
+        "this suite counts its rows from.",
+    );
+  }
+  return (block[1].match(/^\s*\('/gm) ?? []).length;
+})();
+
 const VOCAB_CODE = "oulafc_2026";
 const SEASON_LABEL = "2026–27";
 const COMMITTEE_LABEL = "2026–27";
@@ -293,14 +315,14 @@ describe("the 2026–27 production baseline, run against local Supabase", () => 
     const counts = await verificationCounts();
     expect(counts).toEqual({
       vocabularies: 1,
-      positions: 18,
+      positions: BASELINE_POSITION_COUNT,
       activeSeasons: 1,
       terms: 3,
       openCommitteeYears: 1,
     });
   });
 
-  it("seats the four special-teams positions among the eighteen", async () => {
+  it("seats the four special-teams positions last in the vocabulary", async () => {
     const { rows } = await client.query<{ code: string; sort_order: number }>(
       `select code, sort_order from public.positions
         where vocabulary_id = (select id from public.position_vocabularies where code = $1)
