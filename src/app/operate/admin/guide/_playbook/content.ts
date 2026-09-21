@@ -6,6 +6,10 @@
  * and then the things that hold it together (People and data, Operators and
  * roles, Reports). An operator reading top to bottom reads the season.
  */
+import { EVENTS_PAGE } from "./pages/events";
+import { MESSAGING_PAGE } from "./pages/messaging";
+import { ONBOARDING_PAGE } from "./pages/onboarding";
+import { RECRUITMENT_PAGE } from "./pages/recruitment";
 import type { PlaybookPage } from "./types";
 
 /** The index page's own words. */
@@ -31,7 +35,12 @@ export const ADMINISTRATION_GUIDE_LINK = Object.freeze({
     "The step-by-step answers for each administrative act, and what each account state means.",
 });
 
-export const PLAYBOOK_PAGES: readonly PlaybookPage[] = Object.freeze([]);
+export const PLAYBOOK_PAGES: readonly PlaybookPage[] = Object.freeze([
+  RECRUITMENT_PAGE,
+  ONBOARDING_PAGE,
+  EVENTS_PAGE,
+  MESSAGING_PAGE,
+]);
 
 export function playbookPage(slug: string): PlaybookPage | undefined {
   return PLAYBOOK_PAGES.find((page) => page.slug === slug);

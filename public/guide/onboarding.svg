@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1008 932" width="1008" height="932" role="img" aria-labelledby="diagram-title" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title id="diagram-title">How a new member becomes Active</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5A5754" />
+    </marker>
+  </defs>
+  <rect width="1008" height="932" fill="#F6F5F2" />
+  <g>
+    <rect x="20" y="20" width="26" height="14" rx="3.5" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="52" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">State</text>
+    <rect x="152" y="20" width="26" height="14" rx="3.5" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="184" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Operator acts</text>
+    <rect x="284" y="20" width="26" height="14" rx="3.5" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="316" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">App acts</text>
+    <polygon points="429,20 442,27 429,34 416,27" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="448" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Decision</text>
+    <polygon points="551.12,20 574,20 570.88,34 548,34" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="580" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Message sent</text>
+    <rect x="680" y="20" width="26" height="14" rx="7" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="712" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">End</text>
+  </g>
+  <g>
+    <polyline points="122,134 122,204" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="122,262 122,332" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="297" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Automatic</text>
+    <polyline points="122,390 122,460" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="425" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Link in the message</text>
+    <polyline points="122,518 122,578" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="224,617 340,617" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="282" y="617" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Yes</text>
+    <polyline points="544,617 926,617 926,489 224,489" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="575" y="489" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Until the cap</text>
+    <polyline points="544,617 660,617" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="602" y="617" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Cap spent</text>
+    <polyline points="122,656 122,716" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="686" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">No</text>
+    <polyline points="122,774 122,844" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="802" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Operator sets</text>
+    <text x="122" y="816" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Active</text>
+  </g>
+  <g>
+    <rect x="20" y="76" width="204" height="58" rx="8" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="122" y="97" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Recruit joins, player</text>
+    <text x="122" y="113" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">added, or file imported</text>
+    <rect x="20" y="204" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="233" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Onboarding</text>
+    <polygon points="34,332 224,332 210,390 20,390" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="122" y="361" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Onboarding welcome</text>
+    <rect x="20" y="460" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="473" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Five steps: details,</text>
+    <text x="122" y="489" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Code of Conduct, photo</text>
+    <text x="122" y="505" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">release, BUCS Play, Hudl</text>
+    <polygon points="122,578 224,617 122,656 20,617" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="122" y="617" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Anything outstanding?</text>
+    <polygon points="354,588 544,588 530,646 340,646" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="442" y="617" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Chase</text>
+    <polygon points="674,588 864,588 850,646 660,646" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="762" y="609" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Escalation to</text>
+    <text x="762" y="625" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">the President</text>
+    <rect x="20" y="716" width="204" height="58" rx="8" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="737" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Operator resolves the</text>
+    <text x="122" y="753" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">onboarding items</text>
+    <rect x="20" y="844" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="873" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Active</text>
+  </g>
+</svg>
