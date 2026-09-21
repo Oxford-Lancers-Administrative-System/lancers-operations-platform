@@ -13,11 +13,12 @@ import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitme
 export type Band = "person" | "recruitment" | `events:${string}`;
 type BandKind = "person" | "recruitment" | "events";
 
-const BAND_COLOURS: Readonly<Record<"person" | "recruitment", { header: string; tint: string }>> =
-  Object.freeze({
-    person: CLUB_BANDS.person,
-    recruitment: CLUB_BANDS.recruitment,
-  });
+const BAND_COLOURS: Readonly<
+  Record<"person" | "recruitment", { header: string; tint: string; solid: string }>
+> = Object.freeze({
+  person: CLUB_BANDS.person,
+  recruitment: CLUB_BANDS.recruitment,
+});
 
 /** The Events band reuses the Season band's own blue, `W1`'s own reasoning. */
 const EVENTS_BAND_COLOUR = CLUB_BANDS.season;
@@ -32,7 +33,7 @@ function bandKind(band: Band): BandKind {
 }
 
 /** The colours for a band value — `person`/`recruitment`'s own, or the one shared events blue. */
-export function bandColour(band: Band): { header: string; tint: string } {
+export function bandColour(band: Band): { header: string; tint: string; solid: string } {
   const kind = bandKind(band);
   return kind === "events" ? EVENTS_BAND_COLOUR : BAND_COLOURS[kind];
 }
@@ -52,6 +53,61 @@ export interface ColumnDef {
   readonly width: number;
   readonly sortable: boolean;
   readonly filterable: boolean;
+  /** Not a column: the one narrow cell a folded-away group leaves behind — LAN-404, the roster board's own idiom. */
+  readonly placeholder?: true;
+}
+
+/**
+ * Which groups this operator has folded away — LAN-404, from the same ask
+ * LAN-387 answered on the roster board. Stewart, on the call of 2026-09-21:
+ * "Well, any version of the roster should" have it.
+ *
+ * `undefined` is "they have never touched it". Nothing is closed by default:
+ * the roster's rule is that the long tail closes and the facts an operator
+ * came for stay open, and this board has no long tail — Person and
+ * Recruitment are its subject, and every events group is one event somebody
+ * put on the board deliberately.
+ *
+ * A stored name that is no longer a group — an event since deleted — is
+ * dropped rather than refused, exactly as the roster board drops one.
+ */
+export function collapsedBandsFrom(
+  stored: readonly string[] | undefined,
+  columns: readonly ColumnDef[],
+): ReadonlySet<Band> {
+  if (stored === undefined) return new Set();
+  const known = new Set<string>(columns.map((column) => column.band));
+  return new Set(stored.filter((key): key is Band => known.has(key)));
+}
+
+/** The single cell a folded-away group occupies — its name written down it, and one click brings the columns back. */
+function collapsedPlaceholder(band: Band): ColumnDef {
+  return Object.freeze({
+    key: `group:${band}`,
+    label: "",
+    band,
+    edit: "none" as const,
+    width: 28,
+    sortable: false,
+    filterable: false,
+    placeholder: true as const,
+  });
+}
+
+/** The columns actually drawn: a folded-away group contributes one placeholder instead of its own columns. */
+export function displayColumns(
+  columns: readonly ColumnDef[],
+  collapsed: ReadonlySet<Band>,
+): readonly ColumnDef[] {
+  const drawn: ColumnDef[] = [];
+  for (const column of columns) {
+    if (!collapsed.has(column.band)) {
+      drawn.push(column);
+      continue;
+    }
+    if (drawn.at(-1)?.band !== column.band) drawn.push(collapsedPlaceholder(column.band));
+  }
+  return drawn;
 }
 
 /** `W1`'s own column table. Person band first, then Recruitment — do not invent a column. */

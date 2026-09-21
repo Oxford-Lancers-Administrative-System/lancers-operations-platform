@@ -85,6 +85,12 @@ export function RecruitCell({
     borderRightColor: "background.paper",
   };
 
+  // LAN-404: a folded-away group leaves one narrow, empty body cell, exactly
+  // as it does on the roster board.
+  if (column.placeholder) {
+    return <TableCell sx={{ ...shell, p: 0 }} />;
+  }
+
   if (column.key === "status") {
     return (
       <TableCell sx={shell}>

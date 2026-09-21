@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import ButtonBase from "@mui/material/ButtonBase";
 import Chip from "@mui/material/Chip";
 import Drawer from "@mui/material/Drawer";
 import Link from "@mui/material/Link";
@@ -30,7 +31,11 @@ import {
 // The gutter is defined once, on the board it was reported against (LAN-395),
 // and shared rather than copied: two boards drawing different reserves would
 // be the bug back again on whichever one was missed.
-import { BOARD_SCROLLBAR_GUTTER_PX } from "../roster/board-columns";
+import {
+  BOARD_SCROLLBAR_GUTTER_PX,
+  COLLAPSED_LABEL_LINE_HEIGHT,
+  COLLAPSED_LABEL_MAX_HEIGHT,
+} from "../roster/board-columns";
 import {
   BAND_LABEL_INSET_PX,
   BAND_ROW_HEIGHT,
@@ -38,7 +43,10 @@ import {
   eventIdOfBand,
   RECRUIT_COLUMN_WIDTH,
   RECRUITMENT_COLUMNS,
+  collapsedBandsFrom,
+  displayColumns,
   eventColumns,
+  type Band,
   type ColumnDef,
 } from "./board-columns";
 import {
@@ -49,6 +57,10 @@ import {
   type BoardSort,
 } from "./board-data";
 import { filterChipLabel, labelForKey, RecruitCard, RecruitCell } from "./recruitment-board-cells";
+import { saveRecruitmentCollapsedGroupsAction } from "./group-preference-actions";
+
+/** The roster board's own debounce: folding three groups away is three clicks in about a second, and only the last state is worth storing. */
+const COLLAPSE_SAVE_DELAY_MS = 600;
 
 function buildUrl(base: string, params: URLSearchParams): string {
   const query = params.toString();
@@ -73,6 +85,7 @@ export default function RecruitmentBoardView({
   initialFilters,
   initialSortKey,
   initialSortDirection,
+  initialCollapsedGroups,
 }: {
   operatorPersonId: string;
   season: Season;
@@ -83,6 +96,8 @@ export default function RecruitmentBoardView({
   initialFilters: BoardFilters;
   initialSortKey: string | null;
   initialSortDirection: "asc" | "desc";
+  /** What this operator's account remembers about folded-away groups, or `undefined` where it remembers nothing (LAN-404). */
+  initialCollapsedGroups?: readonly string[] | undefined;
 }) {
   const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState<BoardFilters>(initialFilters);
@@ -97,7 +112,57 @@ export default function RecruitmentBoardView({
     () => new Map(events.map((event) => [event.eventId, event])),
     [events],
   );
-  const bandBoundaries = useMemo(() => bandBoundaryKeys(columns), [columns]);
+  /**
+   * Which groups are folded away — LAN-404. The band is the control, the
+   * folded group keeps one narrow cell with its name written down it, and the
+   * row height does not change: the roster board's answer, on this board.
+   */
+  const [collapsedBands, setCollapsedBands] = useState<ReadonlySet<Band>>(() =>
+    collapsedBandsFrom(initialCollapsedGroups, columns),
+  );
+  const toggleBand = useCallback((band: Band) => {
+    setCollapsedBands((current) => {
+      const next = new Set(current);
+      if (next.has(band)) next.delete(band);
+      else next.add(band);
+      return next;
+    });
+  }, []);
+
+  /**
+   * The stored preference, written behind the toggles rather than with them —
+   * the roster board's own arrangement. Nothing on screen waits for it: this
+   * board holds the truth while it is open, and a preference that failed to
+   * save is not worth interrupting an operator over.
+   */
+  const asArrived = useRef(true);
+  useEffect(() => {
+    // The state this board arrived holding is already what the account stores,
+    // so writing it back would be a write per page load.
+    if (asArrived.current) {
+      asArrived.current = false;
+      return;
+    }
+    const groups = [...collapsedBands];
+    const timer = setTimeout(
+      () => void saveRecruitmentCollapsedGroupsAction(groups),
+      COLLAPSE_SAVE_DELAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [collapsedBands]);
+
+  const drawn = useMemo(() => displayColumns(columns, collapsedBands), [columns, collapsedBands]);
+  /** One group's own name — the event's where the band is an event's, the fixed word otherwise. */
+  const bandLabel = useCallback(
+    (band: Band): string => {
+      const eventId = eventIdOfBand(band);
+      const event = eventId ? eventByBand.get(eventId) : undefined;
+      if (event) return `${event.name}${event.date ? ` · ${event.date}` : ""}`;
+      return band === "person" ? "Person" : "Recruitment";
+    },
+    [eventByBand],
+  );
+  const bandBoundaries = useMemo(() => bandBoundaryKeys(drawn), [drawn]);
 
   const visibleRows = useMemo(
     () => applyBoard(rows, { search, filters, sort }),
@@ -352,15 +417,9 @@ export default function RecruitmentBoardView({
                       p: 0,
                     }}
                   />
-                  {groupRuns(columns).map((run) => {
+                  {groupRuns(drawn).map((run) => {
                     const colours = bandColour(run.band);
-                    const eventId = eventIdOfBand(run.band);
-                    const event = eventId ? eventByBand.get(eventId) : undefined;
-                    const label = event
-                      ? `${event.name}${event.date ? ` · ${event.date}` : ""}`
-                      : run.band === "person"
-                        ? "Person"
-                        : "Recruitment";
+                    const folded = collapsedBands.has(run.band);
                     return (
                       <TableCell
                         key={run.band}
@@ -378,20 +437,46 @@ export default function RecruitmentBoardView({
                           borderRightColor: "background.paper",
                         }}
                       >
-                        <Typography
-                          variant="overline"
-                          component="span"
+                        {/* LAN-404: the band is the control, exactly as it is on the roster board. */}
+                        <ButtonBase
+                          onClick={() => toggleBand(run.band)}
+                          aria-expanded={!folded}
+                          aria-label={bandLabel(run.band)}
+                          data-testid={`band-toggle-${run.band}`}
                           sx={{
-                            fontWeight: 700,
-                            lineHeight: `${BAND_ROW_HEIGHT}px`,
                             position: "sticky",
                             left: RECRUIT_COLUMN_WIDTH + BAND_LABEL_INSET_PX,
-                            display: "inline-block",
-                            whiteSpace: "nowrap",
+                            color: "inherit",
+                            gap: 0.75,
+                            px: 0,
+                            height: BAND_ROW_HEIGHT,
                           }}
                         >
-                          {label}
-                        </Typography>
+                          <Box
+                            aria-hidden
+                            sx={{
+                              width: 7,
+                              height: 7,
+                              borderRight: "2px solid",
+                              borderBottom: "2px solid",
+                              borderColor: "inherit",
+                              transform: folded
+                                ? "rotate(-45deg)"
+                                : "translateY(-2px) rotate(45deg)",
+                            }}
+                          />
+                          <Typography
+                            variant="overline"
+                            component="span"
+                            sx={{
+                              fontWeight: 700,
+                              lineHeight: `${BAND_ROW_HEIGHT}px`,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {folded ? "" : bandLabel(run.band)}
+                          </Typography>
+                        </ButtonBase>
                       </TableCell>
                     );
                   })}
@@ -424,9 +509,51 @@ export default function RecruitmentBoardView({
                     </Typography>
                   </TableCell>
 
-                  {columns.map((column) => {
+                  {drawn.map((column) => {
                     const colours = bandColour(column.band);
                     const filtered = (filters[column.key] ?? "") !== "";
+                    if (column.placeholder) {
+                      // The roster board's own answer to a folded-away group:
+                      // the name written down the one narrow cell it leaves,
+                      // so two closed groups are never told apart by hue alone.
+                      return (
+                        <TableCell
+                          key={column.key}
+                          sx={{
+                            top: BAND_ROW_HEIGHT,
+                            bgcolor: colours.solid,
+                            minWidth: column.width,
+                            width: column.width,
+                            p: 0,
+                            verticalAlign: "bottom",
+                            borderRight: bandBoundaries.has(column.key) ? 2 : 0,
+                            borderRightColor: "background.paper",
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            component="span"
+                            data-testid={`band-collapsed-label-${column.band}`}
+                            sx={{
+                              display: "block",
+                              writingMode: "vertical-rl",
+                              transform: "rotate(180deg)",
+                              fontWeight: 700,
+                              fontSize: 10,
+                              letterSpacing: 0,
+                              lineHeight: `${COLLAPSED_LABEL_LINE_HEIGHT}px`,
+                              whiteSpace: "normal",
+                              overflow: "hidden",
+                              height: COLLAPSED_LABEL_MAX_HEIGHT,
+                              py: 0.5,
+                              mx: "auto",
+                            }}
+                          >
+                            {bandLabel(column.band)}
+                          </Typography>
+                        </TableCell>
+                      );
+                    }
                     return (
                       <TableCell
                         key={column.key}
@@ -515,7 +642,7 @@ export default function RecruitmentBoardView({
               <TableBody>
                 {visibleRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length + 1}>
+                    <TableCell colSpan={drawn.length + 1}>
                       <Typography
                         color="text.secondary"
                         sx={{ py: 3 }}
@@ -548,7 +675,7 @@ export default function RecruitmentBoardView({
                           {row.displayName}
                         </Link>
                       </TableCell>
-                      {columns.map((column) => (
+                      {drawn.map((column) => (
                         <RecruitCell
                           key={column.key}
                           row={row}
