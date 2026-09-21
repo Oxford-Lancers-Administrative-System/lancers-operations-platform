@@ -905,6 +905,25 @@ const vocab2023 = { id: uuid(), ...VOCAB_2023 };
 const vocab2026 = { id: uuid(), ...VOCAB_2026 };
 const positionByVocab = { [vocab2023.id]: {}, [vocab2026.id]: {} };
 
+/**
+ * LAN-401's own deterministic stream — a fourth, for exactly the reason
+ * `recruitId`, `onboardingItemTypeId` and `historyAndSelectionUuid` each have
+ * one.
+ *
+ * `uuid()` draws from the shared `random`, so every row added to an existing
+ * block ahead of a randomised section shifts every later draw by one. This
+ * issue added four position codes here and one warmup row per membership
+ * below, which between them moved the messaging block's own `weighted()` rolls
+ * far enough that `tests/synthetic-seed-messiness.test.ts` lost its manual
+ * recovery — the exact failure those three comments predict, reproduced in CI.
+ * Drawing LAN-401's ids from a stream of its own leaves the shared one byte
+ * for byte where it was.
+ */
+const lan401Uuid = makeUuidFactory(makeRandom(20260921));
+
+/** The codes Stewart's list added to the live vocabulary (LAN-401). Their ids come from `lan401Uuid`, never the shared stream. */
+const LAN401_POSITION_CODES = new Set(["LG", "RG", "LT", "RT"]);
+
 for (const vocab of [vocab2023, vocab2026]) {
   add("position_vocabularies", {
     id: vocab.id,
@@ -914,7 +933,14 @@ for (const vocab of [vocab2023, vocab2026]) {
     created_at: "2025-06-01T09:00:00Z",
   });
   vocab.positions.forEach(([code, label, side], order) => {
-    const position = { id: uuid(), vocabulary_id: vocab.id, code, label, side, sort_order: order };
+    const position = {
+      id: LAN401_POSITION_CODES.has(code) ? lan401Uuid() : uuid(),
+      vocabulary_id: vocab.id,
+      code,
+      label,
+      side,
+      sort_order: order,
+    };
     add("positions", position);
     positionByVocab[vocab.id][code] = position;
   });
@@ -1585,7 +1611,7 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
   ];
   if (i % 4 !== 3) {
     add("warmup_group_assignments", {
-      id: uuid(),
+      id: lan401Uuid(),
       season_membership_id: membership.id,
       season_id: seasonCurrent.id,
       small_group: WARMUP_SMALL_GROUPS[i % WARMUP_SMALL_GROUPS.length],
