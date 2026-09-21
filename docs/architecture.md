@@ -297,10 +297,12 @@ Four properties this arrangement is built to have, and which tests hold it to:
 An operator with no currently-effective seat is still a legitimate operator: they
 open the shell, and are refused each privileged action individually.
 
-**Three capabilities are narrower than every other, and deliberately exclude
-the IT Officer.** They are the only three exceptions to the 15 August 2026 rule
-that the administrative seat holds every capability in the map, and each was
-decided on its own.
+**Two capabilities are narrower than every other, and deliberately exclude the
+IT Officer.** `person_erasure` and `operator_guide` are the only two exceptions
+to the 15 August 2026 rule that the administrative seat holds every capability
+in the map, and each was decided on its own. A third narrow capability,
+`messaging_safety_authority`, is described below with them and no longer
+excludes that seat: LAN-407 granted it to the IT Officer on 2026-09-21.
 
 `person_erasure` (LAN-361, Brian 2026-09-16) is what lets an operator anonymise
 a person at their own request and export everything held about one. It is

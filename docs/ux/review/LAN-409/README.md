@@ -1,7 +1,9 @@
 # LAN-409 — Braces L and Braces R
 
 Taken at `2234707a` against the local production build, through the real login,
-at 1440×900 and 375×812 as measured from the browser context.
+at 1440×900 and 375×812 as measured from the browser context. That head is one
+merge behind the branch's tip: `main` came in again afterwards for LAN-399's
+operator playbook, which touches none of these screens.
 
 `desktop-record-kit.png` and `phone375-record-kit.png` are a membership record
 with every section folded except Kit. Braces L reads **Knee - L, Shoulder** and

@@ -1,7 +1,9 @@
 # LAN-404 — the recruitment board's groups fold
 
 Taken at `2234707a` against the local production build, through the real login,
-at 1440×900 and 375×812 as measured from the browser context.
+at 1440×900 and 375×812 as measured from the browser context. That head is one
+merge behind the branch's tip: `main` came in again afterwards for LAN-399's
+operator playbook, which touches none of these screens.
 
 `desktop-groups-open.png` and `phone375-groups-open.png` show the board as it
 arrives for an operator who has never touched the setting: nothing is closed,

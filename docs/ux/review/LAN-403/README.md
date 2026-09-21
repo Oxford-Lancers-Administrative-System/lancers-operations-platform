@@ -2,7 +2,9 @@
 
 Taken at `2234707a` against the local production build, through the real login,
 at the two widths `npm run visual:preflight` measures from the browser context
-itself: 1440×900 and 375×812.
+itself: 1440×900 and 375×812. That head is one merge behind the branch's tip:
+`main` came in again afterwards for LAN-399's operator playbook, which touches
+none of these screens.
 
 `desktop-record-default.png` and `phone375-record-default.png` are the record
 as an operator who has never touched the setting arrives at it. Every section
