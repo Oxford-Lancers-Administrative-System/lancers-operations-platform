@@ -9,7 +9,11 @@
 import { EVENTS_PAGE } from "./pages/events";
 import { MESSAGING_PAGE } from "./pages/messaging";
 import { ONBOARDING_PAGE } from "./pages/onboarding";
+import { OPERATORS_AND_ROLES_PAGE } from "./pages/operators-and-roles";
+import { PEOPLE_AND_DATA_PAGE } from "./pages/people-and-data";
 import { RECRUITMENT_PAGE } from "./pages/recruitment";
+import { REPORTS_PAGE } from "./pages/reports";
+import { ROSTER_PAGE } from "./pages/roster";
 import type { PlaybookPage } from "./types";
 
 /** The index page's own words. */
@@ -40,6 +44,10 @@ export const PLAYBOOK_PAGES: readonly PlaybookPage[] = Object.freeze([
   ONBOARDING_PAGE,
   EVENTS_PAGE,
   MESSAGING_PAGE,
+  ROSTER_PAGE,
+  PEOPLE_AND_DATA_PAGE,
+  OPERATORS_AND_ROLES_PAGE,
+  REPORTS_PAGE,
 ]);
 
 export function playbookPage(slug: string): PlaybookPage | undefined {
