@@ -46,6 +46,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     formalwear: { tie: false, bowtie: false },
     specialTeams: {},
     kit: {},
+    warmupSmallGroup: null,
     blues: "None",
     eligibility: null,
     availability: null,

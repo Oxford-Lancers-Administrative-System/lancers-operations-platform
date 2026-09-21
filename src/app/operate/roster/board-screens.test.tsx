@@ -132,6 +132,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     formalwear: { tie: false, bowtie: false },
     specialTeams: {},
     kit: {},
+    warmupSmallGroup: null,
     blues: "None",
     eligibility: null,
     availability: "green",
@@ -203,7 +204,7 @@ describe("the board itself", () => {
 
     expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27");
     expect(screen.getByTestId("season-label")).toHaveTextContent("1 player");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("66 columns");
+    expect(screen.getByTestId("season-label")).toHaveTextContent("67 columns");
   });
 
   it("groups the columns the way the 2026-09-16 call settled (LAN-387)", async () => {
@@ -246,6 +247,28 @@ describe("the board itself", () => {
     }
     expect(within(board).getAllByText("Starting Position")).toHaveLength(6);
     expect(within(board).getAllByText("Backup Position 3")).toHaveLength(6);
+  });
+
+  it("opens Warmup assignments closed, between Special teams and Kit (LAN-401)", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(within(board).queryByText("Small Group Assignment")).not.toBeInTheDocument();
+
+    const bands = within(board)
+      .getAllByTestId(/^band-toggle-/)
+      .map((element) => element.getAttribute("data-testid"));
+    expect(bands.indexOf("band-toggle-warmup")).toBeGreaterThan(
+      bands.indexOf("band-toggle-specialTeams"),
+    );
+    expect(bands.indexOf("band-toggle-warmup")).toBeLessThan(bands.indexOf("band-toggle-kit"));
+
+    await act(async () => {
+      fireEvent.click(within(board).getByTestId("band-toggle-warmup"));
+    });
+    expect(within(board).getByText("Warmup assignments")).toBeInTheDocument();
+    expect(within(board).getByText("Small Group Assignment")).toBeInTheDocument();
   });
 
   it("opens Kit closed and shows its columns once the group is expanded", async () => {
@@ -965,6 +988,9 @@ describe("which groups are folded away, remembered on the account", () => {
     expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]].sort()).toEqual([
       "coaching",
       "specialTeams",
+      // LAN-401's group arrives folded like the two either side of it, and
+      // stays folded through a toggle it was not part of.
+      "warmup",
     ]);
   });
 });

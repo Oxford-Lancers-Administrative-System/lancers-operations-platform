@@ -44,6 +44,7 @@ import {
   recordCommitPositionAction,
   recordCommitPositionGroupsAction,
   recordCommitKitItemAction,
+  recordCommitWarmupSmallGroupAction,
   recordCommitSpecialTeamsAssignmentAction,
   recordResolveOnboardingItemAction,
   recordSetStatusAction,
@@ -261,6 +262,13 @@ export default function PlayerRecordView({
             seasonId: record.seasonId,
             side: key === "offensivePositionGroups" ? "offence" : "defence",
             groups: next as string[],
+          });
+      case "warmupSmallGroup":
+        return () =>
+          recordCommitWarmupSmallGroupAction({
+            membershipId: record.membershipId,
+            seasonId: record.seasonId,
+            smallGroup: (next as string) || null,
           });
       case "formalwear":
         return () =>

@@ -67,6 +67,9 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return (Object.keys(row.formalwear) as (keyof typeof row.formalwear)[]).filter(
         (item) => row.formalwear[item],
       );
+    // LAN-401: the warmup group's one cell.
+    case "warmupSmallGroup":
+      return row.warmupSmallGroup;
     case "blues":
       return row.blues;
     case "eligibility":

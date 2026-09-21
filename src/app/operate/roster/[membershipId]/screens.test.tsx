@@ -58,6 +58,7 @@ vi.mock("./record-actions", () => ({
   recordCommitBluesAction: vi.fn().mockResolvedValue({ error: null }),
   recordCommitEligibilityAction: vi.fn().mockResolvedValue({ error: null }),
   recordCommitAvailabilityAction: vi.fn().mockResolvedValue({ error: null }),
+  recordCommitWarmupSmallGroupAction: vi.fn().mockResolvedValue({ error: null }),
   recordResolveOnboardingItemAction: vi.fn().mockResolvedValue({ error: null }),
   recordSendOnboardingQuestionnaireAction: vi
     .fn()
@@ -76,6 +77,7 @@ import type {
 } from "@/lib/services/player-record";
 import {
   recordCommitJerseyNumbersAction,
+  recordCommitWarmupSmallGroupAction,
   recordResolveOnboardingItemAction,
   recordSendOnboardingQuestionnaireAction,
   recordSetStatusAction,
@@ -145,6 +147,7 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
       formalwear: { tie: false, bowtie: false },
       specialTeams: {},
       kit: {},
+      warmupSmallGroup: null,
       blues: "None",
       eligibility: null,
       availability: null,
@@ -1789,12 +1792,13 @@ describe("which groups are folded away, remembered on the account", () => {
     vi.mocked(readOperatorPreferences).mockResolvedValue({});
   });
 
-  it("closes Special teams and Kit for an operator who has never said otherwise", async () => {
+  it("closes Special teams, Warmup assignments and Kit for an operator who has never said otherwise", async () => {
     givenRecord();
     render(await PlayerRecordPage(pageProps()));
 
     expect(screen.getByTestId("section-kit")).not.toHaveAttribute("open");
     expect(screen.getByTestId("section-special-teams")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-warmup")).not.toHaveAttribute("open");
   });
 
   it("opens the groups the account does not list", async () => {
@@ -1831,5 +1835,71 @@ describe("which groups are folded away, remembered on the account", () => {
       "coaching",
       "specialTeams",
     ]);
+  });
+});
+
+/**
+ * LAN-401 — Stewart's warmup small groups. One collapsible group of one cell,
+ * between Special teams assignments and Kit, editable by whoever may edit a
+ * position today and by nobody else.
+ */
+describe("Warmup assignments — LAN-401", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it("sits between Special teams and Kit, and offers Stewart's eight names in his order", async () => {
+    givenRecord({});
+    render(await PlayerRecordPage(pageProps()));
+
+    const warmup = screen.getByTestId("section-warmup");
+    expect(within(warmup).getByText("Warmup assignments")).toBeInTheDocument();
+    expect(within(warmup).getByText("Small Group Assignment")).toBeInTheDocument();
+
+    const special = screen.getByTestId("section-special-teams");
+    const kit = screen.getByTestId("section-kit");
+    expect(special.compareDocumentPosition(warmup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(warmup.compareDocumentPosition(kit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const row = within(warmup)
+      .getByText("Small Group Assignment")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    // Blank until somebody picks — REQ-not-recorded, the same as every other cell.
+    expect(within(row).getByTestId("not-recorded")).toBeInTheDocument();
+
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(within(row).getByTestId("editable-field"));
+    expect(await screen.findByRole("option", { name: "Kings" })).toBeInTheDocument();
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      // The editor's own blank choice, then Stewart's eight in his order.
+      "not recorded",
+      "Kings",
+      "Raider",
+      "Bear",
+      "Phoenix",
+      "Cavalier",
+      "Blue",
+      "Gold",
+      "Lancer",
+    ]);
+  });
+
+  it("commits a pick through the record's own action", async () => {
+    givenRecord({});
+    render(await PlayerRecordPage(pageProps()));
+
+    const warmup = screen.getByTestId("section-warmup");
+    const row = within(warmup)
+      .getByText("Small Group Assignment")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(row).getByTestId("editable-field"));
+    const option = await screen.findByRole("option", { name: "Gold" });
+    await act(async () => {
+      fireEvent.click(option);
+    });
+
+    expect(recordCommitWarmupSmallGroupAction).toHaveBeenCalledWith(
+      expect.objectContaining({ smallGroup: "Gold" }),
+    );
   });
 });

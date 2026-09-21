@@ -84,6 +84,8 @@ export interface RosterBoardRow {
   specialTeams: Readonly<Record<string, string>>;
   /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. A blank item is an absent key. */
   kit: Readonly<Record<string, string>>;
+  /** The warmup small group — LAN-401. One of eight, or `null` when nothing is recorded. */
+  warmupSmallGroup: string | null;
   blues: BluesValue;
   /** `public.eligibility_status`, for the `club_play` competition, or `null`. */
   eligibility: string | null;
@@ -263,6 +265,15 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         where season_id = $1::uuid`,
       [roster.season.id],
     );
+    const warmupRows = await tx.query<{
+      season_membership_id: string;
+      small_group: string;
+    }>(
+      `select season_membership_id, small_group
+         from public.warmup_group_assignments
+        where season_id = $1::uuid`,
+      [roster.season.id],
+    );
     const bluesRows = await tx.query<{
       season_membership_id: string;
       half_blue_awarded: boolean;
@@ -379,6 +390,10 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       specialTeamsByMembership.set(row.season_membership_id, current);
     }
 
+    const warmupByMembership = new Map<string, string>(
+      warmupRows.rows.map((row) => [row.season_membership_id, row.small_group]),
+    );
+
     const kitByMembership = new Map<string, Record<string, string>>();
     for (const row of kitRows.rows) {
       const current = kitByMembership.get(row.season_membership_id) ?? {};
@@ -468,6 +483,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         },
         specialTeams: specialTeamsByMembership.get(entry.membershipId) ?? {},
         kit: kitByMembership.get(entry.membershipId) ?? {},
+        warmupSmallGroup: warmupByMembership.get(entry.membershipId) ?? null,
         blues: bluesByMembership.get(entry.membershipId) ?? "None",
         eligibility: eligibilityByMembership.get(entry.membershipId) ?? null,
         availability: availabilityByMembership.get(entry.membershipId) ?? null,

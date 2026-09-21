@@ -10,7 +10,7 @@
  * prove a GiST exclusion constraint or a real supersede sequence actually
  * committed.
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -33,6 +33,8 @@ import {
   commitPositionGroups,
   commitKitItem,
   commitSpecialTeamsAssignment,
+  commitWarmupSmallGroup,
+  WARMUP_SMALL_GROUP_VALUES,
   KIT_DISTRIBUTED_ITEMS,
   KIT_ITEMS,
   kitCellKey,
@@ -75,6 +77,10 @@ async function cleanUp(): Promise<void> {
   );
   await observer.query(
     `delete from public.kit_issue_records where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  await observer.query(
+    `delete from public.warmup_group_assignments where season_membership_id = $1::uuid`,
     [membershipId],
   );
   await observer.query(
@@ -1031,5 +1037,111 @@ describe("issued kit and the derived Kit Distributed flag — LAN-375", () => {
         status: "complete",
       }),
     ).rejects.toMatchObject({ rule: "onboarding_item_derived_not_editable" });
+  });
+});
+
+describe("warmup small groups — LAN-401", () => {
+  // One cell shared with every other suite in this file, so each case starts
+  // from blank rather than from whatever the case before it left behind.
+  beforeEach(async () => {
+    await observer.query(
+      `delete from public.warmup_group_assignments where season_membership_id = $1::uuid`,
+      [membershipId],
+    );
+    await observer.query(
+      `delete from public.audit_events
+        where action = 'warmup_small_group_changed' and entity_id = $1::uuid`,
+      [membershipId],
+    );
+  });
+
+  async function storedGroup(): Promise<string | null> {
+    const result = await observer.query<{ small_group: string }>(
+      `select small_group from public.warmup_group_assignments
+        where season_membership_id = $1::uuid`,
+      [membershipId],
+    );
+    return result.rows[0]?.small_group ?? null;
+  }
+
+  it("mirrors Stewart's list exactly: the reference table and the application's own list agree", async () => {
+    const stored = await observer.query<{ name: string }>(
+      `select name from public.warmup_small_groups order by sort_order`,
+    );
+    expect(stored.rows.map((row) => row.name)).toEqual([...WARMUP_SMALL_GROUP_VALUES]);
+    // His order, not alphabetical, and not the board's idea of tidy.
+    expect(WARMUP_SMALL_GROUP_VALUES[0]).toBe("Kings");
+    expect(WARMUP_SMALL_GROUP_VALUES[WARMUP_SMALL_GROUP_VALUES.length - 1]).toBe("Lancer");
+  });
+
+  it("saves a pick, shows it on the board and on the record, and blanks back to nothing", async () => {
+    await commitWarmupSmallGroup({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      smallGroup: "Phoenix",
+    });
+    expect(await storedGroup()).toBe("Phoenix");
+
+    const board = await listRosterBoard();
+    expect(board.rows.find((entry) => entry.membershipId === membershipId)?.warmupSmallGroup).toBe(
+      "Phoenix",
+    );
+
+    const record = await readPlayerRecord(membershipId);
+    expect(record.kind).toBe("record");
+    expect(record.kind === "record" ? record.data.season.warmupSmallGroup : null).toBe("Phoenix");
+
+    // A second pick replaces the first — one cell, one row.
+    await commitWarmupSmallGroup({ actorPersonId, membershipId, seasonId, smallGroup: "Gold" });
+    expect(await storedGroup()).toBe("Gold");
+    const rows = await observer.query(
+      `select 1 from public.warmup_group_assignments where season_membership_id = $1::uuid`,
+      [membershipId],
+    );
+    expect(rows.rowCount).toBe(1);
+
+    // Blank is the absence of a row, never a row holding an empty string.
+    await commitWarmupSmallGroup({ actorPersonId, membershipId, seasonId, smallGroup: null });
+    expect(await storedGroup()).toBeNull();
+    const board2 = await listRosterBoard();
+    expect(
+      board2.rows.find((entry) => entry.membershipId === membershipId)?.warmupSmallGroup,
+    ).toBeNull();
+  });
+
+  it("refuses a name that is not one of the eight", async () => {
+    await expect(
+      commitWarmupSmallGroup({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        smallGroup: "Dragons",
+      }),
+    ).rejects.toMatchObject({ rule: "warmup_group_assignments_value_in_vocabulary" });
+    expect(await storedGroup()).toBeNull();
+  });
+
+  it("refuses a write with no actor — the same requirement every other cell carries", async () => {
+    await expect(
+      commitWarmupSmallGroup({
+        actorPersonId: "",
+        membershipId,
+        seasonId,
+        smallGroup: "Bear",
+      }),
+    ).rejects.toThrow();
+    expect(await storedGroup()).toBeNull();
+  });
+
+  it("records the change in the audit trail", async () => {
+    await commitWarmupSmallGroup({ actorPersonId, membershipId, seasonId, smallGroup: "Raider" });
+    const audit = await observer.query<{ from_state: string | null; to_state: string | null }>(
+      `select from_state, to_state from public.audit_events
+        where action = 'warmup_small_group_changed' and entity_id = $1::uuid
+        order by occurred_at desc limit 1`,
+      [membershipId],
+    );
+    expect(audit.rows[0]).toEqual({ from_state: null, to_state: "Raider" });
   });
 });

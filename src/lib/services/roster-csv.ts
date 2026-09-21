@@ -21,6 +21,8 @@ import {
   KIT_ITEMS,
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
+  WARMUP_SMALL_GROUP_IMPORT_COLUMN,
+  WARMUP_SMALL_GROUP_VALUES,
   type KitItemCode,
   type SpecialTeamsSlot,
   type SpecialTeamsSquad,
@@ -39,8 +41,8 @@ const IMPORT_COLUMNS = [
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
 
 /**
- * The optional season-fact columns — LAN-374 and LAN-375. One column per cell
- * of Stewart's and Clint's sheets, carried beside the person columns rather
+ * The optional season-fact columns — LAN-374, LAN-375 and LAN-401. One column
+ * per cell of Stewart's and Clint's sheets, carried beside the person columns rather
  * than folded into `ImportColumn`: they are a family, generated from the same
  * vocabulary the board's own columns are, and a file that names none of them
  * is exactly as valid as today's.
@@ -58,7 +60,8 @@ export type SeasonFactImportColumn =
       readonly squad: SpecialTeamsSquad;
       readonly slot: SpecialTeamsSlot;
     })
-  | (SeasonFactImportColumnBase & { readonly kind: "kit"; readonly item: KitItemCode });
+  | (SeasonFactImportColumnBase & { readonly kind: "kit"; readonly item: KitItemCode })
+  | (SeasonFactImportColumnBase & { readonly kind: "warmup" });
 
 export const SEASON_FACT_IMPORT_COLUMNS: readonly SeasonFactImportColumn[] = Object.freeze([
   ...SPECIAL_TEAMS_SQUADS.flatMap((squad) =>
@@ -80,6 +83,12 @@ export const SEASON_FACT_IMPORT_COLUMNS: readonly SeasonFactImportColumn[] = Obj
       options: item.values,
     }),
   ),
+  // LAN-401: the warmup group's one cell.
+  Object.freeze({
+    name: WARMUP_SMALL_GROUP_IMPORT_COLUMN,
+    kind: "warmup" as const,
+    options: WARMUP_SMALL_GROUP_VALUES,
+  }),
 ]);
 
 function seasonFactColumn(name: string): SeasonFactImportColumn | undefined {

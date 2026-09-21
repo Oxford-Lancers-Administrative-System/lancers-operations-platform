@@ -21,6 +21,7 @@ export type Band =
   | "offensive"
   | "defensive"
   | "specialTeams"
+  | "warmup"
   | "kit"
   | "recruitment"
   | "onboarding"
@@ -46,6 +47,10 @@ export const BAND_COLOURS: Readonly<Record<Band, BandColours>> = Object.freeze({
   offensive: { header: "#1F5C4A", tint: "rgba(31, 92, 74, 0.055)", solid: "#F1F7F5" },
   defensive: { header: "#5B3A7E", tint: "rgba(91, 58, 126, 0.055)", solid: "#F6F2F9" },
   specialTeams: { header: "#7A4A18", tint: "rgba(122, 74, 24, 0.055)", solid: "#F9F4EE" },
+  // LAN-401's group. It sits between Special teams and Kit and takes a tone of
+  // its own on the same rule as the rest: a place, not a verdict, and never a
+  // traffic-light hue.
+  warmup: { header: "#1D4A7A", tint: "rgba(29, 74, 122, 0.055)", solid: "#F1F5F9" },
   kit: { header: CLUB.oldGold, tint: "rgba(141, 113, 73, 0.07)", solid: "#F8F5F0" },
   recruitment: { header: CLUB.royalBlue, tint: "rgba(29, 66, 166, 0.045)", solid: "#F4F6FB" },
   onboarding: { header: CLUB.oldGold, tint: "rgba(141, 113, 73, 0.07)", solid: "#F8F5F0" },

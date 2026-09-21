@@ -76,6 +76,7 @@ const PERSON_EXPORT_SOURCES: readonly ExportSource[] = Object.freeze([
   VIA_MEMBERSHIP("public.membership_position_groups"),
   VIA_MEMBERSHIP("public.special_teams_assignments"),
   VIA_MEMBERSHIP("public.kit_issue_records"),
+  VIA_MEMBERSHIP("public.warmup_group_assignments"),
   VIA_MEMBERSHIP("public.jersey_assignments"),
   VIA_MEMBERSHIP("public.coach_group_assignments"),
   VIA_MEMBERSHIP("public.formalwear_records"),

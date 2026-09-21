@@ -571,6 +571,7 @@ const rows = {
   membership_position_groups: [],
   special_teams_assignments: [],
   kit_issue_records: [],
+  warmup_group_assignments: [],
   formalwear_records: [],
   blues_awards: [],
   onboarding_item_types: [],
@@ -1567,6 +1568,30 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
         created_at: "2026-10-02T09:00:00Z",
         updated_at: "2026-10-02T09:00:00Z",
       });
+    });
+  }
+
+  // LAN-401: the warmup small group. One per player at most, and Stewart's
+  // sheet leaves plenty blank, so every fourth membership holds none.
+  const WARMUP_SMALL_GROUPS = [
+    "Kings",
+    "Raider",
+    "Bear",
+    "Phoenix",
+    "Cavalier",
+    "Blue",
+    "Gold",
+    "Lancer",
+  ];
+  if (i % 4 !== 3) {
+    add("warmup_group_assignments", {
+      id: uuid(),
+      season_membership_id: membership.id,
+      season_id: seasonCurrent.id,
+      small_group: WARMUP_SMALL_GROUPS[i % WARMUP_SMALL_GROUPS.length],
+      recorded_by_person_id: people[2].id,
+      created_at: "2026-10-06T09:00:00Z",
+      updated_at: "2026-10-06T09:00:00Z",
     });
   }
 
@@ -5312,6 +5337,19 @@ const WRITE_PLAN = [
       "updated_at",
     ],
     "kit_issue_records",
+  ],
+  [
+    "public.warmup_group_assignments",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "small_group",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "warmup_group_assignments",
   ],
   [
     "public.formalwear_records",

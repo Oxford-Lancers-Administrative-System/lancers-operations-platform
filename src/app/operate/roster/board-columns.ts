@@ -15,6 +15,8 @@ import {
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
   specialTeamsCellKey,
+  WARMUP_SMALL_GROUP_KEY,
+  WARMUP_SMALL_GROUP_VALUES,
 } from "@/lib/services/roster-board/vocabulary";
 import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
@@ -35,6 +37,7 @@ export type Band =
   | "offensive"
   | "defensive"
   | "specialTeams"
+  | "warmup"
   | "kit";
 
 export interface BandDef {
@@ -155,6 +158,11 @@ const BANDS: readonly BandDef[] = Object.freeze([
     ...BAND_COLOURS.specialTeams,
   }),
   Object.freeze({
+    key: "warmup" as const,
+    label: "Warmup assignments",
+    ...BAND_COLOURS.warmup,
+  }),
+  Object.freeze({
     key: "kit" as const,
     label: "Kit",
     ...BAND_COLOURS.kit,
@@ -166,7 +174,7 @@ const BAND_ORDER: readonly Band[] = Object.freeze(BANDS.map((band) => band.key))
 
 /** Groups the board and the record open collapsed when this operator has never said otherwise. The long tail, not the facts an operator came for. Read only through `collapsedBandsFrom`, so nothing can consult the default without first consulting the account. */
 const COLLAPSED_BY_DEFAULT: ReadonlySet<Band> = Object.freeze(
-  new Set<Band>(["specialTeams", "kit"]),
+  new Set<Band>(["specialTeams", "warmup", "kit"]),
 );
 
 function isBand(key: string): key is Band {
@@ -276,6 +284,8 @@ export const COACHING_GROUPS = COACHING_GROUP_VALUES;
 export const OFFENSIVE_POSITION_GROUPS = OFFENSIVE_POSITION_GROUP_VALUES;
 export const DEFENSIVE_POSITION_GROUPS = DEFENSIVE_POSITION_GROUP_VALUES;
 export const FORMALWEAR_ITEMS = FORMALWEAR_ITEM_KEYS;
+/** LAN-401, Stewart's eight names in his order. Same list the service holds, imported not retyped. */
+export const WARMUP_SMALL_GROUPS = WARMUP_SMALL_GROUP_VALUES;
 export const FORMALWEAR_LABELS: Readonly<Record<string, string>> = Object.freeze({
   tie: "Tie",
   bowtie: "Bow tie",
@@ -665,6 +675,19 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
         requires: "person_record_authority" as const,
       })),
     ),
+    // ------------------------------------------ Warmup assignments --
+    // LAN-401: one column, one pick from Stewart's eight names or blank.
+    {
+      key: WARMUP_SMALL_GROUP_KEY,
+      label: "Small Group Assignment",
+      band: "warmup",
+      edit: "select",
+      options: WARMUP_SMALL_GROUP_VALUES,
+      width: 190,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
     // ------------------------------------------------------------------ Kit --
     // LAN-375: eleven issued-kit items from Clint's sheet, one single-select
     // each. Formalwear moved here from Season and keeps Tie and Bow tie; the
@@ -725,6 +748,7 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     offensivePositionGroups: ["offensivePositionGroups"],
     defensivePositionGroups: ["defensivePositionGroups"],
     formalwear: ["formalwear"],
+    [WARMUP_SMALL_GROUP_KEY]: ["warmupSmallGroup"],
     ...Object.fromEntries(KIT_ITEMS.map((item) => [kitCellKey(item.item), ["kit"] as const])),
     ...Object.fromEntries(
       SPECIAL_TEAMS_SQUADS.flatMap((squad) =>

@@ -16,6 +16,7 @@ import {
   OFFENSIVE_POSITION_GROUPS,
   STATUS_OPTION_LABELS,
   STATUSES,
+  WARMUP_SMALL_GROUPS,
 } from "../board-columns";
 import { ENTRY_LABELS, formatDay, labelFor, MEMBERSHIP_STATUS_LABELS } from "../presentation";
 import PositionField from "./position-field";
@@ -256,6 +257,27 @@ export default function SeasonFactsSection({
         setEditing={setEditing}
         commitSeasonField={commitSeasonField}
       />
+
+      {/* LAN-401 — Stewart's warmup small groups. One cell, collapsed on arrival
+          like the two groups either side of it. */}
+      <Section
+        variant="banded"
+        band="warmup"
+        title="Warmup assignments"
+        testId="warmup"
+        collapsible
+        defaultOpen={!collapsedGroups.has("warmup")}
+        onToggleOpen={(open) => onToggleGroup("warmup", open)}
+      >
+        <RecordField
+          label="Small Group Assignment"
+          value={record.season.warmupSmallGroup}
+          options={[...WARMUP_SMALL_GROUPS]}
+          {...common("warmupSmallGroup")}
+          onCommit={(next) => commitSeasonField("warmupSmallGroup", next)}
+          rawValue={record.season.warmupSmallGroup}
+        />
+      </Section>
 
       <Section
         variant="banded"

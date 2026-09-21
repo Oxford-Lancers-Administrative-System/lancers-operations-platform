@@ -27,6 +27,7 @@ import {
   commitPositionGroups,
   commitKitItem,
   commitSpecialTeamsAssignment,
+  commitWarmupSmallGroup,
   type AvailabilityLevel,
   type BluesValue,
   type BpsValue,
@@ -182,6 +183,21 @@ export async function recordCommitKitItemAction(params: {
   const operator = await requireCapability("person_record_authority");
   try {
     await commitKitItem({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh(params.membershipId);
+  return OK;
+}
+
+export async function recordCommitWarmupSmallGroupAction(params: {
+  membershipId: string;
+  seasonId: string;
+  smallGroup: string | null;
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await commitWarmupSmallGroup({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }

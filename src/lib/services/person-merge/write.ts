@@ -105,6 +105,7 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "seasons", column: "opened_by_person_id" },
   { table: "special_teams_assignments", column: "recorded_by_person_id" },
   { table: "staging.legacy_roster_rows", column: "matched_person_id" },
+  { table: "warmup_group_assignments", column: "recorded_by_person_id" },
   { table: "weekly_reports", column: "generated_by_person_id" },
 ];
 

@@ -56,6 +56,8 @@ interface PlayerSeasonFacts {
   specialTeams: Readonly<Record<string, string>>;
   /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. */
   kit: Readonly<Record<string, string>>;
+  /** The warmup small group — LAN-401. One of eight, or `null` when nothing is recorded. */
+  warmupSmallGroup: string | null;
   blues: BluesValue;
   /** `public.bps_selections.is_selected`, defaulting to "No" — LAN-387 puts it on the record beside the board's own column. */
   bps: BpsValue;
@@ -338,6 +340,11 @@ async function readSeasonFactsIn(
       where season_membership_id = $1::uuid`,
     [membershipId],
   );
+  const warmup = await tx.query<{ small_group: string }>(
+    `select small_group from public.warmup_group_assignments
+      where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
   const bps = await tx.query<{ is_selected: boolean }>(
     `select is_selected from public.bps_selections where season_membership_id = $1::uuid`,
     [membershipId],
@@ -390,6 +397,7 @@ async function readSeasonFactsIn(
     kit: Object.fromEntries(
       kit.rows.map((row) => [kitCellKey(row.item as KitItemCode), row.value]),
     ),
+    warmupSmallGroup: warmup.rows[0]?.small_group ?? null,
     blues: bluesValue,
     bps: bps.rows[0]?.is_selected ? "Yes" : "No",
     eligibility: eligibility.rows[0]?.status ?? null,

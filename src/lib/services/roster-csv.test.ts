@@ -264,7 +264,7 @@ describe("size and row limits", () => {
   });
 });
 
-describe("the optional season-fact columns — LAN-374, LAN-375", () => {
+describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () => {
   it("is absent from a file that names none of them, and never a reason to refuse a row", () => {
     const result = readRosterImport({
       csvText: csv("Rosalind,Penhaligon,07700900001,,Balliol,2024"),
@@ -293,6 +293,37 @@ describe("the optional season-fact columns — LAN-374, LAN-375", () => {
     if (bad.ok) {
       expect(bad.read.rows[0].seasonFacts).toEqual({});
       expect(bad.read.rows[0].reasons[0]).toContain("st_punt_starting");
+    }
+  });
+
+  it("reads the warmup small group, and refuses a name that is not one of the eight", () => {
+    const header = `${HEADER},warmup_small_group`;
+    const good = readRosterImport({
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Cavalier"].join("\r\n"),
+    });
+    expect(good.ok).toBe(true);
+    if (good.ok) {
+      expect(good.read.rows[0].seasonFacts).toEqual({ warmup_small_group: "Cavalier" });
+      expect(good.read.rows[0].reasons).toEqual([]);
+    }
+
+    // Blank is blank, not a refusal: the column is optional in every cell.
+    const blank = readRosterImport({
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,"].join("\r\n"),
+    });
+    expect(blank.ok).toBe(true);
+    if (blank.ok) {
+      expect(blank.read.rows[0].seasonFacts).toEqual({});
+      expect(blank.read.rows[0].reasons).toEqual([]);
+    }
+
+    const bad = readRosterImport({
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Dragons"].join("\r\n"),
+    });
+    expect(bad.ok).toBe(true);
+    if (bad.ok) {
+      expect(bad.read.rows[0].seasonFacts).toEqual({});
+      expect(bad.read.rows[0].reasons[0]).toContain("warmup_small_group");
     }
   });
 });

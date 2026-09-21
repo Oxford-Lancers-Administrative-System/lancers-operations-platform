@@ -43,6 +43,7 @@ import {
   commitPositionAction,
   commitPositionGroupsAction,
   commitKitItemAction,
+  commitWarmupSmallGroupAction,
   commitSpecialTeamsAssignmentAction,
 } from "./board-actions";
 import { commitWithRetry } from "./board-action-state";
@@ -441,6 +442,16 @@ export default function RosterBoard({
         );
         return;
       }
+      // LAN-401: the warmup group's one cell.
+      case "warmupSmallGroup":
+        runCommit(row.membershipId, () =>
+          commitWarmupSmallGroupAction({
+            membershipId: row.membershipId,
+            seasonId,
+            smallGroup: (next as string) || null,
+          }),
+        );
+        return;
       case "blueNumbers":
       case "whiteNumbers": {
         const kit: Kit = column.key === "blueNumbers" ? "blue" : "white";

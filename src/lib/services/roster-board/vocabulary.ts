@@ -316,3 +316,34 @@ export function parseKitCellKey(key: string): KitItemCode | null {
   const item = KIT_ITEMS.find((entry) => entry.item === key.slice(4));
   return item ? item.item : null;
 }
+
+// ---------------------------------------------------------------------------
+// Warmup assignments — LAN-401, Stewart's list
+// ---------------------------------------------------------------------------
+
+/**
+ * The eight warmup small groups, Stewart's own words in his own order (via
+ * Brian, 2026-09-21). Mirrored by `warmup_small_groups`; `tests/` proves the
+ * two agree.
+ *
+ * A player is in one of them or in none. Nothing is derived from it and no
+ * rule ties it to a position, a coaching group or a special-teams squad: a
+ * warmup small group is where somebody warms up, and says nothing about what
+ * they play.
+ */
+export const WARMUP_SMALL_GROUP_VALUES: readonly string[] = Object.freeze([
+  "Kings",
+  "Raider",
+  "Bear",
+  "Phoenix",
+  "Cavalier",
+  "Blue",
+  "Gold",
+  "Lancer",
+]);
+
+/** The one board column key, record field key and `RosterBoardRow` field the group has. */
+export const WARMUP_SMALL_GROUP_KEY = "warmupSmallGroup";
+
+/** The import column's header, in the same `<group>_<cell>` shape `st_` and `kit_` use. */
+export const WARMUP_SMALL_GROUP_IMPORT_COLUMN = "warmup_small_group";
