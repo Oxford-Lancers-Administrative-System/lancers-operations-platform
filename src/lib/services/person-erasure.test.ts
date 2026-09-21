@@ -21,6 +21,7 @@ import { closePool, withTransaction } from "@/lib/db";
 import { requireCapability } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { openObserver } from "../../../tests/helpers/service-layer";
+import { destinationKey } from "./messaging-safety";
 import { resolveOpenSeason } from "./roster";
 import {
   confirmErasure,
@@ -146,6 +147,27 @@ async function seedSubject(): Promise<string> {
     ],
   );
 
+  // LAN-394. The messaging safety accounting, on an attempt that really was
+  // admitted: the two identifying fields, and a hold latched against the
+  // fingerprint of this person's own number. Both must be gone afterwards —
+  // the fingerprint is not anonymisation, it is a guessable derivative of a
+  // phone number, and a hold keyed on it would outlive the person it was about.
+  await observer.query(
+    `insert into public.delivery_attempts
+       (notification_job_id, attempt_number, channel, provider, requested_at,
+        safety_admitted_at, safety_person_id, safety_destination_key)
+     select id, 1, 'whatsapp', 'test', now(), now(), $1::uuid, $2
+       from public.notification_jobs where idempotency_key = $3`,
+    [id, destinationKey("whatsapp", SUBJECT.phone), `${MARKER}-job-${id}`],
+  );
+  await observer.query(
+    `insert into public.messaging_safety_scopes
+       (scope_kind, scope_key, latched_at, latch_reason_code)
+     values ('destination', $1, now(), 'destination_hold')
+     on conflict (scope_kind, scope_key) do nothing`,
+    [destinationKey("whatsapp", SUBJECT.phone)],
+  );
+
   // A dispute, which is the club's word against theirs, both free text.
   await observer.query(
     `insert into public.person_fact_disputes
@@ -226,9 +248,17 @@ async function cleanUp(): Promise<void> {
     `delete from public.rsvp_responses where recorded_by_person_id = any($1::uuid[])`,
     [people],
   );
+  await observer.query(
+    `delete from public.delivery_attempts where notification_job_id in
+       (select id from public.notification_jobs where person_id = any($1::uuid[]))`,
+    [people],
+  );
   await observer.query(`delete from public.notification_jobs where person_id = any($1::uuid[])`, [
     people,
   ]);
+  await observer.query(
+    "delete from public.messaging_safety_scopes where scope_kind in ('person', 'destination')",
+  );
   await observer.query(
     `delete from public.person_access_tokens where person_id = any($1::uuid[])`,
     [people],
@@ -428,6 +458,48 @@ describe("what the tombstone keeps", () => {
       [subjectId],
     );
     expect(jobs.rows[0].count).toBe("0");
+  }, 60_000);
+
+  it("clears the messaging safety accounting, and the hold keyed on their number", async () => {
+    // LAN-394, Brian 17 September 2026. The attempt row stays — an erasure
+    // anonymises a person, it does not delete the club's record of what it did
+    // — but the two fields that say *who* it was for do not, and neither does a
+    // hold latched against the fingerprint of their number.
+    const before = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.delivery_attempts
+        where safety_person_id = $1::uuid`,
+      [subjectId],
+    );
+    expect(before.rows[0].count).toBe("1");
+
+    await bothConfirm();
+
+    const after = await observer.query<{
+      count: string;
+      admitted: string;
+      identifying: string;
+    }>(
+      `select count(*)::text as count,
+              count(*) filter (where a.safety_admitted_at is not null)::text as admitted,
+              count(*) filter (where a.safety_person_id is not null
+                                  or a.safety_destination_key is not null)::text as identifying
+         from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.person_id = $1::uuid`,
+      [subjectId],
+    );
+    expect(after.rows[0].count).toBe("1");
+    // The admission itself is still counted — the global accounting is about
+    // volume, not about anybody — and nothing identifying survives.
+    expect(after.rows[0].admitted).toBe("1");
+    expect(after.rows[0].identifying).toBe("0");
+
+    const scopes = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.messaging_safety_scopes
+        where scope_kind = 'destination' and scope_key = $1`,
+      [destinationKey("whatsapp", SUBJECT.phone)],
+    );
+    expect(scopes.rows[0].count).toBe("0");
   }, 60_000);
 
   it("writes one audit event that names no personal data", async () => {

@@ -31,7 +31,12 @@ import { dispatchRecruitmentCycleJob, runMessagingSweep } from "./messaging-sche
 import { finishRecruitmentAddIn } from "./recruitment-add";
 import { resolveRecruitmentInterestTokenIn } from "./recruitment-interest-tokens";
 import { createPerson } from "./person-create";
-import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+  seededIdentityCreatedAt,
+} from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN203CycleSuite";
 
@@ -105,7 +110,45 @@ beforeAll(async () => {
   operatorPersonId = anchor.rows[0].id;
 });
 
+/**
+ * Pauses the club's outbound messaging for the length of one test — LAN-394.
+ *
+ * Written directly rather than through `pauseMessagingIn`, because what is
+ * under test here is the **dispatcher**: that it asks the guard at all, and
+ * that a paused answer costs the message nothing. The control itself, its
+ * capability and its audit row are proved in
+ * `src/lib/services/messaging-safety.test.ts`.
+ */
+async function pauseAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = now(),
+            -- Any real Person. It was the first operator account's, which CI
+            -- does not have: the test job seeds the dataset but links no login,
+            -- so the subquery was null and the attribution constraint refused
+            -- the pause. A seeded database always has people.
+            paused_by_person_id = (select id from public.people order by created_at limit 1),
+            paused_reason = 'Under test', version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
+async function resumeAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = null, paused_by_person_id = null, paused_reason = null,
+            version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
+const SAFETY_DEFERRAL_LEAVES_NOTHING_BEHIND = `select status::text as status, attempt_count,
+       last_error, safety_reason_code
+  from public.notification_jobs where id = $1`;
+
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const people = "(select id from public.people where given_name = $1)";
   await observer.query(
     `delete from public.recruitment_questionnaire_responses
@@ -469,6 +512,51 @@ describe("declareRecruitmentCycleJobsIn", () => {
 });
 
 describe("dispatchRecruitmentCycleJob", () => {
+  it("sends nothing while messaging is paused, and costs the ask nothing — LAN-394", async () => {
+    const personId = await firstNameOnlyRecruit();
+    await grantConsentViaWalkUp(personId);
+    await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+    await addMobile(personId);
+    const jobId = (
+      await withTransaction((tx) =>
+        tx.query<{ id: string }>(
+          "select id from public.notification_jobs where idempotency_key = $1",
+          [`recruit-cycle:welcome:${personId}:${seasonId}`],
+        ),
+      )
+    ).rows[0].id;
+    await pauseAllMessaging();
+
+    const { sent, transport } = acceptingTransport();
+    try {
+      expect(await dispatchRecruitmentCycleJob(jobId, { source: CONFIGURED, transport })).toBe(
+        "deferred",
+      );
+    } finally {
+      await resumeAllMessaging();
+    }
+
+    expect(sent).toHaveLength(0);
+    const job = await withTransaction((tx) =>
+      tx.query<{ status: string; attempt_count: number; safety_reason_code: string | null }>(
+        SAFETY_DEFERRAL_LEAVES_NOTHING_BEHIND,
+        [jobId],
+      ),
+    );
+    expect(job.rows[0].status).toBe("pending");
+    expect(job.rows[0].attempt_count).toBe(0);
+    expect(job.rows[0].safety_reason_code).toBe("paused_by_operator");
+    // And no credential was minted for a message that never went, so the
+    // recruit's existing sign-up link is untouched.
+    const tokens = await withTransaction((tx) =>
+      tx.query<{ count: string }>(
+        "select count(*)::text as count from public.person_access_tokens where person_id = $1::uuid",
+        [personId],
+      ),
+    );
+    expect(tokens.rows[0].count).toBe("0");
+  });
+
   it("sends the welcome template, records an accepted attempt, and leaves the job processing", async () => {
     const personId = await firstNameOnlyRecruit();
     // An operator read-back grant: consent is granted, but never through the
@@ -612,8 +700,16 @@ describe("dispatchRecruitmentCycleJob", () => {
     await backdate();
 
     const { sent, transport } = acceptingTransport();
-    const firstSweep = await runMessagingSweep({ source: CONFIGURED, transport });
-    expect(firstSweep.accepted).toBeGreaterThanOrEqual(2);
+    // LAN-394. The welcome track is two messages to the same recruit, and the
+    // guard admits one per person per five minutes — so what used to be one
+    // tick is now two, which is the whole point of the pacing. Counted across
+    // the ticks, the same two messages go out.
+    let firstAccepted = 0;
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      firstAccepted += (await runMessagingSweep({ source: CONFIGURED, transport })).accepted;
+    }
+    expect(firstAccepted).toBeGreaterThanOrEqual(2);
 
     // The recruit then goes on to complete the sign-up form itself — the
     // fact that reaches the interest track (`hasGrantedViaSignupFormIn`),
@@ -629,10 +725,20 @@ describe("dispatchRecruitmentCycleJob", () => {
     await grantConsent(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     await backdate();
-    const secondSweep = await runMessagingSweep({ source: CONFIGURED, transport });
-    expect(secondSweep.accepted).toBeGreaterThanOrEqual(2);
+    let secondAccepted = 0;
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      secondAccepted += (await runMessagingSweep({ source: CONFIGURED, transport })).accepted;
+    }
+    expect(secondAccepted).toBeGreaterThanOrEqual(2);
 
-    const names = sent.map((s) => (s.body.template as { name: string }).name);
+    // Only the WhatsApp sends have a template. A sweep is global, and with
+    // LAN-394's pacing this test now runs several ticks rather than one, so an
+    // ambient email job from the seeded dataset can land in the same transport
+    // — and an email payload has no `template` to read a name off.
+    const names = sent
+      .map((s) => (s.body.template as { name?: string } | undefined)?.name)
+      .filter((name): name is string => typeof name === "string");
     expect(names).toEqual(
       expect.arrayContaining([
         TEMPLATE_NAMES.recruit_welcome,
@@ -813,9 +919,17 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
 
     const sinkRecords: SinkRecord[] = [];
     const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
-    const swept = await runMessagingSweep({ source: CONFIGURED, transport: sink });
+    // LAN-394. The welcome track declares two messages for this recruit and
+    // the guard admits one per person per five minutes, so which of the two
+    // goes first depends on the tie-break between two jobs backdated to the
+    // same instant. Two ticks reaches both.
+    let accepted = 0;
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      accepted += (await runMessagingSweep({ source: CONFIGURED, transport: sink })).accepted;
+    }
 
-    expect(swept.accepted).toBeGreaterThanOrEqual(1);
+    expect(accepted).toBeGreaterThanOrEqual(1);
     const welcome = sinkRecords.find(
       (r) =>
         (r.payload as { template: { name: string } }).template.name ===
@@ -863,7 +977,14 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
 
     const sinkRecords: SinkRecord[] = [];
     const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
-    await runMessagingSweep({ source: CONFIGURED, transport: sink });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: sink });
+    }
 
     const welcome = sinkRecords.find(
       (r) =>
@@ -905,7 +1026,14 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
     );
 
     const { transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     // Nothing exists to claim, so the sweep can send this recruit nothing —
     // asserted on their own rows, not on the sink, which other fixtures in
@@ -936,7 +1064,14 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
     );
 
     const { transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     // The sweep also claims unrelated seeded jobs. Assert this recruit's
     // own attempts, so a due seeded message cannot contaminate the proof.
@@ -1047,6 +1182,10 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
       transport: createDeliverySink(CONFIGURED, { write: (record) => askSink.push(record) }),
     });
     const reminderSink: SinkRecord[] = [];
+    // LAN-394: the reminder is the recruit's second message inside a second,
+    // which the guard paces. The ask-then-reminder *order* is what this test
+    // proves, so the window is cleared between the two.
+    await agePastSafetyPacing(observer);
     const reminderOutcome = await dispatchRecruitmentCycleJob(await jobIdFor("interest_reminder"), {
       source: CONFIGURED,
       transport: createDeliverySink(CONFIGURED, { write: (record) => reminderSink.push(record) }),
