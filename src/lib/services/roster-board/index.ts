@@ -15,11 +15,7 @@ export type { SpecialTeamsSlot, SpecialTeamsSquad } from "./vocabulary";
 export { commitSpecialTeamsAssignment } from "./write-special-teams";
 export { commitKitItem } from "./write-kit";
 export { commitWarmupSmallGroup } from "./write-warmup";
-export {
-  WARMUP_SMALL_GROUP_IMPORT_COLUMN,
-  WARMUP_SMALL_GROUP_KEY,
-  WARMUP_SMALL_GROUP_VALUES,
-} from "./vocabulary";
+export { WARMUP_SMALL_GROUP_VALUES } from "./vocabulary";
 export { KIT_DISTRIBUTED_ITEMS, KIT_ITEMS, kitCellKey } from "./vocabulary";
 export type { KitItemCode } from "./vocabulary";
 export type { PositionColumn } from "./write-position";
