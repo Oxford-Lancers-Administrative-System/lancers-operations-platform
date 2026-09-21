@@ -162,21 +162,23 @@ describe("the index", () => {
     await renderIndex();
 
     for (const page of PLAYBOOK_PAGES) {
-      expect(screen.getByRole("link", { name: `Open ${page.name}` })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: page.name })).toHaveAttribute(
         "href",
         `/operate/admin/guide/${page.slug}`,
       );
       expect(screen.getByText(page.summary)).toBeVisible();
     }
+    expect(screen.queryByRole("link", { name: /^Open / })).toBeNull();
   });
 
   it("links the existing How administration works page rather than replacing it", async () => {
     await renderIndex();
 
-    expect(screen.getByRole("link", { name: "Open How administration works" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "How administration works" })).toHaveAttribute(
       "href",
       "/operate/admin/guide",
     );
+    expect(screen.queryByRole("link", { name: /^Open / })).toBeNull();
   });
 
   it("pre-renders exactly the eight slugs", () => {

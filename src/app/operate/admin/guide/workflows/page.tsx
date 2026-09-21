@@ -1,8 +1,7 @@
 import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { PageHeader } from "@/components/page-header";
-import { Section } from "@/components/section";
+import { RowCard, RowCardList } from "@/components/row-card";
 import { gateShellPage } from "../../../gate";
 import {
   ADMINISTRATION_GUIDE_LINK,
@@ -32,27 +31,31 @@ export default async function PlaybookIndexPage() {
     <Stack spacing={3} sx={{ maxWidth: 760 }}>
       <PageHeader title={PLAYBOOK_TITLE} subtitle={PLAYBOOK_SUBTITLE} />
 
-      <Stack component="ul" spacing={1.5} sx={{ listStyle: "none", p: 0, m: 0 }}>
+      <RowCardList at="all" component="ul">
         {PLAYBOOK_PAGES.map((page) => (
           <li key={page.slug}>
-            <Section title={page.name} testId={`playbook-index-${page.slug}`}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {page.summary}
-              </Typography>
-              <Link href={`/operate/admin/guide/${page.slug}`}>{`Open ${page.name}`}</Link>
-            </Section>
+            <RowCard
+              testId={`playbook-index-${page.slug}`}
+              title={
+                <Link href={`/operate/admin/guide/${page.slug}`} underline="hover">
+                  {page.name}
+                </Link>
+              }
+              sublines={[page.summary]}
+            />
           </li>
         ))}
-      </Stack>
+      </RowCardList>
 
-      <Section title={ADMINISTRATION_GUIDE_LINK.label} testId="playbook-index-administration">
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          {ADMINISTRATION_GUIDE_LINK.summary}
-        </Typography>
-        <Link href={ADMINISTRATION_GUIDE_LINK.href}>
-          {`Open ${ADMINISTRATION_GUIDE_LINK.label}`}
-        </Link>
-      </Section>
+      <RowCard
+        testId="playbook-index-administration"
+        title={
+          <Link href={ADMINISTRATION_GUIDE_LINK.href} underline="hover">
+            {ADMINISTRATION_GUIDE_LINK.label}
+          </Link>
+        }
+        sublines={[ADMINISTRATION_GUIDE_LINK.summary]}
+      />
     </Stack>
   );
 }
