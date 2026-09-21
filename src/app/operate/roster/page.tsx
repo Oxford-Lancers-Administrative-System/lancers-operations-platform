@@ -59,6 +59,7 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
       seasonId={data.season.id}
       seasonLabel={data.season.label}
       jerseyHolders={data.jerseyHolders}
+      seasonHasOnboardingItemTypes={data.seasonHasOnboardingItemTypes}
       initialSearch={search}
       initialFilters={filters}
       initialSortKey={sortKey}

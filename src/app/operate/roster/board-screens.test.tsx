@@ -152,6 +152,7 @@ function givenBoard(overrides: Partial<RosterBoardData> = {}): void {
       offence: [{ code: "QB", label: "Quarterback" }],
       defence: [{ code: "CB", label: "Cornerback" }],
     },
+    seasonHasOnboardingItemTypes: true,
     ...overrides,
   } as RosterBoardData);
 }
@@ -1022,5 +1023,42 @@ describe("the board's scrollbar gutter", () => {
     expect(window.getComputedStyle(board).paddingRight).toBe(`${BOARD_SCROLLBAR_GUTTER_PX}px`);
     // The gutter only helps while this element is the one that scrolls.
     expect(window.getComputedStyle(board).overflow).toBe("auto");
+  });
+});
+
+/**
+ * LAN-396 — production, 2026-09-17: the 2026-27 season was opened with no
+ * onboarding item types, so every membership in it was generated with no
+ * onboarding items and the board's Onboarding cells were blank and would not
+ * open. Nothing on screen said why.
+ */
+describe("a season with no onboarding item types configured", () => {
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+  });
+
+  it("says so once, above the board", async () => {
+    givenBoard({ seasonHasOnboardingItemTypes: false });
+    render(await RosterPage(pageProps()));
+
+    const notices = screen.getAllByTestId("roster-no-onboarding-item-types");
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toHaveTextContent(
+      "This season has no onboarding items configured, so no membership in it has any.",
+    );
+  });
+
+  it("says it on the empty season too, where there is no board to look at", async () => {
+    givenBoard({ rows: [], totalInSeason: 0, seasonHasOnboardingItemTypes: false });
+    render(await RosterPage(pageProps()));
+
+    expect(screen.getByTestId("roster-no-onboarding-item-types")).toBeInTheDocument();
+  });
+
+  it("says nothing at all when the season has its items", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    expect(screen.queryByTestId("roster-no-onboarding-item-types")).not.toBeInTheDocument();
   });
 });

@@ -15,6 +15,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { Notice } from "@/components/notice";
 import { PinnedSelect } from "@/components/pinned-select";
 import { SAVING } from "@/components/record-field";
 import type { ResolvedOperator } from "@/lib/auth/operator";
@@ -96,6 +97,7 @@ export default function RosterBoard({
   initialSortKey,
   initialSortDirection,
   initialCollapsedGroups,
+  seasonHasOnboardingItemTypes,
 }: {
   operator: ResolvedOperator;
   columns: readonly ColumnDef[];
@@ -105,6 +107,8 @@ export default function RosterBoard({
   seasonId: string;
   seasonLabel: string;
   jerseyHolders: { blue: Record<string, string>; white: Record<string, string> };
+  /** LAN-396 — whether this season carries any onboarding item types at all. */
+  seasonHasOnboardingItemTypes: boolean;
   /** The URL's own search/filter/sort at the moment this page was requested — seeds, not props this component stays synced to. */
   initialSearch: string;
   initialFilters: Readonly<Record<string, string>>;
@@ -554,6 +558,19 @@ export default function RosterBoard({
     </Stack>
   ) : null;
 
+  /**
+   * LAN-396 — production, 2026-09-17: the 2026-27 season was opened with no
+   * onboarding item types, so every onboarding cell on the board was blank and
+   * would not open. Said once, above the board, rather than left to be
+   * discovered a cell at a time. The membership record's own empty state says
+   * the same thing about one membership.
+   */
+  const noItemTypes = seasonHasOnboardingItemTypes ? null : (
+    <Notice severity="warning" testId="roster-no-onboarding-item-types">
+      This season has no onboarding items configured, so no membership in it has any.
+    </Notice>
+  );
+
   if (visible.length === 0) {
     return (
       <Stack spacing={3}>
@@ -562,6 +579,7 @@ export default function RosterBoard({
           columns={columns.length + 1}
           seasonLabel={seasonLabel}
         />
+        {noItemTypes}
         {pinned}
         {chips}
         <Paper variant="outlined" sx={{ p: { xs: 2, md: 4 } }}>
@@ -600,6 +618,7 @@ export default function RosterBoard({
         columns={columns.length + 1}
         seasonLabel={seasonLabel}
       />
+      {noItemTypes}
       {pinned}
       {chips}
 

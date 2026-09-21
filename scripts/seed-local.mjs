@@ -39,6 +39,10 @@ import {
 import fs from "node:fs";
 import { seedFrame, shiftAuthoredValue, shiftedYearOf } from "./lib/seed-clock.mjs";
 import { seededTemplateIdFor } from "./lib/event-template-ids.mjs";
+// LAN-396 — the one place the approved item-and-ask inventory is written down.
+// The application reads the same file through
+// `src/lib/services/onboarding-item-shapes.ts`, and so does the showcase plan.
+import ONBOARDING_ITEM_TYPE_ROWS from "../src/lib/services/onboarding-item-types.json" with { type: "json" };
 
 const SEED = 20260810;
 const random = makeRandom(SEED);
@@ -1243,28 +1247,26 @@ function weightedStatusFor(code, subsInvoicedStatus) {
   }
 }
 
-const ONBOARDING_TYPES = [
-  ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
-  ["subs_paid", "Subscription paid", false, true, "direct"],
-  ["kit_sorted", "Kit Distributed", true, false, "direct"],
-  ["bucs_play", "BUCS Play registration", true, false, "trust"],
-  ["hudl_access", "Hudl access", false, false, "trust"],
-  ["photo", "Squad photo", false, false, "direct"],
-  ["comms_groups", "Comms groups joined", true, false, "direct"],
-  // Item 9 — derived; completes when every required field on the person's
-  // record is present. "This item is the form, and its missing pieces are
-  // the queue" (the inventory's own words).
-  ["contact_academic_details", "Contact & academic details", true, false, "direct"],
-  // Item 10 — player; reads the Code of Conduct on its own page, then
-  // confirms having read and understood it. Dated, stored as theirs.
-  ["code_of_conduct", "Code of Conduct", true, false, "direct"],
-  // Item 11 — player; reads the release on its own page and signs it.
-  // Seasonal — asked of everyone every season.
-  ["photo_release", "Photo release", true, false, "direct"],
-  // Item 12 — derived; two things (has the welcome gone out, and have they
-  // approved) — approval is what completes it.
-  ["season_welcome_consent", "Season welcome & consent", true, false, "direct"],
-];
+/**
+ * The club's eleven onboarding item types — LAN-396. Read from
+ * `src/lib/services/onboarding-item-types.json`, which is the one place the
+ * approved item-and-ask inventory is written down: this seed, the application
+ * and the showcase plan's `reference.mjs` all read that file, so none of them
+ * can drift from the others.
+ *
+ * The tuple shape below is the shape this script has always used. Item 5 (BPS)
+ * is deliberately absent: it left the checklist for the roster
+ * (`bps_selections`) on Brian's own 2026-09-01 direction. Items 9 and 12
+ * (Contact & academic details, Season welcome & consent) are derived; items 10
+ * and 11 (Code of Conduct, Photo release) are read-then-sign player items.
+ */
+const ONBOARDING_TYPES = ONBOARDING_ITEM_TYPE_ROWS.map((type) => [
+  type.code,
+  type.label,
+  type.isRequired,
+  type.isSubscription,
+  type.verificationClass,
+]);
 
 // LAN-214, correction round 1 (L-001). Only these four draw from
 // `onboardingItemTypeId` — see that constant's own comment — so the
@@ -5989,6 +5991,30 @@ try {
     end;
     $seed$;
   `);
+
+  /**
+   * LAN-396 — the production gap of 2026-09-17, refused here rather than
+   * discovered on a board. A season opened with no onboarding item types
+   * generates every membership in it with no onboarding items, and the whole
+   * Onboarding group then reads blank and will not open. The seed refuses to
+   * hand over a dataset that reproduces it.
+   */
+  const seededTypes = await client.query(
+    `select s.label, count(t.id)::int as types
+       from public.seasons s
+       left join public.onboarding_item_types t on t.season_id = s.id
+      where s.status = any(array['open', 'active', 'closing']::public.season_status[])
+      group by s.id, s.label
+     having count(t.id) = 0`,
+  );
+  if (seededTypes.rows.length > 0) {
+    throw new Error(
+      `A season the club is operating has no onboarding item types: ` +
+        `${seededTypes.rows.map((row) => row.label).join(", ")}. ` +
+        `Every membership in it would be generated with no onboarding items ` +
+        `(LAN-396). The list is src/lib/services/onboarding-item-types.json.`,
+    );
+  }
 
   await client.query("commit");
 

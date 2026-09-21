@@ -1,6 +1,46 @@
 import type { OnboardingItemStatus } from "./membership";
+import ONBOARDING_ITEM_TYPE_ROWS from "./onboarding-item-types.json";
 
 // Onboarding item state lists (`WP-operator-record`, LAN-217), keyed by `onboarding_item_types.code`. No `server-only`: client components need it too.
+
+/**
+ * One onboarding item type a season opens with — LAN-396.
+ *
+ * `verificationClass` is `'trust'` only for BUCS Play and Hudl ("BUCS Play and
+ * Hudl answers record claimed, not complete", W4's locked decision) and
+ * `'direct'` for everything else.
+ */
+export interface OnboardingItemTypeShape {
+  readonly code: string;
+  readonly label: string;
+  readonly isRequired: boolean;
+  readonly isSubscription: boolean;
+  readonly verificationClass: "direct" | "trust";
+}
+
+/**
+ * The club's eleven onboarding item types, in the order a season lists them —
+ * the approved item-and-ask inventory, and the one place it is written down
+ * (LAN-396).
+ *
+ * Production, 2026-09-17: `scripts/production/baseline/season-2026-27.sql`
+ * opened the 2026-27 season with no item types at all, because nothing in the
+ * application creates them and the baseline did not either. Every membership
+ * generated for that season therefore had no onboarding items, and the board's
+ * onboarding cells were silently uneditable. Brian repaired it by hand the
+ * same day. The list lived in two places then — the local seed and the
+ * showcase reference — and in neither of them could the application read it.
+ *
+ * It lives in `./onboarding-item-types.json` so the three readers are one
+ * list: this module, `scripts/seed-local.mjs`, and the showcase plan's
+ * `reference.mjs`. `onboarding-item-shapes.test.ts` fails when any of them
+ * drifts.
+ */
+export const ONBOARDING_ITEM_TYPES: readonly OnboardingItemTypeShape[] = Object.freeze(
+  (ONBOARDING_ITEM_TYPE_ROWS as readonly OnboardingItemTypeShape[]).map((type) =>
+    Object.freeze({ ...type }),
+  ),
+);
 
 export const SUBS_INVOICED_ITEM_CODE = "subs_invoiced";
 export const SUBS_PAID_ITEM_CODE = "subs_paid";

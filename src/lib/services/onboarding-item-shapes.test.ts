@@ -8,9 +8,12 @@ import {
   itemStateLabel,
   KIT_DISTRIBUTED_ITEM_CODE,
   SUBS_INVOICED_ITEM_CODE,
+  ONBOARDING_ITEM_TYPES,
   RESOLVED_ITEM_STATUS_CODES,
   SUBS_PAID_ITEM_CODE,
 } from "./onboarding-item-shapes";
+// A plain ESM script with no types; read here, never run.
+import { ONBOARDING_TYPES } from "../../../scripts/production/showcase/plan/reference.mjs";
 import { RESOLVED_ITEM_STATUSES } from "./membership";
 
 /**
@@ -179,5 +182,57 @@ describe("itemStateLabel — the word Brian actually said, per item", () => {
 describe("RESOLVED_ITEM_STATUS_CODES — the client-safe copy", () => {
   it("is exactly the service's own list", () => {
     expect([...RESOLVED_ITEM_STATUS_CODES]).toEqual([...RESOLVED_ITEM_STATUSES]);
+  });
+});
+
+/**
+ * LAN-396 — production, 2026-09-17: the 2026-27 season was opened with no
+ * onboarding item types at all, because `season-2026-27.sql` did not create
+ * them and nothing in the application does either. The inventory lived in two
+ * places the application could not read. This is the test that keeps the one
+ * place it lives now, and the showcase plan, from drifting apart.
+ */
+describe("ONBOARDING_ITEM_TYPES — the approved item-and-ask inventory, written down once", () => {
+  it("is the eleven, in order", () => {
+    expect(ONBOARDING_ITEM_TYPES.map((type) => type.code)).toEqual([
+      "subs_invoiced",
+      "subs_paid",
+      "kit_sorted",
+      "bucs_play",
+      "hudl_access",
+      "photo",
+      "comms_groups",
+      "contact_academic_details",
+      "code_of_conduct",
+      "photo_release",
+      "season_welcome_consent",
+    ]);
+  });
+
+  it("names exactly one subscription item, which is not required", () => {
+    const subscription = ONBOARDING_ITEM_TYPES.filter((type) => type.isSubscription);
+    expect(subscription.map((type) => type.code)).toEqual(["subs_paid"]);
+    expect(subscription[0].isRequired).toBe(false);
+  });
+
+  it("trusts only BUCS Play and Hudl", () => {
+    expect(
+      ONBOARDING_ITEM_TYPES.filter((type) => type.verificationClass === "trust").map(
+        (type) => type.code,
+      ),
+    ).toEqual(["bucs_play", "hudl_access"]);
+  });
+
+  it("is the same list the showcase plan seats", () => {
+    const showcase = (
+      ONBOARDING_TYPES as readonly [string, string, boolean, boolean, string][]
+    ).map(([code, label, isRequired, isSubscription, verificationClass]) => ({
+      code,
+      label,
+      isRequired,
+      isSubscription,
+      verificationClass,
+    }));
+    expect(showcase).toEqual(ONBOARDING_ITEM_TYPES.map((type) => ({ ...type })));
   });
 });

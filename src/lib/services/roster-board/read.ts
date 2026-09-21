@@ -10,6 +10,7 @@ import type { AssembledStatus, PersonFactPresence } from "../person-required";
 import { missingRequiredFields } from "../person-required";
 import { isOxfordCollegeEmail } from "../person-validation";
 import type { Season } from "../seasons";
+import { countSeasonOnboardingItemTypes } from "../season-onboarding";
 import { BOARD_ELIGIBILITY_COMPETITION } from "./shared";
 import {
   FORMALWEAR_ITEM_KEYS,
@@ -114,6 +115,13 @@ export interface RosterBoardData {
   /** Built from every row in the season, never the filtered view — README's own rule. */
   jerseyHolders: JerseyHolders;
   positionOptions: PositionOptions;
+  /**
+   * Whether this season carries any onboarding item types at all — LAN-396.
+   * `false` is the production gap of 2026-09-17: every onboarding cell on the
+   * board is blank and silently uneditable, because no membership in the
+   * season has an item for it to edit.
+   */
+  seasonHasOnboardingItemTypes: boolean;
 }
 
 async function readPositionOptionsIn(tx: Tx, seasonId: string): Promise<PositionOptions> {
@@ -158,6 +166,9 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       totalInSeason: roster.totalInSeason,
       jerseyHolders: { blue: {}, white: {} },
       positionOptions: await readPositionOptions(roster.season.id),
+      seasonHasOnboardingItemTypes: await withTransaction(
+        async (tx) => (await countSeasonOnboardingItemTypes(tx, roster.season.id)) > 0,
+      ),
     };
   }
 
@@ -509,6 +520,8 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       totalInSeason: roster.totalInSeason,
       jerseyHolders,
       positionOptions,
+      seasonHasOnboardingItemTypes:
+        (await countSeasonOnboardingItemTypes(tx, roster.season.id)) > 0,
     };
   });
 }

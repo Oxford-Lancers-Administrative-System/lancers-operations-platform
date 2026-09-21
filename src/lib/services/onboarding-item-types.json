@@ -1,0 +1,79 @@
+[
+  {
+    "code": "subs_invoiced",
+    "label": "Subscription invoiced",
+    "isRequired": true,
+    "isSubscription": false,
+    "verificationClass": "direct"
+  },
+  {
+    "code": "subs_paid",
+    "label": "Subscription paid",
+    "isRequired": false,
+    "isSubscription": true,
+    "verificationClass": "direct"
+  },
+  {
+    "code": "kit_sorted",
+    "label": "Kit Distributed",
+    "isRequired": true,
+    "isSubscription": false,
+    "verificationClass": "direct"
+  },
+  {
+    "code": "bucs_play",
+    "label": "BUCS Play registration",
+    "isRequired": true,
+    "isSubscription": false,
+    "verificationClass": "trust"
+  },
+  {
+    "code": "hudl_access",
+    "label": "Hudl access",
+    "isRequired": false,
+    "isSubscription": false,
+    "verificationClass": "trust"
+  },
+  {
+    "code": "photo",
+    "label": "Squad photo",
+    "isRequired": false,
+    "isSubscription": false,
+    "verificationClass": "direct"
+  },
+  {
+    "code": "comms_groups",
+    "label": "Comms groups joined",
+    "isRequired": true,
+    "isSubscription": false,
+    "verificationClass": "direct"
+  },
+  {
+    "code": "contact_academic_details",
+    "label": "Contact & academic details",
+    "isRequired": true,
+    "isSubscription": false,
+    "verificationClass": "direct"
+  },
+  {
+    "code": "code_of_conduct",
+    "label": "Code of Conduct",
+    "isRequired": true,
+    "isSubscription": false,
+    "verificationClass": "direct"
+  },
+  {
+    "code": "photo_release",
+    "label": "Photo release",
+    "isRequired": true,
+    "isSubscription": false,
+    "verificationClass": "direct"
+  },
+  {
+    "code": "season_welcome_consent",
+    "label": "Season welcome & consent",
+    "isRequired": true,
+    "isSubscription": false,
+    "verificationClass": "direct"
+  }
+]
