@@ -1,6 +1,16 @@
 import type { CapabilityKey } from "@/lib/auth/capabilities";
 import { isNarrowAttendanceRecorder, roleCodesPermit } from "@/lib/auth/capabilities";
 
+/**
+ * The playbook's index — LAN-399.
+ *
+ * `/operate/admin/guide` is the existing How administration works page and
+ * keeps its own `role_management` gate, so the index takes a segment of its
+ * own beneath it and the eight workflow pages sit at
+ * `/operate/admin/guide/<slug>` alongside it.
+ */
+const GUIDE_INDEX_HREF = "/operate/admin/guide/workflows";
+
 // docs/ux/slice-ux.md § 3 owns the shape.
 export interface Destination {
   readonly href: string;
@@ -65,6 +75,14 @@ const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
     href: "/operate/admin/roles",
     label: "Roles",
     capability: "role_management" as CapabilityKey,
+  }),
+  // LAN-399. Last, because it is the only entry that is read rather than
+  // worked. Its capability is the core four's, so the other seats that reach
+  // this list never see it.
+  Object.freeze({
+    href: GUIDE_INDEX_HREF,
+    label: "Guide",
+    capability: "operator_guide" as CapabilityKey,
   }),
 ]);
 

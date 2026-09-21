@@ -755,6 +755,30 @@ changed.
 
 ---
 
+## 12d. Read the operator playbook
+
+Still signed in as an operator holding one of the four core seats — President,
+Vice-President, Secretary or General Manager — open **Guide** in the sidebar,
+under Administration.
+
+**Expected.** An index of eight workflows: Recruitment, Onboarding, Events,
+Messaging, Roster, People and data, Operators and roles, and Reports, plus a
+link to the existing **How administration works** page, which is unchanged.
+
+Open any one of them. Each page is the same four bands: a flowchart (a committed
+SVG under `public/guide/`, with the same diagram written out beneath it), the
+numbered steps with what the app does between them, the rules that bind that
+flow, and where to look when something is wrong. **Operators and roles** carries
+one extra band, a seat-by-capability table generated from
+`src/lib/auth/capabilities.ts` at render time.
+
+Signed in as the **IT Officer**, the Guide entry is absent from the sidebar and
+`/operate/admin/guide/workflows` refuses. That is LAN-399's decision, not an
+oversight: the audience is the core four. The IT Officer keeps every other
+Administration entry, including How administration works.
+
+---
+
 ## 13. What this walk deliberately does not cover
 
 Performance and load. Anything against the hosted project. Amending and
