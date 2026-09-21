@@ -34,6 +34,7 @@ const REFUSED = "The link could not be created. Try again.";
 export function SharePanel({
   eventId,
   url,
+  message,
   blockedReason,
   errorRule,
   closeHref,
@@ -41,6 +42,13 @@ export function SharePanel({
   eventId: string;
   /** The live link, or `null` when none has been issued yet. */
   url: string | null;
+  /**
+   * The six lines an operator pastes into a group chat — LAN-410. Rendered on
+   * the server from the same read the button used to make, so the counts still
+   * match the event page's own headline. `null` where there is no link yet,
+   * which is the same branch that hides the button.
+   */
+  message: string | null;
   /** Why the button is not offered at all, or `null`. */
   blockedReason: string | null;
   /** `shareError` from the query string, or `null`. */
@@ -89,11 +97,35 @@ export function SharePanel({
             <Typography variant="caption" color="text.secondary" data-testid="club-link-expiry">
               {CLUB_LINK_EXPIRY_LABEL}
             </Typography>
+            {/* LAN-410: the six lines are on the page, in the box idiom the
+                link above already uses. Stewart's Safari refused a clipboard
+                write that followed an awaited server action; the text being
+                here is both what makes the copy synchronous and what makes the
+                message reachable by hand in any browser. */}
+            {message === null ? null : (
+              <Box
+                component="pre"
+                data-testid="share-message-text"
+                sx={{
+                  display: "block",
+                  m: 0,
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: "action.hover",
+                  fontFamily: "monospace",
+                  fontSize: "0.875rem",
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {message}
+              </Box>
+            )}
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
               <CopyLinkButton url={url} />
               {/* LAN-384: the same link, wrapped in the six lines an operator
                   would otherwise retype into the group chat. */}
-              <ShareMessageButton eventId={eventId} />
+              {message === null ? null : <ShareMessageButton message={message} />}
             </Stack>
           </>
         )}
