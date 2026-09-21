@@ -22,12 +22,16 @@ vi.mock("@/lib/services/roster-board", () => ({
   commitAvailability: vi.fn(),
   commitBlues: vi.fn(),
   commitBps: vi.fn(),
-  commitCoachGroup: vi.fn(),
+  commitCoachingGroups: vi.fn(),
   commitEligibility: vi.fn(),
   commitEntry: vi.fn(),
-  commitFormalwearItem: vi.fn(),
+  commitFormalwearItems: vi.fn(),
   commitJerseyNumbers: vi.fn(),
+  commitKitItem: vi.fn(),
   commitPosition: vi.fn(),
+  commitPositionGroups: vi.fn(),
+  commitSpecialTeamsAssignment: vi.fn(),
+  commitWarmupSmallGroup: vi.fn(),
 }));
 vi.mock("@/lib/services/membership", () => ({ resolveOnboardingItem: vi.fn() }));
 
@@ -37,9 +41,38 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { commitBps } from "@/lib/services/roster-board";
+import {
+  commitAvailability,
+  commitBlues,
+  commitBps,
+  commitCoachingGroups,
+  commitEligibility,
+  commitEntry,
+  commitFormalwearItems,
+  commitJerseyNumbers,
+  commitKitItem,
+  commitPosition,
+  commitPositionGroups,
+  commitSpecialTeamsAssignment,
+  commitWarmupSmallGroup,
+} from "@/lib/services/roster-board";
 import { resolveOnboardingItem } from "@/lib/services/membership";
-import { commitBpsAction, commitOnboardingItemAction } from "./board-actions";
+import {
+  commitAvailabilityAction,
+  commitBluesAction,
+  commitBpsAction,
+  commitCoachingGroupsAction,
+  commitEligibilityAction,
+  commitEntryAction,
+  commitFormalwearItemsAction,
+  commitJerseyNumbersAction,
+  commitKitItemAction,
+  commitOnboardingItemAction,
+  commitPositionAction,
+  commitPositionGroupsAction,
+  commitSpecialTeamsAssignmentAction,
+  commitWarmupSmallGroupAction,
+} from "./board-actions";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
@@ -201,6 +234,255 @@ describe("commitOnboardingItemAction", () => {
 
       expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
+    });
+  }
+});
+
+/**
+ * Every other cell action's own `person_record_authority` gate — advisory F2,
+ * PR 204 correction round. `commitBpsAction` and `commitOnboardingItemAction`
+ * above already carried this proof; deleting `requireCapability(...)` from
+ * `commitWarmupSmallGroupAction` left all of this file's (and its siblings')
+ * tests green, so nothing here was actually proving the gate exists for the
+ * rest of the board's cells. Table-driven, one case per remaining exported
+ * action, same shape as the two describes above: refused roles never reach
+ * the mocked service, held roles do, and the four unresolved-access states
+ * refuse identically to a role a caller does not hold.
+ */
+type GateCase = {
+  label: string;
+  call: () => Promise<{ error: string | null }>;
+  service: (...args: never[]) => unknown;
+  expected: Record<string, unknown>;
+};
+
+const GATE_CASES: GateCase[] = [
+  {
+    label: "commitPositionAction",
+    call: () =>
+      commitPositionAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        column: "offence",
+        code: "QB",
+      }),
+    service: commitPosition,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      column: "offence",
+      code: "QB",
+    },
+  },
+  {
+    label: "commitJerseyNumbersAction",
+    call: () =>
+      commitJerseyNumbersAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        kit: "blue",
+        numbers: ["12", "34"],
+      }),
+    service: commitJerseyNumbers,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      kit: "blue",
+      numbers: ["12", "34"],
+    },
+  },
+  {
+    label: "commitCoachingGroupsAction",
+    call: () =>
+      commitCoachingGroupsAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        groups: ["Offensive Line"],
+      }),
+    service: commitCoachingGroups,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      groups: ["Offensive Line"],
+    },
+  },
+  {
+    label: "commitPositionGroupsAction",
+    call: () =>
+      commitPositionGroupsAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        side: "offence",
+        groups: ["Offensive Line"],
+      }),
+    service: commitPositionGroups,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      side: "offence",
+      groups: ["Offensive Line"],
+    },
+  },
+  {
+    label: "commitSpecialTeamsAssignmentAction",
+    call: () =>
+      commitSpecialTeamsAssignmentAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        squad: "kickoff",
+        slot: "starting",
+        positionName: "Kicker",
+      }),
+    service: commitSpecialTeamsAssignment,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      squad: "kickoff",
+      slot: "starting",
+      positionName: "Kicker",
+    },
+  },
+  {
+    label: "commitKitItemAction",
+    call: () =>
+      commitKitItemAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        item: "helmet",
+        value: "Large",
+      }),
+    service: commitKitItem,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      item: "helmet",
+      value: "Large",
+    },
+  },
+  {
+    label: "commitWarmupSmallGroupAction",
+    call: () =>
+      commitWarmupSmallGroupAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        smallGroup: "Kings",
+      }),
+    service: commitWarmupSmallGroup,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      smallGroup: "Kings",
+    },
+  },
+  {
+    label: "commitFormalwearItemsAction",
+    call: () =>
+      commitFormalwearItemsAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        items: ["tie"],
+      }),
+    service: commitFormalwearItems,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      items: ["tie"],
+    },
+  },
+  {
+    label: "commitBluesAction",
+    call: () =>
+      commitBluesAction({ membershipId: MEMBERSHIP_ID, seasonId: SEASON_ID, value: "Full" }),
+    service: commitBlues,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      value: "Full",
+    },
+  },
+  {
+    label: "commitEligibilityAction",
+    call: () =>
+      commitEligibilityAction({
+        membershipId: MEMBERSHIP_ID,
+        seasonId: SEASON_ID,
+        status: "eligible",
+      }),
+    service: commitEligibility,
+    expected: {
+      actorPersonId: OPERATOR_PERSON_ID,
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      status: "eligible",
+    },
+  },
+  {
+    label: "commitAvailabilityAction",
+    call: () => commitAvailabilityAction({ membershipId: MEMBERSHIP_ID, level: "green" }),
+    service: commitAvailability,
+    expected: { actorPersonId: OPERATOR_PERSON_ID, membershipId: MEMBERSHIP_ID, level: "green" },
+  },
+  {
+    label: "commitEntryAction",
+    call: () => commitEntryAction({ membershipId: MEMBERSHIP_ID, entry: "new" }),
+    service: commitEntry,
+    expected: { actorPersonId: OPERATOR_PERSON_ID, membershipId: MEMBERSHIP_ID, entry: "new" },
+  },
+];
+
+describe("every other roster-cell action's authorization gate", () => {
+  for (const { label, call, service, expected } of GATE_CASES) {
+    describe(label, () => {
+      for (const role of FOUR_ROLE) {
+        it(`lets the ${role} reach the service`, async () => {
+          givenAccess({ state: "active", operator: actor([role]) });
+
+          const state = await call();
+
+          expect(state.error).toBeNull();
+          expect(service).toHaveBeenCalledWith(expected);
+        });
+      }
+
+      for (const role of OTHER_ROLES) {
+        it(`refuses the ${role}, and never reaches the service`, async () => {
+          givenAccess({ state: "active", operator: actor([role]) });
+
+          const failure = await call().catch((error: unknown) => error);
+
+          expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+          expect(service).not.toHaveBeenCalled();
+        });
+      }
+
+      it("refuses an operator holding no seat at all", async () => {
+        givenAccess({ state: "active", operator: actor([]) });
+
+        const failure = await call().catch((error: unknown) => error);
+
+        expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+        expect(service).not.toHaveBeenCalled();
+      });
+
+      for (const state of ["unlinked", "inactive", "no_session"] as const) {
+        it(`is refused to a ${state} caller`, async () => {
+          givenAccess({ state } as OperatorAccess);
+
+          const failure = await call().catch((error: unknown) => error);
+
+          expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+          expect(service).not.toHaveBeenCalled();
+        });
+      }
     });
   }
 });

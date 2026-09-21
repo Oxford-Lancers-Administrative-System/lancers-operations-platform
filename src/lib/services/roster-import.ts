@@ -261,30 +261,42 @@ async function writeSeasonFacts(
   for (const column of SEASON_FACT_IMPORT_COLUMNS) {
     const value = facts[column.name];
     if (value === undefined) continue;
-    if (column.kind === "special_teams") {
-      await commitSpecialTeamsAssignment({
-        actorPersonId,
-        membershipId,
-        seasonId,
-        squad: column.squad,
-        slot: column.slot,
-        positionName: value,
-      });
-    } else if (column.kind === "kit") {
-      await commitKitItem({
-        actorPersonId,
-        membershipId,
-        seasonId,
-        item: column.item,
-        value,
-      });
-    } else {
-      await commitWarmupSmallGroup({
-        actorPersonId,
-        membershipId,
-        seasonId,
-        smallGroup: value,
-      });
+    switch (column.kind) {
+      case "special_teams":
+        await commitSpecialTeamsAssignment({
+          actorPersonId,
+          membershipId,
+          seasonId,
+          squad: column.squad,
+          slot: column.slot,
+          positionName: value,
+        });
+        break;
+      case "kit":
+        await commitKitItem({
+          actorPersonId,
+          membershipId,
+          seasonId,
+          item: column.item,
+          value,
+        });
+        break;
+      case "warmup":
+        await commitWarmupSmallGroup({
+          actorPersonId,
+          membershipId,
+          seasonId,
+          smallGroup: value,
+        });
+        break;
+      default: {
+        // Exhaustiveness check: a fourth `SeasonFactImportColumn` kind added
+        // later fails `npm run typecheck` here instead of silently falling
+        // through to the warmup writer, which is what the old
+        // if/else-if/else chain did.
+        const _exhaustive: never = column;
+        throw new Error(`Unhandled season-fact import column kind: ${String(_exhaustive)}`);
+      }
     }
     written += 1;
   }
