@@ -1,12 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import {
   allowedItemStates,
   isDerivedItem,
   itemStateLabel,
   KIT_DISTRIBUTED_ITEM_CODE,
   SUBS_INVOICED_ITEM_CODE,
+  RESOLVED_ITEM_STATUS_CODES,
   SUBS_PAID_ITEM_CODE,
 } from "./onboarding-item-shapes";
+import { RESOLVED_ITEM_STATUSES } from "./membership";
 
 /**
  * D-002 (correction round 6, `WP-operator-record`, LAN-217): **one state
@@ -163,5 +168,16 @@ describe("itemStateLabel — the word Brian actually said, per item", () => {
     expect(() => itemStateLabel(SUBS_INVOICED_ITEM_CODE, "invited")).toThrow();
     expect(() => itemStateLabel(SUBS_INVOICED_ITEM_CODE, "waived")).toThrow();
     expect(() => itemStateLabel(KIT_DISTRIBUTED_ITEM_CODE, "waived")).toThrow();
+  });
+});
+
+/**
+ * LAN-408 — the record's required marker has to know whether an item is
+ * settled, and the service's own list is `server-only`. Two copies, one
+ * meaning: this is the test that keeps them the same.
+ */
+describe("RESOLVED_ITEM_STATUS_CODES — the client-safe copy", () => {
+  it("is exactly the service's own list", () => {
+    expect([...RESOLVED_ITEM_STATUS_CODES]).toEqual([...RESOLVED_ITEM_STATUSES]);
   });
 });

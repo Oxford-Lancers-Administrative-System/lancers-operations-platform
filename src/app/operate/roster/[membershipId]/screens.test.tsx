@@ -1966,3 +1966,88 @@ describe("Warmup assignments — LAN-401", () => {
     );
   });
 });
+
+/**
+ * LAN-408 — Stewart, "Ops Improvements", 2026-09-21, request 1: "I'm not a
+ * huge fan of the stacking effect here. Can the data related to a line be in
+ * line, then AFTER that entry or choice, perhaps a required/not required
+ * field that is green or red or something to draw attention to the admin."
+ */
+describe("an onboarding item reads label, value, marker", () => {
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+  });
+
+  function markerOf(label: string): HTMLElement {
+    const row = screen.getByText(label).closest('[data-testid="record-row"]') as HTMLElement;
+    return row;
+  }
+
+  it("puts the marker after the value, not above it", async () => {
+    givenRecord({
+      onboardingItems: [historyItem({ status: "pending" })],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = markerOf("BUCS Play registration");
+    const text = row.textContent ?? "";
+    // Reading order, in the DOM the way it is on the page.
+    expect(text.indexOf("BUCS Play registration")).toBeLessThan(text.indexOf("Not invited"));
+    expect(text.indexOf("Not invited")).toBeLessThan(text.indexOf("Required"));
+  });
+
+  it("draws attention to a required item that is still outstanding", async () => {
+    givenRecord({ onboardingItems: [historyItem({ status: "pending" })] });
+    render(await PlayerRecordPage(pageProps()));
+
+    const chip = within(markerOf("BUCS Play registration")).getByText("Required");
+    expect(chip).toBeInTheDocument();
+    // Filled, which is what "draws attention" is made of here; the settled
+    // case below is the same word drawn quietly.
+    expect(chip.closest(".MuiChip-root")).toHaveClass("MuiChip-filled");
+  });
+
+  it("does not draw attention to a required item that is settled", async () => {
+    givenRecord({ onboardingItems: [historyItem({ status: "complete" })] });
+    render(await PlayerRecordPage(pageProps()));
+
+    const chip = within(markerOf("BUCS Play registration")).getByText("Required");
+    expect(chip.closest(".MuiChip-root")).toHaveClass("MuiChip-outlined");
+  });
+
+  it("says Not required where nothing is required, and never blocks activation for the subscription", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          id: "item-hudl",
+          code: "hudl_access",
+          label: "Hudl access",
+          isRequired: false,
+          status: "pending",
+        }),
+        historyItem({
+          id: "item-invoiced",
+          code: "subs_invoiced",
+          label: "Subscription invoiced",
+          status: "complete",
+        }),
+        historyItem({
+          id: "item-paid",
+          code: "subs_paid",
+          label: "Subscription paid",
+          isRequired: false,
+          isSubscription: true,
+          status: "pending",
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const hudl = within(markerOf("Hudl access")).getByText("Not required");
+    expect(hudl.closest(".MuiChip-root")).toHaveClass("MuiChip-outlined");
+
+    const paid = markerOf("Subscription paid");
+    expect(within(paid).getByText("Never blocks activation")).toBeInTheDocument();
+    expect(within(paid).queryByText("Not required")).not.toBeInTheDocument();
+  });
+});

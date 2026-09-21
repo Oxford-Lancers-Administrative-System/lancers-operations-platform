@@ -107,9 +107,16 @@ export const STATUS_VOCABULARY: Readonly<
     outstanding: outlined("warning"),
     waived: outlined("neutral"),
     not_applicable: outlined("neutral"),
-    // The two item flags the record shows beside a status: facts, outlined.
+    // The item flags the record shows beside a status: facts, outlined.
     required: outlined("neutral"),
     never_blocks: outlined("neutral"),
+    // LAN-408 — Stewart, "Ops Improvements", 2026-09-21: "a required/not
+    // required field that is green or red or something to draw attention to
+    // the admin". One required item still outstanding is the only one of the
+    // three that asks anything of a reader, so it is the only one filled; the
+    // warning tone is the page's own, already worn by `pending`/`outstanding`.
+    required_outstanding: filled("warning"),
+    not_required: outlined("neutral"),
   }),
   // The board's traffic light for standing availability, from the semantic set.
   availability: Object.freeze({

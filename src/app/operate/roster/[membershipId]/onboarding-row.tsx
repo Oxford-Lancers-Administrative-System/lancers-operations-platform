@@ -10,6 +10,7 @@ import type { OnboardingItemStatus } from "@/lib/services/membership";
 import {
   allowedItemStates,
   isDerivedItem,
+  isItemResolved,
   itemStateLabel,
 } from "@/lib/services/onboarding-item-shapes";
 import type {
@@ -127,26 +128,29 @@ export default function OnboardingRow({
   // item's state history follows it, unchanged.
   const note = [agreementNote(item), provenanceNote(item)].filter(Boolean).join(" · ") || undefined;
 
+  /**
+   * The marker that follows the value — LAN-408. Stewart, "Ops Improvements",
+   * 2026-09-21: "the data related to a line be in line, then AFTER that entry
+   * or choice, perhaps a required/not required field that is green or red or
+   * something to draw attention to the admin."
+   *
+   * One chip, never two, and only the one thing that asks something of a
+   * reader is filled: a required item still outstanding. A required item that
+   * is settled, and an item that was never required, are facts, so they stay
+   * the outlined neutral the flags already wore. The subscription item keeps
+   * its own longer word, because "never blocks activation" is what is true of
+   * it and "Not required" would read as though nobody wants the money.
+   */
+  const marker = item.isSubscription
+    ? { status: "never_blocks", label: "Never blocks activation" }
+    : item.isRequired
+      ? isItemResolved(item.status)
+        ? { status: "required", label: "Required" }
+        : { status: "required_outstanding", label: "Required" }
+      : { status: "not_required", label: "Not required" };
+
   return (
     <Row label={item.label} note={note}>
-      <Stack
-        direction="row"
-        spacing={1}
-        // Its own line above the value: the row's value slot is a flex line
-        // now (Brian's visual pass, item 4), and these flags are not the value.
-        sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5, flexBasis: "100%" }}
-      >
-        {item.isRequired ? (
-          <StatusChip domain="onboardingItem" status="required" label="Required" />
-        ) : null}
-        {item.isSubscription ? (
-          <StatusChip
-            domain="onboardingItem"
-            status="never_blocks"
-            label="Never blocks activation"
-          />
-        ) : null}
-      </Stack>
       {editing ? (
         <Select
           size="small"
@@ -194,6 +198,14 @@ export default function OnboardingRow({
           )}
         </Box>
       )}
+      {/* After the value, in reading order: label, value, marker — LAN-408. */}
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5, ml: 1 }}
+      >
+        <StatusChip domain="onboardingItem" status={marker.status} label={marker.label} />
+      </Stack>
       <FieldStatus error={error} />
     </Row>
   );

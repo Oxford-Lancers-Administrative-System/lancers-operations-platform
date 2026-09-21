@@ -73,6 +73,23 @@ export function isDerivedItem(code: string): boolean {
   return DERIVED_ITEM_CODES.has(code);
 }
 
+/**
+ * The three states that settle an item — the client-safe copy of
+ * `RESOLVED_ITEM_STATUSES` in `membership/read.ts`, which is `server-only` and
+ * so cannot be read from a record's own components.
+ * `onboarding-item-shapes.test.ts` asserts the two lists stay the same.
+ */
+export const RESOLVED_ITEM_STATUS_CODES: readonly OnboardingItemStatus[] = Object.freeze([
+  "complete",
+  "waived",
+  "not_applicable",
+]);
+
+/** Whether this item is settled — `false` is what the record's required marker draws attention to (LAN-408). */
+export function isItemResolved(status: OnboardingItemStatus): boolean {
+  return RESOLVED_ITEM_STATUS_CODES.includes(status);
+}
+
 const DEFAULT_ITEM_STATES: readonly ItemState[] = Object.freeze([
   { status: "pending", label: "Pending" },
   { status: "complete", label: "Complete" },
