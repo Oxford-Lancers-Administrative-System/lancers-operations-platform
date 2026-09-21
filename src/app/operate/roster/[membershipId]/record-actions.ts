@@ -307,7 +307,10 @@ export async function recordSendOnboardingQuestionnaireAction(params: {
 
   const outcome = results[0]?.outcome ?? null;
   let reason: string | null = null;
-  if (outcome !== "accepted") {
+  // LAN-394: a deferral has no stored delivery failure to read back, because
+  // nothing was attempted. Reading `last_error` for one would show the previous
+  // attempt's reason beside a message that is merely waiting.
+  if (outcome !== "accepted" && outcome !== "deferred") {
     const status = await withTransaction((tx) =>
       readOnboardingSendStatusIn(tx, params.membershipId),
     );

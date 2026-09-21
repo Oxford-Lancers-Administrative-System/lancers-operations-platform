@@ -41,7 +41,12 @@ import {
   revokeAndReissue,
   UNCONFIGURED_PROVIDER,
 } from "./delivery";
-import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+  seededIdentityCreatedAt,
+} from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN78DeliverySuite";
 
@@ -117,6 +122,10 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // LAN-394: the holds this suite's fixtures earned go with the attempts they
+  // were counted from. See `clearRecipientSafetyState`.
+  await clearRecipientSafetyState(observer);
+
   const events = "(select id from public.events where name like $1)";
   const jobs = `(select id from public.notification_jobs where event_id in ${events})`;
   const invitations = `(select id from public.invitations where event_id in ${events})`;
@@ -385,6 +394,12 @@ async function addInvitee(tag: string, phone: string | null = "07700 900444") {
   return { personId, invitationId: invitation.rows[0].id };
 }
 
+/** The one fallback job's id, named rather than indexed at five call sites. */
+function fallbackIdOf(rows: readonly { id: string }[]): string {
+  expect(rows).toHaveLength(1);
+  return rows[0].id;
+}
+
 function accepts(prefix = `${PROVIDER_MESSAGE_PREFIX}ACCEPTED`) {
   let serial = 0;
   return vi.fn(async () => {
@@ -428,7 +443,7 @@ describe("dispatching after approval", () => {
 
     const summary = await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
 
-    expect(summary).toEqual({ attempted: 1, accepted: 1, refused: 0, skipped: 0 });
+    expect(summary).toEqual({ attempted: 1, accepted: 1, refused: 0, skipped: 0, deferred: 0 });
     expect(transport).toHaveBeenCalledTimes(1);
 
     const attempt = await observer.query<{
@@ -894,6 +909,12 @@ describe("failure and retry", () => {
       transport: refuses(130429, 429),
     });
 
+    // LAN-394. The retry is a second message to the same person seconds after
+    // the first, which the guard paces. What is under test is the retry's own
+    // behaviour, so the pacing window is cleared rather than waited out; the
+    // recipient's daily and weekly ceilings still apply.
+    await agePastSafetyPacing(observer);
+
     await retryDelivery(await anyPerson(), jobId, {
       source: CONFIGURED,
       transport: accepts("wamid.RETRIED"),
@@ -923,10 +944,12 @@ describe("failure and retry", () => {
     });
     // Distinct prefixes because each `accepts()` counts from one of its own, and
     // two attempts may never share a provider message identifier.
+    await agePastSafetyPacing(observer);
     await retryDelivery(await anyPerson(), jobId, {
       source: CONFIGURED,
       transport: accepts(`${PROVIDER_MESSAGE_PREFIX}RETRY`),
     });
+    await agePastSafetyPacing(observer);
     await revokeAndReissue(await anyPerson(), invitationId, "Wrong link", {
       source: CONFIGURED,
       transport: accepts(`${PROVIDER_MESSAGE_PREFIX}REISSUE`),
@@ -948,8 +971,12 @@ describe("failure and retry", () => {
     const person = await anyPerson();
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      // LAN-394: five attempts at one person in one second. The ceiling is what
+      // is under test, not the pacing.
+      await agePastSafetyPacing(observer);
       await dispatchJob(jobId, { source: CONFIGURED, transport: refuses(130429, 429) });
     }
+    await agePastSafetyPacing(observer);
 
     const current = await row(eventId);
     expect(current.attemptCount).toBe(MAX_ATTEMPTS);
@@ -982,6 +1009,7 @@ describe("provider message identifiers", () => {
     await observer.query("update public.notification_jobs set status = 'pending' where id = $1", [
       jobId,
     ]);
+    await agePastSafetyPacing(observer);
 
     const error = await caught(() => dispatchJob(jobId, { source: CONFIGURED, transport: reused }));
     expect(error.kind).toBe("conflict");
@@ -1007,6 +1035,7 @@ describe("revoke and reissue", () => {
       [invitationId],
     );
 
+    await agePastSafetyPacing(observer);
     await revokeAndReissue(await anyPerson(), invitationId, "Sent to the wrong number", {
       source: CONFIGURED,
       transport: accepts(`${PROVIDER_MESSAGE_PREFIX}REISSUED`),
@@ -1287,6 +1316,7 @@ describe("provider callbacks", () => {
     // The documented repair for a delivery stuck at Attempted: it cannot be
     // retried, so the operator reissues. That returns the job to `pending` and
     // sends attempt 2.
+    await agePastSafetyPacing(observer);
     await revokeAndReissue(await anyPerson(), invitationId, "Stuck at attempted", {
       source: CONFIGURED,
       transport: accepts(`${PROVIDER_MESSAGE_PREFIX}SECOND`),
@@ -1564,6 +1594,7 @@ describe("what an operator is told after a repair", () => {
     // The cause is fixed off-screen and the operator retries. The provider
     // accepts. The panel must not now render "Latest result: Attempted" above
     // the *old* reason — which is what it did, on the commonest repair path.
+    await agePastSafetyPacing(observer);
     await retryDelivery(await anyPerson(), jobId, {
       source: CONFIGURED,
       transport: accepts(`${PROVIDER_MESSAGE_PREFIX}REPAIRED`),
@@ -2008,6 +2039,26 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
       transport: refusesWhatsAppAcceptsEmail(),
     });
 
+    // LAN-394. Created, and waiting: the fallback reaches the same person
+    // seconds after the WhatsApp attempt, and the guard paces one message per
+    // person per five minutes. It is queued, not failed, and no attempt has
+    // been spent on it.
+    const queued = await fallbackJobFor(eventId);
+    expect(queued).toHaveLength(1);
+    expect(queued[0].status).toBe("pending");
+
+    // LAN-394. The fallback is a *second* message to the same person seconds
+    // after the WhatsApp attempt, so the guard paces it: the job is created
+    // and waits rather than going out immediately. That is the decided
+    // behaviour (Brian, 17 September 2026) and what this test is about is the
+    // fallback itself, so the pacing window is cleared and the waiting job is
+    // dispatched exactly as the next sweep would.
+    await agePastSafetyPacing(observer);
+    await dispatchJob(fallbackIdOf(await fallbackJobFor(eventId)), {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
     const fallbacks = await fallbackJobFor(eventId);
     expect(fallbacks).toHaveLength(1);
     expect(fallbacks[0].status).toBe("processing");
@@ -2066,6 +2117,18 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
       transport: refusesWhatsAppAcceptsEmail(),
     });
 
+    // LAN-394. The fallback is a *second* message to the same person seconds
+    // after the WhatsApp attempt, so the guard paces it: the job is created
+    // and waits rather than going out immediately. That is the decided
+    // behaviour (Brian, 17 September 2026) and what this test is about is the
+    // fallback itself, so the pacing window is cleared and the waiting job is
+    // dispatched exactly as the next sweep would.
+    await agePastSafetyPacing(observer);
+    await dispatchJob(fallbackIdOf(await fallbackJobFor(eventId)), {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
     const fallbacks = await fallbackJobFor(eventId);
     expect(fallbacks).toHaveLength(1);
     expect(fallbacks[0].status).toBe("processing");
@@ -2092,6 +2155,7 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
       source: CONFIGURED_WITH_EMAIL,
       transport: refusesWhatsAppAcceptsEmail(),
     });
+    await agePastSafetyPacing(observer);
     await retryDelivery(await anyPerson(), jobId, {
       source: CONFIGURED_WITH_EMAIL,
       transport: refuses(131026),
@@ -2128,6 +2192,18 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
       source: CONFIGURED_WITH_EMAIL,
       transport: refusesWhatsAppAcceptsEmail(),
     });
+    // LAN-394. The fallback is a *second* message to the same person seconds
+    // after the WhatsApp attempt, so the guard paces it: the job is created
+    // and waits rather than going out immediately. That is the decided
+    // behaviour (Brian, 17 September 2026) and what this test is about is the
+    // fallback itself, so the pacing window is cleared and the waiting job is
+    // dispatched exactly as the next sweep would.
+    await agePastSafetyPacing(observer);
+    await dispatchJob(fallbackIdOf(await fallbackJobFor(eventId)), {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
     const fallbacks = await fallbackJobFor(eventId);
     expect(fallbacks[0].status).toBe("processing");
 
@@ -2163,6 +2239,18 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
     await addEmail(personId);
 
     await dispatchJob(jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
+    // LAN-394. The fallback is a *second* message to the same person seconds
+    // after the WhatsApp attempt, so the guard paces it: the job is created
+    // and waits rather than going out immediately. That is the decided
+    // behaviour (Brian, 17 September 2026) and what this test is about is the
+    // fallback itself, so the pacing window is cleared and the waiting job is
+    // dispatched exactly as the next sweep would.
+    await agePastSafetyPacing(observer);
+    await dispatchJob(fallbackIdOf(await fallbackJobFor(eventId)), {
       source: CONFIGURED_WITH_EMAIL,
       transport: refusesWhatsAppAcceptsEmail(),
     });

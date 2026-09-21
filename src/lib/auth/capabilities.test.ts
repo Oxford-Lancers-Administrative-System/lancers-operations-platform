@@ -621,10 +621,14 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
   // Brian's decision of 15 August 2026. Asserted positively and literally,
   // because the seat holding everything is precisely the kind of grant that
   // should never be arrived at by a rule, a default or an inheritance.
-  // LAN-361 added the one exception, and named it here so it cannot be
-  // widened by accident: `person_erasure` is the core four's alone, on
-  // Brian's decision of 16 September 2026.
-  const NOT_THE_IT_OFFICERS: readonly string[] = ["person_erasure"];
+  // LAN-361 added the first exception, and LAN-394 the second, and both are
+  // named here so neither can be widened by accident. `person_erasure` is the
+  // core four's alone (Brian, 16 September 2026) because destroying somebody's
+  // record irreversibly is not an administrative act; `messaging_safety_authority`
+  // is theirs alone (Brian, 17 September 2026) because deciding that the club
+  // stops talking to its members is not one either. The seat that exists to
+  // keep the system running is not the seat that decides those two things.
+  const NOT_THE_IT_OFFICERS: readonly string[] = ["person_erasure", "messaging_safety_authority"];
 
   it("holds every capability in the map except the one deliberately withheld", () => {
     for (const key of CAPABILITY_KEYS) {
@@ -635,6 +639,18 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
   it("is refused person erasure, which belongs to the core four alone", () => {
     expect(roleCodesPermit(["it_officer"], "person_erasure")).toBe(false);
     expect(permittedSet("person_erasure")).toEqual(
+      ["president", "vice_president", "secretary", "general_manager"].sort(),
+    );
+  });
+
+  it("is refused the messaging safety controls, which belong to the core four alone", () => {
+    // LAN-394. The IT Officer still opens the page — reading that messaging is
+    // paused is how somebody diagnoses a deployment — and is refused each
+    // control individually, which is what `delivery_administration` gating the
+    // page and this capability gating the actions means.
+    expect(roleCodesPermit(["it_officer"], "messaging_safety_authority")).toBe(false);
+    expect(roleCodesPermit(["it_officer"], "delivery_administration")).toBe(true);
+    expect(permittedSet("messaging_safety_authority")).toEqual(
       ["president", "vice_president", "secretary", "general_manager"].sort(),
     );
   });
@@ -671,7 +687,11 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
     expect(CAPABILITIES.role_management.decision).toMatch(/LAN-124/);
     expect(CAPABILITIES.role_management.decision).not.toMatch(/undecided/i);
     for (const key of CAPABILITY_KEYS) {
-      expect(CAPABILITIES[key].decision, key).toMatch(/LAN-124|it_officer/);
+      // The two capabilities the administrative seat does NOT hold say so in
+      // their own words instead of naming LAN-124's widening.
+      expect(CAPABILITIES[key].decision, key).toMatch(
+        NOT_THE_IT_OFFICERS.includes(key) ? /core four/i : /LAN-124|it_officer/,
+      );
     }
   });
 
@@ -697,6 +717,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "event_calendar_management",
         "leadership_report",
         "membership_activation",
+        "messaging_safety_authority",
         "person_erasure",
         "person_record_authority",
         "role_management",

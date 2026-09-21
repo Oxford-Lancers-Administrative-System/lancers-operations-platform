@@ -101,6 +101,15 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "season_messaging_consents", column: "recorded_by_person_id" },
   { table: "kit_issue_records", column: "recorded_by_person_id" },
   { table: "membership_position_groups", column: "recorded_by_person_id" },
+  // LAN-394. Who paused or resumed messaging safety — actor columns on a
+  // machinery row, with nothing per-person unique to collide on.
+  { table: "messaging_safety_scopes", column: "paused_by_person_id" },
+  { table: "messaging_safety_scopes", column: "resumed_by_person_id" },
+  // LAN-394. Who an admitted send was addressed to, for the rolling
+  // per-person counts. Blind re-pointing is exactly right here: a merge must
+  // not reset a person's recent allowance, so the loser's admitted attempts
+  // become the survivor's and the total usage is preserved.
+  { table: "delivery_attempts", column: "safety_person_id" },
   { table: "seasons", column: "closed_by_person_id" },
   { table: "seasons", column: "opened_by_person_id" },
   { table: "special_teams_assignments", column: "recorded_by_person_id" },
@@ -544,6 +553,69 @@ function assertEveryDifferenceAnswered(
 }
 
 /** The merge. One transaction: every reference re-pointed, every chosen field written as an ordinary correction, the loser marked and dated, one audit event (invariant I6, Q-5). */
+/**
+ * Combines the two people's messaging safety holds — LAN-394.
+ *
+ * A person scope is keyed by the Person's id as text rather than by a foreign
+ * key (see the migration's own note), so the blind re-point below cannot reach
+ * it, and a blind update would collide with the survivor's own row anyway.
+ *
+ * The rule is that a merge never *loosens* anything. If either record was held,
+ * the survivor is held, and the earlier of the two hold times is the one kept —
+ * so merging a duplicate into somebody is not a way to clear a hold. Destination
+ * scopes are untouched: they are about a number, and a number does not change
+ * because two records turned out to be one person.
+ *
+ * Usage is preserved separately, by `delivery_attempts.safety_person_id` being
+ * re-pointed in the blind list: the survivor inherits the loser's recent
+ * admitted attempts, so the merge cannot reset a rolling allowance either.
+ */
+async function repointSafetyScopes(
+  tx: Tx,
+  survivorPersonId: string,
+  loserPersonId: string,
+): Promise<void> {
+  const loser = await tx.query<{
+    id: string;
+    latched_at: Date | null;
+    latch_reason_code: string | null;
+  }>(
+    `select id, latched_at, latch_reason_code
+       from public.messaging_safety_scopes
+      where scope_kind = 'person' and scope_key = $1
+      for update`,
+    [loserPersonId],
+  );
+  const row = loser.rows[0];
+  if (!row) return;
+
+  if (row.latched_at) {
+    await tx.query(
+      `insert into public.messaging_safety_scopes (scope_kind, scope_key, latched_at, latch_reason_code)
+       values ('person', $1, $2::timestamptz, $3)
+       on conflict (scope_kind, scope_key) do update
+          set latched_at = least(
+                coalesce(public.messaging_safety_scopes.latched_at, excluded.latched_at),
+                excluded.latched_at),
+              latch_reason_code = coalesce(
+                public.messaging_safety_scopes.latch_reason_code, excluded.latch_reason_code),
+              version = public.messaging_safety_scopes.version + 1,
+              updated_at = now()`,
+      [survivorPersonId, row.latched_at, row.latch_reason_code ?? "person_hold"],
+    );
+  }
+
+  await tx.query(
+    `update public.notification_jobs set safety_block_scope_id = (
+       select id from public.messaging_safety_scopes
+        where scope_kind = 'person' and scope_key = $1
+     ) where safety_block_scope_id = $2::uuid`,
+    [survivorPersonId, row.id],
+  );
+
+  await tx.query("delete from public.messaging_safety_scopes where id = $1::uuid", [row.id]);
+}
+
 export async function mergePersons(params: {
   actorPersonId: string;
   survivorPersonId: string;
@@ -640,6 +712,9 @@ export async function mergePersons(params: {
       loserPersonId,
       retainedMemberships.map((m) => m.membershipId),
     );
+    // LAN-394. Safety scopes are keyed by text, not by a foreign key, so they
+    // are not in the blind list below and are combined here instead.
+    await repointSafetyScopes(tx, survivorPersonId, loserPersonId);
 
     for (const { table, column } of PERSON_REFERENCE_COLUMNS) {
       // staging.legacy_roster_rows already names its own schema; others are bare.

@@ -7,6 +7,7 @@ import type {
   DeliveryProvider,
   InvitationMessage,
   ProviderCallbackEvent,
+  SendFaultScope,
   SendOutcome,
   Transport,
 } from "./provider";
@@ -90,6 +91,43 @@ const RETRYABLE_PROVIDER_CODES: ReadonlySet<number> = new Set([
   131000, // something went wrong, unspecified
   368, // temporarily blocked for policy violations — clears on its own
 ]);
+
+/**
+ * Whose fault each known code is, for LAN-394's provider circuit.
+ *
+ * Only `provider` reaches the cooldown streak. A number that is not on
+ * WhatsApp, a recipient who opted out, a blocked contact and a pair-specific
+ * rate limit are all about one destination; a template that is missing, paused,
+ * disabled or mismatched is about one message. Neither says the provider is
+ * unwell, and treating either as though it did would let a single bad
+ * recipient stop the club messaging anybody.
+ */
+const PROVIDER_FAULT_SCOPES: Readonly<Record<number, SendFaultScope>> = {
+  131047: "recipient",
+  131026: "recipient",
+  131030: "recipient",
+  131050: "recipient",
+  131056: "recipient",
+  130403: "recipient",
+  132000: "message",
+  132001: "message",
+  132015: "message",
+  132016: "message",
+  190: "provider",
+  130429: "provider",
+  131000: "provider",
+  368: "provider",
+};
+
+/**
+ * An unknown code is classified by the transport's own answer rather than
+ * guessed: a 429 or a 5xx is the provider, and any other status is treated as
+ * being about this request. The safe direction for an unknown is *not* to open
+ * the circuit.
+ */
+function faultScopeFor(code: number, status: number): SendFaultScope {
+  return PROVIDER_FAULT_SCOPES[code] ?? (status === 429 || status >= 500 ? "provider" : "message");
+}
 
 /** Sentences an operator can act on, per Meta error code. */
 const PROVIDER_REASONS: Readonly<Record<number, string>> = {
@@ -316,6 +354,7 @@ export function interpretResponse(status: number, body: unknown): SendOutcome {
         "The provider accepted the message but returned no message identifier, " +
         "so its delivery could not be tracked. Nothing is known to have been sent.",
       retryable: true,
+      faultScope: "provider",
     };
   }
 
@@ -328,6 +367,7 @@ export function interpretResponse(status: number, body: unknown): SendOutcome {
       status: "refused",
       reason: `${reasonFor(code, "This needs the club's administrator.")}${trace}`,
       retryable: RETRYABLE_PROVIDER_CODES.has(code) || status === 429 || status >= 500,
+      faultScope: faultScopeFor(code, status),
     };
   }
 
@@ -337,6 +377,7 @@ export function interpretResponse(status: number, body: unknown): SendOutcome {
       `The provider could not be reached or answered unexpectedly (HTTP ${status}). ` +
       "Nothing was sent.",
     retryable: status === 429 || status >= 500,
+    faultScope: "provider",
   };
 }
 
@@ -362,7 +403,15 @@ export function createWhatsAppCloudProvider(
       // at the provider with nothing here to explain it. Retryable, because
       // supplying the secret is all it takes.
       if (proof === null) {
-        return { status: "refused", reason: APP_SECRET_MISSING_REASON, retryable: true };
+        return {
+          status: "refused",
+          reason: APP_SECRET_MISSING_REASON,
+          retryable: true,
+          // A setting, not a sick provider. Cooling the circuit down here would
+          // make a deployment nobody had finished configuring look like an
+          // outage, and would hide the one sentence that says what to do.
+          faultScope: "configuration",
+        };
       }
 
       let response: Response;
@@ -392,6 +441,7 @@ export function createWhatsAppCloudProvider(
             "The provider could not be reached, so nothing was sent: " +
             redactDigits(error instanceof Error ? error.message : "unknown transport failure"),
           retryable: true,
+          faultScope: "provider",
         };
       }
 

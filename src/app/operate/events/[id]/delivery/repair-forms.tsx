@@ -61,6 +61,12 @@ export function RetryDeliveryForm({
             {state.error}
           </Notice>
         ) : null}
+        {/* LAN-394. Queued, not refused. */}
+        {state.notice && slot.showing ? (
+          <Notice severity="info" testId="retry-waiting">
+            {state.notice}
+          </Notice>
+        ) : null}
       </Stack>
     </Box>
   );
@@ -120,6 +126,12 @@ export function RevokeAndReissueForm({
         {state.error && slot.showing ? (
           <Notice variant="refusal" testId="reissue-error">
             {state.error}
+          </Notice>
+        ) : null}
+        {/* LAN-394. The link is withdrawn; the replacement is waiting. */}
+        {state.notice && slot.showing ? (
+          <Notice severity="info" testId="reissue-waiting">
+            {state.notice}
           </Notice>
         ) : null}
         <ActionBar

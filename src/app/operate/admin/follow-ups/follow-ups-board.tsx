@@ -14,6 +14,7 @@ import {
   andMore,
   chaseButtonLabel,
   chaseProblemNotice,
+  chaseWaitingNotice,
   chaseRefusalLine,
   chaseSentNotice,
   REFUSALS_NAMED,
@@ -185,6 +186,17 @@ export default function FollowUpsBoard({
           <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
             {refusalGroups.map((group) => (
               <li key={group.reason}>{chaseRefusalLine(namesFrom(group.names), group.reason)}</li>
+            ))}
+          </Box>
+        </Notice>
+      ) : null}
+      {/* LAN-394. Queued, not refused, and named the same way. */}
+      {result && result.waiting.length > 0 ? (
+        <Notice severity="info" testId="chase-waiting">
+          {chaseWaitingNotice(result.waiting.length)}
+          <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
+            {result.waiting.map((entry) => (
+              <li key={entry.invitationId}>{nameOf(entry.invitationId) ?? entry.invitationId}</li>
             ))}
           </Box>
         </Notice>

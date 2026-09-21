@@ -314,6 +314,24 @@ anonymised until both have. That rule lives in
 authority below: the capability answers "may this operator start it at all", and
 the sign-off rule answers "may it happen yet".
 
+**A second capability is narrower than the rest, for the same kind of reason**
+(LAN-394, Brian 2026-09-17). `messaging_safety_authority` is what lets an
+operator pause and resume the club's outbound messaging. It is granted to the
+core four — President, Vice-President, Secretary, General Manager — and to
+nobody else, making it the second exception to the 15 August 2026 rule that the
+administrative seat holds every capability in the map. Stopping every message
+the club sends, or restarting them after an emergency stop, is not an
+administrative act; it is the same judgement `event_approval` already asks of
+those four.
+
+The Messaging schedule page itself stays on `delivery_administration`, so the IT
+Officer can still _read_ the safety state — seeing that messaging is paused is
+how somebody diagnoses a deployment — and each control refuses them
+individually, which is the ordinary arrangement for a surface whose actions are
+narrower than its page. The thresholds are not a capability at all: they are
+constants in `src/lib/services/messaging-safety/policy.ts` and nothing in the
+application can change them.
+
 **One actor is narrowed rather than granted** (LAN-110). An operator whose only
 capability-bearing seat is a coaching one — any of the ten fixed coaching seats
 since LAN-129 widened the grant from the original three — receives the

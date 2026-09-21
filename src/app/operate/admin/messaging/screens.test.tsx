@@ -30,6 +30,19 @@ vi.mock("@/lib/services/onboarding-chase", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/onboarding-chase")>();
   return { ...actual, readOnboardingChaseSettings: vi.fn() };
 });
+// LAN-394. The page reads the messaging safety state alongside the schedule.
+vi.mock("@/lib/services/messaging-safety", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/messaging-safety")>();
+  return { ...actual, readMessagingSafetyStatus: vi.fn() };
+});
+vi.mock("./safety-actions", () => ({
+  pauseMessagingAction: vi.fn(() =>
+    Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
+  ),
+  resumeMessagingAction: vi.fn(() =>
+    Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
+  ),
+}));
 vi.mock("./actions", () => ({
   updateOneMessagingScheduleAction: vi.fn(() =>
     Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
@@ -57,6 +70,12 @@ import {
   readOnboardingChaseSettings,
   type OnboardingChaseSettings,
 } from "@/lib/services/onboarding-chase";
+import {
+  readMessagingSafetyStatus,
+  safetyThresholds,
+  type MessagingSafetyStatus,
+  type SafetyHoldRow,
+} from "@/lib/services/messaging-safety";
 import MessagingSchedulePage from "./page";
 import { updateOneMessagingScheduleAction } from "./actions";
 
@@ -237,6 +256,39 @@ function onboardingChaseSettings(
   };
 }
 
+/** The section's normal state: sending, nothing waiting, nothing held. */
+function safetyStatus(overrides: Partial<MessagingSafetyStatus> = {}): MessagingSafetyStatus {
+  return {
+    state: "sending_normally",
+    globalScopeId: "33333333-3333-4333-8333-333333333333",
+    globalVersion: 1,
+    pausedAt: null,
+    pausedByName: null,
+    pausedReason: null,
+    emergencyStopped: false,
+    lastChangeAt: new Date("2026-09-17T09:00:00Z"),
+    dueWaiting: 0,
+    oldestDueMinutes: 0,
+    heldBySafety: 0,
+    scheduledAhead: 4,
+    queueWarning: false,
+    admittedInPacingWindow: 0,
+    admittedInHour: 3,
+    admittedInDay: 12,
+    admittedInWeek: 40,
+    pacingLimit: 50,
+    dayLimit: 3_000,
+    capacityWarning: false,
+    thresholds: safetyThresholds(),
+    holds: [],
+    unresolvedAttempts: 0,
+    oldestUnresolvedMinutes: 0,
+    audit: [],
+    policyDecision: "Brian, 17 September 2026",
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   cleanup();
@@ -244,6 +296,7 @@ beforeEach(() => {
   vi.mocked(listMessagingSchedulesWithPreview).mockResolvedValue(rows());
   vi.mocked(listRecruitmentCycleSteps).mockResolvedValue(cycleSteps());
   vi.mocked(readOnboardingChaseSettings).mockResolvedValue(onboardingChaseSettings());
+  vi.mocked(readMessagingSafetyStatus).mockResolvedValue(safetyStatus());
 });
 
 describe("who may open the messaging schedule", () => {
@@ -418,8 +471,10 @@ describe("one save button per row — OWNER-LAN171-04", () => {
     // collapsed onto one row), plus LAN-218's own Onboarding row — each is
     // its own form on the same one-row-one-save law, so the total grows with
     // the page rather than staying fixed at seven.
+    // LAN-394 added the eleventh: the Messaging safety section's one control,
+    // which obeys the same law — its own form, its own reason, its own submit.
     const forms = container.querySelectorAll("form");
-    expect(forms).toHaveLength(10);
+    expect(forms).toHaveLength(11);
     const cycleRows = screen.getAllByTestId("cycle-step-row");
     expect(cycleRows).toHaveLength(2);
     for (const row of cycleRows) expect(row.tagName).toBe("FORM");
@@ -454,11 +509,15 @@ describe("the page's three sections — W10, Brian 2026-08-31", () => {
     // and the reason `W11-01` was reshot to match.
     render(await MessagingSchedulePage());
 
+    // LAN-394 added the fourth, and Brian put it at the bottom: the controls
+    // that stop the club messaging anybody sit below the schedule they govern,
+    // with a link to them from the top of the page whenever they are in use.
     const headings = screen.getAllByRole("heading", { level: 2 });
     expect(headings.map((heading) => heading.textContent)).toEqual([
       "Recruitment",
       "Onboarding",
       "Event messaging",
+      "Messaging safety",
     ]);
   });
 
@@ -714,5 +773,415 @@ describe("a saved result never outlives the values it described — LAN-250", ()
     });
 
     expect(practiceRow.textContent).toContain(BLANK_REFUSAL);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-394 — the Messaging safety section
+//
+// Brian's visual pass of 18 September 2026: "This is an emergency page. When I
+// get here I need to work immediately." Two jobs, in this order — stop a
+// runaway, then find and clear a blockage — so what these prove is the order,
+// the colour and the one act that clears each cause, not the arithmetic behind
+// them. That is proved against the real database in `messaging-safety.test.ts`.
+// ---------------------------------------------------------------------------
+
+/** One held person or number, with everything the section reads from it. */
+function hold(overrides: Partial<SafetyHoldRow> = {}): SafetyHoldRow {
+  return {
+    scopeId: "55555555-5555-4555-8555-555555555555",
+    version: 2,
+    kind: "person",
+    label: "Wilfred Ashcombe",
+    reasonCode: "person_hold",
+    since: new Date("2026-09-17T08:00:00Z"),
+    people: [{ personId: "44444444-4444-4444-8444-444444444444", name: "Wilfred Ashcombe" }],
+    shared: false,
+    pausedByName: null,
+    pausedReason: null,
+    cooldownUntil: null,
+    limitReached: "daily",
+    ...overrides,
+  };
+}
+
+describe("Messaging safety — LAN-394", () => {
+  it("opens on the status and the control, then the counts, then the rest", async () => {
+    render(await MessagingSchedulePage());
+
+    const section = screen.getByTestId("messaging-safety");
+    const headings = within(section)
+      .getAllByRole("heading", { level: 3 })
+      .map((heading) => heading.textContent);
+    // Brian's second pass of 18 September 2026: "The narrative UI is really
+    // terrible. 'Is it running away?' — for God's sake, have a professional
+    // tone." Same order, same content, noun phrases throughout.
+    expect(headings).toEqual([
+      "Messaging status",
+      "Messages sent",
+      "Waiting",
+      "People held back",
+      "Limits and current use",
+      "Recent changes",
+    ]);
+    for (const heading of headings) expect(heading).not.toContain("?");
+
+    // The status and its control come before any of them: an emergency page
+    // opens on what is happening and the one control that changes it.
+    const text = section.textContent;
+    expect(text.indexOf("Sending normally")).toBeLessThan(text.indexOf("Messages sent"));
+    expect(text.indexOf("Pause messaging")).toBeLessThan(text.indexOf("Messages sent"));
+  });
+
+  it("reads as Sending normally, on the application's own green chip", async () => {
+    render(await MessagingSchedulePage());
+
+    const chip = screen.getByTestId("safety-state");
+    expect(chip).toHaveTextContent("Sending normally");
+    // The one status vocabulary's colours, not a panel painted by this section.
+    expect(chip).toHaveAttribute("data-domain", "messagingSafety");
+    expect(chip.className).toMatch(/MuiChip-colorSuccess/);
+    // The one sentence the section carries. Somebody about to stop every
+    // message the club sends is owed the three facts that decide whether they
+    // should: what stops, what does not, and what may still arrive.
+    expect(screen.getByTestId("messaging-safety").textContent).toContain(
+      "Signups and replies continue to be saved",
+    );
+    expect(screen.queryByTestId("messaging-paused-banner")).not.toBeInTheDocument();
+  });
+
+  it("dresses every part of the section in a component the application already uses", async () => {
+    // Brian, 18 September 2026: "The UX at the top is completely invented. We
+    // should find UX we already use in the app and do that." The status, the
+    // counts and what is waiting are all `Fact` rows; the held people are
+    // `RowCard`s; the state is a `StatusChip`; there is no panel of this
+    // section's own.
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(safetyStatus({ holds: [hold()] }));
+
+    const { container } = render(await MessagingSchedulePage());
+    const section = screen.getByTestId("messaging-safety");
+
+    // `StatusChip`, from the one vocabulary.
+    expect(screen.getByTestId("safety-state")).toHaveAttribute("data-domain", "messagingSafety");
+    // `Fact` rows, carrying their own label — the record pages' own idiom.
+    for (const [testId, label] of [
+      ["safety-rate-day", "Last 24 hours"],
+      ["safety-due", "Due now"],
+      ["safety-held-count", "Messages held back"],
+    ] as const) {
+      expect(screen.getByTestId(testId), testId).toHaveAttribute("data-label", label);
+    }
+    expect(within(section).getAllByTestId("fact").length).toBeGreaterThan(0);
+    // `RowCard`, the person line the roster and Administration boards use.
+    expect(screen.getByTestId("safety-hold-person").className).toMatch(/MuiCard-root/);
+    // And nothing of this section's own: the invented status panel carried a
+    // severity of its own, and there is no longer anything to carry one.
+    expect(container.querySelector("[data-severity]")).toBeNull();
+  });
+
+  it.each([
+    ["messages_waiting", "Messages waiting", "Warning"],
+    ["provider_cooling_down", "Provider cooling down", "Warning"],
+    ["paused", "Paused", "Error"],
+    ["emergency_stopped", "Emergency stop", "Error"],
+    ["unavailable", "Safety status unavailable", "Error"],
+  ] as const)("says %s on a chip in the vocabulary's own colour", async (state, label, colour) => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(safetyStatus({ state }));
+
+    render(await MessagingSchedulePage());
+
+    const chip = screen.getByTestId("safety-state");
+    expect(chip).toHaveTextContent(label);
+    expect(chip).toHaveAttribute("data-status", state);
+    expect(chip.className).toMatch(new RegExp(`MuiChip-color${colour}`));
+  });
+
+  it("carries why, who and when in the same block as the state", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({
+        state: "paused",
+        pausedAt: new Date("2026-09-17T10:00:00Z"),
+        pausedByName: "Rowan Ashfield",
+        pausedReason: "Imported the wrong number list",
+      }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    const block = screen.getByTestId("safety-status-block");
+    expect(block).toHaveTextContent("Imported the wrong number list");
+    expect(block).toHaveTextContent("Rowan Ashfield");
+    expect(block).toHaveTextContent("17 Sep");
+    // The control is in the same block, not a scroll away from the state.
+    expect(within(block).getByTestId("safety-resume")).toBeInTheDocument();
+  });
+
+  it("puts a paused state at the top of the page as well as at the bottom", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({ state: "paused", pausedAt: new Date("2026-09-17T10:00:00Z") }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    expect(screen.getByTestId("messaging-paused-banner")).toHaveTextContent("Messaging is paused.");
+    expect(screen.getByTestId("safety-state")).toHaveTextContent("Paused");
+    expect(screen.getByTestId("safety-resume")).toBeInTheDocument();
+    expect(screen.queryByTestId("safety-pause")).not.toBeInTheDocument();
+  });
+
+  it("offers a one-tap reason, and a free-text field that nothing waits for", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    const presets = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[name="reasonPreset"]'),
+    ).map((input) => input.value);
+    expect(presets).toEqual(["Runaway sends", "Provider outage", "Testing"]);
+    // Nothing is chosen for the operator, and the note beside the presets is
+    // optional — the preset alone is a complete reason (`safety-actions`).
+    for (const input of container.querySelectorAll<HTMLInputElement>(
+      'input[name="reasonPreset"]',
+    )) {
+      expect(input.checked).toBe(false);
+    }
+    const note = screen.getByLabelText("Anything else (optional)");
+    expect(note).not.toBeRequired();
+  });
+
+  it("says how many were sent in five minutes, an hour and a day", async () => {
+    // Brian, 18 September 2026: "Just say what the thing is: how many messages
+    // were sent in the last 24 hours."
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({ admittedInPacingWindow: 4, admittedInHour: 120, admittedInDay: 1_450 }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    const rows = ["pacing", "hour", "day"].map((key) => screen.getByTestId(`safety-rate-${key}`));
+    expect(rows.map((row) => row.getAttribute("data-label"))).toEqual([
+      "Last 5 minutes",
+      "Last hour",
+      "Last 24 hours",
+    ]);
+    expect(rows[0]).toHaveTextContent("4 of 50");
+    expect(rows[2]).toHaveTextContent("1,450 of 3,000");
+    // No ceiling governs an hour, so the row is the count and nothing else.
+    expect(rows[1]).toHaveTextContent("120");
+    expect(rows[1].textContent).not.toContain("of");
+    // Below every threshold, so no row carries a word about one.
+    for (const row of rows) expect(within(row).queryByText(/limit/i)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [39, 2_399, null],
+    [40, 2_400, "Nearing limit"],
+    [50, 3_000, "At limit"],
+  ] as const)("reads %s in five minutes and %s in a day as %s", async (pacing, day, word) => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({ admittedInPacingWindow: pacing, admittedInDay: day }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    for (const key of ["pacing", "day"]) {
+      const row = screen.getByTestId(`safety-rate-${key}`);
+      // Colour is never the only signal: an amber reading says amber in words.
+      if (word === null) {
+        expect(within(row).queryByText(/limit/i), key).not.toBeInTheDocument();
+      } else {
+        expect(within(row).getByText(word), key).toBeInTheDocument();
+      }
+    }
+  });
+
+  it("says nothing is holding messages when nothing is", async () => {
+    render(await MessagingSchedulePage());
+
+    const row = screen.getByTestId("safety-nothing-blocking");
+    expect(row).toHaveAttribute("data-label", "Holding");
+    expect(row).toHaveTextContent("Nothing");
+    expect(screen.queryAllByTestId("safety-blocker")).toHaveLength(0);
+    expect(screen.getByTestId("safety-no-holds")).toHaveTextContent("Nobody");
+  });
+
+  it("names every cause that is blocking, each with the act that clears it", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({
+        state: "paused",
+        pausedAt: new Date("2026-09-17T10:00:00Z"),
+        dueWaiting: 3,
+        oldestDueMinutes: 7,
+        holds: [
+          hold({
+            scopeId: "66666666-6666-4666-8666-666666666666",
+            kind: "provider",
+            label: "WhatsApp",
+            reasonCode: "provider_cooldown",
+            people: [],
+            limitReached: null,
+            cooldownUntil: new Date("2026-09-17T08:05:00Z"),
+          }),
+          hold(),
+        ],
+      }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    // One label–value row per cause, in the same idiom as every other row.
+    const blockers = screen
+      .getAllByTestId("safety-blocker")
+      .map((row) => [row.getAttribute("data-label"), row.textContent]);
+    expect(blockers).toEqual([
+      ["Paused", "PausedResume"],
+      ["WhatsApp cooling down", expect.stringMatching(/^WhatsApp cooling downuntil \d{2}:\d{2}$/)],
+      ["People held back", "People held back1"],
+    ]);
+    expect(screen.getByTestId("safety-due")).toHaveTextContent("3 — oldest 7 min");
+    expect(screen.queryByTestId("safety-nothing-blocking")).not.toBeInTheDocument();
+  });
+
+  it("lists a held person by name, with the limit they reached and their own Resume", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(safetyStatus({ holds: [hold()] }));
+
+    render(await MessagingSchedulePage());
+
+    const card = screen.getByTestId("safety-hold-person");
+    expect(within(card).getByRole("link", { name: "Wilfred Ashcombe" })).toHaveAttribute(
+      "href",
+      "/operate/people/44444444-4444-4444-8444-444444444444",
+    );
+    expect(card).toHaveTextContent("Daily limit reached");
+    expect(card).toHaveTextContent("17 Sep");
+    expect(within(card).getByTestId("safety-resume-person")).toBeInTheDocument();
+  });
+
+  it("says which ceiling a hold reached, and falls back to the code once it cannot", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({ holds: [hold({ limitReached: "weekly" })] }),
+    );
+    render(await MessagingSchedulePage());
+    expect(screen.getByTestId("safety-hold-person")).toHaveTextContent("Weekly limit reached");
+
+    cleanup();
+    // Once the counting fields have aged out there is nothing left to read the
+    // window back from, and the stored reason code is all the section has.
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({ holds: [hold({ limitReached: null })] }),
+    );
+    render(await MessagingSchedulePage());
+    expect(screen.getByTestId("safety-hold-person")).toHaveTextContent(
+      "Held — this person's limit reached",
+    );
+  });
+
+  it("keeps a provider cooldown out of People held back — it is not a person", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({
+        state: "provider_cooling_down",
+        holds: [
+          hold({
+            kind: "provider",
+            label: "WhatsApp",
+            reasonCode: "provider_cooldown",
+            people: [],
+            limitReached: null,
+            cooldownUntil: new Date("2026-09-17T08:05:00Z"),
+          }),
+        ],
+      }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    expect(screen.getByTestId("safety-no-holds")).toHaveTextContent("Nobody");
+    // A provider cools down on its own; there is nothing for an operator to
+    // resume, so nothing is offered.
+    expect(screen.queryByTestId("safety-resume-provider")).not.toBeInTheDocument();
+    // It appears under Waiting instead, as the cause it is, with the time it ends.
+    const blocker = screen.getAllByTestId("safety-blocker")[0];
+    expect(blocker).toHaveAttribute("data-label", "WhatsApp cooling down");
+    expect(blocker.textContent).toMatch(/until \d{2}:\d{2}$/);
+  });
+
+  it("names a held number by the people it reaches, never by its fingerprint", async () => {
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({
+        state: "messages_waiting",
+        dueWaiting: 3,
+        oldestDueMinutes: 7,
+        holds: [
+          hold({
+            kind: "destination",
+            label: "One number or address",
+            reasonCode: "destination_hold",
+            people: [
+              { personId: "p1", name: "Wilfred Ashcombe" },
+              { personId: "p2", name: "Marged Ashcombe" },
+            ],
+            shared: true,
+          }),
+        ],
+      }),
+    );
+
+    render(await MessagingSchedulePage());
+
+    const card = screen.getByTestId("safety-hold-destination");
+    expect(card).toHaveTextContent("Wilfred Ashcombe, Marged Ashcombe");
+    expect(card).toHaveTextContent("Shared by more than one person");
+    // Two people share it, so there is no one record to open.
+    expect(within(card).queryByRole("link")).not.toBeInTheDocument();
+    // The fingerprint is server-side only and never reaches a browser payload.
+    expect(screen.getByTestId("messaging-safety").textContent).not.toMatch(/[0-9a-f]{64}/);
+  });
+
+  it("offers the controls to the core four and withholds them from the IT Officer", async () => {
+    for (const seat of ["president", "vice_president", "secretary", "general_manager"]) {
+      cleanup();
+      signedIn(administrator(seat));
+      render(await MessagingSchedulePage());
+      expect(screen.getByTestId("safety-pause"), seat).toBeInTheDocument();
+    }
+
+    // The IT Officer still opens the page and still reads the state — that is
+    // how a deployment is diagnosed — and is offered no control. The action
+    // behind each one guards independently.
+    cleanup();
+    signedIn(administrator("it_officer"));
+    vi.mocked(readMessagingSafetyStatus).mockResolvedValue(
+      safetyStatus({
+        state: "paused",
+        pausedAt: new Date("2026-09-17T10:00:00Z"),
+        holds: [hold()],
+      }),
+    );
+    render(await MessagingSchedulePage());
+    expect(screen.getByTestId("safety-state")).toBeInTheDocument();
+    expect(screen.queryByTestId("safety-pause")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("safety-resume")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("safety-resume-person")).not.toBeInTheDocument();
+    // …and is never pointed at a control that is not there.
+    expect(screen.getAllByTestId("safety-blocker")[0]).toHaveTextContent("Paused");
+    expect(
+      within(screen.getByTestId("messaging-safety")).queryByRole("link", { name: "Resume" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the limits, read-only, with the decision that set them", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    const section = screen.getByTestId("messaging-safety");
+    expect(section.textContent).toContain("50 per 5 minutes");
+    expect(section.textContent).toContain("3,000 per 24 hours");
+    expect(section.textContent).toContain("Brian, 17 September 2026");
+
+    // Read-only means read-only: the limits are constants in code, and there
+    // is nothing on this page that could change one.
+    const inputs = Array.from(container.querySelectorAll("input"))
+      .map((input) => input.getAttribute("name"))
+      .filter((name): name is string => name !== null);
+    expect(inputs).not.toContain("limit");
+    expect(section.textContent).not.toContain("send all now");
+    expect(section.textContent.toLowerCase()).not.toContain("clear counters");
   });
 });
