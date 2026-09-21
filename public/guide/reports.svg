@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 884 932" width="884" height="932" role="img" aria-labelledby="diagram-title" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title id="diagram-title">How the week is read, and what is done about it</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5A5754" />
+    </marker>
+  </defs>
+  <rect width="884" height="932" fill="#F6F5F2" />
+  <g>
+    <rect x="20" y="20" width="26" height="14" rx="3.5" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="52" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">State</text>
+    <rect x="152" y="20" width="26" height="14" rx="3.5" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="184" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Operator acts</text>
+    <rect x="284" y="20" width="26" height="14" rx="3.5" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="316" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">App acts</text>
+    <polygon points="429,20 442,27 429,34 416,27" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="448" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Decision</text>
+    <polygon points="551.12,20 574,20 570.88,34 548,34" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="580" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Message sent</text>
+    <rect x="680" y="20" width="26" height="14" rx="7" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="712" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">End</text>
+  </g>
+  <g>
+    <polyline points="442,134 442,204" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="442,262 442,332" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="442,390 442,460" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="442,518 442,567 122,567 122,588" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="282" y="567" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Still outstanding</text>
+    <polyline points="442,518 442,567 762,567 762,588" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="602" y="567" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Nobody answered</text>
+    <polyline points="122,646 122,716" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="762,646 762,716" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="762,774 762,844" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="762" y="802" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Automatic, at the</text>
+    <text x="762" y="816" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">deadline</text>
+  </g>
+  <g>
+    <rect x="340" y="76" width="204" height="58" rx="8" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="442" y="97" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">A week of events, answers</text>
+    <text x="442" y="113" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">and attendance</text>
+    <rect x="340" y="204" width="204" height="58" rx="8" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="442" y="225" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Open Report, press</text>
+    <text x="442" y="241" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Show report</text>
+    <rect x="340" y="332" width="204" height="58" rx="8" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="442" y="361" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">A snapshot is filed</text>
+    <rect x="340" y="460" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="442" y="489" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Monday report</text>
+    <rect x="20" y="588" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="617" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Missing data</text>
+    <rect x="660" y="588" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="762" y="617" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Follow-ups</text>
+    <rect x="20" y="716" width="204" height="58" rx="8" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="745" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Nudge them</text>
+    <rect x="660" y="716" width="204" height="58" rx="8" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="762" y="745" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Chase them</text>
+    <polygon points="674,844 864,844 850,902 660,902" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="762" y="865" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Escalation to</text>
+    <text x="762" y="881" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">the President</text>
+  </g>
+</svg>

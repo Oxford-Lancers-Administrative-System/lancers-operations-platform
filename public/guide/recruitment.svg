@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 812 1060" width="812" height="1060" role="img" aria-labelledby="diagram-title" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title id="diagram-title">How a recruit becomes a member</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5A5754" />
+    </marker>
+  </defs>
+  <rect width="812" height="1060" fill="#F6F5F2" />
+  <g>
+    <rect x="20" y="20" width="26" height="14" rx="3.5" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="52" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">State</text>
+    <rect x="149" y="20" width="26" height="14" rx="3.5" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="181" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Operator acts</text>
+    <rect x="278" y="20" width="26" height="14" rx="3.5" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="310" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">App acts</text>
+    <polygon points="420,20 433,27 420,34 407,27" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="439" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Decision</text>
+    <polygon points="539.12,20 562,20 558.88,34 536,34" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="568" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">Message sent</text>
+    <rect x="665" y="20" width="26" height="14" rx="7" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="697" y="27" dominant-baseline="central" font-size="11" fill="#5A5754">End</text>
+  </g>
+  <g>
+    <polyline points="122,134 122,204" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="162" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">They scan it</text>
+    <text x="122" y="176" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">and fill it in</text>
+    <polyline points="122,262 122,332" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="297" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Consent ticked</text>
+    <polyline points="122,390 122,460" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="425" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">They answer</text>
+    <polyline points="122,518 122,588" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="546" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Operator sets</text>
+    <text x="122" y="560" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">the status</text>
+    <polyline points="122,646 122,706" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <polyline points="122,902 122,972" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="937" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Automatic</text>
+    <polyline points="122,784 122,844" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="122" y="807" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Yes — operator</text>
+    <text x="122" y="821" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">confirms</text>
+    <polyline points="224,745 340,745" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="282" y="745" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">No</text>
+    <polyline points="442,774 442,844" fill="none" stroke="#5A5754" stroke-width="1.5" marker-end="url(#arrow)" />
+    <text x="442" y="809" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="500" fill="#5A5754" stroke="#F6F5F2" stroke-width="5" stroke-linejoin="round" paint-order="stroke">Automatic</text>
+  </g>
+  <g>
+    <rect x="20" y="76" width="204" height="58" rx="8" fill="#B9D6F2" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="105" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Show the sign-up code</text>
+    <rect x="20" y="204" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="233" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Identified</text>
+    <polygon points="34,332 224,332 210,390 20,390" fill="#E2C044" stroke="#8D7149" stroke-width="1.5" />
+    <text x="122" y="353" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Welcome, then the</text>
+    <text x="122" y="369" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">questionnaires</text>
+    <rect x="20" y="460" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="489" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Engaged</text>
+    <rect x="20" y="588" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="617" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Committed</text>
+    <polygon points="122,706 224,745 122,784 20,745" fill="#F6F5F2" stroke="#C09723" stroke-width="1.5" />
+    <text x="122" y="745" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Do they join?</text>
+    <rect x="20" y="844" width="204" height="58" rx="8" fill="#FFFFFF" stroke="#002147" stroke-width="1.5" />
+    <text x="122" y="873" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Joined</text>
+    <rect x="20" y="972" width="204" height="58" rx="8" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="122" y="993" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Membership created;</text>
+    <text x="122" y="1009" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Onboarding opens</text>
+    <rect x="340" y="716" width="204" height="58" rx="29" fill="#ECEAE6" stroke="#5A5754" stroke-width="1.5" />
+    <text x="442" y="737" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">Declined, Disengaged</text>
+    <text x="442" y="753" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#211D1C">or Void</text>
+    <rect x="340" y="844" width="204" height="58" rx="8" fill="#E3EBF8" stroke="#1D42A6" stroke-width="1.5" />
+    <text x="442" y="865" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">Queued messages</text>
+    <text x="442" y="881" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="#002147">cancelled</text>
+  </g>
+</svg>
