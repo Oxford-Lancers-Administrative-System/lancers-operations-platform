@@ -41,7 +41,12 @@ import {
 } from "./messaging-scheduler";
 import { stopChasingIn } from "./rsvp";
 import { escalationCarriesNoPersonalData } from "@/lib/delivery/templates";
-import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+  seededIdentityCreatedAt,
+} from "../../../tests/helpers/service-layer";
 
 // LAN-181, F-W1. Every sweep call below is real work against the shared local
 // database — a claim per due job, up to `SWEEP_BATCH_LIMIT` (50) of them, not
@@ -220,7 +225,41 @@ beforeAll(async () => {
   seasonId = season.rows[0].id;
 });
 
+/**
+ * Pauses the club's outbound messaging for the length of one test — LAN-394.
+ *
+ * Written directly rather than through `pauseMessagingIn`, because what is
+ * under test here is the **dispatcher**: that it asks the guard at all, and
+ * that a paused answer costs the message nothing. The control itself, its
+ * capability and its audit row are proved in
+ * `src/lib/services/messaging-safety.test.ts`.
+ */
+async function pauseAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = now(),
+            -- Any real Person. It was the first operator account's, which CI
+            -- does not have: the test job seeds the dataset but links no login,
+            -- so the subquery was null and the attribution constraint refused
+            -- the pause. A seeded database always has people.
+            paused_by_person_id = (select id from public.people order by created_at limit 1),
+            paused_reason = 'Under test', version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
+async function resumeAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = null, paused_by_person_id = null, paused_reason = null,
+            version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const scope = `${MARKER}%`;
   const events = "(select id from public.events where name like $1)";
   const jobs = `(select id from public.notification_jobs where event_id in ${events})`;
@@ -562,7 +601,15 @@ describe("a due rung", () => {
     const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
     const { sent, transport } = acceptingTransport();
 
-    await runMessagingSweep({ source: CONFIGURED, transport });
+    // LAN-394. Three overdue rungs for one person no longer go out in one
+    // tick: the guard admits one message per person per five minutes, which is
+    // exactly what stops a recovered backlog arriving all at once. What this
+    // test is about is that the third rung goes by *email*, so the windows are
+    // cleared between ticks rather than waited out.
+    for (let tick = 0; tick < 6; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
 
     expect(sent.some((request) => request.url.endsWith("/emails"))).toBe(true);
     const emailRequest = sent.find((request) => request.url.endsWith("/emails"))!;
@@ -673,6 +720,9 @@ describe("time-based backoff", () => {
     );
 
     const { transport } = acceptingTransport();
+    // LAN-394: the retry is a second message to the same person, so the pacing
+    // window is cleared. The backoff is what is under test.
+    await agePastSafetyPacing(observer);
     await runMessagingSweep({ source: CONFIGURED, transport });
 
     const jobs = await jobsFor(target.eventId);
@@ -1088,6 +1138,37 @@ describe("crossing the escalation threshold", () => {
 // ---------------------------------------------------------------------------
 
 describe("F-B1, mechanism 1 — the escalation resolves a channel the recipient actually has", () => {
+  it("sends no escalation while messaging is paused, and costs it nothing — LAN-394", async () => {
+    const target = await fixture({ escalationOffsetHours: -1 });
+    await makePresident(target.personId);
+    await pauseAllMessaging();
+
+    const { sent, transport } = acceptingTransport();
+    try {
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    } finally {
+      await resumeAllMessaging();
+    }
+
+    expect(sent).toHaveLength(0);
+    const escalation = await observer.query<{
+      status: string;
+      attempt_count: number;
+      last_error: string | null;
+      safety_reason_code: string | null;
+    }>(
+      `select status::text as status, attempt_count, last_error, safety_reason_code
+         from public.notification_jobs
+        where event_id = $1 and job_type = 'escalation'`,
+      [target.eventId],
+    );
+    expect(escalation.rows).toHaveLength(1);
+    expect(escalation.rows[0].status).toBe("pending");
+    expect(escalation.rows[0].attempt_count).toBe(0);
+    expect(escalation.rows[0].last_error).toBeNull();
+    expect(escalation.rows[0].safety_reason_code).toBe("paused_by_operator");
+  });
+
   it("mints the escalation on email when the office holder has no phone at all", async () => {
     // The seeded President this mission's own walk found: one preferred,
     // current email, no phone. Not a fixture defect — an ordinary club
@@ -1118,6 +1199,12 @@ describe("F-B1, mechanism 1 — the escalation resolves a channel the recipient 
     await makePresident(target.personId);
 
     const { sent, transport } = acceptingTransport();
+    // LAN-394. The fixture's President is also this event's invitee, so the
+    // invitation rung is admitted first and the escalation's email fallback is
+    // paced behind it. Two ticks, with the window cleared between, is what a
+    // real five minutes would do.
+    await runMessagingSweep({ source: CONFIGURED, transport });
+    await agePastSafetyPacing(observer);
     await runMessagingSweep({ source: CONFIGURED, transport });
 
     const original = await observer.query<{
@@ -1690,6 +1777,26 @@ async function jobRow(jobId: string) {
 }
 
 describe("OWNER-LAN173-03 -- the cancellation notice's token-free dispatch", () => {
+  it("sends nothing while messaging is paused, and costs the notice nothing — LAN-394", async () => {
+    // A cancellation gets no exemption from the guard (Brian, 17 September
+    // 2026). It is queued like anything else, and an emergency stop can
+    // therefore delay one — which is the tradeoff, recorded and accepted.
+    const target = await noticeFixture({ jobType: "cancellation_notice" });
+    await pauseAllMessaging();
+
+    const { sent, transport } = acceptingTransport();
+    try {
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    } finally {
+      await resumeAllMessaging();
+    }
+
+    expect(sent).toHaveLength(0);
+    const job = await jobRow(target.jobId);
+    expect(job.status).toBe("pending");
+    expect(job.attempt_count).toBe(0);
+  });
+
   it("sends a cancellation notice for a cancelled event, minting no RSVP token", async () => {
     const target = await noticeFixture({ jobType: "cancellation_notice" });
     const { sent, transport } = acceptingTransport();

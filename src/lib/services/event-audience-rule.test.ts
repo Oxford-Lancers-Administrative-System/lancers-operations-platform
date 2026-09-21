@@ -13,7 +13,7 @@
  * those in dependency order. The marker is unique to this file: suites run in
  * parallel against one database.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -35,7 +35,11 @@ import { updateRecruitmentProspectStatusIn } from "./recruitment-prospect";
 import { flipRecruitmentProspectToJoinedIn } from "./recruitment-prospect/flip";
 import { enterReturningPlayer } from "./roster";
 import { commitBps } from "./roster-board";
-import { openObserver } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+} from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN392GroupRuleSuite";
 const RECRUITMENT_TEMPLATE_ID = "ae03257b-292e-5a97-b6ef-c3a6a2b839d7";
@@ -59,7 +63,24 @@ beforeAll(async () => {
   seasonId = season.rows[0].id;
 });
 
+/**
+ * LAN-394. The shared sending allowance is 50 admissions in any rolling five
+ * minutes, counted across the whole database, and the database suites run one
+ * at a time against one database. A file that sends as much as this one
+ * therefore inherits whatever the file before it spent, and its sweeps stop
+ * sending for a reason that has nothing to do with what it is testing.
+ *
+ * Ageing the window at the top of each test is safe precisely because the
+ * project is serialized: nothing else is admitting while this runs, and no
+ * assertion here depends on when an earlier attempt was admitted.
+ */
+beforeEach(async () => {
+  await agePastSafetyPacing(observer);
+});
+
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const scope = `${NAME_MARKER}%`;
   const events = "(select id from public.events where name like $1)";
   await observer.query(
@@ -1288,6 +1309,13 @@ describe("the send is what clears the withheld reason", () => {
     // screen. A `failed` job is outside the reschedule-time clear's allow-list,
     // so this route is the one the send-time clear has to carry by itself.
     await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, seasonId));
+    // LAN-394. The refused sweep above still admitted this person through the
+    // messaging safety guard before `claimJobIn` declined to send, and the
+    // guard admits one message per person per five minutes. A Retry pressed a
+    // second later is deferred, correctly and unhelpfully — the window is aged
+    // out here so what this test measures is the send-time clear rather than
+    // the pacing allowance.
+    await agePastSafetyPacing(observer);
     const accepted = sink();
     const outcome = await retryDelivery(actorPersonId, job.id, {
       source: CONFIGURED,

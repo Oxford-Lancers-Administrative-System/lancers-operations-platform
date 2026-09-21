@@ -17,6 +17,16 @@ function nudgeSentNotice(accepted: number): string {
   return accepted === 1 ? "Nudged 1 person." : `Nudged ${accepted} people.`;
 }
 
+// LAN-394. A nudge the safety guard deferred is queued: the job exists and
+// will go out when the club's sending allowance allows. It is neither a
+// success to report as "Nudged" nor a problem to send somebody to a record
+// about, so it gets its own sentence.
+function nudgeWaitingNotice(deferred: number): string {
+  return deferred === 1
+    ? "1 nudge is queued — waiting for the sending allowance."
+    : `${deferred} nudges are queued — waiting for the sending allowance.`;
+}
+
 function nudgeProblemNotice(refused: number, total: number): string {
   if (refused === total) {
     return total === 1
@@ -41,13 +51,22 @@ export async function nudgeSelectedAction(
   try {
     const results = await sendOnboardingNudges(operator.personId, ids);
     const accepted = results.filter((result) => result.outcome === "accepted").length;
-    const refused = results.length - accepted;
+    const deferred = results.filter((result) => result.outcome === "deferred").length;
+    const refused = results.length - accepted - deferred;
 
     revalidatePath("/operate/people/missing");
 
+    const notices = [
+      accepted > 0 ? nudgeSentNotice(accepted) : null,
+      deferred > 0 ? nudgeWaitingNotice(deferred) : null,
+    ].filter((line): line is string => line !== null);
+
     return {
-      notice: accepted > 0 ? nudgeSentNotice(accepted) : null,
-      error: refused > 0 ? nudgeProblemNotice(refused, results.length) : null,
+      notice: notices.length > 0 ? notices.join(" ") : null,
+      // The denominator excludes what is waiting: telling an operator that
+      // "3 of 5 could not be nudged" when two of them are queued would send
+      // them to two records with nothing wrong in them.
+      error: refused > 0 ? nudgeProblemNotice(refused, results.length - deferred) : null,
     };
   } catch (error) {
     if (!isServiceError(error)) throw error;

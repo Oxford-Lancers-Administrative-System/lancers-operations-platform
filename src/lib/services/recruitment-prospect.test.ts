@@ -38,7 +38,12 @@ import {
   sendRecruitmentQuestionnaire,
   updateRecruitmentProspectStatusIn,
 } from "./recruitment-prospect";
-import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import {
+  agePastSafetyPacing,
+  clearRecipientSafetyState,
+  openObserver,
+  seededIdentityCreatedAt,
+} from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN204ProspectSuite";
 const ACTOR_MARKER = "LAN204ProspectActor";
@@ -88,6 +93,33 @@ function acceptingTransport() {
   return { sent, transport };
 }
 
+/**
+ * Which of a sweep's sends went to this person — LAN-394.
+ *
+ * `runMessagingSweep` is global, and the seeded dataset has due work of its own,
+ * so "the sweep sent nothing" was only ever true of this fixture. It held by
+ * luck while a tick sent nothing ambient at all; with the guard pacing a tick
+ * and this suite running two of them, ambient traffic became visible and the
+ * assertion started counting other people's messages. Scoped to the number this
+ * person is actually reachable at, it says what it always meant.
+ */
+async function sendsAddressedTo(
+  personId: string,
+  sent: readonly { body: Record<string, unknown> }[],
+): Promise<number> {
+  const contact = await observer.query<{ digits: string }>(
+    `select regexp_replace(coalesce(normalised_value, raw_value), '[^0-9]', '', 'g') as digits
+       from public.contact_points
+      where person_id = $1::uuid and kind = 'phone'`,
+    [personId],
+  );
+  const theirs = contact.rows.map((row) => row.digits.replace(/^0/, "44"));
+  return sent.filter((record) => {
+    const to = typeof record.body.to === "string" ? record.body.to : "";
+    return theirs.some((digits) => to.endsWith(digits.slice(-9)));
+  }).length;
+}
+
 beforeAll(async () => {
   observer = await openObserver();
   const anchor = await observer.query<{ id: string }>(
@@ -128,6 +160,8 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const people = "(select id from public.people where given_name = $1)";
   // `recruitment_prospects.converted_membership_id` points at
   // `season_memberships`, so the prospect row (and everything that hangs off
@@ -400,8 +434,15 @@ describe("updateRecruitmentProspectStatusIn — the exits, W13", () => {
 
     // And the sweep, run afterwards, sends nothing for this person.
     const { sent, transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
-    expect(sent).toHaveLength(0);
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
+    expect(await sendsAddressedTo(personId, sent)).toBe(0);
   });
 });
 
@@ -745,6 +786,11 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       const hours = new Map(offsets.rows.map((row) => [row.step, Number(row.offset_hours)]));
       const interval = (hours.get(reminder)! - hours.get(ask)!) * 3_600_000;
       for (let press = 1; press <= 2; press++) {
+        // LAN-394. Two presses seconds apart reach the same recruit, and the
+        // guard paces one message per person per five minutes. What this test
+        // is about is that each press sends rather than queueing a reminder,
+        // so the window is cleared between presses.
+        await agePastSafetyPacing(observer);
         const result = await sendRecruitmentQuestionnaire(actorPersonId, prospectId, track, {
           source: CONFIGURED,
           transport,
@@ -1160,8 +1206,15 @@ describe("LAN-341 — a status change cancels what is still in flight", () => {
     expect(after.every((row) => row.cancelled_reason === "Recruit moved to declined.")).toBe(true);
 
     const { sent, transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
-    expect(sent).toHaveLength(0);
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport });
+    }
+    expect(await sendsAddressedTo(personId, sent)).toBe(0);
   }, 30_000);
 
   it("leaves the same person's player invitation alone — only the recruit capacity is stood down", async () => {
@@ -1333,7 +1386,14 @@ describe("LAN-341 — a status change cancels what is still in flight", () => {
 
     // The defect this closes: the reminders stayed pending and surfaced days
     // later as failed jobs on the delivery pages, for somebody who is a player.
-    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+    // LAN-394. One message per person per five minutes, so a backlog for one
+    // person drains a rung per tick. Two ticks with the window cleared
+    // between them is what two real ticks would do; a job already claimed
+    // is not selected again, so this cannot send anything twice.
+    for (let tick = 0; tick < 2; tick += 1) {
+      await agePastSafetyPacing(observer);
+      await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+    }
     const afterSweep = (await jobStatesFor(personId)).filter((row) =>
       row.idempotency_key.startsWith("recruit-cycle:"),
     );

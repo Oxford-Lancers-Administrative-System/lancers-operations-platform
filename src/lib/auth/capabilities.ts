@@ -106,7 +106,8 @@ export type CapabilityKey =
   | "leadership_report"
   | "person_record_authority"
   | "roster_bulk_import"
-  | "person_erasure";
+  | "person_erasure"
+  | "messaging_safety_authority";
 
 export interface Capability {
   readonly key: CapabilityKey;
@@ -736,6 +737,38 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "holds every capability in this file. Lead, 25 August 2026 (LAN-171): reused, unchanged, " +
       "to gate the messaging schedule page ADR 0036 authorizes — recorded as the assumption it " +
       "is on LAN-171's pull request.",
+  }),
+
+  /**
+   * LAN-394. Stopping and restarting the club's outbound messaging.
+   *
+   * ## Why it is not `delivery_administration`
+   *
+   * That capability is the one the Messaging schedule page already sits on, and
+   * reusing it was the recommendation in the design. Brian narrowed it on 17
+   * September 2026: `delivery_administration` also grants the IT Officer, and
+   * deciding that the club stops talking to its members — or that it starts
+   * again after an emergency stop — is not an administrative act. It is the
+   * same reasoning that made `person_erasure` the first exception to the 15
+   * August 2026 rule that the administrative seat holds every capability here,
+   * and this is the second.
+   *
+   * The core four, and nobody else. The page itself stays on
+   * `delivery_administration`, so the IT Officer can still *read* what the
+   * safety state is — seeing that messaging is paused is how somebody
+   * diagnoses a deployment — and each control refuses them individually, which
+   * is the ordinary arrangement for a surface whose actions are narrower than
+   * its page.
+   */
+  messaging_safety_authority: capability({
+    key: "messaging_safety_authority",
+    action: "pause and resume the club's outbound messaging",
+    roleCodes: [...CORE_FOUR_ROLE_CODES],
+    decision:
+      "Brian, 17 September 2026 (LAN-394): the core four only. `delivery_administration` also " +
+      "grants the IT Officer, and stopping or restarting every message the club sends is not an " +
+      "administrative act — the same distinction LAN-361 drew for `person_erasure`. Reading the " +
+      "safety state stays on `delivery_administration` with the rest of the page.",
   }),
 
   /**

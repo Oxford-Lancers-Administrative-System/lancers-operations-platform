@@ -21,6 +21,13 @@ import { resolveMessageTtlHours, type EnvironmentSource } from "@/lib/delivery/c
 import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
+import {
+  admitSendIn,
+  recordProviderOutcomeIn,
+  recordWaitingIn,
+  type AdmissionDeferred,
+  type AdmissionGranted,
+} from "./messaging-safety";
 import { recordAudit } from "./audit";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { JOB_CANCELLED_REASON } from "./rsvp";
@@ -184,12 +191,23 @@ export const JOB_HELD_MESSAGE = "This message is on hold after a change to the e
 export type DeliveryState =
   "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held" | "cancelled";
 
+/**
+ * What one dispatch did — LAN-394 added the fourth.
+ *
+ * `deferred` is the messaging safety guard holding the send back. It is
+ * deliberately not `refused` (the provider was never asked) and deliberately
+ * not `skipped` (there is something to send, and it is waiting its turn).
+ */
+export type DispatchOutcome = "accepted" | "refused" | "skipped" | "deferred";
+
 export interface DispatchSummary {
   readonly attempted: number;
   readonly accepted: number;
   readonly refused: number;
   /** Jobs another worker already held, or that had exhausted their attempts. */
   readonly skipped: number;
+  /** LAN-394. Jobs the safety guard is holding back. Nothing was attempted. */
+  readonly deferred: number;
 }
 
 /** Everything one attempt needs, read once inside the claiming transaction. */
@@ -199,6 +217,12 @@ interface ClaimedAttempt {
   readonly attemptId: string;
   readonly attemptNumber: number;
   readonly message: OutboundMessage;
+  /**
+   * LAN-394. The admission this send was let through under, carried so the
+   * recording transaction can settle the provider's circuit against the same
+   * generation it was admitted in.
+   */
+  readonly safety: AdmissionGranted;
 }
 
 /**
@@ -264,7 +288,15 @@ type ClaimOutcome =
   // not refused — it is unnecessary, and the job is cancelled rather than
   // failed. Never a fallback trigger, for the plainest possible reason: the
   // email rung would carry the same unnecessary reminder.
-  | { readonly claimed: false; readonly reason: "answered"; readonly detail: string };
+  | { readonly claimed: false; readonly reason: "answered"; readonly detail: string }
+  // LAN-394. The safety guard is holding this send back. Distinct from every
+  // outcome above and from all of them in the same way: nothing was attempted.
+  // No attempt was counted, no token was minted or superseded, no `last_error`
+  // was written, and no fallback was triggered — the message is waiting, and
+  // the job says so in its own three columns. Never a fallback trigger,
+  // because the email rung would be admitted by the same guard on the same
+  // allowance.
+  | { readonly claimed: false; readonly reason: "deferred"; readonly waiting: AdmissionDeferred };
 
 /**
  * Claims one job and prepares its message, or explains why it cannot.
@@ -281,7 +313,22 @@ async function claimJobIn(
   context: DeliveryContext,
   claim: string,
 ): Promise<ClaimOutcome> {
-  const claimed = await tx.query<{
+  // LAN-394. The claim is now two statements where it was one, and the gap
+  // between them is where the safety guard runs.
+  //
+  // `select … for update` takes exactly the same row under exactly the same
+  // predicate the `update` used to, and gives the same concurrency control: in
+  // read-committed PostgreSQL a locker re-evaluates the WHERE clause after the
+  // lock is granted, so a second dispatcher whose row has since become
+  // `processing` selects nothing and moves on, exactly as it used to see
+  // `rowCount === 0`.
+  //
+  // What it buys is that nothing has been mutated yet. Everything below —
+  // eligibility, consent, the chosen contact — is read against the locked row,
+  // and only when the guard admits the send does `claimNow()` increment the
+  // attempt, take the job and clear `last_error`. A safety deferral therefore
+  // costs the message nothing at all.
+  const locked = await tx.query<{
     id: string;
     invitation_id: string | null;
     attempt_count: number;
@@ -289,19 +336,8 @@ async function claimJobIn(
     /** LAN-367: what the re-ask named when it was declared. `{}` for every other kind. */
     template_variables: Record<string, unknown> | null;
   }>(
-    `update public.notification_jobs
-        set status = 'processing',
-            claimed_at = now(),
-            claimed_by = $2,
-            attempt_count = attempt_count + 1,
-            -- Cleared, because it describes the attempt that just ended and a
-            -- new one has begun. Leaving it meant the repair screen rendered
-            -- "Latest result: Attempted" directly above the *previous*
-            -- failure's reason, for a message the provider had just accepted:
-            -- a wrong diagnostic on the one screen that exists to give an
-            -- operator a true one, reached by the commonest repair path.
-            last_error = null,
-            updated_at = now()
+    `select id, invitation_id, attempt_count, job_type::text as job_type, template_variables
+       from public.notification_jobs
       where id = $1
         and status in ('pending', 'ready', 'failed')
         -- REQ-amend-hold, LAN-156. The single chokepoint through which every
@@ -314,15 +350,49 @@ async function claimJobIn(
         -- each caller is what makes "no held message is dispatched" a property
         -- of the code rather than of three separate queries agreeing.
         and held_at is null
-        and attempt_count < $3
+        and attempt_count < $2
         and invitation_id is not null
-      returning id, invitation_id, attempt_count, job_type::text as job_type,
-                template_variables`,
-    [jobId, claim, MAX_ATTEMPTS],
+      for update`,
+    [jobId, MAX_ATTEMPTS],
   );
 
-  const job = claimed.rows[0];
+  const job = locked.rows[0];
   if (!job || !job.invitation_id) return { claimed: false, reason: "unavailable" };
+
+  /**
+   * Takes the job, exactly as the single `update` used to.
+   *
+   * Called on the admitted path and on every terminal refusal below, because
+   * those refusals record an attempt row and a failure against the number this
+   * increment produces — `recordUndeliverableIn` and its siblings are unchanged
+   * and still read `attempt_count` back for themselves. The one path that never
+   * calls it is a safety deferral.
+   */
+  let attemptNumber = job.attempt_count;
+  let claimTaken = false;
+  const claimNow = async (): Promise<void> => {
+    if (claimTaken) return;
+    const taken = await tx.query<{ attempt_count: number }>(
+      `update public.notification_jobs
+          set status = 'processing',
+              claimed_at = now(),
+              claimed_by = $2,
+              attempt_count = attempt_count + 1,
+              -- Cleared, because it describes the attempt that just ended and a
+              -- new one has begun. Leaving it meant the repair screen rendered
+              -- "Latest result: Attempted" directly above the *previous*
+              -- failure's reason, for a message the provider had just accepted:
+              -- a wrong diagnostic on the one screen that exists to give an
+              -- operator a true one, reached by the commonest repair path.
+              last_error = null,
+              updated_at = now()
+        where id = $1
+        returning attempt_count`,
+      [jobId, claim],
+    );
+    attemptNumber = taken.rows[0].attempt_count;
+    claimTaken = true;
+  };
 
   const details = await tx.query<{
     invitation_id: string;
@@ -423,6 +493,7 @@ async function claimJobIn(
 
   const detail = details.rows[0];
   if (!detail) {
+    await claimNow();
     return {
       claimed: false,
       reason: "undeliverable",
@@ -456,6 +527,7 @@ async function claimJobIn(
   //   * the recruit FOLLOW-UP (`recruit_event_followup`) is LAN-203's single
   //     contact on a different ladder, not a rung of the player chase.
   if (kind === "reminder" && detail.current_response !== null) {
+    await claimNow();
     return { claimed: false, reason: "answered", detail: JOB_CANCELLED_REASON };
   }
 
@@ -469,6 +541,7 @@ async function claimJobIn(
   // channel would fail identically, so — unlike an unreachable recipient —
   // this must never trigger `scheduleWhatsAppFallbackIn`.
   if (!detail.event_starts_at_set) {
+    await claimNow();
     return { claimed: false, reason: "unschedulable", detail: EVENT_HAS_NO_START_TIME_REASON };
   }
 
@@ -491,6 +564,7 @@ async function claimJobIn(
       detail.season_id,
     );
     if (!consented) {
+      await claimNow();
       return { claimed: false, reason: "not_consented", detail: NO_CONSENT_REASON };
     }
   }
@@ -533,7 +607,36 @@ async function claimJobIn(
   // counted, and links to their record. It is the only delivery state that
   // requires a person, and what it requires is a roster fix rather than a
   // retry.
-  if (!route.ok) return { claimed: false, reason: "undeliverable", detail: route.reason };
+  if (!route.ok) {
+    await claimNow();
+    return { claimed: false, reason: "undeliverable", detail: route.reason };
+  }
+
+  // LAN-394. The last thing checked before anything is done, and the first
+  // thing that can stop this send without costing it anything.
+  //
+  // It runs here rather than earlier because it needs the destination that was
+  // actually selected, two lines above: a person's number is what the
+  // per-destination allowance is counted against, and a route chosen after the
+  // guard had already decided would be a guard on a different message.
+  //
+  // It runs here rather than later because everything below this line is a
+  // mutation — the attempt increment, a freshly minted token that supersedes
+  // the one the invitee may be holding, the attempt row itself. A guard after
+  // any of those would have already spent a retry and invalidated a working
+  // link to decide not to send.
+  const admission = await admitSendIn(tx, {
+    jobId,
+    personId: detail.person_id,
+    channel: context.channel,
+    recipient: route.recipient,
+  });
+  if (!admission.admitted) {
+    await recordWaitingIn(tx, jobId, admission, new Date());
+    return { claimed: false, reason: "deferred", waiting: admission };
+  }
+
+  await claimNow();
 
   const token = await issueTokenIn(tx, job.invitation_id, { actorLabel: DISPATCH_ACTOR_LABEL });
 
@@ -569,10 +672,15 @@ async function claimJobIn(
   // the row is live again rather than a failure with a message id bolted on.
   // Nothing else can reach it — every other writer of this table is keyed to a
   // number `attempt_count` has already passed.
+  // LAN-394. The three accounting fields go on in the same statement, in the
+  // same transaction as the claim. That is the whole of the counting: an
+  // admitted attempt is a row that already exists, and there is no second
+  // ledger to keep in step with it.
   const attempt = await tx.query<{ id: string }>(
     `insert into public.delivery_attempts
-       (notification_job_id, attempt_number, channel, provider, rsvp_access_token_id)
-     values ($1, $2, $3, $4, $5)
+       (notification_job_id, attempt_number, channel, provider, rsvp_access_token_id,
+        safety_admitted_at, safety_person_id, safety_destination_key)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
      on conflict (notification_job_id, attempt_number) do update
         set channel = excluded.channel,
             provider = excluded.provider,
@@ -581,9 +689,21 @@ async function claimJobIn(
             accepted_at = null,
             provider_message_id = null,
             concluded_at = null,
-            failure_reason = null
+            failure_reason = null,
+            safety_admitted_at = excluded.safety_admitted_at,
+            safety_person_id = excluded.safety_person_id,
+            safety_destination_key = excluded.safety_destination_key
      returning id`,
-    [jobId, job.attempt_count, context.channel, context.provider.name, token.tokenId],
+    [
+      jobId,
+      attemptNumber,
+      context.channel,
+      context.provider.name,
+      token.tokenId,
+      admission.admittedAt,
+      admission.personId,
+      admission.destinationKey,
+    ],
   );
 
   // LAN-392, F6 (second correction, 2026-09-17). A message is now going out
@@ -624,7 +744,8 @@ async function claimJobIn(
       jobId,
       invitationId: job.invitation_id,
       attemptId: attempt.rows[0].id,
-      attemptNumber: job.attempt_count,
+      attemptNumber,
+      safety: admission,
       message: {
         kind,
         recipient: route.recipient,
@@ -983,7 +1104,7 @@ export async function dispatchJob(
     /** LAN-169. Set by the scheduler, so a retry's backoff is recorded as automatic. */
     automatic?: boolean;
   } = {},
-): Promise<"accepted" | "refused" | "skipped"> {
+): Promise<DispatchOutcome> {
   // LAN-169. Read before the provider is resolved, because the provider is
   // chosen by the job's own channel: `REQ-ladder-order` fixes the sequence
   // WhatsApp, WhatsApp again, email, and the scheduler writes the rung's
@@ -1128,6 +1249,12 @@ export async function dispatchJob(
   if (claim.fallbackId) await dispatchFallbackBestEffort(claim.fallbackId, options);
 
   if (!claim.outcome.claimed) {
+    // LAN-394. `deferred` is its own answer, and every caller has to be able to
+    // tell it from the other two. `refused` means the provider was asked and
+    // said no; `skipped` means there was nothing to send. A deferral means the
+    // message is waiting, and saying either of the other two about it would put
+    // a failure on a screen where a queue belongs.
+    if (claim.outcome.reason === "deferred") return "deferred";
     return claim.outcome.reason === "undeliverable" ||
       claim.outcome.reason === "unschedulable" ||
       claim.outcome.reason === "not_consented"
@@ -1139,6 +1266,16 @@ export async function dispatchJob(
   const outcome = await provider.send(claimedAttempt.message);
 
   const secondFallbackId = await withTransaction(async (tx) => {
+    // LAN-394. What the provider's answer says about the provider, before what
+    // it says about this message. Only a provider-scoped fault reaches the
+    // circuit; a bad number or a paused template leaves it exactly as it was.
+    await recordProviderOutcomeIn(
+      tx,
+      provider.channel === "email" ? "email" : "whatsapp",
+      outcome,
+      claimedAttempt.safety.probeGeneration,
+    );
+
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts
@@ -1357,6 +1494,7 @@ export async function dispatchEventInvitations(
   let accepted = 0;
   let refused = 0;
   let skipped = 0;
+  let deferred = 0;
 
   // A total budget, not only a per-call one.
   //
@@ -1398,6 +1536,7 @@ export async function dispatchEventInvitations(
       const outcome = await dispatchJob(job.id, { ...options, claim: claimToken });
       if (outcome === "accepted") accepted += 1;
       else if (outcome === "refused") refused += 1;
+      else if (outcome === "deferred") deferred += 1;
       else skipped += 1;
     } catch (error) {
       refused += 1;
@@ -1405,7 +1544,7 @@ export async function dispatchEventInvitations(
     }
   }
 
-  return { attempted: accepted + refused, accepted, refused, skipped };
+  return { attempted: accepted + refused, accepted, refused, skipped, deferred };
 }
 
 /**
@@ -1420,7 +1559,7 @@ export async function retryDelivery(
   actorPersonId: string,
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<"accepted" | "refused"> {
+): Promise<"accepted" | "refused" | "deferred"> {
   const eligible = await withTransaction(async (tx) => {
     // `job_type` is constrained, not assumed. The identifier arrives from a
     // form, and every job is an invitation today only because nothing else
@@ -1470,6 +1609,10 @@ export async function retryDelivery(
   if (!eligible) return "refused";
 
   const outcome = await dispatchJob(jobId, options);
+  // LAN-394. A retry the guard deferred is not a retry that failed: the
+  // operator pressed the button, the job is queued, and nothing was consumed.
+  // Reporting it as a refusal would invite a second press.
+  if (outcome === "deferred") return "deferred";
   return outcome === "accepted" ? "accepted" : "refused";
 }
 
@@ -1485,7 +1628,7 @@ export async function revokeAndReissue(
   invitationId: string,
   reason: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
-): Promise<"accepted" | "refused"> {
+): Promise<"accepted" | "refused" | "deferred"> {
   const jobId = await withTransaction(async (tx) => {
     const job = await tx.query<{ id: string; attempt_count: number; held: boolean }>(
       `select id, attempt_count, held_at is not null as held
@@ -1544,6 +1687,12 @@ export async function revokeAndReissue(
   });
 
   const outcome = await dispatchJob(jobId, options);
+  // LAN-394, and this one is the case the design was most careful about.
+  // Revocation is an explicit security act and it has already happened — the
+  // old link is dead whatever the guard says. What the operator is owed is the
+  // truth about the replacement: it is waiting, not failed. Nothing here
+  // un-revokes anything to keep a link alive.
+  if (outcome === "deferred") return "deferred";
   return outcome === "accepted" ? "accepted" : "refused";
 }
 

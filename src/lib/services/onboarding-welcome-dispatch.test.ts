@@ -30,7 +30,11 @@ import { closePool, withTransaction } from "@/lib/db";
 import { withdrawSeasonMessagingConsentIn } from "./messaging-consent";
 import { dispatchOnboardingWelcomeJob, runMessagingSweep } from "./messaging-scheduler";
 import { enterReturningPlayer, resolveOpenSeason } from "./roster";
-import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
+import {
+  clearRecipientSafetyState,
+  openObserver,
+  seededActorPersonId,
+} from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN215WelcomeDispatch";
 
@@ -86,7 +90,41 @@ beforeAll(async () => {
   openSeasonId = season.id;
 });
 
+/**
+ * Pauses the club's outbound messaging for the length of one test — LAN-394.
+ *
+ * Written directly rather than through `pauseMessagingIn`, because what is
+ * under test here is the **dispatcher**: that it asks the guard at all, and
+ * that a paused answer costs the message nothing. The control itself, its
+ * capability and its audit row are proved in
+ * `src/lib/services/messaging-safety.test.ts`.
+ */
+async function pauseAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = now(),
+            -- Any real Person. It was the first operator account's, which CI
+            -- does not have: the test job seeds the dataset but links no login,
+            -- so the subquery was null and the attribution constraint refused
+            -- the pause. A seeded database always has people.
+            paused_by_person_id = (select id from public.people order by created_at limit 1),
+            paused_reason = 'Under test', version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
+async function resumeAllMessaging(): Promise<void> {
+  await observer.query(
+    `update public.messaging_safety_scopes
+        set paused_at = null, paused_by_person_id = null, paused_reason = null,
+            version = version + 1, updated_at = now()
+      where scope_kind = 'global'`,
+  );
+}
+
 afterEach(async () => {
+  // LAN-394: this suite's holds and provider circuit go with its fixtures.
+  await clearRecipientSafetyState(observer);
   const people = "(select id from public.people where given_name like $1)";
   await observer.query(
     `delete from public.delivery_results
@@ -167,6 +205,44 @@ async function jobIdFor(membershipId: string): Promise<string> {
 }
 
 describe("dispatchOnboardingWelcomeJob", () => {
+  it("sends nothing while messaging is paused, and costs the welcome nothing — LAN-394", async () => {
+    const { membershipId } = await createArrival();
+    const jobId = await jobIdFor(membershipId);
+    await pauseAllMessaging();
+
+    const { sent, transport } = acceptingTransport();
+    try {
+      expect(await dispatchOnboardingWelcomeJob(jobId, { source: CONFIGURED, transport })).toBe(
+        "deferred",
+      );
+    } finally {
+      await resumeAllMessaging();
+    }
+
+    expect(sent).toHaveLength(0);
+    const job = await observer.query<{
+      status: string;
+      attempt_count: number;
+      last_error: string | null;
+      safety_reason_code: string | null;
+    }>(
+      `select status::text as status, attempt_count, last_error, safety_reason_code
+         from public.notification_jobs where id = $1`,
+      [jobId],
+    );
+    // Queued, not failed: no attempt spent, no provider sentence written, and
+    // no token minted that would have superseded one this person already has.
+    expect(job.rows[0].status).toBe("pending");
+    expect(job.rows[0].attempt_count).toBe(0);
+    expect(job.rows[0].last_error).toBeNull();
+    expect(job.rows[0].safety_reason_code).toBe("paused_by_operator");
+    const attempts = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.delivery_attempts where notification_job_id = $1",
+      [jobId],
+    );
+    expect(attempts.rows[0].count).toBe("0");
+  });
+
   it("sends the onboarding welcome template, records an accepted attempt, and clears next_attempt_at", async () => {
     const { membershipId } = await createArrival();
     const jobId = await jobIdFor(membershipId);
