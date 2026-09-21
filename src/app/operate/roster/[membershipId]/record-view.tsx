@@ -29,7 +29,7 @@ import AttendanceSection from "./attendance-section";
 import SendOnboardingQuestionnaireButton, {
   sendStatusLines,
 } from "./send-onboarding-questionnaire-button";
-import { collapsedBandsFrom, type Band } from "../board-columns";
+import { recordCollapsedGroupsFrom, type RecordGroup } from "../board-columns";
 import { saveCollapsedGroupsAction } from "../group-preference-actions";
 import { ENTRY_LABELS, formatDay, labelFor, MEMBERSHIP_STATUS_LABELS } from "../presentation";
 import {
@@ -111,17 +111,20 @@ export default function PlayerRecordView({
    */
   const [saving, setSaving] = useState<string | null>(null);
   /**
-   * Which groups are folded away — the same setting the board reads and writes
-   * (LAN-387, Brian's visual pass item 1), because these are the same groups.
+   * Which sections are folded away — the same setting the board reads and
+   * writes (LAN-387, Brian's visual pass item 1) for the groups the two
+   * screens share, widened in LAN-403 to the four sections only the record
+   * has (Activity, Attendance, Their other seasons, Status history).
    *
-   * The whole set is held here, not just the two groups this page can fold, so
-   * opening Kit on a record never forgets that the board had Coaching closed.
+   * The whole set is held here, so opening Kit on a record never forgets that
+   * the board had Coaching closed, and the board carries the record's four
+   * back through its own write.
    */
-  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<Band>>(() =>
-    collapsedBandsFrom(initialCollapsedGroups),
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<RecordGroup>>(() =>
+    recordCollapsedGroupsFrom(initialCollapsedGroups),
   );
   const toggleGroup = useCallback(
-    (group: Band, open: boolean) => {
+    (group: RecordGroup, open: boolean) => {
       // `<details>` reports its state rather than asking for one, so a report
       // that agrees with what is already held is not a change to store.
       if (collapsedGroups.has(group) === !open) return;
@@ -406,6 +409,9 @@ export default function PlayerRecordView({
         band="person"
         title="Person"
         testId="person"
+        collapsible
+        defaultOpen={!collapsedGroups.has("person")}
+        onToggleOpen={(open) => toggleGroup("person", open)}
         action={
           <Button
             href={`/operate/people/${record.personId}`}
@@ -455,7 +461,15 @@ export default function PlayerRecordView({
         />
       </Section>
 
-      <Section variant="banded" band="onboarding" title="Onboarding" testId="onboarding">
+      <Section
+        variant="banded"
+        band="onboarding"
+        title="Onboarding"
+        testId="onboarding"
+        collapsible
+        defaultOpen={!collapsedGroups.has("onboarding")}
+        onToggleOpen={(open) => toggleGroup("onboarding", open)}
+      >
         {record.onboardingItems.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 2 }} data-testid="onboarding-empty">
             This season has no onboarding items configured, so this membership has none.
@@ -522,7 +536,15 @@ export default function PlayerRecordView({
         </Box>
       </Section>
 
-      <Section variant="banded" band="onboarding" title="Activity" testId="activity">
+      <Section
+        variant="banded"
+        band="onboarding"
+        title="Activity"
+        testId="activity"
+        collapsible
+        defaultOpen={!collapsedGroups.has("activity")}
+        onToggleOpen={(open) => toggleGroup("activity", open)}
+      >
         <ActivityLog sections={record.activityLog} />
       </Section>
 
@@ -539,16 +561,34 @@ export default function PlayerRecordView({
         onToggleGroup={toggleGroup}
       />
 
-      <Section variant="banded" band="attendance" title="Attendance" testId="attendance">
+      <Section
+        variant="banded"
+        band="attendance"
+        title="Attendance"
+        testId="attendance"
+        collapsible
+        defaultOpen={!collapsedGroups.has("attendance")}
+        onToggleOpen={(open) => toggleGroup("attendance", open)}
+      >
         <AttendanceSection events={record.attendance} />
       </Section>
 
-      <Section variant="banded" band="history" title="Their other seasons" testId="other-seasons">
+      <Section
+        variant="banded"
+        band="history"
+        title="Their other seasons"
+        testId="other-seasons"
+        collapsible
+        defaultOpen={!collapsedGroups.has("otherSeasons")}
+        onToggleOpen={(open) => toggleGroup("otherSeasons", open)}
+      >
         <OtherSeasons seasons={record.otherSeasons} />
       </Section>
 
       <Section
         collapsible
+        defaultOpen={!collapsedGroups.has("statusHistory")}
+        onToggleOpen={(open) => toggleGroup("statusHistory", open)}
         title="Status history"
         testId="status-history"
         action={

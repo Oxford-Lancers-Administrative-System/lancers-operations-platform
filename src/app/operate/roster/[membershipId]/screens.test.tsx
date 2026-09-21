@@ -1836,6 +1836,69 @@ describe("which groups are folded away, remembered on the account", () => {
       "specialTeams",
     ]);
   });
+
+  /**
+   * LAN-403 — Stewart, on the call of 2026-09-21: "I cannot collapse his
+   * personal record. I cannot collapse onboarding." Every section folds now,
+   * not only the three the board also has.
+   */
+  it("folds every section on the record, not only the board's own groups", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    for (const testId of [
+      "person",
+      "onboarding",
+      "activity",
+      "season",
+      "coaching",
+      "offensive",
+      "defensive",
+      "special-teams",
+      "warmup",
+      "kit",
+      "attendance",
+      "other-seasons",
+      "status-history",
+    ]) {
+      expect(screen.getByTestId(`section-${testId}`).tagName).toBe("DETAILS");
+    }
+  });
+
+  it("arrives with Person, Onboarding and Membership open and the long tail closed", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.getByTestId("section-person")).toHaveAttribute("open");
+    expect(screen.getByTestId("section-onboarding")).toHaveAttribute("open");
+    expect(screen.getByTestId("section-season")).toHaveAttribute("open");
+    expect(screen.getByTestId("section-activity")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-attendance")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-other-seasons")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-status-history")).not.toHaveAttribute("open");
+  });
+
+  it("remembers a section only the record has", async () => {
+    // Attendance is not one of the board's groups, so nothing but the record
+    // can fold it — and the account still has to hold the answer.
+    vi.mocked(readOperatorPreferences).mockResolvedValue({
+      rosterCollapsedGroups: ["kit", "attendance"],
+    });
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const attendance = screen.getByTestId("section-attendance");
+    expect(attendance).not.toHaveAttribute("open");
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      (attendance as HTMLDetailsElement).open = true;
+      fireEvent(attendance, new Event("toggle", { bubbles: false }));
+    });
+
+    expect(saveCollapsedGroupsAction).toHaveBeenCalledTimes(1);
+    expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]].sort()).toEqual(["kit"]);
+  });
 });
 
 /**

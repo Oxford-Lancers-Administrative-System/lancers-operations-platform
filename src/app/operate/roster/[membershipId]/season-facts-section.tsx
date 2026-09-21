@@ -2,7 +2,7 @@ import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
 import type { PlayerRecordData } from "@/lib/services/player-record";
 import {
-  type Band,
+  type RecordGroup,
   AVAILABILITY_LABELS,
   AVAILABILITY_VALUES,
   BLUES_VALUES,
@@ -52,9 +52,9 @@ export default function SeasonFactsSection({
   fieldErrorMessage: string | null;
   setEditing: (key: string | null) => void;
   commitSeasonField: (key: string, next: string | string[]) => void;
-  /** Which groups this operator has folded away, from their account — LAN-387, Brian's visual pass item 1. */
-  collapsedGroups: ReadonlySet<Band>;
-  onToggleGroup: (group: Band, open: boolean) => void;
+  /** Which groups this operator has folded away, from their account — LAN-387, Brian's visual pass item 1; every group since LAN-403. */
+  collapsedGroups: ReadonlySet<RecordGroup>;
+  onToggleGroup: (group: RecordGroup, open: boolean) => void;
 }) {
   const errorFor = (key: string) => (fieldErrorKey === key ? fieldErrorMessage : null);
   const savingOf = (key: string) => savingKey === key;
@@ -88,6 +88,9 @@ export default function SeasonFactsSection({
         band="membership"
         title={`Membership · ${record.seasonLabel}`}
         testId="season"
+        collapsible
+        defaultOpen={!collapsedGroups.has("membership")}
+        onToggleOpen={(open) => onToggleGroup("membership", open)}
       >
         <RecordField
           label="Status"
@@ -188,7 +191,15 @@ export default function SeasonFactsSection({
         />
       </Section>
 
-      <Section variant="banded" band="coaching" title="Coaching assignments" testId="coaching">
+      <Section
+        variant="banded"
+        band="coaching"
+        title="Coaching assignments"
+        testId="coaching"
+        collapsible
+        defaultOpen={!collapsedGroups.has("coaching")}
+        onToggleOpen={(open) => onToggleGroup("coaching", open)}
+      >
         <MultiSelectField
           label="Coaching group"
           values={record.season.coachingGroups}
@@ -212,7 +223,15 @@ export default function SeasonFactsSection({
         />
       </Section>
 
-      <Section variant="banded" band="offensive" title="Offensive assignments" testId="offensive">
+      <Section
+        variant="banded"
+        band="offensive"
+        title="Offensive assignments"
+        testId="offensive"
+        collapsible
+        defaultOpen={!collapsedGroups.has("offensive")}
+        onToggleOpen={(open) => onToggleGroup("offensive", open)}
+      >
         <PositionField
           label="Primary position"
           value={record.season.offencePosition}
@@ -229,7 +248,15 @@ export default function SeasonFactsSection({
         />
       </Section>
 
-      <Section variant="banded" band="defensive" title="Defensive assignments" testId="defensive">
+      <Section
+        variant="banded"
+        band="defensive"
+        title="Defensive assignments"
+        testId="defensive"
+        collapsible
+        defaultOpen={!collapsedGroups.has("defensive")}
+        onToggleOpen={(open) => onToggleGroup("defensive", open)}
+      >
         <PositionField
           label="Primary position"
           value={record.season.defencePosition}

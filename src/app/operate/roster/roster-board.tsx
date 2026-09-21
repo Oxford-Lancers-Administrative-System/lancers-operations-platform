@@ -51,6 +51,7 @@ import {
   BOARD_ROW_HEIGHT,
   BOARD_SCROLLBAR_GUTTER_PX,
   collapsedBandsFrom,
+  nonBandCollapsedKeys,
   displayColumns,
   PLAYER_COLUMN_WIDTH,
   squadBoundaryKeys,
@@ -142,6 +143,16 @@ export default function RosterBoard({
    * save is not worth interrupting an operator over.
    */
   const asArrived = useRef(true);
+  /**
+   * The record's own sections are folded in the same stored list and this
+   * board has no opinion about them — LAN-403. The whole list is written every
+   * time, so they are carried through rather than dropped; without this, one
+   * fold on the board forgets every fold made on a record.
+   */
+  const recordSections = useMemo(
+    () => nonBandCollapsedKeys(initialCollapsedGroups),
+    [initialCollapsedGroups],
+  );
   useEffect(() => {
     // The state this board arrived holding is the state the account already
     // stores, so writing it back would be a write per page load.
@@ -149,10 +160,10 @@ export default function RosterBoard({
       asArrived.current = false;
       return;
     }
-    const groups = [...collapsedBands];
+    const groups = [...collapsedBands, ...recordSections];
     const timer = setTimeout(() => void saveCollapsedGroupsAction(groups), COLLAPSE_SAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [collapsedBands]);
+  }, [collapsedBands, recordSections]);
 
   const drawn = useMemo(() => displayColumns(columns, collapsedBands), [columns, collapsedBands]);
   const toggleBand = useCallback((band: Band) => {

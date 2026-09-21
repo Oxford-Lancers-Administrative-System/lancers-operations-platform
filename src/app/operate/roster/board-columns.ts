@@ -196,6 +196,59 @@ export function collapsedBandsFrom(stored: readonly string[] | undefined): Reado
   return new Set(stored.filter(isBand));
 }
 
+/**
+ * The membership record's own sections — LAN-403. Stewart, on the call of
+ * 2026-09-21: "I cannot collapse his personal record. I cannot collapse
+ * onboarding." Every section on the record folds, so the four that are not one
+ * of the board's groups need names in the same setting.
+ *
+ * They are kept in the one `rosterCollapsedGroups` list rather than a second
+ * one, because they are the same operator answering the same question about
+ * the same screen family. `collapsedBandsFrom` already drops what it does not
+ * recognise, so the board simply never sees them.
+ */
+export type RecordSection = "activity" | "attendance" | "otherSeasons" | "statusHistory";
+export type RecordGroup = Band | RecordSection;
+
+const RECORD_SECTIONS: readonly RecordSection[] = Object.freeze([
+  "activity",
+  "attendance",
+  "otherSeasons",
+  "statusHistory",
+]);
+
+/**
+ * What the record closes for an operator who has never said otherwise: the
+ * board's own three, plus the record's four, which are the long tail by the
+ * same rule — a log, a term's attendance, previous seasons and the status
+ * history are none of them what a reader opened this record for. Person,
+ * Onboarding and Membership stay open.
+ */
+const RECORD_COLLAPSED_BY_DEFAULT: ReadonlySet<RecordGroup> = Object.freeze(
+  new Set<RecordGroup>([...COLLAPSED_BY_DEFAULT, ...RECORD_SECTIONS]),
+);
+
+function isRecordGroup(key: string): key is RecordGroup {
+  return isBand(key) || (RECORD_SECTIONS as readonly string[]).includes(key);
+}
+
+/** Which of the record's sections this operator has folded away — `collapsedBandsFrom`'s rule, over the wider list. */
+export function recordCollapsedGroupsFrom(
+  stored: readonly string[] | undefined,
+): ReadonlySet<RecordGroup> {
+  if (stored === undefined) return RECORD_COLLAPSED_BY_DEFAULT;
+  return new Set(stored.filter(isRecordGroup));
+}
+
+/**
+ * Stored keys the *board* has no opinion about — the record's own sections.
+ * The board writes the whole list every time, so without this a fold made on a
+ * record would be erased by the next fold made on the board.
+ */
+export function nonBandCollapsedKeys(stored: readonly string[] | undefined): readonly string[] {
+  return (stored ?? []).filter((key) => !isBand(key));
+}
+
 export function bandOf(key: Band): BandDef {
   const found = BANDS.find((band) => band.key === key);
   if (!found) throw new Error(`Unknown band: ${key}`);

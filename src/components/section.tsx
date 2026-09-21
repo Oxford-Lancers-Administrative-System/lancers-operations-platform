@@ -251,6 +251,14 @@ export function Section({
         component="details"
         variant="outlined"
         open={defaultOpen || undefined}
+        // LAN-403: a plain disclosure reports its state the same way a banded
+        // one does, so the record's own sections are remembered on the
+        // operator's account exactly as its roster groups are.
+        onToggle={
+          onToggleOpen
+            ? (event) => onToggleOpen((event.currentTarget as HTMLDetailsElement).open)
+            : undefined
+        }
         sx={{
           p: { xs: 2, md: 3 },
           "& > summary": { cursor: "pointer", listStyle: "none" },
