@@ -1,32 +1,24 @@
-# Dependency and action update alerts (LAN-352).
+# Dependency and action update alerts (LAN-352, LAN-402).
 #
-# Production dependencies carried a critical Next.js advisory for weeks without
-# anyone noticing because nothing scanned them. Dependabot opens one grouped
-# draft-style pull request per ecosystem per week; package.json and .github/**
-# are prohibited paths in merge-rules.json, so every one of these is Brian's to
-# merge by hand and none can auto-merge.
+# Scheduled version-update pull requests are switched off (Brian, 2026-09-21):
+# every one is a hand merge, since package.json and .github/** are prohibited
+# paths, and a weekly batch of four was more than the club can review. The
+# entries stay so that Dependabot's security updates keep opening on their
+# own; a version-update job with an open-pull-requests limit of zero opens
+# no scheduled pull requests at all. LAN-402 decides whether a quarterly
+# cadence can be expressed here; until then, dependency currency is a
+# manual `npm outdated` pass Brian schedules.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Europe/London
-    open-pull-requests-limit: 3
-    groups:
-      production:
-        dependency-type: production
-      development:
-        dependency-type: development
+    open-pull-requests-limit: 0
     labels: []
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Europe/London
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
     labels: []
