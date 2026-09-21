@@ -314,15 +314,15 @@ anonymised until both have. That rule lives in
 authority below: the capability answers "may this operator start it at all", and
 the sign-off rule answers "may it happen yet".
 
-**A second capability is narrower than the rest, for the same kind of reason**
-(LAN-394, Brian 2026-09-17). `messaging_safety_authority` is what lets an
-operator pause and resume the club's outbound messaging. It is granted to the
-core four — President, Vice-President, Secretary, General Manager — and to
-nobody else, making it the second exception to the 15 August 2026 rule that the
-administrative seat holds every capability in the map. Stopping every message
-the club sends, or restarting them after an emergency stop, is not an
-administrative act; it is the same judgement `event_approval` already asks of
-those four.
+**A second narrow capability, `messaging_safety_authority`** (LAN-394, Brian
+2026-09-17), is what lets an operator pause and resume the club's outbound
+messaging. It is granted to the core four — President, Vice-President,
+Secretary, General Manager — and, since 2026-09-21 (LAN-407), to the IT Officer.
+It was first withheld from that seat on the erasure reasoning; Brian reversed
+it after the first production deploy, when the seat that diagnoses a runaway
+from the Messaging safety section could read the state but not stop it. Erasure
+remains the only exception to the 15 August 2026 rule that the administrative
+seat holds every capability in the map.
 
 The Messaging schedule page itself stays on `delivery_administration`, so the IT
 Officer can still _read_ the safety state — seeing that messaging is paused is
