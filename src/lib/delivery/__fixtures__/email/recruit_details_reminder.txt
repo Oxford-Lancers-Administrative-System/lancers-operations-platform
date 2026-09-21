@@ -1,0 +1,7 @@
+Hello Jamie, still interested in Oxford Lancers?
+
+Your answers for your recruitment, opened on Wednesday 14 October, 20:00, are still outstanding. You can leave anything blank.
+
+Answer questions: https://app.oxfordlancers.example/signup/form-token
+
+Stop messages: https://app.oxfordlancers.example/stop/stop-token

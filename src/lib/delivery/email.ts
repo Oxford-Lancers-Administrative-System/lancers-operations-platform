@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { EmailConfig } from "./config";
+import { renderEmailHtml } from "./email-shell";
 import type {
   DeliveryProvider,
   OutboundMessage,
@@ -8,7 +9,7 @@ import type {
   SendOutcome,
   Transport,
 } from "./provider";
-import { templateFor } from "./templates";
+import { RECRUIT_STOP_MESSAGES_LABEL, templateFor } from "./templates";
 
 /**
  * The automated email transport. LAN-169, on Resend.
@@ -52,6 +53,42 @@ import { templateFor } from "./templates";
  */
 
 export const EMAIL_PROVIDER = "resend";
+
+/**
+ * The name an email from the club arrives under. LAN-398, Brian 2026-09-18.
+ *
+ * The club's university mailbox shows in iPhone Mail as "Oxford University
+ * Lancers American Football Club"; the app's own mail showed as two initials
+ * and an address, because `from` carried a bare address and nothing else. This
+ * is the club's full name, written out, and it is the bar the club set.
+ *
+ * It lives here rather than in the environment on purpose. `deploy.yml` folds
+ * `--set-env-vars` into one whitespace-free token, so a value with spaces in it
+ * splits the flag mid-value and silently drops every setting after it
+ * (`docs/deployment.md`; `tests/deployment-configuration.test.ts` parses that
+ * token on whitespace). `EMAIL_FROM_ADDRESS` therefore stays a bare address
+ * exactly as that pipeline requires, and the name in front of it is a fact
+ * about the club rather than about the deployment — every deployment sends as
+ * the same club.
+ */
+export const EMAIL_FROM_DISPLAY_NAME = "Oxford University Lancers American Football Club";
+
+/**
+ * The `from` header: the club's name, then the deployment's verified address.
+ *
+ * The angle-bracket form is what Resend documents and what every client parses
+ * into a display name. The address is taken *out* of `fromAddress` rather than
+ * assumed bare: `.env.example` documented the `Name <address>` form until this
+ * change, so a deployment may still be carrying one, and concatenating a
+ * display name onto a value that already has one produces `A <B <c@d>>` — which
+ * Resend refuses with a terminal 422 on every send. The address itself is
+ * unchanged either way.
+ */
+export function emailFromHeader(fromAddress: string): string {
+  const angled = /<([^<>]+)>\s*$/.exec(fromAddress);
+  const address = (angled ? angled[1] : fromAddress).trim();
+  return `${EMAIL_FROM_DISPLAY_NAME} <${address}>`;
+}
 
 /**
  * How long one send may take.
@@ -129,9 +166,15 @@ export const NO_USABLE_EMAIL_REASON =
  * club is saying.
  *
  * Both a text and an HTML part, because a text-only email lands in more spam
- * filters and an HTML-only one is unreadable in a client that refuses HTML. The
- * HTML is the same lines, escaped — there is no second rendering to keep in
- * step.
+ * filters and an HTML-only one is unreadable in a client that refuses HTML.
+ *
+ * The two parts are the same lines. `text` is those lines and nothing else, and
+ * LAN-398 left it alone deliberately — it is what a client refusing HTML shows,
+ * and it is the copy Meta's classifier approved. `html` puts the identical
+ * lines, escaped, one `<p>` each, inside the club's shell (`./email-shell.ts`).
+ * There is still no second rendering to keep in step: there is one body, in a
+ * frame. The one line that moves is the Stop line, from the end of the message
+ * to the signature block — see below, and see `email-shell.ts` on why.
  */
 export function buildEmailBody(
   config: EmailConfig,
@@ -140,22 +183,28 @@ export function buildEmailBody(
   const template = templateFor(message);
   const lines = template.body(message);
 
+  const subject = template.subject(message);
+
+  // `stopLine()` puts `Stop messages: <url>` last, on the four recruit kinds
+  // that carry one and nowhere else (LAN-372). In the HTML it belongs with the
+  // signature rather than with the message, so it is separated here and the
+  // shell signs off with it. Same line, same wording, moved and not copied.
+  // `text` is assembled from the untouched `lines` and is unaffected.
+  const stop = lines.at(-1)?.startsWith(`${RECRUIT_STOP_MESSAGES_LABEL}: `) === true;
+
   return {
-    from: config.fromAddress,
+    from: emailFromHeader(config.fromAddress),
     to: [config.recipientOverride ?? message.recipient],
-    subject: template.subject(message),
+    subject,
     text: lines.join("\n\n"),
-    html: lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("\n"),
+    html: renderEmailHtml({
+      appBaseUrl: config.appBaseUrl,
+      subject,
+      lines: stop ? lines.slice(0, -1) : lines,
+      stopLine: stop ? (lines.at(-1) ?? null) : null,
+    }),
     ...(config.replyToAddress ? { reply_to: config.replyToAddress } : {}),
   };
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 /** Resend's success shape, as far as this adapter is willing to look at it. */

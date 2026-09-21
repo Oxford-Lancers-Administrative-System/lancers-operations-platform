@@ -1,0 +1,5 @@
+Hello Jamie, you are attending Michaelmas week 3 on Wednesday 14 October, 20:00, but there are still some outstanding questions.
+
+Please answer them below.
+
+Answer questions: https://app.oxfordlancers.example/questions/questions-token

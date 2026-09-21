@@ -67,6 +67,19 @@ describe("the privacy notice", () => {
   });
 });
 
+// LAN-356 — the club's own 2026 document, in the versioned onboarding slot
+// (`onboarding_agreement_versions.pdf_path`) and linked from the public terms
+// page.
+describe("the terms page", () => {
+  it("links the club's Code of Conduct to the committed document", () => {
+    const { container } = render(<TermsPage />);
+    const link = Array.from(container.querySelectorAll("a")).find(
+      (a) => a.textContent === "club’s Code of Conduct",
+    );
+    expect(link?.getAttribute("href")).toBe("/documents/oulafc-code-of-conduct-2026.pdf");
+  });
+});
+
 describe("the data-deletion page", () => {
   it("says deletion means anonymisation, and that two officers approve it", () => {
     const { container } = render(<DataDeletionPage />);

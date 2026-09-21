@@ -14,3 +14,8 @@ public/pdfjs/
 
 # Agent worktrees are checkouts of this repository, not source of it.
 .claude/worktrees/
+
+# LAN-398. Rendered email parts, captured byte for byte from what the transport
+# builds. Reformatting them would be rewriting the evidence.
+src/lib/delivery/__fixtures__/email/
+docs/ux/review/LAN-398/*.html

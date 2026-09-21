@@ -356,6 +356,57 @@ describe("the Code of Conduct document itself", () => {
   });
 });
 
+// LAN-356 — the club's own 2026 document replaces the placeholder. An excerpt
+// of the migrated body (the title and the first numbered point, verbatim) —
+// full-text fidelity to the source PDF is proved against the migrated row in
+// `onboarding-agreements.test.ts`.
+describe("the Code of Conduct's 2026 document", () => {
+  const REAL_BODY_EXCERPT = [
+    "## Code of Conduct for the Oxford University Lancers American Football Club (OULAFC)",
+    "",
+    "1. The Oxford University Lancers American Football Club (“the Club”) does not tolerate any form of harassment and expects all members, employees, and visitors to treat each other with respect, courtesy and consideration.",
+  ].join("\n");
+
+  function withRealDocument() {
+    const base = view({ nextStep: "code_of_conduct" });
+    return {
+      ...base,
+      agreementVersions: {
+        ...base.agreementVersions,
+        code_of_conduct: agreementVersion(
+          "code_of_conduct",
+          "2026-v1",
+          REAL_BODY_EXCERPT,
+          "/documents/oulafc-code-of-conduct-2026.pdf",
+        ),
+      },
+    };
+  }
+
+  it("renders the document's own title and first point, never the placeholder notice", async () => {
+    givenValid(withRealDocument());
+    const { container } = await renderPage({ step: "code_of_conduct" });
+
+    expect(container.textContent).toContain(
+      "Code of Conduct for the Oxford University Lancers American Football Club (OULAFC)",
+    );
+    expect(container.textContent).toContain(
+      "The Oxford University Lancers American Football Club (“the Club”) does not tolerate any form of harassment",
+    );
+    // 2026-v1 is not a placeholder label, so the warning notice does not show.
+    expect(container.textContent).not.toMatch(/PLACEHOLDER/);
+  });
+
+  it("names the real committed PDF on the viewer and the download link", async () => {
+    givenValid(withRealDocument());
+    const { container } = await renderPage({ step: "code_of_conduct" });
+
+    expect(container.querySelector('[data-testid="code-of-conduct-pdf"]')).not.toBeNull();
+    const download = container.querySelector('[data-testid="download-document"]');
+    expect(download?.getAttribute("href")).toBe("/documents/oulafc-code-of-conduct-2026.pdf");
+  });
+});
+
 describe("acceptance 10 — the finishing page lists outstanding by section", () => {
   it("links each outstanding item back to its own step", async () => {
     givenValid(

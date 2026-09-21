@@ -1,0 +1,54 @@
+[
+  {
+    "route": "onboarding-code-of-conduct",
+    "engine": "chromium",
+    "viewport": "375",
+    "measuredWidth": 375,
+    "horizontalOverflow": false,
+    "canvasPages": 2,
+    "cspViolations": [],
+    "consoleErrors": []
+  },
+  {
+    "route": "onboarding-code-of-conduct",
+    "engine": "chromium",
+    "viewport": "desktop",
+    "measuredWidth": 1440,
+    "horizontalOverflow": false,
+    "canvasPages": 2,
+    "cspViolations": [],
+    "consoleErrors": []
+  },
+  {
+    "route": "onboarding-code-of-conduct",
+    "engine": "webkit",
+    "viewport": "375",
+    "measuredWidth": 375,
+    "horizontalOverflow": false,
+    "canvasPages": 2,
+    "cspViolations": [],
+    "consoleErrors": []
+  },
+  {
+    "route": "onboarding-code-of-conduct",
+    "engine": "webkit",
+    "viewport": "desktop",
+    "measuredWidth": 1440,
+    "horizontalOverflow": false,
+    "canvasPages": 2,
+    "cspViolations": [],
+    "consoleErrors": []
+  },
+  {
+    "route": "terms",
+    "engine": "chromium",
+    "viewport": "375",
+    "measuredWidth": 375
+  },
+  {
+    "route": "terms",
+    "engine": "chromium",
+    "viewport": "desktop",
+    "measuredWidth": 1440
+  }
+]

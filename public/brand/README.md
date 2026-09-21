@@ -7,7 +7,7 @@ exists to prevent.
 
 | Supplied file       | Job                                  | Lives here as                                                                                            |
 | ------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `Group 2454.svg`    | the **application mark**             | `crest.svg`, `crest-blue.svg`                                                                            |
+| `Group 2454.svg`    | the **application mark**             | `crest.svg`, `crest-blue.svg`, `crest-email.png`, `crest-email@1x.png`                                   |
 | `Award Sticker.svg` | the **favicon and app icons**        | `icon-mark.svg`, `icon-192.png`, `icon-512.png`, and `src/app/icon.svg`, `apple-icon.png`, `favicon.ico` |
 | `OG Image.png`      | the **site-wide link-preview image** | `src/app/opengraph-image.png`, `twitter-image.png`                                                       |
 | `Join OG Image.png` | the **sign-up link-preview image**   | `src/app/join/[code]/opengraph-image.png`, `twitter-image.png`                                           |
@@ -54,6 +54,24 @@ set in Geist.
 It is not used for the link previews: both cards are supplied pictures, below.
 The recruit sign-up card used to be drawn from `crest.svg` at request time, and
 LAN-383 replaced that with the club's own recruitment image.
+
+### In an email — LAN-398
+
+- `crest-email.png` (114×96) and `crest-email@1x.png` (57×48) — the **blue**
+  mark rasterised at its own 1.183 ratio. Every email the app sends through
+  Resend carries it twice: 48px tall in the header beside "Oxford Lancers", and
+  32px tall in the signature block. `crest-email.png` is the 2x of the larger
+  slot and is what `src` points at; `@1x` is offered beside it through `srcset`,
+  so a client that ignores `srcset` still gets the sharp one.
+
+  Blue and not white, because an email's shell is a white card on the same warm
+  off-white the application uses. Raster and not SVG, because Outlook on Windows
+  draws HTML through Word, which renders an SVG `<img>` as an empty box.
+
+  It is served from the application's own origin at `/brand/crest-email.png` and
+  referenced absolutely, off `APP_BASE_URL`: a mail client has no page to
+  resolve a relative path against. Gmail proxies and caches it, which is fine —
+  it is a public logo and carries no token.
 
 ## The favicon and app icons
 

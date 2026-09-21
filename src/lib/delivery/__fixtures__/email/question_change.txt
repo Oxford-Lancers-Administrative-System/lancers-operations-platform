@@ -1,0 +1,5 @@
+Hello Jamie, a question for Michaelmas week 3 on Wednesday 14 October, 20:00 has changed: Which position would you like to try?.
+
+Your previous answer has been cleared. Please answer it again below.
+
+Answer questions: https://app.oxfordlancers.example/questions/questions-token
