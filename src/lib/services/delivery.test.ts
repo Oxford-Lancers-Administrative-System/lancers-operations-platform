@@ -2562,6 +2562,39 @@ describe("Not delivered — a WhatsApp send Meta accepted and never spoke of aga
     expect(after.notDelivered).toBe(false);
   });
 
+  /**
+   * Red-team finding 7, pinned: nothing in the chase ladder or the sweep reads
+   * a delivery state, and this issue adds nothing to any of them. The
+   * thirty-day conclusion is the one thing that *does* act on an open attempt,
+   * and a row that is merely silent for an hour is nowhere near it.
+   */
+  it("moves nothing in the sweep, and is nowhere near the thirty-day conclusion", async () => {
+    const { eventId } = await dispatched();
+    await acceptedMinutesAgo(eventId, 8 * 60);
+    expect((await row(eventId)).notDelivered).toBe(true);
+
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+
+    const after = await row(eventId);
+    expect(after.state).toBe("attempted");
+    expect(after.notDelivered).toBe(true);
+    // No result row means no retry ladder and no email fallback: both fire
+    // only on a *recorded* WhatsApp failure.
+    const results = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.delivery_results r
+         join public.notification_jobs j on j.id = r.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    expect(results.rows[0].count).toBe("0");
+    const fallback = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.notification_jobs j
+        where j.event_id = $1 and j.idempotency_key like '%${EMAIL_FALLBACK_SUFFIX}'`,
+      [eventId],
+    );
+    expect(fallback.rows[0].count).toBe("0");
+  });
+
   it("writes nothing at all — reading the screen twice moves no row", async () => {
     const { eventId } = await dispatched();
     await acceptedMinutesAgo(eventId, 8 * 60);
