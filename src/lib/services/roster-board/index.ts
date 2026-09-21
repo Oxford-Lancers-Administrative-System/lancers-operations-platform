@@ -13,7 +13,7 @@ export { listRosterBoard, readPositionOptions } from "./read";
 export { SPECIAL_TEAMS_SLOTS, SPECIAL_TEAMS_SQUADS, specialTeamsCellKey } from "./vocabulary";
 export type { SpecialTeamsSlot, SpecialTeamsSquad } from "./vocabulary";
 export { commitSpecialTeamsAssignment } from "./write-special-teams";
-export { commitKitItem } from "./write-kit";
+export { commitKitItem, commitKitItemValues } from "./write-kit";
 export { commitWarmupSmallGroup } from "./write-warmup";
 export { WARMUP_SMALL_GROUP_VALUES } from "./vocabulary";
 export { KIT_DISTRIBUTED_ITEMS, KIT_ITEMS, kitCellKey } from "./vocabulary";

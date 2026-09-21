@@ -82,8 +82,13 @@ export interface RosterBoardRow {
   formalwear: Record<FormalwearItemKey, boolean>;
   /** One entry per filled special-teams cell, keyed `st:<squad>:<slot>` — LAN-374. A blank cell is an absent key. */
   specialTeams: Readonly<Record<string, string>>;
-  /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. A blank item is an absent key. */
-  kit: Readonly<Record<string, string>>;
+  /**
+   * One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. A
+   * blank item is an absent key. Always a list, in the item's own option
+   * order: the nine single-pick items carry one value, Braces L and Braces R
+   * carry the set (LAN-409).
+   */
+  kit: Readonly<Record<string, readonly string[]>>;
   /** The warmup small group — LAN-401. One of eight, or `null` when nothing is recorded. */
   warmupSmallGroup: string | null;
   blues: BluesValue;
@@ -260,9 +265,11 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       item: string;
       value: string;
     }>(
-      `select season_membership_id, item::text as item, value
-         from public.kit_issue_records
-        where season_id = $1::uuid`,
+      `select k.season_membership_id, k.item::text as item, k.value
+         from public.kit_issue_records k
+         join public.kit_item_options o on o.item = k.item and o.value = k.value
+        where k.season_id = $1::uuid
+        order by o.sort_order`,
       [roster.season.id],
     );
     const warmupRows = await tx.query<{
@@ -394,10 +401,14 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       warmupRows.rows.map((row) => [row.season_membership_id, row.small_group]),
     );
 
-    const kitByMembership = new Map<string, Record<string, string>>();
+    // LAN-409: an item may now hold several rows, so the map is built by
+    // appending rather than assigning. The query orders by the option's own
+    // sort order, so a set reads the same whichever order it was recorded in.
+    const kitByMembership = new Map<string, Record<string, string[]>>();
     for (const row of kitRows.rows) {
       const current = kitByMembership.get(row.season_membership_id) ?? {};
-      current[kitCellKey(row.item as KitItemCode)] = row.value;
+      const key = kitCellKey(row.item as KitItemCode);
+      current[key] = [...(current[key] ?? []), row.value];
       kitByMembership.set(row.season_membership_id, current);
     }
 

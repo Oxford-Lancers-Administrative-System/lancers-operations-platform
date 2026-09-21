@@ -213,6 +213,8 @@ export default function PlayerRecordView({
         });
     }
 
+    // LAN-409: Braces L and Braces R send the whole set; the other nine send
+    // one value, or "" to blank the field. The action takes either shape.
     const kitItem = parseKitCellKey(key);
     if (kitItem) {
       return () =>
@@ -220,7 +222,7 @@ export default function PlayerRecordView({
           membershipId: record.membershipId,
           seasonId: record.seasonId,
           item: kitItem,
-          value: (next as string) || null,
+          value: next,
         });
     }
 

@@ -25,7 +25,7 @@ import {
   commitJerseyNumbers,
   commitPosition,
   commitPositionGroups,
-  commitKitItem,
+  commitKitItemValues,
   commitSpecialTeamsAssignment,
   commitWarmupSmallGroup,
   type AvailabilityLevel,
@@ -40,6 +40,7 @@ import {
   type SpecialTeamsSlot,
   type SpecialTeamsSquad,
 } from "@/lib/services/roster-board";
+import { kitValuesOf } from "@/lib/services/roster-board/vocabulary";
 import type { BoardActionState } from "../board-action-state";
 
 // Player detail's own server actions — LAN-187, `REQ-player-detail`. Each
@@ -178,11 +179,18 @@ export async function recordCommitKitItemAction(params: {
   membershipId: string;
   seasonId: string;
   item: KitItemCode;
-  value: string | null;
+  /** One value, a whole set for Braces L / Braces R (LAN-409), or `null` to blank the field. */
+  value: string | readonly string[] | null;
 }): Promise<BoardActionState> {
   const operator = await requireCapability("person_record_authority");
   try {
-    await commitKitItem({ actorPersonId: operator.personId, ...params });
+    await commitKitItemValues({
+      actorPersonId: operator.personId,
+      membershipId: params.membershipId,
+      seasonId: params.seasonId,
+      item: params.item,
+      values: kitValuesOf(params.value),
+    });
   } catch (error) {
     return stateFor(error);
   }

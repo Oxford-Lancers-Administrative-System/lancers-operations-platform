@@ -32,6 +32,7 @@ import {
   commitPosition,
   commitPositionGroups,
   commitKitItem,
+  commitKitItemValues,
   commitSpecialTeamsAssignment,
   commitWarmupSmallGroup,
   WARMUP_SMALL_GROUP_VALUES,
@@ -928,30 +929,110 @@ describe("issued kit and the derived Kit Distributed flag — LAN-375", () => {
     expect(byItem.get("shoulder_pads")).toContain("Schutt skill S");
   });
 
-  it("gives Braces 1 and Braces 2 the same list and keeps them independent", async () => {
-    const one = KIT_ITEMS.find((item) => item.item === "braces_1")!;
-    const two = KIT_ITEMS.find((item) => item.item === "braces_2")!;
-    expect(one.values).toEqual(two.values);
+  it("gives Braces L and Braces R the same list and keeps them independent", async () => {
+    const left = KIT_ITEMS.find((item) => item.item === "braces_left")!;
+    const right = KIT_ITEMS.find((item) => item.item === "braces_right")!;
+    expect(left.values).toEqual(right.values);
+    expect(left.multi).toBe(true);
+    expect(right.multi).toBe(true);
 
     await commitKitItem({
       actorPersonId,
       membershipId,
       seasonId,
-      item: "braces_1",
+      item: "braces_left",
       value: "Ankle - M",
     });
     await commitKitItem({
       actorPersonId,
       membershipId,
       seasonId,
-      item: "braces_2",
+      item: "braces_right",
       value: "Ankle - M",
     });
 
     const board = await listRosterBoard();
     const row = board.rows.find((entry) => entry.membershipId === membershipId);
-    expect(row?.kit[kitCellKey("braces_1")]).toBe("Ankle - M");
-    expect(row?.kit[kitCellKey("braces_2")]).toBe("Ankle - M");
+    expect(row?.kit[kitCellKey("braces_left")]).toEqual(["Ankle - M"]);
+    expect(row?.kit[kitCellKey("braces_right")]).toEqual(["Ankle - M"]);
+  });
+
+  /**
+   * LAN-409 — Stewart, "Ops Improvements", 2026-09-21: "The braces columns
+   * should be able to accept more than one choice (ankle plus knee plus
+   * shoulder if needed)."
+   */
+  it("holds several braces on one side, in the list's own order", async () => {
+    await commitKitItemValues({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "braces_left",
+      // Deliberately out of order: the read sorts by the option's own place.
+      values: ["Knee - L", "Ankle - M"],
+    });
+    await commitKitItemValues({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "braces_right",
+      values: ["Shoulder"],
+    });
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.kit[kitCellKey("braces_left")]).toEqual(["Ankle - M", "Knee - L"]);
+    expect(row?.kit[kitCellKey("braces_right")]).toEqual(["Shoulder"]);
+
+    const record = await readPlayerRecord(membershipId);
+    if (record.kind !== "record") throw new Error("expected the membership's own record");
+    expect(record.data.season.kit[kitCellKey("braces_left")]).toEqual(["Ankle - M", "Knee - L"]);
+    expect(record.data.season.kit[kitCellKey("braces_right")]).toEqual(["Shoulder"]);
+  });
+
+  it("blanks a side when the whole selection is cleared", async () => {
+    await commitKitItemValues({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "braces_left",
+      values: ["Ankle - M", "Knee - L"],
+    });
+    await commitKitItemValues({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "braces_left",
+      values: [],
+    });
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.kit[kitCellKey("braces_left")]).toBeUndefined();
+  });
+
+  it("refuses a second value on an item that holds one", async () => {
+    await expect(
+      commitKitItemValues({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item: "helmet",
+        values: ["Speedflex M", "Air L"],
+      }),
+    ).rejects.toMatchObject({ rule: "kit_issue_records_one_per_single_item" });
+  });
+
+  it("refuses a brace value that is not on the list", async () => {
+    await expect(
+      commitKitItemValues({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item: "braces_left",
+        values: ["Ankle - M", "Elbow - M"],
+      }),
+    ).rejects.toMatchObject({ rule: "kit_issue_records_value_in_item" });
   });
 
   it("refuses a value from another item's list", async () => {

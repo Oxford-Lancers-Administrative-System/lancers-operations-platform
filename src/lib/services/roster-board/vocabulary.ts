@@ -169,8 +169,8 @@ export type KitItemCode =
   | "loaner_cleats"
   | "team_mouthguard"
   | "team_gloves"
-  | "braces_1"
-  | "braces_2"
+  | "braces_left"
+  | "braces_right"
   | "socks";
 
 export interface KitItemDef {
@@ -178,9 +178,15 @@ export interface KitItemDef {
   readonly label: string;
   /** Clint's own words, spellings included. Mirrored by `kit_item_options`; `tests/` proves the two agree. */
   readonly values: readonly string[];
+  /**
+   * Whether the item holds a set rather than one value — LAN-409. Only Braces
+   * L and Braces R do: a player may wear a left ankle brace and a left knee
+   * brace at once, which the two unsided single-pick slots could not record.
+   */
+  readonly multi?: true;
 }
 
-/** Braces 1 and Braces 2 share one list and are two plain single-selects — no count field anywhere (Brian, 2026-09-16). */
+/** Braces L and Braces R share one list, each holding any number of it — Stewart's ask, Brian's decision of 2026-09-21 (LAN-409). */
 const BRACE_VALUES: readonly string[] = Object.freeze([
   "Ankle - S",
   "Ankle - M",
@@ -276,14 +282,16 @@ export const KIT_ITEMS: readonly KitItemDef[] = Object.freeze([
     values: Object.freeze(["Yes - OL/DL", "Yes - Skill", "No"]),
   }),
   Object.freeze({
-    item: "braces_1" as const,
-    label: "Braces 1",
+    item: "braces_left" as const,
+    label: "Braces L",
     values: BRACE_VALUES,
+    multi: true as const,
   }),
   Object.freeze({
-    item: "braces_2" as const,
-    label: "Braces 2",
+    item: "braces_right" as const,
+    label: "Braces R",
     values: BRACE_VALUES,
+    multi: true as const,
   }),
   Object.freeze({
     item: "socks" as const,
@@ -316,6 +324,33 @@ export function parseKitCellKey(key: string): KitItemCode | null {
   const item = KIT_ITEMS.find((entry) => entry.item === key.slice(4));
   return item ? item.item : null;
 }
+
+/**
+ * One kit cell's chosen values, whatever shape the screen sent — LAN-409.
+ * A single select sends a string (or `""` for "blank this"), a multi-select
+ * sends the whole list, and a service action takes one list either way.
+ */
+export function kitValuesOf(
+  value: string | readonly string[] | null | undefined,
+): readonly string[] {
+  if (value === null || value === undefined) return [];
+  if (typeof value === "string") return value === "" ? [] : [value];
+  return value.filter((entry) => entry !== "");
+}
+
+/** Whether this item holds a set — LAN-409. True for Braces L and Braces R, false for the other nine. */
+export function isMultiValueKitItem(item: KitItemCode): boolean {
+  return KIT_ITEMS.find((entry) => entry.item === item)?.multi === true;
+}
+
+/**
+ * How a multi-value kit cell separates its values in an imported file —
+ * LAN-409. A semicolon, because the file's own delimiter is the comma and
+ * every brace value already carries a hyphen inside it ("Ankle - M"). This is
+ * the roster import's first multi-value cell; there was no convention to
+ * follow.
+ */
+export const KIT_IMPORT_VALUE_SEPARATOR = ";";
 
 // ---------------------------------------------------------------------------
 // Warmup assignments — LAN-401, Stewart's list

@@ -742,14 +742,16 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       requires: "person_record_authority",
     },
     // ------------------------------------------------------------------ Kit --
-    // LAN-375: eleven issued-kit items from Clint's sheet, one single-select
-    // each. Formalwear moved here from Season and keeps Tie and Bow tie; the
-    // club's blue game socks are a Kit item of their own.
+    // LAN-375: eleven issued-kit items from Clint's sheet. Nine are a single
+    // select; Braces L and Braces R take the multi-select Formalwear already
+    // uses (LAN-409), at the same width. Formalwear moved here from Season and
+    // keeps Tie and Bow tie; the club's blue game socks are a Kit item of
+    // their own.
     ...KIT_ITEMS.map((item) => ({
       key: kitCellKey(item.item),
       label: item.label,
       band: "kit" as const,
-      edit: "select" as const,
+      edit: (item.multi ? "multiselect" : "select") as "multiselect" | "select",
       options: item.values,
       width: 190,
       sortable: true,

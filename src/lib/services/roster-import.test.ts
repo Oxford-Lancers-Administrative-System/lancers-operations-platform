@@ -108,6 +108,10 @@ async function cleanUp(): Promise<void> {
   await observer.query(
     `delete from public.warmup_group_assignments where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
   );
+  // LAN-409: the optional kit columns do the same.
+  await observer.query(
+    `delete from public.kit_issue_records where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
+  );
   await observer.query(`delete from public.season_memberships where person_id in ${people}`);
   await observer.query(`delete from public.contact_points where person_id in ${people}`);
   await observer.query(`delete from public.person_aliases where person_id in ${people}`);
@@ -516,6 +520,43 @@ describe("applyRosterImport", () => {
       [first, openSeasonId],
     );
     expect(stored.rows[0]?.small_group).toBe("Phoenix");
+  });
+
+  it("LAN-409 — writes several braces from one side's cell onto the new membership", async () => {
+    const first = givenNameFor("BracesImported");
+    const csvText =
+      "first_name,last_name,mobile,personal_email,college,matriculation_year,kit_braces_left,kit_braces_right\r\n" +
+      [
+        first,
+        familyNameFor("BracesImported"),
+        mobileFor(),
+        "",
+        "",
+        "",
+        '"Ankle - M;Knee - L"',
+        "Shoulder",
+      ].join(",") +
+      "\r\n";
+
+    const proposal = await planRosterImport({ csvText });
+    expect(proposal.ok).toBe(true);
+    if (!proposal.ok) return;
+    await applyRosterImport({ csvText, digest: proposal.plan.digest });
+
+    const stored = await observer.query<{ item: string; value: string }>(
+      `select k.item::text as item, k.value
+         from public.kit_issue_records k
+         join public.season_memberships m on m.id = k.season_membership_id
+         join public.people p on p.id = m.person_id
+        where p.given_name = $1 and m.season_id = $2::uuid
+        order by k.item::text, k.value`,
+      [first, openSeasonId],
+    );
+    expect(stored.rows).toEqual([
+      { item: "braces_left", value: "Ankle - M" },
+      { item: "braces_left", value: "Knee - L" },
+      { item: "braces_right", value: "Shoulder" },
+    ]);
   });
 
   it("B-008 — sets availability to green, in the same transaction, for a bulk-imported arrival", async () => {

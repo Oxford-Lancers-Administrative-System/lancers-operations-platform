@@ -59,6 +59,7 @@ vi.mock("./record-actions", () => ({
   recordCommitEligibilityAction: vi.fn().mockResolvedValue({ error: null }),
   recordCommitAvailabilityAction: vi.fn().mockResolvedValue({ error: null }),
   recordCommitWarmupSmallGroupAction: vi.fn().mockResolvedValue({ error: null }),
+  recordCommitKitItemAction: vi.fn().mockResolvedValue({ error: null }),
   recordResolveOnboardingItemAction: vi.fn().mockResolvedValue({ error: null }),
   recordSendOnboardingQuestionnaireAction: vi
     .fn()
@@ -77,6 +78,7 @@ import type {
 } from "@/lib/services/player-record";
 import {
   recordCommitJerseyNumbersAction,
+  recordCommitKitItemAction,
   recordCommitWarmupSmallGroupAction,
   recordResolveOnboardingItemAction,
   recordSendOnboardingQuestionnaireAction,
@@ -105,12 +107,13 @@ function signedInAs(roleCodes: string[]): void {
 
 const MEMBERSHIP_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const PERSON_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const SEASON_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 
 function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
   return {
     membershipId: MEMBERSHIP_ID,
     personId: PERSON_ID,
-    seasonId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    seasonId: SEASON_ID,
     seasonLabel: "2026-27",
     status: "onboarding",
     entry: "returning",
@@ -525,7 +528,7 @@ describe("Kit Distributed — still Yes/No, no longer typed (LAN-375)", () => {
     expect(within(row).queryByTestId("editable-field")).not.toBeInTheDocument();
   });
 
-  it("puts the eleven issued-kit items in the Kit group, Braces 1 and Braces 2 among them", async () => {
+  it("puts the eleven issued-kit items in the Kit group, Braces L and Braces R among them", async () => {
     givenRecord({});
     render(await PlayerRecordPage(pageProps()));
 
@@ -539,13 +542,66 @@ describe("Kit Distributed — still Yes/No, no longer typed (LAN-375)", () => {
       "Loaner Cleats",
       "Team Mouthguard",
       "Team Gloves",
-      "Braces 1",
-      "Braces 2",
+      "Braces L",
+      "Braces R",
       "Socks",
       "Formalwear",
     ]) {
       expect(within(kit).getByText(label)).toBeInTheDocument();
     }
+  });
+
+  /**
+   * LAN-409 — Stewart, "Ops Improvements", 2026-09-21: "The braces columns
+   * should be able to accept more than one choice (ankle plus knee plus
+   * shoulder if needed). Perhaps we can even make it Braces L and Braces R."
+   */
+  it("shows a whole side's braces as one multi-select, the way Formalwear reads", async () => {
+    givenRecord({
+      season: {
+        ...record().season,
+        kit: {
+          "kit:braces_left": ["Ankle - M", "Knee - L"],
+          "kit:braces_right": ["Shoulder"],
+          "kit:helmet": ["Speedflex M"],
+        },
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const kit = screen.getByTestId("section-kit");
+    const left = within(kit).getByText("Braces L").closest('[data-testid="record-row"]')!;
+    expect(within(left as HTMLElement).getByText("Ankle - M, Knee - L")).toBeInTheDocument();
+
+    const right = within(kit).getByText("Braces R").closest('[data-testid="record-row"]')!;
+    expect(within(right as HTMLElement).getByText("Shoulder")).toBeInTheDocument();
+
+    // The nine single-pick items are untouched.
+    const helmet = within(kit).getByText("Helmet").closest('[data-testid="record-row"]')!;
+    expect(within(helmet as HTMLElement).getByText("Speedflex M")).toBeInTheDocument();
+  });
+
+  it("commits a whole side's set through one save", async () => {
+    givenRecord({
+      season: {
+        ...record().season,
+        kit: { "kit:braces_left": ["Ankle - M"] },
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const kit = screen.getByTestId("section-kit");
+    const left = within(kit).getByText("Braces L").closest('[data-testid="record-row"]')!;
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(left as HTMLElement).getByTestId("editable-field"));
+    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Knee - L" })));
+
+    expect(recordCommitKitItemAction).toHaveBeenCalledWith({
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      item: "braces_left",
+      value: ["Ankle - M", "Knee - L"],
+    });
   });
 });
 

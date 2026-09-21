@@ -5656,8 +5656,8 @@ export type Database = {
         | "loaner_cleats"
         | "team_mouthguard"
         | "team_gloves"
-        | "braces_1"
-        | "braces_2"
+        | "braces_left"
+        | "braces_right"
         | "socks"
       membership_entry: "new" | "returning"
       membership_status:
@@ -5953,8 +5953,8 @@ export const Constants = {
         "loaner_cleats",
         "team_mouthguard",
         "team_gloves",
-        "braces_1",
-        "braces_2",
+        "braces_left",
+        "braces_right",
         "socks",
       ],
       membership_entry: ["new", "returning"],

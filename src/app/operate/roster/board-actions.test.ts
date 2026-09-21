@@ -27,7 +27,7 @@ vi.mock("@/lib/services/roster-board", () => ({
   commitEntry: vi.fn(),
   commitFormalwearItems: vi.fn(),
   commitJerseyNumbers: vi.fn(),
-  commitKitItem: vi.fn(),
+  commitKitItemValues: vi.fn(),
   commitPosition: vi.fn(),
   commitPositionGroups: vi.fn(),
   commitSpecialTeamsAssignment: vi.fn(),
@@ -50,7 +50,7 @@ import {
   commitEntry,
   commitFormalwearItems,
   commitJerseyNumbers,
-  commitKitItem,
+  commitKitItemValues,
   commitPosition,
   commitPositionGroups,
   commitSpecialTeamsAssignment,
@@ -356,13 +356,15 @@ const GATE_CASES: GateCase[] = [
         item: "helmet",
         value: "Large",
       }),
-    service: commitKitItem,
+    service: commitKitItemValues,
+    // LAN-409: one writer takes the whole set, and a single pick is a set of
+    // one on its way through.
     expected: {
       actorPersonId: OPERATOR_PERSON_ID,
       membershipId: MEMBERSHIP_ID,
       seasonId: SEASON_ID,
       item: "helmet",
-      value: "Large",
+      values: ["Large"],
     },
   },
   {

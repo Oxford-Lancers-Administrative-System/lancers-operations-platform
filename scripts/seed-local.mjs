@@ -1548,8 +1548,12 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     ["loaner_cleats", ["Yes", "No"]],
     ["team_mouthguard", ["Yes", "No"]],
     ["team_gloves", ["Yes - OL/DL", "Yes - Skill", "No"]],
-    ["braces_1", ["Ankle - M", "Knee - L", "Shoulder"]],
-    ["braces_2", ["Ankle - S", "Knee - XXL", "Shoulder"]],
+    // LAN-409: Braces L and Braces R hold a set. The seed gives every player
+    // who has kit at all one brace a side, and the deliberate example below
+    // gives one player two on the left — the case the two old single-pick
+    // slots could not record.
+    ["braces_left", ["Ankle - M", "Knee - L", "Shoulder"]],
+    ["braces_right", ["Ankle - S", "Knee - XXL", "Shoulder"]],
     ["socks", ["Yes", "No"]],
   ];
   // i % 3 === 2 gets only the first three items, so its Kit Distributed reads No.
@@ -1567,6 +1571,21 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
         updated_at: "2026-10-05T09:00:00Z",
       });
     });
+    // LAN-409's deliberate example: the first player with kit wears an ankle
+    // brace and a knee brace on the same left side, which is the whole point
+    // of the change and is unrecordable under the two old slots.
+    if (i === 0) {
+      add("kit_issue_records", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        item: "braces_left",
+        value: "Knee - L",
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-05T09:00:00Z",
+        updated_at: "2026-10-05T09:00:00Z",
+      });
+    }
   }
 
   // LAN-374: special teams. Six squads, four cells each; the sheet is sparse,

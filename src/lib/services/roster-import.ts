@@ -18,10 +18,11 @@ import {
   SEASON_FACT_IMPORT_COLUMNS,
 } from "./roster-csv";
 import {
-  commitKitItem,
+  commitKitItemValues,
   commitSpecialTeamsAssignment,
   commitWarmupSmallGroup,
 } from "./roster-board";
+import { KIT_IMPORT_VALUE_SEPARATOR } from "./roster-board/vocabulary";
 import {
   enterReturningPlayer,
   findPersonCandidates,
@@ -273,12 +274,14 @@ async function writeSeasonFacts(
         });
         break;
       case "kit":
-        await commitKitItem({
+        // LAN-409: Braces L and Braces R arrive as several values in one cell,
+        // already proved and normalised by `seasonFactsOf`.
+        await commitKitItemValues({
           actorPersonId,
           membershipId,
           seasonId,
           item: column.item,
-          value,
+          values: column.multi ? value.split(KIT_IMPORT_VALUE_SEPARATOR) : [value],
         });
         break;
       case "warmup":

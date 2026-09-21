@@ -322,7 +322,8 @@ export default function RosterBoard({
       return;
     }
 
-    // LAN-375: one branch for all eleven issued-kit items.
+    // LAN-375: one branch for all eleven issued-kit items. LAN-409: two of
+    // them send a whole set, and the action takes either shape.
     const kitItem = parseKitCellKey(column.key);
     if (kitItem) {
       runCommit(row.membershipId, () =>
@@ -330,7 +331,7 @@ export default function RosterBoard({
           membershipId: row.membershipId,
           seasonId,
           item: kitItem,
-          value: (next as string) || null,
+          value: next,
         }),
       );
       return;

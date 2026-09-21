@@ -18,6 +18,7 @@ import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 
 import { isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
 import {
+  KIT_IMPORT_VALUE_SEPARATOR,
   KIT_ITEMS,
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
@@ -60,7 +61,12 @@ export type SeasonFactImportColumn =
       readonly squad: SpecialTeamsSquad;
       readonly slot: SpecialTeamsSlot;
     })
-  | (SeasonFactImportColumnBase & { readonly kind: "kit"; readonly item: KitItemCode })
+  | (SeasonFactImportColumnBase & {
+      readonly kind: "kit";
+      readonly item: KitItemCode;
+      /** LAN-409 — Braces L and Braces R: one cell holds several values, separated by `KIT_IMPORT_VALUE_SEPARATOR`. */
+      readonly multi?: true;
+    })
   | (SeasonFactImportColumnBase & { readonly kind: "warmup" });
 
 export const SEASON_FACT_IMPORT_COLUMNS: readonly SeasonFactImportColumn[] = Object.freeze([
@@ -81,6 +87,7 @@ export const SEASON_FACT_IMPORT_COLUMNS: readonly SeasonFactImportColumn[] = Obj
       kind: "kit" as const,
       item: item.item,
       options: item.values,
+      ...(item.multi ? { multi: true as const } : {}),
     }),
   ),
   // LAN-401: the warmup group's one cell.
@@ -152,7 +159,15 @@ function parseMatriculationYear(cell: string, reasons: string[]): number | null 
   return value;
 }
 
-/** The season-fact cells this row said something in, proved against each column's own list. */
+/**
+ * The season-fact cells this row said something in, proved against each
+ * column's own list.
+ *
+ * A multi-value cell (LAN-409's Braces L and Braces R) is split on
+ * `KIT_IMPORT_VALUE_SEPARATOR` and each part is proved separately; one unknown
+ * part refuses the row, exactly as one unknown single value does. The cell is
+ * stored back in its normalised form so what applies is what was read.
+ */
 function seasonFactsOf(
   row: readonly string[],
   index: SeasonFactIndex,
@@ -164,11 +179,25 @@ function seasonFactsOf(
     if (!column || at === undefined) continue;
     const value = trimmedOrNull(row[at] ?? "");
     if (value === null) continue;
-    if (!column.options.includes(value)) {
-      reasons.push(`"${name}" reads "${value}". That is not one of that cell's values.`);
+
+    const multi = column.kind === "kit" && column.multi === true;
+    const parts = multi
+      ? value
+          .split(KIT_IMPORT_VALUE_SEPARATOR)
+          .map((part) => part.trim())
+          .filter((part) => part !== "")
+      : [value];
+    if (parts.length === 0) continue;
+
+    const unknown = parts.filter((part) => !column.options.includes(part));
+    if (unknown.length > 0) {
+      for (const part of unknown) {
+        reasons.push(`"${name}" reads "${part}". That is not one of that cell's values.`);
+      }
       continue;
     }
-    facts[name] = value;
+    // De-duplicated: the same brace named twice is one brace.
+    facts[name] = [...new Set(parts)].join(KIT_IMPORT_VALUE_SEPARATOR);
   }
   return facts;
 }

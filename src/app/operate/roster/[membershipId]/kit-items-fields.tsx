@@ -1,10 +1,12 @@
 import { RecordField } from "@/components/record-field";
 import { KIT_ITEMS, kitCellKey } from "@/lib/services/roster-board/vocabulary";
+import MultiSelectField from "./multi-select-field";
 
 /**
- * The eleven issued-kit items — LAN-375, Clint's kit sheet. One single-select
- * each, blank or one value. Braces 1 and Braces 2 are two plain fields over
- * one list, with no count anywhere (Brian, 2026-09-16).
+ * The eleven issued-kit items — LAN-375, Clint's kit sheet. Nine are a single
+ * select, blank or one value. Braces L and Braces R hold a set of the same
+ * twelve brace values each (LAN-409, Stewart's ask and Brian's decision of
+ * 2026-09-21), in the multi-select idiom Formalwear already uses below them.
  */
 export default function KitItemsFields({
   items,
@@ -15,7 +17,7 @@ export default function KitItemsFields({
   setEditing,
   commitSeasonField,
 }: {
-  items: Readonly<Record<string, string>>;
+  items: Readonly<Record<string, readonly string[]>>;
   editing: string | null;
   locked: boolean;
   savingOf: (key: string) => boolean;
@@ -27,21 +29,24 @@ export default function KitItemsFields({
     <>
       {KIT_ITEMS.map((item) => {
         const key = kitCellKey(item.item);
+        const held = items[key] ?? [];
+        const common = {
+          label: item.label,
+          options: [...item.values],
+          editing: editing === key,
+          readOnly: locked,
+          saving: savingOf(key),
+          error: errorFor(key),
+          onOpen: () => setEditing(key),
+          onClose: () => setEditing(null),
+          onCommit: (next: string | string[]) => commitSeasonField(key, next),
+        };
+
+        if (item.multi) {
+          return <MultiSelectField key={key} {...common} values={[...held]} />;
+        }
         return (
-          <RecordField
-            key={key}
-            label={item.label}
-            value={items[key] ?? null}
-            options={[...item.values]}
-            editing={editing === key}
-            readOnly={locked}
-            saving={savingOf(key)}
-            error={errorFor(key)}
-            onOpen={() => setEditing(key)}
-            onClose={() => setEditing(null)}
-            onCommit={(next) => commitSeasonField(key, next)}
-            rawValue={items[key] ?? null}
-          />
+          <RecordField key={key} {...common} value={held[0] ?? null} rawValue={held[0] ?? null} />
         );
       })}
     </>

@@ -54,8 +54,8 @@ interface PlayerSeasonFacts {
   formalwear: Record<FormalwearItemKey, boolean>;
   /** One entry per filled special-teams cell, keyed `st:<squad>:<slot>` — LAN-374. */
   specialTeams: Readonly<Record<string, string>>;
-  /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. */
-  kit: Readonly<Record<string, string>>;
+  /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. Always a list: Braces L and Braces R hold a set (LAN-409). */
+  kit: Readonly<Record<string, readonly string[]>>;
   /** The warmup small group — LAN-401. One of eight, or `null` when nothing is recorded. */
   warmupSmallGroup: string | null;
   blues: BluesValue;
@@ -336,8 +336,13 @@ async function readSeasonFactsIn(
     [membershipId],
   );
   const kit = await tx.query<{ item: string; value: string }>(
-    `select item::text as item, value from public.kit_issue_records
-      where season_membership_id = $1::uuid`,
+    // Ordered by the item's own option order, so a set reads the same however
+    // it was recorded — LAN-409.
+    `select k.item::text as item, k.value
+       from public.kit_issue_records k
+       join public.kit_item_options o on o.item = k.item and o.value = k.value
+      where k.season_membership_id = $1::uuid
+      order by o.sort_order`,
     [membershipId],
   );
   const warmup = await tx.query<{ small_group: string }>(
@@ -394,9 +399,11 @@ async function readSeasonFactsIn(
         row.position_name,
       ]),
     ),
-    kit: Object.fromEntries(
-      kit.rows.map((row) => [kitCellKey(row.item as KitItemCode), row.value]),
-    ),
+    kit: kit.rows.reduce<Record<string, string[]>>((held, row) => {
+      const key = kitCellKey(row.item as KitItemCode);
+      held[key] = [...(held[key] ?? []), row.value];
+      return held;
+    }, {}),
     warmupSmallGroup: warmup.rows[0]?.small_group ?? null,
     blues: bluesValue,
     bps: bps.rows[0]?.is_selected ? "Yes" : "No",
