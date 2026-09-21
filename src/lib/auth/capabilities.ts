@@ -62,12 +62,15 @@
  * | Person record authority   | President, VP, Secretary, General Manager      | Brian, 28 Aug 2026 |
  * | Roster bulk import        | The four offices, plus General Manager         | W1, Brian 1 Sep 2026 |
  * | Person erasure            | President, VP, Secretary, General Manager      | Brian, 16 Sep 2026 |
+ * | Operator playbook         | President, VP, Secretary, General Manager      | Brian, 21 Sep 2026 |
  *
- * **Every capability above also lists `it_officer`.** Brian decided on 15
- * August 2026 (LAN-124) that the IT Officer is the club's administrative seat
- * and holds every privileged action in the slice. That is an administrative
- * grant rather than a demonstration affordance: `role_management` was held by
- * nobody at all.
+ * **Every capability above also lists `it_officer`, except the last two.**
+ * Brian decided on 15 August 2026 (LAN-124) that the IT Officer is the club's
+ * administrative seat and holds every privileged action in the slice. That is
+ * an administrative grant rather than a demonstration affordance:
+ * `role_management` was held by nobody at all. `person_erasure` (LAN-361) and
+ * `operator_guide` (LAN-399) are the two deliberate exceptions, each recorded
+ * on its own entry below.
  *
  * `role_management` is no longer the IT Officer's alone. Brian widened it on 18
  * August 2026 (`DEC-role-management-authority`) to the President, the General
@@ -106,7 +109,8 @@ export type CapabilityKey =
   | "leadership_report"
   | "person_record_authority"
   | "roster_bulk_import"
-  | "person_erasure";
+  | "person_erasure"
+  | "operator_guide";
 
 export interface Capability {
   readonly key: CapabilityKey;
@@ -884,6 +888,33 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       'the core four" — President, Vice-President, Secretary and General Manager. The IT ' +
       "Officer is not on it, which is the one deliberate exception to the 15 August 2026 " +
       "(LAN-124) rule that the administrative seat holds every capability in this file.",
+  }),
+
+  /**
+   * LAN-399's operator playbook, and only that.
+   *
+   * It guards a section of pages that describe how the eight workflows run:
+   * which screen an operator opens, what the app does between the steps, which
+   * message goes to whom, and what each flow refuses. It grants no action.
+   *
+   * It is the **second** capability the IT Officer does not hold, and the
+   * reason is not the one `person_erasure` has. Nothing here is dangerous to
+   * read; the audience is simply a decided one. Brian's decision of 21
+   * September 2026 names the core four — the seats that run the club's
+   * workflows — and the guide is written to them, in their language, about the
+   * work they do. Widening it is his, not an implementer's.
+   */
+  operator_guide: capability({
+    key: "operator_guide",
+    action: "read the operator playbook, the in-app guide to how each workflow runs",
+    roleCodes: CORE_FOUR_ROLE_CODES,
+    decision:
+      'Brian, 21 September 2026 (LAN-399): "the audience is the core four" — President, ' +
+      "Vice-President, Secretary and General Manager. Like person_erasure and unlike every " +
+      "other entry here, it does not list it_officer: the 15 August 2026 (LAN-124) rule " +
+      "that the administrative seat holds every capability is about privileged acts, and " +
+      "this capability carries none. The existing How administration works page keeps its " +
+      "own role_management gate and is unaffected.",
   }),
 
   roster_bulk_import: capability({

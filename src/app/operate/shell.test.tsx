@@ -457,8 +457,9 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     // which is where that group's own membership is asserted in full. These
     // four Administration entries are the fifth through eighth links here,
     // not ordinary destinations of their own. LAN-204 adds Recruitment as a
-    // fourth ordinary destination, beneath Roster.
-    expect(screen.getAllByRole("link")).toHaveLength(8);
+    // fourth ordinary destination, beneath Roster, and LAN-399 adds Guide as a
+    // fifth Administration entry: the Secretary is one of the core four.
+    expect(screen.getAllByRole("link")).toHaveLength(9);
     expect(screen.queryByRole("link", { name: /home/i })).toBeNull();
   });
 
@@ -1289,7 +1290,10 @@ describe("LAN-133 — Administration in the shell", () => {
         "href",
         "/operate/admin/roles",
       );
-      expect(screen.getAllByRole("link")).toHaveLength(10);
+      // LAN-399 adds Guide to two of these three: it is the core four's, and
+      // the IT Officer is not one of them.
+      const guide = seat === "it_officer" ? 0 : 1;
+      expect(screen.getAllByRole("link")).toHaveLength(10 + guide);
     },
   );
 
@@ -1356,8 +1360,13 @@ describe("LAN-133 — Administration in the shell", () => {
       );
       expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
+      // LAN-399: both are core four, so both read the playbook.
+      expect(screen.getByRole("link", { name: "Guide" })).toHaveAttribute(
+        "href",
+        "/operate/admin/guide/workflows",
+      );
       expect(container.textContent).toContain("Administration");
-      expect(screen.getAllByRole("link")).toHaveLength(8);
+      expect(screen.getAllByRole("link")).toHaveLength(9);
     },
   );
 
@@ -1385,8 +1394,46 @@ describe("LAN-133 — Administration in the shell", () => {
       expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Messaging schedule" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Guide" })).toBeNull();
       expect(container.textContent).toContain("Administration");
       expect(screen.getAllByRole("link")).toHaveLength(5);
+    },
+  );
+
+  /**
+   * LAN-399 — the playbook's one navigation entry.
+   *
+   * Written seat by seat rather than as "the core four", because the failure
+   * worth catching is the entry appearing for a seat whose audience Brian did
+   * not decide. The IT Officer is asserted negatively beside them: it holds
+   * every other entry in this group, so it is the one seat a reader would
+   * expect to find here.
+   */
+  it.each(["president", "vice_president", "secretary", "general_manager"])(
+    "shows Guide to the %s",
+    async (seat) => {
+      givenAccess({ state: "active", operator: actor([seat]) });
+
+      render(await OperateLayout(layoutProps(null)));
+      openNav();
+
+      expect(screen.getByRole("link", { name: "Guide" })).toHaveAttribute(
+        "href",
+        "/operate/admin/guide/workflows",
+      );
+    },
+  );
+
+  it.each(["it_officer", "treasurer", "media_secretary", "kit_manager", "head_coach"])(
+    "shows no Guide entry to the %s",
+    async (seat) => {
+      givenAccess({ state: "active", operator: actor([seat]) });
+
+      const { container } = render(await OperateLayout(layoutProps(null)));
+      openNav();
+
+      expect(screen.queryByRole("link", { name: "Guide" })).toBeNull();
+      expect(container.innerHTML).not.toContain("/operate/admin/guide/workflows");
     },
   );
 

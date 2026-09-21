@@ -297,17 +297,28 @@ Four properties this arrangement is built to have, and which tests hold it to:
 An operator with no currently-effective seat is still a legitimate operator: they
 open the shell, and are refused each privileged action individually.
 
-**One capability is narrower than every other, and deliberately excludes the IT
-Officer** (LAN-361, Brian 2026-09-16). `person_erasure` is what lets an operator
-anonymise a person at their own request and export everything held about one. It
-is granted to the core four — President, Vice-President, Secretary, General
-Manager — and to nobody else, which makes it the single exception to the 15
-August 2026 rule that the administrative seat holds every capability in the map.
-The act destroys personal data irreversibly, and the seat that exists to keep
-the system running is not the seat that decides a person stops existing in it.
+**Two capabilities are narrower than every other, and deliberately exclude the
+IT Officer.** They are the only two exceptions to the 15 August 2026 rule that
+the administrative seat holds every capability in the map, and each was decided
+on its own.
 
-Holding the capability is not enough to carry the act out. Two people must each
-confirm as separate recorded acts — the President and the General Manager, or,
+`person_erasure` (LAN-361, Brian 2026-09-16) is what lets an operator anonymise
+a person at their own request and export everything held about one. It is
+granted to the core four — President, Vice-President, Secretary, General Manager
+— and to nobody else. The act destroys personal data irreversibly, and the seat
+that exists to keep the system running is not the seat that decides a person
+stops existing in it.
+
+`operator_guide` (LAN-399, Brian 2026-09-21) gates the operator playbook: the
+`/operate/admin/guide/workflows` index and the eight `/operate/admin/guide/<slug>`
+pages that describe how each workflow runs. It is granted to the same core four,
+and it carries no action at all — the exclusion is not about danger but about a
+decided audience, and widening it is Brian's. The existing How administration
+works page at `/operate/admin/guide` is unaffected and keeps its own
+`role_management` gate.
+
+Holding `person_erasure` is not enough to carry that act out. Two people must
+each confirm as separate recorded acts — the President and the General Manager, or,
 where one person holds both seats, another of the core four — and nothing is
 anonymised until both have. That rule lives in
 `src/lib/services/person-erasure/`, in the same shape as the target-level
