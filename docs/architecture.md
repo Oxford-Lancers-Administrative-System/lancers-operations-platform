@@ -317,13 +317,13 @@ anonymised until both have. That rule lives in
 authority below: the capability answers "may this operator start it at all", and
 the sign-off rule answers "may it happen yet".
 
-**The second is narrower for the same kind of reason** (LAN-394, Brian
-2026-09-17). `messaging_safety_authority` is what lets an operator pause and
-resume the club's outbound messaging. It is granted to the core four —
-President, Vice-President, Secretary, General Manager — and to nobody else. Stopping every message
-the club sends, or restarting them after an emergency stop, is not an
-administrative act; it is the same judgement `event_approval` already asks of
-those four.
+**A second narrow capability, `messaging_safety_authority`** (LAN-394, Brian
+2026-09-17), is what lets an operator pause and resume the club's outbound
+messaging. It is granted to the core four — President, Vice-President,
+Secretary, General Manager — and, since 2026-09-21 (LAN-407), to the IT Officer.
+It was first withheld from that seat on the erasure reasoning; Brian reversed
+it after the first production deploy, when the seat that diagnoses a runaway
+from the Messaging safety section could read the state but not stop it.
 
 The Messaging schedule page itself stays on `delivery_administration`, so the IT
 Officer can still _read_ the safety state — seeing that messaging is paused is
@@ -333,7 +333,7 @@ narrower than its page. The thresholds are not a capability at all: they are
 constants in `src/lib/services/messaging-safety/policy.ts` and nothing in the
 application can change them.
 
-**The third withholds no act at all** (LAN-399, Brian 2026-09-21).
+**The second exception withholds no act at all** (LAN-399, Brian 2026-09-21).
 `operator_guide` gates the operator playbook: the
 `/operate/admin/guide/workflows` index and the eight
 `/operate/admin/guide/<slug>` pages that describe how each workflow runs. It is

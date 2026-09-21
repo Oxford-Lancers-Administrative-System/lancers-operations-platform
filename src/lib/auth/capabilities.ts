@@ -62,16 +62,18 @@
  * | Person record authority   | President, VP, Secretary, General Manager      | Brian, 28 Aug 2026 |
  * | Roster bulk import        | The four offices, plus General Manager         | W1, Brian 1 Sep 2026 |
  * | Person erasure            | President, VP, Secretary, General Manager      | Brian, 16 Sep 2026 |
- * | Messaging safety          | President, VP, Secretary, General Manager      | Brian, 17 Sep 2026 |
+ * | Messaging safety authority| President, VP, Secretary, General Manager      | Brian, 21 Sep 2026 |
  * | Operator playbook         | President, VP, Secretary, General Manager      | Brian, 21 Sep 2026 |
  *
- * **Every capability above also lists `it_officer`, except the last three.**
- * Brian decided on 15 August 2026 (LAN-124) that the IT Officer is the club's
- * administrative seat and holds every privileged action in the slice. That is
- * an administrative grant rather than a demonstration affordance:
- * `role_management` was held by nobody at all. `person_erasure` (LAN-361),
- * `messaging_safety_authority` (LAN-394) and `operator_guide` (LAN-399) are the
- * three deliberate exceptions, each recorded on its own entry below.
+ * **Every capability above also lists `it_officer`, except person erasure and
+ * the operator playbook.** Brian decided on 15 August 2026 (LAN-124) that the
+ * IT Officer is the club's administrative seat and holds every privileged
+ * action in the slice. That is an administrative grant rather than a
+ * demonstration affordance: `role_management` was held by nobody at all.
+ * `person_erasure` (LAN-361) and `operator_guide` (LAN-399) are the two
+ * deliberate exceptions, each recorded on its own entry below;
+ * `messaging_safety_authority` was a third until LAN-407 (21 September 2026)
+ * granted it to the IT Officer too.
  *
  * `role_management` is no longer the IT Officer's alone. Brian widened it on 18
  * August 2026 (`DEC-role-management-authority`) to the President, the General
@@ -768,12 +770,12 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   messaging_safety_authority: capability({
     key: "messaging_safety_authority",
     action: "pause and resume the club's outbound messaging",
-    roleCodes: [...CORE_FOUR_ROLE_CODES],
+    roleCodes: [...CORE_FOUR_ROLE_CODES, "it_officer"],
     decision:
-      "Brian, 17 September 2026 (LAN-394): the core four only. `delivery_administration` also " +
-      "grants the IT Officer, and stopping or restarting every message the club sends is not an " +
-      "administrative act — the same distinction LAN-361 drew for `person_erasure`. Reading the " +
-      "safety state stays on `delivery_administration` with the rest of the page.",
+      "Brian, 21 September 2026 (LAN-407): the core four and the `it_officer`. The 17 September " +
+      "decision (LAN-394) withheld it from the IT Officer as LAN-361 did for `person_erasure`; " +
+      "Brian reversed that after the first production deploy, when the seat that diagnoses a " +
+      "runaway could read the safety state but not stop it. Erasure stays the core four's alone.",
   }),
 
   /**
@@ -945,8 +947,8 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
     roleCodes: CORE_FOUR_ROLE_CODES,
     decision:
       'Brian, 21 September 2026 (LAN-399): "the audience is the core four" — President, ' +
-      "Vice-President, Secretary and General Manager. Like person_erasure and " +
-      "messaging_safety_authority, and unlike every other entry here, it does not list " +
+      "Vice-President, Secretary and General Manager. Like person_erasure, and unlike " +
+      "every other entry here, it does not list " +
       "it_officer: the 15 August 2026 (LAN-124) rule that the administrative seat holds " +
       "every capability is about privileged acts, and this capability carries none. The " +
       "existing How administration works page keeps its own role_management gate and is " +

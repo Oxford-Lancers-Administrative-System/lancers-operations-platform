@@ -633,21 +633,16 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
   // Brian's decision of 15 August 2026. Asserted positively and literally,
   // because the seat holding everything is precisely the kind of grant that
   // should never be arrived at by a rule, a default or an inheritance.
-  // LAN-361 added the first exception, LAN-394 the second and LAN-399 the
-  // third, and all three are named here so none can be widened by accident.
-  // `person_erasure` is the core four's alone (Brian, 16 September 2026)
-  // because destroying somebody's record irreversibly is not an administrative
-  // act; `messaging_safety_authority` is theirs alone (Brian, 17 September
-  // 2026) because deciding that the club stops talking to its members is not
-  // one either. The seat that exists to keep the system running is not the
-  // seat that decides those two things. `operator_guide` is theirs for a
-  // different reason again (Brian, 21 September 2026): it carries no act at
-  // all, and the audience is simply a decided one.
-  const NOT_THE_IT_OFFICERS: readonly string[] = [
-    "person_erasure",
-    "messaging_safety_authority",
-    "operator_guide",
-  ];
+  // LAN-361 added the first exception and LAN-399 the second, and both are
+  // named here so neither can be widened by accident. `person_erasure` is the
+  // core four's alone (Brian, 16 September 2026) because destroying somebody's
+  // record irreversibly is not an administrative act. `operator_guide` is
+  // theirs for a different reason (Brian, 21 September 2026): it carries no
+  // act at all, and the audience is simply a decided one. LAN-394 briefly made
+  // `messaging_safety_authority` an exception too; Brian reversed that on
+  // 21 September 2026 (LAN-407) after the first production deploy left the
+  // seat that diagnoses a runaway able to read the safety state but not stop it.
+  const NOT_THE_IT_OFFICERS: readonly string[] = ["person_erasure", "operator_guide"];
 
   it("holds every capability in the map except the three deliberately withheld", () => {
     for (const key of CAPABILITY_KEYS) {
@@ -662,15 +657,13 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
     );
   });
 
-  it("is refused the messaging safety controls, which belong to the core four alone", () => {
-    // LAN-394. The IT Officer still opens the page — reading that messaging is
-    // paused is how somebody diagnoses a deployment — and is refused each
-    // control individually, which is what `delivery_administration` gating the
-    // page and this capability gating the actions means.
-    expect(roleCodesPermit(["it_officer"], "messaging_safety_authority")).toBe(false);
+  it("holds the messaging safety controls alongside the core four", () => {
+    // LAN-407 (Brian, 21 September 2026). The seat that diagnoses a runaway
+    // from this page also stops it; the reason is still required and recorded.
+    expect(roleCodesPermit(["it_officer"], "messaging_safety_authority")).toBe(true);
     expect(roleCodesPermit(["it_officer"], "delivery_administration")).toBe(true);
     expect(permittedSet("messaging_safety_authority")).toEqual(
-      ["president", "vice_president", "secretary", "general_manager"].sort(),
+      ["president", "vice_president", "secretary", "general_manager", "it_officer"].sort(),
     );
   });
 
@@ -717,8 +710,8 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
     expect(CAPABILITIES.role_management.decision).toMatch(/LAN-124/);
     expect(CAPABILITIES.role_management.decision).not.toMatch(/undecided/i);
     for (const key of CAPABILITY_KEYS) {
-      // The two capabilities the administrative seat does NOT hold say so in
-      // their own words instead of naming LAN-124's widening.
+      // The capability the administrative seat does NOT hold says so in its
+      // own words instead of naming LAN-124's widening.
       expect(CAPABILITIES[key].decision, key).toMatch(
         NOT_THE_IT_OFFICERS.includes(key) ? /core four/i : /LAN-124|it_officer/,
       );

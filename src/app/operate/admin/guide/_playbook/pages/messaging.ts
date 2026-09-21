@@ -178,9 +178,9 @@ export const MESSAGING_PAGE: PlaybookPage = {
       ],
     },
     {
-      label: "Pausing is the core four's",
+      label: "Who may pause",
       fact: [
-        "The President, the Vice-President, the Secretary and the General Manager may pause and resume. The IT Officer can read the state and cannot change it.",
+        "The President, the Vice-President, the Secretary, the General Manager and the IT Officer may pause and resume. Every other seat can read the state and cannot change it.",
       ],
     },
   ],
