@@ -3960,64 +3960,6 @@ jobEvents.forEach((event, index) => {
       }
     }
 
-    /**
-     * LAN-411. One person who never accepted WhatsApp's terms.
-     *
-     * Meta takes the send, answers success, and then sends no callback at all
-     * — no `delivered`, no `read`, no `failed`. The job sits at `processing`
-     * for ever, and an hour later the club is told **Not delivered**. Nothing
-     * about the person changes and the chase carries on; the flag is advisory.
-     *
-     * Built by hand for the reason the case itself is hard: every other seeded
-     * state is evidence of something, and this one is the absence of it. The
-     * attempt is dated a day before the notional now, so it is past the hour
-     * whatever time of day the seed runs.
-     */
-    if (story === "genuine_failure" && position === 2 && notDeliveredEvent === null) {
-      const invitationJob = rows.notification_jobs.find(
-        (candidate) =>
-          candidate.invitation_id === invitation.id && candidate.job_type === "invitation",
-      );
-      if (invitationJob) {
-        const acceptedAt = shiftMinutes(NOW.toISOString(), -24 * 60);
-        invitationJob.status = "processing";
-        invitationJob.channel = "whatsapp";
-        invitationJob.attempt_count = 1;
-        invitationJob.automatic_attempts = 1;
-        invitationJob.next_attempt_at = null;
-        invitationJob.last_error = null;
-        invitationJob.claimed_at = acceptedAt;
-        invitationJob.claimed_by = "system: automated delivery";
-        invitationJob.person_id = invitationPersonId(invitation);
-        // The job's random `kind` above the loop may already have given it a
-        // history; this rewrites the whole of it, so that history goes first —
-        // the same collision the two scenarios below deal with.
-        rows.delivery_results = rows.delivery_results.filter(
-          (result) => result.notification_job_id !== invitationJob.id,
-        );
-        rows.delivery_attempts = rows.delivery_attempts.filter(
-          (attempt) => attempt.notification_job_id !== invitationJob.id,
-        );
-        add("delivery_attempts", {
-          id: uuid(),
-          notification_job_id: invitationJob.id,
-          attempt_number: 1,
-          channel: "whatsapp",
-          provider: "whatsapp-business",
-          // Meta answered with a message id: it accepted the send. That is the
-          // whole of what the club ever heard.
-          provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
-          requested_at: acceptedAt,
-          accepted_at: acceptedAt,
-          concluded_at: null,
-          failure_reason: null,
-        });
-        deliveryAttemptsSeeded += 1;
-        notDeliveredEvent = event;
-        notDeliveredInvitee = invitation;
-      }
-    }
-
     // `REQ-no-channel-backstop`. One person the club cannot reach at all: no
     // usable route, nothing to retry and nothing to fall back to. The only
     // delivery state that requires a human, and what it requires is a roster
@@ -4211,6 +4153,88 @@ jobEvents.forEach((event, index) => {
       }
     }
   });
+
+  /**
+   * LAN-411. One person who never accepted WhatsApp's terms.
+   *
+   * Meta takes the send, answers success, and then sends no callback at all —
+   * no `delivered`, no `read`, no `failed`. The job sits at `processing` for
+   * ever, and an hour later the club is told **Not delivered**. Nothing about
+   * the person changes and the chase carries on; the flag is advisory.
+   *
+   * Built by hand for the reason the case itself is hard: every other seeded
+   * state is evidence of something, and this one is the absence of it. It runs
+   * after the per-invitation loop so it can pick somebody who has *not*
+   * answered — otherwise the row would never reach the Follow-ups queue, which
+   * is half of what the label is for. The attempt is dated a day before the
+   * notional now, so it is past the hour whatever time of day the seed runs.
+   */
+  if (story === "genuine_failure" && notDeliveredEvent === null) {
+    const silent = invitations.find(
+      (invitation) =>
+        !rows.rsvp_responses.some((response) => response.invitation_id === invitation.id) &&
+        rows.notification_jobs.some(
+          (candidate) =>
+            candidate.invitation_id === invitation.id &&
+            candidate.job_type === "invitation" &&
+            candidate.status !== "cancelled",
+        ),
+    );
+    if (silent) {
+      // Every message the club sent this person, not only the first. Somebody
+      // who has never accepted WhatsApp's terms receives none of them, so the
+      // invitation *and* each chase that followed it sit at `processing` with
+      // an accepted attempt and no callback. That is what makes the event's
+      // board read Not delivered on the invitation row and the Follow-ups
+      // queue read it on their latest message.
+      const theirJobs = rows.notification_jobs.filter(
+        (candidate) =>
+          candidate.invitation_id === silent.id &&
+          candidate.status !== "cancelled" &&
+          !candidate.idempotency_key.endsWith(":email-fallback"),
+      );
+      for (const job of theirJobs) {
+        const acceptedAt = shiftMinutes(NOW.toISOString(), -24 * 60);
+        job.status = "processing";
+        job.channel = "whatsapp";
+        job.attempt_count = 1;
+        job.automatic_attempts = 1;
+        job.next_attempt_at = null;
+        job.last_error = null;
+        job.claimed_at = acceptedAt;
+        job.claimed_by = "system: automated delivery";
+        job.person_id = invitationPersonId(silent);
+        // The job's random `kind` above may already have given it a history;
+        // this rewrites the whole of it, so that history goes first — the same
+        // collision the two scenarios above deal with.
+        rows.delivery_results = rows.delivery_results.filter(
+          (result) => result.notification_job_id !== job.id,
+        );
+        rows.delivery_attempts = rows.delivery_attempts.filter(
+          (attempt) => attempt.notification_job_id !== job.id,
+        );
+        add("delivery_attempts", {
+          id: uuid(),
+          notification_job_id: job.id,
+          attempt_number: 1,
+          channel: "whatsapp",
+          provider: "whatsapp-business",
+          // Meta answered with a message id: it accepted the send. That is the
+          // whole of what the club ever heard.
+          provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
+          requested_at: acceptedAt,
+          accepted_at: acceptedAt,
+          concluded_at: null,
+          failure_reason: null,
+        });
+        deliveryAttemptsSeeded += 1;
+      }
+      if (theirJobs.length > 0) {
+        notDeliveredEvent = event;
+        notDeliveredInvitee = silent;
+      }
+    }
+  }
 
   // One event past its escalation threshold, with a flag on every unanswered
   // invitation and exactly one escalation sent to the President.
@@ -6234,7 +6258,11 @@ try {
   }
   // LAN-411.
   if (notDeliveredEvent) {
-    showDeliveryAs("Not delivered (accepted, then silence)", notDeliveredEvent, notDeliveredInvitee);
+    showDeliveryAs(
+      "Not delivered (accepted, then silence)",
+      notDeliveredEvent,
+      notDeliveredInvitee,
+    );
   }
   console.log(
     `  ${"per-attempt diagnostics".padEnd(34)} any of the three events above\n${" ".repeat(37)}` +

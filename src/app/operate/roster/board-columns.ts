@@ -207,7 +207,7 @@ export function collapsedBandsFrom(stored: readonly string[] | undefined): Reado
  * the same screen family. `collapsedBandsFrom` already drops what it does not
  * recognise, so the board simply never sees them.
  */
-export type RecordSection = "activity" | "attendance" | "otherSeasons" | "statusHistory";
+type RecordSection = "activity" | "attendance" | "otherSeasons" | "statusHistory";
 export type RecordGroup = Band | RecordSection;
 
 const RECORD_SECTIONS: readonly RecordSection[] = Object.freeze([

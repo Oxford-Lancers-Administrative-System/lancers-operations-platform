@@ -19,7 +19,7 @@ const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.fr
 const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
 const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
 /** LAN-411's third, over **Attempted** rather than over **Failed**, and ranked below both. Two words, nothing more (Brian, 2026-09-21). */
-export const NOT_DELIVERED = "Not delivered";
+const NOT_DELIVERED = "Not delivered";
 
 export const NEEDS_ATTENTION_HEADING = "Needs attention";
 export const NEEDS_ATTENTION_NOTE =
