@@ -28,11 +28,20 @@ import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 /**
  * LAN-387 — the board's groups, in the order Brian and Stewart settled on the
  * call of 2026-09-16. `season` became `membership`; everything after it is new.
+ *
+ * LAN-412 adds `availability`, immediately after Membership. Stewart, on the
+ * call of 2026-09-21: "Let's make availability a category. And it may grow one
+ * day." Brian's reason: it is the one column he would let every coach edit —
+ * "if a player says he just broke his leg it's like put it as red" — and a
+ * fact that is granted separately has to be foldable separately. It sits where
+ * it does because it is the fact read most often after the membership facts
+ * themselves. It holds one column, and adding a second is not this issue's.
  */
 export type Band =
   | "person"
   | "onboarding"
   | "membership"
+  | "availability"
   | "coaching"
   | "offensive"
   | "defensive"
@@ -136,6 +145,11 @@ const BANDS: readonly BandDef[] = Object.freeze([
     key: "membership" as const,
     label: "Membership",
     ...BAND_COLOURS.membership,
+  }),
+  Object.freeze({
+    key: "availability" as const,
+    label: "Availability",
+    ...BAND_COLOURS.availability,
   }),
   Object.freeze({
     key: "coaching" as const,
@@ -599,7 +613,11 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       filterable: true,
       requires: "person_record_authority",
     },
-    // Brian, 2026-09-05: BPS immediately before Availability, which is last (LAN-217, round 5).
+    // Brian, 2026-09-05: BPS was to sit immediately before Availability and
+    // Availability last (LAN-217, round 5). LAN-412 takes Availability out of
+    // this group altogether, so BPS is simply last here and the two are still
+    // adjacent — the group below begins with the column that used to end this
+    // one.
     {
       key: "bps",
       label: "BPS",
@@ -611,10 +629,14 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       filterable: true,
       requires: "person_record_authority",
     },
+    // ------------------------------------------------------- Availability --
+    // LAN-412. One column, and its own group: the values, the picker and the
+    // write action are exactly what they were inside Membership. Stewart's
+    // "it may grow one day" is not a licence to add a second column here.
     {
       key: "availability",
       label: "Availability",
-      band: "membership",
+      band: "availability",
       edit: "select",
       options: AVAILABILITY_VALUES,
       optionLabels: AVAILABILITY_LABELS,

@@ -17,6 +17,7 @@ export type Band =
   | "person"
   | "season"
   | "membership"
+  | "availability"
   | "coaching"
   | "offensive"
   | "defensive"
@@ -43,6 +44,13 @@ export const BAND_COLOURS: Readonly<Record<Band, BandColours>> = Object.freeze({
   // and the four assignment/kit groups step away from it in tone without
   // borrowing a traffic-light hue.
   membership: { header: CLUB.royalBlue, tint: "rgba(29, 66, 166, 0.045)", solid: "#F4F6FB" },
+  // LAN-412's group, immediately after Membership. Deliberately the most
+  // desaturated band on the board: its one column is the only traffic-light
+  // column the club has, and green, orange and red have to read as the value
+  // they are against a place that is saying nothing. The rule is the same one
+  // as everywhere else here, just at its sharpest — a band is a place, not a
+  // verdict.
+  availability: { header: "#455A64", tint: "rgba(69, 90, 100, 0.055)", solid: "#F2F5F6" },
   coaching: { header: CLUB.oxfordBlue, tint: "rgba(0, 33, 71, 0.06)", solid: "#F1F4F7" },
   offensive: { header: "#1F5C4A", tint: "rgba(31, 92, 74, 0.055)", solid: "#F1F7F5" },
   defensive: { header: "#5B3A7E", tint: "rgba(91, 58, 126, 0.055)", solid: "#F6F2F9" },

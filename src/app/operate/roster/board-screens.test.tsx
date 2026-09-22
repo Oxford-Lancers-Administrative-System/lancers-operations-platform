@@ -218,6 +218,9 @@ describe("the board itself", () => {
     // legitimately present, so this asserts there are two rather than one.
     expect(within(board).getAllByText("Onboarding")).toHaveLength(2);
     expect(within(board).getByText("Membership")).toBeInTheDocument();
+    // LAN-412: "Availability" is both the band label and its one column's
+    // label — both legitimately present, as "Onboarding" already was.
+    expect(within(board).getAllByText("Availability")).toHaveLength(2);
     expect(within(board).getByText("Coaching assignments")).toBeInTheDocument();
     expect(within(board).getByText("Offensive assignments")).toBeInTheDocument();
     expect(within(board).getByText("Defensive assignments")).toBeInTheDocument();
@@ -965,6 +968,39 @@ describe("which groups are folded away, remembered on the account", () => {
     const board = screen.getByTestId("roster-board");
     expect(within(board).getByTestId("band-collapsed-label-coaching")).toBeInTheDocument();
     expect(within(board).queryByTestId("band-collapsed-label-kit")).not.toBeInTheDocument();
+  });
+
+  /**
+   * LAN-412 — Availability is a band of its own, so it folds on its own, down
+   * its own narrow cell, and the account remembers it apart from Membership.
+   * Stewart asked for the category; Brian's reason was that it is the one
+   * column he would let every coach edit.
+   */
+  it("folds Availability on its own, and remembers it apart from Membership", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    // It arrives open: it is the fact read most often after the membership
+    // facts, not part of the long tail.
+    expect(
+      within(board).queryByTestId("band-collapsed-label-availability"),
+    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(within(board).getByTestId("band-toggle-availability"));
+    });
+
+    const folded = within(board).getByTestId("band-collapsed-label-availability");
+    expect(folded).toHaveTextContent("Availability");
+    // Membership is untouched: its own columns are still drawn.
+    expect(within(board).queryByTestId("band-collapsed-label-membership")).not.toBeInTheDocument();
+    expect(within(board).getByText("BPS")).toBeInTheDocument();
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+    });
+    expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]]).toContain("availability");
   });
 
   it("writes the whole set back once the toggling has settled", async () => {
