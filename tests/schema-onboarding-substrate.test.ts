@@ -662,7 +662,15 @@ describe("internal.reset_superseded_code_of_conduct", () => {
     // function's own `t.code = 'code_of_conduct'` filter, the membership-only
     // lookup has no ordering, so it is this earlier row that a naive scan
     // would surface first.
-    const bucsPlayTypeId = await insertItemType({ code: "bucs_play" });
+    // `trust` since LAN-413: `onboarding_item_types_trust_codes_are_trust`
+    // refuses a `direct` row for this code, and the helper's default is
+    // `direct`. The fixture wants "a second complete item that is not the
+    // Code of Conduct", and the real BUCS Play item is trust-class, so saying
+    // so makes it truer rather than working around the constraint.
+    const bucsPlayTypeId = await insertItemType({
+      code: "bucs_play",
+      verificationClass: "trust",
+    });
     const bucsPlayItem = await one<{ id: string }>(
       client,
       `insert into public.onboarding_items (season_membership_id, season_id, item_type_id, status, completed_on)
