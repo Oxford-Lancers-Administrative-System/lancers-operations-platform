@@ -6,10 +6,10 @@ import { todayInClubZone } from "@/lib/club-time";
 import { type EventDeliveryMode, type EventStatus } from "../event-input";
 import { endTimeFromStart, type EventTemplateInput } from "../event-template-input";
 import {
-  groupsForEventType,
+  audienceOptionFor,
+  audienceOptionsForEventType,
   resolveSelection,
   type AudienceCandidate,
-  type AudienceGroupKey,
 } from "../audience-selection";
 import { listAudienceCatalogueIn } from "../event-audience";
 import {
@@ -439,10 +439,17 @@ async function planOrApply(
       [templateId],
     );
     for (const group of audienceGroups) {
+      // LAN-414: the stored pair. `audienceOptionFor` is the one place that
+      // turns a picker token back into (category, audience_group, value).
+      const option = audienceOptionFor(eventType, group, { templateOnly: true });
+      if (option === null) continue;
       await tx.query(
-        `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
-         values ($1::uuid, $2::public.event_type, $3::public.audience_group)`,
-        [templateId, eventType, group],
+        `insert into public.event_template_audience_groups
+           (template_id, event_type, category, audience_group, value)
+         values ($1::uuid, $2::public.event_type,
+                 $3::public.audience_group_category,
+                 $4::public.audience_group, $5)`,
+        [templateId, eventType, option.category, option.audienceGroup, option.value],
       );
     }
 
@@ -503,10 +510,10 @@ function durationText(minutes: number | null): string {
   return minutes === null ? "Not set" : `${minutes} minutes`;
 }
 
-function labelsFor(eventType: string, keys: readonly AudienceGroupKey[]): string[] {
-  return groupsForEventType(eventType)
-    .filter((group) => keys.includes(group.key))
-    .map((group) => group.label);
+function labelsFor(eventType: string, tokens: readonly string[]): string[] {
+  return audienceOptionsForEventType(eventType, { templateOnly: true })
+    .filter((option) => tokens.includes(option.token))
+    .map((option) => option.label);
 }
 
 // The questions a draft should hold after this change: the delta is applied, not the whole list, so
@@ -579,7 +586,7 @@ function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 
 function peopleFor(
   candidates: readonly AudienceCandidate[],
-  groups: readonly AudienceGroupKey[],
+  groups: readonly string[],
 ): ReadonlySet<string> {
   const resolution = resolveSelection(candidates, templateAudienceKeys(candidates, groups));
   return new Set(resolution.ok ? resolution.members.map((member) => member.personId) : []);

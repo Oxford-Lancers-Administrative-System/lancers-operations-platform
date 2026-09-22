@@ -3,11 +3,13 @@ import "server-only";
 import type { Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import {
-  AUDIENCE_GROUPS,
+  audienceGroupTokenFor,
+  audienceOptionFor,
   groupSelectionKeys,
+  parseAudienceGroupToken,
+  RECRUITMENT_EVENT_TYPE,
   resolveSelection,
   type AudienceCapacity,
-  type AudienceGroupKey,
 } from "./audience-selection";
 import { listAudienceCatalogueIn } from "./event-audience";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
@@ -103,7 +105,8 @@ interface CandidateEvent {
   readonly eventType: string;
   readonly scheduledOn: string;
   readonly startsAtUtc: Date;
-  readonly groups: readonly AudienceGroupKey[];
+  /** LAN-414: picker tokens — a General key, or `<category>:<value>`. */
+  readonly groups: readonly string[];
 }
 
 const EMPTY_OUTCOME: AudienceGroupRuleOutcome = Object.freeze({
@@ -112,8 +115,6 @@ const EMPTY_OUTCOME: AudienceGroupRuleOutcome = Object.freeze({
   messagesWithheld: 0,
   retracted: 0,
 });
-
-const KNOWN_GROUPS: ReadonlySet<string> = new Set(AUDIENCE_GROUPS.map((group) => group.key));
 
 /**
  * Apply the rule for one person whose group standing has just changed.
@@ -185,8 +186,8 @@ export async function applyAudienceGroupRuleIn(
       // of Onboarding, a seat ended: the person no longer falls into any group
       // this event was built from, so a row the rule itself put there and never
       // sent comes back off. A row the approver confirmed is never touched —
-      // `added_by_group is not null` is the whole guard, and it is why the
-      // column exists.
+      // `added_by_group_category is not null` is the whole guard, and it is
+      // why the column exists.
       retracted += await retractRuleAddIn(tx, event.id, args.personId);
       continue;
     }
@@ -217,6 +218,7 @@ export async function applyAudienceGroupRuleIn(
       addedByPersonId: null, // the rule acted, not an operator — the audit says which rule
       sendAt,
       eventStartsAt: event.startsAtUtc,
+      eventType: event.eventType,
     });
     if (joined.audienceMemberId === null) continue; // a concurrent add won the conflict; theirs stands
     added += 1;
@@ -270,14 +272,29 @@ async function readCandidateEventsIn(tx: Tx, seasonId: string): Promise<Candidat
     event_type: string;
     scheduled_on: string;
     starts_at_utc: Date;
-    groups: string[];
+    group_categories: string[];
+    group_audience_groups: (string | null)[];
+    group_values: (string | null)[];
   }>(
+    // LAN-414: the stored triple, three parallel arrays rather than one joined
+    // string. A separator would have to be a character no roster value can
+    // hold, and the obvious one — a NUL byte — is a character Postgres refuses
+    // in `text` outright; three `array_agg`s under one `order by` are exact and
+    // need no such character to exist.
     `select e.id,
             e.event_type::text as event_type,
             to_char(e.scheduled_on, 'YYYY-MM-DD') as scheduled_on,
             (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
               at time zone 'Europe/London' as starts_at_utc,
-            array_agg(g.audience_group::text order by g.audience_group::text) as groups
+            array_agg(g.category::text
+              order by g.category::text, g.audience_group::text, g.value)
+              as group_categories,
+            array_agg(g.audience_group::text
+              order by g.category::text, g.audience_group::text, g.value)
+              as group_audience_groups,
+            array_agg(g.value
+              order by g.category::text, g.audience_group::text, g.value)
+              as group_values
        from public.events e
        join public.event_audience_groups g on g.event_id = e.id
       where e.season_id = $1
@@ -296,10 +313,21 @@ async function readCandidateEventsIn(tx: Tx, seasonId: string): Promise<Candidat
     scheduledOn: row.scheduled_on,
     startsAtUtc: row.starts_at_utc,
     // Filtered against the vocabulary rather than cast: a group the enum holds
-    // and `AUDIENCE_GROUPS` has retired would otherwise reach
-    // `groupSelectionKeys`, which answers `[]` for an unknown key and would
-    // quietly mean "this event has no rule" instead of saying so.
-    groups: row.groups.filter((group): group is AudienceGroupKey => KNOWN_GROUPS.has(group)),
+    // and the catalogue has retired would otherwise reach `groupSelectionKeys`,
+    // which answers `[]` for an unknown token and would quietly mean "this
+    // event has no rule" instead of saying so.
+    groups: row.group_categories
+      .map((category, at) =>
+        audienceGroupTokenFor(
+          category,
+          row.group_audience_groups[at] ?? null,
+          row.group_values[at] ?? null,
+        ),
+      )
+      .filter(
+        (token): token is string =>
+          token !== null && audienceOptionFor(row.event_type, token) !== null,
+      ),
   }));
 }
 
@@ -327,7 +355,7 @@ async function readPendingAutoAddSendsIn(tx: Tx, personId: string): Promise<Date
        join public.invitations i on i.id = j.invitation_id
        join public.event_audience_members a on a.id = i.audience_member_id
       where a.invitee_person_id = $1::uuid
-        and a.added_by_group is not null
+        and a.added_by_group_category is not null
         and j.job_type = 'invitation'
         and j.status in ('pending', 'ready')
         and j.scheduled_for is not null
@@ -433,11 +461,18 @@ export async function joinApprovedEventIn(
     capacity: AudienceCapacity;
     anchorId: string;
     personId: string;
-    /** The stored group that pulled them in, or null for an operator's hand-add. */
-    group: AudienceGroupKey | null;
+    /** The stored group token that pulled them in, or null for an operator's hand-add. */
+    group: string | null;
     addedByPersonId: string | null;
     sendAt: Date;
     eventStartsAt: Date;
+    /**
+     * LAN-416. The event's own class, so a recruit joining a Training event
+     * rides that event's player ladder and a recruit joining a Recruitment
+     * event keeps the gentle one. Before LAN-416 a recruit could only ever be
+     * on a Recruitment event, so the capacity alone answered this.
+     */
+    eventType: string;
   },
 ): Promise<{
   audienceMemberId: string | null;
@@ -482,7 +517,8 @@ export async function joinApprovedEventIn(
   await declareRemainingRungsIn(tx, {
     eventId: args.eventId,
     invitationId,
-    isRecruit: args.capacity === "recruit",
+    // LAN-416: the gentle ladder is the Recruitment event's, not the recruit's.
+    isRecruit: args.capacity === "recruit" && args.eventType === RECRUITMENT_EVENT_TYPE,
     after: args.sendAt,
   });
 
@@ -509,18 +545,26 @@ async function insertAudienceRowIn(
     capacity: AudienceCapacity;
     anchorId: string;
     personId: string;
-    group: AudienceGroupKey | null;
+    group: string | null;
     addedByPersonId: string | null;
   },
 ): Promise<string | null> {
+  // LAN-414: the stored pair. `added_by_group_category` is set for every rule
+  // add whatever its category, and is the "the rule put this here" predicate
+  // the retraction, the five-an-hour cap and the ladder anchor all read.
+  const parsed = args.group === null ? null : parseAudienceGroupToken(args.group);
   const inserted = await tx.query<{ id: string }>(
     `insert into public.event_audience_members
        (event_id, season_id, capacity, season_membership_id, person_id,
-        invitee_person_id, added_at, added_by_person_id, added_by_group)
+        invitee_person_id, added_at, added_by_person_id,
+        added_by_group, added_by_group_category, added_by_group_value)
      values ($1::uuid, $2::uuid, $3::public.invitation_capacity,
              case when $3 = 'player' then $4::uuid end,
              case when $3 <> 'player' then $4::uuid end,
-             $5::uuid, now(), $7::uuid, $6::public.audience_group)
+             $5::uuid, now(), $7::uuid,
+             $6::public.audience_group,
+             $8::public.audience_group_category,
+             $9)
      on conflict (event_id, invitee_person_id) do nothing
      returning id`,
     [
@@ -529,8 +573,10 @@ async function insertAudienceRowIn(
       args.capacity,
       args.anchorId,
       args.personId,
-      args.group,
+      parsed?.audienceGroup ?? null,
       args.addedByPersonId,
+      parsed?.category ?? null,
+      parsed?.value ?? null,
     ],
   );
   return inserted.rows[0]?.id ?? null;
@@ -746,7 +792,7 @@ async function declareRemainingRungsIn(
  * about a message nobody ever sent.
  *
  * It is guarded three ways and every one of them matters. Only a row this rule
- * added (`added_by_group is not null`) — an approver's confirmed row is never
+ * added (`added_by_group_category is not null`) — an approver's confirmed row is never
  * removed by anything. Only while every one of its jobs is still unsent — once
  * a message has gone the person has been invited, and LAN-341's rule that an
  * exit keeps existing invitations applies. And only on an event that has not
@@ -758,7 +804,7 @@ async function retractRuleAddIn(tx: Tx, eventId: string, personId: string): Prom
        from public.event_audience_members a
       where a.event_id = $1::uuid
         and a.invitee_person_id = $2::uuid
-        and a.added_by_group is not null
+        and a.added_by_group_category is not null
         and not exists (
           select 1
             from public.invitations i

@@ -2389,19 +2389,28 @@ describe("UX-40 — building the audience", () => {
   });
 
   /**
-   * LAN-295 — "Recruits should only ever be selectable and only ever be
-   * available for a recruitment event. Every other event, they're non-factors."
-   * (Brian, 2026-09-10.) The gate is `listAudienceCatalogueIn`, which no longer
-   * returns them at all off a Recruitment event; this is the screen half — with
-   * none in the catalogue there is no row and no filter option to reach one by.
+   * LAN-416, amending LAN-295 — "Recruits should only ever be selectable and
+   * only ever be available for a recruitment event" (Brian, 2026-09-10) became,
+   * on 2026-09-22, "recruits can be invited to any event… the only way you can
+   * add a recruit is by going to a special recruitment column and adding them."
+   *
+   * So the Recruits category is here on a practice, and this fixture's
+   * catalogue holds no recruit at all: the pills are offered, each says (0) and
+   * cannot be pressed, no recruit row appears, and no General pill would have
+   * reached one anyway.
    */
-  it("offers no recruit row and no Recruits filter on a practice event", async () => {
+  it("offers the Recruits category on a practice, with nobody behind it here", async () => {
     await openBuilder();
 
     expect(AUDIENCE.some((entry) => entry.capacity === "recruit")).toBe(false);
+
+    fireEvent.click(screen.getByTestId("audience-category-toggle-recruits"));
+    for (const label of ["All active recruits", "Identified", "Engaged", "Committed"]) {
+      expect(screen.getByRole("button", { name: `${label} (0)` })).toBeDisabled();
+    }
+
     expect(flatten(screen.getByTestId("candidate-list").textContent)).not.toContain("Recruit");
     expect(screen.queryByRole("option", { name: /Recruits/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Recruits/ })).toBeNull();
   });
 
   it("sorts the chosen people to the top", async () => {

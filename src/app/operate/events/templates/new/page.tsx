@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import Stack from "@mui/material/Stack";
-import { templateGroupsForEventType } from "@/lib/services/audience-selection";
+import { audienceCategoriesForEventType } from "@/lib/services/audience-selection";
 import { DEFAULT_TEMPLATE_CLASS } from "@/lib/services/event-templates";
 import {
   DEFAULT_TEMPLATE_COLOUR_KEY,
@@ -42,7 +42,7 @@ export default async function NewEventTemplatePage() {
         eventTypeLabel={NEW_TEMPLATE_HEADLINE}
         initial={initial}
         initialQuestions={[]}
-        groups={templateGroupsForEventType(DEFAULT_TEMPLATE_CLASS)}
+        categories={audienceCategoriesForEventType(DEFAULT_TEMPLATE_CLASS, { templateOnly: true })}
         eventCount={0}
       />
     </Stack>

@@ -13,7 +13,8 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import type { AudienceGroup, AudienceGroupKey } from "@/lib/services/audience-selection";
+import type { AudienceCategorySection } from "@/lib/services/audience-selection";
+import { ControlledSection } from "@/components/controlled-section";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import {
   TEMPLATE_COLOUR_PALETTE,
@@ -59,7 +60,8 @@ export interface TemplateEditorProps {
   eventTypeLabel: string;
   initial: RawEventTemplate;
   initialQuestions: RawEventQuestion[];
-  groups: readonly AudienceGroup[];
+  /** LAN-414: the whole catalogue by category, the same one the event form shows. */
+  categories: readonly AudienceCategorySection[];
   /** Decides whether Delete is offered — zero on an unused or new template. */
   eventCount: number;
 }
@@ -69,7 +71,7 @@ export default function TemplateEditor({
   eventTypeLabel,
   initial,
   initialQuestions,
-  groups,
+  categories,
   eventCount,
 }: TemplateEditorProps) {
   const [previewState, previewAction, previewing] = useActionState(
@@ -103,9 +105,14 @@ export default function TemplateEditor({
     return typeof raw === "string" ? raw : "";
   };
 
-  const [selected, setSelected] = useState<AudienceGroupKey[]>(() => [
-    ...((initial.audienceGroups ?? []) as AudienceGroupKey[]),
+  const [selected, setSelected] = useState<string[]>(() => [
+    ...((initial.audienceGroups ?? []) as string[]),
   ]);
+  // LAN-414: General open, the rest folded — the same fold the event form's
+  // picker arrives in, so the two screens read the same way (rule 7).
+  const [openCategories, setOpenCategories] = useState<ReadonlySet<string>>(
+    () => new Set(["general"]),
+  );
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [...initialQuestions]);
   const [name, setName] = useState(text("name"));
   const [colourKey, setColourKey] = useState(text("colourKey"));
@@ -131,9 +138,9 @@ export default function TemplateEditor({
       ? Number(duration)
       : null;
 
-  function toggleGroup(key: AudienceGroupKey) {
+  function toggleGroup(token: string) {
     setSelected((current) =>
-      current.includes(key) ? current.filter((group) => group !== key) : [...current, key],
+      current.includes(token) ? current.filter((group) => group !== token) : [...current, token],
     );
   }
 
@@ -255,23 +262,50 @@ export default function TemplateEditor({
 
           <Section title={TEMPLATE_AUDIENCE_HEADLINE}>
             <Stack spacing={2}>
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                {groups.map((group) => {
-                  const on = selected.includes(group.key);
+              <Stack spacing={1} data-testid="template-audience-categories">
+                {categories.map((section) => {
+                  const chosen = section.options.filter((option) =>
+                    selected.includes(option.token),
+                  ).length;
                   return (
-                    <Button
-                      key={group.key}
-                      variant={on ? "contained" : "outlined"}
-                      size="small"
-                      aria-pressed={on}
-                      disabled={busy}
-                      onClick={() => toggleGroup(group.key)}
-                      data-testid="template-audience-group"
-                      data-group={group.key}
-                      sx={{ minHeight: 40 }}
+                    <ControlledSection
+                      key={section.category}
+                      title={section.label}
+                      count={chosen}
+                      open={openCategories.has(section.category)}
+                      onToggle={() =>
+                        setOpenCategories((current) => {
+                          const next = new Set(current);
+                          if (next.has(section.category)) next.delete(section.category);
+                          else next.add(section.category);
+                          return next;
+                        })
+                      }
+                      panelId={`template-audience-category-${section.category}`}
+                      toggleTestId={`template-audience-category-toggle-${section.category}`}
+                      countTestId={`template-audience-category-count-${section.category}`}
                     >
-                      {group.label}
-                    </Button>
+                      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+                        {section.options.map((option) => {
+                          const on = selected.includes(option.token);
+                          return (
+                            <Button
+                              key={option.token}
+                              variant={on ? "contained" : "outlined"}
+                              size="small"
+                              aria-pressed={on}
+                              disabled={busy}
+                              onClick={() => toggleGroup(option.token)}
+                              data-testid="template-audience-group"
+                              data-group={option.token}
+                              sx={{ minHeight: 40 }}
+                            >
+                              {option.label}
+                            </Button>
+                          );
+                        })}
+                      </Stack>
+                    </ControlledSection>
                   );
                 })}
               </Stack>

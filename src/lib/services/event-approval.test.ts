@@ -29,6 +29,7 @@ import {
   readEventAudienceGroupSummary,
   saveEventAudience,
 } from "./event-approval";
+import { groupsForEventType } from "./audience-selection";
 import {
   audiencePeople,
   EMPTY_AUDIENCE_MESSAGE,
@@ -1138,6 +1139,103 @@ describe("the recruit ladder — LAN-203", () => {
   });
 });
 
+/**
+ * LAN-416 — the cadence belongs to the event, not to the recruit.
+ *
+ * Clint, agreed by Stewart: "on recruitment events I see being gentle, but if
+ * we're in regular practice and you're just late to the party, whatever."
+ * Brian: "only recruitment events get that special status. Every other, I don't
+ * have to change." So the same recruit gets two different chases depending on
+ * which event they were picked onto, and the issue asks for one test each.
+ */
+describe("a recruit's cadence follows the event's type (LAN-416)", () => {
+  /** The recruit pills' own keys on this event, and the recruit behind them. */
+  async function recruitsOn(event: { id: string; seasonId: string; eventType: string }) {
+    const catalogue = await catalogueFor(event);
+    const keys = groupSelectionKeys(catalogue.candidates, "recruits:all");
+    expect(keys.length).toBeGreaterThan(0);
+    const picked = catalogue.candidates.find((candidate) => candidate.key === keys[0])!;
+    await grantRecruitConsent(picked.personId, event.seasonId);
+    return { key: picked.key, personId: picked.personId };
+  }
+
+  async function jobsFor(eventId: string, capacity: string) {
+    const jobs = await observer.query<{ job_type: string; ladder_rung: number | null }>(
+      `select j.job_type::text as job_type, j.ladder_rung
+         from public.notification_jobs j
+         join public.invitations i on i.id = j.invitation_id
+        where j.event_id = $1 and i.capacity = $2
+        order by j.job_type, j.ladder_rung`,
+      [eventId, capacity],
+    );
+    return jobs.rows;
+  }
+
+  it("gives a recruit on a practice event the practice cadence, exactly as a player has it", async () => {
+    const practice = await newDraft();
+    const recruit = await recruitsOn(practice);
+    const playerKeys = await keysFor(practice, "player", 1);
+
+    await approve(practice.id, [...playerKeys, recruit.key]);
+
+    const recruitJobs = await jobsFor(practice.id, "recruit");
+    const playerJobs = await jobsFor(practice.id, "player");
+
+    // The practice type configures no recruit ladder at all, so there is
+    // nothing gentle to apply and the recruit is simply one of the invitees.
+    expect(recruitJobs.map((row) => `${row.job_type}:${row.ladder_rung}`)).toEqual(
+      playerJobs.map((row) => `${row.job_type}:${row.ladder_rung}`),
+    );
+    expect(recruitJobs.some((row) => row.job_type === "reminder")).toBe(true);
+
+    const plan = await observer.query<{ recruit_invitation_at: Date | null }>(
+      `select recruit_invitation_at from public.event_messaging_plans where event_id = $1`,
+      [practice.id],
+    );
+    expect(plan.rows[0].recruit_invitation_at).toBeNull();
+  });
+
+  it("keeps the gentle cadence for the same recruit on a Recruitment event", async () => {
+    const recruitment = await newDraft({
+      templateId: SEEDED_TEMPLATE_IDS.recruitment,
+      scheduledOn: "2026-11-20",
+    });
+    const recruit = await recruitsOn(recruitment);
+    const playerKeys = await keysFor(recruitment, "player", 1);
+
+    await approve(recruitment.id, [...playerKeys, recruit.key]);
+
+    const recruitJobs = await jobsFor(recruitment.id, "recruit");
+    const playerJobs = await jobsFor(recruitment.id, "player");
+
+    // One invitation and at most one follow-up, on rung 1 — never the player's
+    // rungs, and never an email one (REQ-two-ladders, REQ-never-harsh).
+    expect(recruitJobs.filter((row) => row.job_type === "reminder")).toHaveLength(1);
+    expect(recruitJobs.every((row) => (row.ladder_rung ?? 0) <= 1)).toBe(true);
+    expect(playerJobs.filter((row) => row.job_type === "reminder").length).toBeGreaterThan(1);
+  });
+
+  it("still withholds a recruit's message on a practice event without consent", async () => {
+    // The consent gate is not the cadence and LAN-416 does not move it: it
+    // applies to every recruit send whatever the event type.
+    const practice = await newDraft();
+    const catalogue = await catalogueFor(practice);
+    const keys = groupSelectionKeys(catalogue.candidates, "recruits:all");
+    expect(keys.length).toBeGreaterThan(0);
+
+    await approve(practice.id, keys);
+
+    const claimed = await observer.query<{ count: string }>(
+      `select count(*) as count
+         from public.notification_jobs j
+         join public.invitations i on i.id = j.invitation_id
+        where j.event_id = $1 and i.capacity = 'recruit' and j.status = 'completed'`,
+      [practice.id],
+    );
+    expect(Number(claimed.rows[0].count)).toBe(0);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Atomicity — the failure case is the one that matters
 // ---------------------------------------------------------------------------
@@ -2159,12 +2257,16 @@ describe("the audience heading counts everybody in the audience", () => {
     expect(audience.filter((member) => !member.stillSelectable)).toHaveLength(1);
     expect(after.total).toBe(5);
     expect(after.noLongerSelectable).toBe(1);
-    // These five are not the whole of any group, so none is named and the four
-    // still-listed players are `others`. The one who went inactive is not among
-    // them: "chosen by hand" is a statement about how somebody was picked, and
-    // a lapsed membership is not that.
-    expect(after.others).toBe(4);
-    expect(after.others + after.noLongerSelectable).toBe(after.total);
+    // The one who went inactive is not among `others`: "chosen by hand" is a
+    // statement about how somebody was picked, and a lapsed membership is not
+    // that. LAN-414 gave the summary the assignment categories as well, so some
+    // of the four still-listed players may now be wholly covered by a sub-group
+    // — a squad, a position group — and named rather than counted here; what
+    // this test is about is that the summary does not collapse to zero, and it
+    // is asserted directly.
+    expect(after.groups.length + after.others).toBeGreaterThan(0);
+    expect(after.others).toBeLessThanOrEqual(4);
+    expect(after.noLongerSelectable).toBe(1);
   });
 });
 
@@ -2306,19 +2408,26 @@ describe("a person in three groups is one row, one invitation, one participant",
 });
 
 /**
- * LAN-295 — "Recruits should only ever be selectable and only ever be available
- * for a recruitment event. Every other event, they're non-factors." (Brian,
- * 2026-09-10.)
+ * LAN-416, amending D46 / LAN-295 — a recruit can be invited to any event type,
+ * by explicit pick, and by no other route.
  *
- * D46 used to live only in `AUDIENCE_GROUPS`, which withheld the Recruits
- * *button*. The recruits themselves stayed in the catalogue on every event type
- * as individually tickable rows, so an operator could put six prospects on a
- * Wednesday practice and approval would invite them. The gate is now the
- * catalogue read itself, which is the one thing every path — picker, template
- * default, approval preview and the approval write — shares.
+ * LAN-295's rule was "Recruits should only ever be selectable and only ever be
+ * available for a recruitment event. Every other event, they're non-factors"
+ * (Brian, 2026-09-10), and the gate it built was the catalogue read: a recruit
+ * was not in a practice event's candidate list at all. On 2026-09-22 Brian,
+ * Stewart and Clint replaced that rule, because between the pure recruiting
+ * events and the first team practices there is a run of mixed events a good
+ * recruit who is not yet Joined had no way onto. Clint: "the type of an event
+ * pertains to what's actually going to happen at the event, not who's invited."
+ *
+ * The safety the old gate provided is now carried by the *groups*, not the
+ * catalogue: no General group and no assignment sub-group holds the `recruit`
+ * capacity, so the Recruits pills are the only door there is. Brian: "no one on
+ * the recruit list is ever going to be \[included\] if you click all onboarding
+ * and all \[active\]." These tests are LAN-295's own, rewritten to that.
  */
-describe("recruits belong to a recruitment event and nowhere else", () => {
-  it("is not in a practice event's catalogue, and is in a recruitment event's", async () => {
+describe("recruits are in every event type's catalogue, reachable only by pick", () => {
+  it("is in a practice event's catalogue exactly as it is in a recruitment event's", async () => {
     const practice = await newDraft();
     const recruitment = await newDraft({
       templateId: SEEDED_TEMPLATE_IDS.recruitment,
@@ -2328,35 +2437,70 @@ describe("recruits belong to a recruitment event and nowhere else", () => {
     const onPractice = await catalogueFor(practice);
     const onRecruitment = await catalogueFor(recruitment);
 
-    expect(onPractice.counts.recruit).toBe(0);
-    expect(onPractice.candidates.some((candidate) => candidate.capacity === "recruit")).toBe(false);
-    // The other half: the narrowing must not have emptied the group.
-    expect(onRecruitment.counts.recruit).toBeGreaterThan(0);
-    // …and the rest of the catalogue is untouched by the gate.
+    expect(onPractice.counts.recruit).toBeGreaterThan(0);
+    expect(onPractice.counts.recruit).toBe(onRecruitment.counts.recruit);
+    // …and the rest of the catalogue is the same on both, as it always was.
     expect(onPractice.counts.player).toBe(onRecruitment.counts.player);
   });
 
-  it("refuses a recruit chosen on a practice event rather than quietly dropping them", async () => {
-    // The key is real — it comes from the recruitment event's own catalogue —
-    // so this is the forged-selection path, not a typo.
-    const recruitment = await newDraft({
-      templateId: SEEDED_TEMPLATE_IDS.recruitment,
-      scheduledOn: "2026-11-20",
-    });
-    const recruitKeys = await keysFor(recruitment, "recruit", 1);
-    expect(recruitKeys).toHaveLength(1);
-
+  it("offers only open recruits, never a declined, disengaged, void or joined one", async () => {
+    // LAN-416: "Declined, disengaged and voided recruits are never offered and
+    // never resolve; a Joined person is already a player."
     const practice = await newDraft();
-    const playerKeys = await keysFor(practice, "player", 2);
+    const catalogue = await catalogueFor(practice);
 
-    const error = await caught(() =>
-      saveEventAudience(actorPersonId, practice.id, [...playerKeys, ...recruitKeys]),
+    const statuses = new Set(
+      catalogue.candidates
+        .filter((candidate) => candidate.capacity === "recruit")
+        .map((candidate) => candidate.recruitStatus),
+    );
+    expect(statuses.size).toBeGreaterThan(0);
+    for (const status of statuses) {
+      expect(["identified", "engaged", "committed"]).toContain(status);
+    }
+  });
+
+  it("puts no recruit into any General group on a practice event", async () => {
+    // The replacement for the old catalogue gate, and the thing that actually
+    // keeps a prospect off a Wednesday practice by accident.
+    const practice = await newDraft();
+    const catalogue = await catalogueFor(practice);
+    const recruitKeys = new Set(
+      catalogue.candidates
+        .filter((candidate) => candidate.capacity === "recruit")
+        .map((candidate) => candidate.key),
+    );
+    expect(recruitKeys.size).toBeGreaterThan(0);
+
+    for (const group of groupsForEventType(practice.eventType)) {
+      for (const key of groupSelectionKeys(catalogue.candidates, group.key)) {
+        expect(recruitKeys.has(key)).toBe(false);
+      }
+    }
+  });
+
+  it("saves and approves an engaged recruit on a practice event", async () => {
+    const practice = await newDraft();
+    const catalogue = await catalogueFor(practice);
+    const engaged = groupSelectionKeys(catalogue.candidates, "recruits:engaged");
+    expect(engaged.length).toBeGreaterThan(0);
+
+    const playerKeys = await keysFor(practice, "player", 2);
+    await saveEventAudience(
+      actorPersonId,
+      practice.id,
+      [...playerKeys, ...engaged],
+      ["recruits:engaged"],
     );
 
-    expect(error.rule).toBe(UNKNOWN_SELECTION_RULE);
-    // Total, not partial: a save that silently shrank would store a list the
-    // operator never confirmed.
-    expect((await countsFor(practice.id)).audience).toBe(0);
+    expect((await countsFor(practice.id)).audience).toBe(playerKeys.length + engaged.length);
+
+    const stored = await observer.query<{ category: string; value: string | null }>(
+      `select category::text as category, value
+         from public.event_audience_groups where event_id = $1::uuid`,
+      [practice.id],
+    );
+    expect(stored.rows).toEqual([{ category: "recruits", value: "engaged" }]);
   });
 
   it("still invites recruits when the event is recruitment class", async () => {
@@ -2820,7 +2964,7 @@ describe("LAN-388 — somebody mid-onboarding can be invited", () => {
     expect(audiencePeople(theirs)).toHaveLength(1);
 
     const onboardingKeys = groupSelectionKeys(catalogue.candidates, ONBOARDING_GROUP);
-    const recruitKeys = groupSelectionKeys(catalogue.candidates, "recruits");
+    const recruitKeys = groupSelectionKeys(catalogue.candidates, "recruits:all");
     expect(onboardingKeys).toContain(selectionKey("player", member.membershipId));
     expect(recruitKeys).toContain(selectionKey("recruit", member.personId));
 

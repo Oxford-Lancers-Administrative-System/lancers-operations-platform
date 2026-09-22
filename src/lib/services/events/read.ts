@@ -73,10 +73,12 @@ function participationJoins(scope: string): string {
                 -- so the page can say "confirmed at approval" without it
                 -- quietly becoming untrue the first time somebody joins late.
                 -- Both doors are covered: the group rule stamps
-                -- added_by_group, and an operator's hand-add is an
-                -- added_by_person_id recorded after the event was approved.
+                -- added_by_group_category (LAN-414: set for every rule add,
+                -- whatever category the group belongs to), and an operator's
+                -- hand-add is an added_by_person_id recorded after the event
+                -- was approved.
                 count(*) filter (
-                  where p.added_by_group is not null
+                  where p.added_by_group_category is not null
                      or (e2.approved_at is not null and p.added_at > e2.approved_at)
                 ) as audience_added_since_approval
            from public.event_audience_members p

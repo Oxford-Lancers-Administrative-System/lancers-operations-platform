@@ -11,16 +11,17 @@ import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import { Field, SelectField, CheckField } from "@/components/field";
 import Typography from "@mui/material/Typography";
+import { ControlledSection } from "@/components/controlled-section";
 import {
+  audienceCategoriesForEventType,
+  audienceOptionsForEventType,
   audiencePeople,
-  groupsForEventType,
   groupIsSelected,
   groupSize,
   toggleGroup,
   resolveSelection,
   type AudienceCandidate,
   type AudienceCapacity,
-  type AudienceGroupKey,
   type AudiencePerson,
 } from "@/lib/services/audience-selection";
 import { saveEventAudienceAction } from "../actions";
@@ -46,9 +47,9 @@ export interface AudienceBuilderProps {
   candidates: AudienceCandidate[];
   counts: Record<AudienceCapacity, number>;
   initialKeys: string[];
-  /** LAN-392: the group buttons this audience was last saved with. */
+  /** LAN-392: the group pills this audience was last saved with. */
   initialGroups: string[];
-  templateGroups: AudienceGroupKey[];
+  templateGroups: string[];
 }
 
 const UNITS = ["Both", "Offence", "Defence", "Special teams"] as const;
@@ -63,10 +64,18 @@ export function AudienceBuilder({
   initialGroups,
   templateGroups,
 }: AudienceBuilderProps) {
-  const groups = groupsForEventType(eventType);
-  const templateGroupLabels = groups
-    .filter((group) => templateGroups.includes(group.key))
-    .map((group) => group.label);
+  // LAN-414 — the catalogue by category, one read shared with the template
+  // editor, the approval review and the event's own audience panel.
+  const categories = audienceCategoriesForEventType(eventType);
+  const templateGroupLabels = audienceOptionsForEventType(eventType)
+    .filter((option) => templateGroups.includes(option.token))
+    .map((option) => option.label);
+  // General arrives open, the rest folded: the four baseline groups are the
+  // common case and the assignment categories are twenty-odd pills between the
+  // operator and the name list, at 375 px most of all.
+  const [openCategories, setOpenCategories] = useState<ReadonlySet<string>>(
+    () => new Set(["general"]),
+  );
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(initialKeys));
   // LAN-392. Which group buttons were *pressed*, remembered rather than
   // inferred. The lit state below is still inference — "is everybody this group
@@ -160,37 +169,69 @@ export function AudienceBuilder({
           <Typography variant="overline" color="text.secondary" component="p">
             Add a group
           </Typography>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            {groups.map((group) => {
-              const size = groupSize(candidates, group.key);
-              const on = groupIsSelected(candidates, group.key, selected);
+          <Stack spacing={1} data-testid="audience-categories">
+            {categories.map((section) => {
+              const open = openCategories.has(section.category);
+              const chosen = section.options.filter((option) =>
+                groupIsSelected(candidates, option.token, selected),
+              ).length;
               return (
-                <Button
-                  key={group.key}
-                  variant={on ? "contained" : "outlined"}
-                  size="small"
-                  disabled={size === 0}
-                  aria-pressed={on}
-                  onClick={() => pressGroup(group.key)}
-                  sx={{ minHeight: 40 }}
+                <ControlledSection
+                  key={section.category}
+                  title={section.label}
+                  count={chosen}
+                  open={open}
+                  onToggle={() =>
+                    setOpenCategories((current) => {
+                      const next = new Set(current);
+                      if (next.has(section.category)) next.delete(section.category);
+                      else next.add(section.category);
+                      return next;
+                    })
+                  }
+                  panelId={`audience-category-${section.category}`}
+                  toggleTestId={`audience-category-toggle-${section.category}`}
+                  countTestId={`audience-category-count-${section.category}`}
                 >
-                  {`${group.label} (${size})`}
-                </Button>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+                    {section.options.map((option) => {
+                      const size = groupSize(candidates, option.token);
+                      const on = groupIsSelected(candidates, option.token, selected);
+                      return (
+                        <Button
+                          key={option.token}
+                          variant={on ? "contained" : "outlined"}
+                          size="small"
+                          disabled={size === 0}
+                          aria-pressed={on}
+                          onClick={() => pressGroup(option.token)}
+                          data-testid="audience-group-pill"
+                          data-group={option.token}
+                          sx={{ minHeight: 40 }}
+                        >
+                          {`${option.label} (${size})`}
+                        </Button>
+                      );
+                    })}
+                  </Stack>
+                </ControlledSection>
               );
             })}
-            <Button
-              variant="text"
-              size="small"
-              color="error"
-              disabled={selected.size === 0}
-              onClick={() => {
-                setSelected(new Set());
-                setPressedGroups(new Set());
-              }}
-              sx={{ minHeight: 40 }}
-            >
-              Clear selection
-            </Button>
+            <Box>
+              <Button
+                variant="text"
+                size="small"
+                color="error"
+                disabled={selected.size === 0}
+                onClick={() => {
+                  setSelected(new Set());
+                  setPressedGroups(new Set());
+                }}
+                sx={{ minHeight: 40 }}
+              >
+                Clear selection
+              </Button>
+            </Box>
           </Stack>
         </Box>
 

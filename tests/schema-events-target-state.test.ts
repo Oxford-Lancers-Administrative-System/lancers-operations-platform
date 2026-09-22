@@ -198,7 +198,14 @@ describe("event-type templates — D40, D41, D42, D47", () => {
     );
   });
 
-  it("takes a default audience as groups, and keeps recruits to Recruitment (D46)", async () => {
+  /**
+   * LAN-414 and LAN-416. A default audience is stored as a category and either
+   * a General group or a roster value, and the guard that kept recruits to
+   * Recruitment is gone — a recruit pill is offered on every template now.
+   * What the table still refuses is a row that is neither one thing nor the
+   * other, which is the invariant `..._representation` exists for.
+   */
+  it("takes a default audience as a category and exactly one of a group or a value", async () => {
     const templateOf = (eventType: string) =>
       `select tpl.id, tpl.event_type from public.event_templates tpl
         where tpl.event_type = '${eventType}' order by lower(tpl.name) limit 1`;
@@ -207,17 +214,41 @@ describe("event-type templates — D40, D41, D42, D47", () => {
       `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
        select tpl.id, tpl.event_type, 'active_players' from (${templateOf("practice")}) tpl`,
     );
+    // LAN-416: a recruit sub-group on a social template, which the old
+    // `..._recruits_are_recruitment_only` check refused outright.
     await expectAccepted(
       client,
-      `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
-       select tpl.id, tpl.event_type, 'recruits' from (${templateOf("recruitment")}) tpl`,
+      `insert into public.event_template_audience_groups
+         (template_id, event_type, category, value)
+       select tpl.id, tpl.event_type, 'recruits', 'engaged' from (${templateOf("social")}) tpl`,
     );
+    // LAN-414: a roster sub-group, stored as the roster's own word.
+    await expectAccepted(
+      client,
+      `insert into public.event_template_audience_groups
+         (template_id, event_type, category, value)
+       select tpl.id, tpl.event_type, 'special_teams', 'kick_return'
+         from (${templateOf("practice")}) tpl`,
+    );
+    // Neither one thing nor the other: a category that needs a value, without one.
     await expectRejected(
       client,
-      `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
-       select tpl.id, tpl.event_type, 'recruits' from (${templateOf("social")}) tpl`,
+      `insert into public.event_template_audience_groups
+         (template_id, event_type, category, audience_group)
+       select tpl.id, tpl.event_type, 'coaching', 'active_players'
+         from (${templateOf("game")}) tpl`,
       [],
-      "event_template_audience_groups_recruits_are_recruitment_only",
+      "event_template_audience_groups_representation",
+    );
+    // The retired General value, refused as a General group from LAN-416 on.
+    await expectRejected(
+      client,
+      `insert into public.event_template_audience_groups
+         (template_id, event_type, category, audience_group)
+       select tpl.id, tpl.event_type, 'general', 'recruits'
+         from (${templateOf("meeting")}) tpl`,
+      [],
+      "event_template_audience_groups_representation",
     );
   });
 

@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { Refusal } from "@/components/refusal";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
-import { templateGroupsForEventType } from "@/lib/services/audience-selection";
+import { audienceCategoriesForEventType } from "@/lib/services/audience-selection";
 import { joinQuestionChoices } from "@/lib/services/event-questions";
 import {
   countEventsFromTemplate,
@@ -80,7 +80,7 @@ export default async function EventTemplatePage({
         eventTypeLabel={template.name}
         initial={initial}
         initialQuestions={initialQuestions}
-        groups={templateGroupsForEventType(template.eventType)}
+        categories={audienceCategoriesForEventType(template.eventType, { templateOnly: true })}
         eventCount={eventCount}
       />
     </Stack>

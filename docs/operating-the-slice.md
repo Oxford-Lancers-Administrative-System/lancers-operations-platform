@@ -232,9 +232,41 @@ proposer.
 template that supplied the default audience — "The Practice template invites all
 active players. Check it, change it, or add people by hand" — or says "Choose who
 this event is for" where the template names no groups (D47, reversing LAN-77's
-"nothing is selected to begin with"). Group shortcuts offer Everyone active, All
-active players, All active coaches and All active committee, with their counts;
-a Recruits group appears on a Recruitment event alone (D46).
+"nothing is selected to begin with").
+
+**The groups are offered under five collapsible category headers** (LAN-414,
+State of the App call, 2026-09-22), in this order, in the roster board's own
+band idiom. **General** arrives open; the other four arrive folded, and each
+header carries the number of its pills that are currently lit.
+
+| Category             | What it offers                                                                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| General              | Everyone active, All active players, All active coaches, All active committee, Onboarding, All Active BPS                                                 |
+| Coaching assignments | One pill per value of the coaching group, offensive position group and defensive position group columns — Offense, Quarterbacks, Linebackers and the rest |
+| Warmup assignments   | One pill per warmup small group — Kings, Raider, Bear, Phoenix, Cavalier, Blue, Gold, Lancer                                                              |
+| Special teams        | One pill per squad — Kick Return, Kickoff, Punt, Punt Return, Field Goal, Field Goal Block                                                                |
+| Recruits             | All active recruits, Identified, Engaged, Committed                                                                                                       |
+
+Every pill says how many **people** it would invite, and a pill that would
+invite nobody cannot be pressed. A coaching or warmup pill resolves to everyone
+whose current-season roster row holds that value; a squad pill resolves to
+everyone holding **any** slot in that squad, starter or any backup (Stewart:
+"If you have an assignment in kick return, you need to get a message… even if
+they're backup three"). The same five categories are what the template editor
+offers for a default audience, what the approval review names, and what the
+event's own audience panel reads.
+
+**Recruits are offered on every event type** (LAN-416, Brian, Stewart and
+Clint, 2026-09-22), amending D46/LAN-295's "a Recruits group appears on a
+Recruitment event alone". Between the pure recruiting events and the first team
+practices there is a run of mixed events a good recruit who is not yet Joined
+had no way onto. Clint: "the type of an event pertains to what's actually going
+to happen at the event, not who's invited." A recruit is reachable **only**
+through the four Recruits pills — no General group and no assignment sub-group
+ever includes one, so pressing Everyone active on a Training event adds no
+recruits at all. Declined, disengaged, voided and joined recruits are never
+offered and never resolve; somebody who has Joined is a player and arrives
+through the player groups.
 
 **Everyone active and All active players include people mid-onboarding**
 (LAN-415, Brian and Stewart, 2026-09-22). This reverses LAN-388's "Onboarding is
@@ -255,10 +287,19 @@ under that event's own rules.
 
 The list is **people, one row each** (LAN-294): somebody who plays and also
 coaches or sits on the committee appears once, with every role on the row's
-second line, and the tick takes them in or out as a whole. On anything that is
-not a Recruitment event, a recruit is not merely hidden — they are not offered
-at all (LAN-295), so there is no recruit row and no Recruits entry in the
-Capacity filter.
+second line, and the tick takes them in or out as a whole. Open recruits are in
+the list on every event type since LAN-416, with a Recruits entry in the
+Capacity filter wherever there is one to show.
+
+**Which chase a recruit gets is the event's decision, not theirs** (LAN-416).
+On a Recruitment event they keep the gentle cadence — one invitation and at
+most one follow-up, never an escalation (REQ-two-ladders, REQ-never-harsh). On
+any other event type there is no gentle cadence configured, so a recruit is
+invited and chased exactly as a player is for that type. Brian: "only
+recruitment events get that special status. Every other, I don't have to
+change." The consent gate is untouched and applies to every recruit send on
+every type: without a granted season consent the row and the invitation are
+written and the message is withheld.
 
 2. Search for `Runbook`, tick **Runbook Walker**, press **Review 1 selected**.
 

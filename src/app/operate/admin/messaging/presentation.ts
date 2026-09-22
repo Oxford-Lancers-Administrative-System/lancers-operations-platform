@@ -57,7 +57,16 @@ export function cycleStepSaveFailedNotice(label: string): string {
 }
 
 export const REGULAR_PLAYERS_GROUP_HEADING = "Regular players";
-export const RECRUITS_GROUP_HEADING = "Recruits";
+
+/**
+ * LAN-416. The gentle recruit cadence belongs to the *event*, not to the
+ * recruit: a recruit can be invited to any event type now, and on anything but
+ * a recruitment event they are invited and chased on the ladder above, exactly
+ * as a player is. The heading says which events these fields govern, because
+ * "Recruits" on a Social row would now read as a promise this page does not
+ * keep. A qualified label, not a sentence — the page explains nothing.
+ */
+export const RECRUITS_GROUP_HEADING = "Recruits on a recruitment event";
 
 /** One save button per event type — OWNER-LAN171-04, Brian. */
 export function saveRowButtonLabel(label: string): string {

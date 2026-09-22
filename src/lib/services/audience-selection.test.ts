@@ -25,6 +25,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   AUDIENCE_GROUPS,
+  audienceCategoriesForEventType,
+  audienceOptionsForEventType,
   audiencePeople,
   groupIsSelected,
   groupSelectionKeys,
@@ -54,6 +56,21 @@ function candidate(
     standing: capacity === "player" ? "Active" : "Seat",
     unit: null,
     contact: null,
+  };
+}
+
+/** LAN-416: one open (or closed) recruit, as `listAudienceCatalogueIn` shapes one. */
+function recruit(personId: string, displayName: string, status: string): AudienceCandidate {
+  return {
+    key: selectionKey("recruit", personId),
+    capacity: "recruit",
+    anchorId: personId,
+    personId,
+    displayName,
+    standing: status,
+    unit: null,
+    contact: null,
+    recruitStatus: status,
   };
 }
 
@@ -227,7 +244,7 @@ describe("resolution is unaffected by how a person was selected", () => {
 // LAN-154 — the recruits group (D46), and the audience read as a shape
 // ---------------------------------------------------------------------------
 
-describe("a recruits group, on the Recruitment type alone (D46)", () => {
+describe("a Recruits category, on every event type (LAN-416, amending D46)", () => {
   const OTHER_TYPES = [
     "practice",
     "strength_and_conditioning",
@@ -237,8 +254,8 @@ describe("a recruits group, on the Recruitment type alone (D46)", () => {
     "meeting",
   ];
 
-  it("is not offered on any other kind of event", () => {
-    for (const type of OTHER_TYPES) {
+  it("leaves the General list the same six groups on every type", () => {
+    for (const type of [...OTHER_TYPES, "recruitment"]) {
       expect(groupsForEventType(type).map((group) => group.key)).toEqual([
         EVERYONE,
         PLAYERS,
@@ -250,16 +267,25 @@ describe("a recruits group, on the Recruitment type alone (D46)", () => {
     }
   });
 
-  it("is offered on a recruitment event, after the four standing groups and BPS", () => {
-    expect(groupsForEventType("recruitment").map((group) => group.key)).toEqual([
-      EVERYONE,
-      PLAYERS,
-      COACHES,
-      COMMITTEE,
-      "onboarding",
-      "recruits",
-      "bps",
-    ]);
+  it("offers the four recruit pills on every event type, Recruitment included", () => {
+    for (const type of [...OTHER_TYPES, "recruitment"]) {
+      const recruits = audienceCategoriesForEventType(type).find(
+        (section) => section.category === "recruits",
+      );
+      expect(recruits?.label).toBe("Recruits");
+      expect(recruits?.options.map((option) => option.token)).toEqual([
+        "recruits:all",
+        "recruits:identified",
+        "recruits:engaged",
+        "recruits:committed",
+      ]);
+      expect(recruits?.options.map((option) => option.label)).toEqual([
+        "All active recruits",
+        "Identified",
+        "Engaged",
+        "Committed",
+      ]);
+    }
   });
 
   it("does not fold recruits into everyone-active", () => {
@@ -560,31 +586,77 @@ describe("the catalogue as people — audiencePeople", () => {
 });
 
 /**
- * LAN-295 — recruits belong to a recruitment event and nowhere else.
+ * LAN-416, amending D46 / LAN-295 — a recruit can be invited to any event type,
+ * by explicit pick, and by no other route.
  *
- * The group-vocabulary half of D46. The other half — keeping recruits out of the
- * catalogue entirely, so they are not individually tickable and cannot be
- * invited — is `listAudienceCatalogueIn`, proved against the database in
+ * LAN-295 said the opposite: the `recruits` group carried
+ * `eventTypes: [recruitment]`, and the catalogue withheld recruits entirely off
+ * a Recruitment event. Stewart's problem was the run of mixed events between
+ * pure recruiting and the first team practice, which a good recruit who is not
+ * yet Joined had no way onto; Brian's rule, accepted by Stewart and Clint on
+ * 2026-09-22, is that a recruit can be invited anywhere and "the only way you
+ * can add a recruit is by going to a special recruitment column and adding
+ * them."
+ *
+ * These tests are LAN-295's own, rewritten to that decision. The catalogue half
+ * — that a recruit now reaches every event type's candidate list — is
+ * `listAudienceCatalogueIn`, proved against the database in
  * `event-approval.test.ts`.
  */
-describe("the recruits group is Recruitment's alone", () => {
+describe("recruits are reachable only through the Recruits pills", () => {
+  const RECRUIT = recruit("person-prospect", "Wren Alderby", "engaged");
+  const WITH_RECRUIT = [...CLUB, RECRUIT];
+
   it("names the behavioural class rather than a template name", () => {
     // After LAN-265 an operator names templates freely and everything they
-    // create is `practice` class, so a rule keyed on a name would be one rename
-    // away from inviting six prospects to a Wednesday practice.
+    // create is `practice` class, so any rule keyed on a name would be one
+    // rename away from meaning something else. The cadence rule LAN-416 keeps
+    // (only a Recruitment event is gentle) is keyed on this constant.
     expect(RECRUITMENT_EVENT_TYPE).toBe("recruitment");
-    const recruits = AUDIENCE_GROUPS.find((group) => group.key === "recruits");
-    expect(recruits?.eventTypes).toEqual([RECRUITMENT_EVENT_TYPE]);
   });
 
-  it("is withheld on every other class and offered on that one", () => {
-    for (const type of ["practice", "game", "chalk", "social", "meeting"]) {
-      expect(groupsForEventType(type).map((group) => group.key)).not.toContain("recruits");
+  it("retires the General recruits group rather than widening it", () => {
+    // The enum value survives — values cannot be dropped and rows held it — but
+    // nothing offers it, so no General pill can reach a recruit.
+    expect(AUDIENCE_GROUPS.map((group) => group.key)).not.toContain("recruits");
+    for (const group of AUDIENCE_GROUPS) {
+      expect(group.capacities).not.toContain("recruit");
     }
-    expect(groupsForEventType(RECRUITMENT_EVENT_TYPE).map((group) => group.key)).toContain(
-      "recruits",
-    );
   });
+
+  it("adds nobody from the recruit list to any General group, on any type", () => {
+    for (const type of ["practice", "game", "chalk", "social", "meeting", "recruitment"]) {
+      for (const group of groupsForEventType(type)) {
+        expect(groupSelectionKeys(WITH_RECRUIT, group.key)).not.toContain(RECRUIT.key);
+      }
+    }
+  });
+
+  it("resolves an engaged recruit through the engaged pill and the all pill", () => {
+    expect(groupSelectionKeys(WITH_RECRUIT, "recruits:engaged")).toEqual([RECRUIT.key]);
+    expect(groupSelectionKeys(WITH_RECRUIT, "recruits:all")).toEqual([RECRUIT.key]);
+    expect(groupSelectionKeys(WITH_RECRUIT, "recruits:identified")).toEqual([]);
+    expect(groupSelectionKeys(WITH_RECRUIT, "recruits:committed")).toEqual([]);
+  });
+
+  // "Declined, disengaged, voided and joined never resolve into any recruit
+  // pill, with a test per status" — LAN-416's own acceptance. A joined person
+  // is a player and reaches the event through the player groups; the other
+  // three never reach the catalogue at all, and this is the belt to that
+  // brace: even handed one, no pill takes it.
+  for (const status of ["declined", "disengaged", "void", "joined"]) {
+    it(`never resolves a ${status} recruit, through any pill`, () => {
+      const closed = [...CLUB, recruit("person-closed", "Quill Danesford", status)];
+      for (const token of [
+        "recruits:all",
+        "recruits:identified",
+        "recruits:engaged",
+        "recruits:committed",
+      ]) {
+        expect(groupSelectionKeys(closed, token)).toEqual([]);
+      }
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -753,5 +825,188 @@ describe("Onboarding is its own audience group", () => {
     expect(groupIsSelected(MID_SEASON, ONBOARDING, lit)).toBe(true);
     expect(groupIsSelected(MID_SEASON, PLAYERS, lit)).toBe(false);
     expect(toggleGroup(MID_SEASON, ONBOARDING, lit).size).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-414 — audiences by category
+// ---------------------------------------------------------------------------
+
+/**
+ * State of the App call, 2026-09-22. Stewart defined the club's audiences from
+ * the roster board and Clint confirmed the names: the assignment columns the
+ * roster already keeps become audiences an event can be built from, under
+ * category headers, beside the baseline groups.
+ *
+ * These are the pure half — which pill resolves to whom. The database half,
+ * which is that `listAudienceCatalogueIn` carries each candidate's assignments
+ * on the row, is proved in `event-approval.test.ts`.
+ */
+describe("audiences by category (LAN-414)", () => {
+  function assigned(
+    anchorId: string,
+    personId: string,
+    displayName: string,
+    assignments: Partial<AudienceCandidate>,
+  ): AudienceCandidate {
+    return { ...candidate("player", anchorId, personId, displayName), ...assignments };
+  }
+
+  const QB = assigned("membership-quinn", "person-quinn", "Quinn Ashdown", {
+    coachingValues: ["Offense", "Quarterbacks"],
+    warmupGroup: "Kings",
+    specialTeamsSquads: ["field_goal"],
+  });
+  const LB = assigned("membership-larke", "person-larke", "Larke Ombersley", {
+    coachingValues: ["Defense", "Linebackers"],
+    warmupGroup: "Raider",
+    specialTeamsSquads: ["kick_return", "kickoff"],
+  });
+  const UNASSIGNED = assigned("membership-nyle", "person-nyle", "Nyle Ferrers", {});
+  const SQUAD = [QB, LB, UNASSIGNED];
+
+  it("shows the five categories in the call's own order, and labels them", () => {
+    expect(audienceCategoriesForEventType("practice").map((section) => section.category)).toEqual([
+      "general",
+      "coaching",
+      "warmup",
+      "special_teams",
+      "recruits",
+    ]);
+    expect(audienceCategoriesForEventType("practice").map((section) => section.label)).toEqual([
+      "General",
+      "Coaching assignments",
+      "Warmup assignments",
+      "Special teams",
+      "Recruits",
+    ]);
+  });
+
+  it("puts the six baseline groups, and only those, under General", () => {
+    const general = audienceCategoriesForEventType("practice")[0];
+    expect(general.options.map((option) => option.token)).toEqual([
+      EVERYONE,
+      PLAYERS,
+      COACHES,
+      COMMITTEE,
+      "onboarding",
+      "bps",
+    ]);
+    // A General token is the bare enum key, unchanged — so every stored row,
+    // every template default and every existing test still means what it meant.
+    for (const option of general.options) {
+      expect(option.audienceGroup).toBe(option.token);
+      expect(option.value).toBeNull();
+    }
+  });
+
+  it("offers one sub-group per value of the three Coaching Assignments columns", () => {
+    const coaching = audienceCategoriesForEventType("practice")[1];
+    expect(coaching.options.map((option) => option.label)).toEqual([
+      "Offense",
+      "Defense",
+      "Special Teams",
+      "Offensive Line",
+      "Quarterbacks",
+      "Runningbacks",
+      "Wide Receivers",
+      "Defensive Line",
+      "Linebackers",
+      "Defensive Backs",
+    ]);
+    expect(coaching.options[4].token).toBe("coaching:Quarterbacks");
+    expect(coaching.options[4].value).toBe("Quarterbacks");
+    expect(coaching.options[4].audienceGroup).toBeNull();
+  });
+
+  it("offers one sub-group per warmup small group, in Stewart's order", () => {
+    const warmup = audienceCategoriesForEventType("practice")[2];
+    expect(warmup.options.map((option) => option.label)).toEqual([
+      "Kings",
+      "Raider",
+      "Bear",
+      "Phoenix",
+      "Cavalier",
+      "Blue",
+      "Gold",
+      "Lancer",
+    ]);
+  });
+
+  it("offers one sub-group per special-teams squad, and no slot of its own", () => {
+    const squads = audienceCategoriesForEventType("practice")[3];
+    expect(squads.options.map((option) => option.token)).toEqual([
+      "special_teams:kick_return",
+      "special_teams:kickoff",
+      "special_teams:punt",
+      "special_teams:punt_return",
+      "special_teams:field_goal",
+      "special_teams:field_goal_block",
+    ]);
+    expect(squads.options[0].label).toBe("Kick Return");
+  });
+
+  it("resolves a coaching value to everybody holding it this season", () => {
+    expect(groupSelectionKeys(SQUAD, "coaching:Offense")).toEqual([QB.key]);
+    expect(groupSelectionKeys(SQUAD, "coaching:Quarterbacks")).toEqual([QB.key]);
+    expect(groupSelectionKeys(SQUAD, "coaching:Linebackers")).toEqual([LB.key]);
+    expect(groupSelectionKeys(SQUAD, "coaching:Wide Receivers")).toEqual([]);
+  });
+
+  it("resolves a warmup small group to the one cell that holds it", () => {
+    expect(groupSelectionKeys(SQUAD, "warmup:Kings")).toEqual([QB.key]);
+    expect(groupSelectionKeys(SQUAD, "warmup:Gold")).toEqual([]);
+  });
+
+  // Stewart: "If you have an assignment in kick return, you need to get a
+  // message… even if they're backup three."
+  it("resolves a squad to everybody holding any slot in it, starter or backup", () => {
+    expect(groupSelectionKeys(SQUAD, "special_teams:kick_return")).toEqual([LB.key]);
+    expect(groupSelectionKeys(SQUAD, "special_teams:kickoff")).toEqual([LB.key]);
+    expect(groupSelectionKeys(SQUAD, "special_teams:field_goal")).toEqual([QB.key]);
+    expect(groupSelectionKeys(SQUAD, "special_teams:punt")).toEqual([]);
+  });
+
+  it("never reaches a recruit through an assignment sub-group", () => {
+    // LAN-416's other half. An assignment hangs off a season membership, so a
+    // recruit carries none — but the rule is stated, not inferred, because a
+    // recruit reaching a practice through "Offense" would be exactly the
+    // accident Brian's rule exists to prevent.
+    const withRecruit = [...SQUAD, recruit("person-wren", "Wren Alderby", "engaged")];
+    for (const option of audienceOptionsForEventType("practice")) {
+      if (option.category === "recruits") continue;
+      expect(groupSelectionKeys(withRecruit, option.token)).not.toContain(
+        selectionKey("recruit", "person-wren"),
+      );
+    }
+  });
+
+  it("answers an unknown or malformed token with nobody, never with everybody", () => {
+    for (const token of ["", ":", "coaching:", "nonsense", "nonsense:Kings", "general:bps"]) {
+      expect(groupSelectionKeys(SQUAD, token)).toEqual([]);
+    }
+  });
+
+  it("names a chosen sub-group in the audience summary", () => {
+    // Widest first, as the summary has always worked: Quinn holds Offense and
+    // Quarterbacks, and on this squad both resolve to exactly Quinn, so the
+    // first of them in the catalogue's own order is the one named.
+    const summary = summariseAudienceGroups(
+      SQUAD,
+      groupSelectionKeys(SQUAD, "coaching:Quarterbacks"),
+      "practice",
+    );
+    expect(summary.groups).toEqual(["Offense"]);
+    expect(summary.others).toBe(0);
+    expect(summary.total).toBe(1);
+
+    // A squad nobody else is in names itself, because nothing wider covers it.
+    const squad = summariseAudienceGroups(
+      SQUAD,
+      groupSelectionKeys(SQUAD, "special_teams:kick_return"),
+      "practice",
+    );
+    expect(squad.groups).toEqual(["Defense"]);
+    expect(squad.total).toBe(1);
   });
 });

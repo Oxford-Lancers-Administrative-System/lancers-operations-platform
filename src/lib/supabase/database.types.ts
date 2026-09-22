@@ -943,28 +943,34 @@ export type Database = {
       }
       event_audience_groups: {
         Row: {
-          audience_group: Database["public"]["Enums"]["audience_group"]
+          audience_group: Database["public"]["Enums"]["audience_group"] | null
+          category: Database["public"]["Enums"]["audience_group_category"]
           chosen_at: string
           chosen_by_person_id: string | null
           event_id: string
           event_type: Database["public"]["Enums"]["event_type"]
           id: string
+          value: string | null
         }
         Insert: {
-          audience_group: Database["public"]["Enums"]["audience_group"]
+          audience_group?: Database["public"]["Enums"]["audience_group"] | null
+          category?: Database["public"]["Enums"]["audience_group_category"]
           chosen_at?: string
           chosen_by_person_id?: string | null
           event_id: string
           event_type: Database["public"]["Enums"]["event_type"]
           id?: string
+          value?: string | null
         }
         Update: {
-          audience_group?: Database["public"]["Enums"]["audience_group"]
+          audience_group?: Database["public"]["Enums"]["audience_group"] | null
+          category?: Database["public"]["Enums"]["audience_group_category"]
           chosen_at?: string
           chosen_by_person_id?: string | null
           event_id?: string
           event_type?: Database["public"]["Enums"]["event_type"]
           id?: string
+          value?: string | null
         }
         Relationships: [
           {
@@ -994,6 +1000,10 @@ export type Database = {
         Row: {
           added_at: string
           added_by_group: Database["public"]["Enums"]["audience_group"] | null
+          added_by_group_category:
+            | Database["public"]["Enums"]["audience_group_category"]
+            | null
+          added_by_group_value: string | null
           added_by_person_id: string | null
           capacity: Database["public"]["Enums"]["invitation_capacity"]
           event_id: string
@@ -1007,6 +1017,10 @@ export type Database = {
         Insert: {
           added_at?: string
           added_by_group?: Database["public"]["Enums"]["audience_group"] | null
+          added_by_group_category?:
+            | Database["public"]["Enums"]["audience_group_category"]
+            | null
+          added_by_group_value?: string | null
           added_by_person_id?: string | null
           capacity: Database["public"]["Enums"]["invitation_capacity"]
           event_id: string
@@ -1020,6 +1034,10 @@ export type Database = {
         Update: {
           added_at?: string
           added_by_group?: Database["public"]["Enums"]["audience_group"] | null
+          added_by_group_category?:
+            | Database["public"]["Enums"]["audience_group_category"]
+            | null
+          added_by_group_value?: string | null
           added_by_person_id?: string | null
           capacity?: Database["public"]["Enums"]["invitation_capacity"]
           event_id?: string
@@ -1327,19 +1345,28 @@ export type Database = {
       }
       event_template_audience_groups: {
         Row: {
-          audience_group: Database["public"]["Enums"]["audience_group"]
+          audience_group: Database["public"]["Enums"]["audience_group"] | null
+          category: Database["public"]["Enums"]["audience_group_category"]
           event_type: Database["public"]["Enums"]["event_type"]
+          id: string
           template_id: string
+          value: string | null
         }
         Insert: {
-          audience_group: Database["public"]["Enums"]["audience_group"]
+          audience_group?: Database["public"]["Enums"]["audience_group"] | null
+          category?: Database["public"]["Enums"]["audience_group_category"]
           event_type: Database["public"]["Enums"]["event_type"]
+          id?: string
           template_id: string
+          value?: string | null
         }
         Update: {
-          audience_group?: Database["public"]["Enums"]["audience_group"]
+          audience_group?: Database["public"]["Enums"]["audience_group"] | null
+          category?: Database["public"]["Enums"]["audience_group_category"]
           event_type?: Database["public"]["Enums"]["event_type"]
+          id?: string
           template_id?: string
+          value?: string | null
         }
         Relationships: [
           {
@@ -5602,6 +5629,12 @@ export type Database = {
         | "recruits"
         | "bps"
         | "onboarding"
+      audience_group_category:
+        | "general"
+        | "coaching"
+        | "warmup"
+        | "special_teams"
+        | "recruits"
       availability_level: "green" | "orange" | "red"
       competition_scope: "club_play" | "bucs" | "varsity" | "bafa"
       contact_point_kind: "email" | "phone"
@@ -5899,6 +5932,13 @@ export const Constants = {
         "recruits",
         "bps",
         "onboarding",
+      ],
+      audience_group_category: [
+        "general",
+        "coaching",
+        "warmup",
+        "special_teams",
+        "recruits",
       ],
       availability_level: ["green", "orange", "red"],
       competition_scope: ["club_play", "bucs", "varsity", "bafa"],

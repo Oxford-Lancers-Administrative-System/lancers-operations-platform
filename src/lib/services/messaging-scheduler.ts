@@ -203,6 +203,17 @@ export async function scheduleEventLadderIn(
 ): Promise<{ invitations: number; reminders: number }> {
   const invitationRung = plan.rungs.find((rung) => rung.kind === "invitation");
 
+  // LAN-416, the cadence half. The gentle ladder belongs to the *event*, not to
+  // the recruit: a recruit can now be invited to any event type, and Brian's
+  // rule is "on recruitment events I see being gentle, but if we're in regular
+  // practice and you're just late to the party, whatever… only recruitment
+  // events get that special status." `plan.recruitLadder` is exactly that fact
+  // — it is non-null only where the event type's own `messaging_schedules` row
+  // configures a recruit cadence — so where it is null every statement below
+  // treats a recruit as the event's ordinary invitee, and where it is non-null
+  // the two ladders stay split as REQ-two-ladders has always had them.
+  const gentleRecruits = plan.recruitLadder !== null;
+
   // The anchor. `max(now, event start − lead)`, already resolved by the plan.
   // Until this existed, an invitation job carried no `scheduled_for` at all and
   // approval dispatched it immediately whatever the event's lead said.
@@ -233,13 +244,13 @@ export async function scheduleEventLadderIn(
   // five-an-hour queue. Re-anchoring them to `plan.invitationAt` discarded
   // both, so a reschedule during somebody's grace window sent the message
   // immediately, and a sixth auto-add queued an hour out jumped to the front.
-  // `greatest` is scoped to `added_by_group is not null`: everybody the
+  // `greatest` is scoped to `added_by_group_category is not null`: everybody the
   // approver confirmed still moves to the plan's instant in both directions,
   // which is what a reschedule is for.
   const anchoredPlayers = await tx.query(
     `update public.notification_jobs j
         set scheduled_for = case
-              when a.added_by_group is not null and j.scheduled_for is not null
+              when a.added_by_group_category is not null and j.scheduled_for is not null
                 then greatest(j.scheduled_for, $2::timestamptz)
               else $2::timestamptz
             end,
@@ -249,8 +260,8 @@ export async function scheduleEventLadderIn(
        left join public.event_audience_members a on a.id = i.audience_member_id
       where j.invitation_id = i.id
         and j.event_id = $1 and j.job_type = 'invitation' and j.status in ('pending', 'ready')
-        and i.capacity <> 'recruit'`,
-    [eventId, invitationRung?.at ?? plan.invitationAt],
+        and (i.capacity <> 'recruit' or not $3::boolean)`,
+    [eventId, invitationRung?.at ?? plan.invitationAt, gentleRecruits],
   );
 
   let anchoredRecruits = 0;
@@ -258,7 +269,7 @@ export async function scheduleEventLadderIn(
     const result = await tx.query(
       `update public.notification_jobs j
           set scheduled_for = case
-                when a.added_by_group is not null and j.scheduled_for is not null
+                when a.added_by_group_category is not null and j.scheduled_for is not null
                   then greatest(j.scheduled_for, $2::timestamptz)
                 else $2::timestamptz
               end,
@@ -298,9 +309,9 @@ export async function scheduleEventLadderIn(
          from public.invitations i
          left join public.season_memberships m on m.id = i.season_membership_id
         where i.event_id = $1
-          and i.capacity <> 'recruit'
+          and (i.capacity <> 'recruit' or not $5::boolean)
        on conflict (idempotency_key) do nothing`,
-      [eventId, rung.rung, rung.channel, rung.at],
+      [eventId, rung.rung, rung.channel, rung.at, gentleRecruits],
     );
 
     reminders += created.rowCount ?? 0;
@@ -504,6 +515,16 @@ async function raiseDueEscalations(): Promise<{
       // what keeps the chase queue an operator sees and the escalation the
       // President receives counting the same people.
       // `and q.capacity <> 'recruit'` — REQ-two-ladders, REQ-never-harsh.
+      // LAN-416 narrows that to the events it was ever about. A recruit can be
+      // invited to any event type now, and on a non-Recruitment event they are
+      // "invited and chased exactly as a player is for that type" (the issue's
+      // own words): they ride the player ladder above, so leaving them out of
+      // the escalation would mean the President's count of who has not answered
+      // quietly disagreed with who was actually chased. The frozen plan's own
+      // `recruit_invitation_at` is the test, because it is null exactly where
+      // `scheduleEventLadderIn` gave this event no recruit ladder. On a
+      // Recruitment event nothing changes: REQ-never-harsh holds and a recruit
+      // still never escalates.
       // `nonresponse_queue` is capacity-agnostic by design (W5's chase queue
       // reads every unanswered invitee, recruits included, so an operator can
       // still see and follow up with one by hand); the President escalation
@@ -516,7 +537,12 @@ async function raiseDueEscalations(): Promise<{
         `insert into public.nonresponse_flags (invitation_id, threshold)
          select q.invitation_id, 'escalation'::public.nonresponse_threshold
            from public.nonresponse_queue q
-          where q.event_id = $1 and q.invitation_id is not null and q.capacity <> 'recruit'
+          where q.event_id = $1 and q.invitation_id is not null
+            and (q.capacity <> 'recruit'
+                 or not exists (select 1
+                                  from public.event_messaging_plans p
+                                 where p.event_id = q.event_id
+                                   and p.recruit_invitation_at is not null))
          on conflict (invitation_id, threshold) do nothing
          returning invitation_id`,
         [eventId],

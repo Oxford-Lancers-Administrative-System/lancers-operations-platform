@@ -320,7 +320,7 @@ const LATE_JOINER_INVITATION = `j.job_type = 'invitation'
                 select 1
                   from public.invitations i
                   join public.event_audience_members a on a.id = i.audience_member_id
-                 where i.id = j.invitation_id and a.added_by_group is not null)`;
+                 where i.id = j.invitation_id and a.added_by_group_category is not null)`;
 
 // W8, REQ-reschedule-recomputes, OD-1/Q6 (ADR 0021's deliberate answer): recomputes the response
 // deadline and everything counted from it, resolved asOf this amendment's own moment. Also the

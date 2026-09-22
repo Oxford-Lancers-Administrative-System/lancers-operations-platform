@@ -51,7 +51,7 @@ import {
   type EventTemplateSummary,
   type TemplateChangePlan,
 } from "@/lib/services/event-templates";
-import { groupsForEventType } from "@/lib/services/audience-selection";
+import { audienceCategoriesForEventType } from "@/lib/services/audience-selection";
 import { TEMPLATE_COLOUR_PALETTE } from "@/lib/services/event-template-input";
 import {
   createEventTemplateAction,
@@ -221,7 +221,7 @@ describe("W8-01 — the club's templates", () => {
         eventCount={eventCount}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
       />
     );
 
@@ -337,9 +337,11 @@ describe("W8-02 — one template", () => {
   // LAN-388 adds Onboarding to the same picker: the decision says a template
   // may pre-choose it like any other group, which is what the migration on
   // `public.audience_group` is for.
-  it("offers the four standing groups, Onboarding and BPS, and no recruits group", async () => {
+  it("opens on General: the four standing groups, Onboarding and BPS", async () => {
     render(await EventTemplatePage(typeProps()));
 
+    // LAN-414: the other four categories arrive folded, so only General's pills
+    // are rendered until one is opened.
     const groups = screen.getAllByTestId("template-audience-group");
     expect(groups.map((node) => node.getAttribute("data-group"))).toEqual([
       "everyone_active",
@@ -351,14 +353,46 @@ describe("W8-02 — one template", () => {
     ]);
   });
 
-  it("offers a recruits group on the recruitment template alone (D46)", async () => {
-    vi.mocked(readEventTemplate).mockResolvedValue(template({ eventType: "recruitment" }));
+  // LAN-414: the template editor offers the categories the event form offers,
+  // one catalogue read by both (docs/ux/standards.md rule 7).
+  it("offers the five categories, folded, and unfolds one on a press", async () => {
+    render(await EventTemplatePage(typeProps()));
 
-    render(await EventTemplatePage(typeProps("recruitment")));
+    expect(
+      screen
+        .getAllByTestId(/^template-audience-category-toggle-/)
+        .map((node) => node.getAttribute("data-testid")),
+    ).toEqual([
+      "template-audience-category-toggle-general",
+      "template-audience-category-toggle-coaching",
+      "template-audience-category-toggle-warmup",
+      "template-audience-category-toggle-special_teams",
+      "template-audience-category-toggle-recruits",
+    ]);
+
+    fireEvent.click(screen.getByTestId("template-audience-category-toggle-special_teams"));
+    expect(
+      screen.getAllByTestId("template-audience-group").map((n) => n.getAttribute("data-group")),
+    ).toContain("special_teams:kick_return");
+  });
+
+  // LAN-416, amending D46: a recruit can be pre-chosen on any template now, not
+  // the recruitment one alone.
+  it("offers the recruit pills on an ordinary template, not the recruitment one alone", async () => {
+    render(await EventTemplatePage(typeProps()));
+
+    fireEvent.click(screen.getByTestId("template-audience-category-toggle-recruits"));
 
     expect(
       screen.getAllByTestId("template-audience-group").map((n) => n.getAttribute("data-group")),
-    ).toContain("recruits");
+    ).toEqual(
+      expect.arrayContaining([
+        "recruits:all",
+        "recruits:identified",
+        "recruits:engaged",
+        "recruits:committed",
+      ]),
+    );
   });
 
   it("names the template itself, and still has no date or start time", async () => {
@@ -413,7 +447,7 @@ describe("W8-02 — one template", () => {
         eventCount={0}
         initial={{ defaultDurationMinutes: "120" }}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
       />,
     );
 
@@ -435,7 +469,7 @@ describe("W8-02 — one template", () => {
           eventCount={0}
           initial={{}}
           initialQuestions={[]}
-          groups={groupsForEventType("practice")}
+          categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
         />,
       );
 
@@ -463,7 +497,7 @@ describe("W8-02 — one template", () => {
           eventCount={0}
           initial={{}}
           initialQuestions={[]}
-          groups={groupsForEventType("practice")}
+          categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
         />,
       );
 
@@ -487,7 +521,7 @@ describe("W8-02 — one template", () => {
           eventCount={0}
           initial={{ defaultDurationMinutes: "75" }}
           initialQuestions={[]}
-          groups={groupsForEventType("practice")}
+          categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
         />,
       );
 
@@ -511,7 +545,7 @@ describe("W8-02 — one template", () => {
           eventCount={0}
           initial={{ defaultDurationMinutes: "75" }}
           initialQuestions={[]}
-          groups={groupsForEventType("practice")}
+          categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
         />,
       );
 
@@ -544,7 +578,7 @@ describe("colour is chosen from a fixed palette (Brian, 2026-09-10)", () => {
         eventCount={0}
         initial={initial}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
       />,
     );
   }
@@ -608,7 +642,7 @@ describe("colour is chosen from a fixed palette (Brian, 2026-09-10)", () => {
         eventCount={0}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
       />,
     );
 
@@ -635,7 +669,7 @@ describe("choosing what a type invites by default (D47)", () => {
         eventCount={0}
         initial={{ audienceGroups: initialGroups }}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
       />,
     );
   }
@@ -694,7 +728,7 @@ describe("W8-03 — what the change will touch", () => {
         eventCount={0}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
       />,
     );
   }
@@ -741,7 +775,7 @@ describe("the confirmation reads as W8-03 specifies", () => {
         eventCount={0}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
       />,
     );
 
@@ -954,7 +988,7 @@ describe("LAN-313 — Enter while writing a question does not save the template"
         eventCount={0}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
       />,
     );
   }

@@ -302,7 +302,13 @@ async function audienceRowsFor(eventId: string, personId: string) {
     added_by_group: string | null;
     added_by_person_id: string | null;
   }>(
-    `select id, capacity::text as capacity, added_by_group::text as added_by_group,
+    // LAN-414: the stored pair, read back as the one picker token the rule
+    // speaks, so these assertions keep naming the group rather than a column.
+    `select id, capacity::text as capacity,
+            case when added_by_group_category = 'general' then added_by_group::text
+                 when added_by_group_category is not null
+                   then added_by_group_category::text || ':' || added_by_group_value
+            end as added_by_group,
             added_by_person_id
        from public.event_audience_members
       where event_id = $1::uuid and invitee_person_id = $2::uuid`,
@@ -375,7 +381,7 @@ async function sixImminentTasters(): Promise<string[]> {
   const eventIds: string[] = [];
   for (let index = 0; index < 6; index += 1) {
     eventIds.push(
-      await approvedEventWithGroup("recruits", {
+      await approvedEventWithGroup("recruits:all", {
         name: `${NAME_MARKER} imminent taster ${index}`,
         scheduledOn: inDays(3),
       }),
@@ -455,7 +461,7 @@ async function jobsFor(personId: string) {
 
 describe("an approved event keeps its audience groups alive", () => {
   it("adds a recruit created after approval, invites them, and schedules after the grace delay", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const before = new Date();
 
     const { personId } = await addRecruit("Arden");
@@ -464,7 +470,7 @@ describe("an approved event keeps its audience groups alive", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].capacity).toBe("recruit");
     // The audit fact, on the row: a rule put them there, and no operator did.
-    expect(rows[0].added_by_group).toBe("recruits");
+    expect(rows[0].added_by_group).toBe("recruits:all");
     expect(rows[0].added_by_person_id).toBeNull();
 
     const invitations = await invitationsFor(eventId, personId);
@@ -481,7 +487,7 @@ describe("an approved event keeps its audience groups alive", () => {
   });
 
   it("gives the late joiner the event's own deadline, not a recomputed one", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const { personId } = await addRecruit("Bell");
 
     const event = await observer.query<{ response_deadline_at: Date }>(
@@ -495,7 +501,7 @@ describe("an approved event keeps its audience groups alive", () => {
   });
 
   it("puts them on the event's existing future rungs, at the event's own instants", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const { personId } = await addRecruit("Crane");
 
     const eventRungs = await observer.query<{ ladder_rung: number; scheduled_for: Date }>(
@@ -520,12 +526,12 @@ describe("an approved event keeps its audience groups alive", () => {
   });
 
   it("adds them to three future recruitment events, once each", async () => {
-    const first = await approvedEventWithGroup("recruits", { scheduledOn: inDays(2) });
-    const second = await approvedEventWithGroup("recruits", {
+    const first = await approvedEventWithGroup("recruits:all", { scheduledOn: inDays(2) });
+    const second = await approvedEventWithGroup("recruits:all", {
       name: `${NAME_MARKER} second taster`,
       scheduledOn: inDays(4),
     });
-    const third = await approvedEventWithGroup("recruits", {
+    const third = await approvedEventWithGroup("recruits:all", {
       name: `${NAME_MARKER} third taster`,
       scheduledOn: inDays(8),
     });
@@ -548,7 +554,7 @@ describe("an approved event keeps its audience groups alive", () => {
   });
 
   it("does not touch an event that has already started", async () => {
-    const eventId = await approvedEventWithGroup("recruits", { scheduledOn: inDays(3) });
+    const eventId = await approvedEventWithGroup("recruits:all", { scheduledOn: inDays(3) });
     // Moved into the past behind the service's back, which is the only way to
     // get an approved past event: approval itself refuses nothing about dates.
     await observer.query("update public.events set scheduled_on = $2::date where id = $1::uuid", [
@@ -572,11 +578,11 @@ describe("an approved event keeps its audience groups alive", () => {
         event.eventType,
       );
       const { groupSelectionKeys } = await import("./audience-selection");
-      return groupSelectionKeys(catalogue.candidates, "recruits").filter(
+      return groupSelectionKeys(catalogue.candidates, "recruits:all").filter(
         (key) => key !== selectionKey("recruit", excluded.personId),
       );
     });
-    await saveEventAudience(actorPersonId, event.id, keys, ["recruits"]);
+    await saveEventAudience(actorPersonId, event.id, keys, ["recruits:all"]);
     await approveEvent(actorPersonId, event.id);
 
     const exclusions = await observer.query(
@@ -596,7 +602,7 @@ describe("an approved event keeps its audience groups alive", () => {
   });
 
   it("takes the row and the invitation back when the recruit is voided inside the grace window", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const { personId, prospectId } = await addRecruit("Gale");
     expect(await audienceRowsFor(eventId, personId)).toHaveLength(1);
 
@@ -668,11 +674,11 @@ describe("the rule never breaks the write that triggered it", () => {
       );
       const { groupSelectionKeys } = await import("./audience-selection");
       return [
-        ...groupSelectionKeys(catalogue.candidates, "recruits"),
+        ...groupSelectionKeys(catalogue.candidates, "recruits:all"),
         ...groupSelectionKeys(catalogue.candidates, "onboarding"),
       ];
     });
-    await saveEventAudience(actorPersonId, event.id, keys, ["recruits", "onboarding"]);
+    await saveEventAudience(actorPersonId, event.id, keys, ["recruits:all", "onboarding"]);
     await approveEvent(actorPersonId, event.id);
 
     expect(await audienceRowsFor(event.id, recruit.personId)).toHaveLength(1);
@@ -694,7 +700,7 @@ describe("the rule never breaks the write that triggered it", () => {
 
 describe("what a late joiner is not sent", () => {
   it("adds the row and the invitation but declares no job for a recruit with no consent", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const { personId } = await addRecruit("Joyce", { consent: false });
 
     expect(await audienceRowsFor(eventId, personId)).toHaveLength(1);
@@ -725,7 +731,7 @@ describe("the sweep picks the auto-add invitation up", () => {
   };
 
   it("dispatches the declared job once its time has come", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const { personId } = await addRecruit("Kerr");
 
     const jobs = (await jobsFor(personId)).filter(
@@ -871,7 +877,7 @@ describe("the other doors", () => {
     // Added before the event exists, so the rule has nothing to act on yet and
     // they arrive through approval like any other confirmed invitee.
     await addRecruit("NashPeer");
-    const eventId = await approvedEventWithGroup("recruits", { scheduledOn: inDays(12) });
+    const eventId = await approvedEventWithGroup("recruits:all", { scheduledOn: inDays(12) });
     const { personId } = await addRecruit("Nash");
 
     const before = (await jobsFor(personId)).filter(
@@ -960,7 +966,7 @@ describe("the other doors", () => {
   });
 
   it("stands a late joiner's messages down when the event is cancelled", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const { personId } = await addRecruit("Orme");
     expect(
       (await jobsFor(personId)).filter(
@@ -1064,7 +1070,7 @@ describe("an event that will have started by the invitation's own send time", ()
   });
 
   it("keeps an unconsented recruit's invitation out of the chase queue too", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const { personId } = await addRecruit("Quint", { consent: false });
 
     const invitation = await observer.query<{ id: string; message_withheld_reason: string | null }>(
@@ -1139,7 +1145,7 @@ describe("a reschedule that declares the message a withheld invitation never had
   });
 
   it("holds `no_consent` until consent is on file, then clears it", async () => {
-    const eventId = await approvedEventWithGroup("recruits", { scheduledOn: inDays(9) });
+    const eventId = await approvedEventWithGroup("recruits:all", { scheduledOn: inDays(9) });
     const { personId } = await addRecruit("Sable", { consent: false });
 
     const withheld = await withheldReasonFor(eventId, personId);
@@ -1242,7 +1248,7 @@ describe("the send is what clears the withheld reason", () => {
   }
 
   it("clears it when consent arrives and the sweep sends, with no second reschedule", async () => {
-    const eventId = await approvedEventWithGroup("recruits", { scheduledOn: inDays(9) });
+    const eventId = await approvedEventWithGroup("recruits:all", { scheduledOn: inDays(9) });
     const { personId } = await addRecruit("Tallis", { consent: false });
 
     const withheld = await withheldReasonFor(eventId, personId);
@@ -1282,7 +1288,7 @@ describe("the send is what clears the withheld reason", () => {
   });
 
   it("clears it on the operator's Retry after the unconsented job failed", async () => {
-    const eventId = await approvedEventWithGroup("recruits", { scheduledOn: inDays(9) });
+    const eventId = await approvedEventWithGroup("recruits:all", { scheduledOn: inDays(9) });
     const { personId } = await addRecruit("Underhill", { consent: false });
 
     expect((await withheldReasonFor(eventId, personId)).message_withheld_reason).toBe("no_consent");
@@ -1345,7 +1351,7 @@ describe("the send is what clears the withheld reason", () => {
  */
 describe("two transactions adding the same human at once", () => {
   it("leaves one row, one invitation, and refuses neither caller", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
 
     // The prospect is written directly rather than through `addRecruit`, which
     // would run the rule itself and leave nothing for the race to contend over.
@@ -1417,7 +1423,7 @@ describe("two transactions adding the same human at once", () => {
  */
 describe("a reschedule and a late joiner's own send time", () => {
   it("keeps the later of the plan's instant and the late joiner's own", async () => {
-    const eventId = await approvedEventWithGroup("recruits", {
+    const eventId = await approvedEventWithGroup("recruits:all", {
       name: `${NAME_MARKER} soon taster`,
       scheduledOn: inDays(3),
     });
@@ -1498,7 +1504,7 @@ describe("a reschedule and a late joiner's own send time", () => {
  */
 describe("the public sign-up door", () => {
   it("adds one row and one invitation, with the job after the grace", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
 
     // A code of this suite's own. Minting supersedes whatever was live
     // (`recruitment_signup_codes_one_live_per_season`), so anything this
@@ -1529,7 +1535,7 @@ describe("the public sign-up door", () => {
     try {
       const rows = await audienceRowsFor(eventId, result.personId);
       expect(rows).toHaveLength(1);
-      expect(rows[0].added_by_group).toBe("recruits");
+      expect(rows[0].added_by_group).toBe("recruits:all");
       // No operator at this door, and the row says so.
       expect(rows[0].added_by_person_id).toBeNull();
       expect(await invitationsFor(eventId, result.personId)).toHaveLength(1);
@@ -1557,7 +1563,7 @@ describe("the public sign-up door", () => {
   });
 
   it("does the same at the tokenised door, which is its own function", async () => {
-    const eventId = await approvedEventWithGroup("recruits");
+    const eventId = await approvedEventWithGroup("recruits:all");
     const person = await observer.query<{ id: string }>(
       "insert into public.people (given_name, family_name) values ($1, 'Tregarth') returning id",
       [NAME_MARKER],
@@ -1581,7 +1587,7 @@ describe("the public sign-up door", () => {
 
     const rows = await audienceRowsFor(eventId, personId);
     expect(rows).toHaveLength(1);
-    expect(rows[0].added_by_group).toBe("recruits");
+    expect(rows[0].added_by_group).toBe("recruits:all");
     expect(await invitationsFor(eventId, personId)).toHaveLength(1);
 
     const invitation = (await jobsFor(personId)).find(
