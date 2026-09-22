@@ -1150,7 +1150,12 @@ describe("the recruit ladder — LAN-203", () => {
  */
 describe("a recruit's cadence follows the event's type (LAN-416)", () => {
   /** The recruit pills' own keys on this event, and the recruit behind them. */
-  async function recruitsOn(event: { id: string; seasonId: string; eventType: string }) {
+  async function recruitsOn(event: {
+    id: string;
+    seasonId: string;
+    scheduledOn: string | null;
+    eventType: string;
+  }) {
     const catalogue = await catalogueFor(event);
     const keys = groupSelectionKeys(catalogue.candidates, "recruits:all");
     expect(keys.length).toBeGreaterThan(0);

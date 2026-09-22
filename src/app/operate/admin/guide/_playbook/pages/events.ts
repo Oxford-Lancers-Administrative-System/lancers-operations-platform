@@ -208,6 +208,14 @@ export const EVENTS_PAGE: PlaybookPage = {
   ],
   rules: [
     {
+      label: "The top of the event page is response progress",
+      fact: [
+        "One block per capacity in the audience — Recruits, Players, Coaches, Committee — each reading said yes against invited, the number who said no, and a bar of everyone who has answered against everyone invited. Red below half, orange to three quarters, green above. A capacity nobody was invited under has no block. ",
+        control("Showed"),
+        " and the register are below Audience and distribution.",
+      ],
+    },
+    {
       label: "Approval freezes the audience",
       fact: [
         "It is not re-resolved afterwards. A player who goes inactive after approval keeps their invitation; a recruit who has exited is dropped from the send.",

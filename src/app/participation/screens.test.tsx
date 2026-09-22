@@ -100,7 +100,8 @@ import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
 import { ConstraintViolated } from "@/lib/db/errors";
 
 import ClubLinkPage from "../e/[token]/page";
-import { EventFacts, HeadlineNumbers } from "./event-facts";
+import { EventFacts, ShowedNumber } from "./event-facts";
+import { ResponseProgress } from "./response-progress";
 import { CopyLinkButton } from "./copy-link";
 import { ParticipationFilterBar } from "./participation-filters";
 import { ParticipationTable } from "./participation-table";
@@ -566,16 +567,38 @@ describe("the club-link page", () => {
     resetRsvpRateLimit();
   });
 
-  it("shows the event, the four numbers and the table", async () => {
+  /**
+   * LAN-420 — the top of this page is response progress by capacity, the same
+   * blocks the operator's own event page carries, and Showed sits below the
+   * facts. The Invited / Said yes / No row LAN-384 added is gone: its numbers
+   * are the sum of the blocks and are not repeated.
+   */
+  it("leads with a block per capacity, and keeps Showed below", async () => {
     readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
     const { container } = await renderClubLink("a-token");
 
     expect(container.textContent).toContain("Practice — hilary week 5");
-    expect(screen.getByTestId("headline-invited").querySelector("p")?.textContent).toBe("3");
-    expect(screen.getByTestId("headline-said-yes").querySelector("p")?.textContent).toBe("2");
-    // LAN-384: the No tile, beside Said yes, from the same query.
-    expect(screen.getByTestId("headline-said-no").querySelector("p")?.textContent).toBe("1");
+
+    // Two players (one yes, one no) and one committee member (yes).
+    const players = screen.getByTestId("response-progress-player");
+    expect(within(players).getByTestId("response-yes").textContent).toBe("1 / 2");
+    expect(within(players).getByTestId("response-no").textContent).toBe("No 1");
+    expect(within(players).getByTestId("response-bar").getAttribute("data-percent")).toBe("100");
+    expect(within(players).getByTestId("response-bar").getAttribute("data-band")).toBe("high");
+
+    const committee = screen.getByTestId("response-progress-committee");
+    expect(within(committee).getByTestId("response-yes").textContent).toBe("1 / 1");
+    expect(within(committee).getByTestId("response-no").textContent).toBe("No 0");
+
+    // Nobody was invited as a coach or a recruit, so neither block is there.
+    expect(screen.queryByTestId("response-progress-coach")).toBeNull();
+    expect(screen.queryByTestId("response-progress-recruit")).toBeNull();
+
+    expect(screen.queryByTestId("headline-invited")).toBeNull();
+    expect(screen.queryByTestId("headline-said-yes")).toBeNull();
+    expect(screen.queryByTestId("headline-said-no")).toBeNull();
     expect(screen.getByTestId("headline-showed").querySelector("p")?.textContent).toBe("1 / 3");
+
     expect(renderedNames(container)).toHaveLength(3);
   });
 
@@ -819,14 +842,16 @@ describe("rendering through react-dom/server, without a DOM or hydration", () =>
     expect(markup).not.toContain(TABLE_HEADINGS.delivery);
   });
 
-  it("renders the event facts and the headline without throwing", () => {
+  it("renders the event facts, the progress blocks and Showed without throwing", () => {
     const markup = renderToStaticMarkup(
       <>
+        <ResponseProgress people={CLUB.people} />
         <EventFacts event={CLUB.event} />
-        <HeadlineNumbers headline={CLUB.headline} />
+        <ShowedNumber headline={CLUB.headline} />
       </>,
     );
     expect(markup).toContain("Iffley Road Astro");
+    // LAN-420: Showed keeps its own `showed / invited` shape.
     expect(markup).toContain("1 / 3");
   });
 

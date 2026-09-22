@@ -37,6 +37,7 @@ import { frozenPlanForDisplay, MessagingPlanDisclosure } from "./messaging-plan"
 import { ApprovedEventActions, CancelledPanel, ChangeHistoryPanel } from "./change-panels";
 import RenotifyPanel from "./renotify-panel";
 import { silentChangeNotice } from "./change-presentation";
+import { ResponseProgress } from "../../../participation/response-progress";
 import { AudienceList } from "./audience-list";
 import { QuestionList } from "./question-list";
 import {
@@ -70,31 +71,28 @@ import {
   describeRegisterOpensAt,
   formatShowedAgainstInvited,
   HEADLINE_INVITED_LABEL,
-  HEADLINE_SAID_YES_LABEL,
   HEADLINE_SHOWED_LABEL,
   REGISTER_NOT_YET_HEADLINE,
 } from "./attendance/presentation";
 
 /**
- * The three headline numbers — Invited, said yes, showed — REQ-headline-numbers,
- * D62, D73, D74. LAN-152. Raw pairs, no percentages, no dash explanation, no judgment.
+ * **Showed**, below Audience and Distribution — LAN-420.
+ *
+ * The three headline numbers — Invited, said yes, showed (REQ-headline-numbers,
+ * D62, D73, D74, LAN-152) — were the top of this page. Stewart, 2026-09-22:
+ * "The 'Showed' data can be lower in priority on the page, say below Audience
+ * and Distribution." Invited and Said yes are gone from here because the
+ * per-capacity blocks at the top say both, per capacity, and their totals are
+ * the whole event's; repeating them would be two numbers saying the same thing
+ * a scroll apart. Showed keeps its own shape exactly — `— / 37` unsaved,
+ * `0 / 37` saved-empty, never a percentage.
  */
-function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
+function ShowedNumber({ summary }: { summary: AttendanceSummary }) {
   return (
     <MetricRow columns={3} testId="headline-numbers">
       <Metric
-        value={String(summary.invited)}
-        label={HEADLINE_INVITED_LABEL}
-        testId="headline-invited"
-      />
-      <Metric
-        value={String(summary.saidYes)}
-        label={HEADLINE_SAID_YES_LABEL}
-        testId="headline-said-yes"
-      />
-      <Metric
         value={formatShowedAgainstInvited(summary)}
-        label={HEADLINE_SHOWED_LABEL}
+        label={`${HEADLINE_SHOWED_LABEL} / ${HEADLINE_INVITED_LABEL}`}
         testId="headline-showed"
       />
     </MetricRow>
@@ -264,7 +262,11 @@ export function EventDetailView({
           <CancelledPanel reason={event.decisionReason} entry={cancellation} />
         ) : null}
 
-        {summary ? <HeadlineNumbers summary={summary} /> : null}
+        {/* LAN-420: "These 3-6 elements should be the top of the page"
+            (Stewart, 2026-09-22). One block per capacity in the audience, and
+            nothing at all before approval, when there is no invitation to
+            count. */}
+        {participation ? <ResponseProgress people={participation.people} /> : null}
 
         {mayApprove && changeWentOutSilently && lastAmendment ? (
           <RenotifyPanel
@@ -272,10 +274,6 @@ export function EventDetailView({
             recipients={event.invitationCount}
             notice={silentChangeNotice(lastAmendment)}
           />
-        ) : null}
-
-        {event.status === "approved" ? (
-          <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
         ) : null}
 
         <Section title="Details">
@@ -366,6 +364,14 @@ export function EventDetailView({
             />
           ) : null}
         </Section>
+
+        {/* LAN-420: Showed and the register, unchanged, below Audience and
+            Distribution rather than above them. */}
+        {summary ? <ShowedNumber summary={summary} /> : null}
+
+        {event.status === "approved" ? (
+          <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
+        ) : null}
 
         {/* W1: frozen at approval — REQ-schedule-not-retroactive. A later schedule change never rewrites this. */}
         {frozenPlan ? (

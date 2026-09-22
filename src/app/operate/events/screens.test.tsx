@@ -1282,25 +1282,31 @@ describe("the event's headline numbers", () => {
     return detail({ status: "approved", audienceCount: 37, invitationCount: 37 });
   }
 
-  it("puts invited, said yes and showed at the top of the event", async () => {
+  // LAN-420, Stewart's "OPS EVENTS UPDATES" of 2026-09-22: the Invited / Said
+  // yes / Showed row is replaced by one block per capacity, and Showed moves
+  // below Audience and Distribution.
+  it("no longer puts bare Invited and Said yes tiles at the top", async () => {
     vi.mocked(readEvent).mockResolvedValue(invited());
     vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
 
     render(await EventDetailPage(detailProps()));
 
-    expect(flatten(screen.getByTestId("headline-invited").textContent)).toBe("37Invited");
-    expect(flatten(screen.getByTestId("headline-said-yes").textContent)).toBe("21Said yes");
+    expect(screen.queryByTestId("headline-invited")).toBeNull();
+    expect(screen.queryByTestId("headline-said-yes")).toBeNull();
   });
 
   it("reads an em dash against the invited count before any register is saved", async () => {
     // D74. An event nobody has got round to must not read like an event nobody
-    // attended, and this is the string that keeps the two apart.
+    // attended, and this is the string that keeps the two apart. LAN-420 moves
+    // the tile and names it "Showed / Invited"; the value is unchanged.
     vi.mocked(readEvent).mockResolvedValue(invited());
     vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
 
     render(await EventDetailPage(detailProps()));
 
-    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("— / 37Showed");
+    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe(
+      "— / 37Showed / Invited",
+    );
   });
 
   it("reads 0 / 37 once a register is saved with everybody absent", async () => {
@@ -1311,7 +1317,9 @@ describe("the event's headline numbers", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("0 / 37Showed");
+    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe(
+      "0 / 37Showed / Invited",
+    );
   });
 
   it("explains neither value in words, and never as a percentage", async () => {
@@ -2945,6 +2953,119 @@ describe("the participation table on the event page", () => {
     expect(screen.getByTestId("event-audience")).toBeVisible();
     expect(screen.queryByTestId("participation-table")).toBeNull();
     expect(readOperatorParticipation).not.toHaveBeenCalled();
+  });
+
+  /**
+   * LAN-420 — Stewart's "OPS EVENTS UPDATES", 2026-09-22, change 2. "These 3-6
+   * elements should be the top of the page … The 'Showed' data can be lower in
+   * priority on the page, say below Audience and Distribution."
+   *
+   * The counting itself is `event-response-progress.test.ts`; what is under
+   * test here is that the blocks are on this page, in that order, and that
+   * Showed and the register are below the Audience and distribution section.
+   */
+  describe("response progress by capacity", () => {
+    const MIXED: OperatorParticipation = {
+      ...PARTICIPATION,
+      people: [
+        ...Array.from({ length: 5 }, (_, at) => ({
+          ...PARTICIPATION.people[0],
+          key: `player:${at}`,
+          capacity: "player",
+          answer: (at < 3 ? "yes" : null) as "yes" | "no" | null,
+        })),
+        ...Array.from({ length: 2 }, (_, at) => ({
+          ...PARTICIPATION.people[0],
+          key: `coach:${at}`,
+          capacity: "coach",
+          answer: (at === 0 ? "no" : null) as "yes" | "no" | null,
+        })),
+        {
+          ...PARTICIPATION.people[0],
+          key: "recruit:0",
+          capacity: "recruit",
+          answer: null as "yes" | "no" | null,
+        },
+      ],
+    };
+
+    async function renderMixed() {
+      vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+      vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+      vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+      vi.mocked(readOperatorParticipation).mockResolvedValue(MIXED);
+      return render(await EventDetailPage(detailProps()));
+    }
+
+    it("shows one block per capacity, Recruits, Players then Coaches", async () => {
+      const { container } = await renderMixed();
+
+      expect(
+        [...container.querySelectorAll('[data-testid^="response-progress-"]')].map((node) =>
+          node.getAttribute("data-testid"),
+        ),
+      ).toEqual([
+        "response-progress-recruit",
+        "response-progress-player",
+        "response-progress-coach",
+      ]);
+    });
+
+    it("reads yes against invited, no on its own, and bands the bar", async () => {
+      await renderMixed();
+
+      const players = within(screen.getByTestId("response-progress-player"));
+      expect(players.getByTestId("response-yes").textContent).toBe("3 / 5");
+      expect(players.getByTestId("response-no").textContent).toBe("No 0");
+      // 3 of 5 answered — 60 %, orange.
+      expect(players.getByTestId("response-bar").getAttribute("data-percent")).toBe("60");
+      expect(players.getByTestId("response-bar").getAttribute("data-band")).toBe("middling");
+
+      const recruits = within(screen.getByTestId("response-progress-recruit"));
+      // Nobody has answered — 0 %, red.
+      expect(recruits.getByTestId("response-bar").getAttribute("data-band")).toBe("low");
+    });
+
+    it("shows no block at all before approval, when nobody is invited", async () => {
+      vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
+      vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+      vi.mocked(readOperatorParticipation).mockResolvedValue(null as never);
+
+      render(await EventDetailPage(detailProps()));
+
+      expect(screen.queryByTestId("response-progress")).toBeNull();
+    });
+
+    it("puts Showed and the register below Audience and distribution", async () => {
+      const { container } = await renderMixed();
+
+      const order = [...container.querySelectorAll("[data-testid]")]
+        .map((node) => node.getAttribute("data-testid"))
+        .filter((id): id is string =>
+          [
+            "response-progress",
+            "audience-fact",
+            "headline-showed",
+            "section-register-panel",
+          ].includes(id ?? ""),
+        );
+
+      expect(order).toEqual([
+        "response-progress",
+        "audience-fact",
+        "headline-showed",
+        "section-register-panel",
+      ]);
+    });
+
+    it("explains none of it in words", async () => {
+      const { container } = await renderMixed();
+      const text = flatten(container.textContent).toLowerCase();
+
+      expect(text).not.toContain("%");
+      expect(text).not.toContain("progress bar");
+      expect(text).not.toContain("on track");
+    });
   });
 });
 

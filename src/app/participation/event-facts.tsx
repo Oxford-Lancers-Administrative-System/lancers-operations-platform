@@ -8,8 +8,6 @@ import {
   formatShowedAgainstInvited,
   formatTermAndWeek,
   HEADLINE_INVITED_LABEL,
-  HEADLINE_SAID_NO_LABEL,
-  HEADLINE_SAID_YES_LABEL,
   HEADLINE_SHOWED_LABEL,
 } from "./presentation";
 
@@ -90,39 +88,24 @@ export function EventFacts({ event }: { event: ClubLinkEvent }) {
   );
 }
 
-export function HeadlineNumbers({ headline }: { headline: ParticipationHeadline }) {
-  const numbers: { label: string; value: string; testId: string }[] = [
-    { label: HEADLINE_INVITED_LABEL, value: String(headline.invited), testId: "headline-invited" },
-    {
-      label: HEADLINE_SAID_YES_LABEL,
-      value: String(headline.saidYes),
-      testId: "headline-said-yes",
-    },
-    // LAN-384: a No tile beside Said yes, from the same query. Somebody reading
-    // the club link can already see who said yes; the count of the other
-    // answer was the one number the page withheld.
-    {
-      label: HEADLINE_SAID_NO_LABEL,
-      value: String(headline.saidNo),
-      testId: "headline-said-no",
-    },
-    {
-      label: `${HEADLINE_SHOWED_LABEL} / ${HEADLINE_INVITED_LABEL}`,
-      value: formatShowedAgainstInvited(headline),
-      testId: "headline-showed",
-    },
-  ];
-
+/**
+ * **Showed**, on its own — LAN-420.
+ *
+ * Stewart, 2026-09-22: "The 'Showed' data can be lower in priority on the
+ * page." The Invited / Said yes / No row that used to be here is replaced by
+ * the per-capacity blocks at the top of the page (`ResponseProgress`), whose
+ * totals are the whole event's and are not repeated; this one number is what
+ * survives of it, unchanged in shape — `— / 37` unsaved, `0 / 37` saved-empty,
+ * never a percentage (D62, D74, which still govern here).
+ */
+export function ShowedNumber({ headline }: { headline: ParticipationHeadline }) {
   return (
-    <MetricRow testId="headline-numbers">
-      {numbers.map((number) => (
-        <Metric
-          key={number.label}
-          label={number.label}
-          value={number.value}
-          testId={number.testId}
-        />
-      ))}
+    <MetricRow columns={2} testId="headline-numbers">
+      <Metric
+        label={`${HEADLINE_SHOWED_LABEL} / ${HEADLINE_INVITED_LABEL}`}
+        value={formatShowedAgainstInvited(headline)}
+        testId="headline-showed"
+      />
     </MetricRow>
   );
 }

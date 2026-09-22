@@ -3,7 +3,6 @@
 // field optional except name; null means "does not say" (see relocations.md).
 
 import { EVENT_DELIVERY_MODES, optional, trimmed, type EventDeliveryMode } from "./event-input";
-import type { AudienceGroupKey } from "./audience-selection";
 import type { RawEventQuestion } from "./event-questions-input";
 
 // Here, not event-templates.ts (server-only) — readEventFormDefaults builds these.
@@ -88,7 +87,7 @@ export interface EventTemplateInput {
   defaultDescription: string | null;
   defaultRequiredEquipment: string | null;
   defaultIsMandatory: boolean | null; // tri-state on purpose: null is "does not say"
-  audienceGroups: AudienceGroupKey[];
+  audienceGroups: string[]; // LAN-414: picker tokens — a General key, or `<category>:<value>`
 }
 
 export interface TemplateFieldIssue {
@@ -158,11 +157,11 @@ export function validateEventTemplate(raw: RawEventTemplate): EventTemplateValid
   const defaultIsMandatory =
     attendance === "mandatory" ? true : attendance === "optional" ? false : null;
 
-  const audienceGroups: AudienceGroupKey[] = [];
+  const audienceGroups: string[] = [];
   for (const group of raw.audienceGroups ?? []) {
     const key = trimmed(group);
-    if (key !== "" && !audienceGroups.includes(key as AudienceGroupKey)) {
-      audienceGroups.push(key as AudienceGroupKey);
+    if (key !== "" && !audienceGroups.includes(key)) {
+      audienceGroups.push(key);
     }
   }
 

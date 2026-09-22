@@ -606,6 +606,35 @@ clipped or needs sideways scrolling.
 
 Back in the operator's browser, open the event.
 
+**Expected, at the top of the page: response progress by capacity** (LAN-420,
+Stewart's "OPS EVENTS UPDATES" of 2026-09-22, change 2). One block per capacity
+present in the audience, in the order **Recruits, Players, Coaches,
+Committee** — a capacity nobody was invited under shows no block at all, so a
+practice with no recruits shows Players and Coaches only. Each block reads:
+
+| Line | What it says                                                                          |
+| ---- | ------------------------------------------------------------------------------------- |
+| Name | Recruits, Players, Coaches or Committee                                               |
+| Yes  | `<said yes> / <invited>` for that capacity                                            |
+| No   | `No <said no>`                                                                        |
+| Bar  | `(yes + no) / invited`, red below 50 %, orange to below 75 %, green at 75 % and above |
+
+The block counts **invitations**, not the roster, so somebody added to an
+approved event raises that capacity's denominator. Somebody invited under two
+capacities is counted once, under the first of Recruits, Coaches, Players,
+Committee. Nothing explains the bar in words. The same blocks head the public
+**Event info link** page, so the operator and whoever the link was sent to are
+reading the same numbers.
+
+**Invited and Said yes are no longer tiles of their own**, because each block
+says both and their totals are the whole event's. **Showed** and the register
+panel are below the Audience and distribution section now — Stewart: "The
+'Showed' data can be lower in priority on the page, say below Audience and
+Distribution." Showed itself is unchanged: `— / 37` before any register is
+saved, `0 / 37` once one is saved with everybody absent, never a percentage
+(D74). This amends D62 / D73 / D74; `docs/ux/slice-ux.md` § 5 carries the
+amendment.
+
 Nobody is asked whether it happened. LAN-151 retired that decision with both of
 its screens (D30): an event has occurred once its date has passed and it was not
 cancelled, and the register opens on its own schedule — about six hours before

@@ -72,7 +72,11 @@ pair, and it carries both presentations side by side:
 - **Taking the register.** Task 04 owns the board; this owns how what it
   collected is read.
 - **The headline numbers and the register's buffer.** Those are LAN-152's and
-  are reused, not rebuilt.
+  are reused, not rebuilt. **LAN-420 (Brian, 2026-09-22) replaced the headline
+  row on both surfaces** with response progress by capacity — one block per
+  capacity in the audience, `yes / invited`, `no`, and a bar coloured at 50 %
+  and 75 % — and moved Showed below Audience and Distribution. That amends
+  D62 / D73 / D74; `docs/ux/slice-ux.md` § 5 carries the amendment in full.
 - **Delivery detail.** A state and a link out, both operator tier (D65); the
   delivery page is Mission 4's.
 - **Chasing anybody.** Seeing that eight people have not answered is not the
