@@ -1,4 +1,4 @@
-import { withTransaction } from "@/lib/db";
+import { isServiceError, withTransaction } from "@/lib/db";
 import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 import { recordOnboardingActivityIn } from "../onboarding-activity-log";
@@ -128,7 +128,7 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
   }
 
   if (mobileChanged && !errors.mobile) {
-    await supersedeContactPoint({
+    await writeContactOrRecordRefusal(errors, "mobile", {
       actorPersonId: input.personId,
       personId: input.personId,
       kind: "phone",
@@ -138,7 +138,7 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     });
   }
   if (emailChanged && !errors.personalEmail) {
-    await supersedeContactPoint({
+    await writeContactOrRecordRefusal(errors, "personalEmail", {
       actorPersonId: input.personId,
       personId: input.personId,
       kind: "email",
@@ -149,7 +149,7 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     });
   }
   if (collegeEmailChanged && collegeEmailValid) {
-    await supersedeContactPoint({
+    await writeContactOrRecordRefusal(errors, "collegeEmail", {
       actorPersonId: input.personId,
       personId: input.personId,
       kind: "email",
@@ -184,6 +184,49 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
   });
 
   return { errors, outcomes };
+}
+
+/**
+ * LAN-413 — the short state shown against a field whose value another record
+ * already holds. The refusal is correct (`person_contact_email_in_use`, the
+ * one-email-per-person rule, W2-07); the defect was that it escaped this
+ * service as a thrown `ConstraintViolated`, reached `saveDetails` uncaught and
+ * became the generic server error page. Stewart hit it in production on
+ * 2026-09-22 (digest 1786114891) testing as "Stew Player".
+ *
+ * The service's own message names the other person ("Stewart Humble already
+ * holds this email…"), which a player must not be shown — a contact point is
+ * how one record is told from another, and the player is not entitled to know
+ * whose. So the field says the state and nothing more.
+ */
+const CONTACT_IN_USE = "Already held by another record.";
+
+/**
+ * One contact write, with a refusal turned into a field error rather than a
+ * throw — F1 (LAN-230, Brian 2026-09-02: "whatever a step saved stays saved").
+ * A thrown refusal here used to abandon the rest of the save: the emergency
+ * contact, the derived-item sync and the activity-log entry all went unwritten
+ * because one email collided. The step now behaves for a refused contact
+ * exactly as it does for a malformed one — that slot stays unwritten, every
+ * other slot commits, and the field says why.
+ *
+ * `person_contact_email_in_use` gets the short state above. Any other
+ * `ServiceError` from the contact write (a malformed value that reached the
+ * service, a scope misuse) carries its own message, which is already written
+ * for the person reading it. Anything that is not a `ServiceError` is a fault,
+ * not a refusal, and is left to propagate.
+ */
+async function writeContactOrRecordRefusal(
+  errors: Record<string, string>,
+  field: "mobile" | "personalEmail" | "collegeEmail",
+  params: Parameters<typeof supersedeContactPoint>[0],
+): Promise<void> {
+  try {
+    await supersedeContactPoint(params);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    errors[field] = error.rule === "person_contact_email_in_use" ? CONTACT_IN_USE : error.message;
+  }
 }
 
 function needsMobileWrite(record: PersonRecord, raw: string): boolean {

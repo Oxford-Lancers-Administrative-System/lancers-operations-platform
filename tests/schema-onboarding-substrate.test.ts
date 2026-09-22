@@ -840,3 +840,49 @@ describe("person_fact_disputes", () => {
     await client.query("rollback to savepoint role_switch");
   });
 });
+
+/**
+ * LAN-413 — `onboarding_item_types_trust_codes_are_trust`.
+ *
+ * The 2026-27 rows were inserted by hand without `verification_class`, so BUCS
+ * Play and Hudl took the column's `direct` default and every player's own
+ * confirm button on steps 4 and 5 was refused — as a 500. The application half
+ * of the fix shows a refusal on the step instead; this is the half that makes
+ * the row itself impossible, on any season, however it is written.
+ */
+describe("onboarding_item_types_trust_codes_are_trust", () => {
+  const insertType = `insert into public.onboarding_item_types (season_id, code, label, verification_class)
+     values ($1, $2, 'Fixture item', $3::public.onboarding_item_verification_class)`;
+
+  it("refuses a direct BUCS Play row, and a direct Hudl one", async () => {
+    await expectRejected(
+      client,
+      insertType,
+      [base.seasonId, "bucs_play", "direct"],
+      "onboarding_item_types_trust_codes_are_trust",
+    );
+    await expectRejected(
+      client,
+      insertType,
+      [base.seasonId, "hudl_access", "direct"],
+      "onboarding_item_types_trust_codes_are_trust",
+    );
+  });
+
+  it("accepts them as trust, which is what they are", async () => {
+    await expectAccepted(client, insertType, [base.seasonId, "bucs_play", "trust"]);
+    await expectAccepted(client, insertType, [base.seasonId, "hudl_access", "trust"]);
+  });
+
+  it("leaves every other code free to be direct, which is the column's default", async () => {
+    await expectAccepted(client, insertType, [base.seasonId, "some_other_item", "direct"]);
+  });
+
+  it("holds no direct row for either code on any season the migration ran against", async () => {
+    const rows = await client.query<{ code: string }>(
+      `select code from public.onboarding_item_types
+        where code in ('bucs_play', 'hudl_access') and verification_class <> 'trust'`,
+    );
+    expect(rows.rows).toEqual([]);
+  });
+});

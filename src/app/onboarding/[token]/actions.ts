@@ -23,6 +23,7 @@ import {
   type QuestionnaireStep,
 } from "@/lib/services/player-questionnaire";
 import type { OnboardingAgreementType } from "@/lib/services/onboarding-agreements";
+import { REFUSED_ERROR_PARAM } from "./presentation";
 import {
   mapServiceErrors,
   readDetailsValues,
@@ -60,6 +61,59 @@ async function refuse(target: string, startedAt: number): Promise<never> {
   await holdUniformRefusal(startedAt);
   redirect(target);
 }
+
+/**
+ * LAN-413 — a refusal is an answer, and it belongs on the step.
+ *
+ * Production, 2026-09-22: Joey pressed BUCS Play's confirm button and got the
+ * generic server error page, because the season's item had been recorded
+ * `direct` and `claimOnboardingItem` correctly refused the claim; Stewart got
+ * the same page the same afternoon on the details step, because an email
+ * another record already held was correctly refused by the contact write. In
+ * both cases the refusal was right and its presentation was wrong. Brian: "I
+ * just don't want to fix it for one person. I want to fix it for everyone."
+ *
+ * So every action here now runs its service call through `attempt`, or through
+ * its own catch where it already had one, and a `ServiceError` never leaves
+ * this module. Anything that is not a `ServiceError` is a fault rather than a
+ * refusal and still escapes to the error boundary, which is where a fault
+ * belongs. The player's other steps stay reachable throughout: nothing here
+ * touches the step strip.
+ */
+
+/** The step, re-rendered with the refusal shown — the `?error=` channel `BUSY_MESSAGE` already uses. */
+function refusedUrl(token: string, step: string): string {
+  return detailsUrl(token, step, `error=${REFUSED_ERROR_PARAM}`);
+}
+
+/**
+ * What one service call did, from this action's point of view.
+ *
+ * `refused` is a `ServiceError`: the club's own rules said no, and the player
+ * is shown that on the step. `failed` is anything else, which is a fault, and
+ * each caller keeps the handling it already had for one — carrying the
+ * original error so nothing is swallowed on the way.
+ */
+type Attempt = { kind: "done" } | { kind: "refused" } | { kind: "failed"; error: unknown };
+
+/**
+ * One service call, classified rather than caught ad hoc. `ignoreRule` names a
+ * refusal that means the step is already done — an agreement recorded twice is
+ * a double-click, not a failure.
+ */
+async function attempt(run: () => Promise<unknown>, ignoreRule?: string): Promise<Attempt> {
+  try {
+    await run();
+    return { kind: "done" };
+  } catch (error) {
+    if (!isServiceError(error)) return { kind: "failed", error };
+    if (ignoreRule !== undefined && error.rule === ignoreRule) return { kind: "done" };
+    return { kind: "refused" };
+  }
+}
+
+/** The rule `recordOnboardingAgreementIn` refuses a resubmitted agreement with. */
+const ALREADY_AGREED = "onboarding_agreements_one_per_person_season_type";
 
 function detailsUrl(token: string, step?: string, extra?: string): string {
   const encoded = encodeURIComponent(token);
@@ -166,7 +220,18 @@ export async function saveDetails(
     },
   };
 
-  const result = await saveDetailsStep(input);
+  // LAN-413. `saveDetailsStep` turns a refused contact write into a field
+  // error of its own (the email another record holds lands on that email), so
+  // what can still reach here is a refusal belonging to no single box. It is
+  // shown on the step, with every typed value kept, and never as a 500.
+  let result;
+  try {
+    result = await saveDetailsStep(input);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { values, errors: requiredErrors, refused: true };
+  }
+
   const shapeErrors = mapServiceErrors(result.errors);
   // A field the service flagged as malformed takes precedence over a generic "required" for the same field.
   const errors: DetailsFormState["errors"] = { ...requiredErrors, ...shapeErrors };
@@ -196,22 +261,22 @@ export async function agreeDocument(form: FormData): Promise<void> {
     return refuse(detailsUrl(token), startedAt);
   }
 
-  try {
-    await agreeOnboardingDocument({
-      personId: resolution.personId,
-      seasonId: resolution.seasonId,
-      membershipId: resolution.membershipId,
-      agreementType,
-    });
-  } catch (error) {
-    // Already agreed this season (resubmitted/double-clicked) is not a failure — the step is already done.
-    if (
-      !isServiceError(error) ||
-      error.rule !== "onboarding_agreements_one_per_person_season_type"
-    ) {
-      return refuse(detailsUrl(token), startedAt);
-    }
-  }
+  // Already agreed this season (resubmitted/double-clicked) is not a failure — the step is already done.
+  const outcome = await attempt(
+    () =>
+      agreeOnboardingDocument({
+        personId: resolution.personId,
+        seasonId: resolution.seasonId,
+        membershipId: resolution.membershipId,
+        agreementType,
+      }),
+    ALREADY_AGREED,
+  );
+  // LAN-413: a refusal is shown on the document's own step. A fault keeps the
+  // uniform bounce this action has always made — it reveals nothing about the
+  // token, and that posture is not this issue's to change.
+  if (outcome.kind === "refused") return redirect(refusedUrl(token, agreementType));
+  if (outcome.kind === "failed") return refuse(detailsUrl(token), startedAt);
 
   redirect(await nextStepUrl(token, resolution));
 }
@@ -256,14 +321,14 @@ export async function agreePhotoRelease(
       agreed: checked(form, "agree"),
     });
   } catch (error) {
+    // A fault keeps the uniform bounce; a refusal is shown on the step
+    // (LAN-413), with every box the player filled in kept.
+    if (!isServiceError(error)) return refuse(detailsUrl(token), startedAt);
     // Already agreed this season (resubmitted or double-clicked) is not a
     // failure — the step is already done, exactly as it is for the Code of
     // Conduct above.
-    if (
-      !isServiceError(error) ||
-      error.rule !== "onboarding_agreements_one_per_person_season_type"
-    ) {
-      return refuse(detailsUrl(token), startedAt);
+    if (error.rule !== ALREADY_AGREED) {
+      return { values, errors: {}, agreeError: false, refused: true };
     }
     redirect(await nextStepUrl(token, resolution));
   }
@@ -291,15 +356,28 @@ export async function submitTrustStep(form: FormData): Promise<void> {
     return refuse(detailsUrl(token), startedAt);
   }
 
+  const current: QuestionnaireStep = code === "bucs_play" ? "bucs_play" : "hudl";
+
   if (checked(form, "claim")) {
-    await claimTrustItem({
-      personId: resolution.personId,
-      seasonId: resolution.seasonId,
-      membershipId: resolution.membershipId,
-      code,
-    });
+    // LAN-413, the defect Joey hit: the season's item was recorded `direct`,
+    // `claimOnboardingItem` refused the claim under
+    // `onboarding_item_claim_requires_trust_class`, and with no catch here the
+    // refusal became the generic server error page. The migration beside this
+    // change makes that particular row impossible; this makes every other
+    // refusal land on the step the player is standing on.
+    const outcome = await attempt(() =>
+      claimTrustItem({
+        personId: resolution.personId,
+        seasonId: resolution.seasonId,
+        membershipId: resolution.membershipId,
+        code,
+      }),
+    );
+    if (outcome.kind === "refused") return redirect(refusedUrl(token, current));
+    // A fault is not a refusal: it keeps reaching the error boundary, exactly
+    // as it did before this change.
+    if (outcome.kind === "failed") throw outcome.error;
   }
 
-  const current: QuestionnaireStep = code === "bucs_play" ? "bucs_play" : "hudl";
   redirect(literalNextStepUrl(token, current));
 }

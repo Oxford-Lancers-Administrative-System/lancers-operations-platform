@@ -54,6 +54,13 @@ export type DetailsFieldErrors = Partial<Record<keyof DetailsFormValues, string>
 export interface DetailsFormState {
   values: DetailsFormValues;
   errors: DetailsFieldErrors;
+  /**
+   * LAN-413 — the step was refused by a rule that belongs to no single box.
+   * Every field refusal the details step has goes in `errors` against its own
+   * field; this is the remainder, and it is what stops a thrown `ServiceError`
+   * becoming the generic server error page.
+   */
+  refused?: boolean;
 }
 
 export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
@@ -206,6 +213,8 @@ export interface PhotoReleaseFormState {
   errors: PhotoReleaseFieldErrors;
   /** The tick, which belongs to no box. */
   agreeError: boolean;
+  /** LAN-413 — a rule refused the save; see `DetailsFormState.refused`. */
+  refused?: boolean;
 }
 
 export const EMPTY_PHOTO_RELEASE_VALUES: PhotoReleaseFormValues = {

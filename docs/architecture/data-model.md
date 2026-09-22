@@ -1425,6 +1425,14 @@ owner). Seven pieces, in one forward-only migration:
   reason stops being (`REQ-reason-free-waive`).
 - **`onboarding_item_types.verification_class`** — `direct`/`trust` — gives
   R2-V's "a property of the item, not a configuration knob" somewhere to live.
+  `onboarding_item_types_trust_codes_are_trust` (LAN-413) holds the two codes
+  W4 names to `trust` on every season: `bucs_play` and `hudl_access` complete
+  on the player's own word, and a `direct` row makes the player's confirm
+  button refuse them. The column keeps its `direct` default and its full
+  freedom for every other code. The 2026-27 rows were inserted by hand without
+  the column and took the default, which is the production defect of
+  2026-09-22; the migration corrects every season's rows before adding the
+  constraint.
 - **`onboarding_item_history`** is the typed home `onboarding_items`' current-
   state-only row never had; append-only, `select`/`insert` only.
 - **`onboarding_activity_log`** is the sectioned ask-and-answer log
