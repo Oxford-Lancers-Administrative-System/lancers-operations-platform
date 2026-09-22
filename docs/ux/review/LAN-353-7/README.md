@@ -50,8 +50,12 @@ Recruit · Engaged_ — on an event type that until now offered none at all.
 **What these do not show.** The pills inside the four folded categories are
 behind a press, and `visual:preflight` navigates and screenshots rather than
 driving the page. Every one of them, its label and who it resolves to, is proved
-by `src/lib/services/audience-selection.test.ts`, and the template editor's own
-screen test opens each category in turn.
+by `src/lib/services/audience-selection.test.ts`. The template editor's own
+screen test (`src/app/operate/events/templates/screens.test.tsx`) presses two
+of the four open — **Special teams** and **Recruits** — and proves the other
+two only structurally, that their toggles exist and are in this order;
+**Coaching assignments** and **Warmup assignments** are proved by
+`audience-selection.test.ts` alone.
 
 ## LAN-413 — a refused onboarding save is shown on the step
 
@@ -66,8 +70,11 @@ generic server error page and the form was gone.
 **What these do not show.** The per-field version — a refused contact write
 landing as an error on that email or phone rather than on the step — lives in
 the form's own `useActionState` slot and is reachable only by submitting the
-form. It is proved by `src/app/onboarding/[token]/actions.test.ts` and
-`screens.test.tsx`.
+form. It is proved by two tests in `src/lib/services/player-questionnaire.test.ts`
+— "shows an email another record holds against its own field, and saves the
+rest" and "saves the step once the refused email is changed to one nobody
+holds". `src/app/onboarding/[token]/actions.test.ts` and `screens.test.tsx`
+cover the step-level refusal shown above, not the per-field one.
 
 ## LAN-412 — Availability is its own roster group
 
