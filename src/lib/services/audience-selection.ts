@@ -67,7 +67,7 @@ export type AudienceGroupCategory =
   "general" | "coaching" | "warmup" | "special_teams" | "recruits";
 
 /** The order the picker shows the categories in — State of the App call, 2026-09-22. */
-export const AUDIENCE_GROUP_CATEGORY_ORDER: readonly AudienceGroupCategory[] = Object.freeze([
+const AUDIENCE_GROUP_CATEGORY_ORDER: readonly AudienceGroupCategory[] = Object.freeze([
   "general",
   "coaching",
   "warmup",
@@ -75,7 +75,7 @@ export const AUDIENCE_GROUP_CATEGORY_ORDER: readonly AudienceGroupCategory[] = O
   "recruits",
 ]);
 
-export const AUDIENCE_GROUP_CATEGORY_LABELS: Readonly<Record<AudienceGroupCategory, string>> =
+const AUDIENCE_GROUP_CATEGORY_LABELS: Readonly<Record<AudienceGroupCategory, string>> =
   Object.freeze({
     general: "General",
     coaching: "Coaching assignments",
@@ -146,7 +146,7 @@ export function audienceGroupTokenFor(
  * the other three are one status each. Declined, disengaged, voided and joined
  * are not here and are not in the catalogue, so they can never resolve.
  */
-export const OPEN_RECRUIT_STATUSES: readonly string[] = Object.freeze([
+const OPEN_RECRUIT_STATUSES: readonly string[] = Object.freeze([
   "identified",
   "engaged",
   "committed",

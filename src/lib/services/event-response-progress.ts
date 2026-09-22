@@ -22,7 +22,7 @@
  */
 
 /** The four capacities an invitation can carry, as `public.invitation_capacity` spells them. */
-export type ResponseCapacity = "recruit" | "coach" | "player" | "committee";
+type ResponseCapacity = "recruit" | "coach" | "player" | "committee";
 
 /**
  * Which capacity counts somebody who holds more than one — LAN-420's own
@@ -53,7 +53,7 @@ const DISPLAY_ORDER: readonly ResponseCapacity[] = Object.freeze([
   "committee",
 ]);
 
-export const RESPONSE_CAPACITY_LABELS: Readonly<Record<ResponseCapacity, string>> = Object.freeze({
+const RESPONSE_CAPACITY_LABELS: Readonly<Record<ResponseCapacity, string>> = Object.freeze({
   recruit: "Recruits",
   player: "Players",
   coach: "Coaches",

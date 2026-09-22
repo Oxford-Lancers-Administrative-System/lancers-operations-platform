@@ -15,8 +15,6 @@ import {
  */
 
 export {
-  audienceCategoriesForEventType,
-  audienceOptionsForEventType,
   audiencePeople,
   capacitiesForEventType,
   summariseAudienceGroups,

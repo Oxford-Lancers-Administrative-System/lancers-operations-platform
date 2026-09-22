@@ -2484,6 +2484,26 @@ describe("recruits are in every event type's catalogue, reachable only by pick",
     }
   });
 
+  it("still refuses a forged selection key outright rather than dropping it", async () => {
+    // LAN-416 removed the *type* gate, not the catalogue gate. A key naming
+    // somebody this event's catalogue does not offer — a lapsed membership, a
+    // closed prospect, a hand-typed id — is still a total refusal, because a
+    // save that silently shrank would store a list the operator never
+    // confirmed.
+    const practice = await newDraft();
+    const playerKeys = await keysFor(practice, "player", 2);
+
+    const error = await caught(() =>
+      saveEventAudience(actorPersonId, practice.id, [
+        ...playerKeys,
+        selectionKey("recruit", "00000000-0000-4000-8000-000000000000"),
+      ]),
+    );
+
+    expect(error.rule).toBe(UNKNOWN_SELECTION_RULE);
+    expect((await countsFor(practice.id)).audience).toBe(0);
+  });
+
   it("saves and approves an engaged recruit on a practice event", async () => {
     const practice = await newDraft();
     const catalogue = await catalogueFor(practice);
