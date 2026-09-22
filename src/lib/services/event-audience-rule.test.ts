@@ -34,7 +34,13 @@ import { mintRecruitmentSignupCodeIn } from "./recruitment-signup-codes";
 import { updateRecruitmentProspectStatusIn } from "./recruitment-prospect";
 import { flipRecruitmentProspectToJoinedIn } from "./recruitment-prospect/flip";
 import { enterReturningPlayer } from "./roster";
-import { commitBps } from "./roster-board";
+import {
+  commitBps,
+  commitCoachingGroups,
+  commitPositionGroups,
+  commitSpecialTeamsAssignment,
+  commitWarmupSmallGroup,
+} from "./roster-board";
 import {
   agePastSafetyPacing,
   clearRecipientSafetyState,
@@ -184,6 +190,23 @@ afterEach(async () => {
     `delete from public.bps_selections where season_membership_id in ${ownMemberships}`,
     [NAME_MARKER],
   );
+  // LAN-414's four assignment cells, each of which is now a door into the rule.
+  await observer.query(
+    `delete from public.coach_group_assignments where season_membership_id in ${ownMemberships}`,
+    [NAME_MARKER],
+  );
+  await observer.query(
+    `delete from public.membership_position_groups where season_membership_id in ${ownMemberships}`,
+    [NAME_MARKER],
+  );
+  await observer.query(
+    `delete from public.warmup_group_assignments where season_membership_id in ${ownMemberships}`,
+    [NAME_MARKER],
+  );
+  await observer.query(
+    `delete from public.special_teams_assignments where season_membership_id in ${ownMemberships}`,
+    [NAME_MARKER],
+  );
   await observer.query(`delete from public.season_memberships where person_id in ${ownPeople}`, [
     NAME_MARKER,
   ]);
@@ -293,6 +316,31 @@ async function addRecruit(
     }),
   );
   return { personId, prospectId: result.prospectId };
+}
+
+/**
+ * An active player of this file's own making — LAN-414's tests need one on the
+ * board, because every assignment cell hangs off a season membership.
+ *
+ * Written straight in, like the BPS case above: the intake path is a door in
+ * its own right and firing it here would put the person on events before the
+ * assignment under test has been made.
+ */
+async function boardPlayer(
+  familyName: string,
+): Promise<{ personId: string; membershipId: string }> {
+  const person = await observer.query<{ id: string }>(
+    "insert into public.people (given_name, family_name) values ($1, $2) returning id",
+    [NAME_MARKER, familyName],
+  );
+  const personId = person.rows[0].id;
+  const membership = await observer.query<{ id: string }>(
+    `insert into public.season_memberships
+       (person_id, season_id, status, entry, confirmed_on, activated_on)
+     values ($1::uuid, $2::uuid, 'active', 'new', current_date, current_date) returning id`,
+    [personId, seasonId],
+  );
+  return { personId, membershipId: membership.rows[0].id };
 }
 
 async function audienceRowsFor(eventId: string, personId: string) {
@@ -1596,5 +1644,280 @@ describe("the public sign-up door", () => {
     expect(invitation?.scheduled_for?.getTime()).toBeGreaterThanOrEqual(
       before.getTime() + 9 * 60 * 1000,
     );
+  });
+});
+
+/**
+ * LAN-414's own acceptance line: "A later assignment change adds or removes the
+ * person from an approved event's audience under LAN-392's rules, with a test
+ * per trigger." One test per trigger, and each proves both directions, because
+ * an assignment cell is the one kind of door that is routinely cleared again.
+ *
+ * Every case needs a player on the assignment *before* approval as well as the
+ * one who gains it afterwards: invariant E1b refuses an approval whose audience
+ * resolves to nobody, so without the anchor there would be no approved event to
+ * join. The anchor doubles as the control — their row is the approver's own,
+ * `added_by_group_category` is null on it, and no retraction may ever touch it.
+ */
+describe("LAN-414 — a roster assignment changed after approval", () => {
+  it("adds and removes a player on a coaching-group event", async () => {
+    const anchor = await boardPlayer("CoachAnchor");
+    await commitCoachingGroups({
+      actorPersonId,
+      membershipId: anchor.membershipId,
+      seasonId,
+      groups: ["Offense"],
+    });
+    const eventId = await approvedEventWithGroup("coaching:Offense", {
+      name: `${NAME_MARKER} offense install`,
+      templateId: PRACTICE_TEMPLATE_ID,
+    });
+
+    const player = await boardPlayer("CoachLate");
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(0);
+
+    await commitCoachingGroups({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      groups: ["Offense"],
+    });
+
+    const rows = await audienceRowsFor(eventId, player.personId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].added_by_group).toBe("coaching:Offense");
+    expect(rows[0].capacity).toBe("player");
+    expect(rows[0].added_by_person_id).toBeNull();
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(1);
+
+    // The other direction: the cell cleared, before anything was sent.
+    await commitCoachingGroups({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      groups: [],
+    });
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(0);
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(0);
+
+    // The approver's own row is not a rule add and never comes off.
+    const anchorRows = await audienceRowsFor(eventId, anchor.personId);
+    expect(anchorRows).toHaveLength(1);
+    expect(anchorRows[0].added_by_group).toBeNull();
+  });
+
+  it("adds and removes a player on an offensive position-group event", async () => {
+    const anchor = await boardPlayer("OffenceAnchor");
+    await commitPositionGroups({
+      actorPersonId,
+      membershipId: anchor.membershipId,
+      seasonId,
+      side: "offence",
+      groups: ["Quarterbacks"],
+    });
+    const eventId = await approvedEventWithGroup("coaching:Quarterbacks", {
+      name: `${NAME_MARKER} quarterback film`,
+      templateId: PRACTICE_TEMPLATE_ID,
+    });
+
+    const player = await boardPlayer("OffenceLate");
+    await commitPositionGroups({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      side: "offence",
+      groups: ["Quarterbacks"],
+    });
+
+    const rows = await audienceRowsFor(eventId, player.personId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].added_by_group).toBe("coaching:Quarterbacks");
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(1);
+
+    // Moved to another offensive group, which is a leave and no join: the event
+    // was built from Quarterbacks alone.
+    await commitPositionGroups({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      side: "offence",
+      groups: ["Wide Receivers"],
+    });
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(0);
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(0);
+  });
+
+  it("adds and removes a player on a defensive position-group event", async () => {
+    const anchor = await boardPlayer("DefenceAnchor");
+    await commitPositionGroups({
+      actorPersonId,
+      membershipId: anchor.membershipId,
+      seasonId,
+      side: "defence",
+      groups: ["Linebackers"],
+    });
+    const eventId = await approvedEventWithGroup("coaching:Linebackers", {
+      name: `${NAME_MARKER} linebacker walkthrough`,
+      templateId: PRACTICE_TEMPLATE_ID,
+    });
+
+    const player = await boardPlayer("DefenceLate");
+    await commitPositionGroups({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      side: "defence",
+      groups: ["Linebackers"],
+    });
+
+    const rows = await audienceRowsFor(eventId, player.personId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].added_by_group).toBe("coaching:Linebackers");
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(1);
+
+    await commitPositionGroups({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      side: "defence",
+      groups: [],
+    });
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(0);
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(0);
+  });
+
+  it("adds and removes a player on a warmup small-group event", async () => {
+    const anchor = await boardPlayer("WarmupAnchor");
+    await commitWarmupSmallGroup({
+      actorPersonId,
+      membershipId: anchor.membershipId,
+      seasonId,
+      smallGroup: "Kings",
+    });
+    const eventId = await approvedEventWithGroup("warmup:Kings", {
+      name: `${NAME_MARKER} Kings warmup`,
+      templateId: PRACTICE_TEMPLATE_ID,
+    });
+
+    const player = await boardPlayer("WarmupLate");
+    await commitWarmupSmallGroup({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      smallGroup: "Kings",
+    });
+
+    const rows = await audienceRowsFor(eventId, player.personId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].added_by_group).toBe("warmup:Kings");
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(1);
+
+    // The cell holds one group at a time, so blanking it is the whole of leaving.
+    await commitWarmupSmallGroup({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      smallGroup: null,
+    });
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(0);
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(0);
+  });
+
+  it("adds a player who gains any slot in a special-teams squad", async () => {
+    const anchor = await boardPlayer("SpecialAnchor");
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId: anchor.membershipId,
+      seasonId,
+      squad: "kick_return",
+      slot: "starting",
+      positionName: "Left Returner",
+    });
+    const eventId = await approvedEventWithGroup("special_teams:kick_return", {
+      name: `${NAME_MARKER} kick return session`,
+      templateId: PRACTICE_TEMPLATE_ID,
+    });
+
+    const player = await boardPlayer("SpecialLate");
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(0);
+
+    // A backup slot, which is Stewart's own rule: "even if they're backup three."
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      squad: "kick_return",
+      slot: "backup_2",
+      positionName: "Middle Returner",
+    });
+
+    const rows = await audienceRowsFor(eventId, player.personId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].added_by_group).toBe("special_teams:kick_return");
+    expect(rows[0].capacity).toBe("player");
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(1);
+  });
+
+  it("removes a player from a special-teams squad only when the last slot goes", async () => {
+    const anchor = await boardPlayer("SquadAnchor");
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId: anchor.membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "starting",
+      positionName: "Left Guard",
+    });
+    const eventId = await approvedEventWithGroup("special_teams:punt", {
+      name: `${NAME_MARKER} punt unit`,
+      templateId: PRACTICE_TEMPLATE_ID,
+    });
+
+    const player = await boardPlayer("SquadLate");
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "starting",
+      positionName: "Left Tackle",
+    });
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "backup_1",
+      positionName: "Right Tackle",
+    });
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(1);
+
+    // One slot of two cleared: they still hold the squad, so nothing changes.
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "backup_1",
+      positionName: null,
+    });
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(1);
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(1);
+
+    // The last one: now they have left the squad, and the unsent add comes back.
+    await commitSpecialTeamsAssignment({
+      actorPersonId,
+      membershipId: player.membershipId,
+      seasonId,
+      squad: "punt",
+      slot: "starting",
+      positionName: null,
+    });
+    expect(await audienceRowsFor(eventId, player.personId)).toHaveLength(0);
+    expect(await invitationsFor(eventId, player.personId)).toHaveLength(0);
+
+    const anchorRows = await audienceRowsFor(eventId, anchor.personId);
+    expect(anchorRows).toHaveLength(1);
+    expect(anchorRows[0].added_by_group).toBeNull();
   });
 });

@@ -2,10 +2,12 @@
  * Every door into a derived audience group goes through the one chokepoint —
  * LAN-392.
  *
- * `AUDIENCE_GROUPS` is derived from exactly four facts: a season membership's
- * status, an effective-dated coaching or committee seat, a BPS selection, and a
- * recruitment prospect's status. Anything that writes one of them can move a
- * person into or out of an audience group, and if it does that without calling
+ * An audience is derived from eight facts: a season membership's status, an
+ * effective-dated coaching or committee seat, a BPS selection, a recruitment
+ * prospect's status, and — since LAN-414 put the roster board's own assignments
+ * in the picker — a coaching group, a position group, a warmup small group and
+ * a special-teams slot. Anything that writes one of them can move a person into
+ * or out of an audience group, and if it does that without calling
  * `applyAudienceGroupRuleIn` the rule silently stops working for that door —
  * which is a defect nobody notices until an event goes out short.
  *
@@ -23,7 +25,7 @@
  * are out of scope by construction, and this comment is where that is written
  * down rather than discovered.
  *
- * There are no database triggers on any of the four tables (`create trigger`
+ * There are no database triggers on any of these tables (`create trigger`
  * returns nothing in this repository, and `20260917090000`'s header records
  * that ADR 0008 and ADR 0012 rejected them by name), which is the whole reason
  * a TypeScript-only chokepoint is a complete answer at all.
@@ -35,12 +37,24 @@ import path from "node:path";
 const SERVICES = path.join(process.cwd(), "src", "lib", "services");
 const CHOKEPOINT = "applyAudienceGroupRuleIn";
 
-/** The four tables `AUDIENCE_GROUPS` is derived from — see `listAudienceCatalogueIn`. */
+/**
+ * The tables an audience is derived from — see `listAudienceCatalogueIn`.
+ *
+ * The first four decide a General group. The last four are LAN-414's
+ * assignment sub-groups, and they are named here rather than left to the
+ * General four precisely because B-1 of PR 207's review found them wired into
+ * the picker but not into the rule: the blind spot in this list was what let
+ * four new doors ship without a chokepoint call and still pass this file.
+ */
 const GROUP_DECIDING_TABLES = [
   "season_memberships",
   "role_assignments",
   "bps_selections",
   "recruitment_prospects",
+  "coach_group_assignments",
+  "membership_position_groups",
+  "warmup_group_assignments",
+  "special_teams_assignments",
 ] as const;
 
 /**
@@ -163,7 +177,9 @@ describe("the audience group rule's chokepoint", () => {
       "attendance/write.ts", // the walk-up form
       "membership/write-status.ts", // a membership status changing
       "roster/write.ts", // the returner intake
-      "roster-board/write-misc.ts", // the BPS flag
+      "roster-board/write-misc.ts", // the BPS flag, the coaching group and both sides' position groups
+      "roster-board/write-warmup.ts", // LAN-414: the warmup small group cell
+      "roster-board/write-special-teams.ts", // LAN-414: any slot in a special-teams squad
       "operator-administration/assign.ts", // a coaching or committee seat
       "operator-administration/replace.ts", // a handover
       "operator-invitations/invite.ts", // a seat given while creating a login

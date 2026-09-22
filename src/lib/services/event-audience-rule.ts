@@ -26,13 +26,22 @@ import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
  * ## The one chokepoint
  *
  * Every write that can change which derived audience group a person falls into
- * calls {@link applyAudienceGroupRuleIn}, inside its own transaction. There are
- * exactly four facts `AUDIENCE_GROUPS` is derived from — a season membership's
- * status, an effective-dated coaching or committee seat, a BPS selection, and a
- * recruitment prospect's status — and `tests/audience-group-rule-writers.test.ts`
- * enumerates every service module that writes one of them and fails when a new
- * one appears without a call. That test is the mechanism; this comment is only
- * the reason.
+ * calls {@link applyAudienceGroupRuleIn}, inside its own transaction. The facts
+ * an audience is derived from are a season membership's status, an
+ * effective-dated coaching or committee seat, a BPS selection, a recruitment
+ * prospect's status, and — since LAN-414 put the roster's own assignments in
+ * the picker — a coaching group, a position group, a warmup small group and a
+ * special-teams slot. `tests/audience-group-rule-writers.test.ts` enumerates
+ * every service module that writes one of them and fails when a new one appears
+ * without a call. That test is the mechanism; this comment is only the reason.
+ *
+ * An assignment reaches the rule through the same one door as a status: the
+ * writer calls this function after its own write, in its own transaction, and
+ * the catalogue read below sees the row the caller has just written. That is
+ * also why no assignment needs a direction of its own — `matched.length === 0`
+ * is already "no longer in any of this event's groups", so a coaching group
+ * cleared, a warmup cell blanked, or the last slot in a special-teams squad
+ * removed all retract through the path a declined recruit already takes.
  *
  * This function never opens a transaction of its own. It is handed the caller's
  * `Tx` and every row it writes commits or rolls back with the caller's own
@@ -85,6 +94,14 @@ export type AudienceGroupTrigger =
   | "membership_status_changed"
   | "returner_entered"
   | "bps_selection_changed"
+  // LAN-414's four roster-assignment doors. Named per writer rather than one
+  // `assignment_changed`, because the audit's whole job here is to say which
+  // cell an operator touched when a blast is traced back to it — and the four
+  // are four separate cells on the board, not one.
+  | "coaching_group_changed"
+  | "position_group_changed"
+  | "warmup_group_changed"
+  | "special_teams_assignment_changed"
   | "seat_assigned"
   | "seat_replaced"
   | "operator_invited";

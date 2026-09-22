@@ -2,7 +2,8 @@ import "server-only";
 
 import { ConstraintViolated, withTransaction } from "@/lib/db";
 import { recordAudit } from "../audit";
-import { actorRequirement } from "./shared";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
+import { actorRequirement, personIdOfMembershipIn } from "./shared";
 import {
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
@@ -12,9 +13,18 @@ import {
 
 /**
  * One special-teams cell — LAN-374. Twenty-four of them per player, each a
- * single pick from its own squad's list or blank. Nothing is derived from
- * them and no rule ties one cell to another, so this writes exactly the cell
- * it was given and nothing else.
+ * single pick from its own squad's list or blank. This still writes exactly the
+ * cell it was given and nothing else.
+ *
+ * LAN-414 added one consequence outside the cell: `special_teams:<squad>` is an
+ * audience pill, and the pill is per **squad**, never per slot — Stewart's rule
+ * that "if you have an assignment in kick return, you need to get a message…
+ * even if they're backup three." So filling any slot in a squad can put
+ * somebody into an approved event's audience, and clearing one takes them out
+ * only when it was their last slot in that squad. Nothing here counts the
+ * remaining slots: `SPECIAL_TEAMS_SQUADS_EXPRESSION` aggregates the squads the
+ * player still holds any slot in, and the rule re-reads it after this write, so
+ * "their last slot" is decided by the same expression the picker used.
  */
 export async function commitSpecialTeamsAssignment(params: {
   actorPersonId: string;
@@ -24,6 +34,12 @@ export async function commitSpecialTeamsAssignment(params: {
   slot: SpecialTeamsSlot;
   /** The chosen position, or `null` to blank the cell. */
   positionName: string | null;
+  /**
+   * LAN-392 Brian's decision 8, as `enterReturningPlayer` states it: the CSV
+   * import does not trigger the audience group rule. Only `roster-import.ts`
+   * passes `false`, and it says why at its own call site.
+   */
+  applyAudienceGroupRule?: boolean;
 }): Promise<void> {
   actorRequirement(params.actorPersonId);
 
@@ -78,6 +94,18 @@ export async function commitSpecialTeamsAssignment(params: {
           params.actorPersonId,
         ],
       );
+    }
+
+    if (params.applyAudienceGroupRule !== false) {
+      const personId = await personIdOfMembershipIn(tx, params.membershipId);
+      if (personId !== null) {
+        await applyAudienceGroupRuleIn(tx, {
+          personId,
+          seasonId: params.seasonId,
+          trigger: "special_teams_assignment_changed",
+          actorPersonId: params.actorPersonId,
+        });
+      }
     }
 
     await recordAudit(tx, {

@@ -271,6 +271,12 @@ async function writeSeasonFacts(
           squad: column.squad,
           slot: column.slot,
           positionName: value,
+          // LAN-414 under LAN-392's decision 8, for the same reason the
+          // membership itself opts out below: a special-teams column is an
+          // audience pill now, and sixty imported rows against every approved
+          // event built from that squad is hundreds of messages from one
+          // mis-parsed file, with no undo path in this module to take back.
+          applyAudienceGroupRule: false,
         });
         break;
       case "kit":
@@ -290,6 +296,8 @@ async function writeSeasonFacts(
           membershipId,
           seasonId,
           smallGroup: value,
+          // Decision 8 again: the bulk door never blasts. See above.
+          applyAudienceGroupRule: false,
         });
         break;
       default: {

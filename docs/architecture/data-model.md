@@ -1204,11 +1204,19 @@ audience groups calls one function, inside its own transaction, and
 fails when a new one appears without it. The audience insert ignores a conflict
 on `(event_id, invitee_person_id)`, which is what stops invariant P9's unique
 index turning a recruit's flip to a player into a refusal that rolls the
-operator's own action back. The roster CSV import is the one door that opts out
-by decision (Brian, decision 8): it reuses the returner intake and passes
-`applyAudienceGroupRule: false`, because sixty rows against every approved
-Onboarding-group event is hundreds of messages from one mis-parsed file and that
-module has no undo path.
+operator's own action back. LAN-414 widened what "derived" covers: the roster
+board's coaching group, both sides' position groups, the warmup small group and
+any slot in a special-teams squad are audience sub-groups now, so those four
+cells are doors in exactly the same sense as a membership status, and
+`GROUP_DECIDING_TABLES` names their four tables beside the original four. A
+squad is one audience however many slots it holds, so clearing one slot removes
+the person only when it was their last in that squad — decided by re-reading the
+catalogue after the write, never by counting in the writer. The roster CSV
+import is the one door that opts out by decision (Brian, decision 8): it reuses
+the returner intake and the board's own warmup and special-teams writers, and
+passes `applyAudienceGroupRule: false` to each, because sixty rows against every
+approved event built from those groups is hundreds of messages from one
+mis-parsed file and that module has no undo path.
 
 **The backfill, and its accepted cost.** Events approved before the migration
 have no stored groups, so each is given its template's default audience groups
