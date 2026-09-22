@@ -102,7 +102,7 @@ export const EVENTS_PAGE: PlaybookPage = {
     {
       operator: [
         "To let somebody outside the club see the event, use ",
-        screen("Share this event"),
+        screen("Event info link"),
         " and press ",
         control("Create the link"),
         ".",

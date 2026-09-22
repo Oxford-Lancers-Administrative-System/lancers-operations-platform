@@ -169,7 +169,7 @@ export function EventDetailView({
   /** `null` until approval creates invitations — invariant P1. */
   participation: OperatorParticipation | null;
   participationFilters: ParticipationFilters;
-  /** `null` unless the operator opened **Share link**. */
+  /** `null` unless the operator opened **Event info link**. */
   share: {
     url: string | null;
     /** The six lines the panel shows and its button copies — LAN-410. `null` where no link exists yet. */

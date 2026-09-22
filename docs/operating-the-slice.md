@@ -739,7 +739,7 @@ pages asks you to sign in, and reading them creates no record of any kind.
 
 ## 12c. The club link, and how long it lasts
 
-**Share this event** on an approved event's page issues `/e/<token>` — the
+**Event info link** on an approved event's page issues `/e/<token>` — the
 shared squad page a coach posts into the team WhatsApp group. Anyone holding it
 sees names, RSVP status, decline reasons and question answers, with no account
 and no sign-in. It shows no delivery state and no joining URL.

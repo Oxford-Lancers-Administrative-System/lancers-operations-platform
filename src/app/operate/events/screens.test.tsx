@@ -2947,11 +2947,14 @@ describe("sharing the club link — W7-04", () => {
     return detail({ status: "approved", audienceCount: 3, invitationCount: 0 });
   }
 
-  it("offers Share link on an approved event and not on a draft", async () => {
+  it("offers Event info link on an approved event and not on a draft", async () => {
     vi.mocked(readEvent).mockResolvedValue(approvedEvent());
     vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
     const approved = render(await EventDetailPage(detailProps()));
     expect(approved.getByTestId("share-link-button")).toBeVisible();
+    // LAN-417 — Stewart read "Share link" as an RSVP link. The button says
+    // what the link actually opens: the read-only page of event information.
+    expect(approved.getByTestId("share-link-button").textContent).toBe("Event info link");
     approved.unmount();
 
     // A draft has no participation table to share.
@@ -2969,6 +2972,10 @@ describe("sharing the club link — W7-04", () => {
 
     render(await EventDetailPage(detailProps({ share: "1" })));
 
+    // LAN-417 — the panel's headline is the button's own words, because it is
+    // the same thing. Its one sentence and its two Copy controls are unchanged.
+    expect(screen.getByTestId("section-share-panel").textContent).toContain("Event info link");
+    expect(screen.getByTestId("section-share-panel").textContent).not.toContain("Share this event");
     expect(screen.getByTestId("club-link-url").textContent).toBe("https://club.example/e/a-token");
     // Reading is reading: opening the dialog must not mint a token.
     expect(issueEventClubLink).not.toHaveBeenCalled();
@@ -3084,7 +3091,7 @@ describe("sharing the club link — W7-04", () => {
 
     expect(screen.queryByTestId("share-message-text")).toBeNull();
     // `readEventShareFacts` issues a link where there is none, so opening the
-    // panel must not reach it: the link is the Share link button's to mint.
+    // panel must not reach it: the link is the Event info link button's to mint.
     expect(readEventShareFacts).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });

@@ -164,8 +164,16 @@ export const NOBODY_ASKED = "Nobody has been invited to this event yet.";
 
 // The club link — §4.15, D2, D81
 
-export const SHARE_LINK = "Share link";
-export const SHARE_HEADLINE = "Share this event";
+/**
+ * LAN-417, Stewart on the 2026-09-22 call: "Share link to me means I'm sharing
+ * this event and someone can go respond to it… Maybe we should say event
+ * preview or event info link." Brian: "Event info link." It is the public
+ * read-only page — the details and who has responded (LAN-384) — never an RSVP
+ * link, and the old label invited exactly the wrong reading. The button and
+ * the panel's headline carry the same words, because they are the same thing.
+ */
+export const SHARE_LINK = "Event info link";
+export const SHARE_HEADLINE = "Event info link";
 
 /** The one sentence the dialog carries — the consequence of pressing the control. The mockup's reasoning paragraph is a deviation reported in the PR, not shipped. */
 export const SHARE_CONSEQUENCE =
