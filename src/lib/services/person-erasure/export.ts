@@ -14,8 +14,10 @@ import { recordAudit } from "../audit";
  *
  * Tables are named explicitly, and the list is the same foreign-key inventory
  * `anonymise.ts` works from. A table added later that holds something about a
- * person is added here too, and `tests/person-erasure.test.ts` fails if the
- * export and the anonymisation disagree about which tables those are.
+ * person is added here too — by hand. This list carries no completeness test
+ * of its own; the one that does exist, `tests/person-merge-reference-catalogue.test.ts`,
+ * checks `PERSON_REFERENCE_COLUMNS` (the merge catalogue, `person-merge/write.ts`)
+ * against `pg_constraint` directly, not this list.
  */
 
 /** A row source: the table, and how a row of it is tied to one person. */
@@ -76,6 +78,7 @@ const PERSON_EXPORT_SOURCES: readonly ExportSource[] = Object.freeze([
   VIA_MEMBERSHIP("public.membership_position_groups"),
   VIA_MEMBERSHIP("public.special_teams_assignments"),
   VIA_MEMBERSHIP("public.kit_issue_records"),
+  VIA_MEMBERSHIP("public.warmup_group_assignments"),
   VIA_MEMBERSHIP("public.jersey_assignments"),
   VIA_MEMBERSHIP("public.coach_group_assignments"),
   VIA_MEMBERSHIP("public.formalwear_records"),

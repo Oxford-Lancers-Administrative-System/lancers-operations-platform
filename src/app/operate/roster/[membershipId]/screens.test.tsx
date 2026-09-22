@@ -58,6 +58,8 @@ vi.mock("./record-actions", () => ({
   recordCommitBluesAction: vi.fn().mockResolvedValue({ error: null }),
   recordCommitEligibilityAction: vi.fn().mockResolvedValue({ error: null }),
   recordCommitAvailabilityAction: vi.fn().mockResolvedValue({ error: null }),
+  recordCommitWarmupSmallGroupAction: vi.fn().mockResolvedValue({ error: null }),
+  recordCommitKitItemAction: vi.fn().mockResolvedValue({ error: null }),
   recordResolveOnboardingItemAction: vi.fn().mockResolvedValue({ error: null }),
   recordSendOnboardingQuestionnaireAction: vi
     .fn()
@@ -76,6 +78,8 @@ import type {
 } from "@/lib/services/player-record";
 import {
   recordCommitJerseyNumbersAction,
+  recordCommitKitItemAction,
+  recordCommitWarmupSmallGroupAction,
   recordResolveOnboardingItemAction,
   recordSendOnboardingQuestionnaireAction,
   recordSetStatusAction,
@@ -103,12 +107,13 @@ function signedInAs(roleCodes: string[]): void {
 
 const MEMBERSHIP_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const PERSON_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const SEASON_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 
 function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
   return {
     membershipId: MEMBERSHIP_ID,
     personId: PERSON_ID,
-    seasonId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    seasonId: SEASON_ID,
     seasonLabel: "2026-27",
     status: "onboarding",
     entry: "returning",
@@ -145,6 +150,7 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
       formalwear: { tie: false, bowtie: false },
       specialTeams: {},
       kit: {},
+      warmupSmallGroup: null,
       blues: "None",
       eligibility: null,
       availability: null,
@@ -522,7 +528,7 @@ describe("Kit Distributed — still Yes/No, no longer typed (LAN-375)", () => {
     expect(within(row).queryByTestId("editable-field")).not.toBeInTheDocument();
   });
 
-  it("puts the eleven issued-kit items in the Kit group, Braces 1 and Braces 2 among them", async () => {
+  it("puts the eleven issued-kit items in the Kit group, Braces L and Braces R among them", async () => {
     givenRecord({});
     render(await PlayerRecordPage(pageProps()));
 
@@ -536,13 +542,66 @@ describe("Kit Distributed — still Yes/No, no longer typed (LAN-375)", () => {
       "Loaner Cleats",
       "Team Mouthguard",
       "Team Gloves",
-      "Braces 1",
-      "Braces 2",
+      "Braces L",
+      "Braces R",
       "Socks",
       "Formalwear",
     ]) {
       expect(within(kit).getByText(label)).toBeInTheDocument();
     }
+  });
+
+  /**
+   * LAN-409 — Stewart, "Ops Improvements", 2026-09-21: "The braces columns
+   * should be able to accept more than one choice (ankle plus knee plus
+   * shoulder if needed). Perhaps we can even make it Braces L and Braces R."
+   */
+  it("shows a whole side's braces as one multi-select, the way Formalwear reads", async () => {
+    givenRecord({
+      season: {
+        ...record().season,
+        kit: {
+          "kit:braces_left": ["Ankle - M", "Knee - L"],
+          "kit:braces_right": ["Shoulder"],
+          "kit:helmet": ["Speedflex M"],
+        },
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const kit = screen.getByTestId("section-kit");
+    const left = within(kit).getByText("Braces L").closest('[data-testid="record-row"]')!;
+    expect(within(left as HTMLElement).getByText("Ankle - M, Knee - L")).toBeInTheDocument();
+
+    const right = within(kit).getByText("Braces R").closest('[data-testid="record-row"]')!;
+    expect(within(right as HTMLElement).getByText("Shoulder")).toBeInTheDocument();
+
+    // The nine single-pick items are untouched.
+    const helmet = within(kit).getByText("Helmet").closest('[data-testid="record-row"]')!;
+    expect(within(helmet as HTMLElement).getByText("Speedflex M")).toBeInTheDocument();
+  });
+
+  it("commits a whole side's set through one save", async () => {
+    givenRecord({
+      season: {
+        ...record().season,
+        kit: { "kit:braces_left": ["Ankle - M"] },
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const kit = screen.getByTestId("section-kit");
+    const left = within(kit).getByText("Braces L").closest('[data-testid="record-row"]')!;
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(left as HTMLElement).getByTestId("editable-field"));
+    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Knee - L" })));
+
+    expect(recordCommitKitItemAction).toHaveBeenCalledWith({
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      item: "braces_left",
+      value: ["Ankle - M", "Knee - L"],
+    });
   });
 });
 
@@ -1789,12 +1848,13 @@ describe("which groups are folded away, remembered on the account", () => {
     vi.mocked(readOperatorPreferences).mockResolvedValue({});
   });
 
-  it("closes Special teams and Kit for an operator who has never said otherwise", async () => {
+  it("closes Special teams, Warmup assignments and Kit for an operator who has never said otherwise", async () => {
     givenRecord();
     render(await PlayerRecordPage(pageProps()));
 
     expect(screen.getByTestId("section-kit")).not.toHaveAttribute("open");
     expect(screen.getByTestId("section-special-teams")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-warmup")).not.toHaveAttribute("open");
   });
 
   it("opens the groups the account does not list", async () => {
@@ -1831,5 +1891,219 @@ describe("which groups are folded away, remembered on the account", () => {
       "coaching",
       "specialTeams",
     ]);
+  });
+
+  /**
+   * LAN-403 — Stewart, on the call of 2026-09-21: "I cannot collapse his
+   * personal record. I cannot collapse onboarding." Every section folds now,
+   * not only the three the board also has.
+   */
+  it("folds every section on the record, not only the board's own groups", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    for (const testId of [
+      "person",
+      "onboarding",
+      "activity",
+      "season",
+      "coaching",
+      "offensive",
+      "defensive",
+      "special-teams",
+      "warmup",
+      "kit",
+      "attendance",
+      "other-seasons",
+      "status-history",
+    ]) {
+      expect(screen.getByTestId(`section-${testId}`).tagName).toBe("DETAILS");
+    }
+  });
+
+  it("arrives with Person, Onboarding and Membership open and the long tail closed", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.getByTestId("section-person")).toHaveAttribute("open");
+    expect(screen.getByTestId("section-onboarding")).toHaveAttribute("open");
+    expect(screen.getByTestId("section-season")).toHaveAttribute("open");
+    expect(screen.getByTestId("section-activity")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-attendance")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-other-seasons")).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-status-history")).not.toHaveAttribute("open");
+  });
+
+  it("remembers a section only the record has", async () => {
+    // Attendance is not one of the board's groups, so nothing but the record
+    // can fold it — and the account still has to hold the answer.
+    vi.mocked(readOperatorPreferences).mockResolvedValue({
+      rosterCollapsedGroups: ["kit", "attendance"],
+    });
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const attendance = screen.getByTestId("section-attendance");
+    expect(attendance).not.toHaveAttribute("open");
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      (attendance as HTMLDetailsElement).open = true;
+      fireEvent(attendance, new Event("toggle", { bubbles: false }));
+    });
+
+    expect(saveCollapsedGroupsAction).toHaveBeenCalledTimes(1);
+    expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]].sort()).toEqual(["kit"]);
+  });
+});
+
+/**
+ * LAN-401 — Stewart's warmup small groups. One collapsible group of one cell,
+ * between Special teams assignments and Kit, editable by whoever may edit a
+ * position today and by nobody else.
+ */
+describe("Warmup assignments — LAN-401", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it("sits between Special teams and Kit, and offers Stewart's eight names in his order", async () => {
+    givenRecord({});
+    render(await PlayerRecordPage(pageProps()));
+
+    const warmup = screen.getByTestId("section-warmup");
+    expect(within(warmup).getByText("Warmup assignments")).toBeInTheDocument();
+    expect(within(warmup).getByText("Small Group Assignment")).toBeInTheDocument();
+
+    const special = screen.getByTestId("section-special-teams");
+    const kit = screen.getByTestId("section-kit");
+    expect(special.compareDocumentPosition(warmup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(warmup.compareDocumentPosition(kit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const row = within(warmup)
+      .getByText("Small Group Assignment")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    // Blank until somebody picks — REQ-not-recorded, the same as every other cell.
+    expect(within(row).getByTestId("not-recorded")).toBeInTheDocument();
+
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(within(row).getByTestId("editable-field"));
+    expect(await screen.findByRole("option", { name: "Kings" })).toBeInTheDocument();
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      // The editor's own blank choice, then Stewart's eight in his order.
+      "not recorded",
+      "Kings",
+      "Raider",
+      "Bear",
+      "Phoenix",
+      "Cavalier",
+      "Blue",
+      "Gold",
+      "Lancer",
+    ]);
+  });
+
+  it("commits a pick through the record's own action", async () => {
+    givenRecord({});
+    render(await PlayerRecordPage(pageProps()));
+
+    const warmup = screen.getByTestId("section-warmup");
+    const row = within(warmup)
+      .getByText("Small Group Assignment")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(row).getByTestId("editable-field"));
+    const option = await screen.findByRole("option", { name: "Gold" });
+    await act(async () => {
+      fireEvent.click(option);
+    });
+
+    expect(recordCommitWarmupSmallGroupAction).toHaveBeenCalledWith(
+      expect.objectContaining({ smallGroup: "Gold" }),
+    );
+  });
+});
+
+/**
+ * LAN-408 — Stewart, "Ops Improvements", 2026-09-21, request 1: "I'm not a
+ * huge fan of the stacking effect here. Can the data related to a line be in
+ * line, then AFTER that entry or choice, perhaps a required/not required
+ * field that is green or red or something to draw attention to the admin."
+ */
+describe("an onboarding item reads label, value, marker", () => {
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+  });
+
+  function markerOf(label: string): HTMLElement {
+    const row = screen.getByText(label).closest('[data-testid="record-row"]') as HTMLElement;
+    return row;
+  }
+
+  it("puts the marker after the value, not above it", async () => {
+    givenRecord({
+      onboardingItems: [historyItem({ status: "pending" })],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = markerOf("BUCS Play registration");
+    const text = row.textContent ?? "";
+    // Reading order, in the DOM the way it is on the page.
+    expect(text.indexOf("BUCS Play registration")).toBeLessThan(text.indexOf("Not invited"));
+    expect(text.indexOf("Not invited")).toBeLessThan(text.indexOf("Required"));
+  });
+
+  it("draws attention to a required item that is still outstanding", async () => {
+    givenRecord({ onboardingItems: [historyItem({ status: "pending" })] });
+    render(await PlayerRecordPage(pageProps()));
+
+    const chip = within(markerOf("BUCS Play registration")).getByText("Required");
+    expect(chip).toBeInTheDocument();
+    // Filled, which is what "draws attention" is made of here; the settled
+    // case below is the same word drawn quietly.
+    expect(chip.closest(".MuiChip-root")).toHaveClass("MuiChip-filled");
+  });
+
+  it("does not draw attention to a required item that is settled", async () => {
+    givenRecord({ onboardingItems: [historyItem({ status: "complete" })] });
+    render(await PlayerRecordPage(pageProps()));
+
+    const chip = within(markerOf("BUCS Play registration")).getByText("Required");
+    expect(chip.closest(".MuiChip-root")).toHaveClass("MuiChip-outlined");
+  });
+
+  it("says Not required where nothing is required, and never blocks activation for the subscription", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          id: "item-hudl",
+          code: "hudl_access",
+          label: "Hudl access",
+          isRequired: false,
+          status: "pending",
+        }),
+        historyItem({
+          id: "item-invoiced",
+          code: "subs_invoiced",
+          label: "Subscription invoiced",
+          status: "complete",
+        }),
+        historyItem({
+          id: "item-paid",
+          code: "subs_paid",
+          label: "Subscription paid",
+          isRequired: false,
+          isSubscription: true,
+          status: "pending",
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const hudl = within(markerOf("Hudl access")).getByText("Not required");
+    expect(hudl.closest(".MuiChip-root")).toHaveClass("MuiChip-outlined");
+
+    const paid = markerOf("Subscription paid");
+    expect(within(paid).getByText("Never blocks activation")).toBeInTheDocument();
+    expect(within(paid).queryByText("Not required")).not.toBeInTheDocument();
   });
 });

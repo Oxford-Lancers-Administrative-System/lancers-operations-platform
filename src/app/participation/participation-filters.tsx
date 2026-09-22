@@ -29,6 +29,7 @@ import {
   FILTER_DELIVERY_LABEL,
   FILTER_SEARCH_LABEL,
   NEEDS_ATTENTION_FILTER_LABEL,
+  NOT_DELIVERED,
   NOT_RECORDED,
   PRESENCE_LABELS,
   WALK_UP_LABEL,
@@ -182,6 +183,8 @@ export function ParticipationFilterBar({
           options={[
             { value: "attention", label: NEEDS_ATTENTION_FILTER_LABEL },
             ...Object.entries(DELIVERY_LABELS).map(([value, label]) => ({ value, label })),
+            // LAN-411: one option, over Attempted rather than beside the five.
+            { value: "not_delivered", label: NOT_DELIVERED },
             { value: "none", label: DELIVERY_NOT_QUEUED },
           ]}
           onPick={(value) => apply({ [PARTICIPATION_PARAMS.delivery]: value })}

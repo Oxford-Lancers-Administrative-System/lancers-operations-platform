@@ -1,6 +1,7 @@
 import { itemStateLabel } from "@/lib/services/onboarding-item-shapes";
 import type { OnboardingItemStatus } from "@/lib/services/membership";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
+import { isMultiValueKitItem, parseKitCellKey } from "@/lib/services/roster-board/vocabulary";
 import {
   AVAILABILITY_LABELS,
   ELIGIBILITY_LABELS,
@@ -24,8 +25,15 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
   // LAN-374: the twenty-four special-teams cells are one family, keyed
   // `st:<squad>:<slot>`, not twenty-four cases.
   if (key.startsWith("st:")) return row.specialTeams[key] ?? null;
-  // LAN-375: the eleven issued-kit items, keyed `kit:<item>`.
-  if (key.startsWith("kit:")) return row.kit[key] ?? null;
+  // LAN-375: the eleven issued-kit items, keyed `kit:<item>`. Nine hold one
+  // value and read as that value; Braces L and Braces R hold a set and read as
+  // the list their multi-select edits (LAN-409).
+  if (key.startsWith("kit:")) {
+    const item = parseKitCellKey(key);
+    const held = row.kit[key] ?? [];
+    if (item && isMultiValueKitItem(item)) return [...held];
+    return held[0] ?? null;
+  }
   switch (key) {
     case "college":
       return row.college;
@@ -67,6 +75,9 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return (Object.keys(row.formalwear) as (keyof typeof row.formalwear)[]).filter(
         (item) => row.formalwear[item],
       );
+    // LAN-401: the warmup group's one cell.
+    case "warmupSmallGroup":
+      return row.warmupSmallGroup;
     case "blues":
       return row.blues;
     case "eligibility":

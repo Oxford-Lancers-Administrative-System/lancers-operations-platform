@@ -15,6 +15,8 @@ import {
   SPECIAL_TEAMS_SLOTS,
   SPECIAL_TEAMS_SQUADS,
   specialTeamsCellKey,
+  WARMUP_SMALL_GROUP_KEY,
+  WARMUP_SMALL_GROUP_VALUES,
 } from "@/lib/services/roster-board/vocabulary";
 import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
@@ -35,6 +37,7 @@ export type Band =
   | "offensive"
   | "defensive"
   | "specialTeams"
+  | "warmup"
   | "kit";
 
 export interface BandDef {
@@ -155,6 +158,11 @@ const BANDS: readonly BandDef[] = Object.freeze([
     ...BAND_COLOURS.specialTeams,
   }),
   Object.freeze({
+    key: "warmup" as const,
+    label: "Warmup assignments",
+    ...BAND_COLOURS.warmup,
+  }),
+  Object.freeze({
     key: "kit" as const,
     label: "Kit",
     ...BAND_COLOURS.kit,
@@ -166,7 +174,7 @@ const BAND_ORDER: readonly Band[] = Object.freeze(BANDS.map((band) => band.key))
 
 /** Groups the board and the record open collapsed when this operator has never said otherwise. The long tail, not the facts an operator came for. Read only through `collapsedBandsFrom`, so nothing can consult the default without first consulting the account. */
 const COLLAPSED_BY_DEFAULT: ReadonlySet<Band> = Object.freeze(
-  new Set<Band>(["specialTeams", "kit"]),
+  new Set<Band>(["specialTeams", "warmup", "kit"]),
 );
 
 function isBand(key: string): key is Band {
@@ -186,6 +194,59 @@ function isBand(key: string): key is Band {
 export function collapsedBandsFrom(stored: readonly string[] | undefined): ReadonlySet<Band> {
   if (stored === undefined) return COLLAPSED_BY_DEFAULT;
   return new Set(stored.filter(isBand));
+}
+
+/**
+ * The membership record's own sections — LAN-403. Stewart, on the call of
+ * 2026-09-21: "I cannot collapse his personal record. I cannot collapse
+ * onboarding." Every section on the record folds, so the four that are not one
+ * of the board's groups need names in the same setting.
+ *
+ * They are kept in the one `rosterCollapsedGroups` list rather than a second
+ * one, because they are the same operator answering the same question about
+ * the same screen family. `collapsedBandsFrom` already drops what it does not
+ * recognise, so the board simply never sees them.
+ */
+type RecordSection = "activity" | "attendance" | "otherSeasons" | "statusHistory";
+export type RecordGroup = Band | RecordSection;
+
+const RECORD_SECTIONS: readonly RecordSection[] = Object.freeze([
+  "activity",
+  "attendance",
+  "otherSeasons",
+  "statusHistory",
+]);
+
+/**
+ * What the record closes for an operator who has never said otherwise: the
+ * board's own three, plus the record's four, which are the long tail by the
+ * same rule — a log, a term's attendance, previous seasons and the status
+ * history are none of them what a reader opened this record for. Person,
+ * Onboarding and Membership stay open.
+ */
+const RECORD_COLLAPSED_BY_DEFAULT: ReadonlySet<RecordGroup> = Object.freeze(
+  new Set<RecordGroup>([...COLLAPSED_BY_DEFAULT, ...RECORD_SECTIONS]),
+);
+
+function isRecordGroup(key: string): key is RecordGroup {
+  return isBand(key) || (RECORD_SECTIONS as readonly string[]).includes(key);
+}
+
+/** Which of the record's sections this operator has folded away — `collapsedBandsFrom`'s rule, over the wider list. */
+export function recordCollapsedGroupsFrom(
+  stored: readonly string[] | undefined,
+): ReadonlySet<RecordGroup> {
+  if (stored === undefined) return RECORD_COLLAPSED_BY_DEFAULT;
+  return new Set(stored.filter(isRecordGroup));
+}
+
+/**
+ * Stored keys the *board* has no opinion about — the record's own sections.
+ * The board writes the whole list every time, so without this a fold made on a
+ * record would be erased by the next fold made on the board.
+ */
+export function nonBandCollapsedKeys(stored: readonly string[] | undefined): readonly string[] {
+  return (stored ?? []).filter((key) => !isBand(key));
 }
 
 export function bandOf(key: Band): BandDef {
@@ -276,6 +337,8 @@ export const COACHING_GROUPS = COACHING_GROUP_VALUES;
 export const OFFENSIVE_POSITION_GROUPS = OFFENSIVE_POSITION_GROUP_VALUES;
 export const DEFENSIVE_POSITION_GROUPS = DEFENSIVE_POSITION_GROUP_VALUES;
 export const FORMALWEAR_ITEMS = FORMALWEAR_ITEM_KEYS;
+/** LAN-401, Stewart's eight names in his order. Same list the service holds, imported not retyped. */
+export const WARMUP_SMALL_GROUPS = WARMUP_SMALL_GROUP_VALUES;
 export const FORMALWEAR_LABELS: Readonly<Record<string, string>> = Object.freeze({
   tie: "Tie",
   bowtie: "Bow tie",
@@ -665,15 +728,30 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
         requires: "person_record_authority" as const,
       })),
     ),
+    // ------------------------------------------ Warmup assignments --
+    // LAN-401: one column, one pick from Stewart's eight names or blank.
+    {
+      key: WARMUP_SMALL_GROUP_KEY,
+      label: "Small Group Assignment",
+      band: "warmup",
+      edit: "select",
+      options: WARMUP_SMALL_GROUP_VALUES,
+      width: 190,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
     // ------------------------------------------------------------------ Kit --
-    // LAN-375: eleven issued-kit items from Clint's sheet, one single-select
-    // each. Formalwear moved here from Season and keeps Tie and Bow tie; the
-    // club's blue game socks are a Kit item of their own.
+    // LAN-375: eleven issued-kit items from Clint's sheet. Nine are a single
+    // select; Braces L and Braces R take the multi-select Formalwear already
+    // uses (LAN-409), at the same width. Formalwear moved here from Season and
+    // keeps Tie and Bow tie; the club's blue game socks are a Kit item of
+    // their own.
     ...KIT_ITEMS.map((item) => ({
       key: kitCellKey(item.item),
       label: item.label,
       band: "kit" as const,
-      edit: "select" as const,
+      edit: (item.multi ? "multiselect" : "select") as "multiselect" | "select",
       options: item.values,
       width: 190,
       sortable: true,
@@ -725,6 +803,7 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     offensivePositionGroups: ["offensivePositionGroups"],
     defensivePositionGroups: ["defensivePositionGroups"],
     formalwear: ["formalwear"],
+    [WARMUP_SMALL_GROUP_KEY]: ["warmupSmallGroup"],
     ...Object.fromEntries(KIT_ITEMS.map((item) => [kitCellKey(item.item), ["kit"] as const])),
     ...Object.fromEntries(
       SPECIAL_TEAMS_SQUADS.flatMap((squad) =>

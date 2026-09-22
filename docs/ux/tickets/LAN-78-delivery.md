@@ -55,6 +55,15 @@ that was accepted, never concluded, and is older than `WHATSAPP_MESSAGE_TTL_HOUR
 person's last delivery. No new state, no automatic replacement send: the repair is the Retry that
 already exists, because a dropped message is one that sending again might actually deliver.
 
+Between the send and that thirty-day conclusion sits LAN-411's **Not delivered**, and the two do
+not compete. Not delivered is a label over **Attempted**, derived at read time from
+`delivery_attempts.accepted_at` and `delivery_callbacks` and never written, for a WhatsApp attempt
+Meta accepted more than `NOT_DELIVERED_AFTER_MINUTES` ago with no `delivered` or `read` callback
+and no recorded outcome. It says the message has probably not arrived while the attempt is still
+open; `concludeExpiredDeliveries` still concludes that attempt Failed or Retryable at the TTL, after
+which the row reads Failed and the label no longer applies. Nothing in the chase ladder,
+`sendEventChases`, `raiseDueEscalations` or `DUE_JOB_PREDICATE` reads it, and none may be made to.
+
 A confirmed **Delivered** is out of reach of this — it concludes only an attempt nothing has
 concluded — and a stale callback arriving afterwards is stored as evidence and applies nothing,
 under invariant M4. Meta documents both halves of that hazard: one message can produce a

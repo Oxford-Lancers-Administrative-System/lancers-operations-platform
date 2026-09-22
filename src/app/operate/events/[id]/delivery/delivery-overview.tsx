@@ -16,6 +16,7 @@ import {
   NEEDS_ATTENTION_HEADING,
   NEEDS_ATTENTION_NOTE,
   NO_ACTION_NEEDED,
+  notDeliveredNotice,
   OPEN_THEIR_RECORD,
   OVERVIEW_FACTS,
   VIEW_DIAGNOSTICS,
@@ -40,6 +41,16 @@ export function Overview({ delivery, basePath }: { delivery: EventDelivery; base
           {counts.held === 1
             ? "1 message is held after a change to this event."
             : `${counts.held} messages are held after a change to this event.`}
+        </Notice>
+      ) : null}
+
+      {/* LAN-411. Beside the held-messages notice and in the same idiom: the
+          four tiles are unchanged and the undelivered stay counted inside
+          Queued, which is true — the club is still waiting on them. A fifth
+          tile would be a lone half-width tile at 375 px. */}
+      {counts.notDelivered > 0 ? (
+        <Notice severity="warning" testId="delivery-not-delivered">
+          {notDeliveredNotice(counts.notDelivered)}
         </Notice>
       ) : null}
 

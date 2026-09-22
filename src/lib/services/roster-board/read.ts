@@ -10,6 +10,7 @@ import type { AssembledStatus, PersonFactPresence } from "../person-required";
 import { missingRequiredFields } from "../person-required";
 import { isOxfordCollegeEmail } from "../person-validation";
 import type { Season } from "../seasons";
+import { countSeasonOnboardingItemTypes } from "../season-onboarding";
 import { BOARD_ELIGIBILITY_COMPETITION } from "./shared";
 import {
   FORMALWEAR_ITEM_KEYS,
@@ -82,8 +83,15 @@ export interface RosterBoardRow {
   formalwear: Record<FormalwearItemKey, boolean>;
   /** One entry per filled special-teams cell, keyed `st:<squad>:<slot>` — LAN-374. A blank cell is an absent key. */
   specialTeams: Readonly<Record<string, string>>;
-  /** One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. A blank item is an absent key. */
-  kit: Readonly<Record<string, string>>;
+  /**
+   * One entry per filled issued-kit item, keyed `kit:<item>` — LAN-375. A
+   * blank item is an absent key. Always a list, in the item's own option
+   * order: the nine single-pick items carry one value, Braces L and Braces R
+   * carry the set (LAN-409).
+   */
+  kit: Readonly<Record<string, readonly string[]>>;
+  /** The warmup small group — LAN-401. One of eight, or `null` when nothing is recorded. */
+  warmupSmallGroup: string | null;
   blues: BluesValue;
   /** `public.eligibility_status`, for the `club_play` competition, or `null`. */
   eligibility: string | null;
@@ -107,6 +115,13 @@ export interface RosterBoardData {
   /** Built from every row in the season, never the filtered view — README's own rule. */
   jerseyHolders: JerseyHolders;
   positionOptions: PositionOptions;
+  /**
+   * Whether this season carries any onboarding item types at all — LAN-396.
+   * `false` is the production gap of 2026-09-17: every onboarding cell on the
+   * board is blank and silently uneditable, because no membership in the
+   * season has an item for it to edit.
+   */
+  seasonHasOnboardingItemTypes: boolean;
 }
 
 async function readPositionOptionsIn(tx: Tx, seasonId: string): Promise<PositionOptions> {
@@ -151,6 +166,9 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       totalInSeason: roster.totalInSeason,
       jerseyHolders: { blue: {}, white: {} },
       positionOptions: await readPositionOptions(roster.season.id),
+      seasonHasOnboardingItemTypes: await withTransaction(
+        async (tx) => (await countSeasonOnboardingItemTypes(tx, roster.season.id)) > 0,
+      ),
     };
   }
 
@@ -258,8 +276,19 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       item: string;
       value: string;
     }>(
-      `select season_membership_id, item::text as item, value
-         from public.kit_issue_records
+      `select k.season_membership_id, k.item::text as item, k.value
+         from public.kit_issue_records k
+         join public.kit_item_options o on o.item = k.item and o.value = k.value
+        where k.season_id = $1::uuid
+        order by o.sort_order`,
+      [roster.season.id],
+    );
+    const warmupRows = await tx.query<{
+      season_membership_id: string;
+      small_group: string;
+    }>(
+      `select season_membership_id, small_group
+         from public.warmup_group_assignments
         where season_id = $1::uuid`,
       [roster.season.id],
     );
@@ -379,10 +408,18 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       specialTeamsByMembership.set(row.season_membership_id, current);
     }
 
-    const kitByMembership = new Map<string, Record<string, string>>();
+    const warmupByMembership = new Map<string, string>(
+      warmupRows.rows.map((row) => [row.season_membership_id, row.small_group]),
+    );
+
+    // LAN-409: an item may now hold several rows, so the map is built by
+    // appending rather than assigning. The query orders by the option's own
+    // sort order, so a set reads the same whichever order it was recorded in.
+    const kitByMembership = new Map<string, Record<string, string[]>>();
     for (const row of kitRows.rows) {
       const current = kitByMembership.get(row.season_membership_id) ?? {};
-      current[kitCellKey(row.item as KitItemCode)] = row.value;
+      const key = kitCellKey(row.item as KitItemCode);
+      current[key] = [...(current[key] ?? []), row.value];
       kitByMembership.set(row.season_membership_id, current);
     }
 
@@ -468,6 +505,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         },
         specialTeams: specialTeamsByMembership.get(entry.membershipId) ?? {},
         kit: kitByMembership.get(entry.membershipId) ?? {},
+        warmupSmallGroup: warmupByMembership.get(entry.membershipId) ?? null,
         blues: bluesByMembership.get(entry.membershipId) ?? "None",
         eligibility: eligibilityByMembership.get(entry.membershipId) ?? null,
         availability: availabilityByMembership.get(entry.membershipId) ?? null,
@@ -482,6 +520,8 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       totalInSeason: roster.totalInSeason,
       jerseyHolders,
       positionOptions,
+      seasonHasOnboardingItemTypes:
+        (await countSeasonOnboardingItemTypes(tx, roster.season.id)) > 0,
     };
   });
 }

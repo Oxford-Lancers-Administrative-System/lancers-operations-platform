@@ -80,6 +80,18 @@ vi.mock("@/lib/services/participation", async (importOriginal) => {
     ...actual,
     readOperatorParticipation: vi.fn().mockResolvedValue(null),
     readEventClubLink: vi.fn().mockResolvedValue(null),
+    // LAN-410: the six lines are read on the server now, beside the link.
+    readEventShareFacts: vi.fn().mockResolvedValue({
+      eventName: "Thursday practice",
+      scheduledOn: "2026-10-14",
+      startsAt: "20:00",
+      endsAt: "22:30",
+      venue: "University Parks",
+      invited: 3,
+      saidYes: 2,
+      saidNo: 0,
+      token: "a-token",
+    }),
     issueEventClubLink: vi.fn(),
   };
 });
@@ -146,6 +158,7 @@ import {
 import {
   issueEventClubLink,
   readEventClubLink,
+  readEventShareFacts,
   readOperatorParticipation,
 } from "@/lib/services/participation";
 import type { OperatorParticipation } from "@/lib/services/participation-view";
@@ -3028,6 +3041,51 @@ describe("sharing the club link — W7-04", () => {
     expect(screen.getByTestId("copy-share-message")).toBeInTheDocument();
     // Still no preview card — Brian parked it on 2026-09-16.
     expect(screen.queryByTestId("share-message-preview")).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  /**
+   * LAN-410 — Stewart, "Ops Event and share", 2026-09-21: "Error when seeing
+   * what the share message was." Safari refuses a clipboard write once the
+   * click's user activation has lapsed, which awaiting a server action
+   * guarantees. The six lines are on the page instead, so the copy is
+   * synchronous and the text is selectable by hand whatever the browser does.
+   */
+  it("renders the six lines on the panel, from the same read the button used to make", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventClubLink).mockResolvedValue({ linkId: "link-1", token: "a-token" });
+    vi.stubEnv("APP_BASE_URL", "https://club.example");
+    vi.stubEnv("CLUB_LINK_SECRET", "a-signing-key-long-enough-to-be-accepted");
+
+    render(await EventDetailPage(detailProps({ share: "1" })));
+
+    const message = screen.getByTestId("share-message-text").textContent ?? "";
+    expect(message.split("\n")).toEqual([
+      "Thursday practice",
+      "Wednesday, 14 October, 20:00–22:30 at University Parks",
+      "2 yes",
+      "0 no",
+      "1 still to answer",
+      "https://club.example/e/a-token",
+    ]);
+    // The counts are the event page's own headline read, not a second one.
+    expect(readEventShareFacts).toHaveBeenCalledWith(EVENT_ID);
+    vi.unstubAllEnvs();
+  });
+
+  it("shows no message, and makes no read, before a link has been issued", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventClubLink).mockResolvedValue(null);
+    vi.stubEnv("CLUB_LINK_SECRET", "a-signing-key-long-enough-to-be-accepted");
+
+    render(await EventDetailPage(detailProps({ share: "1" })));
+
+    expect(screen.queryByTestId("share-message-text")).toBeNull();
+    // `readEventShareFacts` issues a link where there is none, so opening the
+    // panel must not reach it: the link is the Share link button's to mint.
+    expect(readEventShareFacts).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });
 

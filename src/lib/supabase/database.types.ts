@@ -4965,6 +4965,87 @@ export type Database = {
         }
         Relationships: []
       }
+      warmup_group_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          small_group: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          small_group: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          small_group?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warmup_group_assignments_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "warmup_group_assignments_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "warmup_group_assignments_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warmup_group_assignments_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "warmup_group_assignments_value_in_vocabulary"
+            columns: ["small_group"]
+            isOneToOne: false
+            referencedRelation: "warmup_small_groups"
+            referencedColumns: ["name"]
+          },
+        ]
+      }
+      warmup_small_groups: {
+        Row: {
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          name: string
+          sort_order: number
+        }
+        Update: {
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       weekly_reports: {
         Row: {
           content: Json
@@ -5575,8 +5656,8 @@ export type Database = {
         | "loaner_cleats"
         | "team_mouthguard"
         | "team_gloves"
-        | "braces_1"
-        | "braces_2"
+        | "braces_left"
+        | "braces_right"
         | "socks"
       membership_entry: "new" | "returning"
       membership_status:
@@ -5872,8 +5953,8 @@ export const Constants = {
         "loaner_cleats",
         "team_mouthguard",
         "team_gloves",
-        "braces_1",
-        "braces_2",
+        "braces_left",
+        "braces_right",
         "socks",
       ],
       membership_entry: ["new", "returning"],

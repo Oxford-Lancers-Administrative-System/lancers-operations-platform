@@ -884,3 +884,87 @@ describe("LAN-341 — an exited recruit leaves the follow-ups queue", () => {
     expect(personRow(await readFollowUpsQueue(), "Invitee")?.status).toBe("chasing");
   });
 });
+
+/**
+ * LAN-411 — **Not delivered** on the queue.
+ *
+ * Brian, 2026-09-21: the flag is advisory. Nothing about the person changes,
+ * the chase ladder is not paused, and the follow-up is a human one — a phone
+ * call or an email. What the queue owes is that the Secretary can see which of
+ * the people she is chasing are probably not getting the messages.
+ *
+ * Precedence, highest first: Delivery problem, Escalation held, Escalated,
+ * Not delivered, Chasing.
+ */
+describe("LAN-411 — a person whose last message was never delivered", () => {
+  /** Dispatches for real, then back-dates the acceptance past the hour. */
+  async function silentSince(target: Fixture, minutes: number): Promise<void> {
+    await dispatchJob(target.jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+    await observer.query(
+      `update public.delivery_attempts a
+          set accepted_at = now() - ($2 || ' minutes')::interval
+         from public.notification_jobs j
+        where j.id = a.notification_job_id and j.id = $1`,
+      [target.jobId, String(minutes)],
+    );
+  }
+
+  it("still reads chasing at 59 minutes", async () => {
+    const target = await fixture();
+    await silentSince(target, 59);
+
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.status).toBe("chasing");
+  });
+
+  it("reads not_delivered at 61, ahead of chasing", async () => {
+    const target = await fixture();
+    await silentSince(target, 61);
+
+    const row = personRow(await readFollowUpsQueue(), "Invitee");
+    expect(row?.status).toBe("not_delivered");
+    // The Last message column is unchanged: it still says what was sent and
+    // when, from the delivery this query already joins.
+    expect(row?.lastDelivery?.state).toBe("attempted");
+    expect(row?.lastDelivery?.channel).toBe("whatsapp");
+  });
+
+  it("keeps escalated ahead of it — an escalation already has a named owner", async () => {
+    const target = await fixture();
+    await silentSince(target, 61);
+    await raiseEscalationWithJobStatus(target, "completed");
+
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.status).toBe("escalated");
+  });
+
+  it("keeps delivery_problem ahead of it — the club never reached them at all", async () => {
+    const target = await fixture({ phone: null, email: null });
+    await dispatchJob(target.jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: acceptsEverything(),
+    });
+
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.status).toBe("delivery_problem");
+  });
+
+  it("leaves the queue once they answer, however the answer arrived", async () => {
+    const target = await fixture();
+    await silentSince(target, 61);
+    expect(personRow(await readFollowUpsQueue(), "Invitee")?.status).toBe("not_delivered");
+
+    // The page records what happened to the message; the queue records who
+    // owes an answer. Somebody who answers by another route leaves the queue
+    // while the event page still reads Not delivered — Brian, 2026-09-21.
+    // `channel_reply` deliberately: the answer came back some other way than
+    // the link the undelivered message carried.
+    await observer.query(
+      `insert into public.rsvp_responses (invitation_id, response, source, responded_at)
+       values ($1, 'yes', 'channel_reply', now())`,
+      [target.invitationId],
+    );
+
+    expect(personRow(await readFollowUpsQueue(), "Invitee")).toBeUndefined();
+  });
+});

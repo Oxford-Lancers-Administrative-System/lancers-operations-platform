@@ -1,4 +1,5 @@
 import { isServiceError } from "@/lib/db";
+import { readOperatorPreferences } from "@/lib/services/operator-preferences";
 import { listRecruitmentBoard } from "@/lib/services/recruitment-board";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
@@ -39,9 +40,12 @@ export default async function RecruitmentBoardPage({
     if (resolved !== "") filters[key] = resolved;
   }
 
+  const preferences = await readOperatorPreferences(operator.personId);
+
   return (
     <RecruitmentBoardView
       operatorPersonId={operator.personId}
+      initialCollapsedGroups={preferences.recruitmentCollapsedGroups}
       season={data.season}
       rows={data.rows}
       events={data.events}

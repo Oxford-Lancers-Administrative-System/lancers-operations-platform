@@ -1,0 +1,211 @@
+LAN-396 — the matching change to scripts/production/**, for Brian to apply.
+
+Agents may not edit anything under `scripts/production/`, and this is where the
+gap of 2026-09-17 actually lives. Until this diff is applied, a database built
+from the baseline opens the 2026–27 season with **no onboarding item types**,
+every membership generated for it has no onboarding items, Sub invoiced, Sub
+paid, Comms group and Squad photo cannot be edited on the roster board, and a
+membership record reads "This season has no onboarding items configured, so
+this membership has none." That is exactly what production did, and what Brian
+repaired by hand in the Supabase SQL editor the same day.
+
+Apply it from the repository root:
+
+    git apply docs/ux/review/LAN-396/production-scripts.diff
+
+Nothing has to be re-run against the live database: the hand repair already
+did what this file now does. The diff matters for the next database built from
+the baseline, and for the showcase load.
+
+What it does:
+
+  * `scripts/production/baseline/season-2026-27.sql` — seats the eleven
+    approved item types on the 2026–27 season, `on conflict (season_id, code)
+    do nothing` so the file stays re-runnable; back-generates one pending
+    `onboarding_items` row per (membership, type) for every membership already
+    in that season, idempotent through `onboarding_items_one_per_type`; and
+    adds a `do $items$` block that refuses the run if the season does not end
+    up carrying exactly eleven. The verification select at the end gains
+    `onboarding_item_type_count`, expected 11.
+
+    `sort_order` is the list index, the order the inventory is written in.
+    `verification_class` is `trust` only for BUCS Play and Hudl (W4's locked
+    decision) and `direct` for everything else. The values are the same eleven
+    Brian inserted by hand and the same eleven the application now holds.
+
+  * `scripts/production/showcase/plan/reference.mjs` — `ONBOARDING_TYPES` is
+    read from `src/lib/services/onboarding-item-types.json` rather than
+    transcribed. That file is the one place the inventory is written down:
+    the application reads it through
+    `src/lib/services/onboarding-item-shapes.ts`, `scripts/seed-local.mjs`
+    reads it, and the baseline above seats the same eleven.
+    `src/lib/services/onboarding-item-shapes.test.ts` imports this module and
+    fails if the two lists ever differ — before this diff is applied it
+    compares the transcription, and after it, the shared file.
+
+  * Nothing else under `scripts/production/` changes. The production preflight
+    named in the issue is the baseline's own `do` block rather than
+    `connection-smoke-test.mjs`: that script proves a runtime credential after
+    a deploy and knows nothing about a season, and the refusal belongs in the
+    file that opens the season.
+
+Both halves were run against the local database before this diff was written:
+the two inserts and the guard applied and rolled back cleanly, and the guard's
+refusal was proved by pointing it at a season label that does not exist.
+
+diff --git a/scripts/production/baseline/season-2026-27.sql b/scripts/production/baseline/season-2026-27.sql
+index a670cdef..8b1760a9 100644
+--- a/scripts/production/baseline/season-2026-27.sql
++++ b/scripts/production/baseline/season-2026-27.sql
+@@ -184,12 +184,85 @@ insert into public.committee_years (label, agm_held_on, starts_on, ends_on)
+ values ('2026–27', date '2026-06-01', date '2026-06-01', null)
+ on conflict (label) do nothing;
+ 
++-- ---------------------------------------------------------------------------
++-- Onboarding item types — the approved item-and-ask inventory, eleven items,
++-- `src/lib/services/onboarding-item-types.json` (LAN-396).
++--
++-- Opening a season without these is what happened on 2026-09-17: this file
++-- created the season, its terms, its positions and its committee year and no
++-- item types, nothing in the application creates them, and every 2026–27
++-- membership was therefore generated with no onboarding items
++-- (`generateOnboardingItems` selects from the season's own types). Sub
++-- invoiced, Sub paid, Comms group and Squad photo could not be edited on the
++-- roster board, and a membership record read "This season has no onboarding
++-- items configured, so this membership has none." Brian repaired it by hand
++-- the same day; this is that repair, in the file that should have carried it.
++--
++-- `sort_order` is the list index, the order the inventory itself is written
++-- in. `verification_class` is 'trust' only for BUCS Play and Hudl — "BUCS Play
++-- and Hudl answers record claimed, not complete" (W4's locked decision).
++-- ---------------------------------------------------------------------------
++
++insert into public.onboarding_item_types
++  (season_id, code, label, is_required, is_subscription, sort_order, verification_class)
++select
++  s.id, v.code, v.label, v.is_required, v.is_subscription, v.sort_order,
++  v.verification_class::public.onboarding_item_verification_class
++  from public.seasons s
++  cross join (values
++    ('subs_invoiced',            'Subscription invoiced',      true,  false, 0,  'direct'),
++    ('subs_paid',                'Subscription paid',          false, true,  1,  'direct'),
++    ('kit_sorted',               'Kit Distributed',            true,  false, 2,  'direct'),
++    ('bucs_play',                'BUCS Play registration',     true,  false, 3,  'trust'),
++    ('hudl_access',              'Hudl access',                false, false, 4,  'trust'),
++    ('photo',                    'Squad photo',                false, false, 5,  'direct'),
++    ('comms_groups',             'Comms groups joined',        true,  false, 6,  'direct'),
++    ('contact_academic_details', 'Contact & academic details', true,  false, 7,  'direct'),
++    ('code_of_conduct',          'Code of Conduct',            true,  false, 8,  'direct'),
++    ('photo_release',            'Photo release',              true,  false, 9,  'direct'),
++    ('season_welcome_consent',   'Season welcome & consent',   true,  false, 10, 'direct')
++  ) as v (code, label, is_required, is_subscription, sort_order, verification_class)
++ where s.label = '2026–27'
++on conflict (season_id, code) do nothing;
++
++-- Memberships created before the item types existed have no items, and nothing
++-- generates them afterwards. This is the second half of the 2026-09-17 repair:
++-- one pending item per (membership, type) for every membership in the season,
++-- idempotent through `onboarding_items_one_per_type`.
++insert into public.onboarding_items (season_membership_id, season_id, item_type_id, status)
++select m.id, t.season_id, t.id, 'pending'::public.onboarding_item_status
++  from public.season_memberships m
++  join public.onboarding_item_types t on t.season_id = m.season_id
++  join public.seasons s on s.id = m.season_id
++ where s.label = '2026–27'
++on conflict (season_membership_id, item_type_id) do nothing;
++
++-- The gap itself, named rather than left to be found on a board.
++do $items$
++declare
++  v_types integer;
++begin
++  select count(*) into v_types
++    from public.onboarding_item_types t
++    join public.seasons s on s.id = t.season_id
++   where s.label = '2026–27';
++
++  if v_types <> 11 then
++    raise exception
++      'LAN-396 production baseline refused: the 2026–27 season carries % onboarding '
++      'item types, not 11. Every membership generated for a season with no item types '
++      'has no onboarding items at all, which is the 2026-09-17 production defect. The '
++      'list is src/lib/services/onboarding-item-types.json.', v_types;
++  end if;
++end
++$items$;
++
+ commit;
+ 
+ -- ---------------------------------------------------------------------------
+ -- Verification — read this before trusting the run.
+ -- Expected: vocabulary_count = 1, position_count = 18, active_season_count = 1,
+--- term_count = 3, open_committee_year_count = 1.
++-- term_count = 3, open_committee_year_count = 1, onboarding_item_type_count = 11.
+ -- ---------------------------------------------------------------------------
+ 
+ select
+@@ -203,4 +276,7 @@ select
+   (select count(*) from public.terms where academic_year = '2026–27')
+     as term_count,
+   (select count(*) from public.committee_years where label = '2026–27' and ends_on is null)
+-    as open_committee_year_count;
++    as open_committee_year_count,
++  (select count(*) from public.onboarding_item_types t
++     join public.seasons s on s.id = t.season_id where s.label = '2026–27')
++    as onboarding_item_type_count;
+diff --git a/scripts/production/showcase/plan/reference.mjs b/scripts/production/showcase/plan/reference.mjs
+index 4777075d..36364e40 100644
+--- a/scripts/production/showcase/plan/reference.mjs
++++ b/scripts/production/showcase/plan/reference.mjs
+@@ -15,6 +15,13 @@
+  */
+ 
+ import { id } from "../ids.mjs";
++// LAN-396 — the approved item-and-ask inventory, read rather than repeated.
++// `src/lib/services/onboarding-item-types.json` is the one place it is written
++// down: the application reads it through
++// `src/lib/services/onboarding-item-shapes.ts`, `scripts/seed-local.mjs` reads
++// it, `scripts/production/baseline/season-2026-27.sql` seats the same eleven,
++// and `onboarding-item-shapes.test.ts` fails when any of them drifts.
++import ONBOARDING_ITEM_TYPE_ROWS from "../../../../src/lib/services/onboarding-item-types.json" with { type: "json" };
+ 
+ export const CURRENT_SEASON_LABEL = "2026–27";
+ export const ARCHIVED_SEASON_LABEL = "2025–26";
+@@ -67,23 +74,22 @@ export const SPECIAL_TEAMS_SLOT_BY_CODE = Object.freeze({
+ });
+ 
+ /**
+- * The approved item-and-ask inventory — eleven items, transcribed from
+- * `scripts/seed-local.mjs` (LAN-214), which is where the vocabulary lives.
++ * The approved item-and-ask inventory — eleven items, read from
++ * `src/lib/services/onboarding-item-types.json` (LAN-396) rather than
++ * transcribed, so this plan and the application cannot seat different lists.
+  * `[code, label, is_required, is_subscription, verification_class]`.
+  */
+-export const ONBOARDING_TYPES = Object.freeze([
+-  ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
+-  ["subs_paid", "Subscription paid", false, true, "direct"],
+-  ["kit_sorted", "Kit Distributed", true, false, "direct"],
+-  ["bucs_play", "BUCS Play registration", true, false, "trust"],
+-  ["hudl_access", "Hudl access", false, false, "trust"],
+-  ["photo", "Squad photo", false, false, "direct"],
+-  ["comms_groups", "Comms groups joined", true, false, "direct"],
+-  ["contact_academic_details", "Contact & academic details", true, false, "direct"],
+-  ["code_of_conduct", "Code of Conduct", true, false, "direct"],
+-  ["photo_release", "Photo release", true, false, "direct"],
+-  ["season_welcome_consent", "Season welcome & consent", true, false, "direct"],
+-]);
++export const ONBOARDING_TYPES = Object.freeze(
++  ONBOARDING_ITEM_TYPE_ROWS.map((type) =>
++    Object.freeze([
++      type.code,
++      type.label,
++      type.isRequired,
++      type.isSubscription,
++      type.verificationClass,
++    ]),
++  ),
++);
+ 
+ /** The parameter keys the loader understands, in the order they are seated. */
+ /**

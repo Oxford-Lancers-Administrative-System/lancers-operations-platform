@@ -1,0 +1,138 @@
+LAN-401 — the matching change to scripts/production/**, for Brian to apply.
+
+Agents may not edit anything under `scripts/production/`, and these three
+files hold the same vocabulary the migration corrects. Until this diff is
+applied, a database built from the baseline still seats `N/T` and `E — End`
+and has none of the six additions, and a showcase load would write the old
+spellings back.
+
+Apply it from the repository root:
+
+    git apply docs/ux/review/LAN-401/production-scripts.diff
+
+What it does, and why each number is what it is:
+
+  * `scripts/production/baseline/season-2026-27.sql` — `N/T` becomes `NT`,
+    `E` is labelled `Edge` rather than `End`, and `DT`, `DE`, `LG`, `RG`,
+    `LT` and `RT` are appended at sort_order 18 to 23. Those are exactly the
+    values `supabase/migrations/20261001090000_roster_vocabulary_and_warmup.sql`
+    computes for this vocabulary (`max(sort_order)` is 17, and the migration
+    adds 1 to 6 to it in that order), so a database built fresh from this
+    file and a database migrated from the old one are identical. No existing
+    code's sort_order moves.
+
+  * `scripts/production/showcase/plan/reference.mjs` — the same six codes in
+    the same order, appended to `POSITIONS`, where `sort_order = list index`
+    gives them the same 18 to 23. The showcase's position ids are UUIDv5 of
+    (vocabulary id, code), so renaming `N/T` to `NT` changes that one id; the
+    loader adopts whatever row already carries the code, so on a database the
+    migration has already renamed it reconciles onto the existing row rather
+    than inserting a second one.
+
+  * `scripts/production/showcase/plan/people.mjs` — the illustrative defence
+    assignment list says `NT`, because `N/T` no longer exists to point at.
+
+The showcase seeds no `special_teams_assignments`, no `kit_issue_records`
+and, for the same reason, no warmup assignments; the eight warmup small
+groups are reference data the migration itself inserts, exactly as the
+special-teams squad lists and the kit option lists are. So nothing in
+`scripts/production/` has to change for the Warmup assignments group.
+
+`tests/production-baseline-contract.test.ts` counts the baseline's positions
+from the baseline file rather than holding the number twice, so it is correct
+both before and after this diff is applied.
+
+diff --git a/scripts/production/baseline/season-2026-27.sql b/scripts/production/baseline/season-2026-27.sql
+index a670cde..ace2c0c 100644
+--- a/scripts/production/baseline/season-2026-27.sql
++++ b/scripts/production/baseline/season-2026-27.sql
+@@ -89,9 +89,11 @@ values ('oulafc_2026', 'OULAFC position vocabulary', date '2026-06-01')
+ on conflict (code) do nothing;
+ 
+ -- ---------------------------------------------------------------------------
+--- Positions — the 18-slot vocabulary, `POSITIONS` in
++-- Positions — the 24-slot vocabulary, `POSITIONS` in
+ -- scripts/production/showcase/plan/reference.mjs, sort_order = list index.
+--- Includes the four special-teams slots (LAN-261).
++-- Includes the four special-teams slots (LAN-261) and Stewart's corrections
++-- and additions (LAN-401): `NT` rather than `N/T`, `E` labelled Edge rather
++-- than End, and the six sided line codes at the end.
+ -- ---------------------------------------------------------------------------
+ 
+ insert into public.positions (vocabulary_id, code, label, side, sort_order)
+@@ -107,15 +109,27 @@ select v.id, p.code, p.label, p.side::public.position_side, p.sort_order
+     ('G',    'Guard',          'offence',       6),
+     ('C',    'Centre',         'offence',       7),
+     ('FB',   'Full Back',      'offence',       8),
+-    ('E',    'End',            'defence',       9),
+-    ('N/T',  'Nose Tackle',    'defence',      10),
++    ('E',    'Edge',           'defence',       9),
++    ('NT',   'Nose Tackle',    'defence',      10),
+     ('S',    'Safety',         'defence',      11),
+     ('LB',   'Linebacker',     'defence',      12),
+     ('CB',   'Cornerback',     'defence',      13),
+     ('KO',   'Kickoff',        'special_teams',14),
+     ('KR',   'Kick Return',    'special_teams',15),
+     ('PUNT', 'Punt',           'special_teams',16),
+-    ('FG',   'Field Goal',     'special_teams',17)
++    ('FG',   'Field Goal',     'special_teams',17),
++    -- LAN-401, Stewart's list. Appended, so every existing code keeps the
++    -- sort_order it has and each new one lands at the end of its own side —
++    -- the only ordering the roster board reads. These are the same six the
++    -- 20261001090000 migration adds to a database that already holds this
++    -- vocabulary, at the same sort_order values, so a database built from
++    -- this file and a database migrated onto it are identical.
++    ('DT',   'Defensive Tackle', 'defence',    18),
++    ('DE',   'Defensive End',    'defence',    19),
++    ('LG',   'Left Guard',       'offence',    20),
++    ('RG',   'Right Guard',      'offence',    21),
++    ('LT',   'Left Tackle',      'offence',    22),
++    ('RT',   'Right Tackle',     'offence',    23)
+   ) as p(code, label, side, sort_order)
+  where v.code = 'oulafc_2026'
+ on conflict (vocabulary_id, code) do nothing;
+diff --git a/scripts/production/showcase/plan/people.mjs b/scripts/production/showcase/plan/people.mjs
+index 7b79c29..d6a7878 100644
+--- a/scripts/production/showcase/plan/people.mjs
++++ b/scripts/production/showcase/plan/people.mjs
+@@ -581,7 +581,7 @@ export function buildPeople(ctx, reference) {
+     // Positions, for everyone who has been activated.
+     if (activatedOn || status === "onboarding") {
+       const offence = ["QB", "RB", "WR", "WR", "TE", "T", "G", "C", "FB", "WB"][index % 10];
+-      const defence = ["S", "CB", "LB", "E", "N/T", "CB", "LB", "S", "E", "LB"][(index * 3) % 10];
++      const defence = ["S", "CB", "LB", "E", "NT", "CB", "LB", "S", "E", "LB"][(index * 3) % 10];
+       // One player in four also holds a special-teams position, dealt round the
+       // four slots — LAN-261. Not everyone: a squad where every row carried one
+       // would prove no more than a squad where none did, and the board's own
+diff --git a/scripts/production/showcase/plan/reference.mjs b/scripts/production/showcase/plan/reference.mjs
+index 4777075..d4303ca 100644
+--- a/scripts/production/showcase/plan/reference.mjs
++++ b/scripts/production/showcase/plan/reference.mjs
+@@ -30,8 +30,8 @@ export const POSITIONS = Object.freeze([
+   ["G", "Guard", "offence"],
+   ["C", "Centre", "offence"],
+   ["FB", "Full Back", "offence"],
+-  ["E", "End", "defence"],
+-  ["N/T", "Nose Tackle", "defence"],
++  ["E", "Edge", "defence"],
++  ["NT", "Nose Tackle", "defence"],
+   ["S", "Safety", "defence"],
+   ["LB", "Linebacker", "defence"],
+   ["CB", "Cornerback", "defence"],
+@@ -50,6 +50,16 @@ export const POSITIONS = Object.freeze([
+   ["KR", "Kick Return", "special_teams"],
+   ["PUNT", "Punt", "special_teams"],
+   ["FG", "Field Goal", "special_teams"],
++  // LAN-401, Stewart's list. Last in the list, so `sort_order = list index`
++  // gives each new code the same number the migration and the baseline give
++  // it, and no existing code's number moves. `G` and `T` stay above (Brian,
++  // 2026-09-21).
++  ["DT", "Defensive Tackle", "defence"],
++  ["DE", "Defensive End", "defence"],
++  ["LG", "Left Guard", "offence"],
++  ["RG", "Right Guard", "offence"],
++  ["LT", "Left Tackle", "offence"],
++  ["RT", "Right Tackle", "offence"],
+ ]);
+ 
+ /**

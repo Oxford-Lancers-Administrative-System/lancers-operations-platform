@@ -22,6 +22,10 @@ vi.mock("./board-actions", () => ({
   setRecruitmentStatusAction: vi.fn(),
   flipRecruitmentProspectAction: vi.fn(),
 }));
+// LAN-404 — a server action, so it reaches `server-only` from a client test.
+vi.mock("./group-preference-actions", () => ({
+  saveRecruitmentCollapsedGroupsAction: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { flipRecruitmentProspectAction, setRecruitmentStatusAction } from "./board-actions";
 import { BOARD_SCROLLBAR_GUTTER_PX } from "../roster/board-columns";

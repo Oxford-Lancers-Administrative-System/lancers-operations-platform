@@ -18,7 +18,11 @@ import type { Client } from "pg";
 
 import { closePool } from "@/lib/db";
 import { openObserver } from "../../../tests/helpers/service-layer";
-import { readOperatorPreferences, writeRosterCollapsedGroups } from "./operator-preferences";
+import {
+  readOperatorPreferences,
+  writeRecruitmentCollapsedGroups,
+  writeRosterCollapsedGroups,
+} from "./operator-preferences";
 
 const MARKER = "LAN387Preference";
 
@@ -175,5 +179,33 @@ describe("writeRosterCollapsedGroups", () => {
     expect(second.rows[0].updated_at.getTime()).toBeGreaterThan(
       first.rows[0].updated_at.getTime() - 60_000,
     );
+  });
+});
+
+/**
+ * LAN-404 — the recruitment board's groups are its own. Both boards have a
+ * `person` group, so one stored list would have folded both at once.
+ */
+describe("writeRecruitmentCollapsedGroups", () => {
+  it("keeps the two boards' settings apart in the one row", async () => {
+    personId = await insertPerson("two boards");
+
+    await writeRosterCollapsedGroups({ actorPersonId: personId, groups: ["person", "kit"] });
+    await writeRecruitmentCollapsedGroups({
+      actorPersonId: personId,
+      groups: ["events:event-1"],
+    });
+
+    expect(await readOperatorPreferences(personId)).toEqual({
+      rosterCollapsedGroups: ["kit", "person"],
+      recruitmentCollapsedGroups: ["events:event-1"],
+    });
+
+    // Writing one leaves the other exactly where it was.
+    await writeRecruitmentCollapsedGroups({ actorPersonId: personId, groups: [] });
+    expect(await readOperatorPreferences(personId)).toEqual({
+      rosterCollapsedGroups: ["kit", "person"],
+      recruitmentCollapsedGroups: [],
+    });
   });
 });

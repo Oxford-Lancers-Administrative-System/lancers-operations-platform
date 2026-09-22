@@ -1430,6 +1430,70 @@ describe("the delivery column's exceptions and chase position", () => {
     // delivered rows.
     expect(renderedNames(container)).toEqual(["Bar Sedgewick", "Gideon Thornbury"]);
   });
+
+  /**
+   * LAN-411 — Brian, 2026-09-21. A member who has never accepted WhatsApp's
+   * terms never receives the club's messages, and Meta reports it by silence.
+   * The row says so; nothing about the person or the chase changes.
+   */
+  it("reads Not delivered over Attempted, and keeps saying where the chase has got to", () => {
+    const silent = {
+      ...OPERATOR,
+      people: [
+        ...PEOPLE,
+        unanswered({
+          delivery: "attempted",
+          notDelivered: true,
+          chasePosition: "Chase 1 sent · escalation Sat 12:00",
+        }),
+      ],
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={silent}
+        filters={filters()}
+      />,
+    );
+    expect(container.textContent).toContain("Not delivered");
+    expect(container.textContent).toContain("Chase 1 sent · escalation Sat 12:00");
+  });
+
+  it("selects exactly the silent rows on 'Not delivered', and Attempted takes the rest", () => {
+    const mixed = {
+      ...OPERATOR,
+      people: [
+        ...PEOPLE,
+        unanswered({ delivery: "attempted", notDelivered: true }),
+        unanswered({
+          key: "player:waiting",
+          displayName: "Perpetua Ashgrove",
+          delivery: "attempted",
+        }),
+      ],
+    };
+
+    const silent = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={mixed}
+        filters={filters({ delivery: "not_delivered" })}
+      />,
+    );
+    expect(renderedNames(silent.container)).toEqual(["Gideon Thornbury"]);
+    silent.unmount();
+
+    // Attempted means the rows that still read Attempted: the two options
+    // never select the same row twice.
+    const waiting = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={mixed}
+        filters={filters({ delivery: "attempted" })}
+      />,
+    );
+    expect(renderedNames(waiting.container)).toEqual(["Perpetua Ashgrove"]);
+  });
 });
 
 describe("recording an answer in person", () => {

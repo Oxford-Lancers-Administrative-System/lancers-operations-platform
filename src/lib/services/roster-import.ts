@@ -17,7 +17,12 @@ import {
   type RosterPlannedRow,
   SEASON_FACT_IMPORT_COLUMNS,
 } from "./roster-csv";
-import { commitKitItem, commitSpecialTeamsAssignment } from "./roster-board";
+import {
+  commitKitItemValues,
+  commitSpecialTeamsAssignment,
+  commitWarmupSmallGroup,
+} from "./roster-board";
+import { KIT_IMPORT_VALUE_SEPARATOR } from "./roster-board/vocabulary";
 import {
   enterReturningPlayer,
   findPersonCandidates,
@@ -257,23 +262,44 @@ async function writeSeasonFacts(
   for (const column of SEASON_FACT_IMPORT_COLUMNS) {
     const value = facts[column.name];
     if (value === undefined) continue;
-    if (column.kind === "special_teams") {
-      await commitSpecialTeamsAssignment({
-        actorPersonId,
-        membershipId,
-        seasonId,
-        squad: column.squad,
-        slot: column.slot,
-        positionName: value,
-      });
-    } else {
-      await commitKitItem({
-        actorPersonId,
-        membershipId,
-        seasonId,
-        item: column.item,
-        value,
-      });
+    switch (column.kind) {
+      case "special_teams":
+        await commitSpecialTeamsAssignment({
+          actorPersonId,
+          membershipId,
+          seasonId,
+          squad: column.squad,
+          slot: column.slot,
+          positionName: value,
+        });
+        break;
+      case "kit":
+        // LAN-409: Braces L and Braces R arrive as several values in one cell,
+        // already proved and normalised by `seasonFactsOf`.
+        await commitKitItemValues({
+          actorPersonId,
+          membershipId,
+          seasonId,
+          item: column.item,
+          values: column.multi ? value.split(KIT_IMPORT_VALUE_SEPARATOR) : [value],
+        });
+        break;
+      case "warmup":
+        await commitWarmupSmallGroup({
+          actorPersonId,
+          membershipId,
+          seasonId,
+          smallGroup: value,
+        });
+        break;
+      default: {
+        // Exhaustiveness check: a fourth `SeasonFactImportColumn` kind added
+        // later fails `npm run typecheck` here instead of silently falling
+        // through to the warmup writer, which is what the old
+        // if/else-if/else chain did.
+        const _exhaustive: never = column;
+        throw new Error(`Unhandled season-fact import column kind: ${String(_exhaustive)}`);
+      }
     }
     written += 1;
   }

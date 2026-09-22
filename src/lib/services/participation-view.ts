@@ -112,6 +112,13 @@ export interface OperatorParticipationPerson extends ParticipationPerson {
   readonly noUsableRoute?: boolean;
   readonly whatsappUnresponsive?: boolean;
   /**
+   * LAN-411. A WhatsApp message Meta accepted more than an hour ago and said
+   * nothing about since. An exception label over **Attempted**, derived at
+   * read time and never stored; see `NOT_DELIVERED_EXPRESSION` in
+   * `./delivery.ts`.
+   */
+  readonly notDelivered?: boolean;
+  /**
    * The club's own recorded reason for cancelling the job this row's `delivery`
    * state describes — LAN-296 for the answer's own reminder, LAN-341 for a
    * recruit's status change. `null` whenever nothing was recorded, or the state
@@ -310,10 +317,16 @@ function matchesCapacity(person: ParticipationPerson, capacity: string): boolean
 
 function matchesDelivery(person: ParticipationPerson, delivery: string): boolean {
   if (delivery === "") return true;
-  const state = (person as OperatorParticipationPerson).delivery ?? null;
+  const operator = person as OperatorParticipationPerson;
+  const state = operator.delivery ?? null;
   if (delivery === "none") return state === null;
   // Matches delivery/presentation.ts.
   if (delivery === "attention") return state === "failed" || state === "retryable";
+  // LAN-411. An exception label over Attempted, so it selects on the label
+  // rather than the state, and Attempted itself selects the rows that still
+  // read Attempted.
+  if (delivery === "not_delivered") return operator.notDelivered === true;
+  if (delivery === "attempted") return state === "attempted" && operator.notDelivered !== true;
   return state === delivery;
 }
 

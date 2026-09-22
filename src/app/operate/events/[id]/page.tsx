@@ -13,7 +13,11 @@ import {
 import { readFrozenMessagingPlan } from "@/lib/services/messaging-schedule";
 import { readEventTemplate } from "@/lib/services/event-templates";
 import { readEventChangeHistory } from "@/lib/services/event-amendment";
-import { readEventClubLink, readOperatorParticipation } from "@/lib/services/participation";
+import {
+  readEventClubLink,
+  readEventShareFacts,
+  readOperatorParticipation,
+} from "@/lib/services/participation";
 import { readParticipationFilters } from "@/lib/services/participation-view";
 import {
   CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE,
@@ -22,6 +26,7 @@ import {
   clubLinkUrl,
 } from "@/lib/services/club-link";
 import { publicOrigin } from "../../../participation/origin";
+import { buildShareMessage } from "../../../participation/share-message";
 import { gateShellPage } from "../../gate";
 import { AudienceBuilder } from "./audience-builder";
 import {
@@ -159,6 +164,34 @@ export default async function EventDetailPage({
   // Dialog reads the live link; a page render must not write.
   const clubLink = shareOpen && mayManage ? await readEventClubLink(event.id) : null;
 
+  /**
+   * The six lines the share panel shows and its button copies — LAN-410.
+   *
+   * Read here, on the server, rather than fetched by the button: Safari
+   * refuses a clipboard write once the click's activation has lapsed, and an
+   * awaited server action guarantees that. `readEventShareFacts` issues a link
+   * where there is none, so it is called only where `clubLink` already exists
+   * — opening the panel stays a read, and the link is still issued by the
+   * panel's own button.
+   */
+  const shareMessage =
+    clubLink === null
+      ? null
+      : await (async () => {
+          const facts = await readEventShareFacts(event.id);
+          return buildShareMessage({
+            eventName: facts.eventName,
+            scheduledOn: facts.scheduledOn,
+            startsAt: facts.startsAt,
+            endsAt: facts.endsAt,
+            venue: facts.venue,
+            invited: facts.invited,
+            saidYes: facts.saidYes,
+            saidNo: facts.saidNo,
+            url: clubLinkUrl(await publicOrigin(), facts.token),
+          });
+        })();
+
   // LAN-171, REQ-schedule-not-retroactive: frozen at approval, read only once there is a row.
   const frozenPlan = event.status === "approved" ? await readFrozenMessagingPlan(event.id) : null;
 
@@ -181,6 +214,7 @@ export default async function EventDetailPage({
         shareOpen && mayManage
           ? {
               url: clubLink === null ? null : clubLinkUrl(await publicOrigin(), clubLink.token),
+              message: shareMessage,
               blockedReason: shareBlockedReason(event.status),
               errorRule: shareError,
             }

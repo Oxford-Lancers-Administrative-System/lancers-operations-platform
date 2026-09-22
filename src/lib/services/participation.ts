@@ -18,6 +18,7 @@ import {
 import {
   DELIVERY_LATEST_RESULT_JOIN,
   DELIVERY_STATE_EXPRESSION,
+  NOT_DELIVERED_EXPRESSION,
   EMAIL_FALLBACK_SUFFIX,
   NOTIFICATION_JOB_RECENCY_ORDER,
   type DeliveryState,
@@ -56,6 +57,8 @@ interface PersonRow {
   responded_at: Date | string | null;
   presence: string | null;
   delivery_state: DeliveryState | null;
+  /** LAN-411 — `NOT_DELIVERED_EXPRESSION`. `null` where no job exists. */
+  not_delivered: boolean | null;
   delivery_channel: string | null;
   delivery_failure_reason: string | null;
   delivery_fallback_status: string | null;
@@ -86,6 +89,9 @@ interface PersonRow {
 const DELIVERY_LATERAL = `
   left join lateral (
     select case when j.id is null then null else ${DELIVERY_STATE_EXPRESSION} end as state,
+           -- LAN-411: the same derivation the delivery page makes, so the two
+           -- surfaces answering "did it reach them?" still answer identically.
+           ${NOT_DELIVERED_EXPRESSION} as not_delivered,
            j.channel::text as channel,
            j.last_error as failure_reason,
            j.job_type::text as job_type,
@@ -143,6 +149,7 @@ function participantQuery(tier: ParticipationTier): string {
          rec.presence${
            operator
              ? ",\n         delivery.state as delivery_state" +
+               ",\n         delivery.not_delivered as not_delivered" +
                ",\n         delivery.channel as delivery_channel" +
                ",\n         delivery.failure_reason as delivery_failure_reason" +
                ",\n         delivery.fallback_status as delivery_fallback_status" +
@@ -365,6 +372,8 @@ async function readPeopleIn(
       row.delivery_channel === "whatsapp" &&
       row.delivery_state === "failed" &&
       row.delivery_fallback_status === "completed";
+    // LAN-411: a label over **Attempted**, never a sixth state.
+    const notDelivered = row.delivery_state === "attempted" && row.not_delivered === true;
 
     // W4's exceptions: nothing to chase for a walk-up or an unreached person.
     const chaseResponseState =
@@ -400,6 +409,7 @@ async function readPeopleIn(
       delivery: row.delivery_state ?? null,
       noUsableRoute,
       whatsappUnresponsive,
+      notDelivered,
       chasePosition,
       // LAN-296, widened by LAN-341 (walk finding F3). Whatever the club
       // recorded as the reason for cancelling this job, shown as-is. LAN-296

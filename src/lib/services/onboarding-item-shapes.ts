@@ -1,6 +1,46 @@
 import type { OnboardingItemStatus } from "./membership";
+import ONBOARDING_ITEM_TYPE_ROWS from "./onboarding-item-types.json";
 
 // Onboarding item state lists (`WP-operator-record`, LAN-217), keyed by `onboarding_item_types.code`. No `server-only`: client components need it too.
+
+/**
+ * One onboarding item type a season opens with — LAN-396.
+ *
+ * `verificationClass` is `'trust'` only for BUCS Play and Hudl ("BUCS Play and
+ * Hudl answers record claimed, not complete", W4's locked decision) and
+ * `'direct'` for everything else.
+ */
+export interface OnboardingItemTypeShape {
+  readonly code: string;
+  readonly label: string;
+  readonly isRequired: boolean;
+  readonly isSubscription: boolean;
+  readonly verificationClass: "direct" | "trust";
+}
+
+/**
+ * The club's eleven onboarding item types, in the order a season lists them —
+ * the approved item-and-ask inventory, and the one place it is written down
+ * (LAN-396).
+ *
+ * Production, 2026-09-17: the owner-run baseline that opens the 2026-27 season
+ * created it with no item types at all, because nothing in the application
+ * creates them and the baseline did not either. Every membership
+ * generated for that season therefore had no onboarding items, and the board's
+ * onboarding cells were silently uneditable. Brian repaired it by hand the
+ * same day. The list lived in two places then — the local seed and the
+ * showcase reference — and in neither of them could the application read it.
+ *
+ * It lives in `./onboarding-item-types.json` so the three readers are one
+ * list: this module, `scripts/seed-local.mjs`, and the showcase plan's own
+ * reference module. `tests/onboarding-item-inventory.test.ts` fails when any
+ * of them drifts.
+ */
+export const ONBOARDING_ITEM_TYPES: readonly OnboardingItemTypeShape[] = Object.freeze(
+  (ONBOARDING_ITEM_TYPE_ROWS as readonly OnboardingItemTypeShape[]).map((type) =>
+    Object.freeze({ ...type }),
+  ),
+);
 
 export const SUBS_INVOICED_ITEM_CODE = "subs_invoiced";
 export const SUBS_PAID_ITEM_CODE = "subs_paid";
@@ -71,6 +111,23 @@ const DERIVED_ITEM_CODES: ReadonlySet<string> = new Set([
 
 export function isDerivedItem(code: string): boolean {
   return DERIVED_ITEM_CODES.has(code);
+}
+
+/**
+ * The three states that settle an item — the client-safe copy of
+ * `RESOLVED_ITEM_STATUSES` in `membership/read.ts`, which is `server-only` and
+ * so cannot be read from a record's own components.
+ * `onboarding-item-shapes.test.ts` asserts the two lists stay the same.
+ */
+export const RESOLVED_ITEM_STATUS_CODES: readonly OnboardingItemStatus[] = Object.freeze([
+  "complete",
+  "waived",
+  "not_applicable",
+]);
+
+/** Whether this item is settled — `false` is what the record's required marker draws attention to (LAN-408). */
+export function isItemResolved(status: OnboardingItemStatus): boolean {
+  return RESOLVED_ITEM_STATUS_CODES.includes(status);
 }
 
 const DEFAULT_ITEM_STATES: readonly ItemState[] = Object.freeze([

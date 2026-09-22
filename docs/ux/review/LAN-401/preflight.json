@@ -1,0 +1,25 @@
+{
+  "url": "http://127.0.0.1:3000/login",
+  "headSha": "4f6c11f6ee14c7ea432d6332276442d4a9c7e436",
+  "slot": "primary",
+  "loginVerified": true,
+  "seededStatesVerified": true,
+  "routes": ["/operate/roster", "/operate/roster/8d41d0db-fdb8-489b-ad73-46e76a15d7cd"],
+  "viewports": [
+    {
+      "label": "phone375",
+      "requestedWidth": 375,
+      "measuredWidth": 375,
+      "measuredHeight": 812,
+      "screenshot": "phone375_operate_roster.png"
+    },
+    {
+      "label": "desktop",
+      "requestedWidth": 1440,
+      "measuredWidth": 1440,
+      "measuredHeight": 900,
+      "screenshot": "desktop_operate_roster.png"
+    }
+  ],
+  "at": "2026-09-21T15:20:44.396Z"
+}

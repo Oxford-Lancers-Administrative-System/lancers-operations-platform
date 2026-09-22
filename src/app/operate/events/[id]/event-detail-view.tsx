@@ -170,7 +170,13 @@ export function EventDetailView({
   participation: OperatorParticipation | null;
   participationFilters: ParticipationFilters;
   /** `null` unless the operator opened **Share link**. */
-  share: { url: string | null; blockedReason: string | null; errorRule: string | null } | null;
+  share: {
+    url: string | null;
+    /** The six lines the panel shows and its button copies — LAN-410. `null` where no link exists yet. */
+    message: string | null;
+    blockedReason: string | null;
+    errorRule: string | null;
+  } | null;
   /** LAN-171. Non-null exactly when the event is approved. */
   frozenPlan: FrozenMessagingPlan | null;
 }) {
@@ -236,6 +242,7 @@ export function EventDetailView({
           <SharePanel
             eventId={event.id}
             url={share.url}
+            message={share.message}
             blockedReason={share.blockedReason}
             errorRule={share.errorRule}
             closeHref={`/operate/events/${event.id}`}

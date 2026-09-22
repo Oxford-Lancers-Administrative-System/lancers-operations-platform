@@ -39,6 +39,10 @@ import {
 import fs from "node:fs";
 import { seedFrame, shiftAuthoredValue, shiftedYearOf } from "./lib/seed-clock.mjs";
 import { seededTemplateIdFor } from "./lib/event-template-ids.mjs";
+// LAN-396 — the one place the approved item-and-ask inventory is written down.
+// The application reads the same file through
+// `src/lib/services/onboarding-item-shapes.ts`, and so does the showcase plan.
+import ONBOARDING_ITEM_TYPE_ROWS from "../src/lib/services/onboarding-item-types.json" with { type: "json" };
 
 const SEED = 20260810;
 const random = makeRandom(SEED);
@@ -420,6 +424,18 @@ const VOCAB_2026 = {
     ["KR", "Kick Return", "special_teams"],
     ["PUNT", "Punt", "special_teams"],
     ["FG", "Field Goal", "special_teams"],
+    // LAN-401 — Stewart's sided line codes. Last in the list rather than
+    // beside `T` and `G`, so no existing code's `sort_order` moves. That is
+    // also what the migration does to a live vocabulary: each new code lands
+    // past every row already there, and so at the end of its own side, which
+    // is the only ordering the board reads. `T` and `G` stay (Brian,
+    // 2026-09-21) — a coach who means "a guard, either side" still has a word
+    // for it. `DT` and `DE` are already above; this vocabulary always held
+    // them, and it is the production baseline that gains them.
+    ["LG", "Left Guard", "offence"],
+    ["RG", "Right Guard", "offence"],
+    ["LT", "Left Tackle", "offence"],
+    ["RT", "Right Tackle", "offence"],
   ],
 };
 
@@ -559,6 +575,7 @@ const rows = {
   membership_position_groups: [],
   special_teams_assignments: [],
   kit_issue_records: [],
+  warmup_group_assignments: [],
   formalwear_records: [],
   blues_awards: [],
   onboarding_item_types: [],
@@ -892,6 +909,25 @@ const vocab2023 = { id: uuid(), ...VOCAB_2023 };
 const vocab2026 = { id: uuid(), ...VOCAB_2026 };
 const positionByVocab = { [vocab2023.id]: {}, [vocab2026.id]: {} };
 
+/**
+ * LAN-401's own deterministic stream — a fourth, for exactly the reason
+ * `recruitId`, `onboardingItemTypeId` and `historyAndSelectionUuid` each have
+ * one.
+ *
+ * `uuid()` draws from the shared `random`, so every row added to an existing
+ * block ahead of a randomised section shifts every later draw by one. This
+ * issue added four position codes here and one warmup row per membership
+ * below, which between them moved the messaging block's own `weighted()` rolls
+ * far enough that `tests/synthetic-seed-messiness.test.ts` lost its manual
+ * recovery — the exact failure those three comments predict, reproduced in CI.
+ * Drawing LAN-401's ids from a stream of its own leaves the shared one byte
+ * for byte where it was.
+ */
+const lan401Uuid = makeUuidFactory(makeRandom(20260921));
+
+/** The codes Stewart's list added to the live vocabulary (LAN-401). Their ids come from `lan401Uuid`, never the shared stream. */
+const LAN401_POSITION_CODES = new Set(["LG", "RG", "LT", "RT"]);
+
 for (const vocab of [vocab2023, vocab2026]) {
   add("position_vocabularies", {
     id: vocab.id,
@@ -901,7 +937,14 @@ for (const vocab of [vocab2023, vocab2026]) {
     created_at: "2025-06-01T09:00:00Z",
   });
   vocab.positions.forEach(([code, label, side], order) => {
-    const position = { id: uuid(), vocabulary_id: vocab.id, code, label, side, sort_order: order };
+    const position = {
+      id: LAN401_POSITION_CODES.has(code) ? lan401Uuid() : uuid(),
+      vocabulary_id: vocab.id,
+      code,
+      label,
+      side,
+      sort_order: order,
+    };
     add("positions", position);
     positionByVocab[vocab.id][code] = position;
   });
@@ -1204,28 +1247,26 @@ function weightedStatusFor(code, subsInvoicedStatus) {
   }
 }
 
-const ONBOARDING_TYPES = [
-  ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
-  ["subs_paid", "Subscription paid", false, true, "direct"],
-  ["kit_sorted", "Kit Distributed", true, false, "direct"],
-  ["bucs_play", "BUCS Play registration", true, false, "trust"],
-  ["hudl_access", "Hudl access", false, false, "trust"],
-  ["photo", "Squad photo", false, false, "direct"],
-  ["comms_groups", "Comms groups joined", true, false, "direct"],
-  // Item 9 — derived; completes when every required field on the person's
-  // record is present. "This item is the form, and its missing pieces are
-  // the queue" (the inventory's own words).
-  ["contact_academic_details", "Contact & academic details", true, false, "direct"],
-  // Item 10 — player; reads the Code of Conduct on its own page, then
-  // confirms having read and understood it. Dated, stored as theirs.
-  ["code_of_conduct", "Code of Conduct", true, false, "direct"],
-  // Item 11 — player; reads the release on its own page and signs it.
-  // Seasonal — asked of everyone every season.
-  ["photo_release", "Photo release", true, false, "direct"],
-  // Item 12 — derived; two things (has the welcome gone out, and have they
-  // approved) — approval is what completes it.
-  ["season_welcome_consent", "Season welcome & consent", true, false, "direct"],
-];
+/**
+ * The club's eleven onboarding item types — LAN-396. Read from
+ * `src/lib/services/onboarding-item-types.json`, which is the one place the
+ * approved item-and-ask inventory is written down: this seed, the application
+ * and the showcase plan's `reference.mjs` all read that file, so none of them
+ * can drift from the others.
+ *
+ * The tuple shape below is the shape this script has always used. Item 5 (BPS)
+ * is deliberately absent: it left the checklist for the roster
+ * (`bps_selections`) on Brian's own 2026-09-01 direction. Items 9 and 12
+ * (Contact & academic details, Season welcome & consent) are derived; items 10
+ * and 11 (Code of Conduct, Photo release) are read-then-sign player items.
+ */
+const ONBOARDING_TYPES = ONBOARDING_ITEM_TYPE_ROWS.map((type) => [
+  type.code,
+  type.label,
+  type.isRequired,
+  type.isSubscription,
+  type.verificationClass,
+]);
 
 // LAN-214, correction round 1 (L-001). Only these four draw from
 // `onboardingItemTypeId` — see that constant's own comment — so the
@@ -1509,8 +1550,12 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     ["loaner_cleats", ["Yes", "No"]],
     ["team_mouthguard", ["Yes", "No"]],
     ["team_gloves", ["Yes - OL/DL", "Yes - Skill", "No"]],
-    ["braces_1", ["Ankle - M", "Knee - L", "Shoulder"]],
-    ["braces_2", ["Ankle - S", "Knee - XXL", "Shoulder"]],
+    // LAN-409: Braces L and Braces R hold a set. The seed gives every player
+    // who has kit at all one brace a side, and the deliberate example below
+    // gives one player two on the left — the case the two old single-pick
+    // slots could not record.
+    ["braces_left", ["Ankle - M", "Knee - L", "Shoulder"]],
+    ["braces_right", ["Ankle - S", "Knee - XXL", "Shoulder"]],
     ["socks", ["Yes", "No"]],
   ];
   // i % 3 === 2 gets only the first three items, so its Kit Distributed reads No.
@@ -1528,6 +1573,21 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
         updated_at: "2026-10-05T09:00:00Z",
       });
     });
+    // LAN-409's deliberate example: the first player with kit wears an ankle
+    // brace and a knee brace on the same left side, which is the whole point
+    // of the change and is unrecordable under the two old slots.
+    if (i === 0) {
+      add("kit_issue_records", {
+        id: uuid(),
+        season_membership_id: membership.id,
+        season_id: seasonCurrent.id,
+        item: "braces_left",
+        value: "Knee - L",
+        recorded_by_person_id: people[2].id,
+        created_at: "2026-10-05T09:00:00Z",
+        updated_at: "2026-10-05T09:00:00Z",
+      });
+    }
   }
 
   // LAN-374: special teams. Six squads, four cells each; the sheet is sparse,
@@ -1555,6 +1615,30 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
         created_at: "2026-10-02T09:00:00Z",
         updated_at: "2026-10-02T09:00:00Z",
       });
+    });
+  }
+
+  // LAN-401: the warmup small group. One per player at most, and Stewart's
+  // sheet leaves plenty blank, so every fourth membership holds none.
+  const WARMUP_SMALL_GROUPS = [
+    "Kings",
+    "Raider",
+    "Bear",
+    "Phoenix",
+    "Cavalier",
+    "Blue",
+    "Gold",
+    "Lancer",
+  ];
+  if (i % 4 !== 3) {
+    add("warmup_group_assignments", {
+      id: lan401Uuid(),
+      season_membership_id: membership.id,
+      season_id: seasonCurrent.id,
+      small_group: WARMUP_SMALL_GROUPS[i % WARMUP_SMALL_GROUPS.length],
+      recorded_by_person_id: people[2].id,
+      created_at: "2026-10-06T09:00:00Z",
+      updated_at: "2026-10-06T09:00:00Z",
     });
   }
 
@@ -3621,6 +3705,12 @@ let noChannelEvent = null;
 let noChannelInvitee = null;
 let heldEvent = null;
 let heldInvitee = null;
+// LAN-411's one deliberate example: a WhatsApp send Meta accepted and has said
+// nothing about since. The whole point of the case is that there is nothing to
+// find — no callback, no result, no error — so the row has to be built rather
+// than fall out of any of the ladder stories.
+let notDeliveredEvent = null;
+let notDeliveredInvitee = null;
 
 jobEvents.forEach((event, index) => {
   const story = LADDER_STORIES[index % LADDER_STORIES.length];
@@ -4063,6 +4153,88 @@ jobEvents.forEach((event, index) => {
       }
     }
   });
+
+  /**
+   * LAN-411. One person who never accepted WhatsApp's terms.
+   *
+   * Meta takes the send, answers success, and then sends no callback at all —
+   * no `delivered`, no `read`, no `failed`. The job sits at `processing` for
+   * ever, and an hour later the club is told **Not delivered**. Nothing about
+   * the person changes and the chase carries on; the flag is advisory.
+   *
+   * Built by hand for the reason the case itself is hard: every other seeded
+   * state is evidence of something, and this one is the absence of it. It runs
+   * after the per-invitation loop so it can pick somebody who has *not*
+   * answered — otherwise the row would never reach the Follow-ups queue, which
+   * is half of what the label is for. The attempt is dated a day before the
+   * notional now, so it is past the hour whatever time of day the seed runs.
+   */
+  if (story === "genuine_failure" && notDeliveredEvent === null) {
+    const silent = invitations.find(
+      (invitation) =>
+        !rows.rsvp_responses.some((response) => response.invitation_id === invitation.id) &&
+        rows.notification_jobs.some(
+          (candidate) =>
+            candidate.invitation_id === invitation.id &&
+            candidate.job_type === "invitation" &&
+            candidate.status !== "cancelled",
+        ),
+    );
+    if (silent) {
+      // Every message the club sent this person, not only the first. Somebody
+      // who has never accepted WhatsApp's terms receives none of them, so the
+      // invitation *and* each chase that followed it sit at `processing` with
+      // an accepted attempt and no callback. That is what makes the event's
+      // board read Not delivered on the invitation row and the Follow-ups
+      // queue read it on their latest message.
+      const theirJobs = rows.notification_jobs.filter(
+        (candidate) =>
+          candidate.invitation_id === silent.id &&
+          candidate.status !== "cancelled" &&
+          !candidate.idempotency_key.endsWith(":email-fallback"),
+      );
+      for (const job of theirJobs) {
+        const acceptedAt = shiftMinutes(NOW.toISOString(), -24 * 60);
+        job.status = "processing";
+        job.channel = "whatsapp";
+        job.attempt_count = 1;
+        job.automatic_attempts = 1;
+        job.next_attempt_at = null;
+        job.last_error = null;
+        job.claimed_at = acceptedAt;
+        job.claimed_by = "system: automated delivery";
+        job.person_id = invitationPersonId(silent);
+        // The job's random `kind` above may already have given it a history;
+        // this rewrites the whole of it, so that history goes first — the same
+        // collision the two scenarios above deal with.
+        rows.delivery_results = rows.delivery_results.filter(
+          (result) => result.notification_job_id !== job.id,
+        );
+        rows.delivery_attempts = rows.delivery_attempts.filter(
+          (attempt) => attempt.notification_job_id !== job.id,
+        );
+        add("delivery_attempts", {
+          id: uuid(),
+          notification_job_id: job.id,
+          attempt_number: 1,
+          channel: "whatsapp",
+          provider: "whatsapp-business",
+          // Meta answered with a message id: it accepted the send. That is the
+          // whole of what the club ever heard.
+          provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
+          requested_at: acceptedAt,
+          accepted_at: acceptedAt,
+          concluded_at: null,
+          failure_reason: null,
+        });
+        deliveryAttemptsSeeded += 1;
+      }
+      if (theirJobs.length > 0) {
+        notDeliveredEvent = event;
+        notDeliveredInvitee = silent;
+      }
+    }
+  }
 
   // One event past its escalation threshold, with a flag on every unanswered
   // invitation and exactly one escalation sent to the President.
@@ -5302,6 +5474,19 @@ const WRITE_PLAN = [
     "kit_issue_records",
   ],
   [
+    "public.warmup_group_assignments",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "small_group",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "warmup_group_assignments",
+  ],
+  [
     "public.formalwear_records",
     [
       "id",
@@ -5895,6 +6080,30 @@ try {
     $seed$;
   `);
 
+  /**
+   * LAN-396 — the production gap of 2026-09-17, refused here rather than
+   * discovered on a board. A season opened with no onboarding item types
+   * generates every membership in it with no onboarding items, and the whole
+   * Onboarding group then reads blank and will not open. The seed refuses to
+   * hand over a dataset that reproduces it.
+   */
+  const seededTypes = await client.query(
+    `select s.label, count(t.id)::int as types
+       from public.seasons s
+       left join public.onboarding_item_types t on t.season_id = s.id
+      where s.status = any(array['open', 'active', 'closing']::public.season_status[])
+      group by s.id, s.label
+     having count(t.id) = 0`,
+  );
+  if (seededTypes.rows.length > 0) {
+    throw new Error(
+      `A season the club is operating has no onboarding item types: ` +
+        `${seededTypes.rows.map((row) => row.label).join(", ")}. ` +
+        `Every membership in it would be generated with no onboarding items ` +
+        `(LAN-396). The list is src/lib/services/onboarding-item-types.json.`,
+    );
+  }
+
   await client.query("commit");
 
   const counts = (label, value) => `  ${label.padEnd(34)} ${String(value).padStart(6)}`;
@@ -6046,6 +6255,14 @@ try {
   }
   if (whatsappUnresponsiveEvent) {
     showDeliveryAs("WhatsApp unresponsive", whatsappUnresponsiveEvent, whatsappUnresponsiveInvitee);
+  }
+  // LAN-411.
+  if (notDeliveredEvent) {
+    showDeliveryAs(
+      "Not delivered (accepted, then silence)",
+      notDeliveredEvent,
+      notDeliveredInvitee,
+    );
   }
   console.log(
     `  ${"per-attempt diagnostics".padEnd(34)} any of the three events above\n${" ".repeat(37)}` +

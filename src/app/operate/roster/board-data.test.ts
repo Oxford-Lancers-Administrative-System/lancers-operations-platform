@@ -8,6 +8,7 @@ import {
   NOT_RECORDED,
   onboardingLabel,
   optionListLabel,
+  rawValue,
 } from "./board-data";
 
 const POSITION_OPTIONS = {
@@ -46,6 +47,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     formalwear: { tie: false, bowtie: false },
     specialTeams: {},
     kit: {},
+    warmupSmallGroup: null,
     blues: "None",
     eligibility: null,
     availability: null,
@@ -362,5 +364,43 @@ describe("onboardingLabel", () => {
     expect(onboardingLabel(row({ itemsTotal: 3, itemsResolved: 2, requiredOutstanding: 0 }))).toBe(
       "1 outstanding, none blocking",
     );
+  });
+});
+
+/**
+ * LAN-409 — Braces L and Braces R each hold a set, and the board's Kit group
+ * shows it comma-joined in a column the same width it always was.
+ */
+describe("the two brace columns — a set, not a pick", () => {
+  const LEFT = COLUMNS.find((column) => column.key === "kit:braces_left")!;
+  const RIGHT = COLUMNS.find((column) => column.key === "kit:braces_right")!;
+  const HELMET = COLUMNS.find((column) => column.key === "kit:helmet")!;
+
+  it("edits through the multi-select, at the Kit group's own width", () => {
+    expect(LEFT.label).toBe("Braces L");
+    expect(RIGHT.label).toBe("Braces R");
+    expect(LEFT.edit).toBe("multiselect");
+    expect(RIGHT.edit).toBe("multiselect");
+    // The nine single-pick items are untouched, and nothing changed width.
+    expect(HELMET.edit).toBe("select");
+    expect(LEFT.width).toBe(HELMET.width);
+  });
+
+  it("reads the whole side, comma-joined, and not recorded when the side is empty", () => {
+    const wearing = row({
+      kit: { "kit:braces_left": ["Ankle - M", "Knee - L"], "kit:helmet": ["Speedflex M"] },
+    });
+    expect(displayOf(wearing, LEFT)).toBe("Ankle - M, Knee - L");
+    expect(displayOf(wearing, RIGHT)).toBe(NOT_RECORDED);
+    expect(displayOf(wearing, HELMET)).toBe("Speedflex M");
+  });
+
+  it("hands the editor the list it edits, and a single item its one value", () => {
+    const wearing = row({
+      kit: { "kit:braces_left": ["Ankle - M", "Knee - L"], "kit:helmet": ["Speedflex M"] },
+    });
+    expect(rawValue(wearing, "kit:braces_left")).toEqual(["Ankle - M", "Knee - L"]);
+    expect(rawValue(wearing, "kit:braces_right")).toEqual([]);
+    expect(rawValue(wearing, "kit:helmet")).toBe("Speedflex M");
   });
 });

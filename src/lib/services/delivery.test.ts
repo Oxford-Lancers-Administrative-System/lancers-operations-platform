@@ -2401,3 +2401,231 @@ describe("the recruit consent gate — LAN-203", () => {
     expect((await row(eventId)).state).toBe("attempted");
   });
 });
+
+/**
+ * LAN-411 — **Not delivered**, derived.
+ *
+ * Brian, 2026-09-21: a member who has never accepted WhatsApp's terms never
+ * receives the club's messages. Meta takes the send, answers success, and then
+ * sends no callback at all — no `delivered`, no `failed`. There is no API,
+ * status or field that says why; the only signal is absence. A healthy send
+ * shows `delivered` within seconds, so a row still at Attempted an hour later
+ * has, in practice, not arrived.
+ *
+ * Every test here back-dates `accepted_at` rather than waiting, which is the
+ * only moving part: the rule is one comparison against
+ * `NOT_DELIVERED_AFTER_MINUTES`.
+ */
+describe("Not delivered — a WhatsApp send Meta accepted and never spoke of again", () => {
+  /** Moves this event's one accepted attempt into the past. */
+  async function acceptedMinutesAgo(eventId: string, minutes: number): Promise<void> {
+    await observer.query(
+      `update public.delivery_attempts a
+          set accepted_at = now() - ($2 || ' minutes')::interval
+         from public.notification_jobs j
+        where j.id = a.notification_job_id and j.event_id = $1`,
+      [eventId, String(minutes)],
+    );
+  }
+
+  async function dispatched(options: { phone?: string | null } = {}) {
+    const fixed = await fixture(options);
+    await dispatchEventInvitations(fixed.eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}ND`),
+    });
+    return fixed;
+  }
+
+  it("reads Attempted at 59 minutes and Not delivered at 61", async () => {
+    const { eventId } = await dispatched();
+
+    await acceptedMinutesAgo(eventId, 59);
+    const before = await row(eventId);
+    expect(before.state).toBe("attempted");
+    expect(before.notDelivered).toBe(false);
+
+    await acceptedMinutesAgo(eventId, 61);
+    const after = await row(eventId);
+    // Not a sixth state: the state is still Attempted underneath.
+    expect(after.state).toBe("attempted");
+    expect(after.notDelivered).toBe(true);
+    expect((await readEventDelivery(eventId)).counts.notDelivered).toBe(1);
+  });
+
+  it("clears itself when the delivered callback finally lands, which still applies", async () => {
+    const { eventId } = await dispatched();
+    await acceptedMinutesAgo(eventId, 8 * 60);
+    expect((await row(eventId)).notDelivered).toBe(true);
+
+    const messageId = await observer.query<{ provider_message_id: string }>(
+      `select a.provider_message_id from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    const applied = await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId.rows[0].provider_message_id}:late-delivered`,
+        providerMessageId: messageId.rows[0].provider_message_id,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    // The whole reason nothing is written at the hour mark: a written result
+    // is authoritative under M4 and would make this callback `superseded`.
+    expect(applied).toBe("applied");
+    const after = await row(eventId);
+    expect(after.state).toBe("delivered");
+    expect(after.notDelivered).toBe(false);
+  });
+
+  it("is suppressed by a read callback that arrived without a delivered one", async () => {
+    const { eventId } = await dispatched();
+    await acceptedMinutesAgo(eventId, 8 * 60);
+
+    const messageId = await observer.query<{ provider_message_id: string }>(
+      `select a.provider_message_id from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    // `read` maps to no outcome and writes no result row, so "no result" alone
+    // would call somebody who read the message undelivered.
+    const application = await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId.rows[0].provider_message_id}:read`,
+        providerMessageId: messageId.rows[0].provider_message_id,
+        providerStatus: "read",
+        outcome: null,
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+    expect(application).toBe("not_applicable");
+
+    const after = await row(eventId);
+    expect(after.state).toBe("attempted");
+    expect(after.notDelivered).toBe(false);
+  });
+
+  it("never reads Not delivered on an email attempt, which has no delivered signal at all", async () => {
+    const { eventId, personId } = await fixture({ phone: null });
+    await addEmail(personId);
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+    await observer.query(
+      `update public.delivery_attempts a
+          set accepted_at = now() - interval '8 hours', concluded_at = null
+         from public.notification_jobs j
+        where j.id = a.notification_job_id and j.event_id = $1 and a.channel = 'email'`,
+      [eventId],
+    );
+
+    for (const each of (await readEventDelivery(eventId)).rows) {
+      expect(each.notDelivered, `${each.inviteeName} read as Not delivered`).toBe(false);
+    }
+  });
+
+  it("never reads Not delivered where the provider said it failed", async () => {
+    const { eventId } = await dispatched();
+    const messageId = await observer.query<{ provider_message_id: string }>(
+      `select a.provider_message_id from public.delivery_attempts a
+         join public.notification_jobs j on j.id = a.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${messageId.rows[0].provider_message_id}:failed`,
+        providerMessageId: messageId.rows[0].provider_message_id,
+        providerStatus: "failed",
+        outcome: "failed",
+        detail: "The provider refused it.",
+      },
+      { signatureVerified: true },
+    );
+    await acceptedMinutesAgo(eventId, 8 * 60);
+
+    const after = await row(eventId);
+    // Not delivered covers silence only: a failure writes a result and moves
+    // the job, and reads as whatever that failure was.
+    expect(["failed", "retryable"]).toContain(after.state);
+    expect(after.notDelivered).toBe(false);
+  });
+
+  /**
+   * Red-team finding 7, pinned: nothing in the chase ladder or the sweep reads
+   * a delivery state, and this issue adds nothing to any of them. The
+   * thirty-day conclusion is the one thing that *does* act on an open attempt,
+   * and a row that is merely silent for an hour is nowhere near it.
+   */
+  it("moves nothing in the sweep, and is nowhere near the thirty-day conclusion", async () => {
+    const { eventId } = await dispatched();
+    await acceptedMinutesAgo(eventId, 8 * 60);
+    expect((await row(eventId)).notDelivered).toBe(true);
+
+    expect(await concludeExpiredDeliveries({ source: CONFIGURED })).toBe(0);
+
+    const after = await row(eventId);
+    expect(after.state).toBe("attempted");
+    expect(after.notDelivered).toBe(true);
+    // No result row means no retry ladder and no email fallback: both fire
+    // only on a *recorded* WhatsApp failure.
+    const results = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.delivery_results r
+         join public.notification_jobs j on j.id = r.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    expect(results.rows[0].count).toBe("0");
+    const fallback = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.notification_jobs j
+        where j.event_id = $1 and j.idempotency_key like '%${EMAIL_FALLBACK_SUFFIX}'`,
+      [eventId],
+    );
+    expect(fallback.rows[0].count).toBe("0");
+  });
+
+  it("writes nothing at all — reading the screen twice moves no row", async () => {
+    const { eventId } = await dispatched();
+    await acceptedMinutesAgo(eventId, 8 * 60);
+
+    const snapshot = async () => {
+      const results = await observer.query<{ fingerprint: string }>(
+        `select coalesce(string_agg(r.id::text || ':' || r.occurred_at::text, ',' order by r.id), '') as fingerprint
+           from public.delivery_results r
+           join public.notification_jobs j on j.id = r.notification_job_id
+          where j.event_id = $1`,
+        [eventId],
+      );
+      const attempts = await observer.query<{ fingerprint: string }>(
+        `select coalesce(string_agg(a.id::text || ':' || coalesce(a.concluded_at::text, '-'), ',' order by a.id), '') as fingerprint
+           from public.delivery_attempts a
+           join public.notification_jobs j on j.id = a.notification_job_id
+          where j.event_id = $1`,
+        [eventId],
+      );
+      const jobs = await observer.query<{ fingerprint: string }>(
+        `select coalesce(string_agg(j.id::text || ':' || j.status::text || ':' || j.updated_at::text, ',' order by j.id), '') as fingerprint
+           from public.notification_jobs j where j.event_id = $1`,
+        [eventId],
+      );
+      return [results.rows[0].fingerprint, attempts.rows[0].fingerprint, jobs.rows[0].fingerprint];
+    };
+
+    const before = await snapshot();
+    await readEventDelivery(eventId);
+    await readEventDelivery(eventId);
+    await readEventDeliveryDiagnostics(eventId);
+    expect(await snapshot()).toEqual(before);
+  });
+});

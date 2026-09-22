@@ -132,6 +132,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     formalwear: { tie: false, bowtie: false },
     specialTeams: {},
     kit: {},
+    warmupSmallGroup: null,
     blues: "None",
     eligibility: null,
     availability: "green",
@@ -151,6 +152,7 @@ function givenBoard(overrides: Partial<RosterBoardData> = {}): void {
       offence: [{ code: "QB", label: "Quarterback" }],
       defence: [{ code: "CB", label: "Cornerback" }],
     },
+    seasonHasOnboardingItemTypes: true,
     ...overrides,
   } as RosterBoardData);
 }
@@ -203,7 +205,7 @@ describe("the board itself", () => {
 
     expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27");
     expect(screen.getByTestId("season-label")).toHaveTextContent("1 player");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("66 columns");
+    expect(screen.getByTestId("season-label")).toHaveTextContent("67 columns");
   });
 
   it("groups the columns the way the 2026-09-16 call settled (LAN-387)", async () => {
@@ -246,6 +248,28 @@ describe("the board itself", () => {
     }
     expect(within(board).getAllByText("Starting Position")).toHaveLength(6);
     expect(within(board).getAllByText("Backup Position 3")).toHaveLength(6);
+  });
+
+  it("opens Warmup assignments closed, between Special teams and Kit (LAN-401)", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const board = screen.getByTestId("roster-board");
+    expect(within(board).queryByText("Small Group Assignment")).not.toBeInTheDocument();
+
+    const bands = within(board)
+      .getAllByTestId(/^band-toggle-/)
+      .map((element) => element.getAttribute("data-testid"));
+    expect(bands.indexOf("band-toggle-warmup")).toBeGreaterThan(
+      bands.indexOf("band-toggle-specialTeams"),
+    );
+    expect(bands.indexOf("band-toggle-warmup")).toBeLessThan(bands.indexOf("band-toggle-kit"));
+
+    await act(async () => {
+      fireEvent.click(within(board).getByTestId("band-toggle-warmup"));
+    });
+    expect(within(board).getByText("Warmup assignments")).toBeInTheDocument();
+    expect(within(board).getByText("Small Group Assignment")).toBeInTheDocument();
   });
 
   it("opens Kit closed and shows its columns once the group is expanded", async () => {
@@ -965,6 +989,9 @@ describe("which groups are folded away, remembered on the account", () => {
     expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]].sort()).toEqual([
       "coaching",
       "specialTeams",
+      // LAN-401's group arrives folded like the two either side of it, and
+      // stays folded through a toggle it was not part of.
+      "warmup",
     ]);
   });
 });
@@ -996,5 +1023,42 @@ describe("the board's scrollbar gutter", () => {
     expect(window.getComputedStyle(board).paddingRight).toBe(`${BOARD_SCROLLBAR_GUTTER_PX}px`);
     // The gutter only helps while this element is the one that scrolls.
     expect(window.getComputedStyle(board).overflow).toBe("auto");
+  });
+});
+
+/**
+ * LAN-396 — production, 2026-09-17: the 2026-27 season was opened with no
+ * onboarding item types, so every membership in it was generated with no
+ * onboarding items and the board's Onboarding cells were blank and would not
+ * open. Nothing on screen said why.
+ */
+describe("a season with no onboarding item types configured", () => {
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+  });
+
+  it("says so once, above the board", async () => {
+    givenBoard({ seasonHasOnboardingItemTypes: false });
+    render(await RosterPage(pageProps()));
+
+    const notices = screen.getAllByTestId("roster-no-onboarding-item-types");
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toHaveTextContent(
+      "This season has no onboarding items configured, so no membership in it has any.",
+    );
+  });
+
+  it("says it on the empty season too, where there is no board to look at", async () => {
+    givenBoard({ rows: [], totalInSeason: 0, seasonHasOnboardingItemTypes: false });
+    render(await RosterPage(pageProps()));
+
+    expect(screen.getByTestId("roster-no-onboarding-item-types")).toBeInTheDocument();
+  });
+
+  it("says nothing at all when the season has its items", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    expect(screen.queryByTestId("roster-no-onboarding-item-types")).not.toBeInTheDocument();
   });
 });

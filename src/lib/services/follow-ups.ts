@@ -10,6 +10,7 @@ import {
   DELIVERY_LATEST_RESULT_JOIN,
   DELIVERY_STATE_EXPRESSION,
   EMAIL_FALLBACK_SUFFIX,
+  NOT_DELIVERED_EXPRESSION,
   NOTIFICATION_JOB_RECENCY_ORDER,
 } from "./delivery";
 import { EXIT_STATUSES } from "./recruitment-vocabulary";
@@ -20,7 +21,8 @@ import { personDisplayNameSql as displayName } from "./sql-text";
  * `F4`: an undeliverable person and one who has not replied are both unresolved and both `nonresponse_queue` rows; the split is a `FollowUpStatus` label, not a second query.
  */
 
-type FollowUpStatus = "delivery_problem" | "escalated" | "escalation_held" | "chasing";
+type FollowUpStatus =
+  "delivery_problem" | "escalation_held" | "escalated" | "not_delivered" | "chasing";
 
 /** The most recent message this invitation has — LAN-322, so a second operator can see one has already gone. `state` is `DELIVERY_STATE_EXPRESSION`'s own vocabulary. */
 export interface FollowUpDelivery {
@@ -62,6 +64,8 @@ interface QueueRow {
   expires_at: Date | null;
   display_name: string | null;
   delivery_state: string | null;
+  /** LAN-411 — `NOT_DELIVERED_EXPRESSION`. `null` where this invitation has no job. */
+  delivery_not_delivered: boolean | null;
   delivery_channel: string | null;
   delivery_at: Date | null;
   delivery_failure_reason: string | null;
@@ -78,6 +82,7 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
             q.expires_at, q.capacity::text as capacity, p.id as person_id,
             ${displayName("p")} as display_name,
             delivery.state as delivery_state,
+            delivery.not_delivered as delivery_not_delivered,
             delivery.channel as delivery_channel,
             delivery.at as delivery_at,
             delivery.failure_reason as delivery_failure_reason,
@@ -90,6 +95,8 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
        join public.people p on p.id = coalesce(i.person_id, m.person_id)
        left join lateral (
          select case when j.id is null then null else ${DELIVERY_STATE_EXPRESSION} end as state,
+                -- LAN-411: the same derivation the event's own screens make.
+                ${NOT_DELIVERED_EXPRESSION} as not_delivered,
                 j.channel::text as channel,
                 -- LAN-322. When that message was last acted on, so the row can
                 -- say a chase has already gone rather than only that one has.
@@ -186,8 +193,24 @@ export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
       const escalationDelivered =
         row.escalation_status === "completed" || row.escalation_status === "processing";
 
-      // F4: delivery problem outranks escalation/chasing — the club cannot chase
-      // somebody it has never reached.
+      /**
+       * LAN-411: the club's last message to this person was accepted by Meta
+       * an hour ago and has said nothing since. Advisory — nothing about the
+       * person or the ladder changes, and the follow-up is a human one.
+       */
+      const notDelivered =
+        row.delivery_state === "attempted" && row.delivery_not_delivered === true;
+
+      /**
+       * F4: delivery problem outranks escalation/chasing — the club cannot
+       * chase somebody it has never reached.
+       *
+       * LAN-411 adds one rung, fourth of five (Brian, 2026-09-21): Delivery
+       * problem, Escalation held, Escalated, **Not delivered**, Chasing. The
+       * first three are the club's own problem to fix; Not delivered beats
+       * Chasing because it says the chase is probably not landing, and sits
+       * under Escalated because an escalation already has a named owner.
+       */
       const status: FollowUpStatus = noUsableRoute
         ? "delivery_problem"
         : row.flag_open
@@ -197,7 +220,9 @@ export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
               : "delivery_problem"
             : // T03-escalation-office: a vacant seat holds the escalation visibly.
               "escalation_held"
-          : "chasing";
+          : notDelivered
+            ? "not_delivered"
+            : "chasing";
 
       const chasePosition = noUsableRoute
         ? null

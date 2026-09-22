@@ -28,6 +28,10 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   delivery_problem: "Delivery problem",
   escalated: "Escalated",
   escalation_held: "Escalation held: no President in post",
+  // LAN-411, ranked fourth of five: the club's last message to this person was
+  // accepted an hour ago and has said nothing since. The chase is unchanged —
+  // the follow-up is a phone call or an email, by a person.
+  not_delivered: "Not delivered",
   chasing: "Chasing",
 });
 

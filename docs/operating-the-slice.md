@@ -446,6 +446,17 @@ Now press **Retry delivery** on the repair screen.
 honest state: Meta accepting a message is not Meta delivering one, and only a
 verified webhook moves it to Delivered.
 
+An hour later, that same row reads **Not delivered** (LAN-411) — on the event's
+own table, and on Follow-ups as that person's Status. It is a label over
+Attempted, derived at read time and never stored, for a WhatsApp send Meta
+accepted and has said nothing about since: that is what happens to a member who
+has never accepted WhatsApp's terms, and Meta reports it only by silence. The
+delivery page's summary keeps its four tiles and adds a warning notice counting
+them. Nothing about the chase changes — no pause, no per-person mark — and the
+label disappears by itself if a late `delivered` callback arrives. The seed
+carries exactly one deliberate example; `npm run db:seed` prints it under
+**Delivery states to look at** as "Not delivered (accepted, then silence)".
+
 The sink wrote the rendered message to
 `.lancers-runtime/delivery-sink/<timestamp>-<provider-message-id>.json` —
 gitignored, one file per attempt, the real payload the application built and

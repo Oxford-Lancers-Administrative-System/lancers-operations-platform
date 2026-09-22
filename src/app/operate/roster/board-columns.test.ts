@@ -39,6 +39,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     formalwear: { tie: true, bowtie: false },
     specialTeams: {},
     kit: {},
+    warmupSmallGroup: null,
     blues: "Half",
     eligibility: "eligible",
     availability: "green",
@@ -112,7 +113,7 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
     expect(widerOffence?.options).toEqual(["QB", "RB"]);
   });
 
-  it("groups every column into the order Brian and Stewart settled (LAN-387)", () => {
+  it("groups every column into the order Brian and Stewart settled (LAN-387, LAN-401)", () => {
     const columns = buildColumns(POSITION_OPTIONS);
     const bandsInOrder: string[] = [];
     for (const column of columns) {
@@ -126,7 +127,26 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
       "offensive",
       "defensive",
       "specialTeams",
+      // LAN-401: Stewart's warmup groups, between Special teams and Kit.
+      "warmup",
       "kit",
+    ]);
+  });
+
+  it("gives the Warmup group its one column (LAN-401)", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    const warmup = columns.filter((column) => column.band === "warmup");
+    expect(warmup.map((column) => column.key)).toEqual(["warmupSmallGroup"]);
+    expect(warmup[0].label).toBe("Small Group Assignment");
+    expect(warmup[0].options).toEqual([
+      "Kings",
+      "Raider",
+      "Bear",
+      "Phoenix",
+      "Cavalier",
+      "Blue",
+      "Gold",
+      "Lancer",
     ]);
   });
 

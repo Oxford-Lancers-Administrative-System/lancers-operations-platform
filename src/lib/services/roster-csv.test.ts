@@ -264,7 +264,7 @@ describe("size and row limits", () => {
   });
 });
 
-describe("the optional season-fact columns — LAN-374, LAN-375", () => {
+describe("the optional season-fact columns — LAN-374, LAN-375, LAN-401", () => {
   it("is absent from a file that names none of them, and never a reason to refuse a row", () => {
     const result = readRosterImport({
       csvText: csv("Rosalind,Penhaligon,07700900001,,Balliol,2024"),
@@ -293,6 +293,74 @@ describe("the optional season-fact columns — LAN-374, LAN-375", () => {
     if (bad.ok) {
       expect(bad.read.rows[0].seasonFacts).toEqual({});
       expect(bad.read.rows[0].reasons[0]).toContain("st_punt_starting");
+    }
+  });
+
+  it("reads the warmup small group, and refuses a name that is not one of the eight", () => {
+    const header = `${HEADER},warmup_small_group`;
+    const good = readRosterImport({
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Cavalier"].join("\r\n"),
+    });
+    expect(good.ok).toBe(true);
+    if (good.ok) {
+      expect(good.read.rows[0].seasonFacts).toEqual({ warmup_small_group: "Cavalier" });
+      expect(good.read.rows[0].reasons).toEqual([]);
+    }
+
+    // Blank is blank, not a refusal: the column is optional in every cell.
+    const blank = readRosterImport({
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,"].join("\r\n"),
+    });
+    expect(blank.ok).toBe(true);
+    if (blank.ok) {
+      expect(blank.read.rows[0].seasonFacts).toEqual({});
+      expect(blank.read.rows[0].reasons).toEqual([]);
+    }
+
+    const bad = readRosterImport({
+      csvText: [header, "Rosalind,Penhaligon,07700900001,,Balliol,2024,Dragons"].join("\r\n"),
+    });
+    expect(bad.ok).toBe(true);
+    if (bad.ok) {
+      expect(bad.read.rows[0].seasonFacts).toEqual({});
+      expect(bad.read.rows[0].reasons[0]).toContain("warmup_small_group");
+    }
+  });
+
+  /**
+   * LAN-409 — Braces L and Braces R are the file's first multi-value cells.
+   * The separator is a semicolon, because the file's own delimiter is the
+   * comma and every brace value carries a hyphen inside it.
+   */
+  it("reads several braces from one side's cell, and refuses one unknown part of it", () => {
+    const header = `${HEADER},kit_braces_left,kit_braces_right`;
+    const good = readRosterImport({
+      csvText: [
+        header,
+        'Rosalind,Penhaligon,07700900001,,Balliol,2024,"Ankle - M;Knee - L",Shoulder',
+      ].join("\r\n"),
+    });
+    expect(good.ok).toBe(true);
+    if (good.ok) {
+      expect(good.read.rows[0].seasonFacts).toEqual({
+        kit_braces_left: "Ankle - M;Knee - L",
+        kit_braces_right: "Shoulder",
+      });
+      expect(good.read.rows[0].reasons).toEqual([]);
+    }
+
+    // The old single-pick columns are gone: a file naming them names a column
+    // this import does not have, which is not a season-fact cell at all.
+    const bad = readRosterImport({
+      csvText: [
+        header,
+        'Rosalind,Penhaligon,07700900001,,Balliol,2024,"Ankle - M;Elbow - M",Shoulder',
+      ].join("\r\n"),
+    });
+    expect(bad.ok).toBe(true);
+    if (bad.ok) {
+      expect(bad.read.rows[0].seasonFacts).toEqual({ kit_braces_right: "Shoulder" });
+      expect(bad.read.rows[0].reasons[0]).toContain("Elbow - M");
     }
   });
 });
