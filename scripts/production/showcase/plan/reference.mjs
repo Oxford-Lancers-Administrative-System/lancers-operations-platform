@@ -15,6 +15,13 @@
  */
 
 import { id } from "../ids.mjs";
+// LAN-396 — the approved item-and-ask inventory, read rather than repeated.
+// `src/lib/services/onboarding-item-types.json` is the one place it is written
+// down: the application reads it through
+// `src/lib/services/onboarding-item-shapes.ts`, `scripts/seed-local.mjs` reads
+// it, `scripts/production/baseline/season-2026-27.sql` seats the same eleven,
+// and `onboarding-item-shapes.test.ts` fails when any of them drifts.
+import ONBOARDING_ITEM_TYPE_ROWS from "../../../../src/lib/services/onboarding-item-types.json" with { type: "json" };
 
 export const CURRENT_SEASON_LABEL = "2026–27";
 export const ARCHIVED_SEASON_LABEL = "2025–26";
@@ -30,8 +37,8 @@ export const POSITIONS = Object.freeze([
   ["G", "Guard", "offence"],
   ["C", "Centre", "offence"],
   ["FB", "Full Back", "offence"],
-  ["E", "End", "defence"],
-  ["N/T", "Nose Tackle", "defence"],
+  ["E", "Edge", "defence"],
+  ["NT", "Nose Tackle", "defence"],
   ["S", "Safety", "defence"],
   ["LB", "Linebacker", "defence"],
   ["CB", "Cornerback", "defence"],
@@ -50,6 +57,16 @@ export const POSITIONS = Object.freeze([
   ["KR", "Kick Return", "special_teams"],
   ["PUNT", "Punt", "special_teams"],
   ["FG", "Field Goal", "special_teams"],
+  // LAN-401, Stewart's list. Last in the list, so `sort_order = list index`
+  // gives each new code the same number the migration and the baseline give
+  // it, and no existing code's number moves. `G` and `T` stay above (Brian,
+  // 2026-09-21).
+  ["DT", "Defensive Tackle", "defence"],
+  ["DE", "Defensive End", "defence"],
+  ["LG", "Left Guard", "offence"],
+  ["RG", "Right Guard", "offence"],
+  ["LT", "Left Tackle", "offence"],
+  ["RT", "Right Tackle", "offence"],
 ]);
 
 /**
@@ -67,23 +84,22 @@ export const SPECIAL_TEAMS_SLOT_BY_CODE = Object.freeze({
 });
 
 /**
- * The approved item-and-ask inventory — eleven items, transcribed from
- * `scripts/seed-local.mjs` (LAN-214), which is where the vocabulary lives.
+ * The approved item-and-ask inventory — eleven items, read from
+ * `src/lib/services/onboarding-item-types.json` (LAN-396) rather than
+ * transcribed, so this plan and the application cannot seat different lists.
  * `[code, label, is_required, is_subscription, verification_class]`.
  */
-export const ONBOARDING_TYPES = Object.freeze([
-  ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
-  ["subs_paid", "Subscription paid", false, true, "direct"],
-  ["kit_sorted", "Kit Distributed", true, false, "direct"],
-  ["bucs_play", "BUCS Play registration", true, false, "trust"],
-  ["hudl_access", "Hudl access", false, false, "trust"],
-  ["photo", "Squad photo", false, false, "direct"],
-  ["comms_groups", "Comms groups joined", true, false, "direct"],
-  ["contact_academic_details", "Contact & academic details", true, false, "direct"],
-  ["code_of_conduct", "Code of Conduct", true, false, "direct"],
-  ["photo_release", "Photo release", true, false, "direct"],
-  ["season_welcome_consent", "Season welcome & consent", true, false, "direct"],
-]);
+export const ONBOARDING_TYPES = Object.freeze(
+  ONBOARDING_ITEM_TYPE_ROWS.map((type) =>
+    Object.freeze([
+      type.code,
+      type.label,
+      type.isRequired,
+      type.isSubscription,
+      type.verificationClass,
+    ]),
+  ),
+);
 
 /** The parameter keys the loader understands, in the order they are seated. */
 /**

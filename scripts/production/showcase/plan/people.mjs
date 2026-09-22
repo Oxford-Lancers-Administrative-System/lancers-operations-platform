@@ -581,7 +581,7 @@ export function buildPeople(ctx, reference) {
     // Positions, for everyone who has been activated.
     if (activatedOn || status === "onboarding") {
       const offence = ["QB", "RB", "WR", "WR", "TE", "T", "G", "C", "FB", "WB"][index % 10];
-      const defence = ["S", "CB", "LB", "E", "N/T", "CB", "LB", "S", "E", "LB"][(index * 3) % 10];
+      const defence = ["S", "CB", "LB", "E", "NT", "CB", "LB", "S", "E", "LB"][(index * 3) % 10];
       // One player in four also holds a special-teams position, dealt round the
       // four slots — LAN-261. Not everyone: a squad where every row carried one
       // would prove no more than a squad where none did, and the board's own
