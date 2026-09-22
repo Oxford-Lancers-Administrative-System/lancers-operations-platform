@@ -113,7 +113,9 @@ export const EVENTS_PAGE: PlaybookPage = {
     },
     {
       operator: [
-        "To add somebody to an approved event, open the amend screen and use ",
+        "To add somebody to an approved event, press ",
+        control("Edit event"),
+        " and use ",
         screen("Add to audience"),
         ".",
       ],
@@ -123,7 +125,9 @@ export const EVENTS_PAGE: PlaybookPage = {
     },
     {
       operator: [
-        "To change the details, open the amend screen, make the change and press ",
+        "To change anything about an approved event, press ",
+        control("Edit event"),
+        ". The details and the questions are on the one page. Make the change, press ",
         control("Save changes…"),
         ", then ",
         control("Save and notify"),
@@ -133,6 +137,16 @@ export const EVENTS_PAGE: PlaybookPage = {
       ],
       then: [
         "Every unsent message is held while the change is written. If the date or start time moved, the whole schedule is recomputed and then resumed.",
+      ],
+    },
+    {
+      operator: [
+        "Changing a question's wording sends nobody anything. Changing what it asks voids the answers already given and asks those people again, so the save says how many first — tick ",
+        control("This is a correction, keep answers"),
+        " if it was only a fix. A question cannot be removed once the event is approved.",
+      ],
+      then: [
+        "Questions and details save together, so nothing is written until the whole save is confirmed.",
       ],
     },
     {

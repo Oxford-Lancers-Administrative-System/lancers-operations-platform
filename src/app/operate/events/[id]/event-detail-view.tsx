@@ -473,18 +473,14 @@ export function EventDetailView({
             </Button>
           ) : null}
 
-          {/* LAN-318, amending D41: approval no longer freezes the questions. Nothing is sent when they change, and none can be removed. */}
-          {mayManage && event.status === "approved" ? (
-            <Button
-              variant="outlined"
-              href={`/operate/events/${event.id}/edit`}
-              fullWidth
-              sx={{ minHeight: 44 }}
-              data-testid="edit-questions"
-            >
-              Edit questions
-            </Button>
-          ) : null}
+          {/* LAN-419 — Edit questions is gone. Brian, 2026-09-22: "for some
+              reason when the system made its decision edit event and edit
+              questions were two buttons. Why? No idea why… Edit event and edit
+              question should be in one." An approved event's questions are
+              edited on the Edit event page above, beside the amendable
+              details, and saved by the same press. LAN-318's rule is
+              unchanged: approval does not freeze the questions, nothing is
+              sent for a wording change, and none can be removed. */}
 
           {/* D39: duplicate prefills the create form; nothing is written until saved. */}
           {mayManage ? (

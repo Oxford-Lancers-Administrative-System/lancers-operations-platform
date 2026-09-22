@@ -781,10 +781,17 @@ Administration entry, including How administration works.
 
 ## 13. What this walk deliberately does not cover
 
-Performance and load. Anything against the hosted project. Amending and
+Performance and load. Anything against the hosted project. Editing and
 cancelling an already-approved event, which LAN-156 built and which
 [`docs/ux/tickets/LAN-156-amend-and-cancel.md`](ux/tickets/LAN-156-amend-and-cancel.md)
-describes — this walk does not step through it. Adding a recipient after
+describes — this walk does not step through it. One thing about it is worth
+stating here, because it changed: since LAN-419 an approved event has **one**
+edit. **Edit event** opens one page holding the amendable details and the
+questions together, and one press saves both; the separate Edit questions
+button is gone and `/operate/events/<id>/edit` forwards there. What each half
+does is unchanged — a detail change goes through the amendment path and its
+notify decision, a question change sends nothing for a wording fix and voids
+and re-asks a changed question. Adding a recipient after
 approval, which is unavailable by design; retry and reissue act only on an
 invitation that already exists and cannot change the approved audience, and an
 amendment does not change it either.

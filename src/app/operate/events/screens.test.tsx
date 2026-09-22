@@ -1562,37 +1562,35 @@ describe("an approved event, which this screen never edits", () => {
     expect(screen.queryByRole("link", { name: /choose audience/i })).toBeNull();
   });
 
-  it("offers Edit questions, which is the one thing it does now edit (LAN-318)", async () => {
+  /**
+   * LAN-419, Brian 2026-09-22: "for some reason when the system made its
+   * decision edit event and edit questions were two buttons. Why? No idea
+   * why… Edit event and edit question should be in one." Edit questions is
+   * gone from this screen; Edit event is the one way in, and the questions are
+   * on the page it opens.
+   */
+  it("offers no Edit questions button at all — there is one edit now (LAN-419)", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
 
     render(await EventDetailPage(detailProps()));
 
-    const edit = screen.getByTestId("edit-questions");
+    expect(screen.queryByTestId("edit-questions")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Edit questions" })).toBeNull();
+    // The one button that remains points at the one page.
+    const edit = screen.getByTestId("edit-event");
     expect(edit).toBeVisible();
-    expect(edit).toHaveAttribute("href", `/operate/events/${EVENT_ID}/edit`);
+    expect(edit).toHaveAttribute("href", `/operate/events/${EVENT_ID}/amend`);
   });
 
-  it("offers it on nothing else — not a draft, not a cancelled event", async () => {
+  it("offers Edit event on nothing else — not a draft, not a cancelled event", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
     const draft = render(await EventDetailPage(detailProps()));
-    expect(draft.queryByTestId("edit-questions")).toBeNull();
+    expect(draft.queryByTestId("edit-event")).toBeNull();
     draft.unmount();
 
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
     render(await EventDetailPage(detailProps()));
-    expect(screen.queryByTestId("edit-questions")).toBeNull();
-  });
-
-  it("offers it to nobody who cannot manage the calendar", async () => {
-    vi.mocked(resolveOperatorAccess).mockResolvedValue({
-      state: "active",
-      operator: operator(["treasurer"]),
-    });
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
-
-    render(await EventDetailPage(detailProps()));
-
-    expect(screen.queryByTestId("edit-questions")).toBeNull();
+    expect(screen.queryByTestId("edit-event")).toBeNull();
   });
 
   it("drops the no-invitations statement once the event is approved", async () => {
@@ -1759,12 +1757,14 @@ describe("the edit view — UX-31 against an existing draft", () => {
   });
 });
 
-describe("LAN-318 — an approved event's questions are edited, and nothing else is", () => {
+describe("LAN-419 — an approved event's edit URL forwards to the one edit page", () => {
   /**
-   * Brian, 2026-09-11, amending D41: approval used to freeze the questions, so
-   * this route refused an approved event outright. It now answers with the
-   * question editor alone — the event's own facts still change only through
-   * the amend path, which tells people, and this one tells nobody.
+   * LAN-318 opened this route to an approved event's questions and answered
+   * with the question editor alone. LAN-419 put the questions on the Edit
+   * event page beside the amendable details, so there is one page now and this
+   * URL forwards to it — every playbook link, bookmark and history entry that
+   * pointed here still works. The gate runs before the forward, so nothing is
+   * redirected that would not have been served.
    */
   beforeEach(() => {
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
@@ -1781,41 +1781,21 @@ describe("LAN-318 — an approved event's questions are edited, and nothing else
     ]);
   });
 
-  it("opens the question editor rather than refusing", async () => {
-    render(await EditEventPage(editProps()));
-
-    expect(screen.queryByTestId("edit-refused")).toBeNull();
-    expect(screen.getByTestId("event-questions-form")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Edit questions" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Save questions" })).toBeVisible();
-  });
-
-  it("carries each stored question's id, so the set is updated and not rewritten", async () => {
-    const { container } = render(await EditEventPage(editProps()));
-
-    expect(container.querySelector<HTMLInputElement>('input[name="questionId"]')?.value).toBe(
-      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    );
-    expect(container.querySelector<HTMLInputElement>('input[name="eventId"]')?.value).toBe(
-      EVENT_ID,
+  it("forwards to the amend page rather than rendering a second editor", async () => {
+    await expect(EditEventPage(editProps())).rejects.toThrow(
+      `REDIRECT:/operate/events/${EVENT_ID}/amend`,
     );
   });
 
-  it("offers no Remove, because an answer already given points at the question", async () => {
+  it("forwards nobody who could not have opened it — the gate runs first", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+
     render(await EditEventPage(editProps()));
 
-    expect(screen.queryByTestId("remove-question")).toBeNull();
-    // Everything else about a question is still editable, and one can be added.
-    expect(screen.getByTestId("add-question")).toBeVisible();
-    expect(screen.getByRole("textbox", { name: /^Question$/ })).toHaveValue("Are you fit?");
-  });
-
-  it("edits nothing but the questions — no name, no date, no audience", async () => {
-    const { container } = render(await EditEventPage(editProps()));
-
-    expect(container.querySelector('input[name="name"]')).toBeNull();
-    expect(container.querySelector('input[name="scheduledOn"]')).toBeNull();
-    expect(container.querySelector('input[name="venue"]')).toBeNull();
+    expect(screen.getByTestId("operator-not-permitted")).toBeInTheDocument();
   });
 
   it("still offers Remove on a draft, where nobody has been asked anything", async () => {
@@ -3926,7 +3906,14 @@ describe("LAN-339 — the Recruitment event notice", () => {
     );
   });
 
-  it("stands in the questions-only editor of an approved Recruitment event — LAN-318's route", async () => {
+  /**
+   * LAN-419 moved an approved event's question editor onto the Edit event
+   * page, so the notice moved with it. This route no longer renders one at
+   * all; that the notice still stands beside an approved Recruitment event's
+   * questions is asserted against the page that now draws them, in
+   * `[id]/change-screens.test.tsx`.
+   */
+  it("is not drawn by this route on an approved event, which forwards instead", async () => {
     vi.mocked(readEvent).mockResolvedValue(
       detail({
         status: "approved",
@@ -3935,11 +3922,6 @@ describe("LAN-339 — the Recruitment event notice", () => {
       }),
     );
 
-    render(await EditEventPage(editProps()));
-
-    expect(screen.getByTestId("event-questions-form")).toBeInTheDocument();
-    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
-      RECRUIT_QUESTIONS_NOTICE,
-    );
+    await expect(EditEventPage(editProps())).rejects.toThrow(/^REDIRECT:.*\/amend$/);
   });
 });

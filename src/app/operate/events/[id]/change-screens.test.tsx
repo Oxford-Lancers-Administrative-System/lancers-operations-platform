@@ -95,7 +95,15 @@ vi.mock("@/lib/services/participation", async (importOriginal) => {
   };
 });
 vi.mock("./change-actions", () => ({
-  amendEventAction: vi.fn(async () => ({ issues: [], error: null, values: null })),
+  // LAN-419: one save, for the details and the questions together.
+  editApprovedEventAction: vi.fn(async () => ({
+    issues: [],
+    questionIssues: [],
+    error: null,
+    values: null,
+    questions: null,
+    questionChange: null,
+  })),
   cancelEventAction: vi.fn(async () => ({ error: null, reason: "" })),
   renotifyEventAction: vi.fn(async () => ({ error: null })),
   addEventAudienceAction: vi.fn(async () => ({ error: null })),
@@ -107,7 +115,7 @@ vi.mock("@/lib/services/event-audience-amendment", () => ({
 }));
 
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
-import { readEvent, type EventDetail } from "@/lib/services/events";
+import { readEvent, readEventQuestions, type EventDetail } from "@/lib/services/events";
 import { readEventAttendanceSummary, type AttendanceSummary } from "@/lib/services/attendance";
 import {
   readAmendmentContext,
@@ -1048,5 +1056,117 @@ describe("LAN-393 — adding a named person to an approved event's audience", ()
     render(await AmendEventPage(amendProps()));
 
     expect(screen.queryByTestId("section-add-to-audience")).toBeNull();
+  });
+});
+
+/**
+ * LAN-419 — one Edit event page, holding the amendable details and the
+ * questions, saved by one press.
+ *
+ * Brian, on the 2026-09-22 call: "for some reason when the system made its
+ * decision edit event and edit questions were two buttons. Why? No idea why…
+ * Edit event and edit question should be in one. That seems better, and if I
+ * go to edit an event, it also includes the questions." A draft has always
+ * been editable whole; an approved event was the odd one out.
+ *
+ * These are LAN-318's own assertions about what the question editor offers on
+ * an approved event, moved onto the page that now draws it.
+ */
+describe("LAN-419 — the questions are on the Edit event page", () => {
+  const STORED_QUESTION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+  beforeEach(() => {
+    vi.mocked(readEventQuestions).mockResolvedValue([
+      {
+        id: STORED_QUESTION_ID,
+        prompt: "Are you fit?",
+        answerType: "boolean",
+        choices: null,
+        isRequired: false,
+        sortOrder: 0,
+        fromTemplate: false,
+      },
+    ] as never);
+  });
+
+  it("draws the question editor beside the details, in that order", async () => {
+    const { container } = render(await AmendEventPage(amendProps()));
+
+    expect(screen.getByTestId("section-amend-questions")).toBeInTheDocument();
+    // The details come first: the questions section follows the venue field.
+    const html = container.innerHTML;
+    expect(html.indexOf('name="venue"')).toBeLessThan(html.indexOf("amend-questions"));
+  });
+
+  it("carries each stored question's id, so the set is updated and not rewritten", async () => {
+    const { container } = render(await AmendEventPage(amendProps()));
+
+    expect(container.querySelector<HTMLInputElement>('input[name="questionId"]')?.value).toBe(
+      STORED_QUESTION_ID,
+    );
+    expect(container.querySelector<HTMLInputElement>('input[name="eventId"]')?.value).toBe(
+      EVENT_ID,
+    );
+  });
+
+  it("offers no Remove, because an answer already given points at the question", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    expect(screen.queryByTestId("remove-question")).toBeNull();
+    // Everything else about a question is still editable, and one can be added.
+    expect(screen.getByTestId("add-question")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: /^Question$/ })).toHaveValue("Are you fit?");
+  });
+
+  it("posts the questions with the details, from the one form", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    const form = screen.getByTestId("amend-form") as HTMLFormElement;
+    const posted = new FormData(form);
+    expect(posted.get("questionsPresent")).toBe("1");
+    expect(posted.get("questionId")).toBe(STORED_QUESTION_ID);
+    expect(posted.get("venue")).toBe("Iffley Road Astro");
+  });
+
+  it("reaches the review on a question change alone, with nothing said about the details", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    fireEvent.change(screen.getByRole("textbox", { name: /^Question$/ }), {
+      target: { value: "Are you fit to play?" },
+    });
+    fireEvent.click(screen.getByTestId("continue-to-review"));
+
+    const review = await screen.findByTestId("section-amend-review-step");
+    expect(within(review).getByTestId("change-questions").textContent).toBe("Questions — changed");
+    expect(screen.queryByTestId("nothing-changed")).toBeNull();
+  });
+
+  it("says nothing about the questions when only the venue moved", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    fireEvent.change(screen.getByLabelText("Venue"), { target: { value: "University Parks" } });
+    fireEvent.click(screen.getByTestId("continue-to-review"));
+
+    const review = await screen.findByTestId("section-amend-review-step");
+    expect(within(review).queryByTestId("change-questions")).toBeNull();
+    expect(within(review).getByTestId("change-venue")).toBeInTheDocument();
+  });
+
+  it("still refuses to move on when neither the details nor the questions changed", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    fireEvent.click(screen.getByTestId("continue-to-review"));
+
+    expect(await screen.findByTestId("nothing-changed")).toBeVisible();
+  });
+
+  it("stands the Recruitment notice beside an approved Recruitment event's questions (LAN-339)", async () => {
+    vi.mocked(readAmendmentContext).mockResolvedValue(
+      context({ event: detail({ status: "approved", eventType: "recruitment" }) }),
+    );
+
+    render(await AmendEventPage(amendProps()));
+
+    expect(screen.getByTestId("recruit-questions-notice")).toBeInTheDocument();
   });
 });

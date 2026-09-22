@@ -28,8 +28,42 @@ export const CANCEL_EVENT_LABEL = "Cancel event";
 /** LAN-267. A game-day action, on a game only. */
 export const ROSTER_FORM_LABEL = "Roster form";
 
-export function saveAndNotifyLabel(notify: boolean, recipients: number): string {
+function saveAndNotifyLabel(notify: boolean, recipients: number): string {
   return notify ? `Save and notify ${recipients}` : "Save without notifying";
+}
+
+/* --------------------------------------------------------------------- */
+/* LAN-419 — the questions, now saved by the same press as the details     */
+/* --------------------------------------------------------------------- */
+
+/** The row the review adds when the questions were edited too. A state, not an explanation. */
+export const QUESTIONS_CHANGED_LINE = "Questions — changed";
+
+/** D3's tick, carried across from the questions-only screen unchanged. */
+export const CORRECTION_TICK_LABEL = "This is a correction, keep answers";
+
+/**
+ * What a question change will do, in the club's own counting — LAN-367's
+ * confirmation, moved onto the combined review step with its wording intact.
+ */
+export function questionChangeSummary(changed: number, added: number, people: number): string {
+  const parts: string[] = [];
+  if (changed > 0)
+    parts.push(changed === 1 ? "1 question changed" : `${changed} questions changed`);
+  if (added > 0) parts.push(added === 1 ? "1 question added" : `${added} questions added`);
+  const who =
+    people === 1 ? "1 person will be asked again" : `${people} people will be asked again`;
+  return `${parts.join(", ")}, ${who}.`;
+}
+
+/** The save's own label. A pending question confirmation renames it, exactly as the questions-only screen did. */
+export function saveEventLabel(
+  notify: boolean,
+  recipients: number,
+  awaitingQuestionConfirmation: boolean,
+): string {
+  if (awaitingQuestionConfirmation) return "Save and ask again";
+  return saveAndNotifyLabel(notify, recipients);
 }
 
 /** W5-03's sentence about who hears, counted in people. */

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { Refusal as KitRefusal } from "@/components/refusal";
 import Stack from "@mui/material/Stack";
@@ -16,17 +17,19 @@ import { listTermWindows } from "@/lib/services/seasons";
 import { readEventFormDefaults, type EventTypeFormDefaults } from "@/lib/services/event-templates";
 import { gateShellPage } from "../../../gate";
 import EventForm from "../../event-form";
-import QuestionEditForm from "./question-edit-form";
 
 /**
  * UX-31 in edit mode — LAN-76's "edit view", against `/operate/events/[id]`'s
  * "Edit draft" action. Not a new nav destination.
  *
- * A draft is editable whole. An approved event is not — its facts change
- * through the amend path (W5), which tells people — but since LAN-318 (Brian,
- * 2026-09-11, amending D41) its *questions* are, so this route answers "Edit
- * questions" with the question editor alone. A cancelled event is still
- * refused outright: nobody is being asked anything.
+ * A draft is editable whole, and that is all this route is for now.
+ *
+ * LAN-419: an approved event has one edit page, holding its amendable details
+ * and its questions together, and it is `/amend`. This route used to answer
+ * "Edit questions" with the question editor alone (LAN-318); an approved event
+ * arriving here is forwarded there, so every link that pointed at it still
+ * works. A cancelled event is still refused outright: nobody is being asked
+ * anything.
  */
 export default async function EditEventPage({ params }: PageProps<"/operate/events/[id]/edit">) {
   const gate = await gateShellPage("/operate/events", "event_calendar_management");
@@ -61,24 +64,13 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
     }),
   );
 
+  // LAN-419 — an approved event has one edit page, and it is `/amend`. This
+  // URL was "Edit questions"; every playbook link, bookmark and browser
+  // history entry that points at it still works, and arrives where the
+  // questions now are. The gate above has already run, so nothing is
+  // redirected that would not have been served.
   if (event.status === "approved") {
-    return (
-      <Stack spacing={3}>
-        <PageHeader
-          title="Edit questions"
-          subtitle={event.name}
-          back={{ href: `/operate/events/${event.id}`, label: "Back to event" }}
-        />
-
-        <QuestionEditForm
-          eventId={event.id}
-          eventTypeLabel={event.templateName}
-          eventType={event.eventType}
-          initialQuestions={initialQuestions}
-          cancelHref={`/operate/events/${event.id}`}
-        />
-      </Stack>
-    );
+    redirect(`/operate/events/${event.id}/amend`);
   }
 
   if (event.status !== "draft") {

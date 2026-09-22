@@ -8,6 +8,7 @@ import { Metric, MetricRow } from "@/components/metric";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
@@ -26,9 +27,16 @@ import {
   type AmendableEvent,
   type AmendmentChange,
 } from "@/lib/services/event-amendment-rules";
+import {
+  eventQuestionsDiffer,
+  validateEventQuestions,
+  type RawEventQuestion,
+} from "@/lib/services/event-questions-input";
+import { RECRUITMENT_EVENT_TYPE } from "@/lib/services/audience-selection";
 import { EMPTY_FORM_STATE } from "../../form-state";
-import { describeTermCoordinate } from "../../presentation";
-import { amendEventAction } from "../change-actions";
+import { describeTermCoordinate, RECRUIT_QUESTIONS_NOTICE } from "../../presentation";
+import QuestionEditor from "../../question-editor";
+import { editApprovedEventAction } from "../change-actions";
 import { AmendEventFields } from "./amend-event-fields";
 import {
   ALREADY_SENT_DETAIL,
@@ -37,13 +45,16 @@ import {
   AMEND_CONTINUE_LABEL,
   AMEND_DISCARD_LABEL,
   AMEND_UNSAVED_BADGE,
+  CORRECTION_TICK_LABEL,
   describeChange,
   notifyDefaultDetail,
+  QUESTIONS_CHANGED_LINE,
+  questionChangeSummary,
   QUEUED_MESSAGES_HEADING,
   queuedMessagesDetail,
   RESCHEDULE_RECOMPUTES_NOTE,
   REVIEW_HEADLINE_PREFIX,
-  saveAndNotifyLabel,
+  saveEventLabel,
   silenceConsequence,
   SILENCE_NOTIFY_LABEL,
   SILENCE_PROCEED_LABEL,
@@ -79,6 +90,10 @@ export default function AmendForm({
   audience,
   unsentMessages,
   isFuture,
+  initialQuestions,
+  eventTypeLabel,
+  eventType,
+  mayEditQuestions,
 }: {
   eventId: string;
   eventName: string;
@@ -90,8 +105,21 @@ export default function AmendForm({
   audience: AmendAudience;
   unsentMessages: number;
   isFuture: boolean;
+  /** LAN-419 — the questions as stored, which this page now edits too. */
+  initialQuestions: readonly RawEventQuestion[];
+  /** The template's name, for the question editor's own labels. */
+  eventTypeLabel: string;
+  /** The `public.event_type` class, for LAN-339's recruit notice. */
+  eventType: string;
+  /**
+   * LAN-419 — whether this operator holds `event_calendar_management` as well
+   * as `event_approval`. The two carry the same role list today and are
+   * deliberately still two decisions, so the questions half is offered to
+   * whoever may actually save it rather than to whoever reached this page.
+   */
+  mayEditQuestions: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(amendEventAction, EMPTY_FORM_STATE);
+  const [state, formAction, pending] = useActionState(editApprovedEventAction, EMPTY_FORM_STATE);
   const formRef = useRef<HTMLFormElement>(null);
 
   const [chosenStep, setChosenStep] = useState<Step>("edit");
@@ -106,6 +134,32 @@ export default function AmendForm({
   const [silenceConfirmed, setSilenceConfirmed] = useState(false);
   const [localIssues, setLocalIssues] = useState<readonly FieldIssue[]>([]);
   const [nothingChanged, setNothingChanged] = useState(false);
+
+  /**
+   * LAN-419 — the questions, edited on the same page and saved by the same
+   * press. What was typed wins over what was loaded, exactly as the detail
+   * fields do, so a refused submission comes back with the operator's own
+   * wording in it.
+   */
+  const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [
+    ...(state.questions ?? initialQuestions),
+  ]);
+  const [correction, setCorrection] = useState(false);
+  const questionChange = state.questionChange ?? null;
+
+  /**
+   * Whether the questions differ from the stored ones at all — the same rule
+   * the action applies before it writes, imported rather than repeated, so the
+   * review the operator reads and the save that follows cannot disagree. A
+   * list that does not validate counts as changed: the review is where it is
+   * told, and that is the step that shows it.
+   */
+  const questionsChanged = useMemo(() => {
+    const stored = validateEventQuestions([...initialQuestions]);
+    const submitted = validateEventQuestions(questions);
+    if (!stored.ok || !submitted.ok) return true;
+    return eventQuestionsDiffer(stored.value, submitted.value);
+  }, [initialQuestions, questions]);
 
   // What was typed wins over what was loaded, so a refused submission comes back
   // with the operator's own words in it.
@@ -128,7 +182,11 @@ export default function AmendForm({
 
   const issues = localIssues.length > 0 ? localIssues : state.issues;
 
-  const refused = (state.issues.length > 0 || state.error !== null) && acknowledged !== state;
+  // LAN-419: a question that does not validate sends the operator back to the
+  // fields, exactly as a detail that does not.
+  const refused =
+    (state.issues.length > 0 || state.questionIssues.length > 0 || state.error !== null) &&
+    acknowledged !== state;
   const step: Step = refused ? "edit" : chosenStep;
 
   function setStep(next: Step) {
@@ -201,7 +259,9 @@ export default function AmendForm({
       isMandatory: validation.value.isMandatory,
     });
 
-    if (next.length === 0) {
+    // LAN-419: a questions-only change is a change. Nothing is refused here
+    // for having left the details alone.
+    if (next.length === 0 && !questionsChanged) {
       setNothingChanged(true);
       return;
     }
@@ -302,6 +362,27 @@ export default function AmendForm({
               onAttendanceChange={setAttendance}
             />
 
+            {/* LAN-419, Brian on the 2026-09-22 call: "if I go to edit an
+                event, it also includes the questions". The draft form has
+                always had them below the facts; this is the same editor, in
+                the same place, on an approved event. Remove is absent because
+                an answer already given points at the question row (LAN-318). */}
+            {mayEditQuestions ? (
+              <Section title="Questions" testId="amend-questions">
+                <QuestionEditor
+                  questions={questions}
+                  onChange={setQuestions}
+                  eventTypeLabel={eventTypeLabel}
+                  issues={state.questionIssues}
+                  disabled={pending}
+                  removable={false}
+                  notice={
+                    eventType === RECRUITMENT_EVENT_TYPE ? RECRUIT_QUESTIONS_NOTICE : undefined
+                  }
+                />
+              </Section>
+            ) : null}
+
             <ActionBar
               primary={
                 <Button
@@ -360,8 +441,49 @@ export default function AmendForm({
                       </Typography>
                     </Box>
                   ))}
+                  {/* LAN-419 — the questions are part of this save, so they are
+                      part of what it says it will do. A row, in the same list,
+                      because they are one change among the others. */}
+                  {questionsChanged ? (
+                    <Box
+                      component="li"
+                      sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}
+                      data-testid="change-questions"
+                    >
+                      <Typography variant="body2">{QUESTIONS_CHANGED_LINE}</Typography>
+                    </Box>
+                  ) : null}
                 </Stack>
               </Box>
+
+              {/* LAN-367, carried into the combined save: a question change
+                  that would void answers is confirmed before anything at all
+                  is written — the details included. D3's correction tick is
+                  here, on the same terms. */}
+              {questionChange ? (
+                <Box>
+                  <Notice severity="warning" testId="event-questions-confirm">
+                    {questionChangeSummary(
+                      questionChange.changedPrompts.length,
+                      questionChange.addedCount,
+                      questionChange.peopleToAsk,
+                    )}
+                  </Notice>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={correction}
+                        onChange={(event) => setCorrection(event.target.checked)}
+                        disabled={pending}
+                        data-testid="event-questions-correction"
+                      />
+                    }
+                    label={CORRECTION_TICK_LABEL}
+                  />
+                  <input type="hidden" name="correction" value={correction ? "1" : "0"} />
+                  <input type="hidden" name="confirm" value="1" />
+                </Box>
+              ) : null}
 
               <Box>
                 <Typography variant="overline" color="text.secondary" component="p">
@@ -417,7 +539,9 @@ export default function AmendForm({
                     sx={{ minHeight: 44 }}
                     data-testid="save-amendment"
                   >
-                    {pending ? "Saving…" : saveAndNotifyLabel(notify, audience.invited)}
+                    {pending
+                      ? "Saving…"
+                      : saveEventLabel(notify, audience.invited, questionChange !== null)}
                   </Button>
                 }
                 secondary={

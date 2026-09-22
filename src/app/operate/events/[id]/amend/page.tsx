@@ -10,6 +10,9 @@ import {
 } from "@/lib/services/event-amendment";
 import { readAddableAudience } from "@/lib/services/event-audience-amendment";
 import type { RawEventDraft, TermWindow } from "@/lib/services/event-input";
+import { joinQuestionChoices, readEventQuestions } from "@/lib/services/events";
+import type { RawEventQuestion } from "@/lib/services/event-questions-input";
+import { operatorHasCapability } from "@/lib/auth/guards";
 import { gateShellPage } from "../../../gate";
 import { formatDetailWhen, labelFor, STATUS_LABELS } from "../../presentation";
 import { AMEND_HEADLINE_PREFIX } from "../change-presentation";
@@ -32,13 +35,17 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
   let context: AmendmentContext;
   let terms: TermWindow[];
   let addable: Awaited<ReturnType<typeof readAddableAudience>>;
+  let storedQuestions: Awaited<ReturnType<typeof readEventQuestions>>;
   try {
-    [context, terms, addable] = await Promise.all([
+    [context, terms, addable, storedQuestions] = await Promise.all([
       readAmendmentContext(id),
       listTermWindows(),
       // LAN-393. Read here rather than inside the client component so the
       // "already invited" filter is the server's answer, not the browser's.
       readAddableAudience(id),
+      // LAN-419. The questions as stored, not the template's — an operator who
+      // removed one (D42) must not find it back.
+      readEventQuestions(id),
     ]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
@@ -57,6 +64,26 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
       />
     );
   }
+
+  // LAN-419. Carries the id, so an approved event's set is updated rather than
+  // rewritten (LAN-318).
+  const initialQuestions: RawEventQuestion[] = storedQuestions.map((question) => ({
+    id: question.id,
+    prompt: question.prompt,
+    answerType: question.answerType,
+    required: question.isRequired ? "required" : "optional",
+    choices: joinQuestionChoices(question.choices),
+    fromTemplate: question.fromTemplate ? "true" : "false",
+  }));
+
+  /**
+   * LAN-419 — editing the questions is `event_calendar_management`'s decision
+   * and amending is `event_approval`'s. The two carry the same role list today
+   * and `capabilities.ts` says plainly that they stay two decisions that
+   * merely agree, so this page asks for both rather than assuming they will go
+   * on agreeing. The action asks again; this only decides what is drawn.
+   */
+  const mayEditQuestions = operatorHasCapability(gate.operator, "event_calendar_management");
 
   const initial: RawEventDraft = {
     name: event.name,
@@ -103,6 +130,10 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
         audience={context.audience}
         unsentMessages={context.unsentMessages}
         isFuture={context.isFuture}
+        initialQuestions={initialQuestions}
+        eventTypeLabel={event.templateName}
+        eventType={event.eventType}
+        mayEditQuestions={mayEditQuestions}
       />
 
       {/* LAN-393. Only while the event is still ahead: the service refuses an
