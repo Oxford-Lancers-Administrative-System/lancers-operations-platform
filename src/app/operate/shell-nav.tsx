@@ -57,8 +57,31 @@ export default function ShellNav({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const isCurrent = (destination: Destination): boolean =>
-    pathname === destination.href || Boolean(pathname?.startsWith(`${destination.href}/`));
+  /**
+   * LAN-418 — exactly one link is current, and it is the most specific one.
+   *
+   * Seen on Stewart's screen, 2026-09-22: opening Missing data lit up People
+   * as well. `/operate/people/missing` starts with `/operate/people/`, so a
+   * plain prefix test matched both. Every other pair of destinations in the
+   * shell is disjoint, which is why only this one showed it.
+   *
+   * The rule is fixed rather than the route: the longest matching `href` wins,
+   * over every destination the shell draws — the two lists are one namespace,
+   * so an Administration entry nested under a main one would resolve the same
+   * way. No URL moves, so no bookmark and no playbook link breaks.
+   */
+  const matches = (href: string): boolean =>
+    pathname === href || Boolean(pathname?.startsWith(`${href}/`));
+
+  const currentHref = [...destinations, ...administration]
+    .map((destination) => destination.href)
+    .filter(matches)
+    .reduce<string | null>(
+      (longest, href) => (longest === null || href.length > longest.length ? href : longest),
+      null,
+    );
+
+  const isCurrent = (destination: Destination): boolean => destination.href === currentHref;
 
   const openDrawer = useCallback(() => setOpen(true), []);
   const closeDrawer = useCallback(() => setOpen(false), []);
