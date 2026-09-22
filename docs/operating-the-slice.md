@@ -236,6 +236,23 @@ this event is for" where the template names no groups (D47, reversing LAN-77's
 active players, All active coaches and All active committee, with their counts;
 a Recruits group appears on a Recruitment event alone (D46).
 
+**Everyone active and All active players include people mid-onboarding**
+(LAN-415, Brian and Stewart, 2026-09-22). This reverses LAN-388's "Onboarding is
+never folded into Active": Stewart, "when I hit all active players that should
+include the onboarding player"; Brian, "Onboarding is an administrative status
+internally… it's more of a marker to Clint." A rookie still finishing their
+items is on the team, and an operator pressing either button means everyone.
+**Onboarding stays as its own group**, because it is still the only way to reach
+_only_ those people — an onboarding-only social, in Brian's example. All active
+coaches and All active committee are unchanged: onboarding is a player fact, and
+no coaching seat or committee seat carries one. The labels are unchanged too;
+the count on each button is what makes the inclusion visible.
+
+Nothing is backfilled. An event approved before this ships, whose audience is
+Everyone active or All active players, picks up its mid-onboarding people
+through LAN-392's live rule on the scheduler's next pass, and they are invited
+under that event's own rules.
+
 The list is **people, one row each** (LAN-294): somebody who plays and also
 coaches or sits on the committee appears once, with every role on the row's
 second line, and the tick takes them in or out as a whole. On anything that is

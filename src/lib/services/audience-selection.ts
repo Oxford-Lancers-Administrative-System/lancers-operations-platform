@@ -47,27 +47,45 @@ export interface AudienceGroup {
   requiresBps?: boolean; // correction round 2 item 7: narrows to isBps candidates, on top of capacities
   templateEligible?: boolean; // false excludes from a template's default-audience picker; see relocations.md
   /**
-   * LAN-388 — how this group treats a mid-onboarding membership. Absent means
-   * it excludes them, which is the decision (Clint, confirmed by Brian,
-   * 2026-09-17): Onboarding is its own group, never folded into Active.
-   * `"only"` is that group; `"include"` is for a group whose membership is
-   * decided by something other than standing.
+   * How this group treats a mid-onboarding membership.
+   *
+   * LAN-388 (Clint, confirmed by Brian, 2026-09-17) made Onboarding a group of
+   * its own and kept it out of Active. **LAN-415 (Brian and Stewart,
+   * 2026-09-22) reverses the second half of that.** Stewart: "I think active
+   * personally should include onboarding because when I hit all active players
+   * that should include the onboarding player." Brian: "I agree. Onboarding is
+   * an administrative status internally… it's more of a marker to Clint." The
+   * cost of the old reading was the costliest miss the club has — a rookie
+   * still finishing their items, left off a practice invitation by an operator
+   * who pressed Everyone active and assumed it meant everyone active.
+   *
+   * So `"include"` is now what the two player-wide groups carry, absent still
+   * excludes, and `"only"` is still the Onboarding group itself, which stays
+   * exactly as it was for an onboarding-only event.
    */
   onboarding?: "only" | "include";
 }
 
 // The system-derived groups the club has, and no others (D43, D44, D47) — keys match public.audience_group exactly.
 export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
+  // LAN-415 — the two player-wide groups reach a membership whether its
+  // onboarding is finished or not. The label is unchanged (Brian: the picker's
+  // resolved count is what makes the inclusion visible), and so is the
+  // Onboarding group below it, for an onboarding-only event.
   Object.freeze({
     key: "everyone_active" as const, // first (Brian): the common case
     label: "Everyone active",
     capacities: Object.freeze(["player" as const, "coach" as const, "committee" as const]),
+    onboarding: "include" as const,
   }),
   Object.freeze({
     key: "active_players" as const,
     label: "All active players",
     capacities: Object.freeze(["player" as const]),
+    onboarding: "include" as const,
   }),
+  // Unchanged by LAN-415: onboarding is a player fact, and a coach or a
+  // committee seat never carries one.
   Object.freeze({
     key: "active_coaches" as const,
     label: "All active coaches",
@@ -83,6 +101,11 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
   // own group, on every event class an Active player is offered on; they hold
   // the player capacity and are invited on the player ladder, exactly as an
   // Active player is.
+  //
+  // LAN-415 keeps this group and changes nothing about it. It is no longer the
+  // only way to reach those people — the two groups above now include them —
+  // but it is still the only way to reach *only* them, which is what Brian
+  // named it for: "here's a social for everyone who's onboarding".
   Object.freeze({
     key: "onboarding" as const,
     label: "Onboarding",
@@ -279,10 +302,11 @@ export function resolveSelection(
 }
 
 /**
- * LAN-388 — whether one candidate's standing is what the group is about. A
- * candidate that is not a mid-onboarding membership (every coach, every
- * committee seat, every recruit, every active player) is only ever excluded by
- * the Onboarding group itself.
+ * LAN-388, amended by LAN-415 — whether one candidate's standing is what the
+ * group is about. A candidate that is not a mid-onboarding membership (every
+ * coach, every committee seat, every recruit, every active player) is only
+ * ever excluded by the Onboarding group itself. The rule here is unchanged;
+ * what changed on 2026-09-22 is which groups declare `"include"`.
  */
 function matchesOnboarding(group: AudienceGroup, candidate: AudienceCandidate): boolean {
   if (candidate.isOnboarding !== true) return group.onboarding !== "only";

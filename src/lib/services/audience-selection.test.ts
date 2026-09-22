@@ -594,8 +594,17 @@ describe("the recruits group is Recruitment's alone", () => {
 /**
  * Clint, 2026-09-17: "If someone's status is onboarding, I can't invite them
  * to any events. They aren't in the active group or the recruits group."
- * Confirmed by Brian the same day: Onboarding is its own group, not folded
- * into Active.
+ * Confirmed by Brian the same day: Onboarding is its own group.
+ *
+ * **LAN-415, 2026-09-22, reverses the second half of that decision** — "not
+ * folded into Active". Stewart: "I think active personally should include
+ * onboarding because when I hit all active players that should include the
+ * onboarding player." Brian: "I agree. Onboarding is an administrative status
+ * internally… it's more of a marker to Clint." The group stays, for an
+ * onboarding-only event; what changes is that Everyone active and All active
+ * players now reach those people too, because an operator pressing either one
+ * means everyone, and a rookie missed on a practice invitation is the
+ * costliest miss the club has.
  *
  * The fixture is the awkward case as well as the plain one: **Wren** is
  * mid-onboarding, **Fen** is mid-onboarding *and* a live recruit, and **Bo**
@@ -630,7 +639,7 @@ const MID_SEASON: AudienceCandidate[] = [
 const ONBOARDING = "onboarding";
 
 describe("Onboarding is its own audience group", () => {
-  it("offers the people no other group would, and counts them", () => {
+  it("offers exactly the mid-onboarding people, and counts them", () => {
     expect(groupSize(MID_SEASON, ONBOARDING)).toBe(2);
     expect(groupSelectionKeys(MID_SEASON, ONBOARDING)).toEqual([
       selectionKey("player", "membership-wren"),
@@ -638,11 +647,46 @@ describe("Onboarding is its own audience group", () => {
     ]);
   });
 
-  it("keeps them out of Active, which is the whole point of a separate group", () => {
-    expect(groupSize(MID_SEASON, PLAYERS)).toBe(1);
-    expect(groupSize(MID_SEASON, EVERYONE)).toBe(1);
+  /**
+   * LAN-415. This assertion used to read "keeps them out of Active, which is
+   * the whole point of a separate group" and is reversed, not deleted: the
+   * group is still the only way to reach *only* those people, which is what it
+   * is now for.
+   */
+  it("no longer keeps them out of Active — both player-wide groups reach them", () => {
+    // Bo (active), Wren and Fen (both mid-onboarding).
+    expect(groupSize(MID_SEASON, PLAYERS)).toBe(3);
+    expect(groupSize(MID_SEASON, EVERYONE)).toBe(3);
     expect(groupSelectionKeys(MID_SEASON, PLAYERS)).toEqual([
       selectionKey("player", "membership-bo"),
+      selectionKey("player", "membership-wren"),
+      selectionKey("player", "membership-fen"),
+    ]);
+  });
+
+  it("still reaches a completed membership, which was never in doubt", () => {
+    expect(groupSelectionKeys(MID_SEASON, PLAYERS)).toContain(
+      selectionKey("player", "membership-bo"),
+    );
+  });
+
+  /**
+   * LAN-415's boundary: onboarding is a player fact. A coach or a committee
+   * seat carries no onboarding standing at all, so their groups are untouched
+   * by this decision and a coach's own onboarding state changes nothing.
+   */
+  it("leaves the coach and committee groups exactly as they were", () => {
+    const seats = [
+      ...MID_SEASON,
+      candidate("coach", "person-quill", "person-quill", "Quill Marchetti"),
+      candidate("committee", "person-tam", "person-tam", "Tam Ellory"),
+    ];
+
+    expect(groupSelectionKeys(seats, "active_coaches")).toEqual([
+      selectionKey("coach", "person-quill"),
+    ]);
+    expect(groupSelectionKeys(seats, "active_committee")).toEqual([
+      selectionKey("committee", "person-tam"),
     ]);
   });
 

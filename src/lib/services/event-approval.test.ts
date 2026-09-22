@@ -2676,6 +2676,12 @@ describe("LAN-341 — a recruit who leaves recruitment between confirmation and 
  * only if it also held a BPS selection, which is why somebody mid-onboarding
  * could not be invited to anything at all. These run against the real database
  * because the fix is in the SQL that reads the roster.
+ *
+ * LAN-415, 2026-09-22, amends the decision: the group stays, and the two
+ * player-wide groups now reach those people as well. The catalogue read is
+ * unchanged by that — it has carried both standings since LAN-388, told apart
+ * by `is_onboarding`, and it is `AUDIENCE_GROUPS` that decides which group
+ * offers which. The assertions below about Active are updated in place.
  */
 describe("LAN-388 — somebody mid-onboarding can be invited", () => {
   const ONBOARDING_GROUP = "onboarding";
@@ -2724,9 +2730,31 @@ describe("LAN-388 — somebody mid-onboarding can be invited", () => {
 
     const onboardingKeys = groupSelectionKeys(catalogue.candidates, ONBOARDING_GROUP);
     expect(onboardingKeys).toContain(row!.key);
-    // The point of a separate group: the Active groups do not quietly gain them.
-    expect(groupSelectionKeys(catalogue.candidates, "active_players")).not.toContain(row!.key);
-    expect(groupSelectionKeys(catalogue.candidates, "everyone_active")).not.toContain(row!.key);
+    // LAN-415, reversing this assertion rather than deleting it: the Active
+    // groups now reach them too, because an operator pressing either one means
+    // everyone. Onboarding is still the only group that reaches only them.
+    expect(groupSelectionKeys(catalogue.candidates, "active_players")).toContain(row!.key);
+    expect(groupSelectionKeys(catalogue.candidates, "everyone_active")).toContain(row!.key);
+  });
+
+  it("is reached by All active players, and a coach seat is unaffected — LAN-415", async () => {
+    const practice = await newDraft();
+    const member = await ownOnboardingMember(practice.seasonId);
+
+    const catalogue = await fullCatalogue(practice);
+    const row = catalogue.candidates.find(
+      (candidate) => candidate.personId === member.personId && candidate.capacity === "player",
+    );
+    expect(row).toBeDefined();
+
+    expect(groupSelectionKeys(catalogue.candidates, "active_players")).toContain(row!.key);
+    // Onboarding is a player fact: no coach or committee row carries one, so
+    // those two groups offer exactly what they offered before.
+    const seatKeys = [
+      ...groupSelectionKeys(catalogue.candidates, "active_coaches"),
+      ...groupSelectionKeys(catalogue.candidates, "active_committee"),
+    ];
+    expect(seatKeys).not.toContain(row!.key);
   });
 
   it("is counted in the audience and invited on approval, like an active player", async () => {

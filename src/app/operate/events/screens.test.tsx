@@ -2307,6 +2307,12 @@ describe("UX-40 — building the audience", () => {
    * LAN-388 — Clint, 2026-09-17: "If someone's status is onboarding, I can't
    * invite them to any events. They aren't in the active group or the recruits
    * group." Confirmed by Brian the same day: Onboarding is its own group here.
+   *
+   * LAN-415, 2026-09-22, reverses the "and not in Active" half. Stewart: "when
+   * I hit all active players that should include the onboarding player."
+   * Brian agreed. The group stays and still reaches only those people; the two
+   * player-wide groups now reach them as well, and the counts on the buttons
+   * are what makes that visible.
    */
   describe("Onboarding is its own group on the picker", () => {
     const ONBOARDING_MEMBERSHIP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9";
@@ -2332,13 +2338,14 @@ describe("UX-40 — building the audience", () => {
       return render(await EventDetailPage(detailProps({ step: "audience" })));
     }
 
-    it("offers an Onboarding button that counts them, and leaves Active alone", async () => {
+    it("offers an Onboarding button that counts them, and counts them in Active too", async () => {
       await openWithOnboarding();
 
       expect(screen.getByRole("button", { name: "Onboarding (1)" })).toBeEnabled();
-      // The defect: before this, they were in neither of these.
-      expect(screen.getByRole("button", { name: "All active players (3)" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Everyone active (4)" })).toBeVisible();
+      // LAN-415: the counts say so. The two player-wide groups each gained the
+      // one mid-onboarding person — 3 players and 4 people without them.
+      expect(screen.getByRole("button", { name: "All active players (4)" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Everyone active (5)" })).toBeVisible();
     });
 
     it("selects and counts them from that button", async () => {
@@ -2348,11 +2355,21 @@ describe("UX-40 — building the audience", () => {
 
       expect(screen.getByTestId("review-selection").textContent).toBe("Review 1 selected");
       expect(screen.getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })).toBeChecked();
-      // Pressing Onboarding does not quietly light the Active groups.
-      expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
+      // Pressing Onboarding alone does not light All active players: that
+      // group wants three more people than this press selected.
+      expect(screen.getByRole("button", { name: "All active players (4)" })).toHaveAttribute(
         "aria-pressed",
         "false",
       );
+    });
+
+    it("includes them when All active players is pressed instead — LAN-415", async () => {
+      await openWithOnboarding();
+
+      fireEvent.click(screen.getByRole("button", { name: "All active players (4)" }));
+
+      expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
+      expect(screen.getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })).toBeChecked();
     });
 
     it("states their standing on their row, as a label and nothing more", async () => {
