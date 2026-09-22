@@ -90,8 +90,9 @@ prove the board's group order and its own fold.
 `LAN-417/desktop-event-info-link-panel.png`,
 `phone375-event-info-link-panel.png` — the share panel opened on an approved
 event. The button in the page header and the panel headline both read **Event
-info link**. Copy link, Copy share message, the one sentence and the six-line
-share message are all unchanged.
+info link**. Two words change and nothing else does: the panel's two clipboard
+controls, its one sentence, the issuing, the seven-day expiry and the six-line
+share message are all exactly as they were.
 
 ## LAN-418 — one shell link is current, the most specific one
 
