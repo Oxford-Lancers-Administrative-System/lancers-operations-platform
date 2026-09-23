@@ -1300,31 +1300,43 @@ describe("the event's headline numbers", () => {
     expect(screen.queryByTestId("headline-said-yes")).toBeNull();
   });
 
-  it("reads an em dash against the invited count before any register is saved", async () => {
-    // D74. An event nobody has got round to must not read like an event nobody
-    // attended, and this is the string that keeps the two apart. LAN-420 moves
-    // the tile and names it "Showed / Invited"; the value is unchanged.
+  /**
+   * LAN-420 visual review, Brian 2026-09-22: "Remove the Showed / Invited card
+   * entirely. The register panel below it stays; attendance is still recorded
+   * there."
+   *
+   * These two assertions used to pin the card's D74 string — `— / 37` unsaved
+   * against `0 / 37` saved-empty — on this page. The distinction they exist for
+   * is unchanged and still proved where the number now lives: on the register
+   * itself, on the operator's list of events, and on the public Event info link
+   * page. What is gone is this page repeating it above the register that
+   * records it.
+   */
+  it("shows no Showed card at all, saved register or not", async () => {
     vi.mocked(readEvent).mockResolvedValue(invited());
     vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
 
-    render(await EventDetailPage(detailProps()));
+    const unsaved = render(await EventDetailPage(detailProps()));
+    expect(unsaved.queryByTestId("headline-showed")).toBeNull();
+    expect(unsaved.queryByTestId("headline-numbers")).toBeNull();
+    unsaved.unmount();
 
-    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe(
-      "— / 37Showed / Invited",
-    );
-  });
-
-  it("reads 0 / 37 once a register is saved with everybody absent", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved", invitationCount: 37 }));
     vi.mocked(readEventAttendanceSummary).mockResolvedValue(
       summary({ showed: 0, recorded: 37, registerSaved: true }),
     );
 
     render(await EventDetailPage(detailProps()));
+    expect(screen.queryByTestId("headline-showed")).toBeNull();
+  });
 
-    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe(
-      "0 / 37Showed / Invited",
-    );
+  it("keeps the register panel, which is where attendance is recorded", async () => {
+    vi.mocked(readEvent).mockResolvedValue(invited());
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("section-register-panel")).toBeInTheDocument();
   });
 
   it("explains neither value in words, and never as a percentage", async () => {
@@ -3139,7 +3151,9 @@ describe("the participation table on the event page", () => {
 
       const players = within(screen.getByTestId("response-progress-player"));
       expect(players.getByTestId("response-yes").textContent).toBe("3 / 5");
-      expect(players.getByTestId("response-no").textContent).toBe("No 0");
+      // LAN-420 round 2: a labelled metric, like the pair above it — the value
+      // then its label, not the word "No" in front of a number.
+      expect(flatten(players.getByTestId("response-no").textContent)).toBe("0Said no");
       // 3 of 5 answered — 60 %, orange.
       expect(players.getByTestId("response-bar").getAttribute("data-percent")).toBe("60");
       expect(players.getByTestId("response-bar").getAttribute("data-band")).toBe("middling");
@@ -3159,26 +3173,19 @@ describe("the participation table on the event page", () => {
       expect(screen.queryByTestId("response-progress")).toBeNull();
     });
 
-    it("puts Showed and the register below Audience and distribution", async () => {
+    it("puts the register below Audience and distribution, and no Showed card above it", async () => {
       const { container } = await renderMixed();
 
       const order = [...container.querySelectorAll("[data-testid]")]
         .map((node) => node.getAttribute("data-testid"))
         .filter((id): id is string =>
-          [
-            "response-progress",
-            "audience-fact",
-            "headline-showed",
-            "section-register-panel",
-          ].includes(id ?? ""),
+          ["response-progress", "audience-fact", "section-register-panel"].includes(id ?? ""),
         );
 
-      expect(order).toEqual([
-        "response-progress",
-        "audience-fact",
-        "headline-showed",
-        "section-register-panel",
-      ]);
+      // LAN-420 round 2: Showed came out of this order entirely rather than
+      // moving again — Brian, 2026-09-22.
+      expect(order).toEqual(["response-progress", "audience-fact", "section-register-panel"]);
+      expect(screen.queryByTestId("headline-showed")).toBeNull();
     });
 
     it("explains none of it in words", async () => {

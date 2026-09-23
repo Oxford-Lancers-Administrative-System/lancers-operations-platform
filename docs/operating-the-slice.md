@@ -645,8 +645,8 @@ practice with no recruits shows Players and Coaches only. Each block reads:
 | Line | What it says                                                                          |
 | ---- | ------------------------------------------------------------------------------------- |
 | Name | Recruits, Players, Coaches or Committee                                               |
-| Yes  | `<said yes> / <invited>` for that capacity                                            |
-| No   | `No <said no>`                                                                        |
+| Yes  | `<said yes> / <invited>` for that capacity, labelled **Said yes / Invited**           |
+| No   | `<said no>`, labelled **Said no** — the same shape as the pair above it               |
 | Bar  | `(yes + no) / invited`, red below 50 %, orange to below 75 %, green at 75 % and above |
 
 The block counts **invitations**, not the roster, so somebody added to an
@@ -657,13 +657,18 @@ Committee. Nothing explains the bar in words. The same blocks head the public
 reading the same numbers.
 
 **Invited and Said yes are no longer tiles of their own**, because each block
-says both and their totals are the whole event's. **Showed** and the register
-panel are below the Audience and distribution section now — Stewart: "The
-'Showed' data can be lower in priority on the page, say below Audience and
-Distribution." Showed itself is unchanged: `— / 37` before any register is
-saved, `0 / 37` once one is saved with everybody absent, never a percentage
-(D74). This amends D62 / D73 / D74; `docs/ux/slice-ux.md` § 5 carries the
-amendment.
+says both and their totals are the whole event's.
+
+**There is no Showed tile on this page at all** (Brian's visual review,
+2026-09-22): "Remove the Showed / Invited card entirely. The register panel
+below it stays; attendance is still recorded there." Stewart had moved it below
+the Audience and distribution section; seeing it there Brian took it out. The
+**register panel** is still in that position and is still where attendance is
+recorded, and Showed / Invited is unchanged where it still appears — on the
+operator's list of events, on the register itself, and on the public **Event
+info link** page, where it keeps its D74 shape (`— / 37` before any register is
+saved, `0 / 37` once one is saved with everybody absent, never a percentage).
+This amends D62 / D73 / D74; `docs/ux/slice-ux.md` § 5 carries the amendment.
 
 Nobody is asked whether it happened. LAN-151 retired that decision with both of
 its screens (D30): an event has occurred once its date has passed and it was not

@@ -69,9 +69,22 @@ export function ResponseProgress({ people }: { people: readonly ResponseProgress
             {`${HEADLINE_SAID_YES_LABEL} / ${HEADLINE_INVITED_LABEL}`}
           </Typography>
 
-          <Typography variant="body2" sx={{ mt: 1 }} data-testid="response-no">
-            {`${HEADLINE_SAID_NO_LABEL} ${block.no}`}
-          </Typography>
+          {/*
+            LAN-420 visual review, Brian 2026-09-22: "'No 6' is meaningless as
+            a line. Make it a labelled metric like the one above it: value 6,
+            label Said no." So it takes the Said yes / Invited pair's exact
+            shape — the number first, at the same weight, its label under it —
+            and the two numbers now read as two metrics instead of one metric
+            and an aside.
+          */}
+          <Box sx={{ mt: 1 }} data-testid="response-no">
+            <Typography variant="h2" component="p">
+              {block.no}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {HEADLINE_SAID_NO_LABEL}
+            </Typography>
+          </Box>
 
           <LinearProgress
             variant="determinate"

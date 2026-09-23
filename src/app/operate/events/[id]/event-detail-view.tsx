@@ -1,6 +1,5 @@
 import { Notice } from "@/components/notice";
 import { Fact, FactGrid, FactList } from "@/components/fact";
-import { Metric, MetricRow } from "@/components/metric";
 import { Section } from "@/components/section";
 import { PageHeader } from "@/components/page-header";
 import { StatusChip } from "@/components/status-chip";
@@ -69,35 +68,24 @@ import {
 import {
   ATTENDANCE_OPEN_DETAIL,
   describeRegisterOpensAt,
-  formatShowedAgainstInvited,
-  HEADLINE_INVITED_LABEL,
-  HEADLINE_SHOWED_LABEL,
   REGISTER_NOT_YET_HEADLINE,
 } from "./attendance/presentation";
 
-/**
- * **Showed**, below Audience and Distribution — LAN-420.
+/*
+ * **There is no Showed card on this page** — LAN-420, Brian's visual review,
+ * 2026-09-22: "Remove the Showed / Invited card entirely. The register panel
+ * below it stays; attendance is still recorded there."
  *
  * The three headline numbers — Invited, said yes, showed (REQ-headline-numbers,
- * D62, D73, D74, LAN-152) — were the top of this page. Stewart, 2026-09-22:
- * "The 'Showed' data can be lower in priority on the page, say below Audience
- * and Distribution." Invited and Said yes are gone from here because the
- * per-capacity blocks at the top say both, per capacity, and their totals are
- * the whole event's; repeating them would be two numbers saying the same thing
- * a scroll apart. Showed keeps its own shape exactly — `— / 37` unsaved,
- * `0 / 37` saved-empty, never a percentage.
+ * D62, D73, D74, LAN-152) — were the top of this page. Stewart moved Showed
+ * below Audience and Distribution; seeing it there, Brian took it out. Invited
+ * and Said yes had already gone, because the per-capacity blocks at the top say
+ * both and their totals are the whole event's. Attendance is unchanged: it is
+ * recorded and read on the register, which `RegisterPanel` opens, and the
+ * operator list still carries Showed / Invited for the run of events. Nothing
+ * on this page now restates it. The public Event info link page keeps its own
+ * Showed number, which Brian's review left standing.
  */
-function ShowedNumber({ summary }: { summary: AttendanceSummary }) {
-  return (
-    <MetricRow columns={3} testId="headline-numbers">
-      <Metric
-        value={formatShowedAgainstInvited(summary)}
-        label={`${HEADLINE_SHOWED_LABEL} / ${HEADLINE_INVITED_LABEL}`}
-        testId="headline-showed"
-      />
-    </MetricRow>
-  );
-}
 
 /**
  * The register, and whether it is open yet — D71 (opens on a buffer before
@@ -365,10 +353,9 @@ export function EventDetailView({
           ) : null}
         </Section>
 
-        {/* LAN-420: Showed and the register, unchanged, below Audience and
-            Distribution rather than above them. */}
-        {summary ? <ShowedNumber summary={summary} /> : null}
-
+        {/* LAN-420: the register, below Audience and Distribution rather than
+            above them. The Showed / Invited card that sat here is gone —
+            Brian's visual review, 2026-09-22. */}
         {event.status === "approved" ? (
           <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
         ) : null}

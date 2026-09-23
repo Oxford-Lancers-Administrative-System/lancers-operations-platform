@@ -582,13 +582,13 @@ describe("the club-link page", () => {
     // Two players (one yes, one no) and one committee member (yes).
     const players = screen.getByTestId("response-progress-player");
     expect(within(players).getByTestId("response-yes").textContent).toBe("1 / 2");
-    expect(within(players).getByTestId("response-no").textContent).toBe("No 1");
+    expect(within(players).getByTestId("response-no").textContent).toBe("1Said no");
     expect(within(players).getByTestId("response-bar").getAttribute("data-percent")).toBe("100");
     expect(within(players).getByTestId("response-bar").getAttribute("data-band")).toBe("high");
 
     const committee = screen.getByTestId("response-progress-committee");
     expect(within(committee).getByTestId("response-yes").textContent).toBe("1 / 1");
-    expect(within(committee).getByTestId("response-no").textContent).toBe("No 0");
+    expect(within(committee).getByTestId("response-no").textContent).toBe("0Said no");
 
     // Nobody was invited as a coach or a recruit, so neither block is there.
     expect(screen.queryByTestId("response-progress-coach")).toBeNull();
