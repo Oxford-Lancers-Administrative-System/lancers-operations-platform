@@ -195,3 +195,30 @@ event** page for an approved event, carrying the amendable details and then the
 questions, saved by one press. The event page's own **Edit event** button is
 visible in `LAN-420/desktop-operator-event-page.png`, and **Edit questions** is
 not there at all.
+
+## The mint control — hidden while a code is live (Brian, 2026-09-23)
+
+`mint/desktop-recruitment-qr.png`, `mint/phone375-recruitment-qr.png` —
+**Sign-up code** with a live code on it. There is **no mint button anywhere on
+the page**: the code, its address, the generated share card, **DOWNLOAD** and
+the clipboard control beside it, `0 sign-ins this season` and **Minted 23 Sept
+2026, 15:27** are all still there, and the control that replaced the code is
+not. That is the whole change — a printed QR cannot be replaced by a stray
+press.
+
+**The pair proves the other state too.** The seed carries no sign-up code, so
+the desktop run opened the page on **No live code yet**, pressed **MINT CODE**
+— still on the page, which is how a first code is issued — and shot the result.
+The script printed `mint controls on the page: 0` at both widths after the
+code existed. The phone run found the code the desktop run had minted and
+pressed nothing.
+
+Taken the same way as round 3's pairs: a throwaway Playwright script doing what
+`npm run visual:preflight` does — the same real application login, the same two
+viewports read back from the browser context (`desktop: 1440x900`,
+`phone375: 375x812`) — against a production build on the local stack, with this
+change applied on top of `4ce252f7`. Everything shown is the local synthetic
+seed.
+
+Both states are held still without a browser by
+`src/app/operate/recruitment/qr/screens.test.tsx`.

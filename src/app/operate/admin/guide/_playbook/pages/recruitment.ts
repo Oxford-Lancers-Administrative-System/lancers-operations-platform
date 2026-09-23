@@ -9,6 +9,11 @@ import type { PlaybookPage } from "../types";
  * intake. There is; it is this. The exit statuses are the code's own literals:
  * Declined, Disengaged and Void, with no "disinterested" anywhere in the
  * application.
+ *
+ * Step 1 no longer names a re-mint control. Brian, 2026-09-23: the page drops
+ * `MINT NEW CODE` while a code is live, so a printed QR cannot be replaced by
+ * accident. `content.test.ts` would fail this page for quoting a control that
+ * is no longer in `src/`, which is the check working as intended.
  */
 export const RECRUITMENT_PAGE: PlaybookPage = {
   slug: "recruitment",
@@ -53,13 +58,13 @@ export const RECRUITMENT_PAGE: PlaybookPage = {
         screen("Sign-up code"),
         " page. ",
         control("MINT CODE"),
-        " issues one; ",
-        control("MINT NEW CODE"),
-        " replaces it. ",
+        " issues the season's one code, and is on the page only while there is none. ",
         control("COPY LINK"),
         " copies the same address the code points at.",
       ],
-      then: ["The old code stops working as soon as a new one is minted."],
+      then: [
+        "The code stays live for the season. Nothing on the page replaces it, so what is printed on a poster keeps working.",
+      ],
     },
     {
       operator: [
