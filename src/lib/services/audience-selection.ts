@@ -319,22 +319,34 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
   // onboarding is finished or not, and the Onboarding group below them is
   // unchanged, for an onboarding-only event.
   //
-  // **LAN-414 round 2 (Brian, 2026-09-22) puts that in the labels.** LAN-415
-  // left them saying "Everyone active" and "All active players" on the
-  // reasoning that the resolved count would make the inclusion visible. Seeing
-  // the built picker Brian decided it would not: the two words the operator
-  // reads are the promise, and a count they have to compare against another
-  // count is not a promise. The key, the storage and the resolution are
-  // untouched — this is what the group has meant since LAN-415, said out loud.
+  // **LAN-414 round 2 (Brian, 2026-09-22) put that in the labels** — "Everyone
+  // active and onboarding" and "Active and onboarding players" — because
+  // LAN-415's reading, that the resolved count would make the inclusion
+  // visible, did not survive seeing the built picker: the words the operator
+  // reads are the promise, and a count they must compare against another count
+  // is not a promise.
+  //
+  // **LAN-414 round 3 (Brian, walk of 573bb9d4, 2026-09-23) shortens them to
+  // "Whole club" and "All roster players".** Saying the onboarding rule out
+  // loud cost more than it bought: two labels long enough to wrap in a band
+  // row, and a phrase that reads as a *narrowing* ("and onboarding" sounds like
+  // an extra cohort bolted on) when the point is the opposite — these are the
+  // widest groups the club has. "Whole club" is every membership carrying a
+  // player, coach or committee capacity, active or mid-onboarding, and never a
+  // recruit; "All roster players" is the player half of it. The rule is the
+  // same rule; the name is now the size of the thing it names, and the
+  // resolved-people list below the picker is what says exactly who.
+  //
+  // The key, the storage and the resolution are untouched by either round.
   Object.freeze({
     key: "everyone_active" as const, // first (Brian): the common case
-    label: "Everyone active and onboarding",
+    label: "Whole club",
     capacities: Object.freeze(["player" as const, "coach" as const, "committee" as const]),
     onboarding: "include" as const,
   }),
   Object.freeze({
     key: "active_players" as const,
-    label: "Active and onboarding players",
+    label: "All roster players",
     capacities: Object.freeze(["player" as const]),
     onboarding: "include" as const,
   }),

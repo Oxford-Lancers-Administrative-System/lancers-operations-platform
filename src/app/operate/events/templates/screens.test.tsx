@@ -260,7 +260,7 @@ describe("W8-01 — the club's templates", () => {
     render(await EventTemplatesPage());
 
     const row = flatten(screen.getAllByTestId("template-row")[0].textContent);
-    expect(row).toContain("Active and onboarding players");
+    expect(row).toContain("All roster players");
     expect(row).toContain("In person · Iffley Road Astro");
     expect(row).toContain("3 questions");
   });
@@ -285,7 +285,7 @@ describe("W8-01 — the club's templates", () => {
 
     const card = flatten(screen.getAllByTestId("template-card")[0].textContent);
     expect(card).toContain("Practice");
-    expect(card).toContain("Active and onboarding players");
+    expect(card).toContain("All roster players");
     expect(card).toContain("Iffley");
     expect(card).toContain("1 question");
   });
@@ -365,8 +365,8 @@ describe("W8-02 — one template", () => {
       "onboarding",
       "bps",
     ]);
-    expect(within(general).getByLabelText("Everyone active and onboarding")).toBeInTheDocument();
-    expect(within(general).getByLabelText("Active and onboarding players")).toBeInTheDocument();
+    expect(within(general).getByLabelText("Whole club")).toBeInTheDocument();
+    expect(within(general).getByLabelText("All roster players")).toBeInTheDocument();
   });
 
   // LAN-414: the template editor offers the categories the event form offers,

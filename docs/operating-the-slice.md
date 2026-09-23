@@ -248,7 +248,7 @@ group, I see how many people there are and which groups I collect or not."
 
 | Category             | What it offers                                                                                                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| General              | Everyone active and onboarding, Active and onboarding players, All active coaches, All active committee, Onboarding, All Active BPS                                            |
+| General              | Whole club, All roster players, All active coaches, All active committee, Onboarding, All Active BPS                                                                           |
 | Coaching assignments | Three bands of its own, each folding separately: **Coaching groups**, **Offensive position groups** and **Defensive position groups**, one row per value of that roster column |
 | Warmup assignments   | One row per warmup small group — Kings, Raider, Bear, Phoenix, Cavalier, Blue, Gold, Lancer                                                                                    |
 | Special teams        | One row per squad — Kick Return, Kickoff, Punt, Punt Return, Field Goal, Field Goal Block                                                                                      |
@@ -264,7 +264,7 @@ either **Selected**, **Included**, or `adds N`:
 - `adds N` — ticking it would bring N people the selection has not reached.
 
 **A tick box is ticked because somebody ticked it, and nothing else ever moves
-it.** Tick Everyone active and onboarding and the narrower rows below it do not
+it.** Tick Whole club and the narrower rows below it do not
 tick themselves: they say **Included**. Overlap is only ever a number. Untick a
 wide group and anyone a narrower ticked group still claims stays in. A sticky
 line at the top of the picker reads `<n> groups · <m> people`, and the
@@ -286,12 +286,12 @@ practices there is a run of mixed events a good recruit who is not yet Joined
 had no way onto. Clint: "the type of an event pertains to what's actually going
 to happen at the event, not who's invited." A recruit is reachable **only**
 through the four Recruits rows — no General group and no assignment sub-group
-ever includes one, so ticking Everyone active and onboarding on a Training event adds no
+ever includes one, so ticking Whole club on a Training event adds no
 recruits at all. Declined, disengaged, voided and joined recruits are never
 offered and never resolve; somebody who has Joined is a player and arrives
 through the player groups.
 
-**Everyone active and All active players include people mid-onboarding**
+**Whole club and All roster players include people mid-onboarding**
 (LAN-415, Brian and Stewart, 2026-09-22). This reverses LAN-388's "Onboarding is
 never folded into Active": Stewart, "when I hit all active players that should
 include the onboarding player"; Brian, "Onboarding is an administrative status
@@ -302,13 +302,19 @@ _only_ those people — an onboarding-only social, in Brian's example. All activ
 coaches and All active committee are unchanged: onboarding is a player fact, and
 no coaching seat or committee seat carries one.
 
-**The two labels say it** — _Everyone active and onboarding_ and _Active and
-onboarding players_ (Brian's visual review, 2026-09-22). LAN-415 left them
-reading "Everyone active" and "All active players" on the reasoning that the
-count beside each would make the inclusion visible; seeing the built screen
-Brian decided it would not. The two words an operator reads are the promise,
-and a count they would have to compare against another count is not one. The
-keys, the storage and the resolution are untouched.
+**The two labels are _Whole club_ and _All roster players_** (Brian's walk,
+2026-09-23). LAN-415 first left them reading "Everyone active" and "All active
+players" on the reasoning that the count beside each would make the inclusion
+visible; his visual review of 2026-09-22 decided it would not and spelled the
+rule out — "Everyone active and onboarding", "Active and onboarding players" —
+and his walk the next day found that spelling it out cost more than it bought:
+long enough to wrap in a band row, and "and onboarding" reads as an extra
+cohort bolted on when the point is that these are the widest groups there are.
+_Whole club_ is every membership carrying a player, coach or committee
+capacity, active or mid-onboarding, and never a recruit; _All roster players_
+is the player half of it. What each resolves to is unchanged, and the
+resolved-people list below the picker is what names exactly who. The keys, the
+storage and the resolution are untouched by any of the three rounds.
 
 Nothing is backfilled. An event approved before this ships, whose audience is
 either of those two groups, picks up its mid-onboarding people through

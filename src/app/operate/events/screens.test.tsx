@@ -2172,8 +2172,8 @@ describe("UX-40 — building the audience", () => {
 
     // LAN-414 round 2: the two player-wide groups say what LAN-415 made them
     // mean, rather than leaving the count to imply it.
-    expect(general.getByLabelText("Everyone active and onboarding")).toBeInTheDocument();
-    expect(general.getByLabelText("Active and onboarding players")).toBeInTheDocument();
+    expect(general.getByLabelText("Whole club")).toBeInTheDocument();
+    expect(general.getByLabelText("All roster players")).toBeInTheDocument();
   });
 
   /**
@@ -2444,8 +2444,8 @@ describe("UX-40 — building the audience", () => {
       expect(groupNumbers("everyone_active").size).toBe("5");
       // LAN-414 round 2: and now their labels say so too.
       const general = within(screen.getByTestId("section-audience-category-general"));
-      expect(general.getByLabelText("Active and onboarding players")).toBeInTheDocument();
-      expect(general.getByLabelText("Everyone active and onboarding")).toBeInTheDocument();
+      expect(general.getByLabelText("All roster players")).toBeInTheDocument();
+      expect(general.getByLabelText("Whole club")).toBeInTheDocument();
     });
 
     it("selects and counts them from that row", async () => {
@@ -2461,7 +2461,7 @@ describe("UX-40 — building the audience", () => {
       expect(groupNumbers("active_players").mark).toBe("adds 3");
     });
 
-    it("includes them when Active and onboarding players is ticked instead — LAN-415", async () => {
+    it("includes them when All roster players is ticked instead — LAN-415", async () => {
       await openWithOnboarding();
 
       fireEvent.click(groupBox("active_players"));
@@ -2611,7 +2611,7 @@ describe("UX-40 — building the audience", () => {
   /**
    * LAN-392. The ticked group is a third thing the form posts, beside the
    * keys, because it cannot be recovered from them: untick one of the three and
-   * every derivation of "Active and onboarding players was chosen" goes out
+   * every derivation of "All roster players was chosen" goes out
    * with them, along with the fact that the one person was left out on purpose.
    * The event keeps that group as its rule once it is approved, so what is
    * posted here is what a recruit joining next Tuesday falls into.
@@ -3402,9 +3402,8 @@ describe("a draft that already carries an audience", () => {
         personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp2",
         displayName: "Samira Quinn",
       }),
-      // An unselected coach in the catalogue, so "Everyone active and
-      // onboarding" is not wholly present and the players group is the one
-      // that names.
+      // An unselected coach in the catalogue, so "Whole club" is not wholly
+      // present and the players group is the one that names.
       candidate({
         capacity: "coach",
         anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
@@ -3428,7 +3427,7 @@ describe("a draft that already carries an audience", () => {
     const { container } = render(await EventDetailPage(detailProps()));
 
     const shape = flatten(screen.getByTestId("audience-shape").textContent);
-    expect(shape).toBe("Active and onboarding players — 2 people");
+    expect(shape).toBe("All roster players — 2 people");
     // At the head of the list — before the names, not instead of them.
     expect(container.innerHTML.indexOf('data-testid="audience-shape"')).toBeLessThan(
       container.innerHTML.indexOf('data-testid="event-audience"'),
@@ -3439,12 +3438,12 @@ describe("a draft that already carries an audience", () => {
     // check the audience against what they ticked in the same words.
     const headings = within(screen.getByTestId("audience-groups-by-category"));
     expect(headings.getByText("General")).toBeVisible();
-    expect(headings.getByText("Active and onboarding players")).toBeVisible();
+    expect(headings.getByText("All roster players")).toBeVisible();
   });
 
   /**
    * The other half of D3: a person added individually must still read
-   * truthfully. Two players plus one hand-picked coach is not "All active
+   * truthfully. Two players plus one hand-picked coach is not "All roster
    * players" — the coach was never in that group, so naming it would claim
    * something that was not chosen.
    */
@@ -3462,7 +3461,7 @@ describe("a draft that already carries an audience", () => {
     render(await EventDetailPage(detailProps()));
 
     const shape = flatten(screen.getByTestId("audience-shape").textContent);
-    expect(shape).not.toContain("All active players");
+    expect(shape).not.toContain("All roster players");
     expect(shape).toContain("All active coaches");
     expect(shape).toContain("2 more chosen by hand");
   });

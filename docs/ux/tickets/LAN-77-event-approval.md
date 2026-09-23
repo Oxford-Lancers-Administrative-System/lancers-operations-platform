@@ -136,9 +136,11 @@ chose this shape from four built on the `ux/audience-picker-variants` branch.
   rule the pills broke, and it is the reason the tick state is the _stored
   group rule_ (LAN-392) rather than the old inference "is everybody this group
   would invite already chosen".
-- **Everyone active and onboarding is first**, and the narrower groups read as
-  refinements of it. Its label and **Active and onboarding players** say what
-  LAN-415 made them mean, rather than leaving the count to imply it.
+- **Whole club is first**, and the narrower groups read as refinements of it.
+  It and **All roster players** are named for their size rather than for the
+  membership rule inside them (Brian's walk, 2026-09-23): both reach a
+  mid-onboarding membership, as LAN-415 decided, and the resolved-people list
+  below the picker is what shows who that is on the day.
 - **Unticking a group keeps the people a narrower ticked group still claims**,
   which is the write-side half of "overlap is a number".
 - Each count is **people, not rows**, and comes from the service

@@ -36,7 +36,7 @@ import type {
  *   `adds N`, **Included** or **Selected**.
  * - **No control ever changes another control's visual state.** A tick box is
  *   ticked because somebody ticked it. Overlap is only ever a number: tick
- *   Active and onboarding players and Quarterbacks does not tick itself, it
+ *   All roster players and Quarterbacks does not tick itself, it
  *   says **Included**.
  * - A sticky summary reads `<n> groups · <m> people`.
  *

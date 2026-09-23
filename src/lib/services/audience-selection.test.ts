@@ -287,7 +287,7 @@ describe("unticking a group removes exactly its own keys", () => {
       both,
     );
 
-    // The players stay, because Active and onboarding players is still ticked.
+    // The players stay, because All roster players is still ticked.
     expect(peopleNamed(untickEveryone)).toEqual(["Ada Kettle", "Bo Rivers"]);
   });
 
@@ -381,7 +381,7 @@ describe("a Recruits category, on every event type (LAN-416, amending D46)", () 
 
   it("does not fold recruits into everyone-active", () => {
     // D45: inactive people are never invited, and a prospect is not a member.
-    // "Everyone active and onboarding" means the roster, and a recruit is deliberately not on
+    // "Whole club" means the roster, and a recruit is deliberately not on
     // it — `recruitment_prospects` exists so the roster keeps meaning "people
     // on the team".
     const everyone = AUDIENCE_GROUPS.find((group) => group.key === EVERYONE)!;
@@ -398,7 +398,7 @@ describe("the audience named by its groups before its people", () => {
   it("names the widest group that is wholly in, and not the ones it subsumes", () => {
     const summary = summariseAudienceGroups(CLUB, groupSelectionKeys(CLUB, EVERYONE), "practice");
 
-    expect(summary.groups).toEqual(["Everyone active and onboarding"]);
+    expect(summary.groups).toEqual(["Whole club"]);
     expect(summary.others).toBe(0);
     expect(summary.total).toBe(4);
   });
@@ -408,7 +408,7 @@ describe("the audience named by its groups before its people", () => {
 
     const summary = summariseAudienceGroups(CLUB, chosen, "practice");
 
-    expect(summary.groups).toEqual(["Active and onboarding players", "All active coaches"]);
+    expect(summary.groups).toEqual(["All roster players", "All active coaches"]);
     expect(summary.total).toBe(3);
   });
 
@@ -429,7 +429,7 @@ describe("the audience named by its groups before its people", () => {
 
     const summary = summariseAudienceGroups(CLUB, chosen, "practice");
 
-    expect(summary.groups).toEqual(["Active and onboarding players"]);
+    expect(summary.groups).toEqual(["All roster players"]);
     expect(summary.others).toBe(1);
     expect(summary.total).toBe(3);
   });
@@ -498,7 +498,7 @@ describe("the audience named by its groups before its people", () => {
         "practice",
       );
 
-      expect(summary.groups).toContain("Active and onboarding players");
+      expect(summary.groups).toContain("All roster players");
     });
 
     it("still refuses to name a group the audience only partly holds", () => {
@@ -507,7 +507,7 @@ describe("the audience named by its groups before its people", () => {
       const players = groupSelectionKeys(CLUB, PLAYERS);
       const summary = summariseAudienceGroups(CLUB, [...players.slice(1), GONE], "practice");
 
-      expect(summary.groups).not.toContain("Active and onboarding players");
+      expect(summary.groups).not.toContain("All roster players");
     });
 
     it("counts one absent person once, however many times their key is listed", () => {
@@ -916,7 +916,7 @@ describe("Onboarding is its own audience group", () => {
     const ticked = selectionAfterGroupPress(MID_SEASON, ONBOARDING, new Set(), new Set());
 
     // LAN-414 round 2: the row's mark, not a lit pill. Onboarding is chosen;
-    // Active and onboarding players is not, and adds the one active player it
+    // All roster players is not, and adds the one active player it
     // reaches that Onboarding does not.
     const counts = audienceGroupCounts(MID_SEASON, [ONBOARDING, PLAYERS], ticked);
     expect(counts.get(ONBOARDING)?.included).toBe(true);
@@ -1030,8 +1030,8 @@ describe("audiences by category (LAN-414)", () => {
     const labelFor = (token: string) =>
       general.options.find((option) => option.token === token)?.label;
 
-    expect(labelFor(EVERYONE)).toBe("Everyone active and onboarding");
-    expect(labelFor(PLAYERS)).toBe("Active and onboarding players");
+    expect(labelFor(EVERYONE)).toBe("Whole club");
+    expect(labelFor(PLAYERS)).toBe("All roster players");
   });
 
   it("carries each chosen group's headings out with the summary", () => {

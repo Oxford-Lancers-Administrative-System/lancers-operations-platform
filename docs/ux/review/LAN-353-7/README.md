@@ -63,14 +63,14 @@ row with its head count and, at the right, what it would add: `adds 39`,
 0 people**, and the resolved-people list below the picker is unchanged. At
 375 px the whole picker is one column and every row keeps its count and mark.
 
-The two General labels read **Everyone active and onboarding** and **Active and
-onboarding players**, which is the other half of this round.
+The two General labels read **Whole club** and **All roster players**, which is
+the other half of this round.
 
 `LAN-414/desktop-audience-picker-ticked.png`,
 `phone375-audience-picker-ticked.png` — **the correction itself**, the same
-screen with **Active and onboarding players** and **Defense** ticked. Read the
-row above the first one: **Everyone active and onboarding** is _not_ ticked and
-reads **adds 2**. That is the whole of Brian's finding — under the pills,
+screen with **All roster players** and **Defense** ticked. Read the row above
+the first one: **Whole club** is _not_ ticked and reads **adds 2**. That is the
+whole of Brian's finding — under the pills,
 pressing the players group lit everything it swallowed; here nothing moved but
 the row that was ticked, and the overlap is a number. The rows the selection
 already covers say **Included** (All active coaches, Onboarding, All Active
