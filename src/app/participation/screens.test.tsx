@@ -100,7 +100,7 @@ import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
 import { ConstraintViolated } from "@/lib/db/errors";
 
 import ClubLinkPage from "../e/[token]/page";
-import { EventFacts, ShowedNumber } from "./event-facts";
+import { EventFacts } from "./event-facts";
 import { ResponseProgress } from "./response-progress";
 import { CopyLinkButton } from "./copy-link";
 import { ParticipationFilterBar } from "./participation-filters";
@@ -569,11 +569,14 @@ describe("the club-link page", () => {
 
   /**
    * LAN-420 — the top of this page is response progress by capacity, the same
-   * blocks the operator's own event page carries, and Showed sits below the
-   * facts. The Invited / Said yes / No row LAN-384 added is gone: its numbers
-   * are the sum of the blocks and are not repeated.
+   * blocks the operator's own event page carries. The Invited / Said yes / No
+   * row LAN-384 added is gone: its numbers are the sum of the blocks and are
+   * not repeated. **Showed is gone too** (Brian's walk of 573bb9d4,
+   * 2026-09-23), which took it off this page as his review had already taken
+   * it off the operator's: who turned up is recorded on the register, and this
+   * page is read by people deciding whether to come.
    */
-  it("leads with a block per capacity, and keeps Showed below", async () => {
+  it("leads with a block per capacity, and shows no Showed number at all", async () => {
     readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
     const { container } = await renderClubLink("a-token");
 
@@ -597,7 +600,10 @@ describe("the club-link page", () => {
     expect(screen.queryByTestId("headline-invited")).toBeNull();
     expect(screen.queryByTestId("headline-said-yes")).toBeNull();
     expect(screen.queryByTestId("headline-said-no")).toBeNull();
-    expect(screen.getByTestId("headline-showed").querySelector("p")?.textContent).toBe("1 / 3");
+    // And Showed, the last survivor of that row, is gone from this page too.
+    expect(screen.queryByTestId("headline-showed")).toBeNull();
+    expect(screen.queryByTestId("headline-numbers")).toBeNull();
+    expect(container.textContent).not.toContain("Showed");
 
     expect(renderedNames(container)).toHaveLength(3);
   });
@@ -842,17 +848,14 @@ describe("rendering through react-dom/server, without a DOM or hydration", () =>
     expect(markup).not.toContain(TABLE_HEADINGS.delivery);
   });
 
-  it("renders the event facts, the progress blocks and Showed without throwing", () => {
+  it("renders the event facts and the progress blocks without throwing", () => {
     const markup = renderToStaticMarkup(
       <>
         <ResponseProgress people={CLUB.people} />
         <EventFacts event={CLUB.event} />
-        <ShowedNumber headline={CLUB.headline} />
       </>,
     );
     expect(markup).toContain("Iffley Road Astro");
-    // LAN-420: Showed keeps its own `showed / invited` shape.
-    expect(markup).toContain("1 / 3");
   });
 
   it("renders an empty table and a filtered-empty table without throwing", () => {

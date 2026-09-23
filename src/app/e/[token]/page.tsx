@@ -19,7 +19,7 @@ import { readClubLinkParticipation } from "@/lib/services/participation";
 
 import { noteClubLinkOpened } from "./actions";
 
-import { EventFacts, formatEventWhen, ShowedNumber } from "../../participation/event-facts";
+import { EventFacts, formatEventWhen } from "../../participation/event-facts";
 import { ResponseProgress } from "../../participation/response-progress";
 import { ParticipationFilterBar } from "../../participation/participation-filters";
 import { ParticipationTable } from "../../participation/participation-table";
@@ -116,7 +116,6 @@ export default async function ClubLinkPage({ params, searchParams }: PageProps) 
         {/* LAN-420: response progress by capacity is the top of the page. */}
         <ResponseProgress people={participation.people} />
         <EventFacts event={participation.event} />
-        <ShowedNumber headline={participation.headline} />
         <ParticipationFilterBar basePath={basePath} filters={filters} showDelivery={false} />
         <ParticipationTable basePath={basePath} participation={participation} filters={filters} />
       </Stack>

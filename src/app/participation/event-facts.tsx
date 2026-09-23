@@ -1,19 +1,13 @@
 import { Fact, FactGrid } from "@/components/fact";
 import { Section } from "@/components/section";
-import { Metric, MetricRow } from "@/components/metric";
 
-import type { ClubLinkEvent, ParticipationHeadline } from "@/lib/services/participation-view";
+import type { ClubLinkEvent } from "@/lib/services/participation-view";
 
-import {
-  formatShowedAgainstInvited,
-  formatTermAndWeek,
-  HEADLINE_INVITED_LABEL,
-  HEADLINE_SHOWED_LABEL,
-} from "./presentation";
+import { formatTermAndWeek } from "./presentation";
 
 /**
- * The event's own details, and the three headline numbers — for the club-link
- * page. Same payload and formatter as the operator's event page. The joining
+ * The event's own details — for the club-link page. Same payload and
+ * formatters as the operator's event page. The joining
  * URL cannot be here: `ClubLinkEvent` has no such key (REQ-no-joining-url).
  * Type names come from `@/lib/services/event-vocabulary` (R157C-A1), not a
  * private second copy, so a renamed type can't leak raw to an unauthenticated
@@ -88,24 +82,18 @@ export function EventFacts({ event }: { event: ClubLinkEvent }) {
   );
 }
 
-/**
- * **Showed**, on its own — LAN-420.
+/*
+ * **Showed is not on this page** — LAN-420, Brian's walk of 573bb9d4,
+ * 2026-09-23.
  *
- * Stewart, 2026-09-22: "The 'Showed' data can be lower in priority on the
- * page." The Invited / Said yes / No row that used to be here is replaced by
- * the per-capacity blocks at the top of the page (`ResponseProgress`), whose
- * totals are the whole event's and are not repeated; this one number is what
- * survives of it, unchanged in shape — `— / 37` unsaved, `0 / 37` saved-empty,
- * never a percentage (D62, D74, which still govern here).
+ * Stewart's original ask was to move it down the page, and his review of
+ * 2026-09-22 took the Showed / Invited card off the operator's own event page;
+ * the walk finished the job and took it off this one too. Who turned up is an
+ * operator's number, recorded on the register, and the public Event info link
+ * page is for the people deciding whether to come: the response blocks at the
+ * top say how the event is filling, and a headcount from a session that has
+ * already happened answers nothing they are asking.
+ *
+ * Nothing about attendance changes — the register still records it, and
+ * `formatShowedAgainstInvited` still renders it on the operator's event list.
  */
-export function ShowedNumber({ headline }: { headline: ParticipationHeadline }) {
-  return (
-    <MetricRow columns={2} testId="headline-numbers">
-      <Metric
-        label={`${HEADLINE_SHOWED_LABEL} / ${HEADLINE_INVITED_LABEL}`}
-        value={formatShowedAgainstInvited(headline)}
-        testId="headline-showed"
-      />
-    </MetricRow>
-  );
-}

@@ -16,13 +16,11 @@ import { CAPACITY_LABELS } from "../operate/events/presentation";
 
 // The three headline numbers — D62, D73, D74
 
-/** Re-exported from the attendance screen's vocabulary (LAN-152), not rewritten — rule 7. Open: LAN-152 renders `— / 47`, W7's note records `NA / 47`; that is LAN-152's surface to change. */
+/** Re-exported from the attendance screen's vocabulary (LAN-152), not rewritten — rule 7. Showed's own label and formatter are no longer among them: LAN-420 took that number off both participation surfaces, and the operator's event list imports the formatter from the attendance screen directly. */
 export {
-  formatShowedAgainstInvited,
   HEADLINE_INVITED_LABEL,
   HEADLINE_SAID_NO_LABEL,
   HEADLINE_SAID_YES_LABEL,
-  HEADLINE_SHOWED_LABEL,
 } from "../operate/events/[id]/attendance/presentation";
 
 /** Re-exported, not rewritten (W157-F2): a duplicated `TERM_LABELS` map here previously disagreed with the event page's, reading a pre-season event as "-1th week". Rule 7. */
