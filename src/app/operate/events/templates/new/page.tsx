@@ -1,7 +1,10 @@
 import { PageHeader } from "@/components/page-header";
 import Stack from "@mui/material/Stack";
 import { audienceCategoriesForEventType } from "@/lib/services/audience-selection";
-import { DEFAULT_TEMPLATE_CLASS } from "@/lib/services/event-templates";
+import {
+  DEFAULT_TEMPLATE_CLASS,
+  readTemplateAudienceCatalogue,
+} from "@/lib/services/event-templates";
 import {
   DEFAULT_TEMPLATE_COLOUR_KEY,
   type RawEventTemplate,
@@ -29,6 +32,9 @@ export default async function NewEventTemplatePage() {
     audienceGroups: [],
   };
 
+  // LAN-414 round 2: the picker counts against today's roster here too.
+  const { candidates } = await readTemplateAudienceCatalogue(DEFAULT_TEMPLATE_CLASS);
+
   return (
     <Stack spacing={3}>
       <PageHeader
@@ -43,6 +49,7 @@ export default async function NewEventTemplatePage() {
         initial={initial}
         initialQuestions={[]}
         categories={audienceCategoriesForEventType(DEFAULT_TEMPLATE_CLASS, { templateOnly: true })}
+        candidates={candidates}
         eventCount={0}
       />
     </Stack>

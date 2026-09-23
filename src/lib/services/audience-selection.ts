@@ -85,7 +85,40 @@ const AUDIENCE_GROUP_CATEGORY_LABELS: Readonly<Record<AudienceGroupCategory, str
   });
 
 /**
- * One pill in the picker, and one stored audience row.
+ * A band *inside* a category — LAN-414 visual review, Brian, 2026-09-22:
+ * "Coaching assignments splits into three sub-categories, each folding on its
+ * own: Coaching groups, Offensive position groups, Defensive position groups."
+ *
+ * Only Coaching assignments has more than one. The others carry a single
+ * sub-category with the same key as the category, so every option answers
+ * `subCategory` and no reader needs a special case for "the category that
+ * folds twice". **Storage is untouched**: a token is still `<category>:<value>`
+ * and the three coaching sub-categories share the one `coaching:` namespace
+ * they have always shared, because the three roster columns share no word.
+ * This is the catalogue's grouping and the picker, nothing else.
+ */
+export type AudienceGroupSubCategory =
+  | "general"
+  | "coaching_groups"
+  | "offensive_positions"
+  | "defensive_positions"
+  | "warmup"
+  | "special_teams"
+  | "recruits";
+
+const AUDIENCE_GROUP_SUB_CATEGORY_LABELS: Readonly<Record<AudienceGroupSubCategory, string>> =
+  Object.freeze({
+    general: "General",
+    coaching_groups: "Coaching groups",
+    offensive_positions: "Offensive position groups",
+    defensive_positions: "Defensive position groups",
+    warmup: "Warmup assignments",
+    special_teams: "Special teams",
+    recruits: "Recruits",
+  });
+
+/**
+ * One tick-box row in the picker, and one stored audience row.
  *
  * `token` is the only string that crosses the network, the form and the
  * database read-back. A General group's token is its bare
@@ -98,15 +131,28 @@ export interface AudienceGroupOption {
   readonly token: string;
   readonly label: string;
   readonly category: AudienceGroupCategory;
+  /** Which band inside the category this option sits in — LAN-414 round 2. */
+  readonly subCategory: AudienceGroupSubCategory;
   /** The `public.audience_group` value for a General option; null otherwise. */
   readonly audienceGroup: AudienceGroupKey | null;
   /** The roster value or recruit status for a non-General option; null for General. */
   readonly value: string | null;
 }
 
+/** One folding band inside a category. Most categories have exactly one. */
+interface AudienceCategorySubSection {
+  readonly subCategory: AudienceGroupSubCategory;
+  /** `null` where the category's own heading is the whole heading — anything but Coaching assignments. */
+  readonly label: string | null;
+  readonly options: readonly AudienceGroupOption[];
+}
+
 export interface AudienceCategorySection {
   readonly category: AudienceGroupCategory;
   readonly label: string;
+  /** The bands this category folds into — LAN-414 round 2. */
+  readonly subSections: readonly AudienceCategorySubSection[];
+  /** The same options flattened, for a reader that only wants the list. */
   readonly options: readonly AudienceGroupOption[];
 }
 
@@ -157,6 +203,7 @@ const RECRUIT_OPTIONS: readonly AudienceGroupOption[] = Object.freeze([
     token: "recruits:all",
     label: "All active recruits",
     category: "recruits" as const,
+    subCategory: "recruits" as const,
     audienceGroup: null,
     value: "all",
   }),
@@ -165,6 +212,7 @@ const RECRUIT_OPTIONS: readonly AudienceGroupOption[] = Object.freeze([
       token: `recruits:${status}`,
       label: `${status.slice(0, 1).toUpperCase()}${status.slice(1)}`,
       category: "recruits" as const,
+      subCategory: "recruits" as const,
       audienceGroup: null,
       value: status,
     }),
@@ -173,6 +221,7 @@ const RECRUIT_OPTIONS: readonly AudienceGroupOption[] = Object.freeze([
 
 function valueOptions(
   category: AudienceGroupCategory,
+  subCategory: AudienceGroupSubCategory,
   entries: readonly { value: string; label: string }[],
 ): readonly AudienceGroupOption[] {
   return Object.freeze(
@@ -181,6 +230,7 @@ function valueOptions(
         token: `${category}${TOKEN_SEPARATOR}${entry.value}`,
         label: entry.label,
         category,
+        subCategory,
         audienceGroup: null,
         value: entry.value,
       }),
@@ -190,24 +240,37 @@ function valueOptions(
 
 // One sub-group per value of the three Coaching Assignments columns, in the
 // board's own order: coaching group, then offence, then defence. The three
-// lists share no word, so one flat `coaching:` namespace holds all of them.
-const COACHING_OPTIONS = valueOptions(
+// lists share no word, so one flat `coaching:` namespace holds all of them —
+// which is why splitting them into three bands (LAN-414 round 2) changes the
+// catalogue's shape and not one stored token.
+const COACHING_GROUP_OPTIONS = valueOptions(
   "coaching",
-  [
-    ...COACHING_GROUP_VALUES,
-    ...OFFENSIVE_POSITION_GROUP_VALUES,
-    ...DEFENSIVE_POSITION_GROUP_VALUES,
-  ].map((value) => ({ value, label: value })),
+  "coaching_groups",
+  COACHING_GROUP_VALUES.map((value) => ({ value, label: value })),
+);
+
+const OFFENSIVE_POSITION_OPTIONS = valueOptions(
+  "coaching",
+  "offensive_positions",
+  OFFENSIVE_POSITION_GROUP_VALUES.map((value) => ({ value, label: value })),
+);
+
+const DEFENSIVE_POSITION_OPTIONS = valueOptions(
+  "coaching",
+  "defensive_positions",
+  DEFENSIVE_POSITION_GROUP_VALUES.map((value) => ({ value, label: value })),
 );
 
 const WARMUP_OPTIONS = valueOptions(
+  "warmup",
   "warmup",
   WARMUP_SMALL_GROUP_VALUES.map((value) => ({ value, label: value })),
 );
 
 // Stewart: "If you have an assignment in kick return, you need to get a
-// message… even if they're backup three." One pill per squad, never per slot.
+// message… even if they're backup three." One row per squad, never per slot.
 const SPECIAL_TEAMS_OPTIONS = valueOptions(
+  "special_teams",
   "special_teams",
   SPECIAL_TEAMS_SQUADS.map((squad) => ({ value: squad.squad, label: squad.label })),
 );
@@ -253,18 +316,25 @@ export interface AudienceGroup {
 // The system-derived groups the club has, and no others (D43, D44, D47) — keys match public.audience_group exactly.
 export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
   // LAN-415 — the two player-wide groups reach a membership whether its
-  // onboarding is finished or not. The label is unchanged (Brian: the picker's
-  // resolved count is what makes the inclusion visible), and so is the
-  // Onboarding group below it, for an onboarding-only event.
+  // onboarding is finished or not, and the Onboarding group below them is
+  // unchanged, for an onboarding-only event.
+  //
+  // **LAN-414 round 2 (Brian, 2026-09-22) puts that in the labels.** LAN-415
+  // left them saying "Everyone active" and "All active players" on the
+  // reasoning that the resolved count would make the inclusion visible. Seeing
+  // the built picker Brian decided it would not: the two words the operator
+  // reads are the promise, and a count they have to compare against another
+  // count is not a promise. The key, the storage and the resolution are
+  // untouched — this is what the group has meant since LAN-415, said out loud.
   Object.freeze({
     key: "everyone_active" as const, // first (Brian): the common case
-    label: "Everyone active",
+    label: "Everyone active and onboarding",
     capacities: Object.freeze(["player" as const, "coach" as const, "committee" as const]),
     onboarding: "include" as const,
   }),
   Object.freeze({
     key: "active_players" as const,
-    label: "All active players",
+    label: "Active and onboarding players",
     capacities: Object.freeze(["player" as const]),
     onboarding: "include" as const,
   }),
@@ -350,25 +420,51 @@ export function audienceCategoriesForEventType(
     ? templateGroupsForEventType(eventType)
     : groupsForEventType(eventType);
 
-  const byCategory: Record<AudienceGroupCategory, readonly AudienceGroupOption[]> = {
-    general: general.map((group) => ({
-      token: group.key,
-      label: group.label,
-      category: "general" as const,
-      audienceGroup: group.key,
-      value: null,
-    })),
-    coaching: COACHING_OPTIONS,
-    warmup: WARMUP_OPTIONS,
-    special_teams: SPECIAL_TEAMS_OPTIONS,
-    recruits: RECRUIT_OPTIONS,
+  const generalOptions: readonly AudienceGroupOption[] = general.map((group) => ({
+    token: group.key,
+    label: group.label,
+    category: "general" as const,
+    subCategory: "general" as const,
+    audienceGroup: group.key,
+    value: null,
+  }));
+
+  // Which bands each category folds into. Only Coaching assignments has more
+  // than one, and only it labels them: everywhere else the category heading is
+  // already the band's heading, so a second identical one would be noise.
+  const byCategory: Record<AudienceGroupCategory, readonly AudienceCategorySubSection[]> = {
+    general: [{ subCategory: "general", label: null, options: generalOptions }],
+    coaching: [
+      {
+        subCategory: "coaching_groups",
+        label: AUDIENCE_GROUP_SUB_CATEGORY_LABELS.coaching_groups,
+        options: COACHING_GROUP_OPTIONS,
+      },
+      {
+        subCategory: "offensive_positions",
+        label: AUDIENCE_GROUP_SUB_CATEGORY_LABELS.offensive_positions,
+        options: OFFENSIVE_POSITION_OPTIONS,
+      },
+      {
+        subCategory: "defensive_positions",
+        label: AUDIENCE_GROUP_SUB_CATEGORY_LABELS.defensive_positions,
+        options: DEFENSIVE_POSITION_OPTIONS,
+      },
+    ],
+    warmup: [{ subCategory: "warmup", label: null, options: WARMUP_OPTIONS }],
+    special_teams: [{ subCategory: "special_teams", label: null, options: SPECIAL_TEAMS_OPTIONS }],
+    recruits: [{ subCategory: "recruits", label: null, options: RECRUIT_OPTIONS }],
   };
 
-  return AUDIENCE_GROUP_CATEGORY_ORDER.map((category) => ({
-    category,
-    label: AUDIENCE_GROUP_CATEGORY_LABELS[category],
-    options: byCategory[category],
-  })).filter((section) => section.options.length > 0);
+  return AUDIENCE_GROUP_CATEGORY_ORDER.map((category) => {
+    const subSections = byCategory[category].filter((section) => section.options.length > 0);
+    return {
+      category,
+      label: AUDIENCE_GROUP_CATEGORY_LABELS[category],
+      subSections,
+      options: subSections.flatMap((section) => section.options),
+    };
+  }).filter((section) => section.options.length > 0);
 }
 
 /** The same catalogue flattened, in the same order — for the places that only need the list. */
@@ -629,10 +725,74 @@ export function groupSelectionKeys(
     .map((candidate) => candidate.key);
 }
 
-// How many **people** a group invites, not how many rows it selects (see relocations.md).
-export function groupSize(candidates: readonly AudienceCandidate[], groupKey: string): number {
-  const resolution = resolveSelection(candidates, groupSelectionKeys(candidates, groupKey));
-  return resolution.ok ? resolution.members.length : 0;
+/**
+ * What one group's row says against the current selection — LAN-414 round 2.
+ *
+ * Three states and no fourth: it is **Selected**, it is **Included** (every
+ * person it would invite is already reached, and it is not empty), or it would
+ * bring `adds` people who are not reached yet. `size` is the group's own head
+ * count, which never moves.
+ */
+export interface AudienceGroupCount {
+  readonly token: string;
+  /** How many people this group invites, whatever is chosen. */
+  readonly size: number;
+  /** How many of those the current selection has not already reached. */
+  readonly adds: number;
+  /** `size > 0 && adds === 0` — the selection already covers everyone in it. */
+  readonly included: boolean;
+}
+
+/**
+ * Every group's size and overlap with one selection, in one read — LAN-414
+ * round 2, Brian's visual review: "I click a group, I see how many people there
+ * are and which groups I collect or not."
+ *
+ * The arithmetic is **people**, never selection keys: somebody who plays and
+ * also coaches holds two keys and is one person, and a person reached by two
+ * chosen groups is counted once. That is the whole of what the picker's
+ * numbers promise, and it is why this lives here rather than in the component —
+ * the row that says `adds 12` and the write that invites twelve more people
+ * have to come from one function.
+ *
+ * Unknown keys in `selected` are tolerated the way {@link summariseAudienceGroups}
+ * tolerates them: a membership that changed under a saved audience narrows what
+ * is reached, it does not blank every number on the screen.
+ */
+export function audienceGroupCounts(
+  candidates: readonly AudienceCandidate[],
+  tokens: readonly string[],
+  selected: Iterable<string>,
+): Map<string, AudienceGroupCount> {
+  const byKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
+
+  // The people the selection reaches — computed once, not once per group.
+  const reached = new Set<string>();
+  for (const key of selected) {
+    const candidate = byKey.get(key);
+    if (candidate) reached.add(candidate.personId);
+  }
+
+  const counts = new Map<string, AudienceGroupCount>();
+  for (const token of tokens) {
+    if (counts.has(token)) continue;
+    const members = new Set<string>();
+    for (const key of groupSelectionKeys(candidates, token)) {
+      const candidate = byKey.get(key);
+      if (candidate) members.add(candidate.personId);
+    }
+    let adds = 0;
+    for (const personId of members) if (!reached.has(personId)) adds += 1;
+    counts.set(token, {
+      token,
+      size: members.size,
+      adds,
+      // An empty group is never "Included": there is nobody in it to be
+      // covered, and saying otherwise would read as "you already have them".
+      included: members.size > 0 && adds === 0,
+    });
+  }
+  return counts;
 }
 
 /** The people a set of selection keys resolves to, by person id. */
@@ -644,39 +804,74 @@ function peopleIn(
   return new Set(resolution.ok ? resolution.members.map((member) => member.personId) : []);
 }
 
-// Is everybody this group would invite already invited? Drives the group button's lit state.
-// Compares **people**, not keys (see relocations.md).
-export function groupIsSelected(
-  candidates: readonly AudienceCandidate[],
-  groupKey: string,
-  selected: ReadonlySet<string>,
-): boolean {
-  const wanted = peopleIn(candidates, groupSelectionKeys(candidates, groupKey));
-  if (wanted.size === 0) return false;
-  const held = peopleIn(candidates, [...selected]);
-  return [...wanted].every((personId) => held.has(personId));
-}
+/*
+ * `groupSize` and `groupIsSelected` were here until LAN-414 round 2.
+ *
+ * `groupIsSelected` was the pill's lit state — "is everybody this group would
+ * invite already chosen" — and it is exactly what Brian's review removed: a
+ * control whose appearance was decided by other controls. What it computed
+ * survives as {@link AudienceGroupCount.included}, which says the same thing in
+ * a place where it is a number and not a pressed state. `groupSize` is that
+ * type's `size`. Both now come from one pass in {@link audienceGroupCounts},
+ * rather than a resolve per group per render.
+ */
 
-// The selection after pressing a group button: add the group's keys, or remove them. Removal is by
-// key, not by person (see relocations.md for the bug person-wise removal caused).
-export function toggleGroup(
+/**
+ * The selection after ticking or unticking one group's row — LAN-414 round 2.
+ *
+ * This replaces the pill's `toggleGroup`, and the difference is the whole of
+ * Brian's finding. A pill decided whether it was *on* by asking "is everybody
+ * I would invite already chosen", so pressing All active players lit every
+ * group it happened to swallow — "I click one pill that's all active,
+ * everything lights up". A tick box is on because it was ticked, and nothing
+ * else ever moves it; overlap shows as a number on the other rows instead.
+ *
+ * `pressed` is the set of groups ticked **before** this press. Unticking takes
+ * out the group's keys except those another still-ticked group also claims, so
+ * unticking Offense while Defensive Backs stays ticked keeps the backs. Removal
+ * is by key, not by person (see relocations.md for the bug person-wise removal
+ * caused).
+ */
+export function selectionAfterGroupPress(
   candidates: readonly AudienceCandidate[],
   groupKey: string,
+  pressed: ReadonlySet<string>,
   selected: ReadonlySet<string>,
 ): Set<string> {
   const groupKeys = groupSelectionKeys(candidates, groupKey);
 
-  if (!groupIsSelected(candidates, groupKey, selected)) {
-    return new Set([...selected, ...groupKeys]);
+  if (!pressed.has(groupKey)) return new Set([...selected, ...groupKeys]);
+
+  const claimedElsewhere = new Set<string>();
+  for (const other of pressed) {
+    if (other === groupKey) continue;
+    for (const key of groupSelectionKeys(candidates, other)) claimedElsewhere.add(key);
   }
 
   const leaving = new Set(groupKeys);
-  return new Set([...selected].filter((key) => !leaving.has(key)));
+  return new Set([...selected].filter((key) => !leaving.has(key) || claimedElsewhere.has(key)));
 }
 
 // The audience named by its groups before its people — W4, W4-A1. Widest group named first (LAN-242; see relocations.md).
+/**
+ * One named group in the summary, with where it came from — LAN-414 round 2,
+ * so the approval review and the event's audience panel can show the chosen
+ * groups **under their category and sub-category headings** rather than as one
+ * run-on sentence. Same labels as the picker, from the same catalogue.
+ */
+interface AudienceGroupSummaryEntry {
+  readonly label: string;
+  readonly category: AudienceGroupCategory;
+  readonly categoryLabel: string;
+  readonly subCategory: AudienceGroupSubCategory;
+  /** `null` where the category heading is the whole heading — see {@link AudienceCategorySubSection}. */
+  readonly subCategoryLabel: string | null;
+}
+
 export interface AudienceGroupSummary {
   groups: string[]; // labels of the groups wholly present, widest first — possibly empty
+  /** The same groups, in the same order, each with its headings. */
+  named: AudienceGroupSummaryEntry[];
   others: number; // how many of the chosen people no named group accounts for
   noLongerSelectable: number; // chosen but the builder would no longer offer them; counted in total, never in others
   total: number; // how many people are chosen altogether
@@ -707,22 +902,33 @@ export function summariseAudienceGroups(
 ): AudienceGroupSummary {
   const { known, noLongerSelectable } = chosenIn(candidates, selected);
   const covered = new Set<string>();
-  const groups: string[] = [];
+  const named: AudienceGroupSummaryEntry[] = [];
 
   // LAN-414: every category, in the picker's own order, so the summary names a
   // sub-group the audience was actually built from instead of falling through
-  // to "and N others".
-  for (const option of audienceOptionsForEventType(eventType)) {
-    const wanted = peopleIn(candidates, groupSelectionKeys(candidates, option.token));
-    if (wanted.size === 0) continue;
-    if (![...wanted].every((personId) => known.has(personId))) continue;
-    if ([...wanted].every((personId) => covered.has(personId))) continue;
-    groups.push(option.label);
-    for (const personId of wanted) covered.add(personId);
+  // to "and N others". Round 2 carries the headings out with each label.
+  for (const section of audienceCategoriesForEventType(eventType)) {
+    for (const subSection of section.subSections) {
+      for (const option of subSection.options) {
+        const wanted = peopleIn(candidates, groupSelectionKeys(candidates, option.token));
+        if (wanted.size === 0) continue;
+        if (![...wanted].every((personId) => known.has(personId))) continue;
+        if ([...wanted].every((personId) => covered.has(personId))) continue;
+        named.push({
+          label: option.label,
+          category: section.category,
+          categoryLabel: section.label,
+          subCategory: subSection.subCategory,
+          subCategoryLabel: subSection.label,
+        });
+        for (const personId of wanted) covered.add(personId);
+      }
+    }
   }
 
   return {
-    groups,
+    groups: named.map((entry) => entry.label),
+    named,
     others: [...known].filter((personId) => !covered.has(personId)).length,
     noLongerSelectable,
     total: known.size + noLongerSelectable,

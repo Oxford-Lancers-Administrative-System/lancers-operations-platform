@@ -18,7 +18,7 @@ import {
 import type { MessagingPlan } from "@/lib/services/messaging-schedule";
 import { ApproveEventForm } from "../event-actions";
 import { MessagingPlanDisclosure, planForDisplay, WhatsAppErrorsAlert } from "./messaging-plan";
-import { AudienceList, describeAudienceShape } from "./audience-list";
+import { AudienceGroupHeadings, AudienceList, describeAudienceShape } from "./audience-list";
 import { QuestionList } from "./question-list";
 import {
   APPROVAL_HEADLINE_PREFIX,
@@ -151,9 +151,10 @@ export function ApprovalReview({
           <Typography variant="overline" color="text.secondary" component="p">
             Who will be asked
           </Typography>
-          <Typography variant="h6" component="p">
+          <Typography variant="h6" component="p" sx={{ mb: 1 }}>
             {describeAudienceShape(groupSummary)}
           </Typography>
+          <AudienceGroupHeadings summary={groupSummary} testId="approval-groups-by-category" />
         </Box>
 
         <Box

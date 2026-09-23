@@ -234,27 +234,50 @@ active players. Check it, change it, or add people by hand" — or says "Choose 
 this event is for" where the template names no groups (D47, reversing LAN-77's
 "nothing is selected to begin with").
 
-**The groups are offered under five collapsible category headers** (LAN-414,
-State of the App call, 2026-09-22), in this order, in the roster board's own
-band idiom. **General** arrives open; the other four arrive folded, and each
-header carries the number of its pills that are currently lit.
+**The picker is checklist bands** (LAN-414, State of the App call and Brian's
+visual review, 2026-09-22). Every category is a folding band in the roster
+board's own band idiom, using exactly the board's band colours, and inside it
+every group is a **tick-box row**. **General** and **Coaching assignments**
+arrive open; the other three arrive folded, and a band that has groups ticked
+in it says how many on its header.
 
-| Category             | What it offers                                                                                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| General              | Everyone active, All active players, All active coaches, All active committee, Onboarding, All Active BPS                                                 |
-| Coaching assignments | One pill per value of the coaching group, offensive position group and defensive position group columns — Offense, Quarterbacks, Linebackers and the rest |
-| Warmup assignments   | One pill per warmup small group — Kings, Raider, Bear, Phoenix, Cavalier, Blue, Gold, Lancer                                                              |
-| Special teams        | One pill per squad — Kick Return, Kickoff, Punt, Punt Return, Field Goal, Field Goal Block                                                                |
-| Recruits             | All active recruits, Identified, Engaged, Committed                                                                                                       |
+The pills that were here until 2026-09-22 are gone. Brian, on the built
+screen: "I think the pills don't make sense because when I click one pill
+that's all active, everything lights up. I think it should be more: I click a
+group, I see how many people there are and which groups I collect or not."
 
-Every pill says how many **people** it would invite, and a pill that would
-invite nobody cannot be pressed. A coaching or warmup pill resolves to everyone
-whose current-season roster row holds that value; a squad pill resolves to
-everyone holding **any** slot in that squad, starter or any backup (Stewart:
-"If you have an assignment in kick return, you need to get a message… even if
-they're backup three"). The same five categories are what the template editor
-offers for a default audience, what the approval review names, and what the
-event's own audience panel reads.
+| Category             | What it offers                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| General              | Everyone active and onboarding, Active and onboarding players, All active coaches, All active committee, Onboarding, All Active BPS                                            |
+| Coaching assignments | Three bands of its own, each folding separately: **Coaching groups**, **Offensive position groups** and **Defensive position groups**, one row per value of that roster column |
+| Warmup assignments   | One row per warmup small group — Kings, Raider, Bear, Phoenix, Cavalier, Blue, Gold, Lancer                                                                                    |
+| Special teams        | One row per squad — Kick Return, Kickoff, Punt, Punt Return, Field Goal, Field Goal Block                                                                                      |
+| Recruits             | All active recruits, Identified, Engaged, Committed                                                                                                                            |
+
+Every row carries the group's own head count in **people**, and at its right
+either **Selected**, **Included**, or `adds N`:
+
+- **Selected** — this row is ticked.
+- **Included** — every person in this group is already reached by what is
+  chosen, so ticking it would add nobody. An empty group never reads Included;
+  it reads `adds 0`, because there is nobody in it to already have.
+- `adds N` — ticking it would bring N people the selection has not reached.
+
+**A tick box is ticked because somebody ticked it, and nothing else ever moves
+it.** Tick Everyone active and onboarding and the narrower rows below it do not
+tick themselves: they say **Included**. Overlap is only ever a number. Untick a
+wide group and anyone a narrower ticked group still claims stays in. A sticky
+line at the top of the picker reads `<n> groups · <m> people`, and the
+resolved-people list below it is unchanged — an operator still sees exactly who
+the selection reaches, by name, before saving.
+
+A coaching or warmup row resolves to everyone whose current-season roster row
+holds that value; a squad row resolves to everyone holding **any** slot in that
+squad, starter or any backup (Stewart: "If you have an assignment in kick
+return, you need to get a message… even if they're backup three"). The same
+catalogue and the same picker are what the template editor offers for a default
+audience; the approval review and the event's own audience panel name the chosen
+groups under the same category and sub-category headings, in the same words.
 
 **Recruits are offered on every event type** (LAN-416, Brian, Stewart and
 Clint, 2026-09-22), amending D46/LAN-295's "a Recruits group appears on a
@@ -262,8 +285,8 @@ Recruitment event alone". Between the pure recruiting events and the first team
 practices there is a run of mixed events a good recruit who is not yet Joined
 had no way onto. Clint: "the type of an event pertains to what's actually going
 to happen at the event, not who's invited." A recruit is reachable **only**
-through the four Recruits pills — no General group and no assignment sub-group
-ever includes one, so pressing Everyone active on a Training event adds no
+through the four Recruits rows — no General group and no assignment sub-group
+ever includes one, so ticking Everyone active and onboarding on a Training event adds no
 recruits at all. Declined, disengaged, voided and joined recruits are never
 offered and never resolve; somebody who has Joined is a player and arrives
 through the player groups.
@@ -273,17 +296,24 @@ through the player groups.
 never folded into Active": Stewart, "when I hit all active players that should
 include the onboarding player"; Brian, "Onboarding is an administrative status
 internally… it's more of a marker to Clint." A rookie still finishing their
-items is on the team, and an operator pressing either button means everyone.
+items is on the team, and an operator ticking either row means everyone.
 **Onboarding stays as its own group**, because it is still the only way to reach
 _only_ those people — an onboarding-only social, in Brian's example. All active
 coaches and All active committee are unchanged: onboarding is a player fact, and
-no coaching seat or committee seat carries one. The labels are unchanged too;
-the count on each button is what makes the inclusion visible.
+no coaching seat or committee seat carries one.
+
+**The two labels say it** — _Everyone active and onboarding_ and _Active and
+onboarding players_ (Brian's visual review, 2026-09-22). LAN-415 left them
+reading "Everyone active" and "All active players" on the reasoning that the
+count beside each would make the inclusion visible; seeing the built screen
+Brian decided it would not. The two words an operator reads are the promise,
+and a count they would have to compare against another count is not one. The
+keys, the storage and the resolution are untouched.
 
 Nothing is backfilled. An event approved before this ships, whose audience is
-Everyone active or All active players, picks up its mid-onboarding people
-through LAN-392's live rule on the scheduler's next pass, and they are invited
-under that event's own rules.
+either of those two groups, picks up its mid-onboarding people through
+LAN-392's live rule on the scheduler's next pass, and they are invited under
+that event's own rules.
 
 The list is **people, one row each** (LAN-294): somebody who plays and also
 coaches or sits on the committee appears once, with every role on the row's

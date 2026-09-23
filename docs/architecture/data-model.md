@@ -1598,9 +1598,9 @@ two nulls as different and let the same `(event, coaching, 'Quarterbacks')` row
 be written twice, which is the duplicate the old `(event_id, audience_group)`
 key existed to prevent.
 
-**Who a sub-group resolves to.** A coaching pill matches a current-season roster
-row holding that `coach_group` or `position_group`; a warmup pill matches the
-one `warmup_group_assignments` cell; a squad pill matches **any** slot in that
+**Who a sub-group resolves to.** A coaching row matches a current-season roster
+row holding that `coach_group` or `position_group`; a warmup row matches the
+one `warmup_group_assignments` cell; a squad row matches **any** slot in that
 squad, starter or any backup — Stewart: "If you have an assignment in kick
 return, you need to get a message… even if they're backup three."
 `listAudienceCatalogueIn` carries those assignments on each candidate row, so
@@ -1610,14 +1610,14 @@ is a roster-board write, the chokepoint runs, and the person is added to every
 approved event whose rule names a group they now fall into.
 
 **The `recruits` enum value is retired in place.** LAN-416 replaced the single
-General `recruits` group with a Recruits category of four pills — all active
+General `recruits` group with a Recruits category of four rows — all active
 recruits, and one per open status. The old value is not dropped (an enum value
 cannot be, and rows held it) but converted: every stored `recruits` row becomes
 `category = 'recruits', value = 'all'`, which is the same audience under the new
 representation, and the representation check refuses it as a General group from
 here on. A recruit is now in every event type's catalogue, and the safety the
 old catalogue gate provided is carried by the groups instead: no General group
-and no assignment sub-group holds the `recruit` capacity, so the Recruits pills
+and no assignment sub-group holds the `recruit` capacity, so the Recruits rows
 are the only door. Brian: "no one on the recruit list is ever going to be
 \[included\] if you click all onboarding and all \[active\]."
 

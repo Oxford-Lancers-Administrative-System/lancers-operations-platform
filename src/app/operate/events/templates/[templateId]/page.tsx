@@ -2,11 +2,15 @@ import { PageHeader } from "@/components/page-header";
 import { Refusal } from "@/components/refusal";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
-import { audienceCategoriesForEventType } from "@/lib/services/audience-selection";
+import {
+  audienceCategoriesForEventType,
+  type AudienceCandidate,
+} from "@/lib/services/audience-selection";
 import { joinQuestionChoices } from "@/lib/services/event-questions";
 import {
   countEventsFromTemplate,
   readEventTemplate,
+  readTemplateAudienceCatalogue,
   type EventTemplate,
 } from "@/lib/services/event-templates";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
@@ -26,9 +30,13 @@ export default async function EventTemplatePage({
 
   let template: EventTemplate;
   let eventCount: number;
+  // LAN-414 round 2: the picker's rows carry a head count here too, so this
+  // screen reads the current season's catalogue alongside the template.
+  let candidates: AudienceCandidate[];
   try {
     template = await readEventTemplate(templateId);
     eventCount = await countEventsFromTemplate(templateId);
+    candidates = (await readTemplateAudienceCatalogue(template.eventType)).candidates;
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -81,6 +89,7 @@ export default async function EventTemplatePage({
         initial={initial}
         initialQuestions={initialQuestions}
         categories={audienceCategoriesForEventType(template.eventType, { templateOnly: true })}
+        candidates={candidates}
         eventCount={eventCount}
       />
     </Stack>

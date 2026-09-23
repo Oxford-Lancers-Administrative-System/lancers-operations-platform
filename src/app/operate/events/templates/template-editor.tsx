@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
 import { Field, NO_AUTOFILL, preventImplicitSubmit } from "@/components/field";
@@ -13,8 +13,14 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import type { AudienceCategorySection } from "@/lib/services/audience-selection";
-import { ControlledSection } from "@/components/controlled-section";
+import {
+  audienceGroupCounts,
+  resolveSelection,
+  selectionAfterGroupPress,
+  type AudienceCandidate,
+  type AudienceCategorySection,
+} from "@/lib/services/audience-selection";
+import { AudiencePicker } from "../audience-picker";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import {
   TEMPLATE_COLOUR_PALETTE,
@@ -62,6 +68,13 @@ export interface TemplateEditorProps {
   initialQuestions: RawEventQuestion[];
   /** LAN-414: the whole catalogue by category, the same one the event form shows. */
   categories: readonly AudienceCategorySection[];
+  /**
+   * LAN-414 round 2: the current season's selectable people, so the rows here
+   * carry the same head counts and overlap the event form's rows carry. A
+   * template has no date, so these are today's numbers — see
+   * `readTemplateAudienceCatalogue`.
+   */
+  candidates: readonly AudienceCandidate[];
   /** Decides whether Delete is offered — zero on an unused or new template. */
   eventCount: number;
 }
@@ -72,6 +85,7 @@ export default function TemplateEditor({
   initial,
   initialQuestions,
   categories,
+  candidates,
   eventCount,
 }: TemplateEditorProps) {
   const [previewState, previewAction, previewing] = useActionState(
@@ -108,11 +122,6 @@ export default function TemplateEditor({
   const [selected, setSelected] = useState<string[]>(() => [
     ...((initial.audienceGroups ?? []) as string[]),
   ]);
-  // LAN-414: General open, the rest folded — the same fold the event form's
-  // picker arrives in, so the two screens read the same way (rule 7).
-  const [openCategories, setOpenCategories] = useState<ReadonlySet<string>>(
-    () => new Set(["general"]),
-  );
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [...initialQuestions]);
   const [name, setName] = useState(text("name"));
   const [colourKey, setColourKey] = useState(text("colourKey"));
@@ -137,6 +146,40 @@ export default function TemplateEditor({
     duration !== "" && !TEMPLATE_DURATION_OPTIONS.includes(Number(duration))
       ? Number(duration)
       : null;
+
+  // LAN-414 round 2. The same three numbers the event form's picker shows,
+  // from the same service function: a template's default audience is judged on
+  // who it would reach exactly as an event's audience is, and the two screens
+  // have to answer "how many, and how many more" the same way (rule 7).
+  //
+  // `audienceKeys` replays the ticked groups in the order they were ticked,
+  // through the same press function the event form uses, so `adds` here means
+  // what it means there. It is a count for the operator's eye only: a template
+  // stores its groups, never these people, and D47 still resolves the list at
+  // the moment an event is created.
+  const selectedGroups = useMemo(() => new Set(selected), [selected]);
+  const audienceKeys = useMemo(() => {
+    let keys: ReadonlySet<string> = new Set<string>();
+    const pressed = new Set<string>();
+    for (const token of selected) {
+      keys = selectionAfterGroupPress(candidates, token, pressed, keys);
+      pressed.add(token);
+    }
+    return keys;
+  }, [candidates, selected]);
+  const groupCounts = useMemo(
+    () =>
+      audienceGroupCounts(
+        candidates,
+        categories.flatMap((section) => section.options.map((option) => option.token)),
+        audienceKeys,
+      ),
+    [candidates, categories, audienceKeys],
+  );
+  const audienceReach = useMemo(() => {
+    const resolution = resolveSelection(candidates, [...audienceKeys]);
+    return resolution.ok ? resolution.members.length : 0;
+  }, [candidates, audienceKeys]);
 
   function toggleGroup(token: string) {
     setSelected((current) =>
@@ -262,53 +305,15 @@ export default function TemplateEditor({
 
           <Section title={TEMPLATE_AUDIENCE_HEADLINE}>
             <Stack spacing={2}>
-              <Stack spacing={1} data-testid="template-audience-categories">
-                {categories.map((section) => {
-                  const chosen = section.options.filter((option) =>
-                    selected.includes(option.token),
-                  ).length;
-                  return (
-                    <ControlledSection
-                      key={section.category}
-                      title={section.label}
-                      count={chosen}
-                      open={openCategories.has(section.category)}
-                      onToggle={() =>
-                        setOpenCategories((current) => {
-                          const next = new Set(current);
-                          if (next.has(section.category)) next.delete(section.category);
-                          else next.add(section.category);
-                          return next;
-                        })
-                      }
-                      panelId={`template-audience-category-${section.category}`}
-                      toggleTestId={`template-audience-category-toggle-${section.category}`}
-                      countTestId={`template-audience-category-count-${section.category}`}
-                    >
-                      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                        {section.options.map((option) => {
-                          const on = selected.includes(option.token);
-                          return (
-                            <Button
-                              key={option.token}
-                              variant={on ? "contained" : "outlined"}
-                              size="small"
-                              aria-pressed={on}
-                              disabled={busy}
-                              onClick={() => toggleGroup(option.token)}
-                              data-testid="template-audience-group"
-                              data-group={option.token}
-                              sx={{ minHeight: 40 }}
-                            >
-                              {option.label}
-                            </Button>
-                          );
-                        })}
-                      </Stack>
-                    </ControlledSection>
-                  );
-                })}
-              </Stack>
+              <AudiencePicker
+                categories={categories}
+                counts={groupCounts}
+                selectedGroups={selectedGroups}
+                onToggleGroup={toggleGroup}
+                people={audienceReach}
+                onClear={() => setSelected([])}
+                disabled={busy}
+              />
               {selected.map((group) => (
                 <input key={group} type="hidden" name="audienceGroup" value={group} />
               ))}

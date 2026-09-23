@@ -530,6 +530,11 @@ function givenAudience(
   audience: AudienceMember[] = [],
   /** LAN-171: read for the plan disclosure. `null` for the screens that are not about it. */
   plan: MessagingPlan | null = null,
+  /**
+   * LAN-392's stored group rule, which LAN-414 round 2 made the picker's tick
+   * state as well. Empty for the screens that are not about it.
+   */
+  audienceGroups: string[] = [],
 ) {
   vi.mocked(readEventAudience).mockResolvedValue(audience);
   vi.mocked(readApprovalPreview).mockResolvedValue({
@@ -564,8 +569,8 @@ function givenAudience(
       "practice",
     ),
     // LAN-392: the stored group rule. Empty for these screens, which are not
-    // about it — the builder's own test is where the pressed groups are proved.
-    audienceGroups: [],
+    // about it — the builder's own test is where the ticked groups are proved.
+    audienceGroups,
     missing: [],
   });
 }
@@ -2085,6 +2090,39 @@ describe("UX-40 — building the audience", () => {
     return render(await EventDetailPage(detailProps({ step: "audience" })));
   }
 
+  /**
+   * LAN-414 round 2 — the picker is checklist bands, so a group is a row with
+   * a tick box rather than a pill. These three read one row.
+   */
+  function groupRow(token: string): HTMLElement {
+    const row = screen
+      .getAllByTestId("audience-group-row")
+      .find((node) => node.getAttribute("data-group") === token);
+    if (!row) throw new Error(`no group row for ${token}`);
+    return row;
+  }
+
+  function groupBox(token: string): HTMLInputElement {
+    return within(groupRow(token)).getByRole("checkbox") as HTMLInputElement;
+  }
+
+  /** The row's own head count, and its mark: "Selected", "Included" or "adds N". */
+  function groupNumbers(token: string): { size: string; mark: string } {
+    const row = within(groupRow(token));
+    return {
+      size: row.getByTestId("audience-group-size").textContent ?? "",
+      mark: flatten(row.getByTestId("audience-adds-mark").textContent),
+    };
+  }
+
+  /**
+   * The people list's own tick boxes. Scoped, because every group row in the
+   * picker above is a tick box now too.
+   */
+  function personBoxes(): HTMLElement[] {
+    return within(screen.getByTestId("candidate-list")).getAllByRole("checkbox");
+  }
+
   it("opens with nothing selected when the draft has no audience yet", async () => {
     await openBuilder();
 
@@ -2103,77 +2141,121 @@ describe("UX-40 — building the audience", () => {
 
     // The whole point of storing it: Edit draft and back must not lose it.
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
-    expect(
-      screen.getAllByRole("checkbox").filter((box) => (box as HTMLInputElement).checked),
-    ).toHaveLength(3);
+    expect(personBoxes().filter((box) => (box as HTMLInputElement).checked)).toHaveLength(3);
   });
 
   it("offers everyone-active first, and counts people rather than rows", async () => {
     await openBuilder();
 
-    const groups = screen
-      .getAllByRole("button")
-      .map((button) => button.textContent)
-      .filter((label) => label?.includes("active"));
+    const general = within(screen.getByTestId("section-audience-category-general"));
+    const rows = general.getAllByTestId("audience-group-row");
 
     // Brian asked for everyone first, and for the counts to be people: the
-    // fixture holds five rows for four humans, and the button says four.
-    expect(groups[0]).toBe("Everyone active (4)");
-    expect(groups).toContain("All active players (3)");
-    expect(groups).toContain("All active coaches (1)");
-    expect(groups).toContain("All active committee (1)");
+    // fixture holds five rows for four humans, and the row says four.
+    expect(rows[0].getAttribute("data-group")).toBe("everyone_active");
+    expect(groupNumbers("everyone_active").size).toBe("4");
+    expect(groupNumbers("active_players").size).toBe("3");
+    expect(groupNumbers("active_coaches").size).toBe("1");
+    expect(groupNumbers("active_committee").size).toBe("1");
+
+    // LAN-414 round 2: the two player-wide groups say what LAN-415 made them
+    // mean, rather than leaving the count to imply it.
+    expect(general.getByLabelText("Everyone active and onboarding")).toBeInTheDocument();
+    expect(general.getByLabelText("Active and onboarding players")).toBeInTheDocument();
   });
 
-  it("lights a group when its people are all in, and clears it when pressed again", async () => {
+  /**
+   * The heart of Brian's finding, 2026-09-22: "when I click one pill that's
+   * all active, everything lights up. I think it should be more: I click a
+   * group, I see how many people there are and which groups I collect or not."
+   *
+   * So ticking one row never moves another row's tick box. Overlap shows as a
+   * number, or as **Included** where the number would be nought.
+   */
+  it("never ticks a second row, and says Included instead", async () => {
     await openBuilder();
 
-    const everyone = screen.getByRole("button", { name: "Everyone active (4)" });
-    expect(everyone).toHaveAttribute("aria-pressed", "false");
+    expect(groupNumbers("active_players").mark).toBe("adds 3");
+    expect(groupNumbers("active_committee").mark).toBe("adds 1");
 
-    fireEvent.click(everyone);
-    expect(everyone).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(groupBox("everyone_active"));
+
+    expect(groupBox("everyone_active").checked).toBe(true);
+    // Every other group is wholly inside it — and none of them is ticked.
+    expect(groupBox("active_players").checked).toBe(false);
+    expect(groupBox("active_committee").checked).toBe(false);
+    expect(groupNumbers("everyone_active").mark).toBe("Selected");
+    expect(groupNumbers("active_players").mark).toBe("Included");
+    expect(groupNumbers("active_committee").mark).toBe("Included");
+  });
+
+  it("counts what a group would add beyond what is already chosen", async () => {
+    await openBuilder();
+
+    fireEvent.click(groupBox("active_coaches"));
+
+    // Casey North is the only coach and is not a player, so everyone-active
+    // brings the other three rather than all four.
+    expect(groupNumbers("active_coaches").mark).toBe("Selected");
+    expect(groupNumbers("everyone_active").mark).toBe("adds 3");
+    expect(groupNumbers("everyone_active").size).toBe("4");
+  });
+
+  it("reads a running total of groups and people at the top", async () => {
+    await openBuilder();
+
+    const summaryLine = () => flatten(screen.getByTestId("audience-selection-summary").textContent);
+    expect(summaryLine()).toContain("0 groups · 0 people");
+
+    fireEvent.click(groupBox("active_players"));
+    expect(summaryLine()).toContain("1 group · 3 people");
+
+    fireEvent.click(groupBox("active_coaches"));
+    expect(summaryLine()).toContain("2 groups · 4 people");
+  });
+
+  it("ticks and unticks a group, and the tick is the only thing that moves it", async () => {
+    await openBuilder();
+
+    const everyone = () => groupBox("everyone_active");
+    expect(everyone().checked).toBe(false);
+
+    fireEvent.click(everyone());
+    expect(everyone().checked).toBe(true);
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
 
-    fireEvent.click(everyone);
-    expect(everyone).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(everyone());
+    expect(everyone().checked).toBe(false);
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
   });
 
-  it("stops claiming a group is in when one of its people is unticked", async () => {
+  it("keeps a group ticked when one of its people is unticked", async () => {
+    // LAN-392's whole point, and now visible: the group is the rule, and the
+    // missing person is a deliberate exclusion. Under the pills the button
+    // went dark here and the exclusion became indistinguishable from never
+    // having chosen the group.
     await openBuilder();
 
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    fireEvent.click(groupBox("active_players"));
+    expect(groupBox("active_players").checked).toBe(true);
 
     fireEvent.click(screen.getByRole("checkbox", { name: /^Include Avery Fielding( —|$)/ }));
 
-    expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(groupBox("active_players").checked).toBe(true);
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 2 selected");
   });
 
-  it("stays lit when reopened from a saved audience", async () => {
-    // The bug this catches, found in the browser and by nothing else: a saved
-    // audience holds ONE key per person, and "Everyone active" spans several
-    // keys for anybody holding two capacities. Comparing keys rather than people
-    // left the button dark while every one of its people was already invited.
-    const everyone = SAVED_EVERYONE.map((member) => `${member.capacity}:${member.anchorId}`);
-    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE);
+  it("comes back ticked from a saved audience, from the groups that were saved", async () => {
+    // The pills inferred this from the people, which is what made a saved
+    // audience of one key per person read as an unpressed group. LAN-414 round
+    // 2 reads the saved groups instead, which is what LAN-392 already stored.
+    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE, null, ["everyone_active"]);
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps({ step: "audience" })));
 
-    expect(everyone).toHaveLength(4);
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
-    expect(screen.getByRole("button", { name: "Everyone active (4)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(groupBox("everyone_active").checked).toBe(true);
   });
 
   it("undoing a narrower group keeps somebody another group put there", async () => {
@@ -2186,35 +2268,30 @@ describe("UX-40 — building the audience", () => {
     // put them in; undoing the committee group must not take them out.
     await openBuilder();
 
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(groupBox("active_players"));
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
 
-    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+    fireEvent.click(groupBox("active_committee"));
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
 
-    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+    fireEvent.click(groupBox("active_committee"));
 
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
     expect(screen.getByRole("checkbox", { name: /^Include Morgan Pike( —|$)/ })).toBeChecked();
   });
 
-  it("never shrinks the audience when an already-lit group is pressed", async () => {
-    // The one-press variant, which needs no undo at all.
-    //
-    // Casey North is the only coach and is not a player, so selecting the
-    // players leaves the coaches button dark. The committee button is the one
-    // that lights, because its sole member Morgan Pike IS a selected player —
-    // and pressing a lit button must never subtract.
+  it("keeps the people another ticked group also claims when a group is unticked", async () => {
+    // Casey North is the only coach and is not a player. Morgan Pike is both a
+    // player and the sole committee member, so unticking the committee must
+    // leave them behind — the players group is still ticked and still claims
+    // them. Overlap is a number on the screen, and a kept key in the write.
     await openBuilder();
 
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(groupBox("active_committee"));
     const before = screen.getByTestId("review-selection").textContent;
 
-    expect(screen.getByRole("button", { name: "All active committee (1)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+    fireEvent.click(groupBox("active_committee"));
 
     expect(screen.getByTestId("review-selection").textContent).toBe(before);
     for (const name of ["Avery Fielding", "Samira Quinn", "Morgan Pike"]) {
@@ -2224,15 +2301,15 @@ describe("UX-40 — building the audience", () => {
     }
   });
 
-  it("clears the whole selection when everyone-active is un-pressed", async () => {
-    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE);
+  it("clears the whole selection when everyone-active is unticked", async () => {
+    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE, null, ["everyone_active"]);
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps({ step: "audience" })));
 
-    // The case the old test covered, kept: for this one group, its keys are all
-    // the keys, so pressing it does clear everything.
-    fireEvent.click(screen.getByRole("button", { name: "Everyone active (4)" }));
+    // For this one group, its keys are all the keys and nothing else is
+    // ticked, so unticking it does clear everything.
+    fireEvent.click(groupBox("everyone_active"));
 
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
     for (const box of screen.getAllByRole("checkbox")) {
@@ -2244,7 +2321,7 @@ describe("UX-40 — building the audience", () => {
     await openBuilder();
 
     // Morgan Pike is an active player and the Secretary. One invitation.
-    fireEvent.click(screen.getByRole("button", { name: "Everyone active (4)" }));
+    fireEvent.click(groupBox("everyone_active"));
 
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
     // And no sentence explaining the arithmetic — Brian removed it.
@@ -2263,9 +2340,9 @@ describe("UX-40 — building the audience", () => {
   it("lists a person holding two capacities as one row", async () => {
     await openBuilder();
 
-    // Five candidate rows, four humans — and four checkboxes.
+    // Five candidate rows, four humans — and four tick boxes in the list.
     expect(AUDIENCE).toHaveLength(5);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
+    expect(personBoxes()).toHaveLength(4);
     expect(screen.getAllByRole("checkbox", { name: /^Include Morgan Pike( —|$)/ })).toHaveLength(1);
   });
 
@@ -2300,11 +2377,10 @@ describe("UX-40 — building the audience", () => {
     fireEvent.click(morgan());
     expect(morgan()).toBeChecked();
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 1 selected");
-    // Both of their keys went in, so the group they complete is lit as well.
-    expect(screen.getByRole("button", { name: "All active committee (1)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    // Both of their keys went in. The committee group is not *ticked* — nobody
+    // ticked it — but its row now says the selection already covers it.
+    expect(groupBox("active_committee").checked).toBe(false);
+    expect(groupNumbers("active_committee").mark).toBe("Included");
 
     fireEvent.click(morgan());
     expect(morgan()).not.toBeChecked();
@@ -2346,38 +2422,42 @@ describe("UX-40 — building the audience", () => {
       return render(await EventDetailPage(detailProps({ step: "audience" })));
     }
 
-    it("offers an Onboarding button that counts them, and counts them in Active too", async () => {
+    it("offers an Onboarding row that counts them, and counts them in Active too", async () => {
       await openWithOnboarding();
 
-      expect(screen.getByRole("button", { name: "Onboarding (1)" })).toBeEnabled();
+      expect(groupNumbers("onboarding").size).toBe("1");
       // LAN-415: the counts say so. The two player-wide groups each gained the
       // one mid-onboarding person — 3 players and 4 people without them.
-      expect(screen.getByRole("button", { name: "All active players (4)" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Everyone active (5)" })).toBeVisible();
+      expect(groupNumbers("active_players").size).toBe("4");
+      expect(groupNumbers("everyone_active").size).toBe("5");
+      // LAN-414 round 2: and now their labels say so too.
+      const general = within(screen.getByTestId("section-audience-category-general"));
+      expect(general.getByLabelText("Active and onboarding players")).toBeInTheDocument();
+      expect(general.getByLabelText("Everyone active and onboarding")).toBeInTheDocument();
     });
 
-    it("selects and counts them from that button", async () => {
+    it("selects and counts them from that row", async () => {
       await openWithOnboarding();
 
-      fireEvent.click(screen.getByRole("button", { name: "Onboarding (1)" }));
+      fireEvent.click(groupBox("onboarding"));
 
       expect(screen.getByTestId("review-selection").textContent).toBe("Review 1 selected");
       expect(screen.getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })).toBeChecked();
-      // Pressing Onboarding alone does not light All active players: that
-      // group wants three more people than this press selected.
-      expect(screen.getByRole("button", { name: "All active players (4)" })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
+      // Ticking Onboarding alone leaves the players row untouched and saying
+      // it would bring three more people.
+      expect(groupBox("active_players").checked).toBe(false);
+      expect(groupNumbers("active_players").mark).toBe("adds 3");
     });
 
-    it("includes them when All active players is pressed instead — LAN-415", async () => {
+    it("includes them when Active and onboarding players is ticked instead — LAN-415", async () => {
       await openWithOnboarding();
 
-      fireEvent.click(screen.getByRole("button", { name: "All active players (4)" }));
+      fireEvent.click(groupBox("active_players"));
 
       expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
       expect(screen.getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })).toBeChecked();
+      // And the Onboarding row says why it is not worth ticking as well.
+      expect(groupNumbers("onboarding").mark).toBe("Included");
     });
 
     it("states their standing on their row, as a label and nothing more", async () => {
@@ -2389,10 +2469,13 @@ describe("UX-40 — building the audience", () => {
       expect(flatten(row?.textContent ?? null)).toContain("Player · Onboarding");
     });
 
-    it("is a button an event with nobody onboarding cannot press", async () => {
+    it("reads nought, and never Included, on an event with nobody onboarding", async () => {
+      // LAN-414 round 2. The pill was disabled at (0); the row is a tick box
+      // that says nought and adds nought. It is never **Included**, because
+      // there is nobody in it to already have.
       await openBuilder();
 
-      expect(screen.getByRole("button", { name: "Onboarding (0)" })).toBeDisabled();
+      expect(groupNumbers("onboarding")).toEqual({ size: "0", mark: "adds 0" });
     });
   });
 
@@ -2403,30 +2486,70 @@ describe("UX-40 — building the audience", () => {
    * add a recruit is by going to a special recruitment column and adding them."
    *
    * So the Recruits category is here on a practice, and this fixture's
-   * catalogue holds no recruit at all: the pills are offered, each says (0) and
-   * cannot be pressed, no recruit row appears, and no General pill would have
-   * reached one anyway.
+   * catalogue holds no recruit at all: the rows are offered, each reads nought,
+   * no recruit row appears in the list, and no General group would have reached
+   * one anyway.
    */
   it("offers the Recruits category on a practice, with nobody behind it here", async () => {
     await openBuilder();
 
     expect(AUDIENCE.some((entry) => entry.capacity === "recruit")).toBe(false);
 
-    fireEvent.click(screen.getByTestId("audience-category-toggle-recruits"));
+    const recruits = within(screen.getByTestId("section-audience-category-recruits"));
     for (const label of ["All active recruits", "Identified", "Engaged", "Committed"]) {
-      expect(screen.getByRole("button", { name: `${label} (0)` })).toBeDisabled();
+      expect(recruits.getByLabelText(label)).toBeInTheDocument();
+    }
+    for (const token of ["recruits:all", "recruits:identified", "recruits:engaged"]) {
+      expect(groupNumbers(token)).toEqual({ size: "0", mark: "adds 0" });
     }
 
     expect(flatten(screen.getByTestId("candidate-list").textContent)).not.toContain("Recruit");
     expect(screen.queryByRole("option", { name: /Recruits/ })).toBeNull();
   });
 
+  /**
+   * LAN-414 round 2, Brian: "Coaching assignments splits into three
+   * sub-categories, each folding on its own." The bands are the roster
+   * board's own — `Section variant="banded"` with `BAND_COLOURS`, no new tone.
+   */
+  it("bands every category, and folds Coaching assignments into three", async () => {
+    await openBuilder();
+
+    expect(
+      screen
+        .getAllByTestId(/^section-audience-category-/)
+        .map((node) => node.getAttribute("data-band")),
+    ).toEqual(["season", "coaching", "warmup", "specialTeams", "recruitment"]);
+
+    const coaching = within(screen.getByTestId("section-audience-category-coaching"));
+    expect(
+      coaching
+        .getAllByTestId(/^section-audience-subcategory-/)
+        .map((node) => node.getAttribute("data-band")),
+    ).toEqual(["coaching", "offensive", "defensive"]);
+    expect(coaching.getByText("Coaching groups")).toBeInTheDocument();
+    expect(coaching.getByText("Offensive position groups")).toBeInTheDocument();
+    expect(coaching.getByText("Defensive position groups")).toBeInTheDocument();
+  });
+
+  it("folds and unfolds a band without touching the selection", async () => {
+    await openBuilder();
+
+    const warmup = screen.getByTestId("section-audience-category-warmup");
+    expect(warmup).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-audience-category-general")).toHaveAttribute("open");
+
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(within(warmup).getByText("Warmup assignments"));
+
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+  });
+
   it("sorts the chosen people to the top", async () => {
     await openBuilder();
 
     const names = () =>
-      screen
-        .getAllByRole("checkbox")
+      personBoxes()
         .map((box) => box.getAttribute("aria-label") ?? "")
         .map((label) => label.replace(/^Include /, "").replace(/ — .*$/, ""));
 
@@ -2444,12 +2567,12 @@ describe("UX-40 — building the audience", () => {
     fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
       target: { value: "casey" },
     });
-    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(personBoxes()).toHaveLength(1);
 
     fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
       target: { value: "Head Coach" },
     });
-    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(personBoxes()).toHaveLength(1);
 
     fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
       target: { value: "nobody at all" },
@@ -2459,7 +2582,7 @@ describe("UX-40 — building the audience", () => {
 
   it("posts exactly the ticked people to be saved", async () => {
     await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(groupBox("active_players"));
 
     const posted = [...document.querySelectorAll('input[name="audienceKey"]')].map(
       (input) => (input as HTMLInputElement).value,
@@ -2474,12 +2597,12 @@ describe("UX-40 — building the audience", () => {
   });
 
   /**
-   * LAN-392. The pressed group is a third thing the form posts, beside the
+   * LAN-392. The ticked group is a third thing the form posts, beside the
    * keys, because it cannot be recovered from them: untick one of the three and
-   * every derivation of "All active players was chosen" goes out with them,
-   * along with the fact that the one person was left out on purpose. The event
-   * keeps that pressed group as its rule once it is approved, so what is posted
-   * here is what a recruit joining next Tuesday falls into.
+   * every derivation of "Active and onboarding players was chosen" goes out
+   * with them, along with the fact that the one person was left out on purpose.
+   * The event keeps that group as its rule once it is approved, so what is
+   * posted here is what a recruit joining next Tuesday falls into.
    */
   function postedGroups(): string[] {
     return [...document.querySelectorAll('input[name="audienceGroup"]')].map(
@@ -2487,16 +2610,16 @@ describe("UX-40 — building the audience", () => {
     );
   }
 
-  it("posts the group that was pressed, beside the keys", async () => {
+  it("posts the group that was ticked, beside the keys", async () => {
     await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(groupBox("active_players"));
     expect(postedGroups()).toEqual(["active_players"]);
   });
 
   it("keeps posting the group after one of its people is unticked", async () => {
     await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    fireEvent.click(screen.getAllByRole("checkbox")[0]);
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(personBoxes()[0]);
 
     // Two keys, and still the group: this pair is exactly what makes an
     // exclusion recordable — the group is the rule, and the missing person is
@@ -2505,20 +2628,20 @@ describe("UX-40 — building the audience", () => {
     expect(postedGroups()).toEqual(["active_players"]);
   });
 
-  it("stops posting the group when the group button is pressed off", async () => {
+  it("stops posting the group when its row is unticked", async () => {
     await openBuilder();
-    const button = screen.getByRole("button", { name: "All active players (3)" });
-    fireEvent.click(button);
-    fireEvent.click(button);
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(groupBox("active_players"));
     expect(postedGroups()).toEqual([]);
     expect(document.querySelectorAll('input[name="audienceKey"]')).toHaveLength(0);
   });
 
-  it("clears the pressed groups with the selection", async () => {
+  it("clears the ticked groups with the selection", async () => {
     await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(screen.getByTestId("audience-clear"));
     expect(postedGroups()).toEqual([]);
+    expect(groupBox("active_players").checked).toBe(false);
   });
 });
 
@@ -3272,8 +3395,9 @@ describe("a draft that already carries an audience", () => {
         personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp2",
         displayName: "Samira Quinn",
       }),
-      // An unselected coach in the catalogue, so "Everyone active" is not
-      // wholly present and "All active players" is the group that names.
+      // An unselected coach in the catalogue, so "Everyone active and
+      // onboarding" is not wholly present and the players group is the one
+      // that names.
       candidate({
         capacity: "coach",
         anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
@@ -3285,7 +3409,7 @@ describe("a draft that already carries an audience", () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 2 }));
     vi.mocked(readEventAudience).mockResolvedValue(bothPlayers);
     // The exact function the approval review uses to name groups — reused,
-    // not reimplemented, so "All active players" only ever means one thing.
+    // not reimplemented, so the players group only ever means one thing.
     vi.mocked(readEventAudienceGroupSummary).mockResolvedValue(
       summariseAudienceGroups(
         twoPlayers,
@@ -3297,12 +3421,18 @@ describe("a draft that already carries an audience", () => {
     const { container } = render(await EventDetailPage(detailProps()));
 
     const shape = flatten(screen.getByTestId("audience-shape").textContent);
-    expect(shape).toBe("All active players — 2 people");
+    expect(shape).toBe("Active and onboarding players — 2 people");
     // At the head of the list — before the names, not instead of them.
     expect(container.innerHTML.indexOf('data-testid="audience-shape"')).toBeLessThan(
       container.innerHTML.indexOf('data-testid="event-audience"'),
     );
     expect(within(screen.getByTestId("event-audience")).getByText("Avery Fielding")).toBeVisible();
+
+    // LAN-414 round 2: and under the picker's own heading, so the operator can
+    // check the audience against what they ticked in the same words.
+    const headings = within(screen.getByTestId("audience-groups-by-category"));
+    expect(headings.getByText("General")).toBeVisible();
+    expect(headings.getByText("Active and onboarding players")).toBeVisible();
   });
 
   /**

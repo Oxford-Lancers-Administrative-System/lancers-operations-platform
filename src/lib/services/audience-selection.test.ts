@@ -27,17 +27,16 @@ import {
   AUDIENCE_GROUPS,
   audienceCategoriesForEventType,
   audienceOptionsForEventType,
+  audienceGroupCounts,
   audiencePeople,
-  groupIsSelected,
   groupSelectionKeys,
-  groupSize,
   groupsForEventType,
   RECRUITMENT_EVENT_TYPE,
   resolveSelection,
+  selectionAfterGroupPress,
   selectionKey,
   summariseAudienceGroups,
   templateGroupsForEventType,
-  toggleGroup,
   type AudienceCandidate,
 } from "./audience-selection";
 
@@ -108,17 +107,25 @@ function peopleNamed(selected: ReadonlySet<string>): string[] {
   return resolution.ok ? resolution.members.map((member) => member.displayName).sort() : [];
 }
 
+/** One group's row, against a selection — the picker's three numbers. */
+function countFor(token: string, selected: Iterable<string> = []) {
+  const counts = audienceGroupCounts(CLUB, [token], selected);
+  const count = counts.get(token);
+  if (!count) throw new Error(`no count for ${token}`);
+  return count;
+}
+
 describe("group sizes count people, not rows", () => {
   it("counts the union once for everyone-active", () => {
     // Six rows, four humans.
     expect(CLUB).toHaveLength(6);
-    expect(groupSize(CLUB, EVERYONE)).toBe(4);
+    expect(countFor(EVERYONE).size).toBe(4);
   });
 
   it("counts each narrower group by its own members", () => {
-    expect(groupSize(CLUB, PLAYERS)).toBe(2);
-    expect(groupSize(CLUB, COACHES)).toBe(1);
-    expect(groupSize(CLUB, COMMITTEE)).toBe(3);
+    expect(countFor(PLAYERS).size).toBe(2);
+    expect(countFor(COACHES).size).toBe(1);
+    expect(countFor(COMMITTEE).size).toBe(3);
   });
 
   it("offers everyone-active first", () => {
@@ -126,28 +133,115 @@ describe("group sizes count people, not rows", () => {
   });
 });
 
-describe("pressing a group adds exactly its own keys", () => {
+/**
+ * LAN-414 round 2 — the overlap arithmetic behind `adds N` / **Included**.
+ *
+ * Brian: "I click a group, I see how many people there are and which groups I
+ * collect or not." These are the numbers that sentence turns into, and they are
+ * about **people**: a person in two chosen groups is counted once, and a group
+ * the selection already covers adds nobody.
+ */
+describe("what a group would add beyond the current selection", () => {
+  it("adds its whole size against an empty selection", () => {
+    const count = countFor(EVERYONE);
+    expect(count.size).toBe(4);
+    expect(count.adds).toBe(4);
+    expect(count.included).toBe(false);
+  });
+
+  it("counts a person in two chosen groups once", () => {
+    // Ada is a player and on the committee — two rows, two keys, one human.
+    // Players (2) plus committee (3) is five rows and four people, so
+    // everyone-active adds nothing beyond them rather than four.
+    const players = selectionAfterGroupPress(CLUB, PLAYERS, new Set(), new Set());
+    const both = selectionAfterGroupPress(CLUB, COMMITTEE, new Set([PLAYERS]), players);
+
+    expect(peopleNamed(both)).toHaveLength(4);
+    expect(countFor(EVERYONE, both).adds).toBe(0);
+  });
+
+  it("calls a group Included when the selection already covers everyone in it", () => {
+    const everyone = selectionAfterGroupPress(CLUB, EVERYONE, new Set(), new Set());
+
+    const players = countFor(PLAYERS, everyone);
+    expect(players.size).toBe(2);
+    expect(players.adds).toBe(0);
+    expect(players.included).toBe(true);
+  });
+
+  it("counts only the people a selection has not reached", () => {
+    // Coaches alone is Cy. Everyone-active is four people, so it adds the
+    // other three, not all four.
+    const coaches = selectionAfterGroupPress(CLUB, COACHES, new Set(), new Set());
+
+    expect(peopleNamed(coaches)).toEqual(["Cy Marchbank"]);
+    expect(countFor(EVERYONE, coaches).adds).toBe(3);
+  });
+
+  it("never calls an empty group Included, because there is nobody in it", () => {
+    // Nobody in this club holds a special-teams slot, so the row is a nought
+    // that adds nought — and saying "Included" would read as "you have them".
+    const empty = countFor("special_teams:kickoff", [selectionKey("player", "membership-ada")]);
+    expect(empty.size).toBe(0);
+    expect(empty.adds).toBe(0);
+    expect(empty.included).toBe(false);
+  });
+
+  it("ignores a key the catalogue no longer offers rather than blanking every row", () => {
+    // A membership that changed under a saved audience narrows what is
+    // reached; it does not make the picker's numbers meaningless.
+    const stale = new Set([selectionKey("player", "membership-gone")]);
+    expect(countFor(PLAYERS, stale).adds).toBe(2);
+  });
+
+  it("answers every token in one read, in one pass", () => {
+    const tokens = [EVERYONE, PLAYERS, COACHES, COMMITTEE];
+    const counts = audienceGroupCounts(CLUB, tokens, []);
+
+    expect([...counts.keys()]).toEqual(tokens);
+    expect(counts.get(PLAYERS)?.size).toBe(2);
+    expect(counts.get(COMMITTEE)?.size).toBe(3);
+  });
+});
+
+describe("ticking a group adds exactly its own keys", () => {
   it("adds a group to an empty selection", () => {
-    const next = toggleGroup(CLUB, PLAYERS, new Set());
+    const next = selectionAfterGroupPress(CLUB, PLAYERS, new Set(), new Set());
     expect([...next].sort()).toEqual(groupSelectionKeys(CLUB, PLAYERS).sort());
     expect(peopleNamed(next)).toEqual(["Ada Kettle", "Bo Rivers"]);
   });
 
   it("unions with what is already selected", () => {
-    const players = toggleGroup(CLUB, PLAYERS, new Set());
-    const both = toggleGroup(CLUB, COMMITTEE, players);
+    const players = selectionAfterGroupPress(CLUB, PLAYERS, new Set(), new Set());
+    const both = selectionAfterGroupPress(CLUB, COMMITTEE, new Set([PLAYERS]), players);
     expect(peopleNamed(both)).toEqual(["Ada Kettle", "Bo Rivers", "Cy Marchbank", "Di Ashgrove"]);
+  });
+
+  /**
+   * LAN-414 round 2. A group is ticked because somebody ticked it, so a group
+   * whose people are all chosen already is still *untick*ed — pressing it adds
+   * its keys rather than taking them away. Under the pills this case removed
+   * people, because the pill decided it was lit by inference; it is the same
+   * inference Brian rejected on sight.
+   */
+  it("adds, not removes, when the selection already covers the group", () => {
+    const everyone = selectionAfterGroupPress(CLUB, EVERYONE, new Set(), new Set());
+    expect(countFor(PLAYERS, everyone).included).toBe(true);
+
+    const after = selectionAfterGroupPress(CLUB, PLAYERS, new Set([EVERYONE]), everyone);
+
+    expect(peopleNamed(after)).toEqual(peopleNamed(everyone));
   });
 });
 
-describe("pressing a lit group removes exactly its own keys", () => {
+describe("unticking a group removes exactly its own keys", () => {
   it("keeps somebody a different group put there", () => {
     // The original defect: Ada is a player and on the committee. Undoing the
     // committee group must not take away her player selection.
-    const players = toggleGroup(CLUB, PLAYERS, new Set());
-    const both = toggleGroup(CLUB, COMMITTEE, players);
+    const players = selectionAfterGroupPress(CLUB, PLAYERS, new Set(), new Set());
+    const both = selectionAfterGroupPress(CLUB, COMMITTEE, new Set([PLAYERS]), players);
 
-    const undone = toggleGroup(CLUB, COMMITTEE, both);
+    const undone = selectionAfterGroupPress(CLUB, COMMITTEE, new Set([PLAYERS, COMMITTEE]), both);
 
     expect(peopleNamed(undone)).toEqual(["Ada Kettle", "Bo Rivers"]);
     expect(undone.has(selectionKey("player", "membership-ada"))).toBe(true);
@@ -158,12 +252,17 @@ describe("pressing a lit group removes exactly its own keys", () => {
     // Cy is a coach AND on the committee, and both anchor on the same person id,
     // so `coach:person-cy` and `committee:person-cy` differ only by capacity.
     // Removing by anchor would take both; removing by key takes one.
-    const coaches = toggleGroup(CLUB, COACHES, new Set());
-    const both = toggleGroup(CLUB, COMMITTEE, coaches);
+    const coaches = selectionAfterGroupPress(CLUB, COACHES, new Set(), new Set());
+    const both = selectionAfterGroupPress(CLUB, COMMITTEE, new Set([COACHES]), coaches);
     expect(both.has(selectionKey("coach", CY))).toBe(true);
     expect(both.has(selectionKey("committee", CY))).toBe(true);
 
-    const withoutCommittee = toggleGroup(CLUB, COMMITTEE, both);
+    const withoutCommittee = selectionAfterGroupPress(
+      CLUB,
+      COMMITTEE,
+      new Set([COACHES, COMMITTEE]),
+      both,
+    );
 
     expect(withoutCommittee.has(selectionKey("coach", CY))).toBe(true);
     expect(withoutCommittee.has(selectionKey("committee", CY))).toBe(false);
@@ -172,48 +271,40 @@ describe("pressing a lit group removes exactly its own keys", () => {
     expect(peopleNamed(withoutCommittee)).toEqual(["Cy Marchbank"]);
   });
 
-  it("clears everything when everyone-active is un-pressed", () => {
-    const all = toggleGroup(CLUB, EVERYONE, new Set());
-    expect(toggleGroup(CLUB, EVERYONE, all).size).toBe(0);
-  });
-});
-
-describe("a lit group whose own keys are not selected", () => {
   /**
-   * The known consequence of lighting by person and removing by key, disclosed
-   * in `toggleGroup` and pinned here so a later change cannot alter it silently.
-   *
-   * After a save and reload the stored audience holds ONE key per person, at
-   * their highest-precedence capacity. Ada comes back as a player only, so the
-   * committee button is lit — everybody in that group is invited — while none of
-   * its own keys are present.
+   * LAN-414 round 2. Overlap is a number on the screen, and it has to be a
+   * number in the write too: unticking a wide group keeps the people a
+   * narrower ticked group is still claiming.
    */
-  const RESTORED = new Set([selectionKey("player", "membership-ada")]);
+  it("keeps the keys another ticked group also claims", () => {
+    const everyone = selectionAfterGroupPress(CLUB, EVERYONE, new Set(), new Set());
+    const both = selectionAfterGroupPress(CLUB, PLAYERS, new Set([EVERYONE]), everyone);
 
-  it("is lit, because everybody in it is invited", () => {
-    expect(groupIsSelected(CLUB, COMMITTEE, RESTORED)).toBe(false);
-    // Di and Cy are not in the restored selection, so the committee group is not
-    // fully covered. Narrow it to a club where it is.
-    const adaOnly = CLUB.filter((entry) => entry.personId === ADA);
-    expect(groupIsSelected(adaOnly, COMMITTEE, RESTORED)).toBe(true);
+    const untickEveryone = selectionAfterGroupPress(
+      CLUB,
+      EVERYONE,
+      new Set([EVERYONE, PLAYERS]),
+      both,
+    );
+
+    // The players stay, because Active and onboarding players is still ticked.
+    expect(peopleNamed(untickEveryone)).toEqual(["Ada Kettle", "Bo Rivers"]);
   });
 
-  it("does nothing when pressed, rather than removing somebody it did not add", () => {
-    const adaOnly = CLUB.filter((entry) => entry.personId === ADA);
-    expect(groupIsSelected(adaOnly, COMMITTEE, RESTORED)).toBe(true);
-
-    const pressed = toggleGroup(adaOnly, COMMITTEE, RESTORED);
-
-    // The old behaviour removed Ada entirely here. The current behaviour leaves
-    // the selection untouched: those people are still all invited, which is what
-    // the lit button says.
-    expect([...pressed]).toEqual([...RESTORED]);
+  it("clears everything when everyone-active is unticked", () => {
+    const all = selectionAfterGroupPress(CLUB, EVERYONE, new Set(), new Set());
+    expect(selectionAfterGroupPress(CLUB, EVERYONE, new Set([EVERYONE]), all).size).toBe(0);
   });
 });
 
 describe("resolution is unaffected by how a person was selected", () => {
   it("invites one person once, at the highest-precedence capacity", () => {
-    const both = toggleGroup(CLUB, COMMITTEE, toggleGroup(CLUB, PLAYERS, new Set()));
+    const both = selectionAfterGroupPress(
+      CLUB,
+      COMMITTEE,
+      new Set([PLAYERS]),
+      selectionAfterGroupPress(CLUB, PLAYERS, new Set(), new Set()),
+    );
     const resolution = resolveSelection(CLUB, [...both]);
 
     expect(resolution.ok).toBe(true);
@@ -290,7 +381,7 @@ describe("a Recruits category, on every event type (LAN-416, amending D46)", () 
 
   it("does not fold recruits into everyone-active", () => {
     // D45: inactive people are never invited, and a prospect is not a member.
-    // "Everyone active" means the roster, and a recruit is deliberately not on
+    // "Everyone active and onboarding" means the roster, and a recruit is deliberately not on
     // it — `recruitment_prospects` exists so the roster keeps meaning "people
     // on the team".
     const everyone = AUDIENCE_GROUPS.find((group) => group.key === EVERYONE)!;
@@ -307,7 +398,7 @@ describe("the audience named by its groups before its people", () => {
   it("names the widest group that is wholly in, and not the ones it subsumes", () => {
     const summary = summariseAudienceGroups(CLUB, groupSelectionKeys(CLUB, EVERYONE), "practice");
 
-    expect(summary.groups).toEqual(["Everyone active"]);
+    expect(summary.groups).toEqual(["Everyone active and onboarding"]);
     expect(summary.others).toBe(0);
     expect(summary.total).toBe(4);
   });
@@ -317,7 +408,7 @@ describe("the audience named by its groups before its people", () => {
 
     const summary = summariseAudienceGroups(CLUB, chosen, "practice");
 
-    expect(summary.groups).toEqual(["All active players", "All active coaches"]);
+    expect(summary.groups).toEqual(["Active and onboarding players", "All active coaches"]);
     expect(summary.total).toBe(3);
   });
 
@@ -338,7 +429,7 @@ describe("the audience named by its groups before its people", () => {
 
     const summary = summariseAudienceGroups(CLUB, chosen, "practice");
 
-    expect(summary.groups).toEqual(["All active players"]);
+    expect(summary.groups).toEqual(["Active and onboarding players"]);
     expect(summary.others).toBe(1);
     expect(summary.total).toBe(3);
   });
@@ -354,6 +445,7 @@ describe("the audience named by its groups before its people", () => {
   it("is empty for an empty audience, and says so as a count", () => {
     expect(summariseAudienceGroups(CLUB, [], "practice")).toEqual({
       groups: [],
+      named: [],
       others: 0,
       noLongerSelectable: 0,
       total: 0,
@@ -406,7 +498,7 @@ describe("the audience named by its groups before its people", () => {
         "practice",
       );
 
-      expect(summary.groups).toContain("All active players");
+      expect(summary.groups).toContain("Active and onboarding players");
     });
 
     it("still refuses to name a group the audience only partly holds", () => {
@@ -415,7 +507,7 @@ describe("the audience named by its groups before its people", () => {
       const players = groupSelectionKeys(CLUB, PLAYERS);
       const summary = summariseAudienceGroups(CLUB, [...players.slice(1), GONE], "practice");
 
-      expect(summary.groups).not.toContain("All active players");
+      expect(summary.groups).not.toContain("Active and onboarding players");
     });
 
     it("counts one absent person once, however many times their key is listed", () => {
@@ -712,7 +804,7 @@ const ONBOARDING = "onboarding";
 
 describe("Onboarding is its own audience group", () => {
   it("offers exactly the mid-onboarding people, and counts them", () => {
-    expect(groupSize(MID_SEASON, ONBOARDING)).toBe(2);
+    expect(audienceGroupCounts(MID_SEASON, [ONBOARDING], []).get(ONBOARDING)?.size).toBe(2);
     expect(groupSelectionKeys(MID_SEASON, ONBOARDING)).toEqual([
       selectionKey("player", "membership-wren"),
       selectionKey("player", "membership-fen"),
@@ -727,8 +819,8 @@ describe("Onboarding is its own audience group", () => {
    */
   it("no longer keeps them out of Active — both player-wide groups reach them", () => {
     // Bo (active), Wren and Fen (both mid-onboarding).
-    expect(groupSize(MID_SEASON, PLAYERS)).toBe(3);
-    expect(groupSize(MID_SEASON, EVERYONE)).toBe(3);
+    expect(audienceGroupCounts(MID_SEASON, [PLAYERS], []).get(PLAYERS)?.size).toBe(3);
+    expect(audienceGroupCounts(MID_SEASON, [EVERYONE], []).get(EVERYONE)?.size).toBe(3);
     expect(groupSelectionKeys(MID_SEASON, PLAYERS)).toEqual([
       selectionKey("player", "membership-bo"),
       selectionKey("player", "membership-wren"),
@@ -820,11 +912,19 @@ describe("Onboarding is its own audience group", () => {
     expect(summary.total).toBe(2);
   });
 
-  it("lights and clears its button like any other group", () => {
-    const lit = toggleGroup(MID_SEASON, ONBOARDING, new Set());
-    expect(groupIsSelected(MID_SEASON, ONBOARDING, lit)).toBe(true);
-    expect(groupIsSelected(MID_SEASON, PLAYERS, lit)).toBe(false);
-    expect(toggleGroup(MID_SEASON, ONBOARDING, lit).size).toBe(0);
+  it("ticks and clears its row like any other group", () => {
+    const ticked = selectionAfterGroupPress(MID_SEASON, ONBOARDING, new Set(), new Set());
+
+    // LAN-414 round 2: the row's mark, not a lit pill. Onboarding is chosen;
+    // Active and onboarding players is not, and adds the one active player it
+    // reaches that Onboarding does not.
+    const counts = audienceGroupCounts(MID_SEASON, [ONBOARDING, PLAYERS], ticked);
+    expect(counts.get(ONBOARDING)?.included).toBe(true);
+    expect(counts.get(PLAYERS)?.adds).toBe(1);
+
+    expect(
+      selectionAfterGroupPress(MID_SEASON, ONBOARDING, new Set([ONBOARDING]), ticked).size,
+    ).toBe(0);
   });
 });
 
@@ -880,6 +980,103 @@ describe("audiences by category (LAN-414)", () => {
       "Special teams",
       "Recruits",
     ]);
+  });
+
+  /**
+   * LAN-414 round 2, Brian, 2026-09-22: "Coaching assignments splits into
+   * three sub-categories, each folding on its own: Coaching groups, Offensive
+   * position groups, Defensive position groups. Storage is unchanged; this is
+   * the catalogue's grouping and the picker."
+   */
+  it("folds Coaching assignments into three sub-categories and nothing else into more than one", () => {
+    const sections = audienceCategoriesForEventType("practice");
+    const coaching = sections.find((section) => section.category === "coaching");
+
+    expect(coaching?.subSections.map((sub) => sub.subCategory)).toEqual([
+      "coaching_groups",
+      "offensive_positions",
+      "defensive_positions",
+    ]);
+    expect(coaching?.subSections.map((sub) => sub.label)).toEqual([
+      "Coaching groups",
+      "Offensive position groups",
+      "Defensive position groups",
+    ]);
+
+    // Every other category is one band, and does not label it twice.
+    for (const section of sections.filter((each) => each.category !== "coaching")) {
+      expect(section.subSections).toHaveLength(1);
+      expect(section.subSections[0].label).toBeNull();
+    }
+  });
+
+  it("keeps every coaching token in the one namespace the three columns already shared", () => {
+    // The split is the picker's and the catalogue's. A token is still
+    // `coaching:<value>`, so no stored row, template default or migration moves.
+    const coaching = audienceCategoriesForEventType("practice")[1];
+    expect(coaching.options.map((option) => option.token)).toEqual(
+      coaching.subSections.flatMap((sub) => sub.options.map((option) => option.token)),
+    );
+    for (const option of coaching.options) {
+      expect(option.token).toBe(`coaching:${option.value}`);
+      expect(option.category).toBe("coaching");
+    }
+  });
+
+  it("names the two player-wide groups for what LAN-415 made them mean", () => {
+    // Brian, 2026-09-22: the count was not going to make the inclusion
+    // visible; the words have to. Keys and resolution are untouched.
+    const general = audienceCategoriesForEventType("practice")[0];
+    const labelFor = (token: string) =>
+      general.options.find((option) => option.token === token)?.label;
+
+    expect(labelFor(EVERYONE)).toBe("Everyone active and onboarding");
+    expect(labelFor(PLAYERS)).toBe("Active and onboarding players");
+  });
+
+  it("carries each chosen group's headings out with the summary", () => {
+    // What the approval review and the event's audience panel print under.
+    // Quinn holds Offense and Quarterbacks, so the widest group that is wholly
+    // in is Offense — the summary's rule since LAN-242, unchanged here. What
+    // is new is that it says which band Offense came from.
+    const summary = summariseAudienceGroups(
+      SQUAD,
+      groupSelectionKeys(SQUAD, "coaching:Quarterbacks"),
+      "practice",
+    );
+
+    expect(summary.named).toContainEqual({
+      label: "Offense",
+      category: "coaching",
+      categoryLabel: "Coaching assignments",
+      subCategory: "coaching_groups",
+      subCategoryLabel: "Coaching groups",
+    });
+    // `groups` stays the flat list of labels it always was.
+    expect(summary.groups).toEqual(summary.named.map((entry) => entry.label));
+  });
+
+  it("leaves the sub-category label off a category that is one band", () => {
+    // One player, one warmup group and no coaching value, so the widest group
+    // wholly in is the warmup row itself — named under "Warmup assignments"
+    // alone, with no second heading.
+    // A second player, unchosen, so no General group is wholly present and the
+    // warmup row is the widest group that is.
+    const warmupOnly = [
+      assigned("membership-wren", "person-wren", "Wren Alderley", { warmupGroup: "Raider" }),
+      assigned("membership-nyle", "person-nyle", "Nyle Ferrers", {}),
+    ];
+
+    const summary = summariseAudienceGroups(
+      warmupOnly,
+      groupSelectionKeys(warmupOnly, "warmup:Raider"),
+      "practice",
+    );
+
+    const raider = summary.named.find((entry) => entry.category === "warmup");
+    expect(raider?.label).toBe("Raider");
+    expect(raider?.categoryLabel).toBe("Warmup assignments");
+    expect(raider?.subCategoryLabel).toBeNull();
   });
 
   it("puts the six baseline groups, and only those, under General", () => {

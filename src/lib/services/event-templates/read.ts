@@ -5,7 +5,10 @@ import {
   audienceGroupTokenFor,
   groupSelectionKeys,
   type AudienceCandidate,
+  type AudienceCatalogue,
 } from "../audience-selection";
+import { listAudienceCatalogueIn } from "../event-audience";
+import { findCurrentSeasonIn } from "../seasons";
 import {
   joinQuestionChoices,
   readTemplateQuestionsAsEventInputIn,
@@ -204,4 +207,31 @@ export function templateAudienceKeys(
     for (const key of groupSelectionKeys(candidates, group)) keys.add(key);
   }
   return [...keys];
+}
+
+/**
+ * The catalogue a template's default-audience picker counts against — LAN-414
+ * round 2.
+ *
+ * The picker carries a head count and an overlap on every row, and it is the
+ * same picker here as on the event form (docs/ux/standards.md rule 7), so this
+ * screen needs candidates too. A template has no date of its own, so the read
+ * is the current season **as it stands today** — `listAudienceCatalogueIn`
+ * already falls back to `current_date` for a dateless draft, and this is the
+ * same question. The numbers are therefore "how many people this group reaches
+ * now", which is what a default audience is being judged on; D47 is untouched,
+ * because a template still resolves to an explicit list of people at the moment
+ * an event is created from it, not from anything counted here.
+ *
+ * Before the first season exists there is nothing to count, and the picker
+ * renders with zeroes rather than refusing the screen.
+ */
+export async function readTemplateAudienceCatalogue(eventType: string): Promise<AudienceCatalogue> {
+  return withTransaction(async (tx) => {
+    const season = await findCurrentSeasonIn(tx);
+    if (season === null) {
+      return { candidates: [], counts: { player: 0, coach: 0, committee: 0, recruit: 0 } };
+    }
+    return listAudienceCatalogueIn(tx, season.id, null, eventType);
+  });
 }

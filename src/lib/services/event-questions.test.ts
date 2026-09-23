@@ -857,8 +857,8 @@ describe("the approval review shows the questions as a player will be asked them
     // chosen is still accounted for exactly once, which is the property.
     expect(preview.groupSummary.total).toBe(preview.audience.length);
     expect(preview.groupSummary.others).toBeLessThanOrEqual(preview.audience.length);
-    expect(preview.groupSummary.groups).not.toContain("All active players");
-    expect(preview.groupSummary.groups).not.toContain("Everyone active");
+    expect(preview.groupSummary.groups).not.toContain("Active and onboarding players");
+    expect(preview.groupSummary.groups).not.toContain("Everyone active and onboarding");
   });
 });
 

@@ -1,61 +1,102 @@
 # LAN-353 batch 7 — visual evidence
 
-Captured on the batch branch `feat/lan-353-batch-7` at `ddc6c7a6`, against the
-local stack, through the real application login, at the two required viewports
-— desktop 1440×900 and a **measured** 375×812 phone, taken from the browser
-context by `npm run visual:preflight` rather than from a resized window.
-Nothing here is hosted data: every person and event shown is the local
-synthetic seed.
+Captured on the batch branch `feat/lan-353-batch-7` — everything but LAN-414
+and LAN-420 at `ddc6c7a6`, and those two **re-taken at `d257c305`** after
+correction round 2 — against the local stack, through the real application
+login, at the two required viewports: desktop 1440×900 and a **measured**
+375×812 phone, taken from the browser context by `npm run visual:preflight`
+rather than from a resized window. Nothing here is hosted data: every person
+and event shown is the local synthetic seed.
 
 Each pair is `desktop-*.png` and `phone375-*.png` of the same route.
 
-## LAN-420 — response progress by capacity
+One pair is the exception, and says so where it appears:
+`LAN-414/*-audience-picker-ticked.png` needed two rows ticked first, and
+`visual:preflight` navigates rather than drives a page. It was taken by a
+throwaway Playwright script doing what the preflight does — the same real
+login, the same two viewport sizes, each width read back from the browser
+context and printed (`desktop: 1440px`, `phone375: 375px`) — with two clicks
+before the shutter. Same mechanism, one interaction earlier.
+
+## LAN-420 — response progress by capacity (correction round 2)
 
 `LAN-420/desktop-operator-event-page.png`, `phone375-operator-event-page.png` —
 the operator's own page for **Freshers' Fair — stand**, an approved recruitment
 event whose audience carries all three of recruits, players and coaches. The
 top of the page is three blocks, in Stewart's order:
 
-| Block    | Yes     | No  | Bar                     |
-| -------- | ------- | --- | ----------------------- |
-| Recruits | 0 / 8   | 0   | red — 0 % have answered |
-| Players  | 28 / 35 | 5   | green — 94 %            |
-| Coaches  | 1 / 2   | 1   | green — 100 %           |
+| Block    | Yes     | Said no | Bar                     |
+| -------- | ------- | ------- | ----------------------- |
+| Recruits | 0 / 8   | 0       | red — 0 % have answered |
+| Players  | 28 / 35 | 5       | green — 94 %            |
+| Coaches  | 1 / 2   | 1       | green — 100 %           |
 
-Committee has no block, because nobody was invited in that capacity. **Showed /
-Invited** reads `8 / 45` below the Audience and distribution section, and the
-register panel is below that — both unchanged in content, both moved.
+Committee has no block, because nobody was invited in that capacity.
+
+**Both of Brian's corrections are in this pair.** The No figure is now a
+labelled metric like the pair above it — the number at the same weight with
+**Said no** under it, not the word "No" in front of a count. And there is **no
+Showed / Invited card anywhere on the page**: below Details and Audience and
+distribution comes **Attendance is open** — the register panel, which is where
+attendance is recorded and which this correction kept.
 
 `LAN-420/desktop-event-info-link-page.png`, `phone375-event-info-link-page.png`
 — the public Event info link page for **Practice — hilary week 6**, which has
-players and coaches and no recruits. The same two blocks lead the page, the same
-component; the Invited / Said yes / No row LAN-384 put there is gone, and
-`— / 41` Showed sits below the facts. At 375 px the blocks stack one per row.
+players and coaches and no recruits. The same blocks lead the page, from the
+same component, with the same **Said no** metric; the Invited / Said yes / No
+row LAN-384 put there is gone, and Showed still sits below the facts — Brian's
+review took that card off the operator page and left this one standing. At
+375 px the blocks stack one per row.
 
-## LAN-414 and LAN-416 — audiences by category
+## LAN-414 and LAN-416 — the picker is checklist bands (correction round 2)
 
-`LAN-414/desktop-audience-categories.png`,
-`phone375-audience-categories.png` — **Build event audience** on a draft game.
-Five collapsible headers in the roster board's band idiom: **General**, open,
-with its six baseline pills and each one's count; then **Coaching
-assignments**, **Warmup assignments**, **Special teams** and **Recruits**,
-folded, each carrying the number of its own pills that are currently lit. At
-375 px the whole picker is one column and the pills wrap.
+`LAN-414/desktop-audience-picker-bands.png`,
+`phone375-audience-picker-bands.png` — **Build event audience** on a draft
+game, as it opens. The pills are gone. Every category is a folding band in the
+roster board's own idiom and colours: **General** and **Coaching assignments**
+open, **Warmup assignments**, **Special teams** and **Recruits** folded.
+Coaching assignments folds again into its own three bands — **Coaching
+groups**, **Offensive position groups**, **Defensive position groups** — each
+folding separately and each in its own board colour. Every group is a tick-box
+row with its head count and, at the right, what it would add: `adds 39`,
+`adds 37`, `adds 9` and so on. The sticky line at the top reads **0 groups ·
+0 people**, and the resolved-people list below the picker is unchanged. At
+375 px the whole picker is one column and every row keeps its count and mark.
 
-The same pair is LAN-416's evidence: the **Recruits** header is on a _game_
-event, which is the whole of the change, and the candidate list below carries
+The two General labels read **Everyone active and onboarding** and **Active and
+onboarding players**, which is the other half of this round.
+
+`LAN-414/desktop-audience-picker-ticked.png`,
+`phone375-audience-picker-ticked.png` — **the correction itself**, the same
+screen with **Active and onboarding players** and **Defense** ticked. Read the
+row above the first one: **Everyone active and onboarding** is _not_ ticked and
+reads **adds 2**. That is the whole of Brian's finding — under the pills,
+pressing the players group lit everything it swallowed; here nothing moved but
+the row that was ticked, and the overlap is a number. The rows the selection
+already covers say **Included** (All active coaches, Onboarding, All Active
+BPS, and every offensive and defensive position group); the two ticked rows say
+**Selected**; each band head says **1 chosen**; and the review button at the
+foot reads **Review 37 selected**.
+
+`LAN-414/desktop-template-default-audience.png`,
+`phone375-template-default-audience.png` — the **Practice** template's default
+audience, the second surface that chooses a group. The same component, the same
+bands, the same three marks and the same head counts, which is why the template
+pages now read the current season's catalogue (docs/ux/standards.md rule 7).
+
+The bands pair is also LAN-416's evidence: the **Recruits** band is on a _game_
+event, which is the whole of that change, and the candidate list below carries
 open recruits — _Barnaby Quince · Recruit · Identified_, _Cassius Thorne ·
 Recruit · Engaged_ — on an event type that until now offered none at all.
 
-**What these do not show.** The pills inside the four folded categories are
-behind a press, and `visual:preflight` navigates and screenshots rather than
-driving the page. Every one of them, its label and who it resolves to, is proved
-by `src/lib/services/audience-selection.test.ts`. The template editor's own
-screen test (`src/app/operate/events/templates/screens.test.tsx`) presses two
-of the four open — **Special teams** and **Recruits** — and proves the other
-two only structurally, that their toggles exist and are in this order;
-**Coaching assignments** and **Warmup assignments** are proved by
-`audience-selection.test.ts` alone.
+**What these do not show.** The rows inside the three folded bands are behind a
+fold. Every one of them, its label and who it resolves to is proved by
+`src/lib/services/audience-selection.test.ts`, and the bands' own colours,
+order and nesting by `src/app/operate/events/screens.test.tsx` ("bands every
+category, and folds Coaching assignments into three") and the template
+editor's `screens.test.tsx`. The overlap arithmetic behind `adds N` and
+**Included** — a person in two chosen groups counted once, an empty group never
+Included — is proved in `audience-selection.test.ts`.
 
 ## LAN-413 — a refused onboarding save is shown on the step
 

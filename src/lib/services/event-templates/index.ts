@@ -15,6 +15,7 @@ export {
   listEventTemplates,
   readEventFormDefaults,
   readEventTemplate,
+  readTemplateAudienceCatalogue,
   readTemplateInheritanceIn,
   templateAudienceKeys,
 } from "./read";
