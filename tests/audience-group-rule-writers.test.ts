@@ -35,7 +35,20 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 const SERVICES = path.join(process.cwd(), "src", "lib", "services");
-const CHOKEPOINT = "applyAudienceGroupRuleIn";
+
+/**
+ * The chokepoint as a **call**, not as a bare name — finding R-1 of PR 207's
+ * first review.
+ *
+ * Matching `applyAudienceGroupRuleIn` on its own counted a module as covered
+ * on the strength of its import line alone. So a door that once called the
+ * rule and had the call deleted — a refactor, a reverted experiment, a bad
+ * merge — kept passing this file for as long as the now-unused import survived
+ * beside it, which is exactly the shape of accident this test exists to catch.
+ * The open bracket is what makes a match mean the rule actually runs.
+ */
+const CHOKEPOINT_NAME = "applyAudienceGroupRuleIn";
+const CHOKEPOINT = `${CHOKEPOINT_NAME}(`;
 
 /**
  * The tables an audience is derived from — see `listAudienceCatalogueIn`.
@@ -138,7 +151,7 @@ describe("the audience group rule's chokepoint", () => {
         continue;
       }
       if (file in DELIBERATE_EXCEPTIONS) continue;
-      missing.push(`${file} writes ${tables.join(", ")} and never calls ${CHOKEPOINT}`);
+      missing.push(`${file} writes ${tables.join(", ")} and never calls ${CHOKEPOINT_NAME}`);
     }
 
     // The failure message is the point: it names the file and what it writes,
@@ -186,7 +199,7 @@ describe("the audience group rule's chokepoint", () => {
     ];
     for (const door of doors) {
       const source = readFileSync(path.join(SERVICES, door), "utf8");
-      expect(source.includes(CHOKEPOINT), `${door} no longer calls ${CHOKEPOINT}`).toBe(true);
+      expect(source.includes(CHOKEPOINT), `${door} no longer calls ${CHOKEPOINT_NAME}`).toBe(true);
     }
   });
 });
