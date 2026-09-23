@@ -31,6 +31,27 @@ export const CLOSE = "Close";
 export const BUSY_MESSAGE =
   "Your response could not be saved just now because the club received a lot of requests at once. Please try again in a minute.";
 
+/**
+ * LAN-413 — what a step says when the club's own rules refused the save.
+ *
+ * Production, 2026-09-22: a refusal thrown by a service (a trust claim on an
+ * item the season had recorded as `direct`; an email another record already
+ * holds) escaped the step's action and the player got the generic "This page
+ * couldn't load. A server error occurred." page instead. A refusal is an
+ * answer, and the step is where it belongs — the same place `BUSY_MESSAGE`
+ * and `MUST_AGREE_ERROR` are already shown, and by the same means.
+ *
+ * It names no rule and no other person: the player cannot act on either, and a
+ * contact-point collision is how one record is told from another. Where a
+ * refusal does belong to a field — the details step's two emails and its
+ * mobile — the field says it instead, and this never appears.
+ */
+export const SAVE_REFUSED_MESSAGE =
+  "The club could not record that. Nothing else on this step was changed. Try again, and tell the club if it keeps happening.";
+
+/** The `?error=` value `page.tsx` renders `SAVE_REFUSED_MESSAGE` for — LAN-413. */
+export const REFUSED_ERROR_PARAM = "refused";
+
 // The checklist strip — the map of the sequence, at the top of every step
 
 export function stepLabel(step: string): string {

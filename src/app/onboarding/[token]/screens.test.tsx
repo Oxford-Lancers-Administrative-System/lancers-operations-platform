@@ -61,6 +61,7 @@ import {
   HUDL_LINK_NOT_PUBLISHED,
   IF_SOMETHING_WRONG_HEADING,
   R3G_REASSURANCE,
+  SAVE_REFUSED_MESSAGE,
   stepLabel,
   WHAT_CLUB_HAS_HEADING,
 } from "./presentation";
@@ -986,5 +987,57 @@ describe("LAN-333 — the real BUCS Play and Hudl steps", () => {
       expect(text).not.toContain("Owed — not written");
       expect(text).not.toMatch(/LAN-213/);
     }
+  });
+});
+
+/**
+ * LAN-413 — a refused save is shown on the step the player is standing on,
+ * never as the generic server error page. The actions' own half of this is
+ * proved in `actions.test.ts`; here it is the screen: the refusal appears, the
+ * step is still the step, and the strip still offers every other one.
+ */
+describe("LAN-413 — a refused save is shown on the step", () => {
+  it("shows the refusal above the BUCS Play step, with the step itself intact", async () => {
+    givenValid();
+    const { container } = await renderPage({ step: "bucs_play", error: "refused" });
+
+    expect(container.querySelector('[data-testid="save-refused"]')?.textContent).toBe(
+      SAVE_REFUSED_MESSAGE,
+    );
+    // Still the step, not an error page: its own instructions are still here.
+    expect(container.querySelector('[data-testid="bucs-steps"]')).not.toBeNull();
+    expect(container.textContent).toContain(BUCS_CLAIM_SUBNOTE);
+  });
+
+  it("shows it above the Hudl step too", async () => {
+    givenValid();
+    const { container } = await renderPage({ step: "hudl", error: "refused" });
+
+    expect(container.querySelector('[data-testid="save-refused"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="hudl-steps"]')).not.toBeNull();
+  });
+
+  it("shows it above the Code of Conduct step", async () => {
+    givenValid();
+    const { container } = await renderPage({ step: "code_of_conduct", error: "refused" });
+
+    expect(container.querySelector('[data-testid="save-refused"]')).not.toBeNull();
+  });
+
+  it("leaves every other step reachable from the strip while a refusal is shown", async () => {
+    givenValid();
+    const { container } = await renderPage({ step: "bucs_play", error: "refused" });
+
+    const links = [...container.querySelectorAll("a")].map((a) => a.getAttribute("href") ?? "");
+    for (const step of STEP_ORDER.filter((s) => s !== "done")) {
+      expect(links).toContain(`/onboarding/${encodeURIComponent(TOKEN)}?step=${step}`);
+    }
+  });
+
+  it("says nothing at all when no save was refused", async () => {
+    givenValid();
+    const { container } = await renderPage({ step: "bucs_play" });
+
+    expect(container.querySelector('[data-testid="save-refused"]')).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
 import { Field, NO_AUTOFILL, preventImplicitSubmit } from "@/components/field";
@@ -13,7 +13,14 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import type { AudienceGroup, AudienceGroupKey } from "@/lib/services/audience-selection";
+import {
+  audienceGroupCounts,
+  resolveSelection,
+  selectionAfterGroupPress,
+  type AudienceCandidate,
+  type AudienceCategorySection,
+} from "@/lib/services/audience-selection";
+import { AudiencePicker } from "../audience-picker";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import {
   TEMPLATE_COLOUR_PALETTE,
@@ -59,7 +66,15 @@ export interface TemplateEditorProps {
   eventTypeLabel: string;
   initial: RawEventTemplate;
   initialQuestions: RawEventQuestion[];
-  groups: readonly AudienceGroup[];
+  /** LAN-414: the whole catalogue by category, the same one the event form shows. */
+  categories: readonly AudienceCategorySection[];
+  /**
+   * LAN-414 round 2: the current season's selectable people, so the rows here
+   * carry the same head counts and overlap the event form's rows carry. A
+   * template has no date, so these are today's numbers — see
+   * `readTemplateAudienceCatalogue`.
+   */
+  candidates: readonly AudienceCandidate[];
   /** Decides whether Delete is offered — zero on an unused or new template. */
   eventCount: number;
 }
@@ -69,7 +84,8 @@ export default function TemplateEditor({
   eventTypeLabel,
   initial,
   initialQuestions,
-  groups,
+  categories,
+  candidates,
   eventCount,
 }: TemplateEditorProps) {
   const [previewState, previewAction, previewing] = useActionState(
@@ -103,8 +119,8 @@ export default function TemplateEditor({
     return typeof raw === "string" ? raw : "";
   };
 
-  const [selected, setSelected] = useState<AudienceGroupKey[]>(() => [
-    ...((initial.audienceGroups ?? []) as AudienceGroupKey[]),
+  const [selected, setSelected] = useState<string[]>(() => [
+    ...((initial.audienceGroups ?? []) as string[]),
   ]);
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [...initialQuestions]);
   const [name, setName] = useState(text("name"));
@@ -131,9 +147,43 @@ export default function TemplateEditor({
       ? Number(duration)
       : null;
 
-  function toggleGroup(key: AudienceGroupKey) {
+  // LAN-414 round 2. The same three numbers the event form's picker shows,
+  // from the same service function: a template's default audience is judged on
+  // who it would reach exactly as an event's audience is, and the two screens
+  // have to answer "how many, and how many more" the same way (rule 7).
+  //
+  // `audienceKeys` replays the ticked groups in the order they were ticked,
+  // through the same press function the event form uses, so `adds` here means
+  // what it means there. It is a count for the operator's eye only: a template
+  // stores its groups, never these people, and D47 still resolves the list at
+  // the moment an event is created.
+  const selectedGroups = useMemo(() => new Set(selected), [selected]);
+  const audienceKeys = useMemo(() => {
+    let keys: ReadonlySet<string> = new Set<string>();
+    const pressed = new Set<string>();
+    for (const token of selected) {
+      keys = selectionAfterGroupPress(candidates, token, pressed, keys);
+      pressed.add(token);
+    }
+    return keys;
+  }, [candidates, selected]);
+  const groupCounts = useMemo(
+    () =>
+      audienceGroupCounts(
+        candidates,
+        categories.flatMap((section) => section.options.map((option) => option.token)),
+        audienceKeys,
+      ),
+    [candidates, categories, audienceKeys],
+  );
+  const audienceReach = useMemo(() => {
+    const resolution = resolveSelection(candidates, [...audienceKeys]);
+    return resolution.ok ? resolution.members.length : 0;
+  }, [candidates, audienceKeys]);
+
+  function toggleGroup(token: string) {
     setSelected((current) =>
-      current.includes(key) ? current.filter((group) => group !== key) : [...current, key],
+      current.includes(token) ? current.filter((group) => group !== token) : [...current, token],
     );
   }
 
@@ -255,26 +305,15 @@ export default function TemplateEditor({
 
           <Section title={TEMPLATE_AUDIENCE_HEADLINE}>
             <Stack spacing={2}>
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                {groups.map((group) => {
-                  const on = selected.includes(group.key);
-                  return (
-                    <Button
-                      key={group.key}
-                      variant={on ? "contained" : "outlined"}
-                      size="small"
-                      aria-pressed={on}
-                      disabled={busy}
-                      onClick={() => toggleGroup(group.key)}
-                      data-testid="template-audience-group"
-                      data-group={group.key}
-                      sx={{ minHeight: 40 }}
-                    >
-                      {group.label}
-                    </Button>
-                  );
-                })}
-              </Stack>
+              <AudiencePicker
+                categories={categories}
+                counts={groupCounts}
+                selectedGroups={selectedGroups}
+                onToggleGroup={toggleGroup}
+                people={audienceReach}
+                onClear={() => setSelected([])}
+                disabled={busy}
+              />
               {selected.map((group) => (
                 <input key={group} type="hidden" name="audienceGroup" value={group} />
               ))}

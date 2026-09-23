@@ -59,22 +59,62 @@ export const EVENTS_PAGE: PlaybookPage = {
         control("Choose audience and approve"),
         ". ",
         screen("Build event audience"),
-        " offers the groups: ",
-        control("Everyone active"),
+        " offers the groups as tick boxes under five bands that fold and unfold: ",
+        control("General"),
+        " — ",
+        control("Whole club"),
         ", ",
-        control("All active players"),
+        control("All roster players"),
         ", ",
         control("All active coaches"),
         ", ",
         control("All active committee"),
         ", ",
         control("Onboarding"),
-        " and, on a recruitment event, ",
+        ", ",
+        control("All Active BPS"),
+        " — then ",
+        control("Coaching assignments"),
+        ", which folds again into ",
+        control("Coaching groups"),
+        ", ",
+        control("Offensive position groups"),
+        " and ",
+        control("Defensive position groups"),
+        ", then ",
+        control("Warmup assignments"),
+        ", ",
+        control("Special teams"),
+        " and ",
         control("Recruits"),
-        ".",
+        ", one row per roster value.",
       ],
       then: [
-        "Picking a group selects the people in it now. Unticking one person removes them, and that removal is remembered against this event.",
+        "Ticking a group selects the people in it now. Unticking one person removes them, and that removal is remembered against this event.",
+      ],
+    },
+    {
+      operator: [
+        "Read each row's two numbers: its own head count, then ",
+        control("Selected"),
+        " if it is ticked, ",
+        control("Included"),
+        " if everyone in it is already reached by what is chosen, or how many more it would add. The line at the top counts the groups and the people.",
+      ],
+      then: [
+        "A tick box moves only when it is ticked. Ticking one group never ticks another that overlaps it — the overlap shows as a number instead. Unticking a wide group keeps anyone a narrower ticked group still claims.",
+      ],
+    },
+    {
+      operator: [
+        "To invite a prospect, open ",
+        control("Recruits"),
+        " and pick ",
+        control("All active recruits"),
+        " or one status. This is the only way a recruit reaches any event, on any type.",
+      ],
+      then: [
+        "On a recruitment event the recruit keeps the gentle cadence — one invitation and at most one follow-up. On any other type they are invited and chased exactly as a player is for that type. Nothing is sent to a recruit who has not granted consent this season.",
       ],
     },
     {
@@ -102,7 +142,7 @@ export const EVENTS_PAGE: PlaybookPage = {
     {
       operator: [
         "To let somebody outside the club see the event, use ",
-        screen("Share this event"),
+        screen("Event info link"),
         " and press ",
         control("Create the link"),
         ".",
@@ -113,7 +153,9 @@ export const EVENTS_PAGE: PlaybookPage = {
     },
     {
       operator: [
-        "To add somebody to an approved event, open the amend screen and use ",
+        "To add somebody to an approved event, press ",
+        control("Edit event"),
+        " and use ",
         screen("Add to audience"),
         ".",
       ],
@@ -123,7 +165,9 @@ export const EVENTS_PAGE: PlaybookPage = {
     },
     {
       operator: [
-        "To change the details, open the amend screen, make the change and press ",
+        "To change anything about an approved event, press ",
+        control("Edit event"),
+        ". The details and the questions are on the one page. Make the change, press ",
         control("Save changes…"),
         ", then ",
         control("Save and notify"),
@@ -133,6 +177,16 @@ export const EVENTS_PAGE: PlaybookPage = {
       ],
       then: [
         "Every unsent message is held while the change is written. If the date or start time moved, the whole schedule is recomputed and then resumed.",
+      ],
+    },
+    {
+      operator: [
+        "Changing a question's wording sends nobody anything. Changing what it asks voids the answers already given and asks those people again, so the save says how many first — tick ",
+        control("This is a correction, keep answers"),
+        " if it was only a fix. A question cannot be removed once the event is approved.",
+      ],
+      then: [
+        "Questions and details save together, so nothing is written until the whole save is confirmed.",
       ],
     },
     {
@@ -171,6 +225,14 @@ export const EVENTS_PAGE: PlaybookPage = {
     },
   ],
   rules: [
+    {
+      label: "The top of the event page is response progress",
+      fact: [
+        "One block per capacity in the audience — Recruits, Players, Coaches, Committee — each reading its three numbers on one line, said yes then said no against everyone invited, and a bar of three segments: the people who said yes in green from the left, the people who said no in red from the right, and the people who have not answered as the pale gap between them. A capacity nobody was invited under has no block. There is no ",
+        control("Showed"),
+        " figure on this page or on the Event info link page; the register, below Audience and distribution, is where attendance is recorded.",
+      ],
+    },
     {
       label: "Approval freezes the audience",
       fact: [

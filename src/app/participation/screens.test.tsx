@@ -100,7 +100,8 @@ import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
 import { ConstraintViolated } from "@/lib/db/errors";
 
 import ClubLinkPage from "../e/[token]/page";
-import { EventFacts, HeadlineNumbers } from "./event-facts";
+import { EventFacts } from "./event-facts";
+import { ResponseProgress } from "./response-progress";
 import { CopyLinkButton } from "./copy-link";
 import { ParticipationFilterBar } from "./participation-filters";
 import { ParticipationTable } from "./participation-table";
@@ -566,16 +567,49 @@ describe("the club-link page", () => {
     resetRsvpRateLimit();
   });
 
-  it("shows the event, the four numbers and the table", async () => {
+  /**
+   * LAN-420 — the top of this page is response progress by capacity, the same
+   * blocks the operator's own event page carries. The Invited / Said yes / No
+   * row LAN-384 added is gone: its numbers are the sum of the blocks and are
+   * not repeated. **Showed is gone too** (Brian's walk of 573bb9d4,
+   * 2026-09-23), which took it off this page as his review had already taken
+   * it off the operator's: who turned up is recorded on the register, and this
+   * page is read by people deciding whether to come.
+   */
+  it("leads with a block per capacity, and shows no Showed number at all", async () => {
     readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
     const { container } = await renderClubLink("a-token");
 
     expect(container.textContent).toContain("Practice — hilary week 5");
-    expect(screen.getByTestId("headline-invited").querySelector("p")?.textContent).toBe("3");
-    expect(screen.getByTestId("headline-said-yes").querySelector("p")?.textContent).toBe("2");
-    // LAN-384: the No tile, beside Said yes, from the same query.
-    expect(screen.getByTestId("headline-said-no").querySelector("p")?.textContent).toBe("1");
-    expect(screen.getByTestId("headline-showed").querySelector("p")?.textContent).toBe("1 / 3");
+
+    // Two players (one yes, one no) and one committee member (yes). One value
+    // line per block, and a bar of three segments with no band on it — the
+    // same component the operator's page renders (rule 7).
+    const players = screen.getByTestId("response-progress-player");
+    expect(within(players).getByTestId("response-counts").textContent).toBe("1 yes · 1 no / 2");
+    expect(within(players).getByText("Said yes · Said no / Invited")).toBeVisible();
+    const playerBar = within(players).getByTestId("response-bar");
+    expect(playerBar.getAttribute("data-yes")).toBe("1");
+    expect(playerBar.getAttribute("data-no")).toBe("1");
+    // Everybody answered, so there is no pale gap left between the two.
+    expect(playerBar.getAttribute("data-unanswered")).toBe("0");
+    expect(playerBar.getAttribute("data-band")).toBeNull();
+
+    const committee = screen.getByTestId("response-progress-committee");
+    expect(within(committee).getByTestId("response-counts").textContent).toBe("1 yes · 0 no / 1");
+
+    // Nobody was invited as a coach or a recruit, so neither block is there.
+    expect(screen.queryByTestId("response-progress-coach")).toBeNull();
+    expect(screen.queryByTestId("response-progress-recruit")).toBeNull();
+
+    expect(screen.queryByTestId("headline-invited")).toBeNull();
+    expect(screen.queryByTestId("headline-said-yes")).toBeNull();
+    expect(screen.queryByTestId("headline-said-no")).toBeNull();
+    // And Showed, the last survivor of that row, is gone from this page too.
+    expect(screen.queryByTestId("headline-showed")).toBeNull();
+    expect(screen.queryByTestId("headline-numbers")).toBeNull();
+    expect(container.textContent).not.toContain("Showed");
+
     expect(renderedNames(container)).toHaveLength(3);
   });
 
@@ -819,15 +853,14 @@ describe("rendering through react-dom/server, without a DOM or hydration", () =>
     expect(markup).not.toContain(TABLE_HEADINGS.delivery);
   });
 
-  it("renders the event facts and the headline without throwing", () => {
+  it("renders the event facts and the progress blocks without throwing", () => {
     const markup = renderToStaticMarkup(
       <>
+        <ResponseProgress people={CLUB.people} />
         <EventFacts event={CLUB.event} />
-        <HeadlineNumbers headline={CLUB.headline} />
       </>,
     );
     expect(markup).toContain("Iffley Road Astro");
-    expect(markup).toContain("1 / 3");
   });
 
   it("renders an empty table and a filtered-empty table without throwing", () => {

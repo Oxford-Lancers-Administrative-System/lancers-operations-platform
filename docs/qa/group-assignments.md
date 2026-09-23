@@ -30,7 +30,7 @@ the coach seat sees attendance only and every operator route refuses correctly
 List, editor, templates, CSV import, approval, amend, cancel, delivery,
 attendance (operator and coach seat — use `coach.json` for the coach), the
 public calendar (`/calendar`, `/calendar/[id]`, `/calendar/view`), subscription
-and ICS, and event club links (`/e/[token]`, created through Share link — none
+and ICS, and event club links (`/e/[token]`, created through Event info link — none
 are seeded).
 
 **Journey:** create an event from a template → approve it with players and

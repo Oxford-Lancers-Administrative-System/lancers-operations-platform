@@ -11,6 +11,22 @@ export async function currentDateOf(tx: Tx): Promise<string> {
   return result.rows[0].today;
 }
 
+/**
+ * The person one season membership belongs to, or `null` if it has since gone.
+ *
+ * LAN-414: the audience group rule is keyed by person and season, and every
+ * board cell is keyed by membership, so each writer that can move somebody into
+ * or out of a derived audience group has to cross that gap before it can call
+ * the chokepoint. One helper rather than five copies of the same two lines.
+ */
+export async function personIdOfMembershipIn(tx: Tx, membershipId: string): Promise<string | null> {
+  const result = await tx.query<{ person_id: string }>(
+    `select person_id from public.season_memberships where id = $1::uuid`,
+    [membershipId],
+  );
+  return result.rows[0]?.person_id ?? null;
+}
+
 export type SupersedableTable =
   "position_assignments" | "jersey_assignments" | "eligibility_records";
 

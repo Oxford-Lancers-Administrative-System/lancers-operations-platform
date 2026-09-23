@@ -1,21 +1,13 @@
 import { Fact, FactGrid } from "@/components/fact";
 import { Section } from "@/components/section";
-import { Metric, MetricRow } from "@/components/metric";
 
-import type { ClubLinkEvent, ParticipationHeadline } from "@/lib/services/participation-view";
+import type { ClubLinkEvent } from "@/lib/services/participation-view";
 
-import {
-  formatShowedAgainstInvited,
-  formatTermAndWeek,
-  HEADLINE_INVITED_LABEL,
-  HEADLINE_SAID_NO_LABEL,
-  HEADLINE_SAID_YES_LABEL,
-  HEADLINE_SHOWED_LABEL,
-} from "./presentation";
+import { formatTermAndWeek } from "./presentation";
 
 /**
- * The event's own details, and the three headline numbers — for the club-link
- * page. Same payload and formatter as the operator's event page. The joining
+ * The event's own details — for the club-link page. Same payload and
+ * formatters as the operator's event page. The joining
  * URL cannot be here: `ClubLinkEvent` has no such key (REQ-no-joining-url).
  * Type names come from `@/lib/services/event-vocabulary` (R157C-A1), not a
  * private second copy, so a renamed type can't leak raw to an unauthenticated
@@ -90,39 +82,18 @@ export function EventFacts({ event }: { event: ClubLinkEvent }) {
   );
 }
 
-export function HeadlineNumbers({ headline }: { headline: ParticipationHeadline }) {
-  const numbers: { label: string; value: string; testId: string }[] = [
-    { label: HEADLINE_INVITED_LABEL, value: String(headline.invited), testId: "headline-invited" },
-    {
-      label: HEADLINE_SAID_YES_LABEL,
-      value: String(headline.saidYes),
-      testId: "headline-said-yes",
-    },
-    // LAN-384: a No tile beside Said yes, from the same query. Somebody reading
-    // the club link can already see who said yes; the count of the other
-    // answer was the one number the page withheld.
-    {
-      label: HEADLINE_SAID_NO_LABEL,
-      value: String(headline.saidNo),
-      testId: "headline-said-no",
-    },
-    {
-      label: `${HEADLINE_SHOWED_LABEL} / ${HEADLINE_INVITED_LABEL}`,
-      value: formatShowedAgainstInvited(headline),
-      testId: "headline-showed",
-    },
-  ];
-
-  return (
-    <MetricRow testId="headline-numbers">
-      {numbers.map((number) => (
-        <Metric
-          key={number.label}
-          label={number.label}
-          value={number.value}
-          testId={number.testId}
-        />
-      ))}
-    </MetricRow>
-  );
-}
+/*
+ * **Showed is not on this page** — LAN-420, Brian's walk of 573bb9d4,
+ * 2026-09-23.
+ *
+ * Stewart's original ask was to move it down the page, and his review of
+ * 2026-09-22 took the Showed / Invited card off the operator's own event page;
+ * the walk finished the job and took it off this one too. Who turned up is an
+ * operator's number, recorded on the register, and the public Event info link
+ * page is for the people deciding whether to come: the response blocks at the
+ * top say how the event is filling, and a headcount from a session that has
+ * already happened answers nothing they are asking.
+ *
+ * Nothing about attendance changes — the register still records it, and
+ * `formatShowedAgainstInvited` still renders it on the operator's event list.
+ */

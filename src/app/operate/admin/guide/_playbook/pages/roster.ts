@@ -149,7 +149,9 @@ export const ROSTER_PAGE: PlaybookPage = {
       then: [
         "A jersey number is unique within the season for each of the two kits. ",
         control("Kit Distributed"),
-        " turns itself to complete once the helmet, shoulder pads, lower pads, lowers and practice jersey are all recorded. The mouthguard is deliberately not one of them.",
+        " turns itself to complete once the helmet, shoulder pads, lower pads, lowers and practice jersey are all recorded. The mouthguard is deliberately not one of them. A player who owns one of those five themselves is recorded as ",
+        control("Player-Owned"),
+        ", the last value on each of the five, which counts toward the flag exactly as a size does.",
       ],
     },
     {

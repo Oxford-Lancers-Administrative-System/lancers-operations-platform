@@ -87,9 +87,25 @@ function formatClubMoment(moment: Date): string {
 
 export const HEADLINE_INVITED_LABEL = "Invited";
 export const HEADLINE_SAID_YES_LABEL = "Said yes";
-/** LAN-384 — beside Said yes on the club-link page. One word, a count, no judgment. */
-export const HEADLINE_SAID_NO_LABEL = "No";
-export const HEADLINE_SHOWED_LABEL = "Showed";
+/**
+ * LAN-384 — beside Said yes on the club-link page. A count, no judgment.
+ *
+ * It was the single word "No" until LAN-420's visual review (Brian,
+ * 2026-09-22): "'No 6' is meaningless as a line. Make it a labelled metric like
+ * the one above it: value 6, label Said no." The word on its own in front of a
+ * number read as a sentence fragment rather than a label, and it only reads as
+ * a label beside **Said yes**, which is the pairing it now spells out.
+ */
+export const HEADLINE_SAID_NO_LABEL = "Said no";
+
+/*
+ * There is no HEADLINE_SHOWED_LABEL any more — LAN-420, Brian's walk of
+ * 573bb9d4, 2026-09-23. It labelled the Showed / Invited card, and that card is
+ * now on neither the operator's event page nor the public Event info link page,
+ * so the constant had no reader. `formatShowedAgainstInvited` below stays: the
+ * operator's list of events and the register still show the figure, and each
+ * already names its own column.
+ */
 
 const NOT_RECORDED_VALUE = "—";
 

@@ -1345,9 +1345,11 @@ describe("a changed default audience follows the same rule", () => {
     expect(after.rows[0].count).toBe(mine.rows[0].count);
   });
 
-  it("refuses a group the type is not offered (D46)", async () => {
-    // `event_template_audience_groups_recruits_are_recruitment_only` says the
-    // same thing in the database; this is the sentence in front of it.
+  it("refuses a group no category offers", async () => {
+    // LAN-416 retired the General `recruits` group in favour of the Recruits
+    // category, so the bare key is now exactly what "not offered" means; the
+    // database says the same thing through
+    // `event_template_audience_groups_representation`.
     const error = await refusalFrom(() =>
       saveEventTemplate(
         actorPersonId,
@@ -1361,15 +1363,28 @@ describe("a changed default audience follows the same rule", () => {
     expect(error.message).toContain("not offered for this kind of event");
   });
 
-  it("accepts the recruits group on a recruitment template", async () => {
+  // LAN-416, amending D46: a recruit pill is pre-choosable on any template.
+  it("accepts a recruit sub-group on an ordinary practice template", async () => {
     const plan = await saveEventTemplate(
       actorPersonId,
-      TEMPLATE.recruitment,
-      templateInput({ name: TEMPLATE_NAME.recruitment, audienceGroups: ["recruits"] }),
+      TEMPLATE.practice,
+      templateInput({ audienceGroups: ["recruits:engaged"] }),
       [],
     );
 
-    expect(plan.audienceAfter).toEqual(["Recruits"]);
+    expect(plan.audienceAfter).toEqual(["Engaged"]);
+  });
+
+  // LAN-414: an assignment sub-group is stored as the roster's own word.
+  it("accepts a special-teams squad as a template default", async () => {
+    const plan = await saveEventTemplate(
+      actorPersonId,
+      TEMPLATE.practice,
+      templateInput({ audienceGroups: ["special_teams:kick_return"] }),
+      [],
+    );
+
+    expect(plan.audienceAfter).toEqual(["Kick Return"]);
   });
 
   // D-003 (correction round 3, Q-14, WP-operator-record, LAN-217): BPS was

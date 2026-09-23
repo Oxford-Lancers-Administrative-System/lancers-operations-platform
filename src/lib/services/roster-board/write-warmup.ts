@@ -2,7 +2,8 @@ import "server-only";
 
 import { ConstraintViolated, withTransaction } from "@/lib/db";
 import { recordAudit } from "../audit";
-import { actorRequirement } from "./shared";
+import { applyAudienceGroupRuleIn } from "../event-audience-rule";
+import { actorRequirement, personIdOfMembershipIn } from "./shared";
 import { WARMUP_SMALL_GROUP_VALUES } from "./vocabulary";
 
 /**
@@ -12,6 +13,11 @@ import { WARMUP_SMALL_GROUP_VALUES } from "./vocabulary";
  * Blank is the absence of a row, never a row holding an empty string — the
  * same rule the special-teams and issued-kit cells keep, so "not recorded" has
  * one representation across the whole board.
+ *
+ * LAN-414 made it a derived audience group as well: `warmup:<name>` is a pill
+ * the event picker offers, so this cell changing moves somebody into or out of
+ * an approved event's audience and goes through the chokepoint like every other
+ * group-deciding write.
  */
 export async function commitWarmupSmallGroup(params: {
   actorPersonId: string;
@@ -19,6 +25,12 @@ export async function commitWarmupSmallGroup(params: {
   seasonId: string;
   /** The chosen group, or `null` to blank the cell. */
   smallGroup: string | null;
+  /**
+   * LAN-392 Brian's decision 8, as `enterReturningPlayer` states it: the CSV
+   * import does not trigger the audience group rule. Only `roster-import.ts`
+   * passes `false`, and it says why at its own call site.
+   */
+  applyAudienceGroupRule?: boolean;
 }): Promise<void> {
   actorRequirement(params.actorPersonId);
 
@@ -54,6 +66,22 @@ export async function commitWarmupSmallGroup(params: {
                        updated_at = now()`,
         [params.membershipId, params.seasonId, params.smallGroup, params.actorPersonId],
       );
+    }
+
+    // LAN-414, both directions in the one call: the cell filled adds them to
+    // every approved future event built from that small group, and the cell
+    // blanked or moved to another group takes back the unsent rule-adds the
+    // group they left had earned them.
+    if (params.applyAudienceGroupRule !== false) {
+      const personId = await personIdOfMembershipIn(tx, params.membershipId);
+      if (personId !== null) {
+        await applyAudienceGroupRuleIn(tx, {
+          personId,
+          seasonId: params.seasonId,
+          trigger: "warmup_group_changed",
+          actorPersonId: params.actorPersonId,
+        });
+      }
     }
 
     await recordAudit(tx, {

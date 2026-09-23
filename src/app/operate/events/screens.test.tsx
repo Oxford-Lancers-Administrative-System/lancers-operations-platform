@@ -530,6 +530,11 @@ function givenAudience(
   audience: AudienceMember[] = [],
   /** LAN-171: read for the plan disclosure. `null` for the screens that are not about it. */
   plan: MessagingPlan | null = null,
+  /**
+   * LAN-392's stored group rule, which LAN-414 round 2 made the picker's tick
+   * state as well. Empty for the screens that are not about it.
+   */
+  audienceGroups: string[] = [],
 ) {
   vi.mocked(readEventAudience).mockResolvedValue(audience);
   vi.mocked(readApprovalPreview).mockResolvedValue({
@@ -564,8 +569,8 @@ function givenAudience(
       "practice",
     ),
     // LAN-392: the stored group rule. Empty for these screens, which are not
-    // about it — the builder's own test is where the pressed groups are proved.
-    audienceGroups: [],
+    // about it — the builder's own test is where the ticked groups are proved.
+    audienceGroups,
     missing: [],
   });
 }
@@ -1282,36 +1287,56 @@ describe("the event's headline numbers", () => {
     return detail({ status: "approved", audienceCount: 37, invitationCount: 37 });
   }
 
-  it("puts invited, said yes and showed at the top of the event", async () => {
+  // LAN-420, Stewart's "OPS EVENTS UPDATES" of 2026-09-22: the Invited / Said
+  // yes / Showed row is replaced by one block per capacity, and Showed moves
+  // below Audience and Distribution.
+  it("no longer puts bare Invited and Said yes tiles at the top", async () => {
     vi.mocked(readEvent).mockResolvedValue(invited());
     vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
 
     render(await EventDetailPage(detailProps()));
 
-    expect(flatten(screen.getByTestId("headline-invited").textContent)).toBe("37Invited");
-    expect(flatten(screen.getByTestId("headline-said-yes").textContent)).toBe("21Said yes");
+    expect(screen.queryByTestId("headline-invited")).toBeNull();
+    expect(screen.queryByTestId("headline-said-yes")).toBeNull();
   });
 
-  it("reads an em dash against the invited count before any register is saved", async () => {
-    // D74. An event nobody has got round to must not read like an event nobody
-    // attended, and this is the string that keeps the two apart.
+  /**
+   * LAN-420 visual review, Brian 2026-09-22: "Remove the Showed / Invited card
+   * entirely. The register panel below it stays; attendance is still recorded
+   * there."
+   *
+   * These two assertions used to pin the card's D74 string — `— / 37` unsaved
+   * against `0 / 37` saved-empty — on this page. The distinction they exist for
+   * is unchanged and still proved where the number now lives: on the register
+   * itself, on the operator's list of events, and on the public Event info link
+   * page. What is gone is this page repeating it above the register that
+   * records it.
+   */
+  it("shows no Showed card at all, saved register or not", async () => {
     vi.mocked(readEvent).mockResolvedValue(invited());
     vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
 
-    render(await EventDetailPage(detailProps()));
+    const unsaved = render(await EventDetailPage(detailProps()));
+    expect(unsaved.queryByTestId("headline-showed")).toBeNull();
+    expect(unsaved.queryByTestId("headline-numbers")).toBeNull();
+    unsaved.unmount();
 
-    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("— / 37Showed");
-  });
-
-  it("reads 0 / 37 once a register is saved with everybody absent", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved", invitationCount: 37 }));
     vi.mocked(readEventAttendanceSummary).mockResolvedValue(
       summary({ showed: 0, recorded: 37, registerSaved: true }),
     );
 
     render(await EventDetailPage(detailProps()));
+    expect(screen.queryByTestId("headline-showed")).toBeNull();
+  });
 
-    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("0 / 37Showed");
+  it("keeps the register panel, which is where attendance is recorded", async () => {
+    vi.mocked(readEvent).mockResolvedValue(invited());
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("section-register-panel")).toBeInTheDocument();
   });
 
   it("explains neither value in words, and never as a percentage", async () => {
@@ -1562,37 +1587,35 @@ describe("an approved event, which this screen never edits", () => {
     expect(screen.queryByRole("link", { name: /choose audience/i })).toBeNull();
   });
 
-  it("offers Edit questions, which is the one thing it does now edit (LAN-318)", async () => {
+  /**
+   * LAN-419, Brian 2026-09-22: "for some reason when the system made its
+   * decision edit event and edit questions were two buttons. Why? No idea
+   * why… Edit event and edit question should be in one." Edit questions is
+   * gone from this screen; Edit event is the one way in, and the questions are
+   * on the page it opens.
+   */
+  it("offers no Edit questions button at all — there is one edit now (LAN-419)", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
 
     render(await EventDetailPage(detailProps()));
 
-    const edit = screen.getByTestId("edit-questions");
+    expect(screen.queryByTestId("edit-questions")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Edit questions" })).toBeNull();
+    // The one button that remains points at the one page.
+    const edit = screen.getByTestId("edit-event");
     expect(edit).toBeVisible();
-    expect(edit).toHaveAttribute("href", `/operate/events/${EVENT_ID}/edit`);
+    expect(edit).toHaveAttribute("href", `/operate/events/${EVENT_ID}/amend`);
   });
 
-  it("offers it on nothing else — not a draft, not a cancelled event", async () => {
+  it("offers Edit event on nothing else — not a draft, not a cancelled event", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
     const draft = render(await EventDetailPage(detailProps()));
-    expect(draft.queryByTestId("edit-questions")).toBeNull();
+    expect(draft.queryByTestId("edit-event")).toBeNull();
     draft.unmount();
 
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
     render(await EventDetailPage(detailProps()));
-    expect(screen.queryByTestId("edit-questions")).toBeNull();
-  });
-
-  it("offers it to nobody who cannot manage the calendar", async () => {
-    vi.mocked(resolveOperatorAccess).mockResolvedValue({
-      state: "active",
-      operator: operator(["treasurer"]),
-    });
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
-
-    render(await EventDetailPage(detailProps()));
-
-    expect(screen.queryByTestId("edit-questions")).toBeNull();
+    expect(screen.queryByTestId("edit-event")).toBeNull();
   });
 
   it("drops the no-invitations statement once the event is approved", async () => {
@@ -1759,12 +1782,14 @@ describe("the edit view — UX-31 against an existing draft", () => {
   });
 });
 
-describe("LAN-318 — an approved event's questions are edited, and nothing else is", () => {
+describe("LAN-419 — an approved event's edit URL forwards to the one edit page", () => {
   /**
-   * Brian, 2026-09-11, amending D41: approval used to freeze the questions, so
-   * this route refused an approved event outright. It now answers with the
-   * question editor alone — the event's own facts still change only through
-   * the amend path, which tells people, and this one tells nobody.
+   * LAN-318 opened this route to an approved event's questions and answered
+   * with the question editor alone. LAN-419 put the questions on the Edit
+   * event page beside the amendable details, so there is one page now and this
+   * URL forwards to it — every playbook link, bookmark and history entry that
+   * pointed here still works. The gate runs before the forward, so nothing is
+   * redirected that would not have been served.
    */
   beforeEach(() => {
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
@@ -1781,41 +1806,21 @@ describe("LAN-318 — an approved event's questions are edited, and nothing else
     ]);
   });
 
-  it("opens the question editor rather than refusing", async () => {
-    render(await EditEventPage(editProps()));
-
-    expect(screen.queryByTestId("edit-refused")).toBeNull();
-    expect(screen.getByTestId("event-questions-form")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Edit questions" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Save questions" })).toBeVisible();
-  });
-
-  it("carries each stored question's id, so the set is updated and not rewritten", async () => {
-    const { container } = render(await EditEventPage(editProps()));
-
-    expect(container.querySelector<HTMLInputElement>('input[name="questionId"]')?.value).toBe(
-      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    );
-    expect(container.querySelector<HTMLInputElement>('input[name="eventId"]')?.value).toBe(
-      EVENT_ID,
+  it("forwards to the amend page rather than rendering a second editor", async () => {
+    await expect(EditEventPage(editProps())).rejects.toThrow(
+      `REDIRECT:/operate/events/${EVENT_ID}/amend`,
     );
   });
 
-  it("offers no Remove, because an answer already given points at the question", async () => {
+  it("forwards nobody who could not have opened it — the gate runs first", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+
     render(await EditEventPage(editProps()));
 
-    expect(screen.queryByTestId("remove-question")).toBeNull();
-    // Everything else about a question is still editable, and one can be added.
-    expect(screen.getByTestId("add-question")).toBeVisible();
-    expect(screen.getByRole("textbox", { name: /^Question$/ })).toHaveValue("Are you fit?");
-  });
-
-  it("edits nothing but the questions — no name, no date, no audience", async () => {
-    const { container } = render(await EditEventPage(editProps()));
-
-    expect(container.querySelector('input[name="name"]')).toBeNull();
-    expect(container.querySelector('input[name="scheduledOn"]')).toBeNull();
-    expect(container.querySelector('input[name="venue"]')).toBeNull();
+    expect(screen.getByTestId("operator-not-permitted")).toBeInTheDocument();
   });
 
   it("still offers Remove on a draft, where nobody has been asked anything", async () => {
@@ -2097,6 +2102,39 @@ describe("UX-40 — building the audience", () => {
     return render(await EventDetailPage(detailProps({ step: "audience" })));
   }
 
+  /**
+   * LAN-414 round 2 — the picker is checklist bands, so a group is a row with
+   * a tick box rather than a pill. These three read one row.
+   */
+  function groupRow(token: string): HTMLElement {
+    const row = screen
+      .getAllByTestId("audience-group-row")
+      .find((node) => node.getAttribute("data-group") === token);
+    if (!row) throw new Error(`no group row for ${token}`);
+    return row;
+  }
+
+  function groupBox(token: string): HTMLInputElement {
+    return within(groupRow(token)).getByRole("checkbox") as HTMLInputElement;
+  }
+
+  /** The row's own head count, and its mark: "Selected", "Included" or "adds N". */
+  function groupNumbers(token: string): { size: string; mark: string } {
+    const row = within(groupRow(token));
+    return {
+      size: row.getByTestId("audience-group-size").textContent ?? "",
+      mark: flatten(row.getByTestId("audience-adds-mark").textContent),
+    };
+  }
+
+  /**
+   * The people list's own tick boxes. Scoped, because every group row in the
+   * picker above is a tick box now too.
+   */
+  function personBoxes(): HTMLElement[] {
+    return within(screen.getByTestId("candidate-list")).getAllByRole("checkbox");
+  }
+
   it("opens with nothing selected when the draft has no audience yet", async () => {
     await openBuilder();
 
@@ -2115,77 +2153,121 @@ describe("UX-40 — building the audience", () => {
 
     // The whole point of storing it: Edit draft and back must not lose it.
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
-    expect(
-      screen.getAllByRole("checkbox").filter((box) => (box as HTMLInputElement).checked),
-    ).toHaveLength(3);
+    expect(personBoxes().filter((box) => (box as HTMLInputElement).checked)).toHaveLength(3);
   });
 
   it("offers everyone-active first, and counts people rather than rows", async () => {
     await openBuilder();
 
-    const groups = screen
-      .getAllByRole("button")
-      .map((button) => button.textContent)
-      .filter((label) => label?.includes("active"));
+    const general = within(screen.getByTestId("section-audience-category-general"));
+    const rows = general.getAllByTestId("audience-group-row");
 
     // Brian asked for everyone first, and for the counts to be people: the
-    // fixture holds five rows for four humans, and the button says four.
-    expect(groups[0]).toBe("Everyone active (4)");
-    expect(groups).toContain("All active players (3)");
-    expect(groups).toContain("All active coaches (1)");
-    expect(groups).toContain("All active committee (1)");
+    // fixture holds five rows for four humans, and the row says four.
+    expect(rows[0].getAttribute("data-group")).toBe("everyone_active");
+    expect(groupNumbers("everyone_active").size).toBe("4");
+    expect(groupNumbers("active_players").size).toBe("3");
+    expect(groupNumbers("active_coaches").size).toBe("1");
+    expect(groupNumbers("active_committee").size).toBe("1");
+
+    // LAN-414 round 2: the two player-wide groups say what LAN-415 made them
+    // mean, rather than leaving the count to imply it.
+    expect(general.getByLabelText("Whole club")).toBeInTheDocument();
+    expect(general.getByLabelText("All roster players")).toBeInTheDocument();
   });
 
-  it("lights a group when its people are all in, and clears it when pressed again", async () => {
+  /**
+   * The heart of Brian's finding, 2026-09-22: "when I click one pill that's
+   * all active, everything lights up. I think it should be more: I click a
+   * group, I see how many people there are and which groups I collect or not."
+   *
+   * So ticking one row never moves another row's tick box. Overlap shows as a
+   * number, or as **Included** where the number would be nought.
+   */
+  it("never ticks a second row, and says Included instead", async () => {
     await openBuilder();
 
-    const everyone = screen.getByRole("button", { name: "Everyone active (4)" });
-    expect(everyone).toHaveAttribute("aria-pressed", "false");
+    expect(groupNumbers("active_players").mark).toBe("adds 3");
+    expect(groupNumbers("active_committee").mark).toBe("adds 1");
 
-    fireEvent.click(everyone);
-    expect(everyone).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(groupBox("everyone_active"));
+
+    expect(groupBox("everyone_active").checked).toBe(true);
+    // Every other group is wholly inside it — and none of them is ticked.
+    expect(groupBox("active_players").checked).toBe(false);
+    expect(groupBox("active_committee").checked).toBe(false);
+    expect(groupNumbers("everyone_active").mark).toBe("Selected");
+    expect(groupNumbers("active_players").mark).toBe("Included");
+    expect(groupNumbers("active_committee").mark).toBe("Included");
+  });
+
+  it("counts what a group would add beyond what is already chosen", async () => {
+    await openBuilder();
+
+    fireEvent.click(groupBox("active_coaches"));
+
+    // Casey North is the only coach and is not a player, so everyone-active
+    // brings the other three rather than all four.
+    expect(groupNumbers("active_coaches").mark).toBe("Selected");
+    expect(groupNumbers("everyone_active").mark).toBe("adds 3");
+    expect(groupNumbers("everyone_active").size).toBe("4");
+  });
+
+  it("reads a running total of groups and people at the top", async () => {
+    await openBuilder();
+
+    const summaryLine = () => flatten(screen.getByTestId("audience-selection-summary").textContent);
+    expect(summaryLine()).toContain("0 groups · 0 people");
+
+    fireEvent.click(groupBox("active_players"));
+    expect(summaryLine()).toContain("1 group · 3 people");
+
+    fireEvent.click(groupBox("active_coaches"));
+    expect(summaryLine()).toContain("2 groups · 4 people");
+  });
+
+  it("ticks and unticks a group, and the tick is the only thing that moves it", async () => {
+    await openBuilder();
+
+    const everyone = () => groupBox("everyone_active");
+    expect(everyone().checked).toBe(false);
+
+    fireEvent.click(everyone());
+    expect(everyone().checked).toBe(true);
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
 
-    fireEvent.click(everyone);
-    expect(everyone).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(everyone());
+    expect(everyone().checked).toBe(false);
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
   });
 
-  it("stops claiming a group is in when one of its people is unticked", async () => {
+  it("keeps a group ticked when one of its people is unticked", async () => {
+    // LAN-392's whole point, and now visible: the group is the rule, and the
+    // missing person is a deliberate exclusion. Under the pills the button
+    // went dark here and the exclusion became indistinguishable from never
+    // having chosen the group.
     await openBuilder();
 
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    fireEvent.click(groupBox("active_players"));
+    expect(groupBox("active_players").checked).toBe(true);
 
     fireEvent.click(screen.getByRole("checkbox", { name: /^Include Avery Fielding( —|$)/ }));
 
-    expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(groupBox("active_players").checked).toBe(true);
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 2 selected");
   });
 
-  it("stays lit when reopened from a saved audience", async () => {
-    // The bug this catches, found in the browser and by nothing else: a saved
-    // audience holds ONE key per person, and "Everyone active" spans several
-    // keys for anybody holding two capacities. Comparing keys rather than people
-    // left the button dark while every one of its people was already invited.
-    const everyone = SAVED_EVERYONE.map((member) => `${member.capacity}:${member.anchorId}`);
-    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE);
+  it("comes back ticked from a saved audience, from the groups that were saved", async () => {
+    // The pills inferred this from the people, which is what made a saved
+    // audience of one key per person read as an unpressed group. LAN-414 round
+    // 2 reads the saved groups instead, which is what LAN-392 already stored.
+    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE, null, ["everyone_active"]);
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps({ step: "audience" })));
 
-    expect(everyone).toHaveLength(4);
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
-    expect(screen.getByRole("button", { name: "Everyone active (4)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(groupBox("everyone_active").checked).toBe(true);
   });
 
   it("undoing a narrower group keeps somebody another group put there", async () => {
@@ -2198,35 +2280,30 @@ describe("UX-40 — building the audience", () => {
     // put them in; undoing the committee group must not take them out.
     await openBuilder();
 
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(groupBox("active_players"));
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
 
-    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+    fireEvent.click(groupBox("active_committee"));
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
 
-    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+    fireEvent.click(groupBox("active_committee"));
 
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
     expect(screen.getByRole("checkbox", { name: /^Include Morgan Pike( —|$)/ })).toBeChecked();
   });
 
-  it("never shrinks the audience when an already-lit group is pressed", async () => {
-    // The one-press variant, which needs no undo at all.
-    //
-    // Casey North is the only coach and is not a player, so selecting the
-    // players leaves the coaches button dark. The committee button is the one
-    // that lights, because its sole member Morgan Pike IS a selected player —
-    // and pressing a lit button must never subtract.
+  it("keeps the people another ticked group also claims when a group is unticked", async () => {
+    // Casey North is the only coach and is not a player. Morgan Pike is both a
+    // player and the sole committee member, so unticking the committee must
+    // leave them behind — the players group is still ticked and still claims
+    // them. Overlap is a number on the screen, and a kept key in the write.
     await openBuilder();
 
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(groupBox("active_committee"));
     const before = screen.getByTestId("review-selection").textContent;
 
-    expect(screen.getByRole("button", { name: "All active committee (1)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+    fireEvent.click(groupBox("active_committee"));
 
     expect(screen.getByTestId("review-selection").textContent).toBe(before);
     for (const name of ["Avery Fielding", "Samira Quinn", "Morgan Pike"]) {
@@ -2236,15 +2313,15 @@ describe("UX-40 — building the audience", () => {
     }
   });
 
-  it("clears the whole selection when everyone-active is un-pressed", async () => {
-    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE);
+  it("clears the whole selection when everyone-active is unticked", async () => {
+    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE, null, ["everyone_active"]);
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps({ step: "audience" })));
 
-    // The case the old test covered, kept: for this one group, its keys are all
-    // the keys, so pressing it does clear everything.
-    fireEvent.click(screen.getByRole("button", { name: "Everyone active (4)" }));
+    // For this one group, its keys are all the keys and nothing else is
+    // ticked, so unticking it does clear everything.
+    fireEvent.click(groupBox("everyone_active"));
 
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
     for (const box of screen.getAllByRole("checkbox")) {
@@ -2256,7 +2333,7 @@ describe("UX-40 — building the audience", () => {
     await openBuilder();
 
     // Morgan Pike is an active player and the Secretary. One invitation.
-    fireEvent.click(screen.getByRole("button", { name: "Everyone active (4)" }));
+    fireEvent.click(groupBox("everyone_active"));
 
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
     // And no sentence explaining the arithmetic — Brian removed it.
@@ -2275,9 +2352,9 @@ describe("UX-40 — building the audience", () => {
   it("lists a person holding two capacities as one row", async () => {
     await openBuilder();
 
-    // Five candidate rows, four humans — and four checkboxes.
+    // Five candidate rows, four humans — and four tick boxes in the list.
     expect(AUDIENCE).toHaveLength(5);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
+    expect(personBoxes()).toHaveLength(4);
     expect(screen.getAllByRole("checkbox", { name: /^Include Morgan Pike( —|$)/ })).toHaveLength(1);
   });
 
@@ -2312,11 +2389,10 @@ describe("UX-40 — building the audience", () => {
     fireEvent.click(morgan());
     expect(morgan()).toBeChecked();
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 1 selected");
-    // Both of their keys went in, so the group they complete is lit as well.
-    expect(screen.getByRole("button", { name: "All active committee (1)" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    // Both of their keys went in. The committee group is not *ticked* — nobody
+    // ticked it — but its row now says the selection already covers it.
+    expect(groupBox("active_committee").checked).toBe(false);
+    expect(groupNumbers("active_committee").mark).toBe("Included");
 
     fireEvent.click(morgan());
     expect(morgan()).not.toBeChecked();
@@ -2327,6 +2403,12 @@ describe("UX-40 — building the audience", () => {
    * LAN-388 — Clint, 2026-09-17: "If someone's status is onboarding, I can't
    * invite them to any events. They aren't in the active group or the recruits
    * group." Confirmed by Brian the same day: Onboarding is its own group here.
+   *
+   * LAN-415, 2026-09-22, reverses the "and not in Active" half. Stewart: "when
+   * I hit all active players that should include the onboarding player."
+   * Brian agreed. The group stays and still reaches only those people; the two
+   * player-wide groups now reach them as well, and the counts on the buttons
+   * are what makes that visible.
    */
   describe("Onboarding is its own group on the picker", () => {
     const ONBOARDING_MEMBERSHIP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9";
@@ -2352,27 +2434,42 @@ describe("UX-40 — building the audience", () => {
       return render(await EventDetailPage(detailProps({ step: "audience" })));
     }
 
-    it("offers an Onboarding button that counts them, and leaves Active alone", async () => {
+    it("offers an Onboarding row that counts them, and counts them in Active too", async () => {
       await openWithOnboarding();
 
-      expect(screen.getByRole("button", { name: "Onboarding (1)" })).toBeEnabled();
-      // The defect: before this, they were in neither of these.
-      expect(screen.getByRole("button", { name: "All active players (3)" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Everyone active (4)" })).toBeVisible();
+      expect(groupNumbers("onboarding").size).toBe("1");
+      // LAN-415: the counts say so. The two player-wide groups each gained the
+      // one mid-onboarding person — 3 players and 4 people without them.
+      expect(groupNumbers("active_players").size).toBe("4");
+      expect(groupNumbers("everyone_active").size).toBe("5");
+      // LAN-414 round 2: and now their labels say so too.
+      const general = within(screen.getByTestId("section-audience-category-general"));
+      expect(general.getByLabelText("All roster players")).toBeInTheDocument();
+      expect(general.getByLabelText("Whole club")).toBeInTheDocument();
     });
 
-    it("selects and counts them from that button", async () => {
+    it("selects and counts them from that row", async () => {
       await openWithOnboarding();
 
-      fireEvent.click(screen.getByRole("button", { name: "Onboarding (1)" }));
+      fireEvent.click(groupBox("onboarding"));
 
       expect(screen.getByTestId("review-selection").textContent).toBe("Review 1 selected");
       expect(screen.getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })).toBeChecked();
-      // Pressing Onboarding does not quietly light the Active groups.
-      expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
+      // Ticking Onboarding alone leaves the players row untouched and saying
+      // it would bring three more people.
+      expect(groupBox("active_players").checked).toBe(false);
+      expect(groupNumbers("active_players").mark).toBe("adds 3");
+    });
+
+    it("includes them when All roster players is ticked instead — LAN-415", async () => {
+      await openWithOnboarding();
+
+      fireEvent.click(groupBox("active_players"));
+
+      expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
+      expect(screen.getByRole("checkbox", { name: /^Include Wren Alderley( —|$)/ })).toBeChecked();
+      // And the Onboarding row says why it is not worth ticking as well.
+      expect(groupNumbers("onboarding").mark).toBe("Included");
     });
 
     it("states their standing on their row, as a label and nothing more", async () => {
@@ -2384,35 +2481,87 @@ describe("UX-40 — building the audience", () => {
       expect(flatten(row?.textContent ?? null)).toContain("Player · Onboarding");
     });
 
-    it("is a button an event with nobody onboarding cannot press", async () => {
+    it("reads nought, and never Included, on an event with nobody onboarding", async () => {
+      // LAN-414 round 2. The pill was disabled at (0); the row is a tick box
+      // that says nought and adds nought. It is never **Included**, because
+      // there is nobody in it to already have.
       await openBuilder();
 
-      expect(screen.getByRole("button", { name: "Onboarding (0)" })).toBeDisabled();
+      expect(groupNumbers("onboarding")).toEqual({ size: "0", mark: "adds 0" });
     });
   });
 
   /**
-   * LAN-295 — "Recruits should only ever be selectable and only ever be
-   * available for a recruitment event. Every other event, they're non-factors."
-   * (Brian, 2026-09-10.) The gate is `listAudienceCatalogueIn`, which no longer
-   * returns them at all off a Recruitment event; this is the screen half — with
-   * none in the catalogue there is no row and no filter option to reach one by.
+   * LAN-416, amending LAN-295 — "Recruits should only ever be selectable and
+   * only ever be available for a recruitment event" (Brian, 2026-09-10) became,
+   * on 2026-09-22, "recruits can be invited to any event… the only way you can
+   * add a recruit is by going to a special recruitment column and adding them."
+   *
+   * So the Recruits category is here on a practice, and this fixture's
+   * catalogue holds no recruit at all: the rows are offered, each reads nought,
+   * no recruit row appears in the list, and no General group would have reached
+   * one anyway.
    */
-  it("offers no recruit row and no Recruits filter on a practice event", async () => {
+  it("offers the Recruits category on a practice, with nobody behind it here", async () => {
     await openBuilder();
 
     expect(AUDIENCE.some((entry) => entry.capacity === "recruit")).toBe(false);
+
+    const recruits = within(screen.getByTestId("section-audience-category-recruits"));
+    for (const label of ["All active recruits", "Identified", "Engaged", "Committed"]) {
+      expect(recruits.getByLabelText(label)).toBeInTheDocument();
+    }
+    for (const token of ["recruits:all", "recruits:identified", "recruits:engaged"]) {
+      expect(groupNumbers(token)).toEqual({ size: "0", mark: "adds 0" });
+    }
+
     expect(flatten(screen.getByTestId("candidate-list").textContent)).not.toContain("Recruit");
     expect(screen.queryByRole("option", { name: /Recruits/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Recruits/ })).toBeNull();
+  });
+
+  /**
+   * LAN-414 round 2, Brian: "Coaching assignments splits into three
+   * sub-categories, each folding on its own." The bands are the roster
+   * board's own — `Section variant="banded"` with `BAND_COLOURS`, no new tone.
+   */
+  it("bands every category, and folds Coaching assignments into three", async () => {
+    await openBuilder();
+
+    expect(
+      screen
+        .getAllByTestId(/^section-audience-category-/)
+        .map((node) => node.getAttribute("data-band")),
+    ).toEqual(["season", "coaching", "warmup", "specialTeams", "recruitment"]);
+
+    const coaching = within(screen.getByTestId("section-audience-category-coaching"));
+    expect(
+      coaching
+        .getAllByTestId(/^section-audience-subcategory-/)
+        .map((node) => node.getAttribute("data-band")),
+    ).toEqual(["coaching", "offensive", "defensive"]);
+    expect(coaching.getByText("Coaching groups")).toBeInTheDocument();
+    expect(coaching.getByText("Offensive position groups")).toBeInTheDocument();
+    expect(coaching.getByText("Defensive position groups")).toBeInTheDocument();
+  });
+
+  it("folds and unfolds a band without touching the selection", async () => {
+    await openBuilder();
+
+    const warmup = screen.getByTestId("section-audience-category-warmup");
+    expect(warmup).not.toHaveAttribute("open");
+    expect(screen.getByTestId("section-audience-category-general")).toHaveAttribute("open");
+
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(within(warmup).getByText("Warmup assignments"));
+
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
   });
 
   it("sorts the chosen people to the top", async () => {
     await openBuilder();
 
     const names = () =>
-      screen
-        .getAllByRole("checkbox")
+      personBoxes()
         .map((box) => box.getAttribute("aria-label") ?? "")
         .map((label) => label.replace(/^Include /, "").replace(/ — .*$/, ""));
 
@@ -2430,12 +2579,12 @@ describe("UX-40 — building the audience", () => {
     fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
       target: { value: "casey" },
     });
-    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(personBoxes()).toHaveLength(1);
 
     fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
       target: { value: "Head Coach" },
     });
-    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(personBoxes()).toHaveLength(1);
 
     fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
       target: { value: "nobody at all" },
@@ -2445,7 +2594,7 @@ describe("UX-40 — building the audience", () => {
 
   it("posts exactly the ticked people to be saved", async () => {
     await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(groupBox("active_players"));
 
     const posted = [...document.querySelectorAll('input[name="audienceKey"]')].map(
       (input) => (input as HTMLInputElement).value,
@@ -2460,12 +2609,12 @@ describe("UX-40 — building the audience", () => {
   });
 
   /**
-   * LAN-392. The pressed group is a third thing the form posts, beside the
+   * LAN-392. The ticked group is a third thing the form posts, beside the
    * keys, because it cannot be recovered from them: untick one of the three and
-   * every derivation of "All active players was chosen" goes out with them,
-   * along with the fact that the one person was left out on purpose. The event
-   * keeps that pressed group as its rule once it is approved, so what is posted
-   * here is what a recruit joining next Tuesday falls into.
+   * every derivation of "All roster players was chosen" goes out
+   * with them, along with the fact that the one person was left out on purpose.
+   * The event keeps that group as its rule once it is approved, so what is
+   * posted here is what a recruit joining next Tuesday falls into.
    */
   function postedGroups(): string[] {
     return [...document.querySelectorAll('input[name="audienceGroup"]')].map(
@@ -2473,16 +2622,16 @@ describe("UX-40 — building the audience", () => {
     );
   }
 
-  it("posts the group that was pressed, beside the keys", async () => {
+  it("posts the group that was ticked, beside the keys", async () => {
     await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(groupBox("active_players"));
     expect(postedGroups()).toEqual(["active_players"]);
   });
 
   it("keeps posting the group after one of its people is unticked", async () => {
     await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    fireEvent.click(screen.getAllByRole("checkbox")[0]);
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(personBoxes()[0]);
 
     // Two keys, and still the group: this pair is exactly what makes an
     // exclusion recordable — the group is the rule, and the missing person is
@@ -2491,20 +2640,20 @@ describe("UX-40 — building the audience", () => {
     expect(postedGroups()).toEqual(["active_players"]);
   });
 
-  it("stops posting the group when the group button is pressed off", async () => {
+  it("stops posting the group when its row is unticked", async () => {
     await openBuilder();
-    const button = screen.getByRole("button", { name: "All active players (3)" });
-    fireEvent.click(button);
-    fireEvent.click(button);
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(groupBox("active_players"));
     expect(postedGroups()).toEqual([]);
     expect(document.querySelectorAll('input[name="audienceKey"]')).toHaveLength(0);
   });
 
-  it("clears the pressed groups with the selection", async () => {
+  it("clears the ticked groups with the selection", async () => {
     await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    fireEvent.click(groupBox("active_players"));
+    fireEvent.click(screen.getByTestId("audience-clear"));
     expect(postedGroups()).toEqual([]);
+    expect(groupBox("active_players").checked).toBe(false);
   });
 });
 
@@ -2940,6 +3089,162 @@ describe("the participation table on the event page", () => {
     expect(screen.queryByTestId("participation-table")).toBeNull();
     expect(readOperatorParticipation).not.toHaveBeenCalled();
   });
+
+  /**
+   * LAN-420 — Stewart's "OPS EVENTS UPDATES", 2026-09-22, change 2. "These 3-6
+   * elements should be the top of the page … The 'Showed' data can be lower in
+   * priority on the page, say below Audience and Distribution."
+   *
+   * The counting itself is `event-response-progress.test.ts`; what is under
+   * test here is that the blocks are on this page, in that order, and that
+   * Showed and the register are below the Audience and distribution section.
+   */
+  describe("response progress by capacity", () => {
+    const MIXED: OperatorParticipation = {
+      ...PARTICIPATION,
+      people: [
+        ...Array.from({ length: 5 }, (_, at) => ({
+          ...PARTICIPATION.people[0],
+          key: `player:${at}`,
+          capacity: "player",
+          answer: (at < 3 ? "yes" : null) as "yes" | "no" | null,
+        })),
+        ...Array.from({ length: 2 }, (_, at) => ({
+          ...PARTICIPATION.people[0],
+          key: `coach:${at}`,
+          capacity: "coach",
+          answer: (at === 0 ? "no" : null) as "yes" | "no" | null,
+        })),
+        {
+          ...PARTICIPATION.people[0],
+          key: "recruit:0",
+          capacity: "recruit",
+          answer: null as "yes" | "no" | null,
+        },
+      ],
+    };
+
+    async function renderMixed() {
+      vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+      vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+      vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+      vi.mocked(readOperatorParticipation).mockResolvedValue(MIXED);
+      return render(await EventDetailPage(detailProps()));
+    }
+
+    it("shows one block per capacity, Recruits, Players then Coaches", async () => {
+      const { container } = await renderMixed();
+
+      expect(
+        [...container.querySelectorAll('[data-testid^="response-progress-"]')].map((node) =>
+          node.getAttribute("data-testid"),
+        ),
+      ).toEqual([
+        "response-progress-recruit",
+        "response-progress-player",
+        "response-progress-coach",
+      ]);
+    });
+
+    /**
+     * LAN-420 round 3, Brian's walk of 573bb9d4: one value line per block —
+     * `<yes> yes · <no> no / <invited>` under the label **Said yes · Said no /
+     * Invited** — in place of round 2's two stacked metrics.
+     */
+    it("reads its three numbers as one value line, under one label", async () => {
+      await renderMixed();
+
+      const players = within(screen.getByTestId("response-progress-player"));
+      expect(players.getByTestId("response-counts").textContent).toBe("3 yes · 0 no / 5");
+      expect(players.getByText("Said yes · Said no / Invited")).toBeVisible();
+
+      const coaches = within(screen.getByTestId("response-progress-coach"));
+      expect(coaches.getByTestId("response-counts").textContent).toBe("0 yes · 1 no / 2");
+
+      // The two metrics round 2 stacked are gone as separate figures.
+      expect(players.queryByTestId("response-yes")).toBeNull();
+      expect(players.queryByTestId("response-no")).toBeNull();
+    });
+
+    /**
+     * The bar is three segments and no gate — "yes in green from the left, no
+     * in red from the right, the unanswered remainder as the pale track
+     * between them", with the widths proportional to invited.
+     */
+    it("draws the bar as yes, the unanswered gap, then no — and bands nothing", async () => {
+      await renderMixed();
+
+      const players = within(screen.getByTestId("response-progress-player"));
+      const bar = players.getByTestId("response-bar");
+      // 3 said yes, nobody said no, 2 have not answered — of 5 invited.
+      expect(bar.getAttribute("data-yes")).toBe("3");
+      expect(bar.getAttribute("data-no")).toBe("0");
+      expect(bar.getAttribute("data-unanswered")).toBe("2");
+      expect(bar.getAttribute("data-band")).toBeNull();
+
+      // The three segments are in that order, left to right, and their widths
+      // are the counts themselves.
+      const segments = [...bar.querySelectorAll("[data-testid^='response-bar-']")];
+      expect(segments.map((node) => node.getAttribute("data-testid"))).toEqual([
+        "response-bar-yes",
+        "response-bar-unanswered",
+        "response-bar-no",
+      ]);
+      expect(segments.map((node) => node.getAttribute("data-width"))).toEqual(["3", "2", "0"]);
+
+      // A coach block where one of two said no: the red segment is the one
+      // with width, and it is last, so it is drawn from the right.
+      const coachBar = within(screen.getByTestId("response-progress-coach")).getByTestId(
+        "response-bar",
+      );
+      expect(coachBar.getAttribute("data-no")).toBe("1");
+      expect(
+        coachBar.querySelector("[data-testid='response-bar-no']")?.getAttribute("data-width"),
+      ).toBe("1");
+
+      // Nobody in the recruits block has answered, so the whole width is gap.
+      const recruitBar = within(screen.getByTestId("response-progress-recruit")).getByTestId(
+        "response-bar",
+      );
+      expect(recruitBar.getAttribute("data-unanswered")).toBe("1");
+      expect(recruitBar.getAttribute("data-yes")).toBe("0");
+      expect(recruitBar.getAttribute("data-no")).toBe("0");
+    });
+
+    it("shows no block at all before approval, when nobody is invited", async () => {
+      vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
+      vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+      vi.mocked(readOperatorParticipation).mockResolvedValue(null as never);
+
+      render(await EventDetailPage(detailProps()));
+
+      expect(screen.queryByTestId("response-progress")).toBeNull();
+    });
+
+    it("puts the register below Audience and distribution, and no Showed card above it", async () => {
+      const { container } = await renderMixed();
+
+      const order = [...container.querySelectorAll("[data-testid]")]
+        .map((node) => node.getAttribute("data-testid"))
+        .filter((id): id is string =>
+          ["response-progress", "audience-fact", "section-register-panel"].includes(id ?? ""),
+        );
+
+      // LAN-420 round 2: Showed came out of this order entirely rather than
+      // moving again — Brian, 2026-09-22.
+      expect(order).toEqual(["response-progress", "audience-fact", "section-register-panel"]);
+      expect(screen.queryByTestId("headline-showed")).toBeNull();
+    });
+
+    it("explains none of it in words", async () => {
+      const { container } = await renderMixed();
+      const text = flatten(container.textContent).toLowerCase();
+
+      expect(text).not.toContain("%");
+      expect(text).not.toContain("progress bar");
+      expect(text).not.toContain("on track");
+    });
+  });
 });
 
 describe("sharing the club link — W7-04", () => {
@@ -2947,11 +3252,14 @@ describe("sharing the club link — W7-04", () => {
     return detail({ status: "approved", audienceCount: 3, invitationCount: 0 });
   }
 
-  it("offers Share link on an approved event and not on a draft", async () => {
+  it("offers Event info link on an approved event and not on a draft", async () => {
     vi.mocked(readEvent).mockResolvedValue(approvedEvent());
     vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
     const approved = render(await EventDetailPage(detailProps()));
     expect(approved.getByTestId("share-link-button")).toBeVisible();
+    // LAN-417 — Stewart read "Share link" as an RSVP link. The button says
+    // what the link actually opens: the read-only page of event information.
+    expect(approved.getByTestId("share-link-button").textContent).toBe("Event info link");
     approved.unmount();
 
     // A draft has no participation table to share.
@@ -2969,6 +3277,10 @@ describe("sharing the club link — W7-04", () => {
 
     render(await EventDetailPage(detailProps({ share: "1" })));
 
+    // LAN-417 — the panel's headline is the button's own words, because it is
+    // the same thing. Its one sentence and its two Copy controls are unchanged.
+    expect(screen.getByTestId("section-share-panel").textContent).toContain("Event info link");
+    expect(screen.getByTestId("section-share-panel").textContent).not.toContain("Share this event");
     expect(screen.getByTestId("club-link-url").textContent).toBe("https://club.example/e/a-token");
     // Reading is reading: opening the dialog must not mint a token.
     expect(issueEventClubLink).not.toHaveBeenCalled();
@@ -3084,7 +3396,7 @@ describe("sharing the club link — W7-04", () => {
 
     expect(screen.queryByTestId("share-message-text")).toBeNull();
     // `readEventShareFacts` issues a link where there is none, so opening the
-    // panel must not reach it: the link is the Share link button's to mint.
+    // panel must not reach it: the link is the Event info link button's to mint.
     expect(readEventShareFacts).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });
@@ -3138,8 +3450,8 @@ describe("a draft that already carries an audience", () => {
         personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp2",
         displayName: "Samira Quinn",
       }),
-      // An unselected coach in the catalogue, so "Everyone active" is not
-      // wholly present and "All active players" is the group that names.
+      // An unselected coach in the catalogue, so "Whole club" is not wholly
+      // present and the players group is the one that names.
       candidate({
         capacity: "coach",
         anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
@@ -3151,7 +3463,7 @@ describe("a draft that already carries an audience", () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 2 }));
     vi.mocked(readEventAudience).mockResolvedValue(bothPlayers);
     // The exact function the approval review uses to name groups — reused,
-    // not reimplemented, so "All active players" only ever means one thing.
+    // not reimplemented, so the players group only ever means one thing.
     vi.mocked(readEventAudienceGroupSummary).mockResolvedValue(
       summariseAudienceGroups(
         twoPlayers,
@@ -3163,17 +3475,23 @@ describe("a draft that already carries an audience", () => {
     const { container } = render(await EventDetailPage(detailProps()));
 
     const shape = flatten(screen.getByTestId("audience-shape").textContent);
-    expect(shape).toBe("All active players — 2 people");
+    expect(shape).toBe("All roster players — 2 people");
     // At the head of the list — before the names, not instead of them.
     expect(container.innerHTML.indexOf('data-testid="audience-shape"')).toBeLessThan(
       container.innerHTML.indexOf('data-testid="event-audience"'),
     );
     expect(within(screen.getByTestId("event-audience")).getByText("Avery Fielding")).toBeVisible();
+
+    // LAN-414 round 2: and under the picker's own heading, so the operator can
+    // check the audience against what they ticked in the same words.
+    const headings = within(screen.getByTestId("audience-groups-by-category"));
+    expect(headings.getByText("General")).toBeVisible();
+    expect(headings.getByText("All roster players")).toBeVisible();
   });
 
   /**
    * The other half of D3: a person added individually must still read
-   * truthfully. Two players plus one hand-picked coach is not "All active
+   * truthfully. Two players plus one hand-picked coach is not "All roster
    * players" — the coach was never in that group, so naming it would claim
    * something that was not chosen.
    */
@@ -3191,7 +3509,7 @@ describe("a draft that already carries an audience", () => {
     render(await EventDetailPage(detailProps()));
 
     const shape = flatten(screen.getByTestId("audience-shape").textContent);
-    expect(shape).not.toContain("All active players");
+    expect(shape).not.toContain("All roster players");
     expect(shape).toContain("All active coaches");
     expect(shape).toContain("2 more chosen by hand");
   });
@@ -3919,7 +4237,14 @@ describe("LAN-339 — the Recruitment event notice", () => {
     );
   });
 
-  it("stands in the questions-only editor of an approved Recruitment event — LAN-318's route", async () => {
+  /**
+   * LAN-419 moved an approved event's question editor onto the Edit event
+   * page, so the notice moved with it. This route no longer renders one at
+   * all; that the notice still stands beside an approved Recruitment event's
+   * questions is asserted against the page that now draws them, in
+   * `[id]/change-screens.test.tsx`.
+   */
+  it("is not drawn by this route on an approved event, which forwards instead", async () => {
     vi.mocked(readEvent).mockResolvedValue(
       detail({
         status: "approved",
@@ -3928,11 +4253,6 @@ describe("LAN-339 — the Recruitment event notice", () => {
       }),
     );
 
-    render(await EditEventPage(editProps()));
-
-    expect(screen.getByTestId("event-questions-form")).toBeInTheDocument();
-    expect(flatten(screen.getByTestId("recruit-questions-notice").textContent)).toBe(
-      RECRUIT_QUESTIONS_NOTICE,
-    );
+    await expect(EditEventPage(editProps())).rejects.toThrow(/^REDIRECT:.*\/amend$/);
   });
 });

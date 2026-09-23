@@ -6,7 +6,7 @@
 import { NotFound, type Tx } from "@/lib/db";
 import { actorRequirement } from "../actor";
 import { UUID_PATTERN, type EventDeliveryMode } from "../event-input";
-import { groupsForEventType, type AudienceGroupKey } from "../audience-selection";
+import { audienceGroupTokenFor, audienceOptionsForEventType } from "../audience-selection";
 import type { EventQuestion } from "../event-questions";
 
 export interface EventTemplate {
@@ -20,7 +20,7 @@ export interface EventTemplate {
   defaultDescription: string | null;
   defaultRequiredEquipment: string | null;
   defaultIsMandatory: boolean | null; // tri-state: null is "the template does not say"
-  audienceGroups: AudienceGroupKey[]; // D47: default audience, as groups, never people
+  audienceGroups: string[]; // D47: default audience, as catalogue tokens, never people (LAN-414)
   questions: EventQuestion[]; // D42: arrive with every event of this type, removable per event
 }
 
@@ -101,8 +101,14 @@ export async function readEventTemplateIn(tx: Tx, templateId: string): Promise<E
   const row = result.rows[0];
   if (!row) throw new NotFound(TEMPLATE_NOT_FOUND_MESSAGE, { rule: TEMPLATE_TYPE_RULE });
 
-  const groups = await tx.query<{ audience_group: AudienceGroupKey }>(
-    `select audience_group::text as audience_group
+  const groups = await tx.query<{
+    category: string;
+    audience_group: string | null;
+    value: string | null;
+  }>(
+    `select category::text as category,
+            audience_group::text as audience_group,
+            value
        from public.event_template_audience_groups
       where template_id = $1::uuid`,
     [templateId],
@@ -136,7 +142,9 @@ export async function readEventTemplateIn(tx: Tx, templateId: string): Promise<E
     defaultIsMandatory: row.default_is_mandatory,
     audienceGroups: orderedGroups(
       row.event_type,
-      groups.rows.map((group) => group.audience_group),
+      groups.rows.map((group) =>
+        audienceGroupTokenFor(group.category, group.audience_group, group.value),
+      ),
     ),
     questions: questions.rows.map((question) => ({
       id: question.id,
@@ -150,12 +158,15 @@ export async function readEventTemplateIn(tx: Tx, templateId: string): Promise<E
   };
 }
 
-// The groups in the order the builder shows them; also filters a stored group the vocabulary no
-// longer offers for this type, rather than printing it as a raw value.
-export function orderedGroups(eventType: string, stored: readonly string[]): AudienceGroupKey[] {
-  return groupsForEventType(eventType)
-    .filter((group) => stored.includes(group.key))
-    .map((group) => group.key);
+// The groups in the order the builder shows them — every category since
+// LAN-414, so a Coaching or Special-teams default keeps its place in the
+// picker. Also filters a stored group the vocabulary no longer offers for this
+// type, rather than printing it as a raw value.
+export function orderedGroups(eventType: string, stored: readonly (string | null)[]): string[] {
+  const held = new Set(stored.filter((token): token is string => token !== null));
+  return audienceOptionsForEventType(eventType)
+    .filter((option) => held.has(option.token))
+    .map((option) => option.token);
 }
 
 // event-input.ts's own pattern, not a second copy — keeps a hand-typed URL from raising a raw uuid-cast error.

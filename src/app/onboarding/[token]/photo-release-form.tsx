@@ -14,7 +14,11 @@ import { agreementLine, agreementSection } from "@/lib/services/onboarding-agree
 
 import { agreePhotoRelease } from "./actions";
 import { AgreementBlocks } from "./agreement-text";
-import { AGREE_AND_CONTINUE, PHOTO_RELEASE_MUST_AGREE_ERROR } from "./presentation";
+import {
+  AGREE_AND_CONTINUE,
+  PHOTO_RELEASE_MUST_AGREE_ERROR,
+  SAVE_REFUSED_MESSAGE,
+} from "./presentation";
 import {
   firstInvalidPhotoReleaseField,
   type PhotoReleaseFormState,
@@ -91,6 +95,13 @@ export function PhotoReleaseForm({
     <Box component="form" action={formAction} noValidate>
       <input type="hidden" name="token" value={token} />
       <Stack spacing={2}>
+        {/* LAN-413 — a rule refused the save. Above the form, because it
+            belongs to no box on it; every box that can refuse says so itself. */}
+        {state.refused ? (
+          <Notice severity="error" testId="save-refused">
+            {SAVE_REFUSED_MESSAGE}
+          </Notice>
+        ) : null}
         <Typography component="h2" sx={{ fontWeight: 700, fontSize: 16 }}>
           {line("heading")}
         </Typography>

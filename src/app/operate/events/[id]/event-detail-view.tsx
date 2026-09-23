@@ -1,6 +1,5 @@
 import { Notice } from "@/components/notice";
 import { Fact, FactGrid, FactList } from "@/components/fact";
-import { Metric, MetricRow } from "@/components/metric";
 import { Section } from "@/components/section";
 import { PageHeader } from "@/components/page-header";
 import { StatusChip } from "@/components/status-chip";
@@ -37,6 +36,7 @@ import { frozenPlanForDisplay, MessagingPlanDisclosure } from "./messaging-plan"
 import { ApprovedEventActions, CancelledPanel, ChangeHistoryPanel } from "./change-panels";
 import RenotifyPanel from "./renotify-panel";
 import { silentChangeNotice } from "./change-presentation";
+import { ResponseProgress } from "../../../participation/response-progress";
 import { AudienceList } from "./audience-list";
 import { QuestionList } from "./question-list";
 import {
@@ -68,38 +68,24 @@ import {
 import {
   ATTENDANCE_OPEN_DETAIL,
   describeRegisterOpensAt,
-  formatShowedAgainstInvited,
-  HEADLINE_INVITED_LABEL,
-  HEADLINE_SAID_YES_LABEL,
-  HEADLINE_SHOWED_LABEL,
   REGISTER_NOT_YET_HEADLINE,
 } from "./attendance/presentation";
 
-/**
- * The three headline numbers — Invited, said yes, showed — REQ-headline-numbers,
- * D62, D73, D74. LAN-152. Raw pairs, no percentages, no dash explanation, no judgment.
+/*
+ * **There is no Showed card on this page** — LAN-420, Brian's visual review,
+ * 2026-09-22: "Remove the Showed / Invited card entirely. The register panel
+ * below it stays; attendance is still recorded there."
+ *
+ * The three headline numbers — Invited, said yes, showed (REQ-headline-numbers,
+ * D62, D73, D74, LAN-152) — were the top of this page. Stewart moved Showed
+ * below Audience and Distribution; seeing it there, Brian took it out. Invited
+ * and Said yes had already gone, because the per-capacity blocks at the top say
+ * both and their totals are the whole event's. Attendance is unchanged: it is
+ * recorded and read on the register, which `RegisterPanel` opens, and the
+ * operator list still carries Showed / Invited for the run of events. Nothing
+ * on this page now restates it. The public Event info link page keeps its own
+ * Showed number, which Brian's review left standing.
  */
-function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
-  return (
-    <MetricRow columns={3} testId="headline-numbers">
-      <Metric
-        value={String(summary.invited)}
-        label={HEADLINE_INVITED_LABEL}
-        testId="headline-invited"
-      />
-      <Metric
-        value={String(summary.saidYes)}
-        label={HEADLINE_SAID_YES_LABEL}
-        testId="headline-said-yes"
-      />
-      <Metric
-        value={formatShowedAgainstInvited(summary)}
-        label={HEADLINE_SHOWED_LABEL}
-        testId="headline-showed"
-      />
-    </MetricRow>
-  );
-}
 
 /**
  * The register, and whether it is open yet — D71 (opens on a buffer before
@@ -169,7 +155,7 @@ export function EventDetailView({
   /** `null` until approval creates invitations — invariant P1. */
   participation: OperatorParticipation | null;
   participationFilters: ParticipationFilters;
-  /** `null` unless the operator opened **Share link**. */
+  /** `null` unless the operator opened **Event info link**. */
   share: {
     url: string | null;
     /** The six lines the panel shows and its button copies — LAN-410. `null` where no link exists yet. */
@@ -264,7 +250,11 @@ export function EventDetailView({
           <CancelledPanel reason={event.decisionReason} entry={cancellation} />
         ) : null}
 
-        {summary ? <HeadlineNumbers summary={summary} /> : null}
+        {/* LAN-420: "These 3-6 elements should be the top of the page"
+            (Stewart, 2026-09-22). One block per capacity in the audience, and
+            nothing at all before approval, when there is no invitation to
+            count. */}
+        {participation ? <ResponseProgress people={participation.people} /> : null}
 
         {mayApprove && changeWentOutSilently && lastAmendment ? (
           <RenotifyPanel
@@ -272,10 +262,6 @@ export function EventDetailView({
             recipients={event.invitationCount}
             notice={silentChangeNotice(lastAmendment)}
           />
-        ) : null}
-
-        {event.status === "approved" ? (
-          <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
         ) : null}
 
         <Section title="Details">
@@ -366,6 +352,13 @@ export function EventDetailView({
             />
           ) : null}
         </Section>
+
+        {/* LAN-420: the register, below Audience and Distribution rather than
+            above them. The Showed / Invited card that sat here is gone —
+            Brian's visual review, 2026-09-22. */}
+        {event.status === "approved" ? (
+          <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
+        ) : null}
 
         {/* W1: frozen at approval — REQ-schedule-not-retroactive. A later schedule change never rewrites this. */}
         {frozenPlan ? (
@@ -473,18 +466,14 @@ export function EventDetailView({
             </Button>
           ) : null}
 
-          {/* LAN-318, amending D41: approval no longer freezes the questions. Nothing is sent when they change, and none can be removed. */}
-          {mayManage && event.status === "approved" ? (
-            <Button
-              variant="outlined"
-              href={`/operate/events/${event.id}/edit`}
-              fullWidth
-              sx={{ minHeight: 44 }}
-              data-testid="edit-questions"
-            >
-              Edit questions
-            </Button>
-          ) : null}
+          {/* LAN-419 — Edit questions is gone. Brian, 2026-09-22: "for some
+              reason when the system made its decision edit event and edit
+              questions were two buttons. Why? No idea why… Edit event and edit
+              question should be in one." An approved event's questions are
+              edited on the Edit event page above, beside the amendable
+              details, and saved by the same press. LAN-318's rule is
+              unchanged: approval does not freeze the questions, nothing is
+              sent for a wording change, and none can be removed. */}
 
           {/* D39: duplicate prefills the create form; nothing is written until saved. */}
           {mayManage ? (

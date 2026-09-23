@@ -147,6 +147,38 @@ export function describeQuestionAnswer(question: {
   return QUESTION_ANSWER_TYPE_LABELS[question.answerType] ?? question.answerType;
 }
 
+/**
+ * Whether a submitted question list differs from the stored one at all —
+ * LAN-419.
+ *
+ * One page now edits an approved event's details and its questions together,
+ * so every save carries the questions whether or not they were touched.
+ * `updateEventQuestions` writes an audit row on every call, and "the operator
+ * changed the questions" is not true of a save that only moved the venue. This
+ * is the test that decides whether the questions half of the save runs at all.
+ *
+ * It compares what a save would actually write: which stored question each
+ * card stands for, its wording, its answer type, whether it is required, and
+ * its choices in order. Order in the list itself counts, because
+ * `upsertEventQuestionsIn` writes the submitted order as the asking order.
+ */
+export function eventQuestionsDiffer(
+  stored: readonly EventQuestionInput[],
+  submitted: readonly EventQuestionInput[],
+): boolean {
+  if (stored.length !== submitted.length) return true;
+  return stored.some((before, index) => {
+    const after = submitted[index];
+    return (
+      before.id !== after.id ||
+      before.prompt.trim() !== after.prompt.trim() ||
+      before.answerType !== after.answerType ||
+      before.isRequired !== after.isRequired ||
+      (before.choices ?? []).join("\u0000") !== (after.choices ?? []).join("\u0000")
+    );
+  });
+}
+
 /** "3 questions" · "1 question" · "None" — the template list's column. */
 export function describeQuestionCount(count: number): string {
   if (count === 0) return "None";

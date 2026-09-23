@@ -554,10 +554,18 @@ describe("LAN-391 — a draft's type can be changed", () => {
     expect(await storedType(event.id)).toEqual({ template_id: PRACTICE, event_type: "practice" });
   });
 
-  it("drops the audience rows the new class cannot offer, and keeps the rest", async () => {
-    // D46/LAN-295: recruits belong to a Recruitment event and nowhere else. A
-    // draft that was recruitment and is now a social is holding rows its own
-    // picker would no longer offer, and approval would invite them.
+  /**
+   * LAN-416, 2026-09-22, empties this prune of its one case.
+   *
+   * D46/LAN-295 said recruits belonged to a Recruitment event and nowhere else,
+   * so a draft that was recruitment and became a social was holding rows its
+   * own picker would no longer offer. A recruit can now be invited to any event
+   * type, so a type change offers everybody it offered before and takes nobody
+   * out — the prune stays, because `capacitiesForEventType` is still the rule
+   * and a future narrowing would need it, but on today's vocabulary it is a
+   * no-op and this test says so rather than leaving it looking broken.
+   */
+  it("keeps every audience row across a type change, now no class narrows the capacities", async () => {
     const event = await createEventDraft(actorPersonId, draft({ templateId: RECRUITMENT }));
     const season = await observer.query<{ id: string }>(
       "select season_id as id from public.events where id = $1",
@@ -599,7 +607,7 @@ describe("LAN-391 — a draft's type can be changed", () => {
       "select capacity::text as capacity from public.event_audience_members where event_id = $1",
       [event.id],
     );
-    expect(left.rows.map((row) => row.capacity)).toEqual(["player"]);
+    expect(left.rows.map((row) => row.capacity).sort()).toEqual(["player", "recruit"]);
   });
 
   it("says in the audit what the type was, what it became, and what left the audience", async () => {
@@ -648,10 +656,10 @@ describe("LAN-391 — a draft's type can be changed", () => {
         event.scheduledOn,
         event.eventType,
       );
-      return groupSelectionKeys(catalogue.candidates, "recruits");
+      return groupSelectionKeys(catalogue.candidates, "recruits:all");
     });
     expect(keys.length).toBeGreaterThan(1);
-    await saveEventAudience(actorPersonId, event.id, keys.slice(1), ["recruits"]);
+    await saveEventAudience(actorPersonId, event.id, keys.slice(1), ["recruits:all"]);
 
     const storedGroups = async () =>
       (

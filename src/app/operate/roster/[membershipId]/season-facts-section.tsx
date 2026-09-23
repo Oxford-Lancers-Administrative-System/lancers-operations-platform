@@ -176,6 +176,21 @@ export default function SeasonFactsSection({
           onCommit={(next) => commitSeasonField("bps", next)}
           rawValue={record.season.bps}
         />
+      </Section>
+
+      {/* LAN-412 — Availability is its own section, in the same banded idiom
+          and the same place in the order as the board's own group. The field,
+          its values and its write are exactly what they were inside
+          Membership; only the band around them is new. */}
+      <Section
+        variant="banded"
+        band="availability"
+        title="Availability"
+        testId="availability"
+        collapsible
+        defaultOpen={!collapsedGroups.has("availability")}
+        onToggleOpen={(open) => onToggleGroup("availability", open)}
+      >
         <RecordField
           label="Availability"
           value={

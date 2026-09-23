@@ -1857,6 +1857,43 @@ describe("which groups are folded away, remembered on the account", () => {
     expect(screen.getByTestId("section-warmup")).not.toHaveAttribute("open");
   });
 
+  /**
+   * LAN-412 — Availability is a group of its own on the record, so it folds on
+   * its own and the account remembers it on its own. Brian's reason for
+   * separating it: it is the one column he would let every coach edit, and a
+   * fact that is granted separately has to be foldable separately.
+   */
+  it("folds Availability on its own, and remembers it (LAN-412)", async () => {
+    vi.mocked(readOperatorPreferences).mockResolvedValue({
+      rosterCollapsedGroups: ["availability"],
+    });
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const availability = screen.getByTestId("section-availability");
+    expect(availability.tagName).toBe("DETAILS");
+    expect(availability).not.toHaveAttribute("open");
+    // Membership is untouched by Availability's own state.
+    expect(screen.getByTestId("section-season")).toHaveAttribute("open");
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      (availability as HTMLDetailsElement).open = true;
+      fireEvent(availability, new Event("toggle", { bubbles: false }));
+    });
+
+    expect(saveCollapsedGroupsAction).toHaveBeenCalledTimes(1);
+    expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]]).toEqual([]);
+  });
+
+  it("shows the Availability field in its own section and not in Membership (LAN-412)", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.getByTestId("section-availability").textContent).toContain("Availability");
+    expect(screen.getByTestId("section-season").textContent).not.toContain("Availability");
+  });
+
   it("opens the groups the account does not list", async () => {
     vi.mocked(readOperatorPreferences).mockResolvedValue({ rosterCollapsedGroups: ["kit"] });
     givenRecord();
@@ -1907,6 +1944,8 @@ describe("which groups are folded away, remembered on the account", () => {
       "onboarding",
       "activity",
       "season",
+      // LAN-412: Availability's own section, between Membership and Coaching.
+      "availability",
       "coaching",
       "offensive",
       "defensive",
@@ -1928,6 +1967,9 @@ describe("which groups are folded away, remembered on the account", () => {
     expect(screen.getByTestId("section-person")).toHaveAttribute("open");
     expect(screen.getByTestId("section-onboarding")).toHaveAttribute("open");
     expect(screen.getByTestId("section-season")).toHaveAttribute("open");
+    // LAN-412 — Availability is not part of the long tail: it is the fact read
+    // most often after the membership facts, and arrives open.
+    expect(screen.getByTestId("section-availability")).toHaveAttribute("open");
     expect(screen.getByTestId("section-activity")).not.toHaveAttribute("open");
     expect(screen.getByTestId("section-attendance")).not.toHaveAttribute("open");
     expect(screen.getByTestId("section-other-seasons")).not.toHaveAttribute("open");

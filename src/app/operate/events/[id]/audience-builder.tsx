@@ -12,17 +12,17 @@ import Stack from "@mui/material/Stack";
 import { Field, SelectField, CheckField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import {
+  audienceCategoriesForEventType,
+  audienceGroupCounts,
+  audienceOptionsForEventType,
   audiencePeople,
-  groupsForEventType,
-  groupIsSelected,
-  groupSize,
-  toggleGroup,
+  selectionAfterGroupPress,
   resolveSelection,
   type AudienceCandidate,
   type AudienceCapacity,
-  type AudienceGroupKey,
   type AudiencePerson,
 } from "@/lib/services/audience-selection";
+import { AudiencePicker } from "../audience-picker";
 import { saveEventAudienceAction } from "../actions";
 import { EMPTY_TRANSITION_STATE } from "../form-state";
 import {
@@ -46,9 +46,9 @@ export interface AudienceBuilderProps {
   candidates: AudienceCandidate[];
   counts: Record<AudienceCapacity, number>;
   initialKeys: string[];
-  /** LAN-392: the group buttons this audience was last saved with. */
+  /** LAN-392: the group pills this audience was last saved with. */
   initialGroups: string[];
-  templateGroups: AudienceGroupKey[];
+  templateGroups: string[];
 }
 
 const UNITS = ["Both", "Offence", "Defence", "Special teams"] as const;
@@ -63,19 +63,23 @@ export function AudienceBuilder({
   initialGroups,
   templateGroups,
 }: AudienceBuilderProps) {
-  const groups = groupsForEventType(eventType);
-  const templateGroupLabels = groups
-    .filter((group) => templateGroups.includes(group.key))
-    .map((group) => group.label);
+  // LAN-414 — the catalogue by category, one read shared with the template
+  // editor, the approval review and the event's own audience panel.
+  const categories = audienceCategoriesForEventType(eventType);
+  const templateGroupLabels = audienceOptionsForEventType(eventType)
+    .filter((option) => templateGroups.includes(option.token))
+    .map((option) => option.label);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(initialKeys));
-  // LAN-392. Which group buttons were *pressed*, remembered rather than
-  // inferred. The lit state below is still inference — "is everybody this group
-  // would invite already ticked" — and it has to stay that way, because ticking
-  // the last missing name by hand should light the button. But inference cannot
-  // answer the question the event needs answered after approval: untick one
+  // LAN-392. Which groups were *ticked*, remembered rather than inferred. It
+  // is what the event's live rule is built from after approval: untick one
   // recruit and every derivation of "the Recruits group was chosen" goes out,
-  // along with the fact that the one person was left out on purpose. So the
-  // press is recorded here, travels with the save, and becomes the event's rule.
+  // along with the fact that the one person was left out on purpose.
+  //
+  // **LAN-414 round 2 makes it the tick box's state as well.** The pills used
+  // to light by inference — "is everybody this group would invite already
+  // chosen" — which is what Brian rejected: "when I click one pill that's all
+  // active, everything lights up". A row is ticked because it was ticked, and
+  // a group the selection happens to cover says **Included** instead.
   const [pressedGroups, setPressedGroups] = useState<ReadonlySet<string>>(
     () => new Set(initialGroups),
   );
@@ -92,6 +96,19 @@ export function AudienceBuilder({
 
   const resolution = useMemo(() => resolveSelection(candidates, keys), [candidates, keys]);
   const people = resolution.ok ? resolution.members.length : 0;
+
+  // LAN-414 round 2. Every row's size and its overlap with what is chosen, in
+  // one service read per selection change — never a per-row computation in the
+  // render.
+  const groupCounts = useMemo(
+    () =>
+      audienceGroupCounts(
+        candidates,
+        categories.flatMap((section) => section.options.map((option) => option.token)),
+        selected,
+      ),
+    [candidates, categories, selected],
+  );
 
   const roster = useMemo(() => audiencePeople(candidates), [candidates]);
 
@@ -137,8 +154,10 @@ export function AudienceBuilder({
   }
 
   function pressGroup(groupKey: string) {
-    const turningOn = !groupIsSelected(candidates, groupKey, selected);
-    setSelected((current) => toggleGroup(candidates, groupKey, current));
+    const turningOn = !pressedGroups.has(groupKey);
+    setSelected((current) =>
+      selectionAfterGroupPress(candidates, groupKey, pressedGroups, current),
+    );
     setPressedGroups((current) => {
       const next = new Set(current);
       if (turningOn) next.add(groupKey);
@@ -160,38 +179,17 @@ export function AudienceBuilder({
           <Typography variant="overline" color="text.secondary" component="p">
             Add a group
           </Typography>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            {groups.map((group) => {
-              const size = groupSize(candidates, group.key);
-              const on = groupIsSelected(candidates, group.key, selected);
-              return (
-                <Button
-                  key={group.key}
-                  variant={on ? "contained" : "outlined"}
-                  size="small"
-                  disabled={size === 0}
-                  aria-pressed={on}
-                  onClick={() => pressGroup(group.key)}
-                  sx={{ minHeight: 40 }}
-                >
-                  {`${group.label} (${size})`}
-                </Button>
-              );
-            })}
-            <Button
-              variant="text"
-              size="small"
-              color="error"
-              disabled={selected.size === 0}
-              onClick={() => {
-                setSelected(new Set());
-                setPressedGroups(new Set());
-              }}
-              sx={{ minHeight: 40 }}
-            >
-              Clear selection
-            </Button>
-          </Stack>
+          <AudiencePicker
+            categories={categories}
+            counts={groupCounts}
+            selectedGroups={pressedGroups}
+            onToggleGroup={pressGroup}
+            people={people}
+            onClear={() => {
+              setSelected(new Set());
+              setPressedGroups(new Set());
+            }}
+          />
         </Box>
 
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>

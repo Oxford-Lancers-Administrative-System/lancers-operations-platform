@@ -613,10 +613,12 @@ describe("the Recruitment event row's two audiences — DEC-split-on-the-schedul
       .find((row) => row.textContent?.startsWith("Recruitment"))!;
     expect(recruitmentRow).toBeDefined();
 
+    // LAN-416 qualifies the second heading: a recruit can be invited to any
+    // event type now, and these fields govern the recruitment one alone.
     const groupHeadings = recruitmentRow.querySelectorAll('[data-testid="audience-group-heading"]');
     expect(Array.from(groupHeadings).map((node) => node.textContent)).toEqual([
       "Regular players",
-      "Recruits",
+      "Recruits on a recruitment event",
     ]);
   });
 

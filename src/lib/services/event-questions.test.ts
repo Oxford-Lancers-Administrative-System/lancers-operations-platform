@@ -849,11 +849,16 @@ describe("the approval review shows the questions as a player will be asked them
 
     const preview = await readApprovalPreview(event.id);
 
-    // Three players out of the whole squad is not a whole group, so the shape
-    // is honest about that rather than claiming "all active players".
+    // Three players out of the whole squad is not a whole player group, so the
+    // shape is honest about that rather than claiming "all active players".
+    // LAN-414 added the assignment categories to the same summary, so some of
+    // the three may now be wholly covered by a narrow sub-group — a squad, a
+    // position group — and named instead of counted as `others`. Everyone
+    // chosen is still accounted for exactly once, which is the property.
     expect(preview.groupSummary.total).toBe(preview.audience.length);
-    expect(preview.groupSummary.others).toBe(preview.audience.length);
-    expect(preview.groupSummary.groups).toEqual([]);
+    expect(preview.groupSummary.others).toBeLessThanOrEqual(preview.audience.length);
+    expect(preview.groupSummary.groups).not.toContain("All roster players");
+    expect(preview.groupSummary.groups).not.toContain("Whole club");
   });
 });
 

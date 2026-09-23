@@ -16,13 +16,11 @@ import { CAPACITY_LABELS } from "../operate/events/presentation";
 
 // The three headline numbers — D62, D73, D74
 
-/** Re-exported from the attendance screen's vocabulary (LAN-152), not rewritten — rule 7. Open: LAN-152 renders `— / 47`, W7's note records `NA / 47`; that is LAN-152's surface to change. */
+/** Re-exported from the attendance screen's vocabulary (LAN-152), not rewritten — rule 7. Showed's own label and formatter are no longer among them: LAN-420 took that number off both participation surfaces, and the operator's event list imports the formatter from the attendance screen directly. */
 export {
-  formatShowedAgainstInvited,
   HEADLINE_INVITED_LABEL,
   HEADLINE_SAID_NO_LABEL,
   HEADLINE_SAID_YES_LABEL,
-  HEADLINE_SHOWED_LABEL,
 } from "../operate/events/[id]/attendance/presentation";
 
 /** Re-exported, not rewritten (W157-F2): a duplicated `TERM_LABELS` map here previously disagreed with the event page's, reading a pre-season event as "-1th week". Rule 7. */
@@ -164,8 +162,16 @@ export const NOBODY_ASKED = "Nobody has been invited to this event yet.";
 
 // The club link — §4.15, D2, D81
 
-export const SHARE_LINK = "Share link";
-export const SHARE_HEADLINE = "Share this event";
+/**
+ * LAN-417, Stewart on the 2026-09-22 call: "Share link to me means I'm sharing
+ * this event and someone can go respond to it… Maybe we should say event
+ * preview or event info link." Brian: "Event info link." It is the public
+ * read-only page — the details and who has responded (LAN-384) — never an RSVP
+ * link, and the old label invited exactly the wrong reading. The button and
+ * the panel's headline carry the same words, because they are the same thing.
+ */
+export const SHARE_LINK = "Event info link";
+export const SHARE_HEADLINE = "Event info link";
 
 /** The one sentence the dialog carries — the consequence of pressing the control. The mockup's reasoning paragraph is a deviation reported in the PR, not shipped. */
 export const SHARE_CONSEQUENCE =

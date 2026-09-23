@@ -45,12 +45,41 @@ person record behind, and refuses everyone else before any board data is read.
 
 ## What renders
 
-Twenty columns, Player pinned, in three labelled and tinted bands — **Person**
-(College, Matric, Grad, Degree, Contactable, Missing), **Onboarding**
-(one column, deliberately lonely — Mission 7 adds the rest), and **Season**
-(Status, Entry, Offence, Defence, Special teams, Blue #, White #, Coach group,
-Formalwear, Blues, Eligibility, Availability). The board scrolls sideways
-inside its own container; the page never scrolls horizontally.
+Player is pinned, and every other column belongs to one labelled and tinted
+band. The band inventory, current as of LAN-412 and in the order the board
+draws them:
+
+| Band                          | Holds                                                              |
+| ----------------------------- | ------------------------------------------------------------------ |
+| **Person**                    | College, Matric, Grad, Degree, Contactable, Missing                |
+| **Onboarding**                | the operator-ticked items                                          |
+| **Membership**                | Status, Entry, Blue #, White #, Blues, Eligibility, BPS            |
+| **Availability**              | Availability, and nothing else (LAN-412)                           |
+| **Coaching assignments**      | coaching group, offensive position group, defensive position group |
+| **Offensive assignments**     | primary and backup position                                        |
+| **Defensive assignments**     | primary and backup position                                        |
+| **Special teams assignments** | six squads, four slots each                                        |
+| **Warmup assignments**        | Small Group Assignment (LAN-401)                                   |
+| **Kit**                       | the issued-kit items (LAN-375, LAN-409)                            |
+
+This replaces the three-band **Person / Onboarding / Season** inventory this
+ticket carried until LAN-412: LAN-387 renamed Season to Membership and split
+the assignment groups out of it on 2026-09-16, and LAN-401 added Warmup, and
+neither updated this paragraph.
+
+**Availability is its own band** (Brian and Stewart, 2026-09-22). Stewart:
+"Let's make availability a category. And it may grow one day." Brian's reason:
+it is the one column he would let every coach edit — "if a player says he just
+broke his leg it's like put it as red" — and a fact that is granted separately
+has to be foldable separately. It holds the one column, keeps its values,
+picker and write action exactly as they were inside Membership, and takes the
+most desaturated band colour on the board, because its values are the only
+traffic-light values the board has.
+
+Every band folds, and which are folded is remembered on the operator's own
+account. Special teams, Warmup and Kit arrive folded; Availability arrives
+open. The board scrolls sideways inside its own container; the page never
+scrolls horizontally.
 
 Raw email and phone are gone, replaced by a Contactable indicator (`Mobile` /
 `Email` chips, never a value). Date of birth and emergency contact appear

@@ -232,16 +232,110 @@ proposer.
 template that supplied the default audience — "The Practice template invites all
 active players. Check it, change it, or add people by hand" — or says "Choose who
 this event is for" where the template names no groups (D47, reversing LAN-77's
-"nothing is selected to begin with"). Group shortcuts offer Everyone active, All
-active players, All active coaches and All active committee, with their counts;
-a Recruits group appears on a Recruitment event alone (D46).
+"nothing is selected to begin with").
+
+**The picker is checklist bands** (LAN-414, State of the App call and Brian's
+visual review, 2026-09-22). Every category is a folding band in the roster
+board's own band idiom, using exactly the board's band colours, and inside it
+every group is a **tick-box row**. **General** and **Coaching assignments**
+arrive open; the other three arrive folded, and a band that has groups ticked
+in it says how many on its header.
+
+The pills that were here until 2026-09-22 are gone. Brian, on the built
+screen: "I think the pills don't make sense because when I click one pill
+that's all active, everything lights up. I think it should be more: I click a
+group, I see how many people there are and which groups I collect or not."
+
+| Category             | What it offers                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| General              | Whole club, All roster players, All active coaches, All active committee, Onboarding, All Active BPS                                                                           |
+| Coaching assignments | Three bands of its own, each folding separately: **Coaching groups**, **Offensive position groups** and **Defensive position groups**, one row per value of that roster column |
+| Warmup assignments   | One row per warmup small group — Kings, Raider, Bear, Phoenix, Cavalier, Blue, Gold, Lancer                                                                                    |
+| Special teams        | One row per squad — Kick Return, Kickoff, Punt, Punt Return, Field Goal, Field Goal Block                                                                                      |
+| Recruits             | All active recruits, Identified, Engaged, Committed                                                                                                                            |
+
+Every row carries the group's own head count in **people**, and at its right
+either **Selected**, **Included**, or `adds N`:
+
+- **Selected** — this row is ticked.
+- **Included** — every person in this group is already reached by what is
+  chosen, so ticking it would add nobody. An empty group never reads Included;
+  it reads `adds 0`, because there is nobody in it to already have.
+- `adds N` — ticking it would bring N people the selection has not reached.
+
+**A tick box is ticked because somebody ticked it, and nothing else ever moves
+it.** Tick Whole club and the narrower rows below it do not
+tick themselves: they say **Included**. Overlap is only ever a number. Untick a
+wide group and anyone a narrower ticked group still claims stays in. A sticky
+line at the top of the picker reads `<n> groups · <m> people`, and the
+resolved-people list below it is unchanged — an operator still sees exactly who
+the selection reaches, by name, before saving.
+
+A coaching or warmup row resolves to everyone whose current-season roster row
+holds that value; a squad row resolves to everyone holding **any** slot in that
+squad, starter or any backup (Stewart: "If you have an assignment in kick
+return, you need to get a message… even if they're backup three"). The same
+catalogue and the same picker are what the template editor offers for a default
+audience; the approval review and the event's own audience panel name the chosen
+groups under the same category and sub-category headings, in the same words.
+
+**Recruits are offered on every event type** (LAN-416, Brian, Stewart and
+Clint, 2026-09-22), amending D46/LAN-295's "a Recruits group appears on a
+Recruitment event alone". Between the pure recruiting events and the first team
+practices there is a run of mixed events a good recruit who is not yet Joined
+had no way onto. Clint: "the type of an event pertains to what's actually going
+to happen at the event, not who's invited." A recruit is reachable **only**
+through the four Recruits rows — no General group and no assignment sub-group
+ever includes one, so ticking Whole club on a Training event adds no
+recruits at all. Declined, disengaged, voided and joined recruits are never
+offered and never resolve; somebody who has Joined is a player and arrives
+through the player groups.
+
+**Whole club and All roster players include people mid-onboarding**
+(LAN-415, Brian and Stewart, 2026-09-22). This reverses LAN-388's "Onboarding is
+never folded into Active": Stewart, "when I hit all active players that should
+include the onboarding player"; Brian, "Onboarding is an administrative status
+internally… it's more of a marker to Clint." A rookie still finishing their
+items is on the team, and an operator ticking either row means everyone.
+**Onboarding stays as its own group**, because it is still the only way to reach
+_only_ those people — an onboarding-only social, in Brian's example. All active
+coaches and All active committee are unchanged: onboarding is a player fact, and
+no coaching seat or committee seat carries one.
+
+**The two labels are _Whole club_ and _All roster players_** (Brian's walk,
+2026-09-23). LAN-415 first left them reading "Everyone active" and "All active
+players" on the reasoning that the count beside each would make the inclusion
+visible; his visual review of 2026-09-22 decided it would not and spelled the
+rule out — "Everyone active and onboarding", "Active and onboarding players" —
+and his walk the next day found that spelling it out cost more than it bought:
+long enough to wrap in a band row, and "and onboarding" reads as an extra
+cohort bolted on when the point is that these are the widest groups there are.
+_Whole club_ is every membership carrying a player, coach or committee
+capacity, active or mid-onboarding, and never a recruit; _All roster players_
+is the player half of it. What each resolves to is unchanged, and the
+resolved-people list below the picker is what names exactly who. The keys, the
+storage and the resolution are untouched by any of the three rounds.
+
+Nothing is backfilled. An event approved before this ships, whose audience is
+either of those two groups, picks up its mid-onboarding people through
+LAN-392's live rule on the scheduler's next pass, and they are invited under
+that event's own rules.
 
 The list is **people, one row each** (LAN-294): somebody who plays and also
 coaches or sits on the committee appears once, with every role on the row's
-second line, and the tick takes them in or out as a whole. On anything that is
-not a Recruitment event, a recruit is not merely hidden — they are not offered
-at all (LAN-295), so there is no recruit row and no Recruits entry in the
-Capacity filter.
+second line, and the tick takes them in or out as a whole. Open recruits are in
+the list on every event type since LAN-416, with a Recruits entry in the
+Capacity filter wherever there is one to show.
+
+**Which chase a recruit gets is the event's decision, not theirs** (LAN-416).
+On a Recruitment event they keep the gentle cadence — one invitation and at
+most one follow-up, never an escalation (REQ-two-ladders, REQ-never-harsh). On
+any other event type there is no gentle cadence configured, so a recruit is
+invited and chased exactly as a player is for that type. Brian: "only
+recruitment events get that special status. Every other, I don't have to
+change." The consent gate is untouched and applies to every recruit send on
+every type: without a granted season consent the row and the invitation are
+written and the message is withheld.
 
 2. Search for `Runbook`, tick **Runbook Walker**, press **Review 1 selected**.
 
@@ -548,6 +642,55 @@ clipped or needs sideways scrolling.
 
 Back in the operator's browser, open the event.
 
+**Expected, at the top of the page: response progress by capacity** (LAN-420,
+Stewart's "OPS EVENTS UPDATES" of 2026-09-22, change 2). One block per capacity
+present in the audience, in the order **Recruits, Players, Coaches,
+Committee** — a capacity nobody was invited under shows no block at all, so a
+practice with no recruits shows Players and Coaches only. Each block reads:
+
+| Line  | What it says                                                                       |
+| ----- | ---------------------------------------------------------------------------------- |
+| Name  | Recruits, Players, Coaches or Committee                                            |
+| Value | `16 yes · 6 no / 39`, labelled **Said yes · Said no / Invited**                    |
+| Bar   | Three segments: yes, the unanswered remainder, no — widths proportional to invited |
+
+**One value line, not two figures** (Brian's walk, 2026-09-23). The three
+numbers are one sentence about one population and the denominator belongs to
+both halves, so they are read on one line rather than stacked as two metrics.
+
+**The bar is the three answers at their true widths.** Yes runs in the theme's
+success green from the left, no in the error red from the right, and the people
+who have not answered are the pale track left between them — so one no in ten
+is a red tenth on the right, and the gap is the chase. **There is no colour
+gate.** Round 2 coloured the whole bar red, orange or green at 50 % and 75 %;
+that reading is dropped, because the gap already carries it and a threshold
+disagreed with the numbers at the edges — an event where everybody had answered
+and half said no went green.
+
+The block counts **invitations**, not the roster, so somebody added to an
+approved event raises that capacity's denominator. Somebody invited under two
+capacities is counted once, under the first of Recruits, Coaches, Players,
+Committee. Nothing explains the bar in words. The same blocks head the public
+**Event info link** page, from the same component, so the operator and whoever
+the link was sent to are reading the same numbers.
+
+**Invited and Said yes are no longer tiles of their own**, because each block
+says both and their totals are the whole event's.
+
+**There is no Showed tile on this page at all** (Brian's visual review,
+2026-09-22): "Remove the Showed / Invited card entirely. The register panel
+below it stays; attendance is still recorded there." Stewart had moved it below
+the Audience and distribution section; seeing it there Brian took it out. His
+walk of 2026-09-23 took it off the public **Event info link** page as well, so
+the number is now on neither participation surface: who turned up is an
+operator's figure, kept where it is acted on, and the link is read by people
+deciding whether to come. The **register panel** is still in its position and
+is still where attendance is recorded, and Showed / Invited is unchanged where
+it still appears — on the operator's list of events and on the register itself,
+where it keeps its D74 shape (`— / 37` before any register is saved, `0 / 37`
+once one is saved with everybody absent, never a percentage). This amends
+D62 / D73 / D74; `docs/ux/slice-ux.md` § 5 carries the amendment.
+
 Nobody is asked whether it happened. LAN-151 retired that decision with both of
 its screens (D30): an event has occurred once its date has passed and it was not
 cancelled, and the register opens on its own schedule — about six hours before
@@ -739,7 +882,7 @@ pages asks you to sign in, and reading them creates no record of any kind.
 
 ## 12c. The club link, and how long it lasts
 
-**Share this event** on an approved event's page issues `/e/<token>` — the
+**Event info link** on an approved event's page issues `/e/<token>` — the
 shared squad page a coach posts into the team WhatsApp group. Anyone holding it
 sees names, RSVP status, decline reasons and question answers, with no account
 and no sign-in. It shows no delivery state and no joining URL.
@@ -781,10 +924,17 @@ Administration entry, including How administration works.
 
 ## 13. What this walk deliberately does not cover
 
-Performance and load. Anything against the hosted project. Amending and
+Performance and load. Anything against the hosted project. Editing and
 cancelling an already-approved event, which LAN-156 built and which
 [`docs/ux/tickets/LAN-156-amend-and-cancel.md`](ux/tickets/LAN-156-amend-and-cancel.md)
-describes — this walk does not step through it. Adding a recipient after
+describes — this walk does not step through it. One thing about it is worth
+stating here, because it changed: since LAN-419 an approved event has **one**
+edit. **Edit event** opens one page holding the amendable details and the
+questions together, and one press saves both; the separate Edit questions
+button is gone and `/operate/events/<id>/edit` forwards there. What each half
+does is unchanged — a detail change goes through the amendment path and its
+notify decision, a question change sends nothing for a wording fix and voids
+and re-asks a changed question. Adding a recipient after
 approval, which is unavailable by design; retry and reissue act only on an
 invitation that already exists and cannot change the approved audience, and an
 amendment does not change it either.

@@ -111,24 +111,63 @@ committee row's `season_membership_id` is null, so the two unique indexes never
 meet. Left alone it would send one person two WhatsApp messages about one
 practice.
 
-### The group buttons
+### The picker is checklist bands
 
-- **Everyone active is first**, and the narrower groups read as refinements of
-  it.
-- Each button is a **toggle**: lit when every one of its people is selected,
-  and pressing it again clears them. Unticking one person unlights the group.
-- Each count is **people, not rows**. An earlier version showed the row count
-  and explained the difference in a sentence underneath; the club knows what
-  "everyone active" means and the screen does not explain its own arithmetic.
-- Selected people **sort to the top** of the list, so an audience of forty built
-  from a roster of forty-five is reviewable.
+Superseding "the group buttons", which described the pills this screen carried
+until LAN-414's visual review (Brian, 2026-09-22). His finding, on the built
+screen: "I think the pills don't make sense because when I click one pill
+that's all active, everything lights up. I think it should be more: I click a
+group, I see how many people there are and which groups I collect or not." He
+chose this shape from four built on the `ux/audience-picker-variants` branch.
+
+- **Every category is a folding band** in the roster board's own band idiom,
+  using exactly `BAND_COLOURS` and no new tone. Coaching assignments folds
+  again into **Coaching groups**, **Offensive position groups** and
+  **Defensive position groups**, each folding on its own. General and Coaching
+  assignments arrive open; the rest arrive folded.
+- **Every group is a tick-box row**, the app's existing check-field idiom,
+  carrying the group's head count and, right-aligned, one of three marks:
+  **Selected** when it is ticked, **Included** when the selection already
+  reaches everyone in it, or `adds N` for the people it would bring. An empty
+  group is never **Included** — it reads `adds 0`, because there is nobody in
+  it to already have.
+- **A control never changes another control's visual state.** A tick box is
+  ticked because somebody ticked it; overlap is only ever a number. This is the
+  rule the pills broke, and it is the reason the tick state is the _stored
+  group rule_ (LAN-392) rather than the old inference "is everybody this group
+  would invite already chosen".
+- **Whole club is first**, and the narrower groups read as refinements of it.
+  It and **All roster players** are named for their size rather than for the
+  membership rule inside them (Brian's walk, 2026-09-23): both reach a
+  mid-onboarding membership, as LAN-415 decided, and the resolved-people list
+  below the picker is what shows who that is on the day.
+- **Unticking a group keeps the people a narrower ticked group still claims**,
+  which is the write-side half of "overlap is a number".
+- Each count is **people, not rows**, and comes from the service
+  (`audienceGroupCounts`), so the row that says `adds 12` and the write that
+  invites twelve more people come from one function. An earlier version showed
+  the row count and explained the difference in a sentence underneath; the club
+  knows what its groups mean and the screen does not explain its own
+  arithmetic.
+- **A sticky summary** at the top reads `<n> groups · <m> people`.
+- **The resolved-people list below the picker is unchanged**, so an operator
+  still sees exactly who the selection reaches, by name, before saving.
+  Selected people **sort to the top** of it, so an audience of forty built from
+  a roster of forty-five is reviewable.
+
+The same component serves the **template editor's default audience**
+(docs/ux/standards.md rule 7). The **approval review** and the **event's own
+audience panel** name the chosen groups under the same category and
+sub-category headings, in the same labels, so checking the audience against
+what was ticked is reading the same words in the same order.
 
 ### Additional derived groups
 
-The four groups here are what current domain data defines authoritatively.
-Further groups — by unit, by year, by anything the club actually asks for — are
-follow-on work and need the team to define them. They are not covered by this
-ticket and are not the post-MVP configuration administration in LAN-106 either.
+The General groups here are what current domain data defines authoritatively,
+beside the roster's own assignment vocabularies (LAN-414). Further groups — by
+year, by anything the club actually asks for — are follow-on work and need the
+team to define them. They are not covered by this ticket and are not the
+post-MVP configuration administration in LAN-106 either.
 
 ## Where the rules live
 

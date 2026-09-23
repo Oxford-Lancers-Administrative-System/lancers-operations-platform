@@ -43,6 +43,7 @@ vi.mock("@/lib/services/player-questionnaire", async (importOriginal) => {
     readQuestionnaireView: vi.fn(),
     saveDetailsStep: vi.fn(),
     agreeOnboardingDocument: vi.fn(),
+    savePhotoRelease: vi.fn(),
     claimTrustItem: vi.fn(),
   };
 });
@@ -55,10 +56,16 @@ import {
   claimTrustItem,
   readQuestionnaireView,
   saveDetailsStep,
+  savePhotoRelease,
   type QuestionnaireView,
 } from "@/lib/services/player-questionnaire";
-import { agreeDocument, saveDetails, submitTrustStep } from "./actions";
-import { EMPTY_DETAILS_VALUES, type DetailsFormState } from "./validation";
+import { agreeDocument, agreePhotoRelease, saveDetails, submitTrustStep } from "./actions";
+import {
+  EMPTY_DETAILS_VALUES,
+  EMPTY_PHOTO_RELEASE_VALUES,
+  type DetailsFormState,
+  type PhotoReleaseFormState,
+} from "./validation";
 
 const TOKEN = "durable-token-plaintext-000000000000000000000";
 const PERSON_ID = "00000000-0000-4000-8000-000000000001";
@@ -93,6 +100,12 @@ const VALID_FIELDS: Record<string, string> = {
 
 const INITIAL_STATE: DetailsFormState = { values: EMPTY_DETAILS_VALUES, errors: {} };
 
+const EMPTY_PHOTO_RELEASE_STATE: PhotoReleaseFormState = {
+  values: EMPTY_PHOTO_RELEASE_VALUES,
+  errors: {},
+  agreeError: false,
+};
+
 function formFor(fields: Record<string, string> = {}): FormData {
   const form = new FormData();
   form.set("token", TOKEN);
@@ -124,6 +137,7 @@ beforeEach(() => {
   } as unknown as QuestionnaireView);
   vi.mocked(saveDetailsStep).mockResolvedValue({ errors: {}, outcomes: {} });
   vi.mocked(agreeOnboardingDocument).mockResolvedValue({} as never);
+  vi.mocked(savePhotoRelease).mockResolvedValue({ errors: {}, agreeError: false, agreement: null });
   vi.mocked(claimTrustItem).mockResolvedValue(undefined);
 });
 
@@ -390,5 +404,98 @@ describe("submitTrustStep", () => {
 
     expect(claimTrustItem).not.toHaveBeenCalled();
     expect(target).toBe(`/onboarding/${encodeURIComponent(TOKEN)}`);
+  });
+});
+
+/**
+ * LAN-413 — every step catches the refusal its own service throws.
+ *
+ * Production, 2026-09-22: Joey confirmed BUCS Play and got the generic server
+ * error page, because the season's item had been recorded `direct` and the
+ * claim was correctly refused; Stewart got the same page on the details step
+ * hours later, because an email another record already held was correctly
+ * refused. Both refusals were right. Neither was shown. Brian: "I just don't
+ * want to fix it for one person. I want to fix it for everyone." — so this is
+ * one test per step, not one per production incident.
+ *
+ * A fault is deliberately not a refusal here, and keeps reaching the error
+ * boundary: the last test in each pair proves the two are still told apart.
+ */
+describe("every onboarding action shows a refusal on its own step (LAN-413)", () => {
+  const refusal = () =>
+    new ConstraintViolated("The club's rules refused this.", { rule: "some_service_rule" });
+
+  it("keeps the details step, the typed values and a refusal that belongs to no field", async () => {
+    vi.mocked(saveDetailsStep).mockRejectedValueOnce(refusal());
+
+    const state = await saveDetails(INITIAL_STATE, formFor(VALID_FIELDS));
+
+    expect(state.refused).toBe(true);
+    expect(state.values.given_name).toBe("Jordan");
+    expect(state.values.personal_email).toBe("jordan@example.com");
+    // Nothing invented against a field: the refusal was not about one.
+    expect(state.errors).toEqual({});
+  });
+
+  it("lets a fault on the details step reach the error boundary, as a fault should", async () => {
+    vi.mocked(saveDetailsStep).mockRejectedValueOnce(new Error("the database fell over"));
+
+    await expect(saveDetails(INITIAL_STATE, formFor(VALID_FIELDS))).rejects.toThrow(
+      "the database fell over",
+    );
+  });
+
+  it("returns the Code of Conduct step with the refusal shown", async () => {
+    vi.mocked(agreeOnboardingDocument).mockRejectedValueOnce(refusal());
+
+    const target = await redirectFrom(() =>
+      agreeDocument(formFor({ agreementType: "code_of_conduct", agree: "1" })),
+    );
+
+    expect(target).toBe(
+      `/onboarding/${encodeURIComponent(TOKEN)}?step=code_of_conduct&error=refused`,
+    );
+  });
+
+  it("returns the BUCS Play step with the refusal shown — the claim Joey was refused", async () => {
+    vi.mocked(claimTrustItem).mockRejectedValueOnce(
+      new ConstraintViolated("This item is not a trust-class item.", {
+        rule: "onboarding_item_claim_requires_trust_class",
+      }),
+    );
+
+    const target = await redirectFrom(() =>
+      submitTrustStep(formFor({ code: "bucs_play", claim: "1" })),
+    );
+
+    expect(target).toBe(`/onboarding/${encodeURIComponent(TOKEN)}?step=bucs_play&error=refused`);
+  });
+
+  it("returns the Hudl step with the refusal shown", async () => {
+    vi.mocked(claimTrustItem).mockRejectedValueOnce(refusal());
+
+    const target = await redirectFrom(() =>
+      submitTrustStep(formFor({ code: "hudl_access", claim: "1" })),
+    );
+
+    expect(target).toBe(`/onboarding/${encodeURIComponent(TOKEN)}?step=hudl&error=refused`);
+  });
+
+  it("lets a fault on a trust step reach the error boundary, as a fault should", async () => {
+    vi.mocked(claimTrustItem).mockRejectedValueOnce(new Error("the database fell over"));
+
+    await expect(submitTrustStep(formFor({ code: "bucs_play", claim: "1" }))).rejects.toThrow(
+      "the database fell over",
+    );
+  });
+
+  it("keeps the photo release step with the refusal shown and the boxes as typed", async () => {
+    vi.mocked(savePhotoRelease).mockRejectedValueOnce(refusal());
+
+    const state = await agreePhotoRelease(EMPTY_PHOTO_RELEASE_STATE, formFor({ name: "Jordan" }));
+
+    expect(state.refused).toBe(true);
+    expect(state.agreeError).toBe(false);
+    expect(state.values.name).toBe("Jordan");
   });
 });

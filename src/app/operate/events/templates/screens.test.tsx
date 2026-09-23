@@ -38,6 +38,10 @@ vi.mock("@/lib/services/event-templates", async (importOriginal) => {
     countEventsFromTemplate: vi.fn(),
     planEventTemplateChange: vi.fn(),
     saveEventTemplate: vi.fn(),
+    // LAN-414 round 2: the template editor's picker counts against the current
+    // season's catalogue. Mocked here for the same reason the rest of the
+    // service is — what these tests are about is the screen.
+    readTemplateAudienceCatalogue: vi.fn(),
   };
 });
 
@@ -47,11 +51,12 @@ import {
   countEventsFromTemplate,
   listEventTemplates,
   readEventTemplate,
+  readTemplateAudienceCatalogue,
   type EventTemplate,
   type EventTemplateSummary,
   type TemplateChangePlan,
 } from "@/lib/services/event-templates";
-import { groupsForEventType } from "@/lib/services/audience-selection";
+import { audienceCategoriesForEventType } from "@/lib/services/audience-selection";
 import { TEMPLATE_COLOUR_PALETTE } from "@/lib/services/event-template-input";
 import {
   createEventTemplateAction,
@@ -165,6 +170,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
   vi.mocked(countEventsFromTemplate).mockResolvedValue(0);
+  vi.mocked(readTemplateAudienceCatalogue).mockResolvedValue({
+    candidates: [],
+    counts: { player: 0, coach: 0, committee: 0, recruit: 0 },
+  });
   vi.mocked(listEventTemplates).mockResolvedValue(
     SEVEN_TEMPLATES.map(({ id, name, eventType }) => summary({ id, name, eventType })),
   );
@@ -221,7 +230,8 @@ describe("W8-01 — the club's templates", () => {
         eventCount={eventCount}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+        candidates={[]}
       />
     );
 
@@ -250,7 +260,7 @@ describe("W8-01 — the club's templates", () => {
     render(await EventTemplatesPage());
 
     const row = flatten(screen.getAllByTestId("template-row")[0].textContent);
-    expect(row).toContain("All active players");
+    expect(row).toContain("All roster players");
     expect(row).toContain("In person · Iffley Road Astro");
     expect(row).toContain("3 questions");
   });
@@ -275,7 +285,7 @@ describe("W8-01 — the club's templates", () => {
 
     const card = flatten(screen.getAllByTestId("template-card")[0].textContent);
     expect(card).toContain("Practice");
-    expect(card).toContain("All active players");
+    expect(card).toContain("All roster players");
     expect(card).toContain("Iffley");
     expect(card).toContain("1 question");
   });
@@ -337,11 +347,17 @@ describe("W8-02 — one template", () => {
   // LAN-388 adds Onboarding to the same picker: the decision says a template
   // may pre-choose it like any other group, which is what the migration on
   // `public.audience_group` is for.
-  it("offers the four standing groups, Onboarding and BPS, and no recruits group", async () => {
+  it("opens on General: the four standing groups, Onboarding and BPS", async () => {
     render(await EventTemplatePage(typeProps()));
 
-    const groups = screen.getAllByTestId("template-audience-group");
-    expect(groups.map((node) => node.getAttribute("data-group"))).toEqual([
+    // LAN-414 round 2: General is a band of tick-box rows, and its two
+    // player-wide groups say out loud that they include onboarding (LAN-415).
+    const general = screen.getByTestId("section-audience-category-general");
+    expect(
+      within(general)
+        .getAllByTestId("audience-group-row")
+        .map((node) => node.getAttribute("data-group")),
+    ).toEqual([
       "everyone_active",
       "active_players",
       "active_coaches",
@@ -349,16 +365,84 @@ describe("W8-02 — one template", () => {
       "onboarding",
       "bps",
     ]);
+    expect(within(general).getByLabelText("Whole club")).toBeInTheDocument();
+    expect(within(general).getByLabelText("All roster players")).toBeInTheDocument();
   });
 
-  it("offers a recruits group on the recruitment template alone (D46)", async () => {
-    vi.mocked(readEventTemplate).mockResolvedValue(template({ eventType: "recruitment" }));
-
-    render(await EventTemplatePage(typeProps("recruitment")));
+  // LAN-414: the template editor offers the categories the event form offers,
+  // one catalogue read by both (docs/ux/standards.md rule 7).
+  it("offers the five category bands, General and Coaching open", async () => {
+    render(await EventTemplatePage(typeProps()));
 
     expect(
-      screen.getAllByTestId("template-audience-group").map((n) => n.getAttribute("data-group")),
-    ).toContain("recruits");
+      screen
+        .getAllByTestId(/^section-audience-category-/)
+        .map((node) => node.getAttribute("data-testid")),
+    ).toEqual([
+      "section-audience-category-general",
+      "section-audience-category-coaching",
+      "section-audience-category-warmup",
+      "section-audience-category-special_teams",
+      "section-audience-category-recruits",
+    ]);
+
+    // The two Brian's picker opens on; the rest arrive folded.
+    expect(screen.getByTestId("section-audience-category-general")).toHaveAttribute("open");
+    expect(screen.getByTestId("section-audience-category-coaching")).toHaveAttribute("open");
+    expect(screen.getByTestId("section-audience-category-warmup")).not.toHaveAttribute("open");
+
+    const squads = screen.getByTestId("section-audience-category-special_teams");
+    expect(
+      within(squads)
+        .getAllByTestId("audience-group-row")
+        .map((n) => n.getAttribute("data-group")),
+    ).toContain("special_teams:kick_return");
+  });
+
+  // LAN-414 round 2, Brian: "Coaching assignments splits into three
+  // sub-categories, each folding on its own."
+  it("folds Coaching assignments into its three sub-categories", async () => {
+    render(await EventTemplatePage(typeProps()));
+
+    const coaching = screen.getByTestId("section-audience-category-coaching");
+    expect(
+      within(coaching)
+        .getAllByTestId(/^section-audience-subcategory-/)
+        .map((node) => node.getAttribute("data-testid")),
+    ).toEqual([
+      "section-audience-subcategory-coaching_groups",
+      "section-audience-subcategory-offensive_positions",
+      "section-audience-subcategory-defensive_positions",
+    ]);
+
+    expect(within(coaching).getByText("Coaching groups")).toBeInTheDocument();
+    expect(within(coaching).getByText("Offensive position groups")).toBeInTheDocument();
+    expect(within(coaching).getByText("Defensive position groups")).toBeInTheDocument();
+
+    // Storage is untouched: all three still carry the one `coaching:` namespace.
+    for (const row of within(coaching).getAllByTestId("audience-group-row")) {
+      expect(row.getAttribute("data-group")).toMatch(/^coaching:/);
+    }
+  });
+
+  // LAN-416, amending D46: a recruit can be pre-chosen on any template now, not
+  // the recruitment one alone.
+  it("offers the recruit rows on an ordinary template, not the recruitment one alone", async () => {
+    render(await EventTemplatePage(typeProps()));
+
+    const recruits = screen.getByTestId("section-audience-category-recruits");
+    expect(
+      within(recruits)
+        .getAllByTestId("audience-group-row")
+        .map((n) => n.getAttribute("data-group")),
+    ).toEqual(
+      expect.arrayContaining([
+        "recruits:all",
+        "recruits:identified",
+        "recruits:engaged",
+        "recruits:committed",
+      ]),
+    );
   });
 
   it("names the template itself, and still has no date or start time", async () => {
@@ -413,7 +497,8 @@ describe("W8-02 — one template", () => {
         eventCount={0}
         initial={{ defaultDurationMinutes: "120" }}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+        candidates={[]}
       />,
     );
 
@@ -435,7 +520,8 @@ describe("W8-02 — one template", () => {
           eventCount={0}
           initial={{}}
           initialQuestions={[]}
-          groups={groupsForEventType("practice")}
+          categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+          candidates={[]}
         />,
       );
 
@@ -463,7 +549,8 @@ describe("W8-02 — one template", () => {
           eventCount={0}
           initial={{}}
           initialQuestions={[]}
-          groups={groupsForEventType("practice")}
+          categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+          candidates={[]}
         />,
       );
 
@@ -487,7 +574,8 @@ describe("W8-02 — one template", () => {
           eventCount={0}
           initial={{ defaultDurationMinutes: "75" }}
           initialQuestions={[]}
-          groups={groupsForEventType("practice")}
+          categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+          candidates={[]}
         />,
       );
 
@@ -511,7 +599,8 @@ describe("W8-02 — one template", () => {
           eventCount={0}
           initial={{ defaultDurationMinutes: "75" }}
           initialQuestions={[]}
-          groups={groupsForEventType("practice")}
+          categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+          candidates={[]}
         />,
       );
 
@@ -544,7 +633,8 @@ describe("colour is chosen from a fixed palette (Brian, 2026-09-10)", () => {
         eventCount={0}
         initial={initial}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+        candidates={[]}
       />,
     );
   }
@@ -608,7 +698,8 @@ describe("colour is chosen from a fixed palette (Brian, 2026-09-10)", () => {
         eventCount={0}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+        candidates={[]}
       />,
     );
 
@@ -635,7 +726,8 @@ describe("choosing what a type invites by default (D47)", () => {
         eventCount={0}
         initial={{ audienceGroups: initialGroups }}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+        candidates={[]}
       />,
     );
   }
@@ -646,21 +738,30 @@ describe("choosing what a type invites by default (D47)", () => {
     );
   }
 
-  it("posts a group once it is pressed, and not before", () => {
+  /** The tick box on one group's row. */
+  function tick(token: string): HTMLInputElement {
+    const row = screen
+      .getAllByTestId("audience-group-row")
+      .find((node) => node.getAttribute("data-group") === token);
+    if (!row) throw new Error(`no row for ${token}`);
+    return within(row).getByRole("checkbox") as HTMLInputElement;
+  }
+
+  it("posts a group once it is ticked, and not before", () => {
     editor();
     expect(posted()).toEqual([]);
 
-    fireEvent.click(screen.getAllByTestId("template-audience-group")[1]);
+    fireEvent.click(tick("active_players"));
 
     // Rendered twice — once in the form, once in the confirmation's payload —
     // so the assertion is about which groups, not how many inputs.
     expect(new Set(posted())).toEqual(new Set(["active_players"]));
   });
 
-  it("takes it out again when it is pressed a second time", () => {
+  it("takes it out again when it is unticked", () => {
     editor(["active_players"]);
 
-    fireEvent.click(screen.getAllByTestId("template-audience-group")[1]);
+    fireEvent.click(tick("active_players"));
 
     expect(posted()).toEqual([]);
   });
@@ -668,9 +769,22 @@ describe("choosing what a type invites by default (D47)", () => {
   it("shows which groups are on, from the selection rather than from a memory", () => {
     editor(["active_players"]);
 
-    const buttons = screen.getAllByTestId("template-audience-group");
-    expect(buttons[1].getAttribute("aria-pressed")).toBe("true");
-    expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
+    expect(tick("active_players").checked).toBe(true);
+    expect(tick("everyone_active").checked).toBe(false);
+  });
+
+  // LAN-414 round 2, the heart of Brian's finding: "when I click one pill
+  // that's all active, everything lights up". Ticking one row never moves
+  // another row's tick box, whatever the two groups have in common.
+  it("never ticks a second row when one is ticked", () => {
+    editor();
+
+    fireEvent.click(tick("everyone_active"));
+
+    expect(tick("everyone_active").checked).toBe(true);
+    expect(tick("active_players").checked).toBe(false);
+    expect(tick("active_coaches").checked).toBe(false);
+    expect(new Set(posted())).toEqual(new Set(["everyone_active"]));
   });
 
   it("names groups and never a person", () => {
@@ -694,7 +808,8 @@ describe("W8-03 — what the change will touch", () => {
         eventCount={0}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+        candidates={[]}
       />,
     );
   }
@@ -741,7 +856,8 @@ describe("the confirmation reads as W8-03 specifies", () => {
         eventCount={0}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+        candidates={[]}
       />,
     );
 
@@ -954,7 +1070,8 @@ describe("LAN-313 — Enter while writing a question does not save the template"
         eventCount={0}
         initial={{}}
         initialQuestions={[]}
-        groups={groupsForEventType("practice")}
+        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
+        candidates={[]}
       />,
     );
   }

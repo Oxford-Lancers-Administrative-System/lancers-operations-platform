@@ -123,6 +123,8 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
       "person",
       "onboarding",
       "membership",
+      // LAN-412: Stewart's own category, immediately after Membership.
+      "availability",
       "coaching",
       "offensive",
       "defensive",
@@ -161,9 +163,20 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
       "whiteNumbers",
       "blues",
       "eligibility",
+      // LAN-412 took Availability out of this group; BPS is simply last here now.
       "bps",
-      "availability",
     ]);
+  });
+
+  it("gives the Availability group its one column, and nothing else (LAN-412)", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    const availability = columns.filter((column) => column.band === "availability");
+    expect(availability.map((column) => column.key)).toEqual(["availability"]);
+    expect(availability[0].label).toBe("Availability");
+    // The values, the picker and who may write are unchanged by the regrouping.
+    expect(availability[0].edit).toBe("select");
+    expect(availability[0].options).toEqual(["green", "orange", "red"]);
+    expect(availability[0].requires).toBe("person_record_authority");
   });
 
   it("pairs a primary and a backup a side, both on the season's own vocabulary", () => {
@@ -247,18 +260,25 @@ describe("buildColumns — Status is an ordinary select column (item 4)", () => 
 
 // Brian, 2026-09-05 (`WP-operator-record`, LAN-217, correction round 5): BPS
 // sits immediately before Availability, and Availability is the last column.
-describe("buildColumns — column order (correction round 5)", () => {
-  it("puts BPS immediately before Availability, and Availability last in its group", () => {
-    const columns = buildColumns(POSITION_OPTIONS);
-    const membership = columns
-      .filter((column) => column.band === "membership")
-      .map((column) => column.key);
-    const bpsIndex = membership.indexOf("bps");
-    const availabilityIndex = membership.indexOf("availability");
+// LAN-412 makes Availability a group of its own, immediately after Membership,
+// so the two are still adjacent — BPS ends one group and Availability begins
+// the next.
+describe("buildColumns — column order (correction round 5, LAN-412)", () => {
+  it("keeps BPS immediately before Availability, across the group boundary", () => {
+    const columns = buildColumns(POSITION_OPTIONS).map((column) => column.key);
+    const bpsIndex = columns.indexOf("bps");
+    const availabilityIndex = columns.indexOf("availability");
 
     expect(bpsIndex).toBeGreaterThanOrEqual(0);
     expect(availabilityIndex).toBe(bpsIndex + 1);
-    expect(availabilityIndex).toBe(membership.length - 1);
+  });
+
+  it("leaves BPS last in Membership now that Availability has left it", () => {
+    const membership = buildColumns(POSITION_OPTIONS)
+      .filter((column) => column.band === "membership")
+      .map((column) => column.key);
+
+    expect(membership[membership.length - 1]).toBe("bps");
   });
 });
 

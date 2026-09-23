@@ -125,6 +125,7 @@ export async function addEventAudienceMembers(
         addedByPersonId: actorPersonId,
         sendAt: now, // Brian: no grace delay on a hand-add
         eventStartsAt: startsAt,
+        eventType: event.eventType, // LAN-416: which ladder a recruit rides here
       });
 
       if (joined.audienceMemberId === null) {

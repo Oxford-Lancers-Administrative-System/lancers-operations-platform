@@ -8,6 +8,7 @@ import {
   summariseAudienceGroups,
   type AudienceGroupSummary,
 } from "../event-audience";
+import { audienceGroupTokenFor } from "../audience-selection";
 import { readEventQuestionsIn } from "../event-questions";
 import { readEventIn } from "../events";
 import { resolveMessagingPlanIn } from "../messaging-schedule";
@@ -113,15 +114,29 @@ export async function readApprovalPreview(eventId: string): Promise<ApprovalPrev
   });
 }
 
-/** The group rule stored against an event (LAN-392), in the picker's own order. */
+/**
+ * The group rule stored against an event (LAN-392), as picker tokens.
+ *
+ * LAN-414: a row is either a General group (`audience_group`) or a category and
+ * a roster value, and `audienceGroupTokenFor` is the one place that turns the
+ * stored pair back into the token the picker, the form and the rule all speak.
+ */
 async function readAudienceGroupsIn(tx: Tx, eventId: string): Promise<string[]> {
-  const result = await tx.query<{ audience_group: string }>(
-    `select audience_group::text as audience_group
+  const result = await tx.query<{
+    category: string;
+    audience_group: string | null;
+    value: string | null;
+  }>(
+    `select category::text as category,
+            audience_group::text as audience_group,
+            value
        from public.event_audience_groups
       where event_id = $1::uuid`,
     [eventId],
   );
-  return result.rows.map((row) => row.audience_group);
+  return result.rows
+    .map((row) => audienceGroupTokenFor(row.category, row.audience_group, row.value))
+    .filter((token): token is string => token !== null);
 }
 
 /** The audience saved against an event, for a screen that only wants to show it. */

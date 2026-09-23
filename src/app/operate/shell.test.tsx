@@ -18,17 +18,20 @@
  * server-rendered page ships its DOM to the browser; anything in it is
  * disclosed whether or not it is painted.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
+// LAN-418 — the navigation's own current-link rule depends on the path, so the
+// tests that exercise it set one. Every other test keeps the roster page.
+const pathname = vi.hoisted(() => ({ value: "/operate/roster" }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
     // The real `redirect` throws to unwind the render; mirroring that keeps the
     // control flow under test honest rather than letting it fall through.
     throw new Error(`REDIRECT:${url}`);
   }),
-  usePathname: () => "/operate/roster",
+  usePathname: () => pathname.value,
   // The events list's filter bar navigates rather than submitting a form; it is
   // rendered here only as part of the destination.
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -1445,5 +1448,65 @@ describe("LAN-133 — Administration in the shell", () => {
 
     expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(container.innerHTML).not.toContain("/operate/admin");
+  });
+});
+
+/**
+ * LAN-418 — exactly one destination is current, and it is the most specific.
+ *
+ * Seen on Stewart's screen, 2026-09-22: opening Missing data lit up People as
+ * well, because `/operate/people/missing` starts with `/operate/people/` and
+ * the rule was a plain prefix test. Every other pair of destinations in the
+ * shell is disjoint, which is why only this pair ever showed it.
+ */
+describe("LAN-418 — one link is current at a time", () => {
+  /** The links the shell marks `aria-current="page"`, by their own text. */
+  function currentLinks(): string[] {
+    return screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("aria-current") === "page")
+      .map((link) => link.textContent ?? "");
+  }
+
+  async function openShellAt(path: string) {
+    pathname.value = path;
+    givenAccess({ state: "active", operator: actor(["it_officer"]) });
+    const rendered = render(await OperateLayout(layoutProps(null)));
+    openNav();
+    return rendered;
+  }
+
+  afterEach(() => {
+    pathname.value = "/operate/roster";
+  });
+
+  it("lights Missing data alone on the missing-data page", async () => {
+    await openShellAt("/operate/people/missing");
+
+    expect(currentLinks()).toEqual(["Missing data"]);
+  });
+
+  it("lights People alone on the people list", async () => {
+    await openShellAt("/operate/people");
+
+    expect(currentLinks()).toEqual(["People"]);
+  });
+
+  it("lights People alone on one person's record", async () => {
+    await openShellAt("/operate/people/00000000-0000-4000-8000-000000000001");
+
+    expect(currentLinks()).toEqual(["People"]);
+  });
+
+  it("still lights an ordinary destination on its own nested page", async () => {
+    await openShellAt("/operate/events/00000000-0000-4000-8000-000000000002");
+
+    expect(currentLinks()).toEqual(["Events"]);
+  });
+
+  it("lights nothing at all off every destination", async () => {
+    await openShellAt("/operate/people-elsewhere");
+
+    expect(currentLinks()).toEqual([]);
   });
 });

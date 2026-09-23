@@ -2,10 +2,13 @@ import "server-only";
 
 import { withTransaction, type Tx } from "@/lib/db";
 import {
+  audienceGroupTokenFor,
   groupSelectionKeys,
   type AudienceCandidate,
-  type AudienceGroupKey,
+  type AudienceCatalogue,
 } from "../audience-selection";
+import { listAudienceCatalogueIn } from "../event-audience";
+import { findCurrentSeasonIn } from "../seasons";
 import {
   joinQuestionChoices,
   readTemplateQuestionsAsEventInputIn,
@@ -36,7 +39,7 @@ export interface EventTemplateSummary {
   name: string;
   colourKey: string; // LAN-276 R1: a key into TEMPLATE_COLOUR_PALETTE
   eventType: string;
-  audienceGroups: AudienceGroupKey[];
+  audienceGroups: string[];
   defaultVenue: string | null;
   defaultDeliveryMode: EventDeliveryMode | null;
   questionCount: number;
@@ -49,8 +52,16 @@ export async function listEventTemplates(): Promise<EventTemplateSummary[]> {
     const templates = await tx.query<TemplateRow>(
       `select ${TEMPLATE_COLUMNS} from public.event_templates order by lower(name)`,
     );
-    const groups = await tx.query<{ template_id: string; audience_group: AudienceGroupKey }>(
-      `select template_id, audience_group::text as audience_group
+    const groups = await tx.query<{
+      template_id: string;
+      category: string;
+      audience_group: string | null;
+      value: string | null;
+    }>(
+      `select template_id,
+              category::text as category,
+              audience_group::text as audience_group,
+              value
          from public.event_template_audience_groups`,
     );
     const counts = await tx.query<{ template_id: string; count: string }>(
@@ -69,7 +80,9 @@ export async function listEventTemplates(): Promise<EventTemplateSummary[]> {
       eventType: row.event_type,
       audienceGroups: orderedGroups(
         row.event_type,
-        groups.rows.filter((group) => group.template_id === row.id).map((g) => g.audience_group),
+        groups.rows
+          .filter((group) => group.template_id === row.id)
+          .map((g) => audienceGroupTokenFor(g.category, g.audience_group, g.value)),
       ),
       defaultVenue: row.default_venue,
       defaultDeliveryMode: row.default_delivery_mode,
@@ -117,7 +130,7 @@ export interface NewEventInheritance {
   eventType: string; // the class the event takes from its template, never chosen itself
   defaults: TemplateDefaults;
   questions: EventQuestionInput[];
-  audienceGroups: AudienceGroupKey[];
+  audienceGroups: string[];
 }
 
 // Read inside the caller's transaction — createEventDraft writes the event, questions and audience
@@ -187,11 +200,38 @@ export async function readEventFormDefaults(): Promise<Record<string, EventTypeF
 // D47's whole point: resolved to an explicit list of people at creation time — a group selects people, not a live query.
 export function templateAudienceKeys(
   candidates: readonly AudienceCandidate[],
-  audienceGroups: readonly AudienceGroupKey[],
+  audienceGroups: readonly string[],
 ): string[] {
   const keys = new Set<string>();
   for (const group of audienceGroups) {
     for (const key of groupSelectionKeys(candidates, group)) keys.add(key);
   }
   return [...keys];
+}
+
+/**
+ * The catalogue a template's default-audience picker counts against — LAN-414
+ * round 2.
+ *
+ * The picker carries a head count and an overlap on every row, and it is the
+ * same picker here as on the event form (docs/ux/standards.md rule 7), so this
+ * screen needs candidates too. A template has no date of its own, so the read
+ * is the current season **as it stands today** — `listAudienceCatalogueIn`
+ * already falls back to `current_date` for a dateless draft, and this is the
+ * same question. The numbers are therefore "how many people this group reaches
+ * now", which is what a default audience is being judged on; D47 is untouched,
+ * because a template still resolves to an explicit list of people at the moment
+ * an event is created from it, not from anything counted here.
+ *
+ * Before the first season exists there is nothing to count, and the picker
+ * renders with zeroes rather than refusing the screen.
+ */
+export async function readTemplateAudienceCatalogue(eventType: string): Promise<AudienceCatalogue> {
+  return withTransaction(async (tx) => {
+    const season = await findCurrentSeasonIn(tx);
+    if (season === null) {
+      return { candidates: [], counts: { player: 0, coach: 0, committee: 0, recruit: 0 } };
+    }
+    return listAudienceCatalogueIn(tx, season.id, null, eventType);
+  });
 }

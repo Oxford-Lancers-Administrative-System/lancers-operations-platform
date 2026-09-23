@@ -15,6 +15,7 @@ import {
   actorRequirement,
   closeCurrentRow,
   currentDateOf,
+  personIdOfMembershipIn,
   BOARD_ELIGIBILITY_COMPETITION,
 } from "./shared";
 
@@ -60,6 +61,21 @@ export async function commitCoachingGroups(params: {
          on conflict (season_membership_id, coach_group) do nothing`,
         [params.membershipId, params.seasonId, group, params.actorPersonId],
       );
+    }
+
+    // LAN-414: `coaching:<value>` is a derived audience group, so a player
+    // added to Offense after an Offense event was approved joins its audience
+    // and is invited, and one taken out of the last group an event was built
+    // from has an unsent rule-add taken back. Both directions are the one call:
+    // the rule re-reads the catalogue, which now sees the rows written above.
+    const personId = await personIdOfMembershipIn(tx, params.membershipId);
+    if (personId !== null) {
+      await applyAudienceGroupRuleIn(tx, {
+        personId,
+        seasonId: params.seasonId,
+        trigger: "coaching_group_changed",
+        actorPersonId: params.actorPersonId,
+      });
     }
 
     await recordAudit(tx, {
@@ -113,6 +129,21 @@ export async function commitPositionGroups(params: {
          on conflict (season_membership_id, side, position_group) do nothing`,
         [params.membershipId, params.seasonId, params.side, group, params.actorPersonId],
       );
+    }
+
+    // LAN-414. Both sides' position groups share the one flat `coaching:`
+    // namespace the picker offers (`COACHING_VALUES_EXPRESSION`), so this door
+    // is the coaching group's door in every respect but the table it writes —
+    // and one side's write can end the other side's audience membership only
+    // through the same catalogue re-read, never by guessing here.
+    const personId = await personIdOfMembershipIn(tx, params.membershipId);
+    if (personId !== null) {
+      await applyAudienceGroupRuleIn(tx, {
+        personId,
+        seasonId: params.seasonId,
+        trigger: "position_group_changed",
+        actorPersonId: params.actorPersonId,
+      });
     }
 
     await recordAudit(tx, {
@@ -290,11 +321,7 @@ export async function commitBps(params: {
     // LAN-392: `bps` is a derived audience group, so selecting somebody into
     // the BPS adds them to every approved future event that chose it, and
     // deselecting them takes back an unsent rule-add.
-    const bpsMember = await tx.query<{ person_id: string }>(
-      `select person_id from public.season_memberships where id = $1::uuid`,
-      [params.membershipId],
-    );
-    const bpsPersonId = bpsMember.rows[0]?.person_id ?? null;
+    const bpsPersonId = await personIdOfMembershipIn(tx, params.membershipId);
     if (bpsPersonId !== null) {
       await applyAudienceGroupRuleIn(tx, {
         personId: bpsPersonId,

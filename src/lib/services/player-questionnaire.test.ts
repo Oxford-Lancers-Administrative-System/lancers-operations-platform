@@ -472,6 +472,75 @@ describe("saveDetailsStep", () => {
     expect(view?.person.matriculationYear).toBe(2024);
   });
 
+  /**
+   * LAN-413. Production, 2026-09-22 17:16 UTC: Stewart submitted the details
+   * step with an email another record already held, `supersedeContactPoint`
+   * refused it correctly (`person_contact_email_in_use`, the one-email-per-
+   * person rule), and the thrown refusal escaped `saveDetails` as the generic
+   * server error page — digest 1786114891.
+   *
+   * The rule is right and stays. What changes is that the refusal lands on the
+   * field, so the player can change the value and resubmit, and that the rest
+   * of the same submission still commits — the same footing a malformed date
+   * of birth has had since LAN-245, and F1 (LAN-230) all over again.
+   */
+  it("shows an email another record holds against its own field, and saves the rest — LAN-413", async () => {
+    const { personId: heldBy } = await givenPlayer();
+    const shared = `${unique("shared")}@example.ox.ac.uk`;
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred)
+       values ($1::uuid, 'email', 'personal', $2, true)`,
+      [heldBy, shared],
+    );
+
+    const { personId, membershipId } = await givenPlayer();
+    const result = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, { personalEmail: shared }),
+    );
+
+    // The field says the state, and never whose record holds it.
+    expect(result.errors.personalEmail).toBe("Already held by another record.");
+    expect(result.errors.personalEmail).not.toContain("Testcase");
+
+    // Everything else in the same submission committed.
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.dateOfBirth).not.toBeNull();
+
+    // The refused email itself stayed unwritten — the other record still holds it alone.
+    const holders = await observer.query<{ person_id: string }>(
+      `select person_id from public.contact_points
+        where kind = 'email' and valid_until is null
+          and lower(btrim(raw_value)) = lower(btrim($1::text))`,
+      [shared],
+    );
+    expect(holders.rows.map((row) => row.person_id)).toEqual([heldBy]);
+  });
+
+  it("saves the step once the refused email is changed to one nobody holds — LAN-413", async () => {
+    const { personId: heldBy } = await givenPlayer();
+    const shared = `${unique("shared")}@example.ox.ac.uk`;
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred)
+       values ($1::uuid, 'email', 'personal', $2, true)`,
+      [heldBy, shared],
+    );
+
+    const { personId, membershipId } = await givenPlayer();
+    await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, { personalEmail: shared }),
+    );
+
+    const mine = `${unique("mine")}@example.ox.ac.uk`;
+    const second = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, { personalEmail: mine }),
+    );
+
+    expect(second.errors).toEqual({});
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.missingRequiredFields).toEqual([]);
+  });
+
   it("self-corrects a field the player themselves supplied earlier, with no dispute", async () => {
     const { personId, membershipId } = await givenPlayer();
     await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));

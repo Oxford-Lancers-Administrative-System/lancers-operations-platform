@@ -186,6 +186,23 @@ export interface KitItemDef {
   readonly multi?: true;
 }
 
+/**
+ * The value a player who owns that piece of kit themselves carries — Stewart's
+ * ask of 2026-09-22, Brian's decision the same day (LAN-421). Spelled exactly
+ * as Stewart wrote it, hyphenated.
+ *
+ * It sits **last** on each of the five items Kit Distributed reads and on no
+ * other, so a player who owns their own helmet can complete the flag without
+ * being recorded against a size the club never handed them. Kit Distributed
+ * needs no rule change: it is complete when all five carry any value, and this
+ * is a value. Team Mouthguard, Loaner Cleats, Team Gloves, Socks and the braces
+ * are outside that rule and deliberately do not offer it.
+ *
+ * `kit_item_options` holds the same five rows (`20261005090000`), and the
+ * mirror test in `roster-board.test.ts` proves the two lists agree in order.
+ */
+const PLAYER_OWNED = "Player-Owned";
+
 /** Braces L and Braces R share one list, each holding any number of it — Stewart's ask, Brian's decision of 2026-09-21 (LAN-409). */
 const BRACE_VALUES: readonly string[] = Object.freeze([
   "Ankle - S",
@@ -216,6 +233,7 @@ export const KIT_ITEMS: readonly KitItemDef[] = Object.freeze([
       "Air L",
       "Air XL",
       "Xenith XL",
+      PLAYER_OWNED,
     ]),
   }),
   Object.freeze({
@@ -249,22 +267,29 @@ export const KIT_ITEMS: readonly KitItemDef[] = Object.freeze([
       "Champro Skill M",
       "Champro Skill S",
       "Rawlings all purpose L",
+      PLAYER_OWNED,
     ]),
   }),
   Object.freeze({
     item: "lower_pads" as const,
     label: "Lower Pads",
-    values: Object.freeze(["7 Pad Girdle", "5 Pad Girdle + Knee", "Set of pads"]),
+    values: Object.freeze(["7 Pad Girdle", "5 Pad Girdle + Knee", "Set of pads", PLAYER_OWNED]),
   }),
   Object.freeze({
     item: "lowers" as const,
     label: "Lowers",
-    values: Object.freeze(["Yes - Solid Blue", "Yes - Blue with Gold Stripe", "No", "Other"]),
+    values: Object.freeze([
+      "Yes - Solid Blue",
+      "Yes - Blue with Gold Stripe",
+      "No",
+      "Other",
+      PLAYER_OWNED,
+    ]),
   }),
   Object.freeze({
     item: "practice_jersey" as const,
     label: "Practice Jersey",
-    values: Object.freeze(["Blue", "White", "Red"]),
+    values: Object.freeze(["Blue", "White", "Red", PLAYER_OWNED]),
   }),
   Object.freeze({
     item: "loaner_cleats" as const,

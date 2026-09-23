@@ -12,7 +12,7 @@ import {
   type AudienceCapacity,
   type AudienceCatalogue,
 } from "../event-audience";
-import { groupsForEventType } from "../audience-selection";
+import { audienceOptionsForEventType } from "../audience-selection";
 import { lockEventIn, readEventIn, type EventDetail } from "../events";
 import { readCurrentSeasonIn } from "../seasons";
 import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "../messaging-schedule";
@@ -160,13 +160,13 @@ export async function saveEventAudience(
  * The group rule and its exclusions — LAN-392, written with the audience it
  * belongs to and replaced wholesale with it.
  *
- * A group reaches this only if the event's own type offers it
- * (`groupsForEventType`), which is the service-layer half of the same rule
- * `event_audience_groups_recruits_are_recruitment_only` states in the schema: a
- * `recruits` rule on a practice could only ever be a mistake, and the picker
- * never offers one. Anything else a client sends is dropped rather than
- * refused, because a group that has been retired from the vocabulary is not an
- * error the operator can do anything about.
+ * A group reaches this only if the event's own catalogue offers it
+ * (`audienceOptionsForEventType`, LAN-414 — every category, not the flat
+ * General list). Anything else a client sends is dropped rather than refused,
+ * because a group that has been retired from the vocabulary is not an error the
+ * operator can do anything about. The schema's own half of that rule used to be
+ * `event_audience_groups_recruits_are_recruitment_only`; LAN-416 removes it,
+ * because a recruit group on a practice is now exactly what an operator means.
  *
  * An exclusion is "in a chosen group, not selected", resolved against the same
  * catalogue the operator was looking at. It is keyed per (event, person) and
@@ -184,8 +184,10 @@ async function saveAudienceGroupRuleIn(
     chosen: ReadonlySet<string>;
   },
 ): Promise<{ groups: string[]; exclusions: number }> {
-  const offered = new Set(groupsForEventType(args.eventType).map((group) => group.key));
-  const kept = [...new Set(args.groups)].filter((group) => offered.has(group as never));
+  const offered = new Map(
+    audienceOptionsForEventType(args.eventType).map((option) => [option.token, option]),
+  );
+  const kept = [...new Set(args.groups)].filter((group) => offered.has(group));
 
   const excluded = new Set<string>();
   for (const group of kept) {
@@ -201,12 +203,28 @@ async function saveAudienceGroupRuleIn(
   ]);
 
   if (kept.length > 0) {
+    // LAN-414: the stored pair, one array per column so a sub-group's value
+    // travels as the text the roster holds rather than through the enum.
+    const rows = kept.map((token) => offered.get(token)!);
     await tx.query(
       `insert into public.event_audience_groups
-         (event_id, event_type, audience_group, chosen_by_person_id)
-       select $1::uuid, $2::public.event_type, g::public.audience_group, $4::uuid
-         from unnest($3::text[]) as g`,
-      [args.eventId, args.eventType, kept, args.actorPersonId],
+         (event_id, event_type, category, audience_group, value, chosen_by_person_id)
+       select $1::uuid,
+              $2::public.event_type,
+              g.category::public.audience_group_category,
+              g.audience_group::public.audience_group,
+              g.value,
+              $6::uuid
+         from unnest($3::text[], $4::text[], $5::text[])
+                as g(category, audience_group, value)`,
+      [
+        args.eventId,
+        args.eventType,
+        rows.map((option) => option.category),
+        rows.map((option) => option.audienceGroup),
+        rows.map((option) => option.value),
+        args.actorPersonId,
+      ],
     );
   }
 

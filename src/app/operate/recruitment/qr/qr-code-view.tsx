@@ -18,6 +18,16 @@ import { mintRecruitmentSignupCodeAction } from "./actions";
  * screenshot or print. `qrMatrixToSvg` is inlined into the page rather than
  * loaded as an image, so `DOWNLOAD` can save the exact markup rendered on
  * screen.
+ *
+ * There is no re-mint control (Brian, 2026-09-23). A code that is live is
+ * printed, on a poster nobody can recall, and `MINT NEW CODE` killed it in one
+ * press with nothing between the operator and the mistake. So the button is
+ * rendered only when there is no live code — a first code can still be
+ * issued — and not at all once one exists. The button is removed rather than
+ * disabled: a disabled control still says re-minting is a thing an operator
+ * does here. `mintRecruitmentSignupCodeAction` and the sign-up token behind it
+ * are untouched, so re-minting remains available to the club by decision
+ * rather than by accident.
  */
 export default function QrCodeView({
   seasonLabel,
@@ -131,20 +141,21 @@ export default function QrCodeView({
             </Box>
           </>
         ) : (
-          <Typography variant="body2" color="text.secondary" data-testid="recruitment-qr-none">
-            No live code yet.
-          </Typography>
+          <>
+            <Typography variant="body2" color="text.secondary" data-testid="recruitment-qr-none">
+              No live code yet.
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={mint}
+              disabled={pending}
+              sx={{ mt: 3, minHeight: 44 }}
+              data-testid="recruitment-qr-mint"
+            >
+              MINT CODE
+            </Button>
+          </>
         )}
-
-        <Button
-          variant="contained"
-          onClick={mint}
-          disabled={pending}
-          sx={{ mt: 3, minHeight: 44 }}
-          data-testid="recruitment-qr-mint"
-        >
-          {joinUrl ? "MINT NEW CODE" : "MINT CODE"}
-        </Button>
         {error ? <Notice severity="error">{error}</Notice> : null}
         {mintedAt ? (
           <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>

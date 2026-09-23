@@ -40,4 +40,25 @@ describe("the eleven onboarding item types", () => {
 
     expect(showcase).toEqual(ONBOARDING_ITEM_TYPES.map((type) => ({ ...type })));
   });
+
+  /**
+   * LAN-413. The 2026-27 rows were inserted by hand without
+   * `verification_class`, so BUCS Play and Hudl took the column's `direct`
+   * default, and the player's own confirm button on steps 4 and 5 refused —
+   * as a 500. Two guards now stand between that and a season: this one, over
+   * the list every writer of those rows reads, and the check constraint in
+   * `20261003090000_trust_item_verification_class.sql` over the rows
+   * themselves. W4's locked decision names exactly this pair.
+   */
+  it("keeps BUCS Play and Hudl trust-class, and every other item direct", () => {
+    const byCode = new Map(ONBOARDING_ITEM_TYPES.map((type) => [type.code, type]));
+
+    expect(byCode.get("bucs_play")?.verificationClass).toBe("trust");
+    expect(byCode.get("hudl_access")?.verificationClass).toBe("trust");
+
+    const trust = ONBOARDING_ITEM_TYPES.filter((type) => type.verificationClass === "trust").map(
+      (type) => type.code,
+    );
+    expect(trust).toEqual(["bucs_play", "hudl_access"]);
+  });
 });

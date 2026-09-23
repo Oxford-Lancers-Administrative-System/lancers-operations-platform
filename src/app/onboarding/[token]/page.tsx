@@ -29,7 +29,7 @@ import {
   type QuestionnaireView,
 } from "@/lib/services/player-questionnaire";
 
-import { BUSY_MESSAGE } from "./presentation";
+import { BUSY_MESSAGE, REFUSED_ERROR_PARAM, SAVE_REFUSED_MESSAGE } from "./presentation";
 import { AlreadyCompletePage, DonePage } from "./terminal-pages";
 import { DetailsStepPage } from "./details-step";
 import { DocumentStepPage } from "./document-step";
@@ -63,7 +63,12 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
   const query = await searchParams;
   const requestedStep = first(query.step);
   const agreeError = first(query.agreeError) !== null;
-  const busy = first(query.error) === "busy";
+  const errorParam = first(query.error);
+  const busy = errorParam === "busy";
+  // LAN-413 — a step whose save the club's own rules refused. The same channel
+  // `busy` uses, and for the same reason: the action redirects, so the refusal
+  // has to survive a navigation to be seen at all.
+  const saveRefused = errorParam === REFUSED_ERROR_PARAM;
 
   const resolved = await withUniformTerminalTiming<Resolved>(
     async () => {
@@ -115,6 +120,11 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
     <PublicShell layout="stack">
       <Stack spacing={3}>
         {busy ? <Notice severity="warning">{BUSY_MESSAGE}</Notice> : null}
+        {saveRefused ? (
+          <Notice severity="error" testId="save-refused">
+            {SAVE_REFUSED_MESSAGE}
+          </Notice>
+        ) : null}
 
         {page === "already-complete" ? (
           <AlreadyCompletePage />

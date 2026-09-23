@@ -5,6 +5,7 @@ import { recordAudit } from "../audit";
 import { DEFAULT_TEMPLATE_CLASS, type EventTemplateInput } from "../event-template-input";
 import { createMessagingScheduleIn, DEFAULT_MESSAGING_SCHEDULE } from "../messaging-schedule";
 import type { EventQuestionInput } from "../event-questions";
+import { audienceOptionFor } from "../audience-selection";
 import { orderedGroups, readEventTemplateIn, requireActor, type EventTemplate } from "./shared";
 
 /**
@@ -59,10 +60,16 @@ export async function createEventTemplate(
       });
     }
     for (const group of audienceGroups) {
+      // LAN-414: the stored pair — a General key, or a category and a roster value.
+      const option = audienceOptionFor(eventType, group, { templateOnly: true });
+      if (option === null) continue;
       await tx.query(
-        `insert into public.event_template_audience_groups (template_id, event_type, audience_group)
-         values ($1::uuid, $2::public.event_type, $3::public.audience_group)`,
-        [templateId, eventType, group],
+        `insert into public.event_template_audience_groups
+           (template_id, event_type, category, audience_group, value)
+         values ($1::uuid, $2::public.event_type,
+                 $3::public.audience_group_category,
+                 $4::public.audience_group, $5)`,
+        [templateId, eventType, option.category, option.audienceGroup, option.value],
       );
     }
 

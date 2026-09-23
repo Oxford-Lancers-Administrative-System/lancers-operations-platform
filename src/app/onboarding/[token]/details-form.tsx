@@ -43,6 +43,7 @@ import {
   FIELD_STUDENT_NUMBER_HINT,
   REQUIRED_NOTE,
   SAVE_AND_CONTINUE,
+  SAVE_REFUSED_MESSAGE,
   SAVE_CHANGES,
   SECTION_EMERGENCY_CONTACT,
   SECTION_GAME_DAY,
@@ -165,6 +166,14 @@ export function DetailsForm({
     <Box component="form" action={formAction} noValidate>
       <input type="hidden" name="token" value={token} />
       <Stack spacing={2.5}>
+        {/* LAN-413 — a rule refused the save and it belongs to no one field.
+            An email another record already holds does have a field, and says
+            so there; this is what is left. */}
+        {state.refused ? (
+          <Notice severity="error" testId="save-refused">
+            {SAVE_REFUSED_MESSAGE}
+          </Notice>
+        ) : null}
         {needsConsentStep ? (
           <Section title={CONSENT_HEADING}>
             <CheckField name="consent" label={CONSENT_LABEL} />
