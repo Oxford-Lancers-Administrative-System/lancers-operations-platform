@@ -97,7 +97,15 @@ export const HEADLINE_SAID_YES_LABEL = "Said yes";
  * a label beside **Said yes**, which is the pairing it now spells out.
  */
 export const HEADLINE_SAID_NO_LABEL = "Said no";
-export const HEADLINE_SHOWED_LABEL = "Showed";
+
+/*
+ * There is no HEADLINE_SHOWED_LABEL any more — LAN-420, Brian's walk of
+ * 573bb9d4, 2026-09-23. It labelled the Showed / Invited card, and that card is
+ * now on neither the operator's event page nor the public Event info link page,
+ * so the constant had no reader. `formatShowedAgainstInvited` below stays: the
+ * operator's list of events and the register still show the figure, and each
+ * already names its own column.
+ */
 
 const NOT_RECORDED_VALUE = "—";
 
