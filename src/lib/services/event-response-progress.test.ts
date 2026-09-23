@@ -7,11 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  responseBand,
-  responseProgressByCapacity,
-  type ResponseProgressRow,
-} from "./event-response-progress";
+import { responseProgressByCapacity, type ResponseProgressRow } from "./event-response-progress";
 
 function invitee(
   capacity: string,
@@ -114,44 +110,52 @@ describe("what each block counts", () => {
   });
 });
 
-describe("the bar's colour — Stewart's gates at 50 % and 75 %", () => {
-  it("is red below 50 %, orange to below 75 %, green at 75 % and above", () => {
-    expect(responseBand(0)).toBe("low");
-    expect(responseBand(49)).toBe("low");
-    expect(responseBand(50)).toBe("middling");
-    expect(responseBand(74)).toBe("middling");
-    expect(responseBand(75)).toBe("high");
-    expect(responseBand(100)).toBe("high");
+/**
+ * The three widths the bar is drawn from — LAN-420, Brian's walk of 573bb9d4.
+ *
+ * There is no band and no gate any more, so there is nothing here that decides
+ * a colour. What the bar needs is three counts that sum to `invited`, and that
+ * is the property worth holding: the component hands `yes`, the remainder and
+ * `no` straight to `flexGrow`, so if they ever stopped summing to the whole the
+ * segments would silently stop being proportional to invited.
+ */
+describe("what the bar is drawn from", () => {
+  it("leaves yes, no and the unanswered remainder summing to invited", () => {
+    for (const block of responseProgressByCapacity([
+      ...cohort("recruit", 10, 2, 2),
+      ...cohort("player", 7, 7, 0),
+      ...cohort("coach", 3, 0, 0),
+    ])) {
+      expect(block.yes + block.no + (block.invited - block.responded)).toBe(block.invited);
+    }
   });
 
-  // The issue's own acceptance: "bar colour at 40 %, 60 % and 80 % response".
-  it("bands a 40 %, a 60 % and an 80 % block red, orange and green", () => {
-    const [recruits] = responseProgressByCapacity(cohort("recruit", 10, 2, 2));
-    const [players] = responseProgressByCapacity(cohort("player", 10, 4, 2));
-    const [coaches] = responseProgressByCapacity(cohort("coach", 10, 6, 2));
+  it("leaves no remainder at all once everybody has answered", () => {
+    const [block] = responseProgressByCapacity(cohort("player", 5, 3, 2));
 
-    expect(recruits).toMatchObject({ percent: 40, band: "low" });
-    expect(players).toMatchObject({ percent: 60, band: "middling" });
-    expect(coaches).toMatchObject({ percent: 80, band: "high" });
+    expect(block).toMatchObject({ invited: 5, yes: 3, no: 2, responded: 5, percent: 100 });
+    expect(block.invited - block.responded).toBe(0);
   });
 
-  it("does not round a block up over a gate", () => {
-    // 3 of 4 is 75 and green; 2 of 3 is 66 and orange; 74.9 would be orange too.
-    expect(responseProgressByCapacity(cohort("player", 4, 3, 0))[0]).toMatchObject({
-      percent: 75,
-      band: "high",
-    });
-    expect(responseProgressByCapacity(cohort("player", 3, 2, 0))[0]).toMatchObject({
-      percent: 66,
-      band: "middling",
-    });
+  it("leaves the whole width unanswered when nobody has answered", () => {
+    const [block] = responseProgressByCapacity(cohort("recruit", 8, 0, 0));
+
+    expect(block).toMatchObject({ invited: 8, yes: 0, no: 0, responded: 0, percent: 0 });
+    expect(block.invited - block.responded).toBe(8);
   });
 
-  it("counts a no toward the bar exactly as a yes does", () => {
-    // The bar is "have they answered", not "are they coming" — Stewart's
-    // "TOTAL RESPONSES (Y+N) / TOTAL UNITS".
+  it("counts a no toward responded exactly as a yes does", () => {
+    // Answering is answering, whichever way — Stewart's "TOTAL RESPONSES
+    // (Y+N) / TOTAL UNITS". What changed is only that it no longer buys a
+    // colour: three of four answering is a bar three quarters coloured, and
+    // all three of them said no.
     const [block] = responseProgressByCapacity(cohort("player", 4, 0, 3));
 
-    expect(block).toMatchObject({ yes: 0, no: 3, percent: 75, band: "high" });
+    expect(block).toMatchObject({ yes: 0, no: 3, responded: 3, percent: 75 });
+  });
+
+  it("does not round the figure up over a person", () => {
+    expect(responseProgressByCapacity(cohort("player", 4, 3, 0))[0].percent).toBe(75);
+    expect(responseProgressByCapacity(cohort("player", 3, 2, 0))[0].percent).toBe(66);
   });
 });

@@ -3146,21 +3146,69 @@ describe("the participation table on the event page", () => {
       ]);
     });
 
-    it("reads yes against invited, no on its own, and bands the bar", async () => {
+    /**
+     * LAN-420 round 3, Brian's walk of 573bb9d4: one value line per block —
+     * `<yes> yes · <no> no / <invited>` under the label **Said yes · Said no /
+     * Invited** — in place of round 2's two stacked metrics.
+     */
+    it("reads its three numbers as one value line, under one label", async () => {
       await renderMixed();
 
       const players = within(screen.getByTestId("response-progress-player"));
-      expect(players.getByTestId("response-yes").textContent).toBe("3 / 5");
-      // LAN-420 round 2: a labelled metric, like the pair above it — the value
-      // then its label, not the word "No" in front of a number.
-      expect(flatten(players.getByTestId("response-no").textContent)).toBe("0Said no");
-      // 3 of 5 answered — 60 %, orange.
-      expect(players.getByTestId("response-bar").getAttribute("data-percent")).toBe("60");
-      expect(players.getByTestId("response-bar").getAttribute("data-band")).toBe("middling");
+      expect(players.getByTestId("response-counts").textContent).toBe("3 yes · 0 no / 5");
+      expect(players.getByText("Said yes · Said no / Invited")).toBeVisible();
 
-      const recruits = within(screen.getByTestId("response-progress-recruit"));
-      // Nobody has answered — 0 %, red.
-      expect(recruits.getByTestId("response-bar").getAttribute("data-band")).toBe("low");
+      const coaches = within(screen.getByTestId("response-progress-coach"));
+      expect(coaches.getByTestId("response-counts").textContent).toBe("0 yes · 1 no / 2");
+
+      // The two metrics round 2 stacked are gone as separate figures.
+      expect(players.queryByTestId("response-yes")).toBeNull();
+      expect(players.queryByTestId("response-no")).toBeNull();
+    });
+
+    /**
+     * The bar is three segments and no gate — "yes in green from the left, no
+     * in red from the right, the unanswered remainder as the pale track
+     * between them", with the widths proportional to invited.
+     */
+    it("draws the bar as yes, the unanswered gap, then no — and bands nothing", async () => {
+      await renderMixed();
+
+      const players = within(screen.getByTestId("response-progress-player"));
+      const bar = players.getByTestId("response-bar");
+      // 3 said yes, nobody said no, 2 have not answered — of 5 invited.
+      expect(bar.getAttribute("data-yes")).toBe("3");
+      expect(bar.getAttribute("data-no")).toBe("0");
+      expect(bar.getAttribute("data-unanswered")).toBe("2");
+      expect(bar.getAttribute("data-band")).toBeNull();
+
+      // The three segments are in that order, left to right, and their widths
+      // are the counts themselves.
+      const segments = [...bar.querySelectorAll("[data-testid^='response-bar-']")];
+      expect(segments.map((node) => node.getAttribute("data-testid"))).toEqual([
+        "response-bar-yes",
+        "response-bar-unanswered",
+        "response-bar-no",
+      ]);
+      expect(segments.map((node) => node.getAttribute("data-width"))).toEqual(["3", "2", "0"]);
+
+      // A coach block where one of two said no: the red segment is the one
+      // with width, and it is last, so it is drawn from the right.
+      const coachBar = within(screen.getByTestId("response-progress-coach")).getByTestId(
+        "response-bar",
+      );
+      expect(coachBar.getAttribute("data-no")).toBe("1");
+      expect(
+        coachBar.querySelector("[data-testid='response-bar-no']")?.getAttribute("data-width"),
+      ).toBe("1");
+
+      // Nobody in the recruits block has answered, so the whole width is gap.
+      const recruitBar = within(screen.getByTestId("response-progress-recruit")).getByTestId(
+        "response-bar",
+      );
+      expect(recruitBar.getAttribute("data-unanswered")).toBe("1");
+      expect(recruitBar.getAttribute("data-yes")).toBe("0");
+      expect(recruitBar.getAttribute("data-no")).toBe("0");
     });
 
     it("shows no block at all before approval, when nobody is invited", async () => {

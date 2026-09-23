@@ -228,9 +228,9 @@ export const EVENTS_PAGE: PlaybookPage = {
     {
       label: "The top of the event page is response progress",
       fact: [
-        "One block per capacity in the audience — Recruits, Players, Coaches, Committee — each reading said yes against invited, then the number who said no as its own labelled figure, and a bar of everyone who has answered against everyone invited. Red below half, orange to three quarters, green above. A capacity nobody was invited under has no block. There is no ",
+        "One block per capacity in the audience — Recruits, Players, Coaches, Committee — each reading its three numbers on one line, said yes then said no against everyone invited, and a bar of three segments: the people who said yes in green from the left, the people who said no in red from the right, and the people who have not answered as the pale gap between them. A capacity nobody was invited under has no block. There is no ",
         control("Showed"),
-        " figure on this page; the register, below Audience and distribution, is where attendance is recorded.",
+        " figure on this page or on the Event info link page; the register, below Audience and distribution, is where attendance is recorded.",
       ],
     },
     {

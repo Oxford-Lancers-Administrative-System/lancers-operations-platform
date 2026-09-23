@@ -648,19 +648,31 @@ present in the audience, in the order **Recruits, Players, Coaches,
 Committee** — a capacity nobody was invited under shows no block at all, so a
 practice with no recruits shows Players and Coaches only. Each block reads:
 
-| Line | What it says                                                                          |
-| ---- | ------------------------------------------------------------------------------------- |
-| Name | Recruits, Players, Coaches or Committee                                               |
-| Yes  | `<said yes> / <invited>` for that capacity, labelled **Said yes / Invited**           |
-| No   | `<said no>`, labelled **Said no** — the same shape as the pair above it               |
-| Bar  | `(yes + no) / invited`, red below 50 %, orange to below 75 %, green at 75 % and above |
+| Line  | What it says                                                                       |
+| ----- | ---------------------------------------------------------------------------------- |
+| Name  | Recruits, Players, Coaches or Committee                                            |
+| Value | `16 yes · 6 no / 39`, labelled **Said yes · Said no / Invited**                    |
+| Bar   | Three segments: yes, the unanswered remainder, no — widths proportional to invited |
+
+**One value line, not two figures** (Brian's walk, 2026-09-23). The three
+numbers are one sentence about one population and the denominator belongs to
+both halves, so they are read on one line rather than stacked as two metrics.
+
+**The bar is the three answers at their true widths.** Yes runs in the theme's
+success green from the left, no in the error red from the right, and the people
+who have not answered are the pale track left between them — so one no in ten
+is a red tenth on the right, and the gap is the chase. **There is no colour
+gate.** Round 2 coloured the whole bar red, orange or green at 50 % and 75 %;
+that reading is dropped, because the gap already carries it and a threshold
+disagreed with the numbers at the edges — an event where everybody had answered
+and half said no went green.
 
 The block counts **invitations**, not the roster, so somebody added to an
 approved event raises that capacity's denominator. Somebody invited under two
 capacities is counted once, under the first of Recruits, Coaches, Players,
 Committee. Nothing explains the bar in words. The same blocks head the public
-**Event info link** page, so the operator and whoever the link was sent to are
-reading the same numbers.
+**Event info link** page, from the same component, so the operator and whoever
+the link was sent to are reading the same numbers.
 
 **Invited and Said yes are no longer tiles of their own**, because each block
 says both and their totals are the whole event's.

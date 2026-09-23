@@ -10,11 +10,16 @@
  * This amends D62 / D73 / D74 (Brian, 2026-09-22, on Stewart's request). Those
  * decisions made the event page's headline three raw pairs — "no percentages,
  * no judgment" — and they still govern **Showed**, which keeps its `— / 37`
- * shape and moves below Audience and Distribution. What they no longer govern
- * is the top of the page: a percentage and a coloured bar are now part of the
- * headline, because the question an operator opens the page with is not "how
- * many" but "are we there yet", and a coach reading `18 / 41` has to do the
- * arithmetic in their head for every role separately.
+ * shape on the operator's list of events and on the register. What they no
+ * longer govern is the top of the event page: a coloured bar is now part of
+ * the headline, because the question an operator opens the page with is not
+ * "how many" but "are we there yet", and a coach reading `18 / 41` has to do
+ * the arithmetic in their head for every role separately.
+ *
+ * The numbers themselves stayed raw. Brian's walk of 2026-09-23 took out the
+ * response-rate gate that round 2 added, so nothing here judges a number any
+ * more; the bar shows the three answers at their true widths and lets the
+ * reader see the shape of them.
  *
  * Pure. No database, no React, no `server-only` — the rows come from
  * `participation-view.ts`, which both the operator page and the public Event
@@ -61,13 +66,16 @@ const RESPONSE_CAPACITY_LABELS: Readonly<Record<ResponseCapacity, string>> = Obj
 });
 
 /**
- * Which colour the bar takes. Named as a band rather than as a colour so the
- * rule and the palette stay separable: the thresholds are Stewart's ("red to
- * orange to green based on reasonable gates (50%, 75%)"), the colours are the
- * app's own status colours.
+ * **There is no band, and no gate.** Stewart asked for "red to orange to green
+ * based on reasonable gates (50%, 75%)" and round 2 built exactly that; Brian's
+ * walk of 573bb9d4 (2026-09-23) dropped it. The bar now shows the three answers
+ * themselves — yes from the left, no from the right, the unanswered remainder
+ * between them — and "the gap carries that information". A threshold was a
+ * second, coarser reading of the same numbers, and it disagreed with them at
+ * the edges: an event where everybody has answered and half of them said no
+ * went green, which is the opposite of the news. Nothing replaces it, because
+ * the widths say it.
  */
-export type ResponseBand = "low" | "middling" | "high";
-
 export interface ResponseProgressBlock {
   readonly capacity: ResponseCapacity;
   readonly label: string;
@@ -75,11 +83,10 @@ export interface ResponseProgressBlock {
   readonly invited: number;
   readonly yes: number;
   readonly no: number;
-  /** `yes + no`, the numerator of the bar. */
+  /** `yes + no` — how much of the bar is coloured at all. */
   readonly responded: number;
   /** `responded / invited`, as a whole number of per cent. */
   readonly percent: number;
-  readonly band: ResponseBand;
 }
 
 /** One row as both tiers of `participation-view.ts` shape it. */
@@ -107,13 +114,6 @@ function countingCapacityOf(row: ResponseProgressRow): ResponseCapacity | null {
     if (held.includes(capacity)) return capacity;
   }
   return null;
-}
-
-/** Stewart's gates: red below 50 %, orange to below 75 %, green at 75 % and above. */
-export function responseBand(percent: number): ResponseBand {
-  if (percent >= 75) return "high";
-  if (percent >= 50) return "middling";
-  return "low";
 }
 
 /**
@@ -144,8 +144,11 @@ export function responseProgressByCapacity(
     const held = tally.get(capacity);
     if (held === undefined || held.invited === 0) return [];
     const responded = held.yes + held.no;
-    // Truncated, not rounded: 74.6 % is not 75 %, and rounding up would turn
-    // the bar green a person early. The gate is the honest one.
+    // Truncated, not rounded, so the figure never claims a person who has not
+    // answered. It no longer decides a colour — the bar's own segments are
+    // drawn from `yes`, `no` and `invited` directly — and is kept because it is
+    // the one plain reading of "how far along is this", for a caller that wants
+    // it without doing the division again.
     const percent = Math.floor((responded / held.invited) * 100);
     return [
       {
@@ -156,7 +159,6 @@ export function responseProgressByCapacity(
         no: held.no,
         responded,
         percent,
-        band: responseBand(percent),
       },
     ];
   });

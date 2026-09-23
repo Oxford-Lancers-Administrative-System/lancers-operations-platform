@@ -74,9 +74,13 @@ pair, and it carries both presentations side by side:
 - **The headline numbers and the register's buffer.** Those are LAN-152's and
   are reused, not rebuilt. **LAN-420 (Brian, 2026-09-22) replaced the headline
   row on both surfaces** with response progress by capacity — one block per
-  capacity in the audience, `yes / invited`, `no`, and a bar coloured at 50 %
-  and 75 % — and moved Showed below Audience and Distribution. That amends
-  D62 / D73 / D74; `docs/ux/slice-ux.md` § 5 carries the amendment in full.
+  capacity in the audience. His walk of 2026-09-23 settled its final shape: one
+  value line, `16 yes · 6 no / 39` under **Said yes · Said no / Invited**, and a
+  bar of three segments — yes in green from the left, no in red from the right,
+  the unanswered remainder as the pale track between them. The response-rate
+  colour gate at 50 % and 75 % is not shipped, and Showed is on neither
+  surface. That amends D62 / D73 / D74; `docs/ux/slice-ux.md` § 5 carries the
+  amendment in full.
 - **Delivery detail.** A state and a link out, both operator tier (D65); the
   delivery page is Mission 4's.
 - **Chasing anybody.** Seeing that eight people have not answered is not the
