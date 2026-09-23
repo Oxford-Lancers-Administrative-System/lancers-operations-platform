@@ -1103,6 +1103,63 @@ describe("issued kit and the derived Kit Distributed flag — LAN-375", () => {
     );
   });
 
+  /**
+   * LAN-421 — Stewart, 2026-09-22: "Let's please add an option to all
+   * 'required' kit items … 'Player-Owned'. This way, players who own a piece
+   * of their own kit can still complete 'kit assigned' binary."
+   *
+   * The point of shipping it as reference data is that the derivation needs no
+   * rule change, and this is what proves that claim rather than asserting it:
+   * Player-Owned is counted exactly as a size is, and the flag still turns on
+   * five values and off on four.
+   */
+  it("counts Player-Owned toward Kit Distributed on all five, and pending on four — LAN-421", async () => {
+    // It is offered on each of the five, and last, after the sizes.
+    for (const item of KIT_DISTRIBUTED_ITEMS) {
+      const values = KIT_ITEMS.find((entry) => entry.item === item)!.values;
+      expect(values.at(-1)).toBe("Player-Owned");
+    }
+    // And on no other item — the ones outside the rule do not offer it.
+    for (const entry of KIT_ITEMS) {
+      if ((KIT_DISTRIBUTED_ITEMS as readonly string[]).includes(entry.item)) continue;
+      expect(entry.values).not.toContain("Player-Owned");
+    }
+
+    // This fixture's membership is shared with the cases above, which leave
+    // values on it. Start from nothing so the flag's two readings below are
+    // this case's own and not an earlier one's leftovers.
+    for (const item of KIT_DISTRIBUTED_ITEMS) {
+      await commitKitItem({ actorPersonId, membershipId, seasonId, item, value: null });
+    }
+    expect(await kitDistributedStatus()).toBe("pending");
+
+    // Four of the five Player-Owned, the fifth left blank: still pending.
+    for (const item of ["helmet", "shoulder_pads", "lower_pads", "lowers"] as const) {
+      await commitKitItem({
+        actorPersonId,
+        membershipId,
+        seasonId,
+        item,
+        value: "Player-Owned",
+      });
+    }
+    expect(await kitDistributedStatus()).toBe("pending");
+
+    // The fifth, and the player owns everything: complete, with nothing issued.
+    await commitKitItem({
+      actorPersonId,
+      membershipId,
+      seasonId,
+      item: "practice_jersey",
+      value: "Player-Owned",
+    });
+    expect(await kitDistributedStatus()).toBe("complete");
+
+    // Blanking one of the five takes it back, exactly as blanking a size does.
+    await commitKitItem({ actorPersonId, membershipId, seasonId, item: "helmet", value: null });
+    expect(await kitDistributedStatus()).toBe("pending");
+  });
+
   it("refuses a hand set of Kit Distributed", async () => {
     const item = await observer.query<{ id: string }>(
       `select i.id from public.onboarding_items i
