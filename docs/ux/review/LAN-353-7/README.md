@@ -1,54 +1,89 @@
 # LAN-353 batch 7 — visual evidence
 
-Captured on the batch branch `feat/lan-353-batch-7` — everything but LAN-414
-and LAN-420 at `ddc6c7a6`, and those two **re-taken at `d257c305`** after
-correction round 2 — against the local stack, through the real application
-login, at the two required viewports: desktop 1440×900 and a **measured**
-375×812 phone, taken from the browser context by `npm run visual:preflight`
-rather than from a resized window. Nothing here is hosted data: every person
-and event shown is the local synthetic seed.
+Captured on the batch branch `feat/lan-353-batch-7` — everything but LAN-414,
+LAN-420 and LAN-421 at `ddc6c7a6`, and those three **re-taken at `de9b3bd4`**
+after round 3 — against the local stack, through the real application login, at
+the two required viewports: desktop 1440×900 and a **measured** 375×812 phone,
+taken from the browser context rather than from a resized window. Nothing here
+is hosted data: every person and event shown is the local synthetic seed.
 
 Each pair is `desktop-*.png` and `phone375-*.png` of the same route.
 
-One pair is the exception, and says so where it appears:
-`LAN-414/*-audience-picker-ticked.png` needed two rows ticked first, and
-`visual:preflight` navigates rather than drives a page. It was taken by a
-throwaway Playwright script doing what the preflight does — the same real
-login, the same two viewport sizes, each width read back from the browser
-context and printed (`desktop: 1440px`, `phone375: 375px`) — with two clicks
-before the shutter. Same mechanism, one interaction earlier.
+Round 3's pairs were taken by a throwaway Playwright script doing exactly what
+`npm run visual:preflight` does — the same real login, the same two viewport
+sizes, each width read back from the browser context and printed (`desktop:
+1440px`, `phone375: 375px`) — with the clicks three of them need before the
+shutter: two tick boxes for the ticked picker, and one field opened for the kit
+picker. Same mechanism, one interaction earlier.
 
-## LAN-420 — response progress by capacity (correction round 2)
+**The head counts moved since round 2.** The widest group reads 40 where it read
+39 and the players group 38 where it read 37, against a freshly reset and
+reseeded database on this head. Neither this round's changes nor anything in
+the pictured behaviour depends on the figures; they are what the seed holds
+now.
+
+## LAN-420 — response progress by capacity (round 3)
 
 `LAN-420/desktop-operator-event-page.png`, `phone375-operator-event-page.png` —
 the operator's own page for **Freshers' Fair — stand**, an approved recruitment
 event whose audience carries all three of recruits, players and coaches. The
 top of the page is three blocks, in Stewart's order:
 
-| Block    | Yes     | Said no | Bar                     |
-| -------- | ------- | ------- | ----------------------- |
-| Recruits | 0 / 8   | 0       | red — 0 % have answered |
-| Players  | 28 / 35 | 5       | green — 94 %            |
-| Coaches  | 1 / 2   | 1       | green — 100 %           |
+| Block    | Value line           | Bar                                           |
+| -------- | -------------------- | --------------------------------------------- |
+| Recruits | `0 yes · 0 no / 8`   | pale end to end — nobody has answered         |
+| Players  | `28 yes · 5 no / 35` | green 28, a pale gap of 2, red 5 at the right |
+| Coaches  | `1 yes · 1 no / 2`   | green half, red half, no gap                  |
 
-Committee has no block, because nobody was invited in that capacity.
+Every block carries the one label **Said yes · Said no / Invited** under its
+value. Committee has no block, because nobody was invited in that capacity.
 
-**Both of Brian's corrections are in this pair.** The No figure is now a
-labelled metric like the pair above it — the number at the same weight with
-**Said no** under it, not the word "No" in front of a count. And there is **no
-Showed / Invited card anywhere on the page**: below Details and Audience and
-distribution comes **Attendance is open** — the register panel, which is where
-attendance is recorded and which this correction kept.
+**Both of Brian's walk changes are in this pair.** The two stacked metrics of
+round 2 are one value line, and the bar is three segments at their true widths
+with **no colour gate**: the Players bar is not "green because 94 % answered",
+it is 28 green, 2 pale and 5 red, and the pale gap is the two people still to
+chase. The Coaches bar is the clearest reading of why the gate went — everybody
+has answered and half of them said no, which round 2 painted entirely green.
+
+There is **no Showed / Invited card anywhere on the page**: below Details and
+Audience and distribution comes **Attendance is open** — the register panel,
+which is where attendance is recorded and which this kept.
 
 `LAN-420/desktop-event-info-link-page.png`, `phone375-event-info-link-page.png`
 — the public Event info link page for **Practice — hilary week 6**, which has
 players and coaches and no recruits. The same blocks lead the page, from the
-same component, with the same **Said no** metric; the Invited / Said yes / No
-row LAN-384 put there is gone, and Showed still sits below the facts — Brian's
-review took that card off the operator page and left this one standing. At
-375 px the blocks stack one per row.
+same component, in the same words: `16 yes · 6 no / 39` and `2 yes · 0 no / 2`.
+The Invited / Said yes / No row LAN-384 put there is gone, and **so is Showed**,
+which round 2 left standing here; between the blocks and the table there is now
+the Details section and nothing else. At 375 px the blocks stack one per row and
+no value line wraps.
 
-## LAN-414 and LAN-416 — the picker is checklist bands (correction round 2)
+## LAN-421 — Player-Owned on the five required kit items (round 3)
+
+`LAN-421/desktop-record-kit-player-owned.png`,
+`phone375-record-kit-player-owned.png` — a membership record with the **KIT**
+band open and the **Practice Jersey** field's own picker open on top of it. The
+options read _not recorded_, Blue, White, Red and **Player-Owned**, in that
+order: the value is last, after the club's own values, exactly as it is on each
+of the other four required items. Practice Jersey is the one shown because its
+list is short enough that the whole picker, and so the value's position at the
+end of it, is in one frame; Helmet and Shoulder Pads carry it in the same place
+on lists of ten and twenty-eight.
+
+These two are viewport shots rather than full-page ones, because the picker is
+a menu positioned against the field and a stitched full-page capture does not
+place it where a reader sees it.
+
+**What these do not show.** That the value is on those five items and on no
+other, and that Kit Distributed reads complete on five Player-Owned values and
+pending on four, are proved by
+`src/lib/services/roster-board.test.ts` — "counts Player-Owned toward Kit
+Distributed on all five, and pending on four — LAN-421" — against the real
+trigger. The mirror test in the same file proves the picker's list and
+`kit_item_options` agree, in order, so what the migration inserted is what the
+screenshot shows.
+
+## LAN-414 and LAN-416 — the picker is checklist bands (round 3)
 
 `LAN-414/desktop-audience-picker-bands.png`,
 `phone375-audience-picker-bands.png` — **Build event audience** on a draft
@@ -58,35 +93,39 @@ open, **Warmup assignments**, **Special teams** and **Recruits** folded.
 Coaching assignments folds again into its own three bands — **Coaching
 groups**, **Offensive position groups**, **Defensive position groups** — each
 folding separately and each in its own board colour. Every group is a tick-box
-row with its head count and, at the right, what it would add: `adds 39`,
-`adds 37`, `adds 9` and so on. The sticky line at the top reads **0 groups ·
+row with its head count and, at the right, what it would add: `adds 40`,
+`adds 38`, `adds 9` and so on. The sticky line at the top reads **0 groups ·
 0 people**, and the resolved-people list below the picker is unchanged. At
 375 px the whole picker is one column and every row keeps its count and mark.
 
-The two General labels read **Whole club** and **All roster players**, which is
-the other half of this round.
+**This round's change is in the first two rows of General**, which now read
+**Whole club** — 40, `adds 40` — and **All roster players** — 38, `adds 38`.
+Round 2's "Everyone active and onboarding" and "Active and onboarding players"
+are gone: the labels name the size of each group rather than the membership
+rule inside it, which is unchanged.
 
 `LAN-414/desktop-audience-picker-ticked.png`,
-`phone375-audience-picker-ticked.png` — **the correction itself**, the same
-screen with **All roster players** and **Defense** ticked. Read the row above
-the first one: **Whole club** is _not_ ticked and reads **adds 2**. That is the
-whole of Brian's finding — under the pills,
-pressing the players group lit everything it swallowed; here nothing moved but
-the row that was ticked, and the overlap is a number. The rows the selection
-already covers say **Included** (All active coaches, Onboarding, All Active
-BPS, and every offensive and defensive position group); the two ticked rows say
-**Selected**; each band head says **1 chosen**; and the review button at the
-foot reads **Review 37 selected**.
+`phone375-audience-picker-ticked.png` — the same screen with **All roster
+players** and **Defense** ticked. Read the row above the first one: **Whole
+club** is _not_ ticked and reads **adds 2**. That is the whole of Brian's
+earlier finding — under the pills, pressing the players group lit everything it
+swallowed; here nothing moved but the row that was ticked, and the overlap is a
+number. The rows the selection already covers say **Included** (All active
+committee, Onboarding, All Active BPS, and every offensive and defensive
+position group); the two ticked rows say **Selected**; each band head says
+**1 chosen**; the sticky line reads **2 groups · 38 people**; and the review
+button at the foot reads **Review 38 selected**.
 
 `LAN-414/desktop-template-default-audience.png`,
 `phone375-template-default-audience.png` — the **Practice** template's default
 audience, the second surface that chooses a group. The same component, the same
-bands, the same three marks and the same head counts, which is why the template
-pages now read the current season's catalogue (docs/ux/standards.md rule 7).
+bands, the same renamed labels and the same head counts to the person — 40, 38,
+3, 10, 6, 5 — which is why the template pages read the current season's
+catalogue (docs/ux/standards.md rule 7) rather than a list of their own.
 
 The bands pair is also LAN-416's evidence: the **Recruits** band is on a _game_
 event, which is the whole of that change, and the candidate list below carries
-open recruits — _Barnaby Quince · Recruit · Identified_, _Cassius Thorne ·
+open recruits — _Barnaby Quince · Recruit · Committed_, _Cassius Thorne ·
 Recruit · Engaged_ — on an event type that until now offered none at all.
 
 **What these do not show.** The rows inside the three folded bands are behind a
