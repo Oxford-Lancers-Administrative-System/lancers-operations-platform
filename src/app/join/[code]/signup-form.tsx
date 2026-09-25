@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { ActionBar } from "@/components/action-bar";
@@ -34,7 +34,7 @@ export interface SignupFieldValues {
   readonly givenName: string;
   readonly familyName: string;
   readonly mobile: string;
-  /** LAN-268. Required, and only an `ox.ac.uk` address is accepted. */
+  /** LAN-268, LAN-425. Required; an `ox.ac.uk` or `.edu`-style address. */
   readonly collegeEmail: string;
   readonly email: string;
   readonly knownAs: string;
@@ -54,6 +54,16 @@ export interface DuplicateCheckResult {
   readonly found: boolean;
 }
 
+/** LAN-425. What the partial save's first write returned. `retry` says whether the page should try again on the next pause: not after a name-and-mobile match, which the real Save handles. */
+export interface PartialSaveStart {
+  /** Opaque, held in memory for this page load only; never a person id (LAN-208). */
+  readonly token: string | null;
+  readonly retry: boolean;
+}
+
+/** LAN-425 (Brian, 2026-09-25): one patch per five-second pause, never per keystroke. */
+export const PARTIAL_SAVE_DELAY_MS = 5_000;
+
 export interface SignupFormProps {
   readonly mode: "anonymous" | "prefilled";
   readonly initial: SignupFieldValues;
@@ -61,11 +71,23 @@ export interface SignupFormProps {
   readonly personLabel?: string | null;
   /** `null` until Brian configures the real WhatsApp group — see recruitment-config.ts. */
   readonly groupLink: string | null;
-  /** Anonymous door only — never called for `mode="prefilled"`, which has nothing to ask. */
-  readonly checkDuplicate?: (givenName: string, mobile: string) => Promise<DuplicateCheckResult>;
-  /** A bare boolean, never a person id (LAN-208) — the server re-derives who from the typed name and mobile. */
+  /** Anonymous door only — never called for `mode="prefilled"`, which has nothing to ask. `partialToken` lets the probe exclude the visitor's own partial (LAN-425). */
+  readonly checkDuplicate?: (
+    givenName: string,
+    mobile: string,
+    partialToken: string | null,
+  ) => Promise<DuplicateCheckResult>;
+  /** Anonymous door only (LAN-425). First write once both names are present; the page never hears about a failure. */
+  readonly startPartial?: (values: SignupFieldValues) => Promise<PartialSaveStart>;
+  /** Anonymous door only (LAN-425). Everything typed so far, on the record `token` names. */
+  readonly patchPartial?: (token: string, values: SignupFieldValues) => Promise<void>;
+  /** A bare boolean, never a person id (LAN-208) — the server re-derives who from the typed name and mobile. `partialToken` is the partial save's own credential when this page load made one. */
   readonly submit: (
-    values: SignupFieldValues & { consent: boolean; confirmedExistingMatch: boolean },
+    values: SignupFieldValues & {
+      consent: boolean;
+      confirmedExistingMatch: boolean;
+      partialToken: string | null;
+    },
   ) => Promise<SignupOutcome>;
 }
 
@@ -90,6 +112,8 @@ export default function SignupForm({
   personLabel,
   groupLink,
   checkDuplicate,
+  startPartial,
+  patchPartial,
   submit,
 }: SignupFormProps) {
   const [step, setStep] = useState<Step>("form");
@@ -99,6 +123,70 @@ export default function SignupForm({
   // refuses the submit event itself; this one saves from a button's onClick,
   // so the same refusal arrives here as a reason Save stays disabled.
   const [mobileUnconfirmed, setMobileUnconfirmed] = useState(false);
+
+  // LAN-425 — the partial save. Refs, not state: nothing here renders. One
+  // write in flight at a time, and every write carries all fields, so a
+  // slow patch can never overwrite a faster later one and a dropped patch is
+  // healed by the next. `latest` is what the next write sends; `dirty` says a
+  // change arrived while one was in flight.
+  const partialToken = useRef<string | null>(null);
+  // Set once and never cleared: after a refused start, or the moment Save
+  // begins, so no patch can start behind a Save (review F2).
+  const partialStopped = useRef(false);
+  const partialInFlight = useRef<Promise<void> | null>(null);
+  const partialDirty = useRef(false);
+  const latest = useRef(values);
+  latest.current = values;
+  // A mobile the visitor has not yet confirmed in the second box is not sent
+  // with a partial: the welcome must never go to an unconfirmed number
+  // (LAN-425 walk, finding 5). Save is gated on the confirmation anyway.
+  const unconfirmedRef = useRef(false);
+
+  function flushPartial(): Promise<void> {
+    if (!startPartial || !patchPartial || partialStopped.current) return Promise.resolve();
+    if (partialInFlight.current) {
+      partialDirty.current = true;
+      return partialInFlight.current;
+    }
+    const run = (async () => {
+      const snapshot = unconfirmedRef.current ? { ...latest.current, mobile: "" } : latest.current;
+      try {
+        if (partialToken.current) {
+          await patchPartial(partialToken.current, snapshot);
+        } else {
+          const started = await startPartial(snapshot);
+          if (started.token) partialToken.current = started.token;
+          else if (!started.retry) partialStopped.current = true;
+        }
+      } catch {
+        // Best effort by design: the visitor's own Save is what matters.
+      }
+    })().finally(() => {
+      partialInFlight.current = null;
+      if (partialDirty.current) {
+        partialDirty.current = false;
+        void flushPartial();
+      }
+    });
+    partialInFlight.current = run;
+    return run;
+  }
+
+  // The timer calls through a ref so the effect re-arms on a change to
+  // `values` and nothing else; `flushPartial` closes over props that are
+  // stable in practice but new on every render.
+  const flushRef = useRef(flushPartial);
+  flushRef.current = flushPartial;
+  const partialEnabled = mode === "anonymous" && Boolean(startPartial) && Boolean(patchPartial);
+  const bothNamesPresent = values.givenName.trim() !== "" && values.familyName.trim() !== "";
+  useEffect(() => {
+    if (!partialEnabled || step !== "form" || !bothNamesPresent) return;
+    const handle = setTimeout(() => void flushRef.current(), PARTIAL_SAVE_DELAY_MS);
+    return () => clearTimeout(handle);
+    // `values` is the trigger: any change restarts the pause, and so does the
+    // confirm box agreeing, which changes what the next write may carry.
+  }, [values, step, partialEnabled, bothNamesPresent, mobileUnconfirmed]);
+  unconfirmedRef.current = mobileUnconfirmed;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -147,15 +235,24 @@ export default function SignupForm({
     values.expectedGraduationYear.trim() === ""
       ? null
       : validateAcademicYear(values.expectedGraduationYear, "Expected graduation");
+  const yearsOutOfOrder =
+    matriculationValidation?.valid === true &&
+    graduationValidation?.valid === true &&
+    Number.parseInt(values.expectedGraduationYear, 10) <
+      Number.parseInt(values.matriculationYear, 10);
   const graduationError =
-    graduationValidation && !graduationValidation.valid ? graduationValidation.message : null;
+    graduationValidation && !graduationValidation.valid
+      ? graduationValidation.message
+      : yearsOutOfOrder
+        ? "Expected graduation cannot be before the matriculation year."
+        : null;
 
   const requiredMissing = nameMissing || mobileMissing || collegeEmailMissing;
   const formatInvalid = Boolean(
     mobileError || emailError || collegeEmailError || matriculationError || graduationError,
   );
   const ready = !requiredMissing && !formatInvalid && !mobileUnconfirmed && consent;
-  const REQUIRED_FOUR = "a first name, a last name, a mobile number and your Oxford email";
+  const REQUIRED_FOUR = "a first name, a last name, a mobile number and your university email";
   const disabledReason =
     formatInvalid || mobileUnconfirmed
       ? "Correct the field marked in red to enable this."
@@ -169,7 +266,16 @@ export default function SignupForm({
     setBusy(true);
     setError(null);
     try {
-      const outcome = await submit({ ...values, consent, confirmedExistingMatch });
+      // No further patch may start, and one still in flight lands first, so
+      // Save never races its own partial. Save carries every field itself.
+      partialStopped.current = true;
+      if (partialInFlight.current) await partialInFlight.current;
+      const outcome = await submit({
+        ...values,
+        consent,
+        confirmedExistingMatch,
+        partialToken: partialToken.current,
+      });
       if (outcome.ok) {
         setStep("saved");
       } else {
@@ -183,11 +289,15 @@ export default function SignupForm({
 
   async function handlePrimarySave() {
     if (!ready || busy) return;
+    // The probe runs with or without a partial on file; the server excludes
+    // the visitor's own partial by its token (LAN-425 walk, finding 1).
+    partialStopped.current = true;
+    if (partialInFlight.current) await partialInFlight.current;
     if (mode === "anonymous" && checkDuplicate && values.mobile.trim() !== "") {
       setBusy(true);
       setError(null);
       try {
-        const probe = await checkDuplicate(values.givenName, values.mobile);
+        const probe = await checkDuplicate(values.givenName, values.mobile, partialToken.current);
         if (probe.found) {
           setStep("already");
           return;
@@ -298,8 +408,8 @@ export default function SignupForm({
               : "We already have most of this. Check it, change anything that is wrong, and tell us how we may contact you."}
           </Typography>
           <Typography sx={{ fontSize: 15, fontWeight: 600, mt: 1.5 }}>
-            Your name, your mobile number, your Oxford email and the tick below are needed. The rest
-            can wait.
+            Your name, your mobile number, your university email and the tick below are needed. The
+            rest can wait.
           </Typography>
         </Box>
 
@@ -324,7 +434,7 @@ export default function SignupForm({
           label="College email"
           required
           error={Boolean(collegeEmailError)}
-          helperText={collegeEmailError ?? "Your university address — it ends in ox.ac.uk."}
+          helperText={collegeEmailError ?? "Your university address — it ends in ox.ac.uk or .edu."}
           {...field("collegeEmail")}
         />
         <Field

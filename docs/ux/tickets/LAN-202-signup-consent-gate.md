@@ -69,8 +69,14 @@ university, and not the look-alikes that matter — `oxford.ac.uk` is a differen
 domain, `notox.ac.uk` merely ends in the same letters, and `ox.ac.uk.evil.com`
 is somebody else's domain wearing the name.
 
+LAN-425 (Brian, 2026-09-25, after the Freshers' Fair) widened the rule to
+`.edu`-style addresses for visiting and exchange students: `edu` as the last
+label of the domain, or followed by exactly one country code — `harvard.edu`,
+`unimelb.edu.au`, `tsinghua.edu.cn`. Not `edu.example.com`, not
+`.education`, not `harvard.edu.evil.com`.
+
 The refusal names the rule, in one sentence, everywhere:
-**"Enter your Oxford address; it ends in ox.ac.uk"**.
+**"Enter your university address; it ends in ox.ac.uk or .edu"**.
 
 One validator (`validateCollegeEmail` in `src/lib/services/person-validation.ts`)
 answers this for all four surfaces that ask it — the sign-up door, add-by-hand,
@@ -126,6 +132,69 @@ is no longer reachable from the form itself, now the mobile is part of the
 required set; it stays because the probe and the write are separate entry
 points and neither may assume the other ran. LAN-144, not this package,
 decides whether either endpoint is rate-limited.
+
+## The partial save (LAN-425)
+
+Brian, 2026-09-25, after the Freshers' Fair: people typed a name and a number,
+walked off, and nothing was recorded. The QR door now saves what it has.
+
+Nothing on the screen changes. Sign me up is gated exactly as above, and the
+visitor is never told a partial was saved. Underneath, once first name and last
+name are both present, the page creates the record; every later change is
+patched after a five-second pause with everything typed so far, one write in
+flight at a time, so a slow patch cannot overwrite a faster later one and a
+dropped one is healed by the next. Latest wins, raw as typed: a malformed
+mobile is on file with no normalised number and cannot be messaged until an
+operator fixes it; a malformed college email is on file for the missing-data
+queue.
+
+A partial is not a sign-up. It writes no consent row (an unticked box is not
+consent), declares no interest ask, invites nobody to the group and counts no
+code use. It does declare the recruitment cycle, whose welcome track is allowed
+without consent (LAN-204) and exists to get somebody to finish this form; the
+welcome is floored ten minutes out so a mistyped mobile can be corrected before
+the dispatcher reads the number, and the dispatcher skips it once the real Save
+grants consent.
+
+On the board, `recruitment_prospects.source` reads **`qr_partial`** while one of
+the core four (first name, last name, a valid mobile, a valid college email) is
+missing, and **`qr_self_entry`** once they are all present — optional fields
+may still be blank. Operators sort the Source column and chase the partials.
+
+The page holds an opaque credential for its partial, never a person id
+(LAN-208): a `person_access_tokens` row with the prefilled form's own purpose,
+which resolves to nothing but this person's own typed values. It lives in
+memory for the page load only; a reload starts over, and a re-scan that
+duplicates a partial is voided or merged by an operator as any duplicate is. The
+name-and-mobile probe runs whenever a mobile arrives, not only when the partial
+starts (the walk of 2026-09-25 found a visitor who paused after their names got
+a second record): at the start, a match writes nothing; on a later patch, a
+mobile that with this name belongs to somebody else is not stored, so the
+partial's welcome can never go to that person's number; and at Sign me up the
+probe runs with the partial excluded, so the duplicate question above is asked
+exactly as it always was. "Yes, that's me" links the existing record and voids
+the partial, explained, with its cycle stood down and its credential revoked;
+"No" completes the partial in place.
+
+A partial is open only until its sign-up is complete. A patch, or a completion,
+against a person whose season consent is granted is refused: the welcome link
+carries a credential of the same purpose, and it must never be able to overwrite
+a signed-up recruit's contacts without validation.
+
+A mobile the visitor has not yet confirmed in the second box is not sent with a
+partial, so the welcome only ever goes to a confirmed number. Sign me up was
+already gated on the confirmation.
+
+An expected graduation before the matriculation year is refused in words on
+both doors ("Expected graduation cannot be before the matriculation year."),
+in the browser and on the server, rather than left to the database rule.
+
+The first write is throttled on the printed code like the probe; patches are
+throttled on the token, so one stand's typists never spend each other's
+allowance. The bar to create a person and trigger a welcome send is now "type a
+name and a valid number" rather than "press Save"; the per-process throttle is
+not a defence against a bot, and a per-code creation cap is a separate issue if
+one is wanted.
 
 ## Consent
 

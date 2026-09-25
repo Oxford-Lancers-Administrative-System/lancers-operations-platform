@@ -245,7 +245,8 @@ export function allowRsvpRequest(
  * bucket — their tokens come from different derivations, and a collision would
  * spend one surface's allowance on the other's traffic.
  */
-export type PublicLinkSurface = "rsvp" | "club_link" | "player_answer" | "player_home";
+export type PublicLinkSurface =
+  "rsvp" | "club_link" | "player_answer" | "player_home" | "qr_partial";
 
 /**
  * The player-answer and player-home allowances — LAN-172.
@@ -263,11 +264,21 @@ export type PublicLinkSurface = "rsvp" | "club_link" | "player_answer" | "player
 export const RATE_LIMIT_MAX_PER_ANSWER_LINK = 20;
 export const RATE_LIMIT_MAX_PER_HOME_LINK = 240;
 
+/**
+ * LAN-425. The QR door's partial-save patches are keyed on the visitor's own
+ * token, never on the printed code the whole fair shares, so one stand's
+ * typists cannot spend each other's allowance. The client sends at most one
+ * patch per five-second pause, so sixty a minute is twelve times what a
+ * person can produce.
+ */
+export const RATE_LIMIT_MAX_PER_PARTIAL_TOKEN = 60;
+
 const PER_LINK_ALLOWANCE: Readonly<Record<PublicLinkSurface, number>> = Object.freeze({
   rsvp: RATE_LIMIT_MAX_PER_LINK,
   club_link: CLUB_LINK_MAX_PER_LINK,
   player_answer: RATE_LIMIT_MAX_PER_ANSWER_LINK,
   player_home: RATE_LIMIT_MAX_PER_HOME_LINK,
+  qr_partial: RATE_LIMIT_MAX_PER_PARTIAL_TOKEN,
 });
 
 /**
@@ -365,6 +376,22 @@ export function logThrottledPlayerHomeRequest(reason: ThrottleReason): void {
   console.warn(
     `[player-home] a request was refused by the ${reason} rate limit. ` +
       "If a player reports that their own page will not load, this is the first thing to check.",
+  );
+}
+
+/** LAN-425 — a partial-save patch on `/join/[code]`, keyed on the visitor's own token. */
+export function allowQrPartialPatchRequest(
+  address: string,
+  token: string,
+  now: number = Date.now(),
+): RsvpRequestDecision {
+  return allowPublicLinkRequest("qr_partial", address, token, now);
+}
+
+export function logThrottledQrPartialPatchRequest(reason: ThrottleReason): void {
+  console.warn(
+    `[join] a partial-save patch was refused by the ${reason} rate limit. ` +
+      "The next patch carries every field again, so nothing is lost unless it was the last one.",
   );
 }
 

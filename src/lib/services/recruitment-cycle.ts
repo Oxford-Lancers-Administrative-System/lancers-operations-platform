@@ -154,6 +154,15 @@ export async function declareRecruitmentCycleJobsIn(
   personId: string,
   seasonId: string,
   operatorRequest?: { step: "welcome" | "interest_ask"; at: Date },
+  options: {
+    /**
+     * LAN-425. A floor under every step's due time. The QR door's partial
+     * save declares the welcome while the visitor is still typing, and a
+     * mistyped mobile is corrected in the next minute, not the next day;
+     * ten minutes of slack lets the dispatcher read the corrected number.
+     */
+    notBefore?: Date;
+  } = {},
 ): Promise<DeclaredCycleJobs> {
   const prospect = await tx.query<{ id: string; status: string; created_at: Date }>(
     `select id, status::text as status, created_at
@@ -198,12 +207,16 @@ export async function declareRecruitmentCycleJobsIn(
   const created: RecruitmentCycleStepName[] = [];
   for (const step of wanted) {
     // LAN-237: the operator's ask is due now; its reminder keeps the configured interval.
-    const scheduledFor = operatorRequest
+    const computedFor = operatorRequest
       ? new Date(
           operatorRequest.at.getTime() +
             Math.max(0, offsetFor(step) - offsetFor(operatorRequest.step)) * 60 * 60 * 1000,
         )
       : new Date(prospectRow.created_at.getTime() + offsetFor(step) * 60 * 60 * 1000);
+    const scheduledFor =
+      options.notBefore && options.notBefore.getTime() > computedFor.getTime()
+        ? options.notBefore
+        : computedFor;
     const idempotencyKey = `recruit-cycle:${step}:${personId}:${seasonId}`;
     const inserted = await tx.query(
       `insert into public.notification_jobs

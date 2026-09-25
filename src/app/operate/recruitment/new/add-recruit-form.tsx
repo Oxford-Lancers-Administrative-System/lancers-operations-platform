@@ -271,7 +271,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
               helperText={
                 errors.collegeEmail ??
                 collegeEmailFormatError ??
-                "Their university address — it ends in ox.ac.uk."
+                "Their university address — it ends in ox.ac.uk or .edu."
               }
               data-testid="college-email-field"
             />

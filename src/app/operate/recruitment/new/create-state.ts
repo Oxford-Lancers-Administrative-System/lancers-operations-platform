@@ -7,7 +7,7 @@ export interface AddRecruitFormValues {
   givenName: string;
   familyName: string;
   mobile: string;
-  /** LAN-268, Brian 2026-09-09: required, ox.ac.uk only. */
+  /** LAN-268, Brian 2026-09-09: required. LAN-425: ox.ac.uk or .edu-style. */
   collegeEmail: string;
   personalEmail: string;
   /** V-2, correction round 2: the shipped intake forms' own field set; every field below is optional (REQ-missing-never-blocks). */

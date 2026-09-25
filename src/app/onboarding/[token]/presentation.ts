@@ -93,7 +93,7 @@ export const FIELD_FAMILY_NAME = "Last name";
 export const FIELD_MOBILE = "Mobile phone";
 /** LAN-268. Proof of university affiliation — required with name/phone, not the academic fields. */
 export const FIELD_COLLEGE_EMAIL = "College email";
-export const FIELD_COLLEGE_EMAIL_HINT = "Your university address — it ends in ox.ac.uk.";
+export const FIELD_COLLEGE_EMAIL_HINT = "Your university address — it ends in ox.ac.uk or .edu.";
 export const FIELD_PERSONAL_EMAIL = "Personal email";
 export const FIELD_COLLEGE = "College";
 /** LAN-366. Optional, and the only name field on this step that is. */

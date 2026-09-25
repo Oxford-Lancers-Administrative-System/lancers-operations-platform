@@ -243,6 +243,12 @@ describe("validateCollegeEmail — the Oxford rule", () => {
     "avery@dept.college.ox.ac.uk",
     "Avery.Blake@Balliol.OX.AC.UK",
     "avery-blake@st-annes.ox.ac.uk",
+    // LAN-425 (Brian, 2026-09-25): `.edu`, alone or with one country code.
+    "avery@harvard.edu",
+    "Avery.Blake@MIT.EDU",
+    "avery@student.unimelb.edu.au",
+    "avery@tsinghua.edu.cn",
+    "avery@nus.edu.sg",
   ];
 
   it.each(accepted)("accepts %s", (address) => {
@@ -259,6 +265,10 @@ describe("validateCollegeEmail — the Oxford rule", () => {
     "avery@ox.ac.uk.evil.com",
     "avery@cam.ac.uk",
     "avery@ox.ac.uk.co",
+    // LAN-425: `edu` must be a whole label at the end, not a prefix or a word.
+    "avery@edu.example.com",
+    "avery@harvard.education",
+    "avery@harvard.edu.evil.com",
   ];
 
   it.each(refused)("refuses %s, naming the rule", (address) => {
@@ -270,7 +280,9 @@ describe("validateCollegeEmail — the Oxford rule", () => {
   });
 
   it("names the rule in one sentence, the same one everywhere", () => {
-    expect(COLLEGE_EMAIL_RULE_MESSAGE).toBe("Enter your Oxford address; it ends in ox.ac.uk");
+    expect(COLLEGE_EMAIL_RULE_MESSAGE).toBe(
+      "Enter your university address; it ends in ox.ac.uk or .edu",
+    );
   });
 
   it("says the field is blank rather than that it is not Oxford", () => {

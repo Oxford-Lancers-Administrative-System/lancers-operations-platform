@@ -144,7 +144,7 @@ export default function EditPersonForm({
               label="College email"
               original={collegeEmail?.rawValue ?? ""}
               error={state.errors.collegeEmail}
-              unchangedHelperText="Their university address — it ends in ox.ac.uk."
+              unchangedHelperText="Their university address — it ends in ox.ac.uk or .edu."
             />
           </Stack>
         </Section>

@@ -15,8 +15,17 @@ import type { Client } from "pg";
 import { todayInClubZone } from "@/lib/club-time";
 import { closePool, withTransaction } from "@/lib/db";
 import {
+  completePartialQrSignupIn,
+  hasCoreFour,
+  PARTIAL_NOT_OPEN_RULE,
+  PARTIAL_SOURCE,
+  PARTIAL_TOKEN_PURPOSE,
+  PARTIAL_WELCOME_DELAY_MS,
+  patchPartialQrSignupIn,
   probeExistingRecruitForQrSignup,
   readSignupPrefillIn,
+  reconcileYears,
+  startPartialQrSignupIn,
   SIGNUP_INVALID_EMAIL_RULE,
   SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE,
   SIGNUP_INVALID_MATRICULATION_YEAR_RULE,
@@ -25,11 +34,14 @@ import {
   SIGNUP_REQUIRES_FIRST_NAME_RULE,
   SIGNUP_REQUIRES_LAST_NAME_RULE,
   SIGNUP_REQUIRES_MOBILE_RULE,
+  SIGNUP_YEARS_OUT_OF_ORDER_RULE,
   signUpAnonymouslyIn,
+  voidPartialQrSignupIn,
   signUpWithTokenIn,
   type SignupSubmission,
 } from "./recruitment-signup";
 import { mintRecruitmentSignupCodeIn } from "./recruitment-signup-codes";
+import { resolvePersonTokenIn } from "./player-answer-tokens";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN202SignupSuite";
@@ -95,6 +107,11 @@ afterEach(async () => {
   await observer.query(`delete from public.notification_jobs where person_id in ${people}`, [
     MARKER,
   ]);
+  await observer.query(
+    `delete from public.recruitment_prospect_status_events where prospect_id in
+       (select id from public.recruitment_prospects where person_id in ${people})`,
+    [MARKER],
+  );
   await observer.query(`delete from public.recruitment_prospects where person_id in ${people}`, [
     MARKER,
   ]);
@@ -103,6 +120,9 @@ afterEach(async () => {
     [MARKER],
   );
   await observer.query(`delete from public.person_aliases where person_id in ${people}`, [MARKER]);
+  await observer.query(`delete from public.person_access_tokens where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query(`delete from public.contact_points where person_id in ${people}`, [MARKER]);
   await observer.query(`delete from public.audit_events where entity_id in ${people}`, [MARKER]);
   await observer.query(`delete from public.recruitment_signup_codes where season_id = $1::uuid`, [
@@ -813,5 +833,396 @@ describe("readSignupPrefillIn", () => {
     const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
     expect(prefill.collegeEmail).toBe("only@kestrelhall.ox.ac.uk");
     expect(prefill.email).toBeNull();
+  });
+});
+
+/**
+ * LAN-425 (Brian, 2026-09-25, the Freshers' Fair): the QR door saves what it
+ * has. A partial is a person, their raw contact rows, a prospect marked
+ * `qr_partial`, a delayed welcome, and a credential the page keeps — and it
+ * is not a sign-up: no consent row, no interest ask, no code-use count.
+ */
+describe("the partial save (LAN-425)", () => {
+  function partial(overrides: Partial<SignupSubmission> = {}) {
+    const { consent: _consent, ...rest } = baseSubmission({
+      mobile: null,
+      collegeEmail: null,
+      ...overrides,
+    });
+    return rest;
+  }
+
+  it("needs both names and nothing else", async () => {
+    await withTransaction(async (tx) => {
+      await expect(
+        startPartialQrSignupIn(tx, { seasonId, submission: partial({ familyName: " " }) }),
+      ).rejects.toMatchObject({ rule: SIGNUP_REQUIRES_LAST_NAME_RULE });
+    });
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: partial() }),
+    );
+    expect(started).not.toBeNull();
+    expect(started!.token).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+  });
+
+  it("writes the record, marks it qr_partial, floors the welcome ten minutes out, and grants no consent", async () => {
+    const before = Date.now();
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, {
+        seasonId,
+        submission: partial({ mobile: "07700 90", collegeEmail: "not-an-address" }),
+      }),
+    );
+    const personId = started!.personId;
+
+    const prospect = await observer.query<{ source: string; status: string }>(
+      `select source, status::text as status from public.recruitment_prospects where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(prospect.rows[0]).toEqual({ source: PARTIAL_SOURCE, status: "identified" });
+
+    // Raw as typed: a malformed mobile has no normalised number, a malformed
+    // college email is on file for the missing-data queue to show.
+    const contacts = await observer.query<{
+      kind: string;
+      scope: string | null;
+      raw_value: string;
+      normalised_value: string | null;
+    }>(
+      `select kind::text as kind, scope::text as scope, raw_value, normalised_value
+         from public.contact_points where person_id = $1::uuid order by kind`,
+      [personId],
+    );
+    expect(contacts.rows).toEqual([
+      { kind: "email", scope: "college", raw_value: "not-an-address", normalised_value: null },
+      { kind: "phone", scope: null, raw_value: "07700 90", normalised_value: null },
+    ]);
+
+    const consent = await observer.query(
+      `select 1 from public.season_messaging_consents where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(consent.rows).toHaveLength(0);
+
+    const jobs = await observer.query<{ idempotency_key: string; scheduled_for: Date }>(
+      `select idempotency_key, scheduled_for from public.notification_jobs
+        where person_id = $1::uuid order by idempotency_key`,
+      [personId],
+    );
+    const keys = jobs.rows.map((row) => row.idempotency_key.split(":")[1]);
+    expect(keys).toEqual(["details_reminder", "welcome"]);
+    const welcome = jobs.rows.find((row) => row.idempotency_key.includes(":welcome:"))!;
+    expect(welcome.scheduled_for.getTime()).toBeGreaterThanOrEqual(
+      before + PARTIAL_WELCOME_DELAY_MS,
+    );
+
+    // The credential is the prefilled form's own purpose and resolves to this person.
+    const resolved = await withTransaction((tx) =>
+      resolvePersonTokenIn(tx, started!.token, PARTIAL_TOKEN_PURPOSE),
+    );
+    expect(resolved.resolved).toEqual({ personId, seasonId });
+  });
+
+  it("writes nothing when the name-and-mobile probe already matches somebody", async () => {
+    const mobile = uniquePhone();
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+    const count = async () =>
+      (
+        await observer.query<{ count: string }>(
+          `select count(*)::text as count from public.people where given_name = $1`,
+          [MARKER],
+        )
+      ).rows[0].count;
+    const before = await count();
+
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: partial({ mobile }) }),
+    );
+    expect(started).toBeNull();
+    expect(await count()).toBe(before);
+  });
+
+  it("patches with latest-wins, and flips the source once the core four are in", async () => {
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: partial({ mobile: "07700 900" }) }),
+    );
+    const personId = started!.personId;
+    const mobile = uniquePhone();
+
+    const complete = partial({
+      mobile,
+      collegeEmail: "lan425@balliol.ox.ac.uk",
+      college: "Balliol",
+      matriculationYear: "2025",
+      expectedGraduationYear: "2020", // before matriculation: held back, not a failed patch
+    });
+    expect(hasCoreFour(complete)).toBe(true);
+    await withTransaction((tx) =>
+      patchPartialQrSignupIn(tx, { personId, seasonId, submission: complete }),
+    );
+
+    const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+    expect(prefill.mobile).toBe(mobile);
+    expect(prefill.collegeEmail).toBe("lan425@balliol.ox.ac.uk");
+    expect(prefill.college).toBe("Balliol");
+    expect(prefill.matriculationYear).toBe(2025);
+    expect(prefill.expectedGraduationYear).toBeNull();
+
+    const phone = await observer.query<{ normalised_value: string | null }>(
+      `select normalised_value from public.contact_points where person_id = $1::uuid and kind = 'phone'`,
+      [personId],
+    );
+    expect(phone.rows).toHaveLength(1);
+    expect(phone.rows[0].normalised_value).toMatch(/^44\d{10}$/);
+
+    const prospect = await observer.query<{ source: string }>(
+      `select source from public.recruitment_prospects where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(prospect.rows[0].source).toBe("qr_self_entry");
+
+    // Still not a sign-up: consent is the tick's alone.
+    const consent = await observer.query(
+      `select 1 from public.season_messaging_consents where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(consent.rows).toHaveLength(0);
+  });
+
+  it("review F1 — a matriculation typed after a graduation on file is held back, and the rest of the patch lands", async () => {
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, {
+        seasonId,
+        submission: partial({ expectedGraduationYear: "2023" }),
+      }),
+    );
+    const personId = started!.personId;
+    expect(
+      (await withTransaction((tx) => readSignupPrefillIn(tx, personId))).expectedGraduationYear,
+    ).toBe(2023);
+
+    // The same 2023 is resent with a newly typed matriculation after it, and a college.
+    await withTransaction((tx) =>
+      patchPartialQrSignupIn(tx, {
+        personId,
+        seasonId,
+        submission: partial({
+          expectedGraduationYear: "2023",
+          matriculationYear: "2025",
+          college: "Oriel",
+        }),
+      }),
+    );
+    const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+    expect(prefill.college).toBe("Oriel");
+    expect(prefill.expectedGraduationYear).toBe(2023);
+    expect(prefill.matriculationYear).toBeNull();
+
+    // Corrected to a graduation after it: both land.
+    await withTransaction((tx) =>
+      patchPartialQrSignupIn(tx, {
+        personId,
+        seasonId,
+        submission: partial({ expectedGraduationYear: "2028", matriculationYear: "2025" }),
+      }),
+    );
+    const fixed = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+    expect([fixed.matriculationYear, fixed.expectedGraduationYear]).toEqual([2025, 2028]);
+  });
+
+  it("reconcileYears never returns a pair the check constraint would refuse", () => {
+    const none = { matriculation: null, graduation: null };
+    expect(reconcileYears({ matriculation: 2025, graduation: 2028 }, none)).toEqual({
+      matriculation: 2025,
+      graduation: 2028,
+    });
+    expect(reconcileYears({ matriculation: 2025, graduation: 2020 }, none)).toEqual({
+      matriculation: 2025,
+      graduation: null,
+    });
+    expect(
+      reconcileYears(
+        { matriculation: 2025, graduation: null },
+        { matriculation: null, graduation: 2023 },
+      ),
+    ).toEqual({ matriculation: null, graduation: 2023 });
+    expect(
+      reconcileYears(
+        { matriculation: null, graduation: 2020 },
+        { matriculation: 2025, graduation: null },
+      ),
+    ).toEqual({ matriculation: 2025, graduation: null });
+    expect(
+      reconcileYears(
+        { matriculation: 2030, graduation: 2029 },
+        { matriculation: 2025, graduation: 2028 },
+      ),
+    ).toEqual({ matriculation: 2025, graduation: 2028 });
+    expect(reconcileYears(none, { matriculation: 2025, graduation: 2028 })).toEqual({
+      matriculation: 2025,
+      graduation: 2028,
+    });
+  });
+
+  it("walk finding 2 — once the sign-up is complete, the token can no longer patch or complete it", async () => {
+    const code = await mintCode();
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: partial() }),
+    );
+    const personId = started!.personId;
+    const submission = baseSubmission({ collegeEmail: "lan425.closed@balliol.ox.ac.uk" });
+    await withTransaction((tx) =>
+      completePartialQrSignupIn(tx, { personId, seasonId, code, submission }),
+    );
+    const before = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+
+    await withTransaction(async (tx) => {
+      await expect(
+        patchPartialQrSignupIn(tx, {
+          personId,
+          seasonId,
+          submission: partial({ mobile: "07700 90", collegeEmail: "junk" }),
+        }),
+      ).rejects.toMatchObject({ rule: PARTIAL_NOT_OPEN_RULE });
+      await expect(
+        completePartialQrSignupIn(tx, { personId, seasonId, code, submission }),
+      ).rejects.toMatchObject({ rule: PARTIAL_NOT_OPEN_RULE });
+    });
+    expect(await withTransaction((tx) => readSignupPrefillIn(tx, personId))).toEqual(before);
+    const source = await observer.query<{ source: string }>(
+      `select source from public.recruitment_prospects where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(source.rows[0].source).toBe("qr_self_entry");
+  });
+
+  it("walk finding 1 — a mobile that belongs to somebody else with this name is not stored on the partial", async () => {
+    const mobile = uniquePhone();
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+    // The names alone start the partial (nothing to probe yet).
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: partial() }),
+    );
+    const personId = started!.personId;
+
+    const result = await withTransaction((tx) =>
+      patchPartialQrSignupIn(tx, {
+        personId,
+        seasonId,
+        submission: partial({ mobile, college: "Oriel" }),
+      }),
+    );
+    expect(result.matchedExisting).toBe(true);
+    const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+    expect(prefill.mobile).toBeNull();
+    expect(prefill.college).toBe("Oriel");
+
+    // The visitor confirms the existing record: the partial is voided, its cycle stood down, its token revoked.
+    await withTransaction((tx) => voidPartialQrSignupIn(tx, { personId, seasonId }));
+    const prospect = await observer.query<{ status: string }>(
+      `select status::text as status from public.recruitment_prospects where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(prospect.rows[0].status).toBe("void");
+    const event = await observer.query<{ actor_label: string; reason: string }>(
+      `select e.actor_label, e.reason from public.recruitment_prospect_status_events e
+         join public.recruitment_prospects rp on rp.id = e.prospect_id
+        where rp.person_id = $1::uuid and e.to_status = 'void'`,
+      [personId],
+    );
+    expect(event.rows).toHaveLength(1);
+    expect(event.rows[0].actor_label).toMatch(/QR sign-up form/);
+    const jobs = await observer.query<{ status: string }>(
+      `select status::text as status from public.notification_jobs where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(jobs.rows.length).toBeGreaterThan(0);
+    expect(jobs.rows.every((row) => row.status === "cancelled")).toBe(true);
+    const token = await withTransaction((tx) =>
+      resolvePersonTokenIn(tx, started!.token, PARTIAL_TOKEN_PURPOSE),
+    );
+    expect(token.state).toBe("unknown");
+  });
+
+  it("walk finding 4 — a graduation before its matriculation is refused in words on Save", async () => {
+    const code = await mintCode();
+    await withTransaction(async (tx) => {
+      await expect(
+        signUpAnonymouslyIn(tx, {
+          seasonId,
+          code,
+          submission: baseSubmission({ matriculationYear: "2030", expectedGraduationYear: "2027" }),
+        }),
+      ).rejects.toMatchObject({ rule: SIGNUP_YEARS_OUT_OF_ORDER_RULE });
+    });
+  });
+
+  it("completing it is the QR door's Save on the same record: consent, one prospect, the code counted", async () => {
+    const code = await mintCode();
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: partial() }),
+    );
+    const personId = started!.personId;
+    const submission = baseSubmission({ collegeEmail: "lan425.done@balliol.ox.ac.uk" });
+
+    const result = await withTransaction((tx) =>
+      completePartialQrSignupIn(tx, { personId, seasonId, code, submission }),
+    );
+    expect(result.personId).toBe(personId);
+    expect(result.prospectCreated).toBe(false);
+
+    const people = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.people where given_name = $1`,
+      [MARKER],
+    );
+    expect(people.rows[0].count).toBe("1");
+
+    const consent = await observer.query<{ state: string; source: string }>(
+      `select state::text as state, source::text as source
+         from public.season_messaging_consents where person_id = $1::uuid and season_id = $2::uuid`,
+      [personId, seasonId],
+    );
+    expect(consent.rows[0]).toEqual({ state: "granted", source: "qr_self_entry" });
+
+    const prospect = await observer.query<{ source: string }>(
+      `select source from public.recruitment_prospects where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(prospect.rows).toHaveLength(1);
+    expect(prospect.rows[0].source).toBe("qr_self_entry");
+
+    const used = await observer.query<{ sign_in_count: number }>(
+      `select sign_in_count from public.recruitment_signup_codes where code = $1`,
+      [code],
+    );
+    expect(used.rows[0].sign_in_count).toBe(1);
+
+    // The interest ask joins the welcome track now that consent is granted.
+    const jobs = await observer.query<{ idempotency_key: string }>(
+      `select idempotency_key from public.notification_jobs where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(jobs.rows.map((row) => row.idempotency_key.split(":")[1]).sort()).toEqual([
+      "details_reminder",
+      "interest_ask",
+      "interest_reminder",
+      "welcome",
+    ]);
   });
 });
