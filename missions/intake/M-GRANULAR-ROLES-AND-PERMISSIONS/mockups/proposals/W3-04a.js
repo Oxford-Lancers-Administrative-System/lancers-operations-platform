@@ -1,4 +1,4 @@
-/* W2-02 — generated from the shared prelude, kit and this screen's body; see the notes inside. */
+/* W3-04a — generated from the shared prelude, kit and this screen's body; see the notes inside. */
 (async () => {
   /*
    * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude, round 3.
@@ -768,95 +768,37 @@
     });
   }
   /*
-   * W2-02 — the group colour editor, open over the roster (an MUI Dialog, the
-   * app's own pattern for a short edit over a page). The ten board groups,
-   * each with its colour: a preview of the band head as the board draws it
-   * (text in white, or charcoal where white fails AA), and a Select of the
-   * palette. The Kit row's Select is open, listing the whole palette with the
-   * round-3 change: Lancer Blue (the current blue, now the team blue), Lancer
-   * Gold (new), Oxford Blue (the old blue, kept), and the other eleven
-   * unchanged. Contact & emergency has no board columns, so no colour.
+   * W3-04a — the recruitment board as a seat with View on Recruit details
+   * only (the Gameday Secretary in this example): None on Person information
+   * and Event details; May add recruits off. Only the Recruit column and the
+   * Recruitment group's columns exist; the Person group and every event group
+   * go. QR code and Add recruit are absent. Every Recruitment value reads as a
+   * value and says "view". A recruit's name still opens the record (W3-04b).
    *
-   * The starting colours are the nearest palette swatch to each group's tone
-   * on main (src/components/section.tsx BAND_COLOURS); five groups' tones are
-   * not palette colours today, so adopting the palette moves them slightly —
-   * an open question in HANDOFF.md.
+   * Photographed as the review account and narrowed by script.
    */
-  await appButtons();
+  signedInAs("Gideon Thornbury", ["/operate/recruitment"]);
   const main = document.querySelector("main");
-  const add =
-    main.querySelector('[data-testid="add-players"]') ||
-    Array.from(main.querySelectorAll("a, button")).find(
-      (b) => b.textContent.trim() === "Add players",
-    );
-  if (add) {
-    const wrap = el(
-      "div",
-      "display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center",
-    );
-    add.replaceWith(wrap);
-    wrap.append(appButton("outlined", "Edit categories"), add);
-  }
+  main
+    .querySelectorAll(
+      '[data-testid="recruitment-qr-code-button"], [data-testid="recruitment-add-button"]',
+    )
+    .forEach((b) => b.remove());
+  /* Attended an event is Event details: not granted. */
+  const attended = main.querySelector('[data-testid="recruitment-filter-attended"]');
+  if (attended) (attended.closest(".MuiFormControl-root") || attended).style.display = "none";
 
-  const GROUPS = [
-    ["Person", "blue"],
-    ["Onboarding", "lancer_gold"],
-    ["Membership", "oxford_blue"],
-    ["Availability", "slate"],
-    ["Coaching assignments", "indigo"],
-    ["Offensive assignments", "teal"],
-    ["Defensive assignments", "purple"],
-    ["Special teams assignments", "brown"],
-    ["Warmup assignments", "cyan"],
-    ["Kit", "lancer_gold"],
-  ];
-  const OPEN = "Kit";
-  const band = (label, key) => {
-    const p = paletteOf(key);
-    return `<span style="display:flex;align-items:center;min-height:32px;padding:0 12px;border-radius:6px;background:${p.accent};color:${p.on};font-size:12px;font-weight:700;letter-spacing:0.08333em;text-transform:uppercase;${PHONE ? "" : "width:240px;"}box-sizing:border-box">${label}</span>`;
-  };
-  const rows = GROUPS.map(([label, key]) => {
-    const p = paletteOf(key);
-    return `<div data-group="${label}" style="display:flex;${PHONE ? "flex-direction:column;align-items:stretch;gap:6px" : "align-items:center;gap:16px"};padding:6px 0;border-bottom:1px solid ${T.divider}">${band(label, key)}${textField(
-      "",
-      p.label,
-      {
-        select: true,
-        width: PHONE ? "100%" : "220px",
-        margin: "0",
-        startHtml: swatchOf(key),
-      },
-    )}</div>`;
-  }).join("");
-  const cancel = appButton("outlined", "Cancel");
-  cancel.style.border = "none";
-  const { paper } = dialog(
-    "Roster categories",
-    `<div style="display:flex;flex-direction:column">${rows}</div>`,
-    [cancel, appButton("create", "Save colours")],
-    { width: 600 },
-  );
+  const live =
+    main.querySelector('[data-testid="recruitment-board-table"] table') ||
+    main.querySelector('[data-testid="recruitment-board-table"]') ||
+    main.querySelector("table");
+  const table = live.tagName === "TABLE" ? live : live.querySelector("table");
+  if (table && WIDE) narrowBoard(table, { granted: ["recruitment"], viewOnly: ["recruitment"] });
 
-  /* The open Select's menu: an MUI Menu (Paper, elevation 8) under the Kit field. */
-  const kitRow = paper.querySelector(`[data-group="${OPEN}"]`);
-  const field = kitRow.lastElementChild;
-  const r = field.getBoundingClientRect();
-  const menu = el(
-    "div",
-    `position:absolute;z-index:1400;left:${r.left + window.scrollX}px;top:${r.bottom + window.scrollY - (PHONE ? 380 : 420)}px;width:${Math.max(r.width, 240)}px;background:#fff;border-radius:8px;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);padding:8px 0;max-height:${PHONE ? 380 : 420}px;overflow:auto`,
-    PALETTE.map((p) => {
-      const on = p.key === "lancer_gold";
-      const note =
-        p.change === "added"
-          ? chip("New", { filled: false, dashed: true })
-          : p.change
-            ? chip(p.key === "blue" ? "Was Blue" : "Was Blue's hex", {
-                filled: false,
-                dashed: true,
-              })
-            : "";
-      return `<div style="display:flex;align-items:center;gap:10px;min-height:36px;padding:0 16px;font-size:15px;color:${T.charcoal};${on ? "background:rgba(0,33,71,0.08);" : ""}">${swatchOf(p.key)}<span style="flex:1">${p.label}</span>${note}</div>`;
-    }).join(""),
-  );
-  document.body.appendChild(menu);
+  /* Phone cards: the Person facts (college, contact) go; the card still opens the record. */
+  main.querySelectorAll('[data-testid="recruitment-card-open"]').forEach((card) => {
+    card
+      .querySelectorAll('a[href^="tel:"], a[href^="mailto:"], a[href*="wa.me"]')
+      .forEach((a) => a.remove());
+  });
 })();

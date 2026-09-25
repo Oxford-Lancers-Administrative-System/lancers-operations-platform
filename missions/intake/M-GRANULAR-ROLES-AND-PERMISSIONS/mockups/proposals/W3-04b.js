@@ -1,4 +1,4 @@
-/* W2-02 — generated from the shared prelude, kit and this screen's body; see the notes inside. */
+/* W3-04b — generated from the shared prelude, kit and this screen's body; see the notes inside. */
 (async () => {
   /*
    * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude, round 3.
@@ -768,95 +768,67 @@
     });
   }
   /*
-   * W2-02 — the group colour editor, open over the roster (an MUI Dialog, the
-   * app's own pattern for a short edit over a page). The ten board groups,
-   * each with its colour: a preview of the band head as the board draws it
-   * (text in white, or charcoal where white fails AA), and a Select of the
-   * palette. The Kit row's Select is open, listing the whole palette with the
-   * round-3 change: Lancer Blue (the current blue, now the team blue), Lancer
-   * Gold (new), Oxford Blue (the old blue, kept), and the other eleven
-   * unchanged. Contact & emergency has no board columns, so no colour.
+   * W3-04b — one prospect's record as the same seat (View on Recruit details
+   * only). The name stays at the top. Person information — Personal
+   * questionnaire, How to reach them, Who they are, Restricted, Where they
+   * stand, Their seasons — and Event details (Recruitment events) are locked:
+   * each band head stays in its place with a lock, and nothing under it is
+   * sent. Recruitment is open and reads as values: no Record consent, no send,
+   * no edit. Notes, What changed and Status history are read as Recruit
+   * details, view only (an open question).
    *
-   * The starting colours are the nearest palette swatch to each group's tone
-   * on main (src/components/section.tsx BAND_COLOURS); five groups' tones are
-   * not palette colours today, so adopting the palette moves them slightly —
-   * an open question in HANDOFF.md.
+   * Photographed as the review account and narrowed by script.
    */
-  await appButtons();
+  signedInAs("Gideon Thornbury", ["/operate/recruitment"]);
   const main = document.querySelector("main");
-  const add =
-    main.querySelector('[data-testid="add-players"]') ||
-    Array.from(main.querySelectorAll("a, button")).find(
-      (b) => b.textContent.trim() === "Add players",
-    );
-  if (add) {
-    const wrap = el(
-      "div",
-      "display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center",
-    );
-    add.replaceWith(wrap);
-    wrap.append(appButton("outlined", "Edit categories"), add);
-  }
 
-  const GROUPS = [
-    ["Person", "blue"],
-    ["Onboarding", "lancer_gold"],
-    ["Membership", "oxford_blue"],
-    ["Availability", "slate"],
-    ["Coaching assignments", "indigo"],
-    ["Offensive assignments", "teal"],
-    ["Defensive assignments", "purple"],
-    ["Special teams assignments", "brown"],
-    ["Warmup assignments", "cyan"],
-    ["Kit", "lancer_gold"],
+  /* The head: "Open the person record" needs People access; Record consent is an edit. */
+  Array.from(main.querySelectorAll("a, button")).forEach((b) => {
+    const t = b.textContent.trim();
+    if (/^Open the person record/.test(t) || /^Record consent$/.test(t)) b.remove();
+  });
+  /* Tiles: the personal questionnaire is Person information. */
+  Array.from(main.querySelectorAll("*")).forEach((n) => {
+    if (
+      n.isConnected &&
+      n.children.length === 0 &&
+      n.textContent.trim() === "Personal questionnaire" &&
+      !n.closest("section, details")
+    ) {
+      let tile = n.parentElement;
+      while (tile && tile !== main && !tile.classList.contains("MuiPaper-root"))
+        tile = tile.parentElement;
+      if (tile && tile !== main) tile.remove();
+    }
+  });
+
+  const PERSON_INFORMATION = [
+    "Personal questionnaire",
+    "How to reach them",
+    "Who they are",
+    "Restricted",
+    "Where they stand",
+    "Their seasons",
   ];
-  const OPEN = "Kit";
-  const band = (label, key) => {
-    const p = paletteOf(key);
-    return `<span style="display:flex;align-items:center;min-height:32px;padding:0 12px;border-radius:6px;background:${p.accent};color:${p.on};font-size:12px;font-weight:700;letter-spacing:0.08333em;text-transform:uppercase;${PHONE ? "" : "width:240px;"}box-sizing:border-box">${label}</span>`;
+  const EVENT_DETAILS = ["Recruitment events"];
+  const RECRUIT_DETAILS = ["Recruitment", "Notes", "What changed", "Status history"];
+  const own = (box) => {
+    const h = box.querySelector("h2, h3");
+    return h ? h.textContent.trim() : "";
   };
-  const rows = GROUPS.map(([label, key]) => {
-    const p = paletteOf(key);
-    return `<div data-group="${label}" style="display:flex;${PHONE ? "flex-direction:column;align-items:stretch;gap:6px" : "align-items:center;gap:16px"};padding:6px 0;border-bottom:1px solid ${T.divider}">${band(label, key)}${textField(
-      "",
-      p.label,
-      {
-        select: true,
-        width: PHONE ? "100%" : "220px",
-        margin: "0",
-        startHtml: swatchOf(key),
-      },
-    )}</div>`;
-  }).join("");
-  const cancel = appButton("outlined", "Cancel");
-  cancel.style.border = "none";
-  const { paper } = dialog(
-    "Roster categories",
-    `<div style="display:flex;flex-direction:column">${rows}</div>`,
-    [cancel, appButton("create", "Save colours")],
-    { width: 600 },
+  /* Innermost boxes first, so a wrapper holding several headed blocks is judged by each block. */
+  const boxes = Array.from(main.querySelectorAll("section, details")).filter(
+    (b) => b.querySelectorAll("h2").length === 1,
   );
-
-  /* The open Select's menu: an MUI Menu (Paper, elevation 8) under the Kit field. */
-  const kitRow = paper.querySelector(`[data-group="${OPEN}"]`);
-  const field = kitRow.lastElementChild;
-  const r = field.getBoundingClientRect();
-  const menu = el(
-    "div",
-    `position:absolute;z-index:1400;left:${r.left + window.scrollX}px;top:${r.bottom + window.scrollY - (PHONE ? 380 : 420)}px;width:${Math.max(r.width, 240)}px;background:#fff;border-radius:8px;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);padding:8px 0;max-height:${PHONE ? 380 : 420}px;overflow:auto`,
-    PALETTE.map((p) => {
-      const on = p.key === "lancer_gold";
-      const note =
-        p.change === "added"
-          ? chip("New", { filled: false, dashed: true })
-          : p.change
-            ? chip(p.key === "blue" ? "Was Blue" : "Was Blue's hex", {
-                filled: false,
-                dashed: true,
-              })
-            : "";
-      return `<div style="display:flex;align-items:center;gap:10px;min-height:36px;padding:0 16px;font-size:15px;color:${T.charcoal};${on ? "background:rgba(0,33,71,0.08);" : ""}">${swatchOf(p.key)}<span style="flex:1">${p.label}</span>${note}</div>`;
-    }).join(""),
-  );
-  document.body.appendChild(menu);
+  boxes.forEach((box) => {
+    if (!box.isConnected) return;
+    const title = own(box);
+    if (PERSON_INFORMATION.includes(title) || EVENT_DETAILS.includes(title)) lockSection(box);
+    else if (RECRUIT_DETAILS.includes(title)) {
+      readOnly(box);
+      box
+        .querySelectorAll(".MuiFormControl-root, .MuiTextField-root, textarea, form")
+        .forEach((f) => f.isConnected && f.remove());
+    }
+  });
 })();

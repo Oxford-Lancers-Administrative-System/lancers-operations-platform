@@ -10,28 +10,28 @@
   "workflows": [
     {
       "id": "W1",
-      "name": "Administer a seat's grants on the Roles page",
+      "name": "Administer a seat's grants on the seat page",
       "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W2",
-      "name": "Manage template categories on the event templates page",
+      "name": "Edit roster group colours",
       "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W3",
-      "name": "Work the roster within granted categories, board and record",
+      "name": "Work the roster and recruits within granted categories, board and record",
       "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W4",
-      "name": "Work events of a granted category, view or manage",
+      "name": "Work events of a granted template, view or manage",
       "state": "spec_draft",
       "stale": false,
       "feedback": []
@@ -56,5 +56,5 @@
     "items": [],
     "approval": null
   },
-  "next_action": "Brian: choose the Access view among W1-02a to W1-02e (recommended B) and say whether W1-09 time-limited delegation is wanted (HANDOFF.md, round 2); then approve the boundary, overview and four-workflow inventory so the ledger can reach the workflows stage and the hub can be generated."
+  "next_action": "Brian: answer the round-3 open questions in HANDOFF.md (palette hexes and names, W2 editor authority, Attendance on the record, Contactable under View on Person, the two mass edits), then approve the boundary, overview and four-workflow inventory so the ledger can reach the workflows stage and the hub can be generated."
 }
