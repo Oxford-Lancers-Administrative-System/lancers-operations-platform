@@ -52,9 +52,26 @@
     {
       "id": "W2",
       "name": "Edit roster group colours",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": []
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        }
+      }
     },
     {
       "id": "W3",
@@ -895,5 +912,5 @@
     "items": [],
     "approval": null
   },
-  "next_action": "Record Brian's W2 specification, mockup and acceptance approval."
+  "next_action": "Record Brian's W3 specification, mockup and acceptance approval."
 }

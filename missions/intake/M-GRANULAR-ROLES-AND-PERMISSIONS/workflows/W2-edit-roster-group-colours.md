@@ -1,14 +1,14 @@
 # W2 — Edit roster group colours
 
-**Status: specification draft (round 4: Brian's corrections of 2026-09-25 applied), pending Brian's
-approval words.** Replaces round 1–2's "Manage template
+**Status: approved by Brian on 2026-09-25 (specification, mockups and acceptance), after round 4 applied
+his three corrections.** Replaces round 1–2's "Manage template
 categories on the event templates page", retired: events are per template and the event templates page is
 unchanged by this delivery.
 
 - Purpose/intended outcome: the club chooses the colour each roster group wears on the board and the record,
   from the app's palette, without a code change.
-- Primary actor: proposed, a holder of `role_management` (President, General Manager, IT Officer) — open
-  question W2-01.
+- Primary actor: a holder of `role_management` (President, General Manager, IT Officer), approved as drawn
+  on W2-01.
 - Trigger: the club wants a group to look different, or wants the team colours on the board.
 - Entry point: Roster → _Edit categories_ (top right, beside _Add players_).
 - Route/placement: `/operate/roster`; a Dialog, _Roster categories_, over the board (W2-02).
@@ -82,16 +82,16 @@ unchanged by this delivery.
 
 ## Core decisions
 
-| Decision                                                                                                       | Classification              | Governing evidence or recommended default | Status    |
-| -------------------------------------------------------------------------------------------------------------- | --------------------------- | ----------------------------------------- | --------- |
-| Roster group colours editable; _Edit categories_ at the top right of the roster                                | locked                      | Round 3 brief, item 8                     | recorded  |
-| _Edit categories_ is the same Button variant and size as _Add players_, side by side                           | locked                      | Brian, round 4 (below)                    | recorded  |
-| Palette: key `blue` becomes Oxford Blue `#002147`; Lancer Gold `#C09723` added; 13                             | locked                      | Brian, round 4 (below)                    | recorded  |
-| Starting colours: Person Oxford Blue; Lancer Blue/old-blue groups → Oxford Blue; Old Gold groups → Lancer Gold | locked                      | Brian, round 4 (below)                    | recorded  |
-| Band text charcoal on Lancer Gold and Orange                                                                   | locked                      | Brian, round 4 (below)                    | recorded  |
-| Event templates page unchanged; no template categories                                                         | locked                      | Round 3 brief, item 3                     | recorded  |
-| Who may edit group colours: `role_management`                                                                  | proposed for owner approval | W2-01                                     | open      |
-| Storage shape, migration of the key check, audit row shape                                                     | delegated to Mission Lead   |                                           | delegated |
+| Decision                                                                                                       | Classification            | Governing evidence or recommended default      | Status    |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------- | --------- |
+| Roster group colours editable; _Edit categories_ at the top right of the roster                                | locked                    | Round 3 brief, item 8                          | recorded  |
+| _Edit categories_ is the same Button variant and size as _Add players_, side by side                           | locked                    | Brian, round 4 (below)                         | recorded  |
+| Palette: key `blue` becomes Oxford Blue `#002147`; Lancer Gold `#C09723` added; 13                             | locked                    | Brian, round 4 (below)                         | recorded  |
+| Starting colours: Person Oxford Blue; Lancer Blue/old-blue groups → Oxford Blue; Old Gold groups → Lancer Gold | locked                    | Brian, round 4 (below)                         | recorded  |
+| Band text charcoal on Lancer Gold and Orange                                                                   | locked                    | Brian, round 4 (below)                         | recorded  |
+| Event templates page unchanged; no template categories                                                         | locked                    | Round 3 brief, item 3                          | recorded  |
+| Who may edit group colours: `role_management`                                                                  | locked                    | Approved as drawn on W2-01 (Brian, 2026-09-25) | recorded  |
+| Storage shape, migration of the key check, audit row shape                                                     | delegated to Mission Lead |                                                | delegated |
 
 Brian's round-4 words (2026-09-25): W2-01 — "the Edit categories button looks weird. It should be the same
 size as Add players." W2-02 — the palette is the current twelve swatches with one change and one addition:
@@ -102,5 +102,5 @@ Oxford Blue, groups on Old Gold move to Lancer Gold.
 
 ## Brian approval
 
-- Exact words: pending
-- Date: pending
+- Exact words: "Other than that, I think this is approved. We can go ahead and create the packet and push it."
+- Date: 2026-09-25
