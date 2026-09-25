@@ -618,13 +618,42 @@ function plausibleYear(value: string | null | undefined): number | null {
   return parsed;
 }
 
+interface YearPair {
+  readonly matriculation: number | null;
+  readonly graduation: number | null;
+}
+
+/**
+ * Latest wins unless the pair would violate `people_graduation_after_matriculation`;
+ * then the value typed this round is held back and what is on file stays. Both
+ * typed and conflicting: the graduation is held back first, and if the stored
+ * graduation still sits before the new matriculation, both stay as they were.
+ */
+export function reconcileYears(typed: YearPair, onFile: YearPair): YearPair {
+  const conflicts = (pair: YearPair) =>
+    pair.matriculation !== null && pair.graduation !== null && pair.graduation < pair.matriculation;
+  let next: YearPair = {
+    matriculation: typed.matriculation ?? onFile.matriculation,
+    graduation: typed.graduation ?? onFile.graduation,
+  };
+  if (!conflicts(next)) return next;
+  if (typed.graduation !== null) next = { ...next, graduation: onFile.graduation };
+  if (conflicts(next) && typed.matriculation !== null) {
+    next = { ...next, matriculation: onFile.matriculation };
+  }
+  return conflicts(next) ? onFile : next;
+}
+
 /**
  * Latest wins, raw as typed (Brian, 2026-09-25). Only the years are held back
- * from the row when they would trip a check constraint: an implausible year,
- * or a graduation before its matriculation, is left as it was rather than
- * failing the whole patch. A malformed mobile is stored raw with no normalised
- * number, so nothing can message it until an operator fixes it; a malformed
- * college email is stored raw and lands in the missing-data queue (LAN-268).
+ * from the row when they would trip a check constraint: an implausible year
+ * is dropped, and a pair that would put graduation before matriculation keeps
+ * what is on file and holds back what was typed this round (review F1: the
+ * conflict can come from either side, including a matriculation typed after
+ * a graduation already stored). A malformed mobile is stored raw with no
+ * normalised number, so nothing can message it until an operator fixes it; a
+ * malformed college email is stored raw and lands in the missing-data queue
+ * (LAN-268).
  */
 async function applyPartialFieldsIn(
   tx: Tx,
@@ -634,27 +663,36 @@ async function applyPartialFieldsIn(
 ): Promise<void> {
   await recordKnownAsIn(tx, personId, givenName, submission.knownAs);
 
-  const matriculation = plausibleYear(submission.matriculationYear);
-  const graduation = plausibleYear(submission.expectedGraduationYear);
-  const graduationOk =
-    graduation !== null && (matriculation === null || graduation >= matriculation);
+  const onFile = await tx.query<{
+    matriculation_year: number | null;
+    expected_graduation_year: number | null;
+  }>(`select matriculation_year, expected_graduation_year from public.people where id = $1::uuid`, [
+    personId,
+  ]);
+  const years = reconcileYears(
+    {
+      matriculation: plausibleYear(submission.matriculationYear),
+      graduation: plausibleYear(submission.expectedGraduationYear),
+    },
+    {
+      matriculation: onFile.rows[0]?.matriculation_year ?? null,
+      graduation: onFile.rows[0]?.expected_graduation_year ?? null,
+    },
+  );
   await tx.query(
     `update public.people
         set college = coalesce($2, college),
             degree_field = coalesce($3, degree_field),
-            matriculation_year = coalesce($4, matriculation_year),
-            expected_graduation_year = case
-              when $5::int is null then expected_graduation_year
-              when matriculation_year is null or $5::int >= coalesce($4, matriculation_year) then $5::int
-              else expected_graduation_year end,
+            matriculation_year = $4,
+            expected_graduation_year = $5,
             updated_at = now()
       where id = $1::uuid`,
     [
       personId,
       trimmedOrNull(submission.college),
       trimmedOrNull(submission.degreeField),
-      matriculation,
-      graduationOk ? graduation : null,
+      years.matriculation,
+      years.graduation,
     ],
   );
 

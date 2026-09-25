@@ -23,6 +23,7 @@ import {
   patchPartialQrSignupIn,
   probeExistingRecruitForQrSignup,
   readSignupPrefillIn,
+  reconcileYears,
   startPartialQrSignupIn,
   SIGNUP_INVALID_EMAIL_RULE,
   SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE,
@@ -986,6 +987,81 @@ describe("the partial save (LAN-425)", () => {
       [personId],
     );
     expect(consent.rows).toHaveLength(0);
+  });
+
+  it("review F1 — a matriculation typed after a graduation on file is held back, and the rest of the patch lands", async () => {
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, {
+        seasonId,
+        submission: partial({ expectedGraduationYear: "2023" }),
+      }),
+    );
+    const personId = started!.personId;
+    expect(
+      (await withTransaction((tx) => readSignupPrefillIn(tx, personId))).expectedGraduationYear,
+    ).toBe(2023);
+
+    // The same 2023 is resent with a newly typed matriculation after it, and a college.
+    await withTransaction((tx) =>
+      patchPartialQrSignupIn(tx, {
+        personId,
+        seasonId,
+        submission: partial({
+          expectedGraduationYear: "2023",
+          matriculationYear: "2025",
+          college: "Oriel",
+        }),
+      }),
+    );
+    const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+    expect(prefill.college).toBe("Oriel");
+    expect(prefill.expectedGraduationYear).toBe(2023);
+    expect(prefill.matriculationYear).toBeNull();
+
+    // Corrected to a graduation after it: both land.
+    await withTransaction((tx) =>
+      patchPartialQrSignupIn(tx, {
+        personId,
+        seasonId,
+        submission: partial({ expectedGraduationYear: "2028", matriculationYear: "2025" }),
+      }),
+    );
+    const fixed = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+    expect([fixed.matriculationYear, fixed.expectedGraduationYear]).toEqual([2025, 2028]);
+  });
+
+  it("reconcileYears never returns a pair the check constraint would refuse", () => {
+    const none = { matriculation: null, graduation: null };
+    expect(reconcileYears({ matriculation: 2025, graduation: 2028 }, none)).toEqual({
+      matriculation: 2025,
+      graduation: 2028,
+    });
+    expect(reconcileYears({ matriculation: 2025, graduation: 2020 }, none)).toEqual({
+      matriculation: 2025,
+      graduation: null,
+    });
+    expect(
+      reconcileYears(
+        { matriculation: 2025, graduation: null },
+        { matriculation: null, graduation: 2023 },
+      ),
+    ).toEqual({ matriculation: null, graduation: 2023 });
+    expect(
+      reconcileYears(
+        { matriculation: null, graduation: 2020 },
+        { matriculation: 2025, graduation: null },
+      ),
+    ).toEqual({ matriculation: 2025, graduation: null });
+    expect(
+      reconcileYears(
+        { matriculation: 2030, graduation: 2029 },
+        { matriculation: 2025, graduation: 2028 },
+      ),
+    ).toEqual({ matriculation: 2025, graduation: 2028 });
+    expect(reconcileYears(none, { matriculation: 2025, graduation: 2028 })).toEqual({
+      matriculation: 2025,
+      graduation: 2028,
+    });
   });
 
   it("completing it is the QR door's Save on the same record: consent, one prospect, the code counted", async () => {

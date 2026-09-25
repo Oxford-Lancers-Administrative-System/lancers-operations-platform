@@ -122,6 +122,8 @@ export default function SignupForm({
   // healed by the next. `latest` is what the next write sends; `dirty` says a
   // change arrived while one was in flight.
   const partialToken = useRef<string | null>(null);
+  // Set once and never cleared: after a refused start, or the moment Save
+  // begins, so no patch can start behind a Save (review F2).
   const partialStopped = useRef(false);
   const partialInFlight = useRef<Promise<void> | null>(null);
   const partialDirty = useRef(false);
@@ -245,7 +247,9 @@ export default function SignupForm({
     setBusy(true);
     setError(null);
     try {
-      // A patch still in flight lands first, so Save never races its own partial.
+      // No further patch may start, and one still in flight lands first, so
+      // Save never races its own partial. Save carries every field itself.
+      partialStopped.current = true;
       if (partialInFlight.current) await partialInFlight.current;
       const outcome = await submit({
         ...values,
@@ -267,6 +271,7 @@ export default function SignupForm({
   async function handlePrimarySave() {
     if (!ready || busy) return;
     // With a partial on file the probe would find the visitor's own record (LAN-425).
+    partialStopped.current = true;
     if (partialInFlight.current) await partialInFlight.current;
     if (
       mode === "anonymous" &&

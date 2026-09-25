@@ -211,6 +211,9 @@ export async function patchPartialQrSignup(
       });
     });
   } catch (error) {
-    if (!isServiceError(error)) console.error("[join] patchPartialQrSignup failed", error);
+    // Review F4: a refused patch is silent to the visitor by design, so it
+    // must not be silent to the log as well.
+    if (isServiceError(error)) console.warn("[join] partial patch refused:", error.message);
+    else console.error("[join] patchPartialQrSignup failed", error);
   }
 }
