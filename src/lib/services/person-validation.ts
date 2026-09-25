@@ -210,19 +210,34 @@ export function validateDateOfBirth(raw: string, today: Date = new Date()): Cont
   };
 }
 
-// The Oxford college address — LAN-268. A domain of `ox.ac.uk` or a subdomain, one rule shared
-// by four surfaces. Required-ness is `person-required.ts`'s concern, not this module's.
+// The university address — LAN-268, widened by LAN-425. A domain of `ox.ac.uk` or a subdomain,
+// or an `edu` label at the end of the domain or followed by exactly one country code
+// (`.edu`, `.edu.au`, `.edu.cn`). One rule shared by four surfaces. Required-ness is
+// `person-required.ts`'s concern, not this module's.
 
-export const COLLEGE_EMAIL_RULE_MESSAGE = "Enter your Oxford address; it ends in ox.ac.uk";
+export const COLLEGE_EMAIL_RULE_MESSAGE =
+  "Enter your university address; it ends in ox.ac.uk or .edu";
 
 /** Anchored at the end so `ox.ac.uk.evil.com` cannot match; applied to the lower-cased address. */
 const OXFORD_DOMAIN = /@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*ox\.ac\.uk$/;
+
+/**
+ * LAN-425 (Brian, 2026-09-25, the Freshers' Fair): visiting and exchange
+ * students hold `.edu`-style addresses. `edu` must be a whole label, last or
+ * followed by one two-letter country code: `edu.example.com` and
+ * `.education` are not university addresses.
+ */
+const EDU_DOMAIN = /@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+edu(?:\.[a-z]{2})?$/;
+
+function isUniversityDomain(lowerCased: string): boolean {
+  return OXFORD_DOMAIN.test(lowerCased) || EDU_DOMAIN.test(lowerCased);
+}
 
 export function isOxfordCollegeEmail(raw: string | null | undefined): boolean {
   if (typeof raw !== "string") return false;
   const trimmed = raw.trim();
   if (!EMAIL_SHAPE.test(trimmed)) return false;
-  return OXFORD_DOMAIN.test(trimmed.toLowerCase());
+  return isUniversityDomain(trimmed.toLowerCase());
 }
 
 export function validateCollegeEmail(raw: string): ContactValidation {
@@ -239,7 +254,7 @@ export function validateCollegeEmail(raw: string): ContactValidation {
   const shape = validateEmailAddress(trimmed);
   if (!shape.valid) return shape;
 
-  if (!OXFORD_DOMAIN.test(trimmed.toLowerCase())) {
+  if (!isUniversityDomain(trimmed.toLowerCase())) {
     return {
       valid: false,
       rule: "college_email_not_oxford",
@@ -250,6 +265,6 @@ export function validateCollegeEmail(raw: string): ContactValidation {
   return {
     valid: true,
     rule: "college_email_oxford",
-    message: "This is a valid Oxford address.",
+    message: "This is a valid university address.",
   };
 }

@@ -5,17 +5,30 @@ import { headers } from "next/headers";
 import { isServiceError, withTransaction } from "@/lib/db";
 import {
   allowPlayerHomeRequest,
+  allowQrPartialPatchRequest,
   clientKeyFrom,
   logThrottledPlayerHomeRequest,
+  logThrottledQrPartialPatchRequest,
 } from "@/lib/rsvp/public-surface";
 import { findPersonMatchingGivenNameAndPhoneIn } from "@/lib/services/person-duplicate";
+import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import {
+  completePartialQrSignupIn,
+  PARTIAL_TOKEN_PURPOSE,
+  patchPartialQrSignupIn,
   probeExistingRecruitForQrSignup,
   signUpAnonymouslyIn,
+  startPartialQrSignupIn,
+  type PartialSignupSubmission,
   type SignupSubmission,
 } from "@/lib/services/recruitment-signup";
 import { resolveRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
-import type { DuplicateCheckResult, SignupFieldValues, SignupOutcome } from "./signup-form";
+import type {
+  DuplicateCheckResult,
+  PartialSaveStart,
+  SignupFieldValues,
+  SignupOutcome,
+} from "./signup-form";
 
 /** The QR door's two server actions — LAN-202. Plain async functions a Client Component calls directly, not through `<form action>`, since branching needs a result back before deciding what to render.
  */
@@ -38,6 +51,21 @@ export async function checkForExistingQrRecruit(
   const resolved = await withTransaction((tx) => resolveRecruitmentSignupCodeIn(tx, code));
   if (resolved.state !== "valid") return { found: false };
   return probeExistingRecruitForQrSignup(givenName, mobile);
+}
+
+function toPartial(values: SignupFieldValues): PartialSignupSubmission {
+  return {
+    givenName: values.givenName,
+    familyName: values.familyName,
+    mobile: values.mobile || null,
+    collegeEmail: values.collegeEmail || null,
+    email: values.email || null,
+    knownAs: values.knownAs || null,
+    college: values.college || null,
+    matriculationYear: values.matriculationYear || null,
+    expectedGraduationYear: values.expectedGraduationYear || null,
+    degreeField: values.degreeField || null,
+  };
 }
 
 function toSubmission(values: SignupFieldValues & { consent: boolean }): SignupSubmission {
@@ -69,12 +97,33 @@ const GENERIC_FAILURE = "That could not be saved. Try again.";
  */
 export async function submitQrSignup(
   code: string,
-  values: SignupFieldValues & { consent: boolean; confirmedExistingMatch: boolean },
+  values: SignupFieldValues & {
+    consent: boolean;
+    confirmedExistingMatch: boolean;
+    /** LAN-425: the partial save's credential, when the page holds one. Re-resolved here; a dead one falls through to an ordinary sign-up. */
+    partialToken?: string | null;
+  },
 ): Promise<SignupOutcome> {
   try {
     const refusal = await withTransaction(async (tx) => {
       const resolved = await resolveRecruitmentSignupCodeIn(tx, code);
       if (resolved.state !== "valid" || !resolved.seasonId) return NOT_LIVE;
+      if (values.partialToken) {
+        const partial = await resolvePersonTokenIn(tx, values.partialToken, PARTIAL_TOKEN_PURPOSE);
+        if (
+          partial.state === "valid" &&
+          partial.resolved &&
+          partial.resolved.seasonId === resolved.seasonId
+        ) {
+          await completePartialQrSignupIn(tx, {
+            personId: partial.resolved.personId,
+            seasonId: resolved.seasonId,
+            code,
+            submission: toSubmission(values),
+          });
+          return null;
+        }
+      }
       const linkExistingPersonId = values.confirmedExistingMatch
         ? ((await findPersonMatchingGivenNameAndPhoneIn(tx, values.givenName, values.mobile))
             ?.personId ?? null)
@@ -95,5 +144,73 @@ export async function submitQrSignup(
     if (isServiceError(error)) return { ok: false, message: error.message };
     console.error("[join] submitQrSignup failed", error);
     return { ok: false, message: GENERIC_FAILURE };
+  }
+}
+
+/**
+ * LAN-425. The partial save's first write, once both names are typed. Best
+ * effort by design: a throttled, refused or failed start returns no token and
+ * the visitor never hears about it — the page tries again on the next pause
+ * unless the name-and-mobile probe matched somebody, in which case it stops
+ * trying and the real Save asks "have you signed up before?" as today.
+ * Throttled on the printed code like the probe: one request per visitor.
+ */
+export async function startPartialQrSignup(
+  code: string,
+  values: SignupFieldValues,
+): Promise<PartialSaveStart> {
+  const decision = allowPlayerHomeRequest(clientKeyFrom(await headers()), code);
+  if (!decision.allowed) {
+    logThrottledPlayerHomeRequest(decision.reason!);
+    return { token: null, retry: true };
+  }
+  try {
+    return await withTransaction(async (tx) => {
+      const resolved = await resolveRecruitmentSignupCodeIn(tx, code);
+      if (resolved.state !== "valid" || !resolved.seasonId) return { token: null, retry: false };
+      const started = await startPartialQrSignupIn(tx, {
+        seasonId: resolved.seasonId,
+        submission: toPartial(values),
+      });
+      if (!started) return { token: null, retry: false };
+      return { token: started.token, retry: false };
+    });
+  } catch (error) {
+    if (!isServiceError(error)) console.error("[join] startPartialQrSignup failed", error);
+    return { token: null, retry: true };
+  }
+}
+
+/**
+ * LAN-425. Every later pause: everything typed so far, on the record the
+ * token names. Throttled on the token itself, never on the shared code, so
+ * one stand's typists cannot spend each other's allowance. Silent on
+ * failure: the next patch carries every field again.
+ */
+export async function patchPartialQrSignup(
+  code: string,
+  token: string,
+  values: SignupFieldValues,
+): Promise<void> {
+  const decision = allowQrPartialPatchRequest(clientKeyFrom(await headers()), token);
+  if (!decision.allowed) {
+    logThrottledQrPartialPatchRequest(decision.reason!);
+    return;
+  }
+  try {
+    await withTransaction(async (tx) => {
+      const resolved = await resolveRecruitmentSignupCodeIn(tx, code);
+      if (resolved.state !== "valid" || !resolved.seasonId) return;
+      const partial = await resolvePersonTokenIn(tx, token, PARTIAL_TOKEN_PURPOSE);
+      if (partial.state !== "valid" || !partial.resolved) return;
+      if (partial.resolved.seasonId !== resolved.seasonId) return;
+      await patchPartialQrSignupIn(tx, {
+        personId: partial.resolved.personId,
+        seasonId: partial.resolved.seasonId,
+        submission: toPartial(values),
+      });
+    });
+  } catch (error) {
+    if (!isServiceError(error)) console.error("[join] patchPartialQrSignup failed", error);
   }
 }

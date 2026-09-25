@@ -16,13 +16,20 @@ import type { Client } from "pg";
 import { closePool, withTransaction } from "@/lib/db";
 import {
   allowPlayerHomeRequest,
+  allowQrPartialPatchRequest,
   clientKeyFrom,
   RATE_LIMIT_MAX_PER_HOME_LINK,
+  RATE_LIMIT_MAX_PER_PARTIAL_TOKEN,
   resetRsvpRateLimit,
 } from "@/lib/rsvp/public-surface";
 import { mintRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
 import { openObserver, seededIdentityCreatedAt } from "../../../../tests/helpers/service-layer";
-import { checkForExistingQrRecruit, submitQrSignup } from "./actions";
+import {
+  checkForExistingQrRecruit,
+  patchPartialQrSignup,
+  startPartialQrSignup,
+  submitQrSignup,
+} from "./actions";
 import type { SignupFieldValues } from "./signup-form";
 
 const MARKER = "LAN202QrActionSuite";
@@ -82,6 +89,10 @@ afterEach(async () => {
     [MARKER],
   );
   await observer.query(`delete from public.audit_events where entity_id in ${people}`, [MARKER]);
+  // LAN-425: the partial save issues a credential, which restricts the person delete too.
+  await observer.query(`delete from public.person_access_tokens where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
   await observer.query(`delete from public.recruitment_signup_codes where season_id = $1::uuid`, [
     seasonId,
@@ -291,5 +302,124 @@ describe("submitQrSignup — confirming an existing match", () => {
       [MARKER],
     );
     expect(people.rows[0].count).toBe(1);
+  });
+});
+
+/**
+ * LAN-425 — the partial save, end to end through the code in the URL: start,
+ * patch, then the real Save arriving with the token lands on the same record.
+ */
+describe("the partial save (LAN-425)", () => {
+  afterEach(() => {
+    resetRsvpRateLimit();
+  });
+
+  async function peopleCalled(marker: string): Promise<number> {
+    const rows = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.people where given_name = $1`,
+      [marker],
+    );
+    return Number(rows.rows[0].count);
+  }
+
+  it("start, patch, Save: one person, one prospect, consent only at the end", async () => {
+    const code = await mintCode();
+    const start = await startPartialQrSignup(code, values({ mobile: "", collegeEmail: "" }));
+    expect(start.token).toBeTruthy();
+    expect(start.retry).toBe(false);
+    expect(await peopleCalled(MARKER)).toBe(1);
+
+    await patchPartialQrSignup(code, start.token!, values({ collegeEmail: "", college: "Oriel" }));
+    const midway = await observer.query<{ source: string; college: string | null }>(
+      `select rp.source, p.college from public.recruitment_prospects rp
+         join public.people p on p.id = rp.person_id where p.given_name = $1`,
+      [MARKER],
+    );
+    expect(midway.rows[0]).toEqual({ source: "qr_partial", college: "Oriel" });
+    const noConsent = await observer.query(
+      `select 1 from public.season_messaging_consents
+        where person_id = (select id from public.people where given_name = $1)`,
+      [MARKER],
+    );
+    expect(noConsent.rows).toHaveLength(0);
+
+    const outcome = await submitQrSignup(code, {
+      ...values(),
+      consent: true,
+      confirmedExistingMatch: false,
+      partialToken: start.token,
+    });
+    expect(outcome).toEqual({ ok: true });
+    expect(await peopleCalled(MARKER)).toBe(1);
+
+    const done = await observer.query<{ source: string; state: string }>(
+      `select rp.source, c.state::text as state from public.recruitment_prospects rp
+         join public.season_messaging_consents c
+           on c.person_id = rp.person_id and c.season_id = rp.season_id
+        where rp.person_id = (select id from public.people where given_name = $1)`,
+      [MARKER],
+    );
+    expect(done.rows).toEqual([{ source: "qr_self_entry", state: "granted" }]);
+  });
+
+  it("a dead or foreign token falls through to an ordinary sign-up, never an error", async () => {
+    const code = await mintCode();
+    const outcome = await submitQrSignup(code, {
+      ...values(),
+      consent: true,
+      confirmedExistingMatch: false,
+      partialToken: "not-a-token-anyone-issued",
+    });
+    expect(outcome).toEqual({ ok: true });
+    expect(await peopleCalled(MARKER)).toBe(1);
+  });
+
+  it("does not start when the name-and-mobile probe matches, and says not to retry", async () => {
+    const mobile = "07700900444";
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+    const code = await mintCode();
+    const start = await startPartialQrSignup(code, values({ mobile }));
+    expect(start).toEqual({ token: null, retry: false });
+    expect(await peopleCalled(MARKER)).toBe(1);
+  });
+
+  it("a throttled start returns no token and asks for a retry; patches are throttled on the token, not the code", async () => {
+    const code = await mintCode();
+    const address = clientKeyFrom(new Headers());
+    for (let i = 0; i < RATE_LIMIT_MAX_PER_HOME_LINK; i += 1) {
+      expect(allowPlayerHomeRequest(address, code).allowed).toBe(true);
+    }
+    expect(await startPartialQrSignup(code, values())).toEqual({ token: null, retry: true });
+    expect(await peopleCalled(MARKER)).toBe(0);
+
+    resetRsvpRateLimit();
+    const start = await startPartialQrSignup(code, values({ college: "" }));
+    expect(start.token).toBeTruthy();
+
+    // Exhaust the code's own window: a patch still lands, because it is keyed on the token.
+    for (let i = 0; i < RATE_LIMIT_MAX_PER_HOME_LINK; i += 1) {
+      allowPlayerHomeRequest(address, code);
+    }
+    // ...but the address backstop is shared, so give the patch a fresh window there too.
+    resetRsvpRateLimit();
+    for (let i = 0; i < RATE_LIMIT_MAX_PER_PARTIAL_TOKEN; i += 1) {
+      expect(allowQrPartialPatchRequest(address, start.token!).allowed).toBe(true);
+    }
+    await patchPartialQrSignup(code, start.token!, values({ college: "Refused" }));
+    resetRsvpRateLimit();
+    await patchPartialQrSignup(code, start.token!, values({ college: "Landed" }));
+    const college = await observer.query<{ college: string | null }>(
+      `select college from public.people where given_name = $1`,
+      [MARKER],
+    );
+    expect(college.rows[0].college).toBe("Landed");
   });
 });

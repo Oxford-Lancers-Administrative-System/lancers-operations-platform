@@ -7,7 +7,12 @@ import { withTransaction } from "@/lib/db";
 import { resolveRecruitmentGroupLink } from "@/lib/services/recruitment-config";
 import { resolveRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
 
-import { checkForExistingQrRecruit, submitQrSignup } from "./actions";
+import {
+  checkForExistingQrRecruit,
+  patchPartialQrSignup,
+  startPartialQrSignup,
+  submitQrSignup,
+} from "./actions";
 import SignupForm, { EMPTY_ALIAS } from "./signup-form";
 
 /**
@@ -58,6 +63,8 @@ export default async function JoinPage({ params }: PageProps) {
         initial={EMPTY_ALIAS}
         groupLink={groupLink}
         checkDuplicate={checkForExistingQrRecruit.bind(null, code)}
+        startPartial={startPartialQrSignup.bind(null, code)}
+        patchPartial={patchPartialQrSignup.bind(null, code)}
         submit={submitQrSignup.bind(null, code)}
       />
     </PublicShell>

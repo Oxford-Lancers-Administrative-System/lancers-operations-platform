@@ -185,21 +185,21 @@ register and the running application.
 
 ## 6. Interface vocabulary
 
-| Concept            | Required language                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------ |
-| Positive RSVP      | **Attending**                                                                                          |
-| Negative RSVP      | **Not attending**                                                                                      |
-| No received RSVP   | **No response** or **Outstanding**, by context                                                         |
-| Attendance         | **Present**, **Absent**, **Late**, **Excused**                                                         |
-| Occurred           | Derived, never asserted — shown as **Occurred** beside the stored status                               |
-| Delivery result    | **Queued**, **Attempted**, **Delivered**, **Failed**, **Retryable**, **Held**, **Cancelled**           |
-| Membership entry   | **Returning**                                                                                          |
-| Temporary attendee | **Walk-up**                                                                                            |
-| Weekly artifact    | **Monday exception and action report**                                                                 |
-| College address    | **College email** — an `ox.ac.uk` address; refused as "Enter your Oxford address; it ends in ox.ac.uk" |
-| University id      | **Student number**                                                                                     |
-| Governing-body id  | **BAFA registration number**                                                                           |
-| Officials' form    | **Roster form**                                                                                        |
+| Concept            | Required language                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Positive RSVP      | **Attending**                                                                                                                      |
+| Negative RSVP      | **Not attending**                                                                                                                  |
+| No received RSVP   | **No response** or **Outstanding**, by context                                                                                     |
+| Attendance         | **Present**, **Absent**, **Late**, **Excused**                                                                                     |
+| Occurred           | Derived, never asserted — shown as **Occurred** beside the stored status                                                           |
+| Delivery result    | **Queued**, **Attempted**, **Delivered**, **Failed**, **Retryable**, **Held**, **Cancelled**                                       |
+| Membership entry   | **Returning**                                                                                                                      |
+| Temporary attendee | **Walk-up**                                                                                                                        |
+| Weekly artifact    | **Monday exception and action report**                                                                                             |
+| College address    | **College email** — an `ox.ac.uk` or `.edu`-style address; refused as "Enter your university address; it ends in ox.ac.uk or .edu" |
+| University id      | **Student number**                                                                                                                 |
+| Governing-body id  | **BAFA registration number**                                                                                                       |
+| Officials' form    | **Roster form**                                                                                                                    |
 
 Delivered never means responded. Attending is intent; Present is observed attendance. A walk-up is not automatically a roster member.
 
@@ -214,7 +214,10 @@ It is an exception label over **Attempted**, in the same idiom as **Not dispatch
 **College email** is a club rule as well as a word, recorded on LAN-268 (Brian,
 2026-09-09): only `ox.ac.uk` or a subdomain of it is accepted, case-insensitively,
 on the recruitment sign-up door, add-by-hand, the player questionnaire's step 1
-and the operator's edit form. One validator, one message, no override. It is the
+and the operator's edit form. LAN-425 (Brian, 2026-09-25, after the Freshers'
+Fair) widened it to `.edu`-style addresses too — `edu` as the last domain label
+or followed by one country code (`.edu`, `.edu.au`, `.edu.cn`) — for visiting
+and exchange students. One validator, one message, no override. It is the
 club's own proof that a recruit or a player is actually at the university —
 "I had a weird online guy trying to join one year and he wasn't a student."
 The full rule and its rejects are in
