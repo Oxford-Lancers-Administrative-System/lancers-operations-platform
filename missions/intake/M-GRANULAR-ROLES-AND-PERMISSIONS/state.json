@@ -1,13 +1,18 @@
 {
   "mission_id": "M-GRANULAR-ROLES-AND-PERMISSIONS",
   "ledger_version": 3,
-  "stage": "overview",
+  "stage": "inventory",
   "baseline": {
     "branch": "main",
     "commit": "0d4b6ce517985ca1a04a176cce64d6335a7f435d"
   },
   "approvals": {
     "boundary": {
+      "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+      "date": "2026-09-25",
+      "by": "Brian Schuster"
+    },
+    "overview": {
       "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
       "date": "2026-09-25",
       "by": "Brian Schuster"
@@ -62,5 +67,5 @@
     "items": [],
     "approval": null
   },
-  "next_action": "Record Brian's approval of 01-overview.md and advance to inventory."
+  "next_action": "Record Brian's approval of the four-workflow inventory with decision and subject coverage, and advance to workflows."
 }
