@@ -1,12 +1,18 @@
 {
   "mission_id": "M-GRANULAR-ROLES-AND-PERMISSIONS",
   "ledger_version": 3,
-  "stage": "boundary",
+  "stage": "overview",
   "baseline": {
     "branch": "main",
-    "commit": "150a59c65365525060dd8ef38075336163026b39"
+    "commit": "0d4b6ce517985ca1a04a176cce64d6335a7f435d"
   },
-  "approvals": {},
+  "approvals": {
+    "boundary": {
+      "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+      "date": "2026-09-25",
+      "by": "Brian Schuster"
+    }
+  },
   "workflows": [
     {
       "id": "W1",
@@ -56,5 +62,5 @@
     "items": [],
     "approval": null
   },
-  "next_action": "Brian: answer the round-3 open questions in HANDOFF.md (palette hexes and names, W2 editor authority, Attendance on the record, Contactable under View on Person, the two mass edits), then approve the boundary, overview and four-workflow inventory so the ledger can reach the workflows stage and the hub can be generated."
+  "next_action": "Record Brian's approval of 01-overview.md and advance to inventory."
 }
