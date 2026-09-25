@@ -222,6 +222,10 @@ export async function findPersonMatchingGivenNameAndPhoneIn(
   tx: Tx,
   givenName: string,
   phone: string,
+  options: {
+    /** LAN-425: the QR door's own partial record, which would otherwise match the visitor to themselves. */
+    excludePersonId?: string | null;
+  } = {},
 ): Promise<PersonNameAndPhoneMatch | null> {
   const normalisedGiven = normaliseTerm(givenName);
   const phoneTail = normaliseTerm(phone)?.replace(/\D/g, "").slice(-9) ?? "";
@@ -231,6 +235,7 @@ export async function findPersonMatchingGivenNameAndPhoneIn(
     `select p.id as person_id
        from public.people p
       where p.merged_into_person_id is null
+        and ($3::uuid is null or p.id <> $3::uuid)
         and exists (
               select 1 from public.contact_points c
                where c.person_id = p.id and c.kind = 'phone'
@@ -245,7 +250,7 @@ export async function findPersonMatchingGivenNameAndPhoneIn(
             )
       order by p.id
       limit 1`,
-    [normalisedGiven, phoneTail],
+    [normalisedGiven, phoneTail, options.excludePersonId ?? null],
   );
 
   const row = result.rows[0];

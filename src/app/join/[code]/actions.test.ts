@@ -81,6 +81,11 @@ afterEach(async () => {
   await observer.query(`delete from public.notification_jobs where person_id in ${people}`, [
     MARKER,
   ]);
+  await observer.query(
+    `delete from public.recruitment_prospect_status_events where prospect_id in
+       (select id from public.recruitment_prospects where person_id in ${people})`,
+    [MARKER],
+  );
   await observer.query(`delete from public.recruitment_prospects where person_id in ${people}`, [
     MARKER,
   ]);
@@ -89,6 +94,11 @@ afterEach(async () => {
     [MARKER],
   );
   await observer.query(`delete from public.audit_events where entity_id in ${people}`, [MARKER]);
+  await observer.query(
+    `delete from public.audit_events where entity_id in
+       (select id from public.recruitment_prospects where person_id in ${people})`,
+    [MARKER],
+  );
   // LAN-425: the partial save issues a credential, which restricts the person delete too.
   await observer.query(`delete from public.person_access_tokens where person_id in ${people}`, [
     MARKER,
@@ -360,6 +370,76 @@ describe("the partial save (LAN-425)", () => {
       [MARKER],
     );
     expect(done.rows).toEqual([{ source: "qr_self_entry", state: "granted" }]);
+  });
+
+  it("walk finding 1 — the probe excludes the visitor's own partial, and confirming somebody else voids it", async () => {
+    const mobile = "07700900555";
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+    const code = await mintCode();
+    // Names first, then the mobile: the partial exists before the probe can run.
+    const start = await startPartialQrSignup(code, values({ mobile: "", collegeEmail: "" }));
+    expect(start.token).toBeTruthy();
+    await patchPartialQrSignup(code, start.token!, values({ mobile, collegeEmail: "" }));
+
+    // The probe with the token finds the existing person, not the partial.
+    expect(await checkForExistingQrRecruit(code, MARKER, mobile, start.token)).toEqual({
+      found: true,
+    });
+    const outcome = await submitQrSignup(code, {
+      ...values({ mobile }),
+      consent: true,
+      confirmedExistingMatch: true,
+      partialToken: start.token,
+    });
+    expect(outcome).toEqual({ ok: true });
+
+    const rows = await observer.query<{ id: string; status: string | null }>(
+      `select p.id, rp.status::text as status from public.people p
+         left join public.recruitment_prospects rp on rp.person_id = p.id
+        where p.given_name = $1 order by p.created_at`,
+      [MARKER],
+    );
+    // Two people (the seeded existing one, now signed up; the partial, voided) and no third.
+    expect(rows.rows).toHaveLength(2);
+    expect(rows.rows.map((row) => row.status).sort()).toEqual(["identified", "void"]);
+    const consent = await observer.query(
+      `select 1 from public.season_messaging_consents where person_id = $1::uuid and state = 'granted'`,
+      [existing.rows[0].id],
+    );
+    expect(consent.rows).toHaveLength(1);
+  });
+
+  it("walk finding 2 — a completed recruit's token no longer patches anything", async () => {
+    const code = await mintCode();
+    const start = await startPartialQrSignup(code, values({ collegeEmail: "" }));
+    await submitQrSignup(code, {
+      ...values(),
+      consent: true,
+      confirmedExistingMatch: false,
+      partialToken: start.token,
+    });
+    await patchPartialQrSignup(
+      code,
+      start.token!,
+      values({ mobile: "07700 90", collegeEmail: "junk" }),
+    );
+    const after = await observer.query<{ raw_value: string; scope: string | null }>(
+      `select c.raw_value, c.scope::text as scope from public.contact_points c
+         join public.people p on p.id = c.person_id where p.given_name = $1 order by c.kind`,
+      [MARKER],
+    );
+    expect(after.rows.map((row) => row.raw_value)).toEqual([
+      "lan202.recruit@balliol.ox.ac.uk",
+      "07700 900555",
+    ]);
   });
 
   it("a dead or foreign token falls through to an ordinary sign-up, never an error", async () => {

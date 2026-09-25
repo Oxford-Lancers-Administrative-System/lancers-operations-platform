@@ -17,6 +17,7 @@ import { closePool, withTransaction } from "@/lib/db";
 import {
   completePartialQrSignupIn,
   hasCoreFour,
+  PARTIAL_NOT_OPEN_RULE,
   PARTIAL_SOURCE,
   PARTIAL_TOKEN_PURPOSE,
   PARTIAL_WELCOME_DELAY_MS,
@@ -33,7 +34,9 @@ import {
   SIGNUP_REQUIRES_FIRST_NAME_RULE,
   SIGNUP_REQUIRES_LAST_NAME_RULE,
   SIGNUP_REQUIRES_MOBILE_RULE,
+  SIGNUP_YEARS_OUT_OF_ORDER_RULE,
   signUpAnonymouslyIn,
+  voidPartialQrSignupIn,
   signUpWithTokenIn,
   type SignupSubmission,
 } from "./recruitment-signup";
@@ -104,6 +107,11 @@ afterEach(async () => {
   await observer.query(`delete from public.notification_jobs where person_id in ${people}`, [
     MARKER,
   ]);
+  await observer.query(
+    `delete from public.recruitment_prospect_status_events where prospect_id in
+       (select id from public.recruitment_prospects where person_id in ${people})`,
+    [MARKER],
+  );
   await observer.query(`delete from public.recruitment_prospects where person_id in ${people}`, [
     MARKER,
   ]);
@@ -1061,6 +1069,107 @@ describe("the partial save (LAN-425)", () => {
     expect(reconcileYears(none, { matriculation: 2025, graduation: 2028 })).toEqual({
       matriculation: 2025,
       graduation: 2028,
+    });
+  });
+
+  it("walk finding 2 — once the sign-up is complete, the token can no longer patch or complete it", async () => {
+    const code = await mintCode();
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: partial() }),
+    );
+    const personId = started!.personId;
+    const submission = baseSubmission({ collegeEmail: "lan425.closed@balliol.ox.ac.uk" });
+    await withTransaction((tx) =>
+      completePartialQrSignupIn(tx, { personId, seasonId, code, submission }),
+    );
+    const before = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+
+    await withTransaction(async (tx) => {
+      await expect(
+        patchPartialQrSignupIn(tx, {
+          personId,
+          seasonId,
+          submission: partial({ mobile: "07700 90", collegeEmail: "junk" }),
+        }),
+      ).rejects.toMatchObject({ rule: PARTIAL_NOT_OPEN_RULE });
+      await expect(
+        completePartialQrSignupIn(tx, { personId, seasonId, code, submission }),
+      ).rejects.toMatchObject({ rule: PARTIAL_NOT_OPEN_RULE });
+    });
+    expect(await withTransaction((tx) => readSignupPrefillIn(tx, personId))).toEqual(before);
+    const source = await observer.query<{ source: string }>(
+      `select source from public.recruitment_prospects where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(source.rows[0].source).toBe("qr_self_entry");
+  });
+
+  it("walk finding 1 — a mobile that belongs to somebody else with this name is not stored on the partial", async () => {
+    const mobile = uniquePhone();
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+    // The names alone start the partial (nothing to probe yet).
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: partial() }),
+    );
+    const personId = started!.personId;
+
+    const result = await withTransaction((tx) =>
+      patchPartialQrSignupIn(tx, {
+        personId,
+        seasonId,
+        submission: partial({ mobile, college: "Oriel" }),
+      }),
+    );
+    expect(result.matchedExisting).toBe(true);
+    const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
+    expect(prefill.mobile).toBeNull();
+    expect(prefill.college).toBe("Oriel");
+
+    // The visitor confirms the existing record: the partial is voided, its cycle stood down, its token revoked.
+    await withTransaction((tx) => voidPartialQrSignupIn(tx, { personId, seasonId }));
+    const prospect = await observer.query<{ status: string }>(
+      `select status::text as status from public.recruitment_prospects where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(prospect.rows[0].status).toBe("void");
+    const event = await observer.query<{ actor_label: string; reason: string }>(
+      `select e.actor_label, e.reason from public.recruitment_prospect_status_events e
+         join public.recruitment_prospects rp on rp.id = e.prospect_id
+        where rp.person_id = $1::uuid and e.to_status = 'void'`,
+      [personId],
+    );
+    expect(event.rows).toHaveLength(1);
+    expect(event.rows[0].actor_label).toMatch(/QR sign-up form/);
+    const jobs = await observer.query<{ status: string }>(
+      `select status::text as status from public.notification_jobs where person_id = $1::uuid`,
+      [personId],
+    );
+    expect(jobs.rows.length).toBeGreaterThan(0);
+    expect(jobs.rows.every((row) => row.status === "cancelled")).toBe(true);
+    const token = await withTransaction((tx) =>
+      resolvePersonTokenIn(tx, started!.token, PARTIAL_TOKEN_PURPOSE),
+    );
+    expect(token.state).toBe("unknown");
+  });
+
+  it("walk finding 4 — a graduation before its matriculation is refused in words on Save", async () => {
+    const code = await mintCode();
+    await withTransaction(async (tx) => {
+      await expect(
+        signUpAnonymouslyIn(tx, {
+          seasonId,
+          code,
+          submission: baseSubmission({ matriculationYear: "2030", expectedGraduationYear: "2027" }),
+        }),
+      ).rejects.toMatchObject({ rule: SIGNUP_YEARS_OUT_OF_ORDER_RULE });
     });
   });
 

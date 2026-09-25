@@ -165,11 +165,29 @@ The page holds an opaque credential for its partial, never a person id
 (LAN-208): a `person_access_tokens` row with the prefilled form's own purpose,
 which resolves to nothing but this person's own typed values. It lives in
 memory for the page load only; a reload starts over, and a re-scan that
-duplicates a partial is voided or merged by an operator as any duplicate is. If
-the name-and-mobile probe already matches somebody when the partial would
-start, nothing is written and the real Save asks the duplicate question above
-as it always did. Sign me up with a live token completes the partial in place
-instead of running that probe.
+duplicates a partial is voided or merged by an operator as any duplicate is. The
+name-and-mobile probe runs whenever a mobile arrives, not only when the partial
+starts (the walk of 2026-09-25 found a visitor who paused after their names got
+a second record): at the start, a match writes nothing; on a later patch, a
+mobile that with this name belongs to somebody else is not stored, so the
+partial's welcome can never go to that person's number; and at Sign me up the
+probe runs with the partial excluded, so the duplicate question above is asked
+exactly as it always was. "Yes, that's me" links the existing record and voids
+the partial, explained, with its cycle stood down and its credential revoked;
+"No" completes the partial in place.
+
+A partial is open only until its sign-up is complete. A patch, or a completion,
+against a person whose season consent is granted is refused: the welcome link
+carries a credential of the same purpose, and it must never be able to overwrite
+a signed-up recruit's contacts without validation.
+
+A mobile the visitor has not yet confirmed in the second box is not sent with a
+partial, so the welcome only ever goes to a confirmed number. Sign me up was
+already gated on the confirmation.
+
+An expected graduation before the matriculation year is refused in words on
+both doors ("Expected graduation cannot be before the matriculation year."),
+in the browser and on the server, rather than left to the database rule.
 
 The first write is throttled on the printed code like the probe; patches are
 throttled on the token, so one stand's typists never spend each other's

@@ -12,8 +12,9 @@ import {
   validateEmailAddress,
   validatePhoneNumber,
 } from "./person-validation";
-import { issuePersonTokenIn } from "./player-answer-tokens";
+import { issuePersonTokenIn, revokePersonTokenIn } from "./player-answer-tokens";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
+import { cancelRecruitCycleJobsIn } from "./recruitment-prospect/cancellations";
 import { recordRecruitmentSignupCodeUseIn } from "./recruitment-signup-codes";
 
 /**
@@ -60,6 +61,12 @@ export const SIGNUP_INVALID_MATRICULATION_YEAR_RULE =
   "recruitment_signup_invalid_matriculation_year";
 export const SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE =
   "recruitment_signup_invalid_expected_graduation_year";
+/** LAN-425 walk, finding 4: the pair is refused in words on both doors, never left to the check constraint. */
+export const SIGNUP_YEARS_OUT_OF_ORDER_RULE = "recruitment_signup_years_out_of_order";
+export const SIGNUP_YEARS_OUT_OF_ORDER_MESSAGE =
+  "Expected graduation cannot be before the matriculation year.";
+/** LAN-425 walk, finding 2: a partial is open only until its sign-up is complete. */
+export const PARTIAL_NOT_OPEN_RULE = "recruitment_partial_not_open";
 
 function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -139,6 +146,15 @@ function validateSignupSubmission(submission: SignupSubmission): {
       });
     }
   }
+  if (
+    matriculationRaw &&
+    graduationRaw &&
+    Number.parseInt(graduationRaw, 10) < Number.parseInt(matriculationRaw, 10)
+  ) {
+    throw new ConstraintViolated(SIGNUP_YEARS_OUT_OF_ORDER_MESSAGE, {
+      rule: SIGNUP_YEARS_OUT_OF_ORDER_RULE,
+    });
+  }
 
   if (submission.consent !== true) {
     throw new ConstraintViolated(
@@ -167,6 +183,7 @@ const PLAUSIBLE_MOBILE_MIN_DIGITS = 7;
 export async function probeExistingRecruitForQrSignup(
   givenName: string,
   mobile: string | null | undefined,
+  options: { excludePersonId?: string | null } = {},
 ): Promise<SignupDuplicateProbe> {
   const trimmedGiven = trimmedOrNull(givenName);
   const trimmedMobile = trimmedOrNull(mobile);
@@ -174,7 +191,7 @@ export async function probeExistingRecruitForQrSignup(
   if (trimmedMobile.replace(/\D/g, "").length < PLAUSIBLE_MOBILE_MIN_DIGITS) return NO_MATCH;
 
   const match = await withTransaction((tx) =>
-    findPersonMatchingGivenNameAndPhoneIn(tx, trimmedGiven, trimmedMobile),
+    findPersonMatchingGivenNameAndPhoneIn(tx, trimmedGiven, trimmedMobile, options),
   );
   return match ? { found: true } : NO_MATCH;
 }
@@ -771,13 +788,83 @@ export async function startPartialQrSignupIn(
   return { personId, prospectId: prospect.id, token: issued.token };
 }
 
-/** Every later pause: overwrite with everything typed so far. The caller has already resolved the token to this person and season. */
+/**
+ * Whether this person's record is still a partial in progress: a QR-sourced
+ * prospect with no granted consent. Once the real Save grants consent the
+ * partial is closed, and so is every ordinary sign-up, so a `recruit_signup`
+ * link (the welcome carries one with the same purpose) can never patch a
+ * completed recruit's contacts without validation (LAN-425 walk, finding 2).
+ */
+export async function isPartialQrSignupOpenIn(
+  tx: Tx,
+  personId: string,
+  seasonId: string,
+): Promise<boolean> {
+  const row = await tx.query<{ open: boolean }>(
+    `select exists (
+              select 1 from public.recruitment_prospects rp
+               where rp.person_id = $1::uuid and rp.season_id = $2::uuid
+                 and rp.source in ($3, $4)
+                 and rp.status in ('identified', 'engaged', 'committed')
+             )
+            and not exists (
+              select 1 from public.season_messaging_consents c
+               where c.person_id = $1::uuid and c.season_id = $2::uuid and c.state = 'granted'
+             ) as open`,
+    [personId, seasonId, PARTIAL_SOURCE, SELF_ENTRY_SOURCE],
+  );
+  return Boolean(row.rows[0]?.open);
+}
+
+function requirePartialOpen(open: boolean): void {
+  if (!open) {
+    throw new ConstraintViolated("This sign-up is already complete.", {
+      rule: PARTIAL_NOT_OPEN_RULE,
+    });
+  }
+}
+
+/** The name-and-mobile probe, excluding the partial's own record. */
+async function matchesSomebodyElseIn(
+  tx: Tx,
+  ownPersonId: string,
+  givenName: string | null,
+  mobile: string | null,
+): Promise<boolean> {
+  if (!givenName || !mobile) return false;
+  if (mobile.replace(/\D/g, "").length < PLAUSIBLE_MOBILE_MIN_DIGITS) return false;
+  const match = await findPersonMatchingGivenNameAndPhoneIn(tx, givenName, mobile, {
+    excludePersonId: ownPersonId,
+  });
+  return match !== null;
+}
+
+export interface PartialPatchResult {
+  /** The typed mobile belongs to somebody else on file with this name; it was not stored, and Save will ask the duplicate question. */
+  readonly matchedExisting: boolean;
+}
+
+/**
+ * Every later pause: overwrite with everything typed so far. The caller has
+ * already resolved the token to this person and season. A mobile that, with
+ * the given name, matches somebody else on file is not stored (LAN-425 walk,
+ * finding 1): otherwise the partial's welcome would go to that person's
+ * number, and the real Save would never ask "have you signed up before?".
+ */
 export async function patchPartialQrSignupIn(
   tx: Tx,
   params: { personId: string; seasonId: string; submission: PartialSignupSubmission },
-): Promise<void> {
+): Promise<PartialPatchResult> {
+  requirePartialOpen(await isPartialQrSignupOpenIn(tx, params.personId, params.seasonId));
   const givenName = trimmedOrNull(params.submission.givenName);
   const familyName = trimmedOrNull(params.submission.familyName);
+  const matchedExisting = await matchesSomebodyElseIn(
+    tx,
+    params.personId,
+    givenName,
+    trimmedOrNull(params.submission.mobile),
+  );
+  const submission = matchedExisting ? { ...params.submission, mobile: null } : params.submission;
   // A name box cleared mid-edit keeps what was there; both names were present at the start.
   await tx.query(
     `update public.people
@@ -793,14 +880,59 @@ export async function patchPartialQrSignupIn(
     tx,
     params.personId,
     current.rows[0]?.given_name ?? givenName ?? "",
-    params.submission,
+    submission,
   );
   await setProspectSourceIn(
     tx,
     params.personId,
     params.seasonId,
-    hasCoreFour(params.submission) ? SELF_ENTRY_SOURCE : PARTIAL_SOURCE,
+    hasCoreFour(submission) ? SELF_ENTRY_SOURCE : PARTIAL_SOURCE,
   );
+  return { matchedExisting };
+}
+
+/**
+ * The visitor pressed "Yes, that's me" against somebody already on file, so
+ * the partial this page created was a mistake: `void`, explained, its cycle
+ * stood down, its credential revoked (LAN-425 walk, findings 1 and 3). The
+ * person row stays, as every voided record does.
+ */
+export async function voidPartialQrSignupIn(
+  tx: Tx,
+  params: { personId: string; seasonId: string },
+): Promise<void> {
+  const prospect = await tx.query<{ id: string; status: string }>(
+    `select id, status::text as status from public.recruitment_prospects
+      where person_id = $1::uuid and season_id = $2::uuid and source in ($3, $4) for update`,
+    [params.personId, params.seasonId, PARTIAL_SOURCE, SELF_ENTRY_SOURCE],
+  );
+  const row = prospect.rows[0];
+  if (!row || row.status === "void") return;
+  const reason =
+    "LAN-425: the visitor confirmed an existing record; this partial was theirs by mistake.";
+  await tx.query(
+    `update public.recruitment_prospects set status = 'void', updated_at = now() where id = $1::uuid`,
+    [row.id],
+  );
+  await tx.query(
+    `insert into public.recruitment_prospect_status_events
+       (prospect_id, from_status, to_status, actor_label, reason)
+     values ($1::uuid, $2::public.prospect_status, 'void', $3, $4)`,
+    [row.id, row.status, "recruit: QR sign-up form (confirmed an existing record)", reason],
+  );
+  await cancelRecruitCycleJobsIn(tx, params.personId, params.seasonId, reason);
+  await revokePersonTokenIn(tx, params.personId, params.seasonId, reason, {
+    purpose: PARTIAL_TOKEN_PURPOSE,
+  });
+  await recordAudit(tx, {
+    actorLabel: "recruit: QR sign-up form (confirmed an existing record)",
+    action: "recruitment_prospect.status_changed",
+    entityTable: "recruitment_prospects",
+    entityId: row.id,
+    fromState: row.status,
+    toState: "void",
+    reason,
+  });
 }
 
 /**
@@ -814,6 +946,7 @@ export async function completePartialQrSignupIn(
   tx: Tx,
   params: { personId: string; seasonId: string; code: string; submission: SignupSubmission },
 ): Promise<SignupResult> {
+  requirePartialOpen(await isPartialQrSignupOpenIn(tx, params.personId, params.seasonId));
   const { givenName, familyName } = validateSignupSubmission(params.submission);
 
   await tx.query(

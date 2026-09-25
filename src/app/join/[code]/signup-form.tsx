@@ -71,8 +71,12 @@ export interface SignupFormProps {
   readonly personLabel?: string | null;
   /** `null` until Brian configures the real WhatsApp group — see recruitment-config.ts. */
   readonly groupLink: string | null;
-  /** Anonymous door only — never called for `mode="prefilled"`, which has nothing to ask. */
-  readonly checkDuplicate?: (givenName: string, mobile: string) => Promise<DuplicateCheckResult>;
+  /** Anonymous door only — never called for `mode="prefilled"`, which has nothing to ask. `partialToken` lets the probe exclude the visitor's own partial (LAN-425). */
+  readonly checkDuplicate?: (
+    givenName: string,
+    mobile: string,
+    partialToken: string | null,
+  ) => Promise<DuplicateCheckResult>;
   /** Anonymous door only (LAN-425). First write once both names are present; the page never hears about a failure. */
   readonly startPartial?: (values: SignupFieldValues) => Promise<PartialSaveStart>;
   /** Anonymous door only (LAN-425). Everything typed so far, on the record `token` names. */
@@ -115,6 +119,10 @@ export default function SignupForm({
   const [step, setStep] = useState<Step>("form");
   const [values, setValues] = useState<SignupFieldValues>(initial);
   const [consent, setConsent] = useState(false);
+  // LAN-389. Every other phone entry point is an HTML form, and the control
+  // refuses the submit event itself; this one saves from a button's onClick,
+  // so the same refusal arrives here as a reason Save stays disabled.
+  const [mobileUnconfirmed, setMobileUnconfirmed] = useState(false);
 
   // LAN-425 — the partial save. Refs, not state: nothing here renders. One
   // write in flight at a time, and every write carries all fields, so a
@@ -129,6 +137,10 @@ export default function SignupForm({
   const partialDirty = useRef(false);
   const latest = useRef(values);
   latest.current = values;
+  // A mobile the visitor has not yet confirmed in the second box is not sent
+  // with a partial: the welcome must never go to an unconfirmed number
+  // (LAN-425 walk, finding 5). Save is gated on the confirmation anyway.
+  const unconfirmedRef = useRef(false);
 
   function flushPartial(): Promise<void> {
     if (!startPartial || !patchPartial || partialStopped.current) return Promise.resolve();
@@ -137,7 +149,7 @@ export default function SignupForm({
       return partialInFlight.current;
     }
     const run = (async () => {
-      const snapshot = latest.current;
+      const snapshot = unconfirmedRef.current ? { ...latest.current, mobile: "" } : latest.current;
       try {
         if (partialToken.current) {
           await patchPartial(partialToken.current, snapshot);
@@ -171,12 +183,10 @@ export default function SignupForm({
     if (!partialEnabled || step !== "form" || !bothNamesPresent) return;
     const handle = setTimeout(() => void flushRef.current(), PARTIAL_SAVE_DELAY_MS);
     return () => clearTimeout(handle);
-    // `values` is the trigger: any change restarts the pause.
-  }, [values, step, partialEnabled, bothNamesPresent]);
-  // LAN-389. Every other phone entry point is an HTML form, and the control
-  // refuses the submit event itself; this one saves from a button's onClick,
-  // so the same refusal arrives here as a reason Save stays disabled.
-  const [mobileUnconfirmed, setMobileUnconfirmed] = useState(false);
+    // `values` is the trigger: any change restarts the pause, and so does the
+    // confirm box agreeing, which changes what the next write may carry.
+  }, [values, step, partialEnabled, bothNamesPresent, mobileUnconfirmed]);
+  unconfirmedRef.current = mobileUnconfirmed;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -225,8 +235,17 @@ export default function SignupForm({
     values.expectedGraduationYear.trim() === ""
       ? null
       : validateAcademicYear(values.expectedGraduationYear, "Expected graduation");
+  const yearsOutOfOrder =
+    matriculationValidation?.valid === true &&
+    graduationValidation?.valid === true &&
+    Number.parseInt(values.expectedGraduationYear, 10) <
+      Number.parseInt(values.matriculationYear, 10);
   const graduationError =
-    graduationValidation && !graduationValidation.valid ? graduationValidation.message : null;
+    graduationValidation && !graduationValidation.valid
+      ? graduationValidation.message
+      : yearsOutOfOrder
+        ? "Expected graduation cannot be before the matriculation year."
+        : null;
 
   const requiredMissing = nameMissing || mobileMissing || collegeEmailMissing;
   const formatInvalid = Boolean(
@@ -270,19 +289,15 @@ export default function SignupForm({
 
   async function handlePrimarySave() {
     if (!ready || busy) return;
-    // With a partial on file the probe would find the visitor's own record (LAN-425).
+    // The probe runs with or without a partial on file; the server excludes
+    // the visitor's own partial by its token (LAN-425 walk, finding 1).
     partialStopped.current = true;
     if (partialInFlight.current) await partialInFlight.current;
-    if (
-      mode === "anonymous" &&
-      checkDuplicate &&
-      !partialToken.current &&
-      values.mobile.trim() !== ""
-    ) {
+    if (mode === "anonymous" && checkDuplicate && values.mobile.trim() !== "") {
       setBusy(true);
       setError(null);
       try {
-        const probe = await checkDuplicate(values.givenName, values.mobile);
+        const probe = await checkDuplicate(values.givenName, values.mobile, partialToken.current);
         if (probe.found) {
           setStep("already");
           return;

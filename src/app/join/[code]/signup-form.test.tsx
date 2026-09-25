@@ -170,7 +170,7 @@ describe("the partial save (LAN-425)", () => {
     expect(startPartial).toHaveBeenCalledTimes(2);
   });
 
-  it("Sign me up carries the token and skips the probe that would find the visitor's own partial", async () => {
+  it("Sign me up runs the probe with the token, then carries the token", async () => {
     vi.useFakeTimers();
     const { startPartial, checkDuplicate, submit } = renderAnonymous();
 
@@ -182,9 +182,41 @@ describe("the partial save (LAN-425)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign me up" }));
     await act(() => vi.runAllTimersAsync());
-    expect(checkDuplicate).not.toHaveBeenCalled();
+    expect(checkDuplicate).toHaveBeenCalledTimes(1);
+    expect(checkDuplicate.mock.calls[0][2]).toBe("tok-425");
     expect(submit).toHaveBeenCalledTimes(1);
     expect(submit.mock.calls[0][0]).toMatchObject({ partialToken: "tok-425", consent: true });
+  });
+
+  it("an unconfirmed mobile is not sent with a partial; a confirmed one is", async () => {
+    vi.useFakeTimers();
+    const { startPartial, patchPartial } = renderAnonymous();
+
+    type(/^First name/, "Ian");
+    type(/^Last name/, "Rowntree");
+    fireEvent.change(numberBox(), { target: { value: "07700900222" } });
+    await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
+    expect(startPartial).toHaveBeenCalledTimes(1);
+    expect(startPartial.mock.calls[0][0]).toMatchObject({ mobile: "" });
+
+    fireEvent.change(confirmBox(), { target: { value: "07700900222" } });
+    await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
+    expect(patchPartial).toHaveBeenCalledTimes(1);
+    expect(patchPartial.mock.calls[0][1]).toMatchObject({ mobile: "+447700900222" });
+  });
+
+  it("a graduation before its matriculation turns the field red and holds Sign me up", () => {
+    const { submit } = renderAnonymous();
+    fillEverythingBar();
+    fireEvent.change(numberBox(), { target: { value: "07700900123" } });
+    fireEvent.change(confirmBox(), { target: { value: "07700900123" } });
+    type(/^Matriculation year/, "2030");
+    type(/^Expected graduation/, "2027");
+    expect(
+      screen.getByText("Expected graduation cannot be before the matriculation year."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign me up" })).toBeDisabled();
+    expect(submit).not.toHaveBeenCalled();
   });
 
   it("with no partial on file, Sign me up still runs the probe and sends no token", async () => {

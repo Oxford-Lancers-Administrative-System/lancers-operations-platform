@@ -14,11 +14,13 @@ import { findPersonMatchingGivenNameAndPhoneIn } from "@/lib/services/person-dup
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import {
   completePartialQrSignupIn,
+  isPartialQrSignupOpenIn,
   PARTIAL_TOKEN_PURPOSE,
   patchPartialQrSignupIn,
   probeExistingRecruitForQrSignup,
   signUpAnonymouslyIn,
   startPartialQrSignupIn,
+  voidPartialQrSignupIn,
   type PartialSignupSubmission,
   type SignupSubmission,
 } from "@/lib/services/recruitment-signup";
@@ -38,6 +40,8 @@ export async function checkForExistingQrRecruit(
   code: string,
   givenName: string,
   mobile: string,
+  /** LAN-425: the page's partial credential, so the probe excludes the visitor's own record. */
+  partialToken?: string | null,
 ): Promise<DuplicateCheckResult> {
   // The boolean is small on purpose, but unthrottled it is still an oracle for
   // "is this name on this number a recruit" (LAN-352). Same brake as every
@@ -48,9 +52,16 @@ export async function checkForExistingQrRecruit(
     logThrottledPlayerHomeRequest(decision.reason!);
     return { found: false };
   }
-  const resolved = await withTransaction((tx) => resolveRecruitmentSignupCodeIn(tx, code));
-  if (resolved.state !== "valid") return { found: false };
-  return probeExistingRecruitForQrSignup(givenName, mobile);
+  const resolved = await withTransaction(async (tx) => {
+    const code_ = await resolveRecruitmentSignupCodeIn(tx, code);
+    if (code_.state !== "valid") return null;
+    const own = partialToken
+      ? await resolvePersonTokenIn(tx, partialToken, PARTIAL_TOKEN_PURPOSE)
+      : null;
+    return { excludePersonId: own?.resolved?.personId ?? null };
+  });
+  if (!resolved) return { found: false };
+  return probeExistingRecruitForQrSignup(givenName, mobile, resolved);
 }
 
 function toPartial(values: SignupFieldValues): PartialSignupSubmission {
@@ -108,25 +119,36 @@ export async function submitQrSignup(
     const refusal = await withTransaction(async (tx) => {
       const resolved = await resolveRecruitmentSignupCodeIn(tx, code);
       if (resolved.state !== "valid" || !resolved.seasonId) return NOT_LIVE;
+      // LAN-425: a live, still-open partial is completed in place — unless the
+      // visitor confirmed they are somebody already on file, in which case the
+      // existing record is linked as before and the partial is voided.
+      let partialPersonId: string | null = null;
       if (values.partialToken) {
         const partial = await resolvePersonTokenIn(tx, values.partialToken, PARTIAL_TOKEN_PURPOSE);
         if (
           partial.state === "valid" &&
           partial.resolved &&
-          partial.resolved.seasonId === resolved.seasonId
+          partial.resolved.seasonId === resolved.seasonId &&
+          (await isPartialQrSignupOpenIn(tx, partial.resolved.personId, resolved.seasonId))
         ) {
-          await completePartialQrSignupIn(tx, {
-            personId: partial.resolved.personId,
-            seasonId: resolved.seasonId,
-            code,
-            submission: toSubmission(values),
-          });
-          return null;
+          partialPersonId = partial.resolved.personId;
         }
       }
+      if (partialPersonId && !values.confirmedExistingMatch) {
+        await completePartialQrSignupIn(tx, {
+          personId: partialPersonId,
+          seasonId: resolved.seasonId,
+          code,
+          submission: toSubmission(values),
+        });
+        return null;
+      }
       const linkExistingPersonId = values.confirmedExistingMatch
-        ? ((await findPersonMatchingGivenNameAndPhoneIn(tx, values.givenName, values.mobile))
-            ?.personId ?? null)
+        ? ((
+            await findPersonMatchingGivenNameAndPhoneIn(tx, values.givenName, values.mobile, {
+              excludePersonId: partialPersonId,
+            })
+          )?.personId ?? null)
         : null;
       await signUpAnonymouslyIn(tx, {
         seasonId: resolved.seasonId,
@@ -134,6 +156,9 @@ export async function submitQrSignup(
         submission: toSubmission(values),
         linkExistingPersonId,
       });
+      if (partialPersonId) {
+        await voidPartialQrSignupIn(tx, { personId: partialPersonId, seasonId: resolved.seasonId });
+      }
       return null;
     });
     return refusal === null ? { ok: true } : { ok: false, message: refusal };
