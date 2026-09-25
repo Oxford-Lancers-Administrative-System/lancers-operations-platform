@@ -1,0 +1,60 @@
+{
+  "mission_id": "M-GRANULAR-ROLES-AND-PERMISSIONS",
+  "ledger_version": 3,
+  "stage": "boundary",
+  "baseline": {
+    "branch": "main",
+    "commit": "150a59c65365525060dd8ef38075336163026b39"
+  },
+  "approvals": {},
+  "workflows": [
+    {
+      "id": "W1",
+      "name": "Administer a seat's grants on the Roles page",
+      "state": "spec_draft",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W2",
+      "name": "Manage template categories on the event templates page",
+      "state": "spec_draft",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W3",
+      "name": "Work the roster within granted categories, board and record",
+      "state": "spec_draft",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W4",
+      "name": "Work events of a granted category, view or manage",
+      "state": "spec_draft",
+      "stale": false,
+      "feedback": []
+    }
+  ],
+  "mockup_hub": "generated",
+  "decision_coverage": {
+    "sources": [
+      {
+        "id": "SRC-LAN-424",
+        "ref": "https://linear.app/brian-schuster/issue/LAN-424",
+        "version": "2026-09-25",
+        "decision_ids": []
+      }
+    ],
+    "decisions": []
+  },
+  "subject_coverage": {
+    "areas": []
+  },
+  "amendment_plan": {
+    "items": [],
+    "approval": null
+  },
+  "next_action": "Brian: choose the Access view among W1-02a to W1-02e (recommended B) and say whether W1-09 time-limited delegation is wanted (HANDOFF.md, round 2); then approve the boundary, overview and four-workflow inventory so the ledger can reach the workflows stage and the hub can be generated."
+}
