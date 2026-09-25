@@ -1,7 +1,7 @@
 # W3 — Work the roster and recruits within granted categories
 
-**Status: specification draft (short form, round 4: Brian's correction of 2026-09-25 applied), pending
-Brian's approval words.**
+**Status: approved by Brian on 2026-09-25 (specification, mockups and acceptance), after round 4 applied
+his correction; one later locked decision (name only under None on Person) recorded below.**
 
 - Purpose/intended outcome: a seat sees and changes exactly the roster and recruiting data its job needs.
 - Primary actor: any seat holding at least View on one roster or recruiting category.
@@ -39,6 +39,8 @@ Brian's approval words.**
 - _May add to the roster_ off: no _Add players_. _May add recruits_ off: no _Add recruit_ and no _QR code_.
 - Contact & emergency becomes its own record section (Mobile phone, Personal email, Emergency contact), split
   out of Person. On the board, Contactable stays in Person and Missing stays where it is.
+- None on Person: a roster row shows the player's name only; the Contactable and Missing indicators are
+  absent. W3-02's photograph predates this rule; the build follows the rule.
 - Recruiting: Person information is the recruit's Person group on the board and Personal questionnaire, How to
   reach them, Who they are, Restricted, Where they stand and Their seasons on the record; Recruit details is the
   Recruitment group and section; Event details is every event group and Recruitment events.
@@ -47,23 +49,26 @@ Brian's approval words.**
 
 ## Core decisions
 
-| Decision                                                                         | Classification              | Governing evidence or recommended default | Status    |
-| -------------------------------------------------------------------------------- | --------------------------- | ----------------------------------------- | --------- |
-| Roster: ten groups plus Contact & emergency; Recruiting: three categories        | locked                      | Round 3 brief, item 2                     | recorded  |
-| Records open for anyone who reaches the roster or recruits                       | locked                      | Round 3 brief, item 5                     | recorded  |
-| None sections collapsed and locked, contents never sent; name stays              | locked                      | Round 3 brief, item 5                     | recorded  |
-| Board and record congruent                                                       | locked                      | Round 3 brief, item 5                     | recorded  |
-| Contactable stays in Person; Missing stays where it is                           | locked                      | Round 3 brief, W3-02                      | recorded  |
-| Contactable's Mobile chip dials the number under View on Person                  | proposed for owner approval | W3-02                                     | open      |
-| Record Attendance section locked with the rest                                   | proposed for owner approval | W3-03                                     | open      |
-| Notes, What changed and Status history read as Recruit details                   | proposed for owner approval | W3-04b                                    | open      |
-| Record header status as plain secondary text, not a pill (W3-03, W3-04b)         | locked                      | Brian, round 4 (below)                    | recorded  |
-| Guard derivation per column and section; server-side omission of locked contents | delegated to Mission Lead   | —                                         | delegated |
+| Decision                                                                         | Classification            | Governing evidence or recommended default       | Status    |
+| -------------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------- | --------- |
+| Roster: ten groups plus Contact & emergency; Recruiting: three categories        | locked                    | Round 3 brief, item 2                           | recorded  |
+| Records open for anyone who reaches the roster or recruits                       | locked                    | Round 3 brief, item 5                           | recorded  |
+| None sections collapsed and locked, contents never sent; name stays              | locked                    | Round 3 brief, item 5                           | recorded  |
+| Board and record congruent                                                       | locked                    | Round 3 brief, item 5                           | recorded  |
+| Contactable stays in Person; Missing stays where it is                           | locked                    | Round 3 brief, W3-02                            | recorded  |
+| Contactable's Mobile chip dials the number under View on Person                  | locked                    | Approved as drawn on W3-02 (Brian, 2026-09-25)  | recorded  |
+| None on Person: the row shows the name only; Contactable and Missing absent      | locked                    | Brian, 2026-09-25 (below)                       | recorded  |
+| Record Attendance section locked with the rest                                   | locked                    | Approved as drawn on W3-03 (Brian, 2026-09-25)  | recorded  |
+| Notes, What changed and Status history read as Recruit details                   | locked                    | Approved as drawn on W3-04b (Brian, 2026-09-25) | recorded  |
+| Record header status as plain secondary text, not a pill (W3-03, W3-04b)         | locked                    | Brian, round 4 (below)                          | recorded  |
+| Guard derivation per column and section; server-side omission of locked contents | delegated to Mission Lead | —                                               | delegated |
 
 Brian's round-4 words (2026-09-25), record header status: "at the top of the screen, the status should be in
 text. It should not be a pill."
 
+Brian's later words (2026-09-25), name only under None on Person: "if the person record is not viewable … I should just see the name, not the contactable and missing."
+
 ## Brian approval
 
-- Exact words: pending
-- Date: pending
+- Exact words: "Other than that, I think this is approved. We can go ahead and create the packet and push it."
+- Date: 2026-09-25
