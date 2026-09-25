@@ -1,6 +1,6 @@
 # W1 — Administer a seat's grants on the seat page
 
-**Status: specification draft (round 3), pending Brian's approval.**
+**Status: approved by Brian on 2026-09-25 (specification, mockups and acceptance).**
 
 - Purpose/intended outcome: the committee decides what each seat may see and change, without a code change.
   "Set it and forget it" (Stewart, 2026-09-25).
@@ -38,8 +38,8 @@
 2. In Access, change one roster category (None / View / Edit), one recruiting category (None / View / Edit;
    Event details None / View), one event template (None / View / Manage), or one of the two switches
    (No / Yes). The change saves on press.
-3. Or, for a whole seat at once (proposed for owner approval): _Copy access from another seat_ (choose the
-   seat, read every change, confirm) or _Grant everything_ (confirm).
+3. Or, for a whole seat at once: _Copy access from another seat_ (choose the seat, read every change,
+   confirm) or _Grant everything_ (confirm).
 4. Read the outcome Notice and the new History entry.
 
 ## State transitions
@@ -87,22 +87,24 @@
 
 ## Core decisions
 
-| Decision                                                                                              | Classification              | Governing evidence or recommended default | Status    |
-| ----------------------------------------------------------------------------------------------------- | --------------------------- | ----------------------------------------- | --------- |
-| Access edited on the seat page only; Roles index unchanged                                            | locked                      | Brian and Stewart, 2026-09-25             | recorded  |
-| Roster: ten board groups plus Contact & emergency, None/View/Edit                                     | locked                      | Round 3 brief, item 2                     | recorded  |
-| Recruiting group: Person information, Recruit details (None/View/Edit), Event details (None/View)     | locked                      | Round 3 brief, item 2                     | recorded  |
-| Events per template, None/View/Manage; no types, no categories                                        | locked                      | Round 3 brief, item 3                     | recorded  |
-| Two switches: may add to the roster, may add recruits; no records switch                              | locked                      | Round 3 brief, items 4–5                  | recorded  |
-| Attendance not in the access list                                                                     | locked                      | Round 3 brief, item 7                     | recorded  |
-| President, GM, IT Officer fixed full; VP and Secretary start full, removable; every other seat None   | locked                      | Round 3 brief, item 6                     | recorded  |
-| Seat page Access section, save on press, History carries access changes; groups fold at 375           | locked                      | Brian, round-1 and round-2 feedback       | recorded  |
-| Permissions block removed from the seat page                                                          | locked                      | Brian, round-1 feedback on W1-03          | recorded  |
-| Copy access from another seat (no expiry) and Grant everything, one audited action each, on seat page | proposed for owner approval | Round 3 brief, item 9                     | open      |
-| Roster count: eleven, not the brief's "twelve" (Recruits moved to Recruiting)                         | proposed for owner approval | W1-03 open question                       | open      |
-| Table shapes, capability derivation, audit row shape, printed-access test, package split              | delegated to Mission Lead   | LAN-424 "Delegated"                       | delegated |
+| Decision                                                                                              | Classification            | Governing evidence or recommended default                            | Status    |
+| ----------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------- | --------- |
+| Access edited on the seat page only; Roles index unchanged                                            | locked                    | Brian and Stewart, 2026-09-25                                        | recorded  |
+| Roster: ten board groups plus Contact & emergency, None/View/Edit                                     | locked                    | Round 3 brief, item 2                                                | recorded  |
+| Recruiting group: Person information, Recruit details (None/View/Edit), Event details (None/View)     | locked                    | Round 3 brief, item 2                                                | recorded  |
+| Events per template, None/View/Manage; no types, no categories                                        | locked                    | Round 3 brief, item 3                                                | recorded  |
+| Two switches: may add to the roster, may add recruits; no records switch                              | locked                    | Round 3 brief, items 4–5                                             | recorded  |
+| Attendance not in the access list                                                                     | locked                    | Round 3 brief, item 7                                                | recorded  |
+| President, GM, IT Officer fixed full; VP and Secretary start full, removable; every other seat None   | locked                    | Round 3 brief, item 6                                                | recorded  |
+| Seat page Access section, save on press, History carries access changes; groups fold at 375           | locked                    | Brian, round-1 and round-2 feedback                                  | recorded  |
+| Permissions block removed from the seat page                                                          | locked                    | Brian, round-1 feedback on W1-03                                     | recorded  |
+| Copy access from another seat (no expiry) and Grant everything, one audited action each, on seat page | locked                    | Approved with W1 as drawn on W1-03, W1-07, W1-08 (Brian, 2026-09-25) | recorded  |
+| Roster count: eleven, not the brief's "twelve" (Recruits moved to Recruiting)                         | locked                    | Approved with W1 as drawn on W1-03 (Brian, 2026-09-25)               | recorded  |
+| Table shapes, capability derivation, audit row shape, printed-access test, package split              | delegated to Mission Lead | LAN-424 "Delegated"                                                  | delegated |
 
 ## Brian approval
 
-- Exact words: pending
-- Date: pending
+- Exact words: "W1 is approved." Then, approving the whole ledger: "Other than that, I think this is approved. We can go ahead and create the packet and push it."
+- Date: 2026-09-25
+- Copy access from another seat and Grant everything were on the approved W1-03 screen marked _Proposed for
+  owner approval_; Brian raised no objection and approved the whole, so both are locked.
