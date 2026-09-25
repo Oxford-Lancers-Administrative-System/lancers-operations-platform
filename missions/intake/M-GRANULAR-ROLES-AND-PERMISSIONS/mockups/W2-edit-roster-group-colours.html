@@ -1245,7 +1245,7 @@
       <header class="page-head">
         <h1>
           W2 · Edit roster group colours<span class="draft"
-            >Draft · round 3 · pending Brian's approval</span
+            >Draft · round 4 · Brian's corrections applied</span
           >
         </h1>
         <p>
@@ -1255,9 +1255,11 @@
           delivery.
         </p>
         <p>
-          Palette change: the current blue becomes <em>Lancer Blue</em>, <em>Lancer Gold</em> is
-          added beside it, the old blue is kept as <em>Oxford Blue</em>; every other colour
-          unchanged. See HANDOFF.md for what constrains the set.
+          Palette (Brian, round 4): the current twelve swatches with one change and one addition.
+          The current blue (key <code>blue</code>) becomes <em>Oxford Blue</em>, the brand navy
+          <code>#002147</code> the Person band already wears; <em>Lancer Gold</em>
+          <code>#C09723</code> is added. No Lancer Blue, no second blue: thirteen swatches, every
+          other colour unchanged. See HANDOFF.md for what constrains the set.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1269,10 +1271,11 @@
             >Proposed — this mission</span
           >. Every screen is a <strong>photograph on both sides</strong>: the same running page
           (application code of main <code>0d4b6ce5</code>; round-3 photographs were taken at
-          <code>726c9346</code>, which adds only this ledger), measured by the browser at 1280 and
-          375, differing only by the proposal script named under the screen. Nothing on this page is
-          drawn. A screen head says <span class="disposition">Existing</span> when nothing changes
-          or <span class="disposition modified">Modified</span> and lists exactly what changes. A
+          <code>726c9346</code> and round 4's W2-01 and W2-02 at <code>57480009</code>, both of
+          which add only this ledger), measured by the browser at 1280 and 375, differing only by
+          the proposal script named under the screen. Nothing on this page is drawn. A screen head
+          says <span class="disposition">Existing</span> when nothing changes or
+          <span class="disposition modified">Modified</span> and lists exactly what changes. A
           dashed <span class="chip chip-proposed">Proposed</span> chip marks a surface absent from
           main; <code>Proposed for owner approval</code> marks something drawn but not assumed.
           <code>Central rule · LAN-423</code> marks a grant fixed by the floor decision. A lock in a
@@ -1299,10 +1302,10 @@
           route: "/operate/roster",
           title: "Roster — the Edit categories control",
           blurb:
-            "An <em>Edit categories</em> control at the top right of the roster, beside <em>Add players</em>: the app's own outlined Button. It opens W2-02. Nothing else on the page changes.",
+            "An <em>Edit categories</em> control at the top right of the roster, beside <em>Add players</em>. Round 4 (Brian: <q>It should be the same size as Add players.</q>): the same Button as <em>Add players</em> — contained, the same size and height — side by side. It opens W2-02. Nothing else on the page changes.",
           deltas: [
-            "<strong>New:</strong> <em>Edit categories</em> (outlined Button) left of <em>Add players</em>",
-            "375: both buttons on one row under the heading",
+            "<strong>New:</strong> <em>Edit categories</em>, the same contained Button and size as <em>Add players</em>, immediately to its left",
+            "375: both buttons on one row under the heading, the same height",
           ],
           questions: [
             "Who may edit group colours? Drawn for the review account. Proposed: the holders of role management (President, General Manager, IT Officer).",
@@ -1313,18 +1316,14 @@
           route: "/operate/roster",
           title: "Roster categories — the group colour editor",
           blurb:
-            "An MUI Dialog over the roster listing the board's ten groups. Each row is a preview of the band head as the board will draw it and a Select of the palette; the Kit row's Select is open. The palette is the event-template palette with round 3's change: <em>Lancer Blue</em> (the current blue, now the team blue), <em>Lancer Gold</em> (new), <em>Oxford Blue</em> (the old blue, kept) and the other eleven unchanged. Contact & emergency has no board columns, so no colour. <em>Save colours</em> is one audited write.",
+            "An MUI Dialog over the roster listing the board's ten groups. Each row is a preview of the band head as the board will draw it and a Select of the palette; the Kit row's Select is open. The palette is the event-template palette with Brian's round-4 correction: the current blue becomes <em>Oxford Blue</em> <code>#002147</code> (key <code>blue</code> kept), <em>Lancer Gold</em> <code>#C09723</code> is added, and the other eleven are unchanged — thirteen swatches. Starting colours: Person and Membership on Oxford Blue, Onboarding and Kit on Lancer Gold. Contact & emergency has no board columns, so no colour. <em>Save colours</em> is one audited write.",
           deltas: [
             "<strong>New:</strong> dialog <em>Roster categories</em>: ten rows, band preview + colour Select; <em>Cancel</em>, <em>Save colours</em>",
-            "Open menu: fourteen swatches; <em>Lancer Gold</em> selected for Kit; dashed chips mark <em>New</em> and the renamed blues",
-            "Band text turns charcoal on Lancer Gold (and Orange): white fails AA there (2.7:1 and 3.1:1)",
+            "Open menu: thirteen swatches; <em>Lancer Gold</em> selected for Kit; dashed chips mark <em>New</em> (Lancer Gold) and <em>Was Blue</em> (Oxford Blue)",
+            "Band text is charcoal on Lancer Gold and Orange: white fails AA there (2.7:1 and 3.1:1)",
             "375: the dialog takes the width; each row stacks preview over Select",
           ],
-          questions: [
-            "Which hex is Lancer Blue? Drawn as the brand board's Royal Blue <code>#1D42A6</code>. And is the kept <em>Oxford Blue</em> the old swatch <code>#1565c0</code> (drawn, per the brief) or the brand board's Oxford Blue <code>#002147</code>, the navy the Person band wears today? The names collide.",
-            "Starting colours: five groups' tones on main are not palette colours (Onboarding and Kit Old Gold, Membership Royal Blue, Offensive, Special teams, Warmup). Drawn as the nearest swatch; alternatively add Old Gold to the palette.",
-            "Renaming key <code>blue</code> re-tones every template on it (Practice) to Lancer Blue on the calendar. Accept, or move those templates to Oxford Blue so nothing on the calendar changes?",
-          ],
+          questions: [],
         },
       ];
 

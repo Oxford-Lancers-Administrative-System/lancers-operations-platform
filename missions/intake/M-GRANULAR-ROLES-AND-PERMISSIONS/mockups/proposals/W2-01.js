@@ -1,7 +1,7 @@
 /* W2-01 — generated from the shared prelude, kit and this screen's body; see the notes inside. */
 (async () => {
   /*
-   * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude, round 3.
+   * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude, round 3 (palette corrected in round 4).
    *
    * Evaluated into the live page after the current-side photograph. Every
    * element it adds either clones the page's own MUI node (so the emotion class,
@@ -59,22 +59,24 @@
 
   /*
    * The palette, `TEMPLATE_COLOUR_PALETTE` in src/lib/services/event-template-input.ts,
-   * with round 3's change read literally: the current blue (key `blue`)
-   * becomes Lancer Blue, the team blue, drawn as the brand board's Royal Blue
-   * #1D42A6 until Brian names the hex; Lancer Gold (brand board Gold, #C09723)
-   * is added beside it; the old blue #1565c0 is kept under the name Oxford
-   * Blue. Every other swatch is unchanged. `on` is the text colour a roster
-   * band head needs on that swatch: white fails AA on Lancer Gold (2.7:1) and
-   * Orange (3.1:1).
+   * with Brian's round-4 correction (2026-09-25): the twelve swatches with one
+   * change and one addition. Key `blue` becomes Oxford Blue, the brand navy
+   * #002147 (theme-tokens `CLUB.oxfordBlue`, the tone the Person band already
+   * wears); Lancer Gold #C09723 (theme-tokens `CLUB.gold`) is added. No Lancer
+   * Blue, no second blue: thirteen swatches. Every other swatch is unchanged.
+   * `tint` is the accent at 10% on white, as the other swatches' tints are.
+   * `on` is the text colour a roster band head needs on that swatch: white
+   * fails AA on Lancer Gold (2.7:1) and Orange (3.1:1), so those two carry
+   * charcoal.
    */
   const PALETTE = [
     {
       key: "blue",
-      label: "Lancer Blue",
-      accent: "#1D42A6",
-      tint: "#E3EBF8",
+      label: "Oxford Blue",
+      accent: "#002147",
+      tint: "#E6E9ED",
       on: "#fff",
-      change: "renamed, team blue",
+      change: "renamed, brand navy",
     },
     {
       key: "lancer_gold",
@@ -83,14 +85,6 @@
       tint: "#F8F1DC",
       on: T.charcoal,
       change: "added",
-    },
-    {
-      key: "oxford_blue",
-      label: "Oxford Blue",
-      accent: "#1565c0",
-      tint: "#e8f1fb",
-      on: "#fff",
-      change: "the old blue, kept",
     },
     { key: "teal", label: "Teal", accent: "#00796b", tint: "#e2f1ef", on: "#fff" },
     { key: "purple", label: "Purple", accent: "#4527a0", tint: "#ece7f7", on: "#fff" },
@@ -769,27 +763,37 @@
   }
   /*
    * W2-01 — the roster page with an "Edit categories" control at the top
-   * right, beside Add players: the app's outlined Button (fetched from the
-   * running events page and re-labelled). It opens W2-02. Only the seats that
-   * may change roster group colours see it (who that is: an open question;
-   * drawn for the review account, which holds every grant). Nothing else on
-   * the page changes.
+   * right, beside Add players. Round 4 (Brian, 2026-09-25: "It should be the
+   * same size as Add players"): the control is a copy of the page's own Add
+   * players Button — the same contained variant, the same size and minimum
+   * height, the same emotion class — re-labelled, with its menu wiring
+   * removed. The two sit side by side. It opens W2-02. Only the seats that may
+   * change roster group colours see it (who that is: an open question; drawn
+   * for the review account, which holds every grant). Nothing else on the page
+   * changes.
    */
-  await appButtons();
   const main = document.querySelector("main");
   const add =
     main.querySelector('[data-testid="add-players"]') ||
     Array.from(main.querySelectorAll("a, button")).find(
       (b) => b.textContent.trim() === "Add players",
     );
-  const edit = appButton("outlined", "Edit categories");
-  edit.setAttribute("data-proposed", "edit-categories");
+  /* A twin of Add players: same element, same classes, its own label; no id, test id or menu attributes. */
+  const twinOfAdd = (label) => {
+    const b = add.cloneNode(true);
+    ["id", "data-testid", "aria-haspopup", "aria-controls", "aria-expanded"].forEach((a) =>
+      b.removeAttribute(a),
+    );
+    b.textContent = label;
+    b.setAttribute("data-proposed", "edit-categories");
+    return b;
+  };
   if (add) {
     const wrap = el(
       "div",
       "display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center",
     );
     add.replaceWith(wrap);
-    wrap.append(edit, add);
+    wrap.append(twinOfAdd("Edit categories"), add);
   }
 })();

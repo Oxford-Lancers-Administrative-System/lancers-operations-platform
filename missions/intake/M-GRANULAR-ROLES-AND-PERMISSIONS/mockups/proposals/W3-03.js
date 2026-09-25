@@ -1,7 +1,7 @@
 /* W3-03 — generated from the shared prelude, kit and this screen's body; see the notes inside. */
 (async () => {
   /*
-   * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude, round 3.
+   * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude, round 3 (palette corrected in round 4).
    *
    * Evaluated into the live page after the current-side photograph. Every
    * element it adds either clones the page's own MUI node (so the emotion class,
@@ -59,22 +59,24 @@
 
   /*
    * The palette, `TEMPLATE_COLOUR_PALETTE` in src/lib/services/event-template-input.ts,
-   * with round 3's change read literally: the current blue (key `blue`)
-   * becomes Lancer Blue, the team blue, drawn as the brand board's Royal Blue
-   * #1D42A6 until Brian names the hex; Lancer Gold (brand board Gold, #C09723)
-   * is added beside it; the old blue #1565c0 is kept under the name Oxford
-   * Blue. Every other swatch is unchanged. `on` is the text colour a roster
-   * band head needs on that swatch: white fails AA on Lancer Gold (2.7:1) and
-   * Orange (3.1:1).
+   * with Brian's round-4 correction (2026-09-25): the twelve swatches with one
+   * change and one addition. Key `blue` becomes Oxford Blue, the brand navy
+   * #002147 (theme-tokens `CLUB.oxfordBlue`, the tone the Person band already
+   * wears); Lancer Gold #C09723 (theme-tokens `CLUB.gold`) is added. No Lancer
+   * Blue, no second blue: thirteen swatches. Every other swatch is unchanged.
+   * `tint` is the accent at 10% on white, as the other swatches' tints are.
+   * `on` is the text colour a roster band head needs on that swatch: white
+   * fails AA on Lancer Gold (2.7:1) and Orange (3.1:1), so those two carry
+   * charcoal.
    */
   const PALETTE = [
     {
       key: "blue",
-      label: "Lancer Blue",
-      accent: "#1D42A6",
-      tint: "#E3EBF8",
+      label: "Oxford Blue",
+      accent: "#002147",
+      tint: "#E6E9ED",
       on: "#fff",
-      change: "renamed, team blue",
+      change: "renamed, brand navy",
     },
     {
       key: "lancer_gold",
@@ -83,14 +85,6 @@
       tint: "#F8F1DC",
       on: T.charcoal,
       change: "added",
-    },
-    {
-      key: "oxford_blue",
-      label: "Oxford Blue",
-      accent: "#1565c0",
-      tint: "#e8f1fb",
-      on: "#fff",
-      change: "the old blue, kept",
     },
     { key: "teal", label: "Teal", accent: "#00796b", tint: "#e2f1ef", on: "#fff" },
     { key: "purple", label: "Purple", accent: "#4527a0", tint: "#ece7f7", on: "#fff" },
@@ -848,4 +842,29 @@
     const d = main.querySelector(`[data-testid="${id}"]`);
     if (d) lockSection(d);
   });
+
+  /*
+   * Round 4 — the record header's status as text (Brian, 2026-09-25: "at the
+   * top of the screen, the status should be in text. It should not be a
+   * pill."). The same rule as W3-04b, applied here: any status chip in the
+   * record header becomes plain text in the header's secondary text style (a
+   * copy of the subtitle node). On main the player record's header carries no
+   * chip — its status is already text in the subtitle — and the Membership
+   * tile's pill went with the tiles above (None on Membership), so for this
+   * seat nothing at the top of the record is a pill.
+   */
+  const header = main.querySelector('[data-testid="page-header"]');
+  const subtitle = header && header.querySelector('[data-testid="page-subtitle"]');
+  if (header && subtitle) {
+    header.querySelectorAll(".MuiChip-root").forEach((c) => {
+      const text = subtitle.cloneNode(false);
+      text.removeAttribute("data-testid");
+      text.setAttribute("data-proposed", "header-status-text");
+      /* Keep the header Stack's own spacing (the chip's margin-left), drop the subtitle's top margin. */
+      text.style.margin = `0 0 0 ${getComputedStyle(c).marginLeft}`;
+      text.style.whiteSpace = "nowrap";
+      text.textContent = c.textContent.trim();
+      c.replaceWith(text);
+    });
+  }
 })();

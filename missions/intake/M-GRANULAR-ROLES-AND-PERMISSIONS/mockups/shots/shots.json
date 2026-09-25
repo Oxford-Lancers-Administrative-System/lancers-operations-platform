@@ -279,12 +279,12 @@
     {
       "id": "W2-01",
       "route": "/operate/roster",
-      "headSha": "726c93469e90a9d06a33d83e4cf72f7a92fcbc2f",
+      "headSha": "57480009f8a3ee9f4c73bc885d8747b98e536a3d",
       "slot": "primary",
       "proposal": {
         "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W2-01.js",
-        "sha256": "90bd38b30cc01d57b8de93afdc80cce5392ad340bbcac9561ac0086779f084be",
-        "bytes": 33778
+        "sha256": "f4b107d6d7da18f7a9be0f8c258ebb4e412542025244bf550225190365d14ca1",
+        "bytes": 34313
       },
       "captures": [
         {
@@ -320,17 +320,17 @@
           "file": "shots/W2-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-25T21:41:36.779Z"
+      "at": "2026-09-25T23:00:25.073Z"
     },
     {
       "id": "W2-02",
       "route": "/operate/roster",
-      "headSha": "726c93469e90a9d06a33d83e4cf72f7a92fcbc2f",
+      "headSha": "57480009f8a3ee9f4c73bc885d8747b98e536a3d",
       "slot": "primary",
       "proposal": {
         "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W2-02.js",
-        "sha256": "dfa1e426ab98e5d4ab95b6e3a4fa5e90c552f58fb7cd40d30931d6f9e78619e7",
-        "bytes": 37024
+        "sha256": "f2788c0d5cfde2c5aa075e22f514dd294dd25cc82e167339577bb7595ebb5bc0",
+        "bytes": 37668
       },
       "captures": [
         {
@@ -366,7 +366,7 @@
           "file": "shots/W2-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-25T21:41:45.002Z"
+      "at": "2026-09-25T23:00:33.140Z"
     },
     {
       "id": "W3-01",
@@ -463,12 +463,12 @@
     {
       "id": "W3-03",
       "route": "/operate/roster/9c95c120-8220-412c-ad3a-6def7e2e4901",
-      "headSha": "726c93469e90a9d06a33d83e4cf72f7a92fcbc2f",
+      "headSha": "57480009f8a3ee9f4c73bc885d8747b98e536a3d",
       "slot": "primary",
       "proposal": {
         "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W3-03.js",
-        "sha256": "0f49d14bb20037b08a1f4c3d976fce1fcbd0d64a40f2d4d23ffd51da4ba7fcc7",
-        "bytes": 36192
+        "sha256": "b80479c9d657cd178e2f7285aa5a707c458597a3393422d1ef27a1b050382462",
+        "bytes": 37508
       },
       "captures": [
         {
@@ -504,7 +504,7 @@
           "file": "shots/W3-03-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-25T21:42:09.685Z"
+      "at": "2026-09-25T23:00:40.655Z"
     },
     {
       "id": "W3-04a",
@@ -555,12 +555,12 @@
     {
       "id": "W3-04b",
       "route": "/operate/recruitment/a61a60fc-f46f-46ac-9356-0f19dd195c72",
-      "headSha": "726c93469e90a9d06a33d83e4cf72f7a92fcbc2f",
+      "headSha": "57480009f8a3ee9f4c73bc885d8747b98e536a3d",
       "slot": "primary",
       "proposal": {
         "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W3-04b.js",
-        "sha256": "517f889b633948360b4d6c54dc8e82de81d31858193ad34053ca496911cabd2c",
-        "bytes": 35410
+        "sha256": "2b3ff01a25dab5c6a3afb8872387b5e85163621ec2ab4d18e6e64201d4e52991",
+        "bytes": 36569
       },
       "captures": [
         {
@@ -596,7 +596,7 @@
           "file": "shots/W3-04b-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-25T21:42:24.637Z"
+      "at": "2026-09-25T23:00:47.269Z"
     },
     {
       "id": "W4-01",

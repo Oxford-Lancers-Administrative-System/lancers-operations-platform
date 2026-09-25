@@ -1,7 +1,7 @@
 /* W2-02 — generated from the shared prelude, kit and this screen's body; see the notes inside. */
 (async () => {
   /*
-   * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude, round 3.
+   * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude, round 3 (palette corrected in round 4).
    *
    * Evaluated into the live page after the current-side photograph. Every
    * element it adds either clones the page's own MUI node (so the emotion class,
@@ -59,22 +59,24 @@
 
   /*
    * The palette, `TEMPLATE_COLOUR_PALETTE` in src/lib/services/event-template-input.ts,
-   * with round 3's change read literally: the current blue (key `blue`)
-   * becomes Lancer Blue, the team blue, drawn as the brand board's Royal Blue
-   * #1D42A6 until Brian names the hex; Lancer Gold (brand board Gold, #C09723)
-   * is added beside it; the old blue #1565c0 is kept under the name Oxford
-   * Blue. Every other swatch is unchanged. `on` is the text colour a roster
-   * band head needs on that swatch: white fails AA on Lancer Gold (2.7:1) and
-   * Orange (3.1:1).
+   * with Brian's round-4 correction (2026-09-25): the twelve swatches with one
+   * change and one addition. Key `blue` becomes Oxford Blue, the brand navy
+   * #002147 (theme-tokens `CLUB.oxfordBlue`, the tone the Person band already
+   * wears); Lancer Gold #C09723 (theme-tokens `CLUB.gold`) is added. No Lancer
+   * Blue, no second blue: thirteen swatches. Every other swatch is unchanged.
+   * `tint` is the accent at 10% on white, as the other swatches' tints are.
+   * `on` is the text colour a roster band head needs on that swatch: white
+   * fails AA on Lancer Gold (2.7:1) and Orange (3.1:1), so those two carry
+   * charcoal.
    */
   const PALETTE = [
     {
       key: "blue",
-      label: "Lancer Blue",
-      accent: "#1D42A6",
-      tint: "#E3EBF8",
+      label: "Oxford Blue",
+      accent: "#002147",
+      tint: "#E6E9ED",
       on: "#fff",
-      change: "renamed, team blue",
+      change: "renamed, brand navy",
     },
     {
       key: "lancer_gold",
@@ -83,14 +85,6 @@
       tint: "#F8F1DC",
       on: T.charcoal,
       change: "added",
-    },
-    {
-      key: "oxford_blue",
-      label: "Oxford Blue",
-      accent: "#1565c0",
-      tint: "#e8f1fb",
-      on: "#fff",
-      change: "the old blue, kept",
     },
     { key: "teal", label: "Teal", accent: "#00796b", tint: "#e2f1ef", on: "#fff" },
     { key: "purple", label: "Purple", accent: "#4527a0", tint: "#ece7f7", on: "#fff" },
@@ -772,15 +766,20 @@
    * app's own pattern for a short edit over a page). The ten board groups,
    * each with its colour: a preview of the band head as the board draws it
    * (text in white, or charcoal where white fails AA), and a Select of the
-   * palette. The Kit row's Select is open, listing the whole palette with the
-   * round-3 change: Lancer Blue (the current blue, now the team blue), Lancer
-   * Gold (new), Oxford Blue (the old blue, kept), and the other eleven
-   * unchanged. Contact & emergency has no board columns, so no colour.
+   * palette. The Kit row's Select is open, listing the whole palette with
+   * Brian's round-4 correction (2026-09-25): the current twelve swatches, with
+   * key `blue` become Oxford Blue (the brand navy #002147, the tone the Person
+   * band already wears) and Lancer Gold (#C09723) added. Thirteen swatches, no
+   * second blue, every other colour unchanged. Contact & emergency has no
+   * board columns, so no colour.
    *
    * The starting colours are the nearest palette swatch to each group's tone
-   * on main (src/components/section.tsx BAND_COLOURS); five groups' tones are
-   * not palette colours today, so adopting the palette moves them slightly —
-   * an open question in HANDOFF.md.
+   * on main (src/components/section.tsx BAND_COLOURS), with Brian's mapping:
+   * Person stays on Oxford Blue; groups previously drawn on Lancer Blue or on
+   * the old blue move to Oxford Blue; groups on Old Gold move to Lancer Gold.
+   * Charcoal band text on Lancer Gold and Orange (white fails AA there).
+   *
+   * Edit categories is the same twin of Add players as W2-01.
    */
   await appButtons();
   const main = document.querySelector("main");
@@ -789,19 +788,28 @@
     Array.from(main.querySelectorAll("a, button")).find(
       (b) => b.textContent.trim() === "Add players",
     );
+  const twinOfAdd = (label) => {
+    const b = add.cloneNode(true);
+    ["id", "data-testid", "aria-haspopup", "aria-controls", "aria-expanded"].forEach((a) =>
+      b.removeAttribute(a),
+    );
+    b.textContent = label;
+    b.setAttribute("data-proposed", "edit-categories");
+    return b;
+  };
   if (add) {
     const wrap = el(
       "div",
       "display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center",
     );
     add.replaceWith(wrap);
-    wrap.append(appButton("outlined", "Edit categories"), add);
+    wrap.append(twinOfAdd("Edit categories"), add);
   }
 
   const GROUPS = [
     ["Person", "blue"],
     ["Onboarding", "lancer_gold"],
-    ["Membership", "oxford_blue"],
+    ["Membership", "blue"],
     ["Availability", "slate"],
     ["Coaching assignments", "indigo"],
     ["Offensive assignments", "teal"],
@@ -811,6 +819,8 @@
     ["Kit", "lancer_gold"],
   ];
   const OPEN = "Kit";
+  /* Tall enough for all thirteen swatches: 36px a row plus the list's padding. */
+  const MENU_H = PALETTE.length * 36 + 16;
   const band = (label, key) => {
     const p = paletteOf(key);
     return `<span style="display:flex;align-items:center;min-height:32px;padding:0 12px;border-radius:6px;background:${p.accent};color:${p.on};font-size:12px;font-weight:700;letter-spacing:0.08333em;text-transform:uppercase;${PHONE ? "" : "width:240px;"}box-sizing:border-box">${label}</span>`;
@@ -837,23 +847,20 @@
     { width: 600 },
   );
 
-  /* The open Select's menu: an MUI Menu (Paper, elevation 8) under the Kit field. */
+  /* The open Select's menu: an MUI Menu (Paper, elevation 8) ending at the Kit field. */
   const kitRow = paper.querySelector(`[data-group="${OPEN}"]`);
   const field = kitRow.lastElementChild;
   const r = field.getBoundingClientRect();
   const menu = el(
     "div",
-    `position:absolute;z-index:1400;left:${r.left + window.scrollX}px;top:${r.bottom + window.scrollY - (PHONE ? 380 : 420)}px;width:${Math.max(r.width, 240)}px;background:#fff;border-radius:8px;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);padding:8px 0;max-height:${PHONE ? 380 : 420}px;overflow:auto`,
+    `position:absolute;z-index:1400;left:${r.left + window.scrollX}px;top:${r.bottom + window.scrollY - MENU_H}px;width:${Math.max(r.width, 240)}px;background:#fff;border-radius:8px;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);padding:8px 0;max-height:${MENU_H}px;box-sizing:border-box;overflow:auto`,
     PALETTE.map((p) => {
       const on = p.key === "lancer_gold";
       const note =
         p.change === "added"
           ? chip("New", { filled: false, dashed: true })
           : p.change
-            ? chip(p.key === "blue" ? "Was Blue" : "Was Blue's hex", {
-                filled: false,
-                dashed: true,
-              })
+            ? chip("Was Blue", { filled: false, dashed: true })
             : "";
       return `<div style="display:flex;align-items:center;gap:10px;min-height:36px;padding:0 16px;font-size:15px;color:${T.charcoal};${on ? "background:rgba(0,33,71,0.08);" : ""}">${swatchOf(p.key)}<span style="flex:1">${p.label}</span>${note}</div>`;
     }).join(""),

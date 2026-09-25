@@ -1,6 +1,7 @@
 # W3 — Work the roster and recruits within granted categories
 
-**Status: specification draft (short form, round 3), pending Brian's approval.**
+**Status: specification draft (short form, round 4: Brian's correction of 2026-09-25 applied), pending
+Brian's approval words.**
 
 - Purpose/intended outcome: a seat sees and changes exactly the roster and recruiting data its job needs.
 - Primary actor: any seat holding at least View on one roster or recruiting category.
@@ -30,6 +31,10 @@
 - View: values shown as text, not links into editing; the column caption reads _view_. View on the board is
   view in the record.
 - Edit: as today.
+- Record header status is text, never a pill: where a record header carries a status beside the name (the
+  prospect record's _Recruit status · Identified_), it renders as plain text in the app's secondary text style
+  (the header subtitle's Typography, body2, text.secondary), on the same line as today. The player record's
+  header has no chip on `main`; its status is already subtitle text, and the rule keeps it so (W3-03, W3-04b).
 - Records open for anyone who can reach the roster or recruits; there is no records switch.
 - _May add to the roster_ off: no _Add players_. _May add recruits_ off: no _Add recruit_ and no _QR code_.
 - Contact & emergency becomes its own record section (Mobile phone, Personal email, Emergency contact), split
@@ -52,7 +57,11 @@
 | Contactable's Mobile chip dials the number under View on Person                  | proposed for owner approval | W3-02                                     | open      |
 | Record Attendance section locked with the rest                                   | proposed for owner approval | W3-03                                     | open      |
 | Notes, What changed and Status history read as Recruit details                   | proposed for owner approval | W3-04b                                    | open      |
+| Record header status as plain secondary text, not a pill (W3-03, W3-04b)         | locked                      | Brian, round 4 (below)                    | recorded  |
 | Guard derivation per column and section; server-side omission of locked contents | delegated to Mission Lead   | —                                         | delegated |
+
+Brian's round-4 words (2026-09-25), record header status: "at the top of the screen, the status should be in
+text. It should not be a pill."
 
 ## Brian approval
 

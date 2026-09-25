@@ -212,9 +212,10 @@
       <header class="top">
         <h1>Granular Roles &amp; Permissions — review index</h1>
         <p class="sub">
-          LAN-424 design sprint, round 3 · ledger
+          LAN-424 design sprint, round 4 · ledger
           <code>missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS</code> · application head
-          <code>0d4b6ce5</code> merged as <code>726c9346</code> · Now: 25 Sep 2026
+          <code>0d4b6ce5</code> merged as <code>726c9346</code>; round 4 re-shot W2-01, W2-02, W3-03
+          and W3-04b at <code>57480009</code> · Now: 25 Sep 2026
         </p>
         <div class="legend">
           <span><span class="band cur"></span>CURRENT — on <code>main</code> today</span>
@@ -223,7 +224,7 @@
           <span><span class="chip solid">Central rule</span> locked by LAN-423</span>
         </div>
         <div class="progress">
-          <div class="stat"><b>4</b>workflows, all draft pending approval</div>
+          <div class="stat"><b>4</b>workflows; W1 approved, W2–W4 draft</div>
           <div class="stat"><b>18</b>screens, all photographed both sides</div>
           <div class="stat"><b>0</b>screens drawn</div>
           <div class="stat"><b>1280 · 375</b>frames per screen</div>
@@ -244,7 +245,7 @@
         <p class="meta">
           Actor: President, General Manager, IT Officer · Route:
           <code>/operate/admin/roles</code> and a seat's page · Spec:
-          <a href="workflows/W1-administer-a-seats-grants.md">W1.md</a>
+          <a href="workflows/W1-administer-a-seats-grants.md">W1.md</a> · <b>Approved by Brian</b>
         </p>
         <table>
           <tr>
@@ -316,18 +317,24 @@
           </tr>
           <tr>
             <td class="id"><a href="mockups/W2-edit-roster-group-colours.html#W2-01">W2-01</a></td>
-            <td>Roster with an outlined Edit categories button beside Add players.</td>
+            <td>
+              Roster with an Edit categories button beside Add players, the same Button and size.
+            </td>
             <td class="disp d-modified">Modified</td>
-            <td>Placement of the control.</td>
+            <td>Resolved: same variant and size as Add players, side by side (round 4).</td>
           </tr>
           <tr>
             <td class="id"><a href="mockups/W2-edit-roster-group-colours.html#W2-02">W2-02</a></td>
             <td>
               Roster categories dialog: ten groups, band preview and colour select each; Kit's menu
-              open on the palette with Lancer Blue, Lancer Gold, Oxford Blue.
+              open on the thirteen-swatch palette: Oxford Blue (was Blue), Lancer Gold (new).
             </td>
             <td class="disp d-new">New</td>
-            <td>Lancer Blue's hex; the old blue's name; charcoal text on gold and orange.</td>
+            <td>
+              Resolved: Oxford Blue <code>#002147</code> replaces Blue, Lancer Gold
+              <code>#C09723</code> added, no Lancer Blue; charcoal text on gold and orange (round
+              4).
+            </td>
           </tr>
         </table>
         <p class="note warn">
@@ -363,7 +370,7 @@
               Board as the Kit Manager: Person (view) and Kit columns only; Add players absent.
             </td>
             <td class="disp d-modified">Modified</td>
-            <td>Only granted groups appear.</td>
+            <td>Resolved: only granted groups appear.</td>
           </tr>
           <tr>
             <td class="id">
@@ -374,7 +381,10 @@
               record.
             </td>
             <td class="disp d-modified">Modified</td>
-            <td>Contactable chip must not carry a number when Contact &amp; emergency is None.</td>
+            <td>
+              Resolved on LAN-424: the Contactable chip carries no number when Contact &amp;
+              emergency is None.
+            </td>
           </tr>
           <tr>
             <td class="id">
@@ -382,10 +392,13 @@
             </td>
             <td>
               A player's record as the Kit Manager: Person and Kit open; Contact &amp; emergency and
-              every other section locked, no contents.
+              every other section locked, no contents; no status pill at the top.
             </td>
             <td class="disp d-modified">Modified</td>
-            <td>The lock reads as a lock, not a collapse. Attendance should be open.</td>
+            <td>
+              Resolved: the lock reads as a lock; Attendance open (decided on LAN-424; the shot
+              still draws it locked); header status as text, never a pill (round 4).
+            </td>
           </tr>
           <tr>
             <td class="id">
@@ -396,7 +409,7 @@
               and Add recruit absent.
             </td>
             <td class="disp d-modified">Modified</td>
-            <td>Board matches the roster rule.</td>
+            <td>Resolved: the board matches the roster rule.</td>
           </tr>
           <tr>
             <td class="id">
@@ -404,10 +417,13 @@
             </td>
             <td>
               A prospect's record as the same seat: Person information and Event details locked;
-              Recruitment read-only.
+              Recruitment read-only; Recruit status beside the name as plain text.
             </td>
             <td class="disp d-modified">Modified</td>
-            <td>Notes, What changed and Status history as Recruit details.</td>
+            <td>
+              Resolved: Notes, What changed and Status history as Recruit details; header status as
+              text, not a pill (round 4).
+            </td>
           </tr>
         </table>
       </section>
@@ -488,23 +504,20 @@
             <b>W1-03 / W1-07 / W1-08</b> — adopt Copy access from another seat and Grant everything?
           </li>
           <li>
-            <b>W2-02</b> — Lancer Blue's hex (drawn <code>#1D42A6</code>); the old swatch's name
-            (drawn "Oxford Blue", which collides with the brand's <code>#002147</code>).
-          </li>
-          <li>
             <b>Ledger</b> — the approval words for the four-workflow inventory, so the hub can
             generate and the packet can be assembled.
           </li>
         </ol>
         <p class="meta" style="margin-top: 10px">
-          Everything else raised in <a href="HANDOFF.md">HANDOFF.md</a> is decided and recorded on
-          LAN-424.
+          W1 is approved. Everything else raised in <a href="HANDOFF.md">HANDOFF.md</a> is decided
+          and recorded on LAN-424.
         </p>
       </section>
 
       <footer>
-        Retired this round: W1-02a–e, W1-09, and the earlier W2-01 to W2-03 (template categories).
-        Restart steps for the live pages are in <a href="HANDOFF.md">HANDOFF.md</a>.
+        Retired in round 3: W1-02a–e, W1-09, and the earlier W2-01 to W2-03 (template categories).
+        Round 4 retired nothing. Restart steps for the live pages are in
+        <a href="HANDOFF.md">HANDOFF.md</a>.
       </footer>
     </main>
   </body>
