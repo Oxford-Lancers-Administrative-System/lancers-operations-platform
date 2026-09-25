@@ -1,12 +1,13 @@
 # W4 — Work events of a granted template
 
-**Status: specification draft (short form, round 3), pending Brian's approval.**
+**Status: approved by Brian on 2026-09-25 (specification, mockups and acceptance).**
 
 - Purpose/intended outcome: a seat sees, or runs, only the events of the templates its job covers.
 - Primary actor: any seat holding View or Manage on at least one event template.
 - Entry point: Events.
 - Route/placement: `/operate/events`, `/operate/events/calendar`, `/operate/events/[id]` and its delivery,
-  edit, amend and cancel routes; `/operate/admin/follow-ups`; the Monday report. No new route.
+  edit, amend and cancel routes; `/operate/admin/follow-ups`. No new route. The Monday report is outside this delivery's boundary
+  (`00-boundary.md`) and is unchanged.
 - User-visible result: events of None templates never appear; View shows the event and everything in it
   (audience, answers, reasons, attendance); Manage adds create, update, delete, sending, approving and
   releasing invitations, and the template's messaging schedule.
@@ -27,7 +28,8 @@
 ## Rules (from the locked decisions)
 
 - Grants are per template, not per category or event type. A template the club adds later is one more line.
-- None hides the event from the list, calendar, delivery board (Follow-ups) and report.
+- None hides the event from the list, calendar, event pages and delivery board (Follow-ups). How the
+  per-event Delivery page is scoped is delegated to the Mission Lead; the Monday report is excluded.
 - Attendance is the exception: recording stays as today for every seat.
 - View: every control that creates, edits, deletes, sends or schedules is absent, not disabled; _Record
   answer_ reads as the answer (—).
@@ -38,19 +40,19 @@
 
 ## Core decisions
 
-| Decision                                                  | Classification              | Governing evidence or recommended default | Status    |
-| --------------------------------------------------------- | --------------------------- | ----------------------------------------- | --------- |
-| None / View / Manage per template; None hides everywhere  | locked                      | Round 3 brief, item 3                     | recorded  |
-| Templates keep their own colour; templates page unchanged | locked                      | Round 3 brief, item 3                     | recorded  |
-| Attendance outside the access list                        | locked                      | Round 3 brief, item 7                     | recorded  |
-| Manage includes approving and releasing invitations       | locked                      | Lead decision, round 2                    | recorded  |
-| Type filter lists granted templates only                  | locked                      | Round 3 brief, W4                         | recorded  |
-| "Delivery board" is the Follow-ups queue                  | proposed for owner approval | W4-04                                     | open      |
-| _Event info link_ stays for View (it shares, not sends)   | proposed for owner approval | W4-05                                     | open      |
-| A template manager cannot edit the template itself        | proposed for owner approval | W4-01                                     | open      |
-| Query filtering, report scoping, guard derivation         | delegated to Mission Lead   | —                                         | delegated |
+| Decision                                                  | Classification            | Governing evidence or recommended default      | Status    |
+| --------------------------------------------------------- | ------------------------- | ---------------------------------------------- | --------- |
+| None / View / Manage per template; None hides everywhere  | locked                    | Round 3 brief, item 3                          | recorded  |
+| Templates keep their own colour; templates page unchanged | locked                    | Round 3 brief, item 3                          | recorded  |
+| Attendance outside the access list                        | locked                    | Round 3 brief, item 7                          | recorded  |
+| Manage includes approving and releasing invitations       | locked                    | Lead decision, round 2                         | recorded  |
+| Type filter lists granted templates only                  | locked                    | Round 3 brief, W4                              | recorded  |
+| "Delivery board" is the Follow-ups queue                  | locked                    | Approved as drawn on W4-04 (Brian, 2026-09-25) | recorded  |
+| _Event info link_ stays for View (it shares, not sends)   | locked                    | Approved as drawn on W4-05 (Brian, 2026-09-25) | recorded  |
+| A template manager cannot edit the template itself        | locked                    | Approved as drawn on W4-01 (Brian, 2026-09-25) | recorded  |
+| Query filtering, report scoping, guard derivation         | delegated to Mission Lead | —                                              | delegated |
 
 ## Brian approval
 
-- Exact words: pending
-- Date: pending
+- Exact words: "Other than that, I think this is approved. We can go ahead and create the packet and push it."
+- Date: 2026-09-25
