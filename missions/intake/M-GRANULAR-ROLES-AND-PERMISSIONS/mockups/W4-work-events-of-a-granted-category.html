@@ -1243,14 +1243,15 @@
       <header class="page-head">
         <h1>
           W4 · Work events of a granted category<span class="draft"
-            >Draft · pending Brian's approval</span
+            >Draft · round 2 · pending Brian's approval</span
           >
         </h1>
         <p>
-          Any seat with an event grant sees, or manages, only its categories. Consequence surface.
-          None means the event never appears — list, calendar, delivery board, attendance list and
-          report. Attendance recording is the exception: the attendance surface lists every event
-          regardless (decision 4).
+          Any seat with an event grant sees, or manages, only its categories. None means the event
+          never appears — list, calendar, delivery board, attendance list and report. Attendance
+          recording is the exception (decision 5). Brian asked:
+          <em>what does somebody who has limited access to see events see?</em> W4-02 to W4-05
+          answer it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1260,21 +1261,23 @@
           and
           <span class="side-label" style="background: var(--primary); color: #fff"
             >Proposed — this mission</span
-          >. Every screen is a <strong>photograph on both sides</strong>: the same running page at
-          <code>150a59c6</code>, measured by the browser at 1280 and 375, differing only by the
-          proposal script named under the screen. Nothing on this page is drawn. A screen head says
-          <span class="disposition modified">Modified</span> and lists exactly what changes, so you
-          are told what to look for rather than asked to diff two images. A dashed
-          <span class="chip chip-proposed">Proposed</span> chip in a list marks a surface absent
-          from main. <code>Central rule · LAN-423</code> marks a grant fixed by the floor decision.
+          >. Every screen is a <strong>photograph on both sides</strong>: the same running page
+          (application code of main <code>150a59c6</code>; round-2 photographs were taken at
+          <code>c804a0b4</code>, which adds only this ledger), measured by the browser at 1280 and
+          375, differing only by the proposal script named under the screen. Nothing on this page is
+          drawn. A screen head says <span class="disposition modified">Modified</span> and lists
+          exactly what changes. A dashed <span class="chip chip-proposed">Proposed</span> chip marks
+          a surface absent from main; <code>Proposed for owner approval</code> marks something drawn
+          but not assumed. <code>Central rule · LAN-423</code> marks a grant fixed by the floor
+          decision.
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
           <span
-            >Photographed signed in as the local review account and narrowed by the proposal to a
-            Social Secretary with Manage on Social and None on the other six. The sidebar and
-            signed-in name are changed to match</span
-          ><span>Route is <em>This term</em> so both buckets contain socials</span>
+            >Every screen is photographed signed in as the local review account and narrowed by the
+            proposal script; the sidebar and signed-in name are changed to the example seat's
+            holder</span
+          ><span>Category colours are W2's: unique per category</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1288,18 +1291,71 @@
           route: "/operate/events?sort=date&dir=asc&period=term",
           title: "The events list as a Social Secretary",
           blurb:
-            "Manage on Social, None elsewhere: only the four socials this term are left, and each bucket's count follows.",
+            "Unchanged this round. Manage on Social, None elsewhere: only the four socials this term, and each bucket's count follows.",
           deltas: [
-            "Only Social events; <em>This week and next · 1 event</em>, <em>Already happened · 3 events</em>",
-            "<em>Create event</em> stays (Manage on Social); its template choice would list Social templates only",
+            "Only Social events; bucket counts follow",
+            "<em>Create event</em> stays; its template choice lists Social templates only",
             "<em>Edit templates</em> goes: the templates page stays with the calendar managers",
-            "Sidebar: Events only",
-            "375: the same four event cards",
+            "Lead decisions this round: Manage includes approving and releasing invitations; the Type filter lists only granted categories (closed in the photograph)",
           ],
           questions: [
-            "May a seat that manages one category edit that category's templates? Shown no; the templates page and Template categories stay with <code>event_calendar_management</code> holders.",
-            "Approval: does Manage on Social include approving a social and releasing its invitations (<code>event_approval</code>), or does approval stay with the five? Decision 4 says Manage adds sending; recommended to read that as including approval.",
-            "The Type filter still lists all seven categories. Recommended: list only granted ones.",
+            "May a seat that manages one category edit that category's templates? Shown no.",
+          ],
+        },
+        {
+          id: "W4-02",
+          route: "/operate/events/<Club social — hilary week 5 id>",
+          title: "One social event as the Social Secretary",
+          blurb:
+            "Manage on Social. Everything in the event is visible — audience, answers, reasons, attendance — and every manage control is present. The page is therefore the one a calendar manager sees today; what changes is who reaches it and the shell around it. Photographed as the local review account (the Secretary and IT Officer's holder) and narrowed by the proposal script.",
+          deltas: [
+            "Unchanged in the page: Edit event, Cancel event, Delivery, Duplicate, Record answer, the messaging plan",
+            "Sidebar: Events, Follow-ups, Messaging schedule (Manage adds the category's messaging schedule)",
+            "Signed in as Marlowe Fairhurst",
+          ],
+        },
+        {
+          id: "W4-03",
+          route: "/operate/events/calendar",
+          title: "The calendar as the Social Secretary",
+          blurb:
+            "Only socials remain, in the Social category's colour from W2 (Orange). The legend lists only Social. Photographed as the local review account (the Secretary and IT Officer's holder) and narrowed by the proposal script.",
+          deltas: [
+            "Practice, S&C, Chalk and Game entries absent (None)",
+            "Social entries drawn with the W2 category colour; legend: Social only",
+            "Create event stays (Manage on Social)",
+          ],
+        },
+        {
+          id: "W4-04",
+          route: "/operate/admin/follow-ups",
+          title: "The delivery board (Follow-ups) as the Social Secretary",
+          blurb:
+            "Read here as the Follow-ups queue, the one surface listing invitations across events. Only rows for social events remain; the heading counts follow. Which events are social is read from the running events list. Photographed as the local review account (the Secretary and IT Officer's holder) and narrowed by the proposal script.",
+          deltas: [
+            "Rows for non-social events absent",
+            "Subtitle recounted",
+            "375: the same filter on the cards",
+          ],
+          questions: [
+            "Is <em>delivery board</em> the Follow-ups queue (shown), or the per-event Delivery page (one event, so already category-scoped)?",
+          ],
+        },
+        {
+          id: "W4-05",
+          route: "/operate/events/<vs Ivybridge Ravens id>",
+          title: "One game with View only on Game",
+          blurb:
+            "The Gameday Secretary as an example. Everything in the event is visible; no create, edit, delete, send or schedule control exists anywhere — the controls are absent, not disabled. Photographed as the local review account (the Secretary and IT Officer's holder) and narrowed by the proposal script.",
+          deltas: [
+            "Absent: Edit event, Roster form, Cancel event, Delivery, Duplicate",
+            "<em>Record answer</em> reads as the answer (—)",
+            "Kept: the register panel (attendance recording is not a grant), the messaging plan's steps (read), change history, every answer and reason",
+            "Sidebar: Events only",
+          ],
+          questions: [
+            "<em>Event info link</em> is kept: it copies the public info link rather than sending anything. Keep for View?",
+            "<em>Roster form</em> (game-day roster) treated as Manage. Confirm.",
           ],
         },
       ];

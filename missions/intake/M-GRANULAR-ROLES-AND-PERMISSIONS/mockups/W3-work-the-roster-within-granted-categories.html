@@ -1245,12 +1245,15 @@
       <header class="page-head">
         <h1>
           W3 · Work the roster within granted categories<span class="draft"
-            >Draft · pending Brian's approval</span
+            >Draft · round 2 · pending Brian's approval</span
           >
         </h1>
         <p>
-          Any seat with a roster grant works the board and the record within it. Consequence
-          surface: nothing new is added; what is not granted is not there.
+          Any seat with a roster grant sees only its groups, editable only where Edit is granted.
+          Consequence surface. Brian asked:
+          <em>what does somebody who has limited access to certain screens see on the roster?</em>
+          W3-02 to W3-04 answer it: a coach's board, the Kit Manager's record, and a read-only
+          recruitment board.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1260,23 +1263,25 @@
           and
           <span class="side-label" style="background: var(--primary); color: #fff"
             >Proposed — this mission</span
-          >. Every screen is a <strong>photograph on both sides</strong>: the same running page at
-          <code>150a59c6</code>, measured by the browser at 1280 and 375, differing only by the
-          proposal script named under the screen. Nothing on this page is drawn. A screen head says
-          <span class="disposition modified">Modified</span> and lists exactly what changes, so you
-          are told what to look for rather than asked to diff two images. A dashed
-          <span class="chip chip-proposed">Proposed</span> chip in a list marks a surface absent
-          from main. <code>Central rule · LAN-423</code> marks a grant fixed by the floor decision.
+          >. Every screen is a <strong>photograph on both sides</strong>: the same running page
+          (application code of main <code>150a59c6</code>; round-2 photographs were taken at
+          <code>c804a0b4</code>, which adds only this ledger), measured by the browser at 1280 and
+          375, differing only by the proposal script named under the screen. Nothing on this page is
+          drawn. A screen head says <span class="disposition modified">Modified</span> and lists
+          exactly what changes. A dashed <span class="chip chip-proposed">Proposed</span> chip marks
+          a surface absent from main; <code>Proposed for owner approval</code> marks something drawn
+          but not assumed. <code>Central rule · LAN-423</code> marks a grant fixed by the floor
+          decision.
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
           <span
-            >Photographed signed in as the local review account (every grant) and narrowed by the
-            proposal to the Kit Manager's grants from W1-03, because there is no Kit Manager login
-            locally. The sidebar and signed-in name are changed to match</span
+            >Every screen is photographed signed in as the local review account and narrowed by the
+            proposal script; the sidebar and signed-in name are changed to the example seat's
+            holder</span
           ><span
-            >Kit is folded for the review account; the proposal opens it, copies the board, and
-            folds it back before drawing, so the account's stored preference is unchanged</span
+            >Absent means the element is not in the page; nothing is disabled or hidden behind a
+            fold</span
           >
         </div>
       </header>
@@ -1291,18 +1296,63 @@
           route: "/operate/roster",
           title: "The roster board as the Kit Manager",
           blurb:
-            "Edit on Kit, View on Person, None on the other ten, Open roster records on, Add to the roster off. Only the granted groups' columns are drawn: 6 Person and 12 Kit. The board is scrolled right so both are in frame; Player stays pinned.",
+            "Unchanged this round. Edit on Kit, View on Person, None on the other ten, <em>May open individual records (roster)</em> on, <em>May add people to the roster</em> off. Only the granted groups' columns are drawn: 6 Person and 12 Kit.",
           deltas: [
             "Only Person and Kit bands; 67 columns become 18",
-            "Person is View: the <em>edit on the record</em> caption reads <em>view</em> and the values are text, not links into editing",
-            "Kit cells keep their in-place editing",
-            "No <em>Add players</em> (switch off); no Status, Availability or Missing onboarding data filters (Membership, Availability and Onboarding are None); search stays",
-            "Sidebar: Roster and Events only (Recruits None, no administration grant)",
-            "375: the cards lose the status chip (Membership), the missing flag (Onboarding) and the call button (Contact & emergency); the Filters button goes because it holds nothing this seat may use; the card still opens the record",
+            "Person is View: the caption reads <em>view</em> and values are text",
+            "No <em>Add players</em>; no Status, Availability or Missing onboarding data filters",
+            "Sidebar: Roster and Events only",
+            "375: cards lose status chip, missing flag and call button; the card still opens the record",
           ],
           questions: [
-            "Person's <em>Contactable</em> (Mobile / Email chips) and <em>Missing</em> count sit in the Person band on main. Should Contactable move under Contact & emergency, and Missing under Onboarding, now that each is its own grant?",
-            "With <em>Open roster records</em> on, the record shows the same granted sections only. Not photographed here; the record page's sections are the same band list, so it follows the board.",
+            "Contactable and Missing sit in the Person band on main. W3-02 draws them moved out (Contact & emergency, Onboarding); W3-01 still shows them from round 1. Confirm the move.",
+          ],
+        },
+        {
+          id: "W3-02",
+          route: "/operate/roster",
+          title: "The roster board as a coach — no record opening",
+          blurb:
+            "The Head Coach as an example: View on Person; Edit on Availability, Coaching, Offensive, Defensive, Special teams and Warmup assignments; None on Onboarding, Membership, Kit and Contact & emergency; <em>May open individual records (roster)</em> off. Photographed as the local review account (the Secretary and IT Officer's holder) and narrowed by the proposal script. No coach login reaches the board today (the coach shell is attendance-only).",
+          deltas: [
+            "Only Person, Availability and the five assignment bands; Special teams and Warmup stay folded as this account's stored preference has them",
+            "Person reads <em>view</em>; Contactable (Contact & emergency) and Missing (Onboarding) are absent",
+            "A player's name is plain text: <strong>a row opens nothing</strong>; there is no link to refuse",
+            "No <em>Add players</em>; no Status or Missing onboarding data filters; Availability filter stays",
+            "Sidebar: Roster and Events",
+            "375: each card is the name only and opens nothing; status, missing and call are gone",
+          ],
+          questions: [
+            "Is this the coach seed, or an example grant? Drawn as an example: the seed rule still gives coaches nothing on the roster until the committee grants it.",
+          ],
+        },
+        {
+          id: "W3-03",
+          route: "/operate/roster/<Alaric Brindlewood membership id>",
+          title: "One player's record as the Kit Manager",
+          blurb:
+            "View on Person, Edit on Kit, <em>May open individual records (roster)</em> on. Only the Person and Kit sections exist. Photographed as the local review account (the Secretary and IT Officer's holder) and narrowed by the proposal script.",
+          deltas: [
+            "Absent, not hidden: the six summary tiles, Onboarding, Activity, Membership, Availability, the five assignment groups, Attendance, Other seasons, Status history",
+            "Person loses Mobile phone, Personal email and Emergency contact (Contact & emergency) and <em>Open the person record</em> (People); values are text",
+            "The subtitle keeps the season only; entry route and status are Membership",
+            "Kit is open and editable (the fold opened on a copy, so no preference is written)",
+          ],
+        },
+        {
+          id: "W3-04",
+          route: "/operate/recruitment",
+          title: "The recruitment board — View on Recruits, no record switch",
+          blurb:
+            "The Gameday Secretary as an example: View on Recruits, None elsewhere, <em>May open individual records (recruits)</em> off, <em>May add recruits</em> off. The board reads; nothing edits. Photographed as the local review account (the Secretary and IT Officer's holder) and narrowed by the proposal script.",
+          deltas: [
+            "No <em>QR code</em> and no <em>Add recruit</em>",
+            "Captions read <em>view</em>; every editable cell is drawn as its value",
+            "A prospect's name is plain text; the 375 card opens nothing",
+            "Sidebar: Recruitment only",
+          ],
+          questions: [
+            "Does <em>Contactable</em> on the recruitment board follow Contact & emergency (a roster category), or is it part of Recruits? Shown kept.",
           ],
         },
       ];

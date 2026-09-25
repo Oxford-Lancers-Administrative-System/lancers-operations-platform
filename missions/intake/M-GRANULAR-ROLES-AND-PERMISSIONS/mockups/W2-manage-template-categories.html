@@ -1298,12 +1298,12 @@
             "A <em>Template categories</em> section above the templates: seven fixed rows, a colour control each, and how many templates use the category. No add, rename or delete.",
           deltas: [
             "<strong>New section: Template categories</strong> — Category, Colour (a select showing the swatch and name from the existing twelve-colour palette), Templates",
+            "Lead decision, round 2: colours are unique per category; a colour another category holds is not offered",
             "A <em>Templates</em> heading now separates the two lists",
             "<strong>New column: Category</strong> on each template row, with the category's swatch",
             "375: each category is a card with its colour control on the right; each template card's facts line leads with its category",
           ],
           questions: [
-            "May two categories share a colour? The palette has twelve and there are seven categories. Recommended: refuse a colour another category already holds, so the calendar legend never shows two categories alike.",
             "Changing a category's colour recolours every past and future event of that category on the calendar. Confirm that is intended (it is what renaming a template already does to its name).",
           ],
         },
@@ -1318,23 +1318,19 @@
             "Shown disabled, with the rule that disables it: <em>Fixed once an event has been created from this template</em> (standards rule 4), because an event's <code>event_type</code> is immutable",
             "The helper names the colour and where it is set: <em>Colour: Orange, from Template categories</em>",
           ],
-          questions: [
-            "Can a template's category change after events exist? Recommended no (shown): the events keep their class, so a changed template would disagree with its own history.",
-          ],
+          questions: [],
         },
         {
           id: "W2-03",
           route: "/operate/events/templates/new",
           title: "A new template chooses its category",
           blurb:
-            "Creating a template: the category is a real choice among the seven, shown open. Today every operator-created template is silently <code>practice</code> (<code>DEFAULT_TEMPLATE_CLASS</code>).",
+            "Creating a template: the category is a required choice among the seven, shown open with nothing chosen. Today every operator-created template is silently <code>practice</code> (<code>DEFAULT_TEMPLATE_CLASS</code>).",
           deltas: [
-            "Category select, enabled, defaulting to Practice (today's silent default made visible), the menu listing all seven with their swatches",
+            "Category select, enabled, <strong>with no default</strong> (Lead decision, round 2): it is empty and required, the menu listing all seven with their swatches",
             "The audience groups below follow the chosen category, as <code>groupsForEventType</code> already does for the seven seeded templates",
           ],
-          questions: [
-            "Default Practice, or no default so the operator must choose? The existing colour picker chose a default (C6); shown the same way.",
-          ],
+          questions: [],
         },
       ];
 

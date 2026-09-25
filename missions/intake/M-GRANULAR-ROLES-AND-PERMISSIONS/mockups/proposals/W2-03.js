@@ -281,7 +281,9 @@
     const root = field.querySelector(".MuiInputBase-root");
     root.insertAdjacentHTML(
       "afterbegin",
-      `<span style="display:inline-flex;margin-left:14px;margin-right:10px">${swatch(category)}</span>`,
+      category
+        ? `<span style="display:inline-flex;margin-left:14px;margin-right:10px">${swatch(category)}</span>`
+        : `<span style="display:inline-block;width:14px"></span>`,
     );
     root.insertAdjacentHTML(
       "beforeend",
@@ -295,11 +297,13 @@
       input.style.webkitTextFillColor = T.charcoal50;
     }
     const helper = field.querySelector(".MuiFormHelperText-root");
-    const [colourName] = CATEGORY_COLOUR[category];
+    const [colourName] = category ? CATEGORY_COLOUR[category] : [""];
     if (helper)
       helper.textContent = locked
         ? `Colour: ${colourName}, from Template categories. Fixed once an event has been created from this template.`
-        : `Colour: ${colourName}, from Template categories.`;
+        : category
+          ? `Colour: ${colourName}, from Template categories.`
+          : "Required. Choose one of the seven categories.";
     content.innerHTML = "";
     content.appendChild(field);
 
@@ -319,6 +323,6 @@
     }
   }
 
-  /* W2-03 — a new template: Category is a choice among the seven fixed categories, shown open. */
-  await categoryField({ category: "Practice", locked: false, open: true });
+  /* W2-03 — a new template: Category is a required choice among the seven fixed categories, with no default (Lead decision, round 2), shown open with nothing chosen. */
+  await categoryField({ category: "", locked: false, open: true });
 })();

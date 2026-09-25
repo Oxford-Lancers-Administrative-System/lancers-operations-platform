@@ -1,4 +1,4 @@
-/* W1-01 — generated from the shared prelude and this screen's body; see the notes inside. */
+/* W1-01 — generated from the shared prelude, kit and this screen's body; see the notes inside. */
 (async () => {
   /*
    * M-GRANULAR-ROLES-AND-PERMISSIONS — shared proposal prelude.
@@ -9,9 +9,13 @@
    * styled inline from `src/theme-tokens.ts`. Nothing here is a redesign.
    *
    * The grant model is LAN-424's recorded decisions (Brian, 2026-09-25):
-   * twelve roster categories, three per-seat switches, seven event categories;
+   * twelve roster categories, four per-seat switches, seven event categories;
    * President, General Manager and IT Officer fixed full; Vice-President and
    * Secretary start full; every other seat starts from today's capability map.
+   *
+   * Round 2 (Brian, 2026-09-25): four switches, not three; the seed rule wins,
+   * so the Treasurer starts with nothing on the roster and every coaching seat
+   * starts with None on every event category.
    */
   const T = {
     navy: "#002147",
@@ -41,7 +45,19 @@
     "Contact & emergency",
     "Recruits",
   ];
-  const SWITCHES = ["Open roster records", "Open recruit records", "Add to the roster"];
+  const SWITCHES = [
+    "May open individual records (roster)",
+    "May open individual records (recruits)",
+    "May add people to the roster",
+    "May add recruits",
+  ];
+  /* The shorter name a switch takes inside a count or chip, where the group already says which. */
+  const SWITCH_SHORT = {
+    "May open individual records (roster)": "Open roster records",
+    "May open individual records (recruits)": "Open recruit records",
+    "May add people to the roster": "Add to the roster",
+    "May add recruits": "Add recruits",
+  };
   const EVENTS = [
     "Practice",
     "Strength and conditioning",
@@ -68,16 +84,17 @@
     const sw = (on) => Object.fromEntries(SWITCHES.map((s) => [s, on]));
     if (profile === "floor" || profile === "full")
       return { roster: all("Edit"), switches: sw(true), events: ev("Manage") };
+    /* The seed rule wins: nothing on the roster for the Treasurer. */
     if (profile === "treasurer")
-      return {
-        roster: { ...all("None"), Membership: "Edit" },
-        switches: { ...sw(false), "Add to the roster": true },
-        events: ev("View"),
-      };
+      return { roster: all("None"), switches: sw(false), events: ev("View") };
+    /* Coaches: nothing on the roster, None on every event category. */
+    if (profile === "coach")
+      return { roster: all("None"), switches: sw(false), events: ev("None") };
+    /* Not a seed: the Kit Manager after W1-03's example change. */
     if (profile === "kit")
       return {
         roster: { ...all("None"), Person: "View", Kit: "Edit" },
-        switches: { ...sw(false), "Open roster records": true },
+        switches: { ...sw(false), "May open individual records (roster)": true },
         events: ev("View"),
       };
     return { roster: all("None"), switches: sw(false), events: ev("View") };
@@ -136,7 +153,11 @@
     }
     const on = SWITCHES.filter((s) => g.switches[s]);
     const sw =
-      on.length === SWITCHES.length ? "all three switches" : on.length ? on.join(", ") : null;
+      on.length === SWITCHES.length
+        ? "all four switches"
+        : on.length
+          ? on.map((x) => SWITCH_SHORT[x]).join(", ")
+          : null;
     const ev = EVENTS.map((c) => g.events[c]);
     let events;
     if (ev.every((v) => v === "Manage")) events = "Events: manage all";
@@ -173,19 +194,50 @@
     return `<span aria-hidden="true" style="display:inline-block;width:${size}px;height:${size}px;border-radius:4px;background:${tint};border:2px solid ${accent};flex-shrink:0;vertical-align:middle"></span>`;
   };
 
-  /* The two-button view switch, the same idiom as Events' List | Calendar. */
-  function viewSwitch(active) {
-    const btn = (label, on) =>
-      `<a style="display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:6px 16px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;${
-        on
-          ? `background:${T.navy};color:#fff;border:1px solid ${T.navy}`
-          : `background:#fff;color:${T.navy};border:1px solid rgba(0,33,71,0.5)`
-      }">${label}</a>`;
-    return el(
-      "div",
-      "display:flex;gap:12px;flex-wrap:wrap",
-      btn("Holders", active === "Holders") + btn("Access", active === "Access"),
-    );
+  /*
+   * The view switch is the app's own ViewSwitch (src/app/calendar/view-switch.tsx),
+   * the List | Calendar control on /operate/events and /operate/events/calendar.
+   * It is fetched from /operate/events and its MUI Buttons are re-labelled, so
+   * the node and its emotion styles are the running component's, not a copy.
+   */
+  let APP_BUTTONS = null;
+  async function appButtons() {
+    if (APP_BUTTONS) return APP_BUTTONS;
+    const html = await (await fetch("/operate/events", { credentials: "same-origin" })).text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll("style").forEach((st) => {
+      if ((st.getAttribute("data-emotion") || "").length || st.textContent.includes(".css-"))
+        document.head.appendChild(st.cloneNode(true));
+    });
+    const nav = document.importNode(doc.querySelector('[data-testid="events-view-switch"]'), true);
+    const contained = nav.querySelector('a[aria-current="page"]');
+    const outlined = nav.querySelector("a:not([aria-current])");
+    const create = doc.querySelector("main .MuiButton-contained:not([aria-current])");
+    APP_BUTTONS = { nav, contained, outlined, create };
+    return APP_BUTTONS;
+  }
+  function appButton(kind, label, href = "#") {
+    const b = APP_BUTTONS[kind].cloneNode(true);
+    b.textContent = label;
+    b.setAttribute("href", href);
+    b.removeAttribute("aria-current");
+    b.removeAttribute("data-testid");
+    return b;
+  }
+  async function viewSwitch(active) {
+    await appButtons();
+    const nav = APP_BUTTONS.nav.cloneNode(false);
+    nav.setAttribute("aria-label", "Roles view");
+    nav.setAttribute("data-testid", "roles-view-switch");
+    [
+      ["Holders", "/operate/admin/roles"],
+      ["Access", "/operate/admin/roles?view=access"],
+    ].forEach(([label, href]) => {
+      const b = appButton(label === active ? "contained" : "outlined", label, href);
+      if (label === active) b.setAttribute("aria-current", "page");
+      nav.appendChild(b);
+    });
+    return nav;
   }
 
   /* Sidebar as another seat would see it: only the destinations that seat reaches, and their name. */
@@ -254,43 +306,273 @@
     );
   }
 
-  /*
-   * W1-01 — the Roles index, Option A: a Holders | Access switch under the
-   * heading, and the Permissions column reading the seat's grants.
-   */
-  (() => {
-    const OPTION = typeof OPTION_B === "undefined" ? "A" : "B";
-    const bySeat = {};
-    GROUPS.forEach((g) => g.seats.forEach(([s, h, p]) => (bySeat[s] = { holder: h, profile: p })));
+  /* ------------------------------------------------ shared drawing kit, round 2 */
 
-    const header = document.querySelector('[data-testid="page-header"]');
-    if (OPTION === "A" && header) header.after(viewSwitch("Holders"));
+  const PHONE = window.innerWidth < 600;
+  const WIDE = window.innerWidth >= 900;
 
-    document.querySelectorAll("table").forEach((table) => {
-      const heads = table.tHead.rows[0].cells;
-      if (heads[2]) heads[2].textContent = "Access";
-      Array.from(table.tBodies[0].rows).forEach((row) => {
-        const seat = row.cells[0].textContent.trim();
-        const info = bySeat[seat];
-        if (!info) return;
-        row.cells[2].querySelector("p").textContent = summarise(seed(info.profile));
-        if (info.profile === "floor") {
-          row.cells[0].innerHTML = `<div>${seat}</div><div style="margin-top:4px">${centralRule()}</div>`;
-        }
-        const action = row.cells[3].querySelector("a");
-        if (action && action.textContent.trim() === "View" && OPTION === "B")
-          action.textContent = "Change access";
-      });
+  /* An MUI Chip, small. `filled` is the default chip; otherwise outlined. */
+  function chip(text, { filled = true, accent = null, dashed = false } = {}) {
+    const border = dashed
+      ? `1px dashed ${T.charcoal50}`
+      : filled
+        ? "1px solid transparent"
+        : `1px solid ${T.outline}`;
+    const bg = accent ? accent[1] : filled ? T.neutralLight : "transparent";
+    const fg = accent ? accent[0] : T.charcoal;
+    return `<span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:16px;border:${border};background:${bg};color:${fg};font-size:13px;line-height:1;white-space:nowrap;vertical-align:middle">${text}</span>`;
+  }
+  const proposedChip = (text = "Proposed for owner approval") =>
+    chip(text, { filled: false, dashed: true });
+
+  /* The Section disclosure indicator (src/components/section.tsx), open or closed. */
+  const disclosure = (open) =>
+    `<span aria-hidden="true" style="display:inline-block;width:10px;height:10px;flex-shrink:0;border-right:2px solid ${T.navy};border-bottom:2px solid ${T.navy};transform:${
+      open ? "translateY(3px) rotate(225deg)" : "rotate(45deg)"
+    };margin:0 6px"></span>`;
+
+  /* A Section card (Paper outlined, h3 heading), as src/components/section.tsx draws `plain`. */
+  function sectionCard(title, bodyHtml, { action = "" } = {}) {
+    return el(
+      "section",
+      `background:#fff;border:1px solid ${T.divider};border-radius:8px;padding:${PHONE ? 16 : 24}px`,
+      `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:16px"><h2 style="margin:0;font-size:20px;font-weight:600;line-height:1.3;color:${T.charcoal}">${title}</h2>${action}</div>${bodyHtml}`,
+    );
+  }
+
+  /* An MUI Dialog over the page: backdrop and a Paper, actions right-aligned. */
+  function dialog(title, bodyHtml, actions) {
+    const wrap = el(
+      "div",
+      `position:absolute;top:0;left:0;width:100%;height:${document.documentElement.scrollHeight}px;z-index:1300;display:flex;align-items:flex-start;justify-content:center;background:rgba(0,0,0,0.5);padding:${PHONE ? "96px 16px 0" : "180px 0 0"};box-sizing:border-box`,
+    );
+    const paper = el(
+      "div",
+      `background:#fff;border-radius:8px;box-shadow:0 11px 15px -7px rgba(0,0,0,.2),0 24px 38px 3px rgba(0,0,0,.14),0 9px 46px 8px rgba(0,0,0,.12);width:${PHONE ? "100%" : "560px"};display:flex;flex-direction:column`,
+      `<h2 style="margin:0;padding:16px 24px;font-size:20px;font-weight:600;color:${T.charcoal}">${title}</h2><div style="padding:0 24px 8px;font-size:14px;color:${T.charcoal}">${bodyHtml}</div>`,
+    );
+    const bar = el(
+      "div",
+      "display:flex;justify-content:flex-end;gap:8px;padding:8px 24px 16px;flex-wrap:wrap",
+    );
+    actions.forEach((a) => bar.appendChild(a));
+    paper.appendChild(bar);
+    wrap.appendChild(paper);
+    document.body.appendChild(wrap);
+    return wrap;
+  }
+
+  /* An outlined TextField, drawn at its own geometry; `select` adds the arrow. */
+  function textField(
+    label,
+    value,
+    { select = false, placeholder = "", helper = "", width = "100%" } = {},
+  ) {
+    return `<div style="position:relative;width:${width};margin:16px 0 ${helper ? 4 : 8}px">
+      <div style="position:relative;border:1px solid ${T.outline};border-radius:8px;min-height:48px;display:flex;align-items:center;padding:0 14px;font-size:16px;color:${value ? T.charcoal : T.charcoal50}">
+        <span style="position:absolute;top:-9px;left:10px;padding:0 4px;background:#fff;font-size:12px;color:${T.charcoal70}">${label}</span>
+        <span style="flex:1">${value || placeholder}</span>${
+          select
+            ? `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="fill:${T.charcoal70}"><path d="M7 10l5 5 5-5z"/></svg>`
+            : ""
+        }</div>${
+          helper
+            ? `<div style="font-size:12px;color:${T.charcoal70};margin:4px 14px 0">${helper}</div>`
+            : ""
+        }</div>`;
+  }
+
+  /* Every grant a seat holds, as `Category: before → after` lines, for a mass action's audit entry. */
+  function grantDiff(before, after) {
+    const lines = [];
+    ROSTER.forEach(
+      (c) =>
+        before.roster[c] !== after.roster[c] &&
+        lines.push(`${c}: ${before.roster[c]} → ${after.roster[c]}`),
+    );
+    SWITCHES.forEach(
+      (s) =>
+        before.switches[s] !== after.switches[s] &&
+        lines.push(
+          `${s}: ${before.switches[s] ? "Yes" : "No"} → ${after.switches[s] ? "Yes" : "No"}`,
+        ),
+    );
+    EVENTS.forEach(
+      (c) =>
+        before.events[c] !== after.events[c] &&
+        lines.push(`${c}: ${before.events[c]} → ${after.events[c]}`),
+    );
+    return lines;
+  }
+
+  /* Short counts a seat's grants read as in one cell. */
+  function counts(g) {
+    const r = (v) => ROSTER.filter((c) => g.roster[c] === v).length;
+    const e = (v) => EVENTS.filter((c) => g.events[c] === v).length;
+    const roster =
+      r("Edit") === 12
+        ? "Edit all"
+        : r("None") === 12
+          ? "None"
+          : [r("Edit") ? `Edit ${r("Edit")}` : "", r("View") ? `View ${r("View")}` : ""]
+              .filter(Boolean)
+              .join(" · ");
+    const events =
+      e("Manage") === 7
+        ? "Manage all"
+        : e("View") === 7
+          ? "View all"
+          : e("None") === 7
+            ? "None"
+            : [e("Manage") ? `Manage ${e("Manage")}` : "", e("View") ? `View ${e("View")}` : ""]
+                .filter(Boolean)
+                .join(" · ");
+    const on = SWITCHES.filter((s) => g.switches[s]).length;
+    return { roster, events, switches: on ? `${on} of 4` : "None" };
+  }
+
+  /* Hide the Roles index's holder sections and return what a view is rebuilt from. */
+  function rolesScaffold() {
+    const sections = Array.from(document.querySelectorAll("main section"));
+    const first = sections[0];
+    const ctx = {
+      container: first.parentElement,
+      sectionClass: first.className,
+      heading: first.querySelector("h2"),
+      tableClass: first.querySelector("table").className,
+      desktopBox: first.querySelector("table").closest(".MuiPaper-root").parentElement,
+      cardList: first.querySelector('[data-testid="role-card"]').parentElement,
+      protoCard: first.querySelector('[data-testid="role-card"]'),
+      protoTh: first.querySelector("th"),
+      protoTd: first.querySelector("td"),
+      textButton: first.querySelector("td a.MuiButton-root"),
+      hrefFor: {},
+    };
+    document.querySelectorAll('[data-testid="role-card"]').forEach((c) => {
+      ctx.hrefFor[c.querySelector(".MuiTypography-subtitle1").textContent.trim()] = c
+        .querySelector("a")
+        .getAttribute("href");
     });
+    sections.forEach((s) => s.remove());
+    ctx.th = (html, css = "") => {
+      const c = ctx.protoTh.cloneNode(false);
+      c.innerHTML = html;
+      c.style.cssText = css;
+      return c;
+    };
+    ctx.td = (html, css = "") => {
+      const c = ctx.protoTd.cloneNode(false);
+      c.innerHTML = html;
+      c.style.cssText = css;
+      return c;
+    };
+    ctx.section = (title) => {
+      const s = document.createElement("section");
+      s.className = ctx.sectionClass;
+      if (title) {
+        const h = ctx.heading.cloneNode(false);
+        h.textContent = title;
+        s.appendChild(h);
+      }
+      ctx.container.appendChild(s);
+      return s;
+    };
+    ctx.frame = (table) => {
+      const box = ctx.desktopBox.cloneNode(false);
+      box.style.display = "block";
+      const paper = ctx.desktopBox.firstElementChild.cloneNode(false);
+      paper.appendChild(table);
+      box.appendChild(paper);
+      return box;
+    };
+    ctx.table = (label) => {
+      const t = document.createElement("table");
+      t.className = ctx.tableClass;
+      t.setAttribute("aria-label", label);
+      t.append(document.createElement("thead"), document.createElement("tbody"));
+      return t;
+    };
+    ctx.textBtn = (label, href = "#") => {
+      const b = ctx.textButton.cloneNode(true);
+      b.textContent = label;
+      b.setAttribute("href", href);
+      return b;
+    };
+    ctx.card = (title, sublines, href) => {
+      const card = ctx.protoCard.cloneNode(true);
+      card.querySelector("a").setAttribute("href", href ?? "#");
+      card.querySelector(".MuiTypography-subtitle1").innerHTML = title;
+      const lines = card.querySelectorAll("div.MuiTypography-body2");
+      lines[0].innerHTML = sublines[0] ?? "";
+      if (lines[1]) lines[1].innerHTML = sublines[1] ?? "";
+      sublines.slice(2).forEach((l) => {
+        const extra = lines[0].cloneNode(false);
+        extra.innerHTML = l;
+        lines[lines.length - 1].after(extra);
+      });
+      return card;
+    };
+    return ctx;
+  }
 
-    document.querySelectorAll('[data-testid="role-card"]').forEach((card) => {
-      const title = card.querySelector(".MuiTypography-subtitle1");
-      const seat = title ? title.textContent.trim() : "";
+  /* The Roles page's Access view head: subtitle, the app's ViewSwitch, and room for a toolbar. */
+  async function accessViewHead(subtitleText = "2026-27 · access by seat") {
+    const header = document.querySelector('[data-testid="page-header"]');
+    const subtitle = document.querySelector('[data-testid="admin-page-subtitle"]');
+    if (subtitle) subtitle.textContent = subtitleText;
+    const sw = await viewSwitch("Access");
+    header.after(sw);
+    return sw;
+  }
+
+  /* The two mass edits, as the app's outlined Buttons. */
+  function massButtons() {
+    return [
+      appButton("outlined", "Copy access from another seat"),
+      appButton("outlined", "Grant everything"),
+    ];
+  }
+  const buttonRow = (buttons, css = "") => {
+    const row = el("div", `display:flex;gap:8px;flex-wrap:wrap;align-items:center;${css}`);
+    buttons.forEach((b) => row.appendChild(b));
+    return row;
+  };
+
+  const ALL_SEATS = GROUPS.flatMap((g) =>
+    g.seats.map(([seat, holder, profile]) => ({ group: g.label, seat, holder, profile })),
+  );
+  /*
+   * W1-01 — the Roles index: the Holders | Access switch is the app's own
+   * ViewSwitch (src/app/calendar/view-switch.tsx), as /operate/events uses it
+   * for List | Calendar; the Permissions column reads the seat's grants.
+   */
+  const bySeat = {};
+  GROUPS.forEach((g) => g.seats.forEach(([s, h, p]) => (bySeat[s] = { holder: h, profile: p })));
+
+  const header = document.querySelector('[data-testid="page-header"]');
+  header.after(await viewSwitch("Holders"));
+
+  document.querySelectorAll("table").forEach((table) => {
+    const heads = table.tHead.rows[0].cells;
+    if (heads[2]) heads[2].textContent = "Access";
+    Array.from(table.tBodies[0].rows).forEach((row) => {
+      const seat = row.cells[0].textContent.trim();
       const info = bySeat[seat];
       if (!info) return;
-      const lines = card.querySelectorAll("div.MuiTypography-body2");
-      if (lines[1]) lines[1].textContent = summarise(seed(info.profile));
-      if (info.profile === "floor" && title) title.insertAdjacentHTML("afterend", centralRule());
+      row.cells[2].querySelector("p").textContent = summarise(seed(info.profile));
+      if (info.profile === "floor") {
+        row.cells[0].innerHTML = `<div>${seat}</div><div style="margin-top:4px">${centralRule()}</div>`;
+      }
     });
-  })();
+  });
+
+  document.querySelectorAll('[data-testid="role-card"]').forEach((card) => {
+    const title = card.querySelector(".MuiTypography-subtitle1");
+    const seat = title ? title.textContent.trim() : "";
+    const info = bySeat[seat];
+    if (!info) return;
+    const lines = card.querySelectorAll("div.MuiTypography-body2");
+    if (lines[1]) lines[1].textContent = summarise(seed(info.profile));
+    if (info.profile === "floor" && title) title.insertAdjacentHTML("afterend", centralRule());
+  });
 })();

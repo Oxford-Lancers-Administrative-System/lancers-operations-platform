@@ -35,7 +35,7 @@
 ## State transitions
 
 - Category colour: palette key → palette key.
-- Template category: chosen at creation; fixed once an event exists (proposed).
+- Template category: chosen at creation, no default; fixed once an event exists.
 
 ## Handoffs
 
@@ -69,9 +69,9 @@
 | "Template categories" section at the top of the templates page | locked                      | LAN-424 decision 1                        | recorded  |
 | Section as a table (Category, Colour, Templates); cards at 375 | proposed for owner approval | W2-01                                     | open      |
 | Category column on the template list                           | proposed for owner approval | W2-01                                     | open      |
-| Two categories may not share a colour                          | proposed for owner approval | W2-01                                     | open      |
-| Template category fixed once an event exists                   | proposed for owner approval | W2-02                                     | open      |
-| New template defaults to Practice                              | proposed for owner approval | W2-03                                     | open      |
+| Two categories may not share a colour                          | locked                      | Lead decision, round 2                    | recorded  |
+| Template category fixed once an event exists                   | locked                      | Lead decision, round 2                    | recorded  |
+| New template has no default category; the operator must choose | locked                      | Lead decision, round 2; W2-03 redrawn     | recorded  |
 | Colour migration, audit of colour changes, calendar wiring     | delegated to Mission Lead   | —                                         | delegated |
 
 ## Brian approval

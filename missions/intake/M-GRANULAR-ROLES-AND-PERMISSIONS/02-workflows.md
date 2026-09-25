@@ -20,8 +20,8 @@ changes it on the Roles page without a code change.
   Game, Social, Recruitment, Meeting — the existing `event_type` class. No creating
   or renaming categories.
 - Roster categories are the board's ten groups on `main` plus Contact & emergency
-  (record-only) plus Recruits. None / view / edit each. Three per-seat switches:
-  open roster records, open recruit records, add to the roster.
+  (record-only) plus Recruits. None / view / edit each. Four per-seat switches:
+  open roster records, open recruit records, add people to the roster, add recruits.
 - Event grants are none / view / manage per category. None hides the event from
   the list, calendar, delivery board, attendance list and report.
 - Attendance is not in the matrix; recording stays as today and the attendance

@@ -1243,17 +1243,22 @@
       <header class="page-head">
         <h1>
           W1 · Administer a seat&#x27;s grants on the Roles page<span class="draft"
-            >Draft · pending Brian's approval</span
+            >Draft · round 2 · pending Brian's approval</span
           >
         </h1>
         <p>
           The President, General Manager or IT Officer decides what each of the twenty seats may see
-          and change, on the Roles page, without a code change.
-          <strong>Where the matrix lives is the first decision this page asks for.</strong> Option A
-          (recommended, W1-01 to W1-05): a <em>Holders | Access</em> switch on the Roles index, the
-          matrix as the Access view, and an Access section on each seat's own page that is also the
-          375px route and the home of the audit trail. Option B (W1-06): no matrix; the index
-          summarises each seat's grants and every change is made on the seat's page.
+          and change, on the Roles page, without a code change. Round 1's placement (Option A) is
+          chosen: a <em>Holders | Access</em> switch on the Roles index and an Access section on
+          each seat's page. W1-06 (Option B) is removed.
+        </p>
+        <p>
+          <strong>The decision this page asks for: which Access view.</strong> The full matrix
+          (round-1 W1-02) is retired as too busy. Five alternatives replace it, W1-02a to W1-02e,
+          each photographed on both sides. Recommended:
+          <strong>B, the collapsed matrix</strong> (ranking in HANDOFF.md). W1-09 draws B with a
+          time-limited delegation, <code>Proposed for owner approval</code>. W1-07 and W1-08 draw
+          the mass edit every alternative carries.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1263,24 +1268,29 @@
           and
           <span class="side-label" style="background: var(--primary); color: #fff"
             >Proposed — this mission</span
-          >. Every screen is a <strong>photograph on both sides</strong>: the same running page at
-          <code>150a59c6</code>, measured by the browser at 1280 and 375, differing only by the
-          proposal script named under the screen. Nothing on this page is drawn. A screen head says
-          <span class="disposition modified">Modified</span> and lists exactly what changes, so you
-          are told what to look for rather than asked to diff two images. A dashed
-          <span class="chip chip-proposed">Proposed</span> chip in a list marks a surface absent
-          from main. <code>Central rule · LAN-423</code> marks a grant fixed by the floor decision.
+          >. Every screen is a <strong>photograph on both sides</strong>: the same running page
+          (application code of main <code>150a59c6</code>; round-2 photographs were taken at
+          <code>c804a0b4</code>, which adds only this ledger), measured by the browser at 1280 and
+          375, differing only by the proposal script named under the screen. Nothing on this page is
+          drawn. A screen head says <span class="disposition modified">Modified</span> and lists
+          exactly what changes. A dashed <span class="chip chip-proposed">Proposed</span> chip marks
+          a surface absent from main; <code>Proposed for owner approval</code> marks something drawn
+          but not assumed. <code>Central rule · LAN-423</code> marks a grant fixed by the floor
+          decision.
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
           <span
-            >Seeds shown are LAN-424 decision 6: each seat starts with exactly what
-            <code>src/lib/auth/capabilities.ts</code> gives it today. President, General Manager and
-            IT Officer are full and fixed; Vice-President and Secretary start full and are
-            removable</span
+            >Seeds: President, General Manager and IT Officer full and fixed; Vice-President and
+            Secretary full and removable; the Treasurer nothing on the roster; every coach None on
+            every event category; every other seat what
+            <code>src/lib/auth/capabilities.ts</code> gives it today</span
           ><span
-            >The Kit Manager's grants in W1-03 are the example change this ledger follows through
-            W3-01; they are not a seed</span
+            >The Kit Manager's Person View, Kit Edit and roster-records switch are W1-03's example
+            change, not a seed</span
+          ><span
+            >Screen ids use a lower-case suffix (W1-02a) because the intake CLI's screen-id grammar
+            requires it</span
           ><span
             >Holders and seat ids are the seeded synthetic dataset; no real person appears</span
           >
@@ -1295,37 +1305,97 @@
         {
           id: "W1-01",
           route: "/operate/admin/roles",
-          title: "Roles index — the entry to the matrix (Option A)",
+          title: "Roles index — the Holders | Access switch",
           blurb:
-            "The Roles index as it is, with the one control that opens the matrix. Holders stays the default view; Access is the matrix (W1-02).",
+            "Accepted in round 1 on one condition, now met: the switch is the app's own pattern. It is <code>ViewSwitch</code> (<code>src/app/calendar/view-switch.tsx</code>), the <em>List | Calendar</em> control at <code>/operate/events</code> and <code>/operate/events/calendar</code>: a labelled <code>nav</code> of two small MUI Buttons, contained for the current view and outlined for the other, each a real link. The proposal fetches it from the running <code>/operate/events</code> page and relabels it, so the photograph is the component, not a copy.",
           deltas: [
-            "<strong>New:</strong> a <em>Holders | Access</em> switch under the heading, the same two-button idiom as Events' <em>List | Calendar</em>",
-            "The <em>Permissions</em> column becomes <em>Access</em> and reads the seat's grants in one line — e.g. <em>Roster: edit Membership · Add to the roster · Events: view all</em> — instead of the capability sentences",
-            "President, General Manager and IT Officer carry a <code>Central rule · LAN-423</code> chip under the seat name",
-            "375: the same line on each seat card; the switch sits under the heading",
-          ],
-          questions: [
-            "Does the Holders view keep a one-line Access summary at all, or go back to holders only once the Access view exists? Recommended: keep it, it is the only place both facts sit together.",
+            "<strong>New:</strong> <em>Holders | Access</em> under the heading, <code>ViewSwitch</code> as the events page uses it",
+            "The <em>Permissions</em> column becomes <em>Access</em>, one line per seat: e.g. <em>Roster: none · Events: view all</em>",
+            "Seeds corrected: the Treasurer reads <em>Roster: none</em>; every coach reads <em>Events: none</em>",
+            "President, General Manager and IT Officer carry the <code>Central rule · LAN-423</code> chip",
+            "375: the same line on each seat card; the switch under the heading",
           ],
         },
         {
-          id: "W1-02",
-          route: "/operate/admin/roles?view=access",
-          title: "The matrix — every seat, every grant",
+          id: "W1-02a",
+          route: "/operate/admin/roles?view=access&category=kit",
+          title: "Access view, alternative A — category first",
           blurb:
-            "One row per seat, all twenty, coaching seats included, grouped as the index groups them. Two tables rather than one: <strong>Roster</strong> (twelve categories and the three switches) and <strong>Events</strong> (seven categories). A single 22-column grid does not fit the 990px the shell leaves at 1280 without scrolling sideways; two do, and both keep one row per seat.",
+            "Pick one category; every seat's level for it is one list, changed in place. Shown on <em>Kit</em> with W1-03's example change (Kit Manager: Edit). The Category select lists the twelve roster categories, the four switches and the seven event categories, grouped. Carries both mass edits: <em>Copy access from another seat</em> and <em>Grant everything</em>, each one audited action with a line per grant (W1-07, W1-08).",
           deltas: [
-            "<strong>New view.</strong> Column names run down their header, the way the roster board already writes a folded group's name down its column",
-            "Editable cells carry the board's own editable-cell mark, a dotted underline; clicking one opens the same None / View / Edit (Events: None / View / Manage) choice the seat page shows in W1-04",
-            "The fixed rows — General Manager, IT Officer, President — carry no mark, sit on the page ground, and name LAN-423 in a <code>Central rule</code> chip. Nothing in them can be changed",
-            "Vice-President and Secretary are full and editable",
-            "Attendance is not a column (decision 4): recording stays as it is for every seat",
-            "<strong>375:</strong> no grid. Each seat is one card with its summary line, opening the seat page (W1-04) where its grants are changed one at a time",
+            "<em>Category</em> select and the two mass-edit buttons above the list; the buttons ask which seat in their dialog (W1-07)",
+            "One toggle group per seat, grouped as the index groups seats; fixed seats locked under the Central rule chip",
+            "375: one card per seat, the toggle full width",
           ],
           questions: [
-            "Is the matrix edited in place at desktop, or read-only with every change made on the seat page? In-place is shown and recommended (fewer trips for a committee re-seating twenty seats in August); read-only halves the surfaces that write grants.",
-            "Treasurer's seed: today <code>membership_activation</code> and <code>roster_bulk_import</code> but no roster page (<code>person_record_authority</code>). Shown as Edit on Membership plus <em>Add to the roster</em>, and nothing else. Confirm, or seed None and let the committee grant it.",
-            "Coaches' seed: shown as View on all seven event categories, matching what a coach can read today. The definition doc recommended View on Practice and Game only. Which?",
+            "Easy to answer <em>who can touch Kit?</em>; hard to see one seat whole. See the ranking in HANDOFF.md.",
+          ],
+        },
+        {
+          id: "W1-02b",
+          route: "/operate/admin/roles?view=access",
+          title: "Access view, alternative B — collapsed matrix (recommended)",
+          blurb:
+            "Seats as rows; three summary columns — Roster, Events, Records and adding — as counts. A row opens in place: its grants as chips, and three actions, <em>Open seat</em> (the editor, W1-03), <em>Copy access from another seat</em>, <em>Grant everything</em>. Nothing is edited in the row. Shown with the Kit Manager's row open. Carries both mass edits: <em>Copy access from another seat</em> and <em>Grant everything</em>, each one audited action with a line per grant (W1-07, W1-08).",
+          deltas: [
+            "Three columns replace twenty-three; a seat reads in one line: <em>Edit 1 · View 1</em>, <em>View all</em>, <em>1 of 4</em>",
+            "The row's disclosure is the <code>Section</code> indicator; the open row shows chips (MUI <code>Chip</code>) per granted category and switch",
+            "Fixed seats open to chips and <em>Open seat</em> only",
+            "375: one card per seat with the same three counts; the open card shows the chips and the three actions",
+          ],
+        },
+        {
+          id: "W1-02c",
+          route: "/operate/admin/roles?view=access",
+          title: "Access view, alternative C — presets",
+          blurb:
+            "A seat receives a named bundle — <em>Everything</em>, <em>Coach standard</em>, <em>Read-only</em>, <em>Same as …</em> — and is adjusted per category on its seat page. <em>Same as …</em> is Copy access from another seat; <em>Everything</em> is Grant everything. Shown with the seeds as they stand, so most seats read <em>Custom</em>; the Head Coach's menu is open.",
+          deltas: [
+            "<strong>New concept:</strong> a <em>Presets</em> table naming what each bundle grants (<code>Proposed · new concept</code>)",
+            "Each seat: a Preset select and how far it is adjusted (<em>12 differences from Read-only</em>)",
+            "375: one card per seat with its select",
+          ],
+          questions: [
+            "Presets are a new club concept. They need Brian's decision on the bundles themselves, including whether <em>Coach standard</em> gives any event category.",
+          ],
+        },
+        {
+          id: "W1-02d",
+          route: "/operate/admin/roles?view=access",
+          title: "Access view, alternative D — seat cards",
+          blurb:
+            "One card per seat: Roster and Events summary chips, the four switches live on the card, and the seat's actions (<em>Open seat</em>, <em>Copy access from another seat</em>, <em>Grant everything</em>). The seat page stays the editor for categories. Three cards a row at 1280, one at 375. Carries both mass edits: <em>Copy access from another seat</em> and <em>Grant everything</em>, each one audited action with a line per grant (W1-07, W1-08).",
+          deltas: [
+            "Cards replace the holder tables; switches edited on the card",
+            "Kit Manager shows W1-03's example change",
+            "375: one card per row, about 7,000px for twenty seats",
+          ],
+        },
+        {
+          id: "W1-02e",
+          route: "/operate/admin/roles?view=access&seat=treasurer&compare=secretary",
+          title: "Access view, alternative E — compare two seats",
+          blurb:
+            "Pick a seat and a seat to compare it with; their grants sit side by side, the first editable, the second read. A row where they differ carries a copy-across control (←). The head carries <em>Copy access from Secretary</em> (Copy access from another seat, the seat already chosen) and <em>Grant everything</em>. Shown: the Treasurer against the Secretary.",
+          deltas: [
+            "Two selects, <em>Seat</em> and <em>Compare with</em>",
+            "Three tables — Roster, Records and adding, Events — each row: the seat's toggle group, ←, the compared seat's value; differing rows in bold",
+            "375: one card per grant: the seat's toggle, then the compared value and ←",
+          ],
+        },
+        {
+          id: "W1-09",
+          route: "/operate/admin/roles?view=access",
+          title: "Alternative B with a time-limited delegation — Proposed for owner approval",
+          blurb:
+            "<strong>Proposed for owner approval; not assumed.</strong> A club without a Secretary grants the Treasurer everything <em>until 31 Oct 2026</em>. On that date the Treasurer's grants return to what they were, and the return is audited as one action. Copy access from another seat stays without an end date.",
+          deltas: [
+            "Success Notice: <em>Everything granted to the Treasurer until 31 Oct 2026. 23 grants changed.</em>",
+            "Treasurer's row counts carry <em>until 31 Oct 2026</em>; the open row shows an <em>Until</em> chip and a <code>Proposed for owner approval</code> chip, and an <em>End now</em> action",
+            "The Grant everything dialog would gain one optional <em>Until</em> date field (not drawn)",
+          ],
+          questions: [
+            "Adopt time-limited delegation at all? If yes, should it also apply to Copy access, and should it merge with LAN-406's interim elevation?",
           ],
         },
         {
@@ -1333,32 +1403,22 @@
           route: "/operate/admin/roles/<Kit Manager seat id>",
           title: "Changing one grant, and its audit line",
           blurb:
-            "The Kit Manager's seat after the third of three changes: Kit None → Edit, just saved; Person None → View and Open roster records No → Yes a minute earlier. Each change is one audited write to <code>audit_events</code> and one entry in the seat's history, drawn exactly as <code>AdministrationHistory</code> draws a holder change today.",
+            "Accepted in round 1. The Kit Manager's seat after the third of three changes: Kit None → Edit just saved; Person None → View and <em>May open individual records (roster)</em> No → Yes a minute before. Each change is one audited write and one History entry, drawn as <code>AdministrationHistory</code> draws a holder change.",
           deltas: [
-            "<strong>New section: Access</strong>, in place of the read-only Permissions list. Roster, Records and adding, Events, each row the category and an exclusive None / View / Edit toggle group (the recorder idiom in <code>record-answer.tsx</code>)",
-            "The outcome is a success Notice at the top of the section, one at a time (standards rule 1), and the changed row is highlighted with the table-selected tint",
-            "<em>Holder history</em> becomes <em>History</em> and carries access changes beside holder changes: title <em>Access changed</em>, the instant, the grant as <em>before → after</em>, and <em>By &lt;operator&gt; · &lt;operating year&gt;</em>",
-            "<em>Permissions</em> becomes <em>Other permissions</em>: only what the matrix does not govern. For the Kit Manager, None",
-            "A change saves when a toggle is pressed; there is no separate Save button",
-          ],
-          questions: [
-            "Save on press (shown) or a Save button for the whole section? Save on press gives one audit line per grant, which is what decision 7 asks for.",
-            "Should the Roles index (or the Operators page) also show a club-wide access history, or is per-seat history enough?",
+            "<strong>Four switches</strong> under Records and adding: <em>May open individual records (roster)</em>, <em>May open individual records (recruits)</em>, <em>May add people to the roster</em>, <em>May add recruits</em>",
+            "<strong>The Permissions / Other permissions block is removed.</strong> Everything it listed is either governed by Access now or stays in code and cannot be edited, so it has no place on this page. Consequence: role management, pausing messaging, the Monday report, erasure and the playbook are no longer described on any seat page; the Guide remains where they are explained",
+            "Save on press, success Notice, the changed row highlighted; <em>History</em> carries access changes beside holder changes",
           ],
         },
         {
           id: "W1-04",
           route: "/operate/admin/roles/<Vice-President seat id>",
-          title: "One seat at a time — the Vice-President (the 375 matrix)",
+          title: "One seat at a time — the Vice-President",
           blurb:
-            "The Vice-President starts with everything and can lose any one grant. This page is the phone's answer to the matrix: each seat card in W1-02 at 375 opens it. Below <code>sm</code> each toggle group takes the row's full width under its label, three equal 44px targets.",
+            "Starts with everything; any one grant can go. Four switches, no Permissions block. At 375 the three groups fold, each showing its count, so the page opens short.",
           deltas: [
-            "Access section as in W1-03, all Edit / Yes / Manage, every control live",
-            "Other permissions keeps what stays in code for this seat: attendance, pausing messaging, the Monday report, anonymise/export, the operator playbook",
-            "375: 22 rows is long (about 3,200px). The rows are in three labelled groups so the page can be scanned",
-          ],
-          questions: [
-            "At 375, should Roster, Records and adding, and Events each fold (the record page's own fold) so the page opens short? Not shown.",
+            "Access section as W1-03, all Edit / Yes / Manage, every control live",
+            "375: <em>Roster · Edit all</em>, <em>Records and adding · 4 of 4</em>, <em>Events · Manage all</em>, each folded with the <code>Section</code> disclosure indicator",
           ],
         },
         {
@@ -1366,23 +1426,34 @@
           route: "/operate/admin/roles/<President seat id>",
           title: "A fixed seat — the President",
           blurb:
-            "The floor, as locked controls. The President, General Manager and IT Officer are full and cannot be reduced here or in the matrix. The chip names the governing decision and the sentence beside it says what would change it (standards rule 4).",
+            "The floor, as locked controls under the Central rule chip, with the sentence that says why (standards rule 4). Four switches, no Permissions block, folded at 375.",
           deltas: [
-            "<code>Central rule · LAN-423</code> chip and <em>Fixed for the President, General Manager and IT Officer.</em> at the top of Access",
-            "Every toggle and switch drawn disabled with its value selected",
-            "Other permissions keeps role management (<em>manage operator accounts and role assignments</em>) and the rest that stays in code",
+            "<code>Central rule · LAN-423</code> and <em>Fixed for the President, General Manager and IT Officer.</em>",
+            "Every toggle and switch disabled with its value selected",
+            "375: the three groups folded",
           ],
         },
         {
-          id: "W1-06",
-          route: "/operate/admin/roles",
-          title: "Option B — no matrix; seat pages only",
+          id: "W1-07",
+          route: "/operate/admin/roles/<Treasurer seat id>",
+          title: "Copy access from another seat — the confirmation",
           blurb:
-            "The alternative placement. The Roles index keeps its holder tables with the Access summary column; there is no Access view and no grid. Every grant is changed on the seat's own page (W1-03 to W1-05 unchanged).",
+            "The mass edit every alternative opens. On the Treasurer's seat, <em>Copy access from another seat</em> and <em>Grant everything</em> sit at the top of Access. The copy asks which seat, lists every grant that would change, and has no end date. Grant everything is the same dialog without the seat field.",
           deltas: [
-            "No <em>Holders | Access</em> switch",
-            "The row action reads <em>Change access</em> where it read <em>View</em>",
-            "Cheaper to build and test: one surface writes grants. The cost is that no screen shows two seats' grants side by side, which is what the outcome sentence asks the committee to judge",
+            "Two outlined buttons at the top of the Access section",
+            "Dialog: <em>From</em> select (Vice-President), <em>Treasurer · 23 changes</em>, the list of before → after lines, <em>Cancel</em> and <em>Copy access</em>",
+          ],
+        },
+        {
+          id: "W1-08",
+          route: "/operate/admin/roles/<Treasurer seat id>",
+          title: "Copy access — one audited action, a line per grant",
+          blurb:
+            "The Treasurer's seat after the copy. One success Notice; one History entry for the whole action, <em>Access copied from Vice-President</em>, with a line per grant underneath. Grant everything is audited the same way, titled <em>Everything granted</em>.",
+          deltas: [
+            "Notice: <em>Access copied from Vice-President. 23 grants changed.</em>",
+            "History entry: instant, actor, then 23 lines — 12 roster, 4 switches, 7 events",
+            "375: the Access groups fold; the entry lists every line",
           ],
         },
       ];
