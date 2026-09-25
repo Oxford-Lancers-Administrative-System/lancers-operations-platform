@@ -1,0 +1,510 @@
+{
+  "screens": [
+    {
+      "id": "W1-01",
+      "route": "/operate/admin/roles",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W1-01.js",
+        "sha256": "af854388400ccaeb5262ca16fb65d88e4b97955e7312ccd5db956b922eb35cf1",
+        "bytes": 12908
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:37:09.480Z"
+    },
+    {
+      "id": "W1-02",
+      "route": "/operate/admin/roles?view=access",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W1-02.js",
+        "sha256": "c30f79520729d9bc30b707c1f4fe7ec77c6d8cc817027f615b0730973589ec0b",
+        "bytes": 19726
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-02-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-02-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-02-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:37:18.572Z"
+    },
+    {
+      "id": "W1-03",
+      "route": "/operate/admin/roles/a64b8683-c926-476f-a382-6e282a41f60c",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W1-03.js",
+        "sha256": "72525149213f3aad11f306c03516fa0e5757b91279511d53f3fe9a3d9f517b26",
+        "bytes": 17355
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-03-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-03-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-03-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-03-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:37:24.192Z"
+    },
+    {
+      "id": "W1-04",
+      "route": "/operate/admin/roles/3d03284f-2069-446d-bcbf-d3cb9ca36d3b",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W1-04.js",
+        "sha256": "659f6d778d7282b4df5420052ed18688f94390f15ac02f4a0e2b099a3e151e27",
+        "bytes": 16714
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-04-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-04-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-04-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-04-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:37:31.128Z"
+    },
+    {
+      "id": "W1-05",
+      "route": "/operate/admin/roles/31122ce2-8499-4985-8243-956c0474c8d4",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W1-05.js",
+        "sha256": "7e2090b7be2e2d0da6e0db45b72639c60984d6c116fd77b2701a23992163b218",
+        "bytes": 16807
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-05-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-05-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-05-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-05-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:37:36.725Z"
+    },
+    {
+      "id": "W1-06",
+      "route": "/operate/admin/roles",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W1-06.js",
+        "sha256": "5cf027f044ed57ab27c90e4ed9960b061469a85ef69bdc72ddbee3842a3e62e7",
+        "bytes": 12934
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-06-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-06-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-06-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-06-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:37:44.548Z"
+    },
+    {
+      "id": "W2-01",
+      "route": "/operate/events/templates",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W2-01.js",
+        "sha256": "956c8180de4b36b871a0e74df1e3d464f9132f861a11f81e209c627a38b31e09",
+        "bytes": 16063
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:37:50.891Z"
+    },
+    {
+      "id": "W2-02",
+      "route": "/operate/events/templates/8de00424-52a8-52ad-9c9f-a29823f9c4bf",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W2-02.js",
+        "sha256": "a4fe7aa9729142d80ac2e804b0ed516d9e5c8d3e19da9c79ea4e25da303229c1",
+        "bytes": 14204
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-02-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-02-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-02-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:37:56.635Z"
+    },
+    {
+      "id": "W2-03",
+      "route": "/operate/events/templates/new",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W2-03.js",
+        "sha256": "db32d565538bfc200c9163885f713b6572306be75e8a538e80f8dc9f76ef1e11",
+        "bytes": 14209
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-03-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-03-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-03-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-03-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:38:02.514Z"
+    },
+    {
+      "id": "W3-01",
+      "route": "/operate/roster",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W3-01.js",
+        "sha256": "1b91f27af9bc44ed7c1cdcf8bee00d4ed06f9ad5173400ae7917a5a6053f6d3b",
+        "bytes": 16716
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W3-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W3-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W3-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W3-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:38:09.811Z"
+    },
+    {
+      "id": "W4-01",
+      "route": "/operate/events?sort=date&dir=asc&period=term",
+      "headSha": "150a59c65365525060dd8ef38075336163026b39",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/mockups/proposals/W4-01.js",
+        "sha256": "93ff56fff00b57ed9dfb4b61973ce0a1151e3a18e7dbc47c9368455f5872e72f",
+        "bytes": 12930
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W4-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W4-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W4-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W4-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-25T18:38:16.575Z"
+    }
+  ]
+}
