@@ -1,7 +1,7 @@
 {
   "mission_id": "M-GRANULAR-ROLES-AND-PERMISSIONS",
   "ledger_version": 3,
-  "stage": "assembly",
+  "stage": "pr_open",
   "baseline": {
     "branch": "main",
     "commit": "0d4b6ce517985ca1a04a176cce64d6335a7f435d"
@@ -946,5 +946,5 @@
     "items": [],
     "approval": null
   },
-  "next_action": "Validate the packet, then open the intake-artifacts-only draft PR for Brian's merge."
+  "next_action": "Brian: review and merge the intake-artifacts-only draft PR; the merge approves packet v1."
 }
