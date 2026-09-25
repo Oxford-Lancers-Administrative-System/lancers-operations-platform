@@ -58,7 +58,7 @@
     },
     {
       "id": "REQ-template-grants",
-      "text": "Events are granted per template at None / View / Manage. Every template on main (Chalk, Game, Meeting, Practice, Recruitment, Social, Strength and conditioning) and every template the club adds later is one line. No event types, no categories.",
+      "text": "Events are granted per template at None / View / Manage. Every template on main (Chalk, Game, Meeting, Practice, Recruitment, Social, Strength and conditioning) and every template the club adds later is one line. A template added after delivery starts at Manage for the fixed seats only (President, General Manager, IT Officer) and at None for every other seat, Vice-President and Secretary included. No event types, no categories.",
       "source_id": "SRC-LAN-424"
     },
     {
@@ -113,12 +113,12 @@
     },
     {
       "id": "REQ-name-only",
-      "text": "With None on Person a roster row shows the player's name only; the Contactable and Missing indicators are absent. Under View on Person, Contactable stays in Person (its Mobile chip still dials) and Missing stays where it is.",
+      "text": "With None on Person a roster row shows the player's name only; the Contactable and Missing indicators are absent. Under View on Person, Contactable stays in Person and Missing stays where it is; with None on Contact & emergency, Contactable is a plain indicator and never carries or dials a number (the Mobile chip and the 375 card's Call alike).",
       "source_id": "SRC-LAN-424"
     },
     {
       "id": "REQ-record-locked",
-      "text": "Records open for anyone who can reach the roster or recruits. Inside a record a None section keeps its place, collapsed, with a lock in place of the chevron; it cannot be expanded and its contents are never sent to the browser. The name stays at the top. Summary tiles built from None categories are absent. View on the board is view in the record.",
+      "text": "Records open for anyone who can reach the roster or recruits. Inside a record a None section keeps its place, collapsed, with a lock in place of the chevron; it cannot be expanded and its contents are never sent to the browser. The name stays at the top. Summary tiles built from None categories are absent. View on the board is view in the record. The Attendance section is always open, whatever the seat's grants, because attendance is not in the access list.",
       "source_id": "SRC-LAN-424"
     },
     {
@@ -339,7 +339,7 @@
     {
       "id": "DEC-lan-424-d-contactable-missing",
       "workflow": "W3",
-      "text": "Contactable stays in Person and Missing stays where it is on the board; the Mobile chip keeps dialling under View on Person, approved as drawn on W3-02.",
+      "text": "Contactable stays in Person and Missing stays where it is on the board; under View on Person with None on Contact & emergency, Contactable is a plain indicator and never carries or dials a number (Lead decision on LAN-424, 2026-09-25; W3-02 draws the chip dialling and the build follows the rule).",
       "classification": "locked",
       "source": "SRC-LAN-424",
       "status": "Settled"
@@ -363,7 +363,7 @@
     {
       "id": "DEC-lan-424-d-record-attendance",
       "workflow": "W3",
-      "text": "The record's Attendance section follows the seat's grants like every other section, locked where drawn locked; approved as drawn on W3-03.",
+      "text": "The record's Attendance section is always open, whatever the seat's grants, because attendance is not in the access list (Lead decision on LAN-424, 2026-09-25; W3-03 draws it locked and the build follows the rule).",
       "classification": "locked",
       "source": "SRC-LAN-424",
       "status": "Settled"
@@ -579,7 +579,7 @@
     {
       "id": "DEC-sow-v2-sow-new-template-seats",
       "workflow": "W1",
-      "text": "A new template starts with the full seats only; W1's approved specification gives it Manage for the five full seats (see the packet's nonblocking unknowns).",
+      "text": "A template added after delivery starts at Manage for the fixed seats only (President, General Manager, IT Officer) and at None for every other seat, Vice-President and Secretary included (Brian and the Scope and Quote v2, recorded on LAN-424 2026-09-25).",
       "classification": "locked",
       "source": "SRC-SOW-V2",
       "status": "Settled"
@@ -779,7 +779,7 @@
         "Grant: any value to any value within its vocabulary.",
         "Copy: every grant of the target becomes the source seat's value, with no end date.",
         "Grant everything: every grant becomes its maximum.",
-        "A template created later arrives at None for every seat except the full seats (Manage).",
+        "A template created after delivery arrives at Manage for President, General Manager and IT Officer only, and at None for every other seat, Vice-President and Secretary included.",
         "Fixed seats: no transition exists."
       ],
       "handoffs": [
@@ -798,6 +798,7 @@
         "Change one grant of each kind and read one audit entry per change.",
         "Copy access from the Vice-President to the Treasurer and read one History entry listing every changed grant.",
         "Confirm the President's controls are locked and a server request to reduce them is refused.",
+        "Add a template: President, General Manager and IT Officer hold Manage on it; every other seat, Vice-President and Secretary included, holds None.",
         "Confirm a printed-access test pins the delivery-day seed to the seed rule."
       ],
       "source_id": "SRC-LAN-424",
@@ -866,7 +867,8 @@
         "Walk W3-01 to W3-04b at 1280 and 375 on the built surface.",
         "Kit Manager case: open a player and record kit; contact, emergency and availability are locked and absent from the payload; the entry is audited under the Kit Manager's seat.",
         "Coach case: once granted, view the football categories and edit availability, coaching, offensive, defensive, special teams and warm-up for any player; attendance unchanged; the attendance-only shell is gone.",
-        "With None on Person a row shows the name only.",
+        "With None on Person a row shows the name only; with View on Person and None on Contact & emergency, Contactable carries no number and dials nothing.",
+        "The record's Attendance section is open for every seat that reaches the record.",
         "Record header status is text, not a pill."
       ],
       "source_id": "SRC-LAN-424",
@@ -920,12 +922,7 @@
     "Concurrent edits of the same grant: last write wins, both audited",
     "Package decomposition and execution order within one release"
   ],
-  "nonblocking_unknowns": [
-    {
-      "unknown": "Which seats a template created after delivery starts with. The Scope and Quote v2 says 'the fixed seats only'; W1's approved specification says None for every seat except the full seats (Manage), which at delivery include the Vice-President and Secretary.",
-      "handling": "Build per W1's approved specification: the seats that currently hold full access get Manage and every other seat None. Record the choice in the PR; a different rule is a packet revision."
-    }
-  ],
+  "nonblocking_unknowns": [],
   "escalation_rules": {
     "permitted_clarifications": [
       "Copy, spacing and component composition that do not alter a grant's vocabulary, who may edit, what is absent, what is locked, or acceptance",

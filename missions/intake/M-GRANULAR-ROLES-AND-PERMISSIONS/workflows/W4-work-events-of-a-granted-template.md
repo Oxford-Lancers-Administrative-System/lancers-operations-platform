@@ -27,7 +27,9 @@
 
 ## Rules (from the locked decisions)
 
-- Grants are per template, not per category or event type. A template the club adds later is one more line.
+- Grants are per template, not per category or event type. A template the club adds later is one more line,
+  starting at Manage for the fixed seats only (President, General Manager, IT Officer) and at None for every
+  other seat, Vice-President and Secretary included.
 - None hides the event from the list, calendar, event pages and delivery board (Follow-ups). How the
   per-event Delivery page is scoped is delegated to the Mission Lead; the Monday report is excluded.
 - Attendance is the exception: recording stays as today for every seat.
@@ -44,6 +46,7 @@
 | --------------------------------------------------------- | ------------------------- | ---------------------------------------------- | --------- |
 | None / View / Manage per template; None hides everywhere  | locked                    | Round 3 brief, item 3                          | recorded  |
 | Templates keep their own colour; templates page unchanged | locked                    | Round 3 brief, item 3                          | recorded  |
+| A new template starts with the fixed seats only (Manage)  | locked                    | Scope and Quote v2; Brian, LAN-424             | recorded  |
 | Attendance outside the access list                        | locked                    | Round 3 brief, item 7                          | recorded  |
 | Manage includes approving and releasing invitations       | locked                    | Lead decision, round 2                         | recorded  |
 | Type filter lists granted templates only                  | locked                    | Round 3 brief, W4                              | recorded  |

@@ -27,11 +27,15 @@ change.
   Manager, IT Officer) edit it; the Roles index is unchanged.
 - **Roster**: the board's ten groups plus Contact & emergency, None / View / Edit. **Recruiting**: Person
   information, Recruit details (None / View / Edit), Event details (None / View).
-- **Events per template**, None / View / Manage, for every template including those added later. No types, no
-  categories; templates keep their colours; the event templates page is unchanged.
+- **Events per template**, None / View / Manage, for every template including those added later. A template
+  added after delivery starts at Manage for President, General Manager and IT Officer only, None for every
+  other seat (Vice-President and Secretary included). No types, no categories; templates keep their colours;
+  the event templates page is unchanged.
 - **Two switches**: may add to the roster; may add recruits. No records switch.
 - **Records open** for anyone who can reach the roster or recruits. A None section is collapsed and locked and
-  its contents never leave the server; the name stays. With None on Person a roster row shows the name only.
+  its contents never leave the server; the name stays. With None on Person a roster row shows the name only;
+  with None on Contact & emergency, Contactable is a plain indicator that carries no number. The record's
+  Attendance section is always open.
 - **Floor**: President, General Manager, IT Officer full and fixed; Vice-President and Secretary start full and
   are removable; every other seat starts with None.
 - **Copy access from another seat** and **Grant everything** on the seat page, each one audited action. No
@@ -54,7 +58,8 @@ page changed only by the proposal in `mockups/proposals/`. Nothing is drawn. The
 coverage maps live in the ledger, `missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/`.
 
 Known limitations of the evidence: W1 and W4 screens show today's template colours (key `blue` becomes Oxford
-Blue under W2); W3-02 predates the name-only rule under None on Person. The build follows the rules.
+Blue under W2); W3-02 predates the name-only rule under None on Person and draws the Mobile chip dialling;
+W3-03 draws the record's Attendance section locked. The build follows the rules.
 
 ## Files
 

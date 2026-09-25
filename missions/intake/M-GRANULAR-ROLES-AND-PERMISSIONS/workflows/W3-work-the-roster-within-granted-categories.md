@@ -1,7 +1,9 @@
 # W3 — Work the roster and recruits within granted categories
 
 **Status: approved by Brian on 2026-09-25 (specification, mockups and acceptance), after round 4 applied
-his correction; one later locked decision (name only under None on Person) recorded below.**
+his correction; one later locked decision (name only under None on Person) recorded below. Two Lead
+decisions on LAN-424 the same day restore recorded rules the photographs predate: Contactable carries no
+number under None on Contact & emergency (W3-02), and the record's Attendance section is always open (W3-03).**
 
 - Purpose/intended outcome: a seat sees and changes exactly the roster and recruiting data its job needs.
 - Primary actor: any seat holding at least View on one roster or recruiting category.
@@ -9,7 +11,7 @@ his correction; one later locked decision (name only under None on Person) recor
 - Route/placement: `/operate/roster`, `/operate/roster/[membershipId]`, `/operate/recruitment` and its record,
   new and QR routes. No new route.
 - User-visible result: the board shows only granted groups' columns; the record shows every section, with
-  None sections collapsed and locked; only Edit categories are editable.
+  None sections collapsed and locked (Attendance always open); only Edit categories are editable.
 
 ## Current `main` grounding
 
@@ -41,6 +43,11 @@ his correction; one later locked decision (name only under None on Person) recor
   out of Person. On the board, Contactable stays in Person and Missing stays where it is.
 - None on Person: a roster row shows the player's name only; the Contactable and Missing indicators are
   absent. W3-02's photograph predates this rule; the build follows the rule.
+- View on Person with None on Contact & emergency: Contactable is a plain indicator. It never carries or dials
+  a number (the desktop _Mobile_ chip and the 375 card's _Call_ alike). W3-02's photograph draws the chip
+  dialling; the build follows the rule.
+- The record's Attendance section is always open, whatever the seat's grants: attendance is not in the access
+  list. W3-03's photograph draws it locked; the build follows the rule.
 - Recruiting: Person information is the recruit's Person group on the board and Personal questionnaire, How to
   reach them, Who they are, Restricted, Where they stand and Their seasons on the record; Recruit details is the
   Recruitment group and section; Event details is every event group and Recruitment events.
@@ -56,9 +63,9 @@ his correction; one later locked decision (name only under None on Person) recor
 | None sections collapsed and locked, contents never sent; name stays              | locked                    | Round 3 brief, item 5                           | recorded  |
 | Board and record congruent                                                       | locked                    | Round 3 brief, item 5                           | recorded  |
 | Contactable stays in Person; Missing stays where it is                           | locked                    | Round 3 brief, W3-02                            | recorded  |
-| Contactable's Mobile chip dials the number under View on Person                  | locked                    | Approved as drawn on W3-02 (Brian, 2026-09-25)  | recorded  |
+| Contactable carries no number when Contact & emergency is None (W3-02)           | locked                    | Lead decision on LAN-424, 2026-09-25            | recorded  |
 | None on Person: the row shows the name only; Contactable and Missing absent      | locked                    | Brian, 2026-09-25 (below)                       | recorded  |
-| Record Attendance section locked with the rest                                   | locked                    | Approved as drawn on W3-03 (Brian, 2026-09-25)  | recorded  |
+| Record Attendance section always open; attendance is not in the access list      | locked                    | Lead decision on LAN-424, 2026-09-25            | recorded  |
 | Notes, What changed and Status history read as Recruit details                   | locked                    | Approved as drawn on W3-04b (Brian, 2026-09-25) | recorded  |
 | Record header status as plain secondary text, not a pill (W3-03, W3-04b)         | locked                    | Brian, round 4 (below)                          | recorded  |
 | Guard derivation per column and section; server-side omission of locked contents | delegated to Mission Lead | —                                               | delegated |

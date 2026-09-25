@@ -26,17 +26,20 @@ needs, and the club changes it on the seat's page without a code change.
 - Roster: the board's ten groups plus Contact & emergency, None / View / Edit. Recruiting: Person information,
   Recruit details (None / View / Edit), Event details (None / View).
 - Events per template, None / View / Manage, including templates added later; no types or categories; the
-  event templates page is unchanged.
+  event templates page is unchanged. A template added after delivery starts at Manage for President, General
+  Manager and IT Officer only, None for every other seat (Vice-President and Secretary included).
 - Two switches: may add to the roster, may add recruits. No records switch.
 - Records open to anyone who reaches the roster or recruits; a None section is collapsed and locked and its
-  contents never leave the server; with None on Person a roster row shows the name only.
+  contents never leave the server; with None on Person a roster row shows the name only; with None on Contact
+  & emergency, Contactable is a plain indicator that never carries or dials a number.
 - Floor: President, General Manager, IT Officer full and fixed; Vice-President and Secretary start full,
   removable; every other seat starts with None.
 - Copy access from another seat and Grant everything, each one audited action. No time-limited delegation.
 - Every grant and colour change audited in `audit_events`.
 - Roster group colours editable; palette of thirteen: key `blue` becomes Oxford Blue `#002147`, Lancer Gold
   `#C09723` added, no Lancer Blue; charcoal band text on gold and orange.
-- Record header status is text, not a pill. Attendance is outside the access list and unchanged.
+- Record header status is text, not a pill. Attendance is outside the access list and unchanged; the record's
+  Attendance section is always open.
 
 Delegated to the Mission Lead: table shapes, capability derivation, guard derivation, the attendance surface,
 per-event Delivery page scoping, the LAN-406 revert, the printed-access test, package decomposition.
@@ -52,10 +55,18 @@ module, the Monday report, the attendance-sheet email, per-group scoping for coa
   contactable and missing."
 
 Items drawn as _Proposed for owner approval_ and approved with the whole, now locked: Copy access / Grant
-everything; eleven roster categories; `role_management` edits group colours; the Mobile chip keeps dialling
-under View on Person; the record's Attendance section locks with the rest; prospect Notes, What changed and
+everything; eleven roster categories; `role_management` edits group colours; prospect Notes, What changed and
 Status history read as Recruit details; Follow-ups is the delivery board; Event info link stays under View; a
 template manager cannot edit the template itself.
+
+Decided on LAN-424 (2026-09-25), restoring recorded rules where the drawings differ:
+
+- Under View on Person with None on Contact & emergency, Contactable is a plain indicator and never carries or
+  dials a number (W3-02 draws the chip dialling).
+- The record's Attendance section is always open, because attendance is not in the access list (W3-03 draws
+  it locked).
+- A template added after delivery starts at Manage for the fixed seats only, per Brian and the Scope and Quote
+  v2; the earlier nonblocking unknown is removed.
 
 ## Ledger
 
@@ -100,11 +111,8 @@ No external configuration. Nothing is sent, and no provider, credential or accou
 
 - W1 and W4 screens show today's template colours; W2's palette re-tones key `blue` (Practice) to Oxford Blue.
   Not re-shot; the build follows W2.
-- W3-02 predates the name-only rule under None on Person; its screen head says so and the build follows the
-  rule.
-- The Scope and Quote v2 says a new template starts with "the fixed seats only"; W1's approved specification
-  gives Manage to every full seat (Vice-President and Secretary included). Recorded as a nonblocking unknown
-  and built per W1 unless Brian says otherwise.
+- W3-02 predates the name-only rule under None on Person and draws the Mobile chip dialling; W3-03 draws the
+  record's Attendance section locked. Each screen head says so and the build follows the rules. No re-shoot.
 - The Scope and Quote v2 lists the report and the attendance list among places a None template's events never
   appear; this packet excludes the Monday report and delegates the attendance surface, per LAN-424.
 - The Notion Work Request is not in this ledger (`HANDOFF.md` does not summarise it); the Scope and Quote v2

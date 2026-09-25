@@ -41,8 +41,10 @@ and _Open for Brian_ is down to two items (mass edits; the ledger approval words
   can reach the roster or recruits. Inside a record a None category is collapsed and locked (a lock in place
   of the chevron, cannot open, contents never sent); the name stays. View on the board is view in the record.
 - **Floor**: President, General Manager, IT Officer hold everything, fixed. Vice-President and Secretary start
-  full, removable one grant at a time. Every other seat starts with None on every category and template.
-- Attendance is not in the access list. Copy access / Grant everything stay on the seat page, `Proposed for
+  full, removable one grant at a time. Every other seat starts with None on every category and template. A
+  template added after delivery starts at Manage for the three fixed seats only and None for every other seat,
+  Vice-President and Secretary included (Brian and the Scope and Quote v2, recorded on LAN-424).
+- Attendance is not in the access list; the record's Attendance section is always open. Copy access / Grant everything stay on the seat page, `Proposed for
 owner approval`. No time-limited delegation.
 - **Roster group colours become editable** from an _Edit categories_ control on the roster (the same Button
   and size as _Add players_), on the thirteen-swatch palette: Oxford Blue (was Blue) and Lancer Gold added.
@@ -154,12 +156,14 @@ began; W3-03 opens Kit on a copy and writes nothing.
 - **W1-03 / W1-07 / W1-08** — Copy access and Grant everything: adopt? (Proposed for owner approval.) Copy from
   a fixed seat copies grants, never fixed status.
 - **W2-01** — Who may edit group colours? Proposed: `role_management` (President, GM, IT Officer).
-- **W3-02** — Contactable's _Mobile_ chip dials the number, so View on Person reveals mobiles while Contact &
-  emergency is None. Keep, or make the chips plain indicators then?
+- **W3-02** — Decided on LAN-424 (Lead, 2026-09-25): under View on Person with None on Contact & emergency,
+  Contactable is a plain indicator and never carries or dials a number (the _Mobile_ chip and the 375 _Call_
+  alike). With None on Person the row is the name only. The shot draws the chip dialling; the build follows
+  the rule.
 - **W3-02** — Missing counts onboarding items but stays in Person as instructed, so a seat with None on
   Onboarding still sees the count. Confirm.
-- **W3-03** — Attendance is not in the access list, but the record's Attendance section lists events of every
-  template. Drawn locked with the rest; or always open?
+- **W3-03** — Decided on LAN-424 (Lead, 2026-09-25): attendance is not in the access list, so the record's
+  Attendance section is always open. The shot draws it locked; the build follows the rule.
 - **W3-04b** — Notes, What changed and Status history drawn as Recruit details. Or Notes under Person
   information?
 - **W4-01** — May a template manager edit that template itself? Shown no (_Edit templates_ absent).

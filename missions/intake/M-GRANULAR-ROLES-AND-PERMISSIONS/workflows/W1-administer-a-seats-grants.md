@@ -46,7 +46,8 @@
 
 - Grant: None ↔ View ↔ Edit (roster, Person information, Recruit details), None ↔ View (Event details),
   None ↔ View ↔ Manage (each template), No ↔ Yes (switch). Any to any.
-- A template created later arrives at None for every seat except the five full seats (Manage).
+- A template created after delivery arrives at Manage for the fixed seats only (President, General Manager, IT
+  Officer) and at None for every other seat, Vice-President and Secretary included.
 - Copy: every grant of the target becomes the source seat's value, with no end date.
 - Grant everything: every grant becomes its maximum.
 - Fixed seats (President, General Manager, IT Officer): no transition exists.
@@ -100,6 +101,7 @@
 | Permissions block removed from the seat page                                                          | locked                    | Brian, round-1 feedback on W1-03                                     | recorded  |
 | Copy access from another seat (no expiry) and Grant everything, one audited action each, on seat page | locked                    | Approved with W1 as drawn on W1-03, W1-07, W1-08 (Brian, 2026-09-25) | recorded  |
 | Roster count: eleven, not the brief's "twelve" (Recruits moved to Recruiting)                         | locked                    | Approved with W1 as drawn on W1-03 (Brian, 2026-09-25)               | recorded  |
+| A template added after delivery: Manage for President, GM, IT Officer only; None for every other seat | locked                    | Scope and Quote v2 ("the fixed seats only"); Brian, LAN-424          | recorded  |
 | Table shapes, capability derivation, audit row shape, printed-access test, package split              | delegated to Mission Lead | LAN-424 "Delegated"                                                  | delegated |
 
 ## Brian approval
