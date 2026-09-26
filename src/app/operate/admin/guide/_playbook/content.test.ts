@@ -234,6 +234,20 @@ describe("the seat table is generated, not typed", () => {
     }
     for (const key of CAPABILITY_KEYS) expect(source, key).not.toContain(`"${key}"`);
   });
+
+  it("describes the seat page's Access section, not the retired Permissions panel — LAN-423", () => {
+    const page = playbookPage("operators-and-roles");
+    expect(page).toBeDefined();
+    const text = page!.steps
+      .flatMap((step) => [runsToText(step.operator), step.then ? runsToText(step.then) : ""])
+      .join(" ");
+    expect(text).not.toMatch(/Permissions/);
+    expect(text).toContain("Access");
+    expect(text).toMatch(/Events and the roster are granted per seat/);
+    const headings = CAPABILITY_KEYS.map(capabilityHeading);
+    expect(headings).not.toContain("Approve an event");
+    expect(headings).not.toContain("Inspect delivery");
+  });
 });
 
 describe("the house prohibitions on what this copy may say", () => {
