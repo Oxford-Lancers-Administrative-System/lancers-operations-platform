@@ -241,7 +241,12 @@ export default async function PersonRecordPage({
       )}
 
       {personOpen ? (
-        <StatusSection record={visible} roles={roles} alumniLabel={alumniLabel} />
+        <StatusSection
+          record={visible}
+          roles={roles}
+          alumniLabel={alumniLabel}
+          mayAssignRole={roleCodesPermit(gate.operator.roleCodes, "role_management")}
+        />
       ) : (
         <Section variant="banded" band="person" title="Where they stand" locked />
       )}

@@ -74,6 +74,7 @@ export default function RecruitmentRecordView({
   alumniLabel = "Never a member",
   currentSeasonLabel = null,
   mayOpenPerson = true,
+  mayAssignRole = false,
 }: {
   /** Narrowed on the server (LAN-432): a `none` category's keys are absent. */
   record: VisibleProspectRecord;
@@ -85,6 +86,8 @@ export default function RecruitmentRecordView({
   currentSeasonLabel?: string | null;
   /** LAN-432 — Person at `view` on the roster, which the person record asks. */
   mayOpenPerson?: boolean;
+  /** LAN-423 — `role_management`, which Assign a role's target asks. */
+  mayAssignRole?: boolean;
 }) {
   // LAN-432: each section follows its recruiting category. `none` is a locked
   // head with nothing of it sent; `view` reads; `edit` as before.
@@ -326,7 +329,12 @@ export default function RecruitmentRecordView({
               <IdentitySection record={person} />
               {person.dateOfBirth !== undefined ? <RestrictedSection record={person} /> : null}
               {person.status !== undefined ? (
-                <StatusSection record={person} roles={roles} alumniLabel={alumniLabel} />
+                <StatusSection
+                  record={person}
+                  roles={roles}
+                  alumniLabel={alumniLabel}
+                  mayAssignRole={mayAssignRole}
+                />
               ) : null}
             </>
           ) : (

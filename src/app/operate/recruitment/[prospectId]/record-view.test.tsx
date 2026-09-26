@@ -173,7 +173,12 @@ describe("LAN-307 — the recruit record shows the whole person record", () => {
         <IdentitySection record={FULL_PERSON} />
         <ContactSection record={FULL_PERSON} currentSeasonLabel="2026-27" />
         <RestrictedSection record={FULL_PERSON} />
-        <StatusSection record={FULL_PERSON} roles={[]} alumniLabel="Never a member" />
+        <StatusSection
+          record={FULL_PERSON}
+          roles={[]}
+          alumniLabel="Never a member"
+          mayAssignRole={false}
+        />
       </div>,
     );
     const expected = labelsOf(canonical.container);
@@ -868,5 +873,35 @@ describe("the operator's own consent control", () => {
     );
 
     expect(container.textContent).toContain("WhatsApp granted");
+  });
+});
+
+describe("Assign a role → is offered only to role_management holders — LAN-423", () => {
+  it("is absent from the person's Where they stand without role_management", () => {
+    const { container } = render(
+      <StatusSection
+        record={FULL_PERSON}
+        roles={[]}
+        alumniLabel="Never a member"
+        mayAssignRole={false}
+      />,
+    );
+    expect(container.textContent).not.toContain("Assign a role");
+  });
+
+  it("links to Roles for a role_management holder", () => {
+    render(
+      <StatusSection record={FULL_PERSON} roles={[]} alumniLabel="Never a member" mayAssignRole />,
+    );
+    expect(screen.getByText("Assign a role →").closest("a")?.getAttribute("href")).toBe(
+      "/operate/admin/roles",
+    );
+  });
+
+  it("is absent from the recruit record unless the page says the seat holds it", () => {
+    const { container } = render(
+      <RecruitmentRecordView record={BASE_RECORD} person={FULL_PERSON} />,
+    );
+    expect(container.textContent).not.toContain("Assign a role");
   });
 });

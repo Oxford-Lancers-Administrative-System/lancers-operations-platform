@@ -15,10 +15,13 @@ export default function StatusSection({
   record,
   roles,
   alumniLabel,
+  mayAssignRole,
 }: {
   record: VisiblePersonRecord;
   roles: readonly PersonRoleAssignment[];
   alumniLabel: string;
+  /** LAN-423: the link's target needs `role_management`, so only its holders see it. */
+  mayAssignRole: boolean;
 }) {
   return (
     <Section variant="banded" band="person" title="Where they stand">
@@ -59,18 +62,20 @@ export default function StatusSection({
               </Box>
             ))
           )}
-          <Button
-            href="/operate/admin/roles"
-            sx={{
-              p: 0,
-              minHeight: 0,
-              textTransform: "none",
-              justifyContent: "flex-start",
-              width: "fit-content",
-            }}
-          >
-            Assign a role →
-          </Button>
+          {mayAssignRole ? (
+            <Button
+              href="/operate/admin/roles"
+              sx={{
+                p: 0,
+                minHeight: 0,
+                textTransform: "none",
+                justifyContent: "flex-start",
+                width: "fit-content",
+              }}
+            >
+              Assign a role →
+            </Button>
+          ) : null}
         </Stack>
       </Fact>
     </Section>

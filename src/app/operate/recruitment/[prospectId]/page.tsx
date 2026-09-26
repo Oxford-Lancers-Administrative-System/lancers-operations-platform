@@ -17,6 +17,7 @@ import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import RecruitmentRecordView from "./record-view";
 import { operatorHoldsGrant } from "@/lib/auth/guards";
+import { roleCodesPermit } from "@/lib/auth/capabilities";
 import { RECRUITING_REACH } from "@/lib/auth/roster-access";
 import { recruitingAccessFor, redactProspectRecord } from "@/lib/services/recruitment-board-access";
 
@@ -100,6 +101,7 @@ export default async function RecruitmentRecordPage({
       record={redactProspectRecord(record, access)}
       person={person}
       mayOpenPerson={operatorHoldsGrant(operator, { kind: "roster", key: "person" }, "view")}
+      mayAssignRole={roleCodesPermit(operator.roleCodes, "role_management")}
       roles={roles}
       seasons={seasons}
       history={history}
