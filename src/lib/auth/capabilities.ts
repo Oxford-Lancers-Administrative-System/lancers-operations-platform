@@ -1,4 +1,10 @@
-import { fullGrants, holdsAnyGrant, NO_GRANTS, type OperatorGrants } from "./grants";
+import {
+  fullGrants,
+  holdsAnyGrant,
+  NO_GRANTS,
+  SEEDED_TEMPLATE_IDS,
+  type OperatorGrants,
+} from "./grants";
 
 /**
  * The capability map: every privileged action in the First Operational Vertical
@@ -996,13 +1002,13 @@ export function isFixedAccessSeat(roleCode: string): boolean {
 
 /**
  * The seed rule as code: what `roleCodes` resolve to on a freshly migrated
- * database, for the given templates. For tests and fixtures that build an
- * operator without reading the database; the running application always
- * reads the rows.
+ * database, for the given templates (by default the seven the templates
+ * migration seeds). For tests and fixtures that build an operator without
+ * reading the database; the running application always reads the rows.
  */
 export function seededGrantsFor(
   roleCodes: readonly string[],
-  templateIds: readonly string[] = [],
+  templateIds: readonly string[] = SEEDED_TEMPLATE_IDS,
 ): OperatorGrants {
   return roleCodes.some((code) => SEEDED_FULL_ACCESS_SEATS.includes(code))
     ? fullGrants(templateIds)

@@ -505,6 +505,21 @@ export function diffGrants(
   return changes;
 }
 
+/**
+ * The seven templates `20260916090000_event_templates.sql` seeds, by their fixed
+ * ids: Practice, Strength and conditioning, Chalk, Game, Social, Recruitment,
+ * Meeting. For fixtures that need the seeded matrix without a database.
+ */
+export const SEEDED_TEMPLATE_IDS: readonly string[] = Object.freeze([
+  "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+  "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+  "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+  "8de00424-52a8-52ad-9c9f-a29823f9c4bf",
+  "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+  "660cdcb7-51e3-5a19-aaa2-08c5256af288",
+]);
+
 // ---------------------------------------------------------------------------
 // LAN-429 bridge
 // ---------------------------------------------------------------------------

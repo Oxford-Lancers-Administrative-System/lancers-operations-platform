@@ -77,6 +77,7 @@ import {
   squadBoundaryKeys,
 } from "./board-columns";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { GRANT_REQUIREMENT } from "@/lib/auth/access";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -178,7 +179,9 @@ describe("REQ-authority — four-role only, for the grid and every column on it"
     render(await RosterPage(pageProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeInTheDocument();
-    expect(screen.getByTestId("refusal-requirement")).toHaveTextContent("President");
+    // LAN-429: the roster answers to grants, and a grant refusal names the
+    // need, never a list of seats.
+    expect(screen.getByTestId("refusal-requirement")).toHaveTextContent(GRANT_REQUIREMENT);
     expect(listRosterBoard).not.toHaveBeenCalled();
   });
 

@@ -327,7 +327,11 @@ describe("who may open the messaging schedule", () => {
   });
 
   it("refuses a narrow attendance recorder", async () => {
-    signedIn({ ...administrator(), roleCodes: ["head_coach"] });
+    signedIn({
+      ...administrator(),
+      roleCodes: ["head_coach"],
+      grants: seededGrantsFor(["head_coach"]),
+    });
 
     const { container } = render(await MessagingSchedulePage());
 

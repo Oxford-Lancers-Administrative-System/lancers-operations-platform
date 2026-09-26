@@ -133,10 +133,27 @@ Sign in with the local review account. Its address is
 repository.
 
 **Expected.** You land on **/operate/roster** — the season's squad as a
-twenty-column board (LAN-186), open only to the President, Vice-President,
-Secretary, General Manager and IT Officer. The left sidebar shows **Roster**,
-**Events** and **Report**. Bottom left it says who you are signed in as and
-"Authorized operator".
+twenty-column board (LAN-186). Who reaches it is a seat's access grants since
+LAN-429: on a freshly seeded database the President, Vice-President, Secretary,
+General Manager and IT Officer hold every roster and recruiting line at Edit
+and every template at Manage, and every other seat holds None. The left sidebar
+shows **Roster**, **Events** and **Report**. Bottom left it says who you are
+signed in as and "Authorized operator".
+
+**Who sees what (LAN-429).** Access is edited on a seat's page
+(Administration → Roles → a seat) by the President, General Manager and IT
+Officer, whose own access is fixed. Each seat holds None / View / Edit on eleven
+roster categories and on Person information and Recruit details, None / View on
+Event details, None / View / Manage on each event template, and No / Yes on
+"may add to the roster" and "may add recruits". An operator holding several
+seats holds the highest level any of them grants, from their next request. The
+sidebar follows: Roster, People and Missing data with any roster category at
+View; Recruitment with any recruiting category at View; Events with any template
+at View or an attendance capability; Follow-ups with any template at View; the
+Messaging schedule with any template at Manage. Report and the rest of
+Administration are unchanged. Until the roster package (LAN-432) lands, the
+roster, people and recruit pages open only to a seat holding every roster and
+recruiting line at its maximum.
 
 The heading reads `Roster` and beneath it `Season 2026-27 · 42 players · 20
 columns`.
@@ -782,6 +799,11 @@ Attendance recording is the only operator surface open to a coaching assignment.
 This action requires a club role that carries general operator access.
 Authorization is enforced by the service action independently of whether a
 navigation item was visible."
+
+A coach whose seat has been given any access grant (LAN-429) is no longer a
+narrow recorder: they get the ordinary shell with the destinations their grants
+open, and attendance recording is unchanged. With no grant they see exactly the
+above.
 
 An ordinary player's account, and a coach whose seat has ended, reach neither the
 read nor the write; `tests/slice-walkthrough.test.ts` and

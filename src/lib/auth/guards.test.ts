@@ -27,7 +27,13 @@ import {
   type CapabilityKey,
   seededGrantsFor,
 } from "./capabilities";
+import { GRANT_REQUIREMENT } from "./access";
+import { mergeGrantRows, NO_GRANTS, type GrantRow } from "./grants";
 import {
+  assertAccess,
+  assertGrant,
+  operatorHoldsGrant,
+  requireGrant,
   assertCapability,
   assertGeneralOperator,
   assertOperator,
@@ -678,5 +684,123 @@ describe("LAN-110 — the floor a coaching assignment does not stand on", () => 
       expect(refusal, state).toBeInstanceOf(NotPermitted);
       expect(refusal.message).toBe(OPERATOR_REQUIRED_MESSAGE);
     }
+  });
+});
+
+/**
+ * LAN-429 — the grant guards. `requireGrant` is the `requireCapability` of
+ * grants: the operator's union-maximum snapshot (`operator.grants`) against one
+ * line or one rule, refused with `NotPermitted` and never with null or false.
+ */
+describe("LAN-429 — requireGrant(), assertGrant() and assertAccess()", () => {
+  const SOCIAL = "8de00424-52a8-52ad-9c9f-a29823f9c4bf";
+  const GAME = "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae";
+
+  function row(kind: string, key: string | null, level: string, template: string | null = null) {
+    return { subject_kind: kind, subject_key: key, template_id: template, level } as GrantRow;
+  }
+
+  function holding(rows: GrantRow[], roleCodes: string[] = ["kit_manager"]): ResolvedOperator {
+    return { ...actor(roleCodes), grants: mergeGrantRows(rows) };
+  }
+
+  it("permits a line held at the minimum or above, and returns the operator", async () => {
+    const kitManager = holding([row("roster_category", "kit", "edit")]);
+    givenSession({ state: "active", operator: kitManager });
+
+    await expect(requireGrant({ kind: "roster", key: "kit" }, "edit")).resolves.toBe(kitManager);
+    await expect(requireGrant({ kind: "roster", key: "kit" }, "view")).resolves.toBe(kitManager);
+  });
+
+  it("refuses a line held below the minimum, naming the need and never the holdings", async () => {
+    givenSession({
+      state: "active",
+      operator: holding([row("roster_category", "kit", "view")]),
+    });
+
+    const refusal = await refusalFrom(() => requireGrant({ kind: "roster", key: "kit" }, "edit"));
+    expect(refusal).toBeInstanceOf(NotPermitted);
+    expect(refusal.rule).toBe("grant:roster.kit>=edit");
+    expect(refusal.message).toContain(GRANT_REQUIREMENT);
+    expect(refusal.message).not.toMatch(/kit_manager|Kit Manager/);
+  });
+
+  it("refuses with operator_required when there is no active operator", async () => {
+    givenSession({ state: "no_session" });
+
+    const refusal = await refusalFrom(() =>
+      requireGrant({ kind: "template", templateId: SOCIAL }, "view"),
+    );
+    expect(refusal.message).toBe(OPERATOR_REQUIRED_MESSAGE);
+  });
+
+  it("permits on the union across two seats — each seat alone would be refused", async () => {
+    // Treasurer: View on Social. Kit Manager: Manage on Game, Edit on Kit.
+    // One person holding both reaches Social at view AND Game at manage.
+    const treasurer = [
+      row("event_template", null, "view", SOCIAL),
+      row("event_template", null, "none", GAME),
+    ];
+    const kitManager = [
+      row("event_template", null, "none", SOCIAL),
+      row("event_template", null, "manage", GAME),
+      row("roster_category", "kit", "edit"),
+    ];
+    const both = holding([...treasurer, ...kitManager], ["kit_manager", "treasurer"]);
+    givenSession({ state: "active", operator: both });
+
+    await expect(requireGrant({ kind: "template", templateId: SOCIAL }, "view")).resolves.toBe(
+      both,
+    );
+    await expect(requireGrant({ kind: "template", templateId: GAME }, "manage")).resolves.toBe(
+      both,
+    );
+    await expect(requireGrant({ kind: "roster", key: "kit" }, "edit")).resolves.toBe(both);
+
+    // Neither seat alone.
+    expect(() =>
+      assertGrant(holding(treasurer), { kind: "template", templateId: GAME }, "manage"),
+    ).toThrow(NotPermitted);
+    expect(() =>
+      assertGrant(holding(kitManager), { kind: "template", templateId: SOCIAL }, "view"),
+    ).toThrow(NotPermitted);
+  });
+
+  it("takes a whole rule as well as one line", async () => {
+    givenSession({
+      state: "active",
+      operator: holding([row("event_template", null, "manage", GAME)]),
+    });
+
+    await expect(requireGrant({ anyOf: "template", minimum: "manage" })).resolves.toBeDefined();
+    const refusal = await refusalFrom(() => requireGrant({ anyOf: "roster", minimum: "view" }));
+    expect(refusal.rule).toBe("grant:any(roster)>=view");
+  });
+
+  it("asserts a capability, a grant or either through one call", () => {
+    const coach = { ...actor(["head_coach"]), grants: NO_GRANTS };
+    const events = {
+      either: [{ anyOf: "template", minimum: "view" }, "attendance_recording"],
+    } as const;
+
+    expect(assertAccess(coach, events)).toBe(coach);
+    expect(assertAccess(coach, "attendance_recording")).toBe(coach);
+    expect(() => assertAccess(coach, { anyOf: "template", minimum: "view" })).toThrow(NotPermitted);
+    expect(() => assertAccess(null, "attendance_recording")).toThrow(NotPermitted);
+  });
+
+  it("answers the rendering question without throwing", () => {
+    const kitManager = holding([row("roster_category", "kit", "view")]);
+    expect(operatorHoldsGrant(kitManager, { kind: "roster", key: "kit" }, "view")).toBe(true);
+    expect(operatorHoldsGrant(kitManager, { kind: "roster", key: "kit" }, "edit")).toBe(false);
+    expect(operatorHoldsGrant(null, { kind: "roster", key: "kit" }, "view")).toBe(false);
+  });
+
+  it("leaves a coach with one grant a general operator, and a coach with none a narrow one", () => {
+    const narrow = { ...actor(["head_coach"]), grants: NO_GRANTS };
+    const granted = holding([row("roster_category", "availability", "edit")], ["head_coach"]);
+
+    expect(() => assertGeneralOperator(narrow)).toThrow(NotPermitted);
+    expect(assertGeneralOperator(granted)).toBe(granted);
   });
 });

@@ -89,10 +89,12 @@ import { listCurrentSeasonEvents, type EventListEntry } from "@/lib/services/eve
 import { isOpenForAttendance, londonToday, shiftDays } from "./events/coach-event-buckets";
 import OperateLayout from "./layout";
 import OperatePage from "./page";
+import { gateShellPage } from "./gate";
 import RosterPage from "./roster/page";
 import EventsPage from "./events/page";
 import ReportPage from "./report/page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { mergeGrantRows, SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
 
 /** The approved unlinked copy — UX-03, `slice-ux.md` § 8. */
 const UNLINKED_COPY =
@@ -128,6 +130,21 @@ function actor(roleCodes: string[], displayName = "Rowan Ashdown"): ResolvedOper
     roleCodes,
     grants: seededGrantsFor(roleCodes),
     isActive: true,
+  };
+}
+
+/** LAN-429. An unroled operator holding one grant: View on the first seeded template. */
+function viewerOfOneTemplate(): ResolvedOperator {
+  return {
+    ...actor([]),
+    grants: mergeGrantRows([
+      {
+        subject_kind: "event_template",
+        subject_key: null,
+        template_id: SEEDED_TEMPLATE_IDS[0],
+        level: "view",
+      },
+    ]),
   };
 }
 
@@ -482,28 +499,49 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     await expect(OperatePage()).rejects.toThrow("REDIRECT:/operate/roster");
   });
 
-  it("opens on the first destination an unroled operator actually holds", async () => {
-    // Roster stopped being an ordinary operator surface on 2026-08-28
-    // (LAN-186, `Q-4`): "Four-role only, for the grid and every column on
-    // it." An unroled operator's first permitted destination is now Events —
-    // the shell is not role-gated, but Roster's own capability is, and the
-    // redirect follows what is actually open rather than a fixed default.
-    givenAccess({ state: "active", operator: actor([]) });
+  it("opens on the first destination an operator's grants actually open", async () => {
+    // LAN-429: Events appears with any template at View (or an attendance
+    // capability). An unroled operator granted View on one template opens
+    // there; Roster needs a roster category they do not hold.
+    givenAccess({ state: "active", operator: viewerOfOneTemplate() });
 
     await expect(OperatePage()).rejects.toThrow("REDIRECT:/operate/events");
   });
 
-  it("shows the same destinations to an operator who holds no role", async () => {
+  it("opens nowhere for an operator holding no seat and no grant", async () => {
+    // LAN-429: nothing in the primary list is open to them — Report is drawn
+    // for everyone but refuses — so /operate says so rather than redirecting
+    // into a refusal.
+    givenAccess({ state: "active", operator: actor([]) });
+
+    const { container } = render(await OperatePage());
+    expect(container.textContent).toContain("No destination in the operator shell");
+  });
+
+  it("shows an operator who holds no seat and no grant only Report", async () => {
     givenAccess({ state: "active", operator: actor([]) });
 
     render(await OperateLayout(layoutProps(null)));
     openNav();
 
-    // Navigation visibility is not authorization, in either direction. Five,
-    // not three: W5's Follow-ups is `capability: null` too, and LAN-204's
-    // Recruitment is shown unconditionally exactly as Roster, Events and
-    // Report already are — the page it opens is what actually refuses.
-    expect(screen.getAllByRole("link")).toHaveLength(5);
+    // LAN-429's sidebar rules: Roster and Recruitment follow the roster and
+    // recruiting grants, Events any template or an attendance capability,
+    // Follow-ups any template. Report is drawn for everyone, as it always was;
+    // its page is what refuses.
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Report"]);
+  });
+
+  it("shows Events and Follow-ups to an operator granted View on one template", async () => {
+    givenAccess({ state: "active", operator: viewerOfOneTemplate() });
+
+    render(await OperateLayout(layoutProps(null)));
+    openNav();
+
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Events",
+      "Report",
+      "Follow-ups",
+    ]);
   });
 
   it("names the signed-in operator, and lists none of their roles", async () => {
@@ -589,12 +627,12 @@ describe("row 14 — an operator with no relevant role is refused, and told what
   });
 
   it("offers a way back to somewhere the operator can actually go", async () => {
-    givenAccess({ state: "active", operator: actor([]) });
+    givenAccess({ state: "active", operator: viewerOfOneTemplate() });
 
     render(await ReportPage(reportProps()));
 
-    // Events, not Roster — Roster now requires `person_record_authority`
-    // (LAN-186, `Q-4`), which this unroled operator does not hold.
+    // Events, not Roster — LAN-429: Roster needs a roster category this
+    // operator does not hold; View on one template opens Events.
     const back = screen.getByRole("link", { name: "Return to an authorized area" });
     expect(back).toHaveAttribute("href", "/operate/events");
   });
@@ -1375,33 +1413,26 @@ describe("LAN-133 — Administration in the shell", () => {
     },
   );
 
-  // The empty string is the operator who holds no seat at all — as legitimate
-  // here as it is for the three ordinary destinations (`capability: null`
-  // already showed them Roster and Events before this package). The Treasurer
-  // holds neither `role_management`, `delivery_administration` nor
-  // `person_record_authority` (`AGENTS.md`'s no-recorded-decision reasoning),
-  // so both are left with only the one entry `capability: null` gives every
-  // seated operator: Follow-ups.
+  // The empty string is the operator who holds no seat at all. The Treasurer
+  // holds no `role_management` and, on the seeded matrix, no grant (LAN-429:
+  // every seat but the five starts at None). Follow-ups now follows any
+  // template at View, so neither sees an Administration entry at all.
   it.each(["treasurer", ""])(
-    "shows Follow-ups alone, under Administration, to an operator holding '%s'",
+    "shows no Administration entry to an operator holding '%s' and no grant",
     async (seat) => {
       givenAccess({ state: "active", operator: actor(seat === "" ? [] : [seat]) });
 
-      const { container } = render(await OperateLayout(layoutProps(null)));
+      render(await OperateLayout(layoutProps(null)));
       openNav();
 
-      expect(screen.getByRole("link", { name: "Follow-ups" })).toHaveAttribute(
-        "href",
-        "/operate/admin/follow-ups",
-      );
+      expect(screen.queryByRole("link", { name: "Follow-ups" })).toBeNull();
       expect(screen.queryByRole("link", { name: "People" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Missing data" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Messaging schedule" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Guide" })).toBeNull();
-      expect(container.textContent).toContain("Administration");
-      expect(screen.getAllByRole("link")).toHaveLength(5);
+      expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Report"]);
     },
   );
 
@@ -1510,5 +1541,72 @@ describe("LAN-418 — one link is current at a time", () => {
     await openShellAt("/operate/people-elsewhere");
 
     expect(currentLinks()).toEqual([]);
+  });
+});
+
+/**
+ * LAN-429 — `gateShellPage` takes a grant requirement as well as a capability,
+ * and a coach leaves the attendance shell the moment one grant is set.
+ */
+describe("LAN-429 — gateShellPage with a grant requirement", () => {
+  function kitViewer(roleCodes: string[] = ["kit_manager"]): ResolvedOperator {
+    return {
+      ...actor(roleCodes),
+      grants: mergeGrantRows([
+        { subject_kind: "roster_category", subject_key: "kit", template_id: null, level: "view" },
+      ]),
+    };
+  }
+
+  it("opens for a grant held at the minimum", async () => {
+    const operator = kitViewer();
+    givenAccess({ state: "active", operator });
+
+    const gate = await gateShellPage("/operate/roster", { anyOf: "roster", minimum: "view" });
+    expect(gate).toEqual({ operator });
+  });
+
+  it("refuses a grant held below the minimum, with the ordinary refusal screen", async () => {
+    givenAccess({ state: "active", operator: kitViewer() });
+
+    const gate = await gateShellPage("/operate/roster", {
+      subject: { kind: "roster", key: "kit" },
+      minimum: "edit",
+    });
+    expect("screen" in gate).toBe(true);
+    const { container } = render((gate as { screen: React.ReactElement }).screen);
+    expect(container.textContent).toContain("You do not have access to this action");
+  });
+
+  it("still takes a capability key exactly as before", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    expect("operator" in (await gateShellPage("/operate/admin/roles", "role_management"))).toBe(
+      true,
+    );
+    givenAccess({ state: "active", operator: actor(["treasurer"]) });
+    expect("screen" in (await gateShellPage("/operate/admin/roles", "role_management"))).toBe(true);
+  });
+
+  it("keeps a coach with no grant in the attendance shell, and lets a coach with one out", async () => {
+    givenAccess({ state: "active", operator: actor(["head_coach"]) });
+    expect("screen" in (await gateShellPage("/operate/roster"))).toBe(true);
+
+    const coach = kitViewer(["head_coach"]);
+    givenAccess({ state: "active", operator: coach });
+    expect(await gateShellPage("/operate/roster", { anyOf: "roster", minimum: "view" })).toEqual({
+      operator: coach,
+    });
+
+    render(await OperateLayout(layoutProps(null)));
+    openNav();
+    // The ordinary shell: Roster (Kit at View), Events (an attendance
+    // capability), Report — not the coach's single Attendance entry.
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Roster",
+      "Events",
+      "Report",
+      "People",
+      "Missing data",
+    ]);
   });
 });
