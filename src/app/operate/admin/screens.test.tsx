@@ -954,11 +954,11 @@ describe("the Roles page", () => {
     const { container } = render(await RolesPage());
 
     // The General Manager holds eleven — twelve until LAN-429 removed
-    // `person_record_authority` (access to the person record is a grant
+    // the old person-record capability (access to the person record is a grant
     // now), eleven until LAN-399 added `operator_guide`, ten until LAN-394
     // added `messaging_safety_authority`, nine until LAN-361 added
     // `person_erasure`, eight until LAN-215 added `roster_bulk_import`, and
-    // seven until LAN-183 added `person_record_authority`. The index shows
+    // seven until LAN-183 added the old person-record capability. The index shows
     // three and counts the rest, and the seat's own page shows every one.
     expect(container.textContent).toContain("and 8 more.");
     expect(container.textContent).not.toContain("read the Monday exception and action report");

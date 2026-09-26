@@ -32,6 +32,7 @@ import { personVersion } from "@/lib/services/person-write";
 import { submitPersonEdit } from "./actions";
 import { INITIAL_EDIT_STATE } from "./edit-state";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { mergeGrantRows } from "@/lib/auth/grants";
 
 const MARKER = "LAN185EditActions";
 let counter = 0;
@@ -391,5 +392,81 @@ describe("filling and correcting", () => {
       [personId],
     );
     expect(after.rows[0].n).toBe(before.rows[0].n);
+  });
+});
+
+describe("each field needs its own category at edit — LAN-432", () => {
+  function signedInWith(levels: Record<string, string>): void {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: {
+        authUserId: "00000000-1111-4111-8111-111111111111",
+        personId: actorPersonId,
+        displayName: "Caspian Hallowfield",
+        roleCodes: [],
+        grants: mergeGrantRows(
+          Object.entries(levels).map(([key, level]) => ({
+            subject_kind: "roster_category",
+            subject_key: key,
+            template_id: null,
+            level,
+          })),
+        ),
+        isActive: true,
+      },
+    });
+  }
+
+  it("refuses a forged edit from a seat holding Person and Contact & emergency at view", async () => {
+    const personId = await insertPerson({ givenName: unique("Viewonly") });
+    const data = await formFrom(personId, { givenName: unique("Forged") });
+    signedInWith({ person: "view", contact_emergency: "view" });
+
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toMatchObject({
+      kind: "not_permitted",
+    });
+    const after = await readPersonRecord(personId);
+    expect(after.givenName).not.toContain("Forged");
+  });
+
+  it("refuses a mobile smuggled in by a seat with Person at edit and Contact & emergency at view", async () => {
+    const personId = await insertPerson({ givenName: unique("Personedit") });
+    await insertContact(personId, { kind: "phone", rawValue: "+447700900301" });
+    const data = await formFrom(personId, { mobile: "+447700900302" });
+    signedInWith({ person: "edit", contact_emergency: "view" });
+
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toMatchObject({
+      kind: "not_permitted",
+      rule: "grant:roster.contact_emergency>=edit",
+    });
+    const after = await readPersonRecord(personId);
+    expect(after.contacts.find((c) => c.validUntil === null)?.rawValue).toBe("+447700900301");
+  });
+
+  it("writes Person's fields and leaves the contacts it was never sent", async () => {
+    const personId = await insertPerson({ givenName: unique("Partial") });
+    await insertContact(personId, { kind: "phone", rawValue: "+447700900303" });
+    const full = await formFrom(personId, { degreeField: "LAN432 Studies" });
+    // The form draws no contact field for this seat, so none arrives.
+    const contactFields = [
+      "mobile",
+      "personalEmail",
+      "collegeEmail",
+      "emergencyGivenName",
+      "emergencyFamilyName",
+      "emergencyRelationship",
+      "emergencyPhone",
+      "emergencyEmail",
+    ];
+    const data = new FormData();
+    for (const [key, value] of full.entries()) {
+      if (!contactFields.includes(key)) data.append(key, value);
+    }
+    signedInWith({ person: "edit" });
+
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toBeInstanceOf(RedirectSignal);
+    const after = await readPersonRecord(personId);
+    expect(after.degreeField).toBe("LAN432 Studies");
+    expect(after.contacts.find((c) => c.validUntil === null)?.rawValue).toBe("+447700900303");
   });
 });

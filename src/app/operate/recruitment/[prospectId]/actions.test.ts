@@ -8,7 +8,7 @@
  * `sendRecruitmentQuestionnaireAction` and `addRecruitmentNoteAction`,
  * **in the server action and not only in the UI** — the same standing this
  * package already proves for `board-actions.ts` — and the four offices are
- * admitted. `requireCapability("person_record_authority")` is the actual
+ * admitted. the old person-record capability check is the actual
  * gate; the service layer is mocked, since what is under test is the guard.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,7 +46,7 @@ const CORE_FOUR_ROLES = ["president", "vice_president", "secretary", "general_ma
 
 /**
  * Coaching-only seats. Each holds only `attendance_recorder`, so
- * `person_record_authority` refuses all three the same way — proved
+ * the old person-record capability refuses all three the same way — proved
  * individually rather than for one seat alone, since the walk's own gap
  * named "a coaching-only identity" generally, not one specific title.
  */

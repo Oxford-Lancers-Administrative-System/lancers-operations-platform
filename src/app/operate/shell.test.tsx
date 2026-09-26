@@ -479,7 +479,7 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     expect(screen.getByRole("link", { name: "Events" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Report" })).toBeVisible();
     // W5, LAN-171 and LAN-184: the Secretary holds `delivery_administration`
-    // (Messaging schedule reuses it) and `person_record_authority` (People and
+    // (Messaging schedule reuses it) and the old person-record capability (People and
     // Missing data), and, like every seated operator, sees Follow-ups
     // (`capability: null`) — see "LAN-133 — Administration in the shell" below,
     // which is where that group's own membership is asserted in full. These
@@ -1309,7 +1309,7 @@ describe("LAN-133 — Administration in the shell", () => {
   /** The three seats `REQ-role-management-authority` gives `role_management`. */
   const ROLE_ADMINISTRATORS = ["president", "general_manager", "it_officer"];
 
-  // LAN-184. All three `ROLE_ADMINISTRATORS` also hold `person_record_authority`
+  // LAN-184. All three `ROLE_ADMINISTRATORS` also hold the old person-record capability
   // (the four offices plus `it_officer`), so they now see People and Missing
   // data too — two more entries than LAN-171 left this group with.
   it.each(ROLE_ADMINISTRATORS)(
@@ -1385,7 +1385,7 @@ describe("LAN-133 — Administration in the shell", () => {
   // LAN-171. The Vice-President and Secretary hold `delivery_administration`
   // but not `role_management` — `REQ-role-management-authority` excludes them
   // from account and role administration, and that is unchanged. LAN-184 adds
-  // that both also hold `person_record_authority` (the four offices), so they
+  // that both also hold the old person-record capability (the four offices), so they
   // see People and Missing data alongside Messaging schedule and Follow-ups
   // (W5), which every seated operator sees regardless.
   it.each(["vice_president", "secretary"])(

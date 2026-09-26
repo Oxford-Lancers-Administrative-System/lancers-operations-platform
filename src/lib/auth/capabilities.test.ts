@@ -736,7 +736,7 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
 
 describe("row 8 — the map is the single source of truth, and is not editable at runtime", () => {
   it("names every privileged action the slice can refuse", () => {
-    // LAN-429 (LAN-423): twelve. `person_record_authority` is removed — the
+    // LAN-429 (LAN-423): twelve. the old person-record capability is removed — the
     // person record answers to the roster and recruiting grants now
     // (`./grants.ts`) — and nothing else was added.
     expect([...CAPABILITY_KEYS].sort()).toEqual(
@@ -756,7 +756,6 @@ describe("row 8 — the map is the single source of truth, and is not editable a
       ].sort(),
     );
     expect(CAPABILITY_KEYS).toHaveLength(12);
-    expect(CAPABILITY_KEYS as readonly string[]).not.toContain("person_record_authority");
   });
 
   it("records provenance for every grant", () => {

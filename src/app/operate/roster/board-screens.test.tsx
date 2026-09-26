@@ -655,7 +655,7 @@ describe("the Status column — one in-cell dropdown, no forms, no dialog", () =
   });
 
   // No test here for "an operator who can see the board but cannot change
-  // status": today `person_record_authority` (the board's own gate) is a
+  // status": today the old person-record capability (the board's own gate) is a
   // subset of `membership_activation`'s role list (`capabilities.ts`), so
   // every seat that reaches this page at all already holds the stronger
   // grant. The `canManageStatus` branch exists defensively — the same

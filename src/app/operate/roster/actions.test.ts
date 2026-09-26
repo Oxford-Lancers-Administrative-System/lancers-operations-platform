@@ -51,7 +51,7 @@ const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
 const ITEM_ID = "55555555-5555-4555-8555-555555555555";
 
 /**
- * `person_record_authority`'s role list — `REQ-authority`'s "four-role only,
+ * the old person-record capability's role list — `REQ-authority`'s "four-role only,
  * for the grid and every column on it", the board's own boundary and (since
  * RVW-186-001) this action's too.
  *
@@ -70,14 +70,14 @@ const ACTIVATION_ROLES = ["president", "vice_president", "secretary", "general_m
  * club's administrative seat, so it holds this and every other capability.
  *
  * `treasurer` holds `membership_activation` — the capability this action used
- * to be gated on — but not `person_record_authority`, the one it needs now.
+ * to be gated on — but not the old person-record capability, the one it needs now.
  * Until RVW-186-001 that gap was academic: a legal-transition table let a
  * Treasurer reach only three narrow, legal destinations. Removing that table
  * (`Q-12`) did not touch who may change a status; it just meant
  * `membership_activation` alone no longer bounded anything, so the Treasurer's
  * three narrow reaches became every status including `departed` and
  * `archived`. This entry is that regression test: a role holding
- * `membership_activation` but not `person_record_authority` must be refused.
+ * `membership_activation` but not the old person-record capability must be refused.
  */
 const OTHER_ROLES = [
   "treasurer",
@@ -217,7 +217,7 @@ describe("the status-change boundary", () => {
 describe("resolving an onboarding item", () => {
   /**
    * LAN-214 correction round 2, `F-NEW-001`. Four-role only — the same
-   * `person_record_authority` gate `setMembershipStatusAction` uses, above.
+   * the old person-record capability gate `setMembershipStatusAction` uses, above.
    * Until this correction the gate was `requireGeneralOperator()`, on the
    * reading that marking the kit sorted is ordinary roster work; `OD7-four-
    * role-only` (Brian, 2026-09-02) and `REQ-reason-free-waive` supersede

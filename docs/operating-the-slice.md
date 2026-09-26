@@ -137,8 +137,10 @@ twenty-column board (LAN-186). Who reaches it is a seat's access grants since
 LAN-429: on a freshly seeded database the President, Vice-President, Secretary,
 General Manager and IT Officer hold every roster and recruiting line at Edit
 and every template at Manage, and every other seat holds None. The left sidebar
-shows **Roster**, **Events** and **Report**. Bottom left it says who you are
-signed in as and "Authorized operator".
+lists only what the signed-in account's seats reach — it is drawn from the same
+grants and capabilities every page gates on (see "Who sees what" below), so it
+never offers a page that then refuses. Bottom left it says who you are signed
+in as and "Authorized operator".
 
 **Who sees what (LAN-429, LAN-430).** Access is edited on a seat's page
 (Administration → Roles → a seat) by the President, General Manager and IT
@@ -166,9 +168,35 @@ Administration are unchanged. Events of a template at None appear nowhere — no
 on the list, the calendar, Follow-ups or by typed URL; View shows everything in
 the event, including the Event info link; Manage adds every create, edit,
 delete, send, approve, delivery and chase control and that template's messaging
-schedule (LAN-431). Attendance recording is unchanged for every seat. Until the roster package (LAN-432) lands, the
-roster, people and recruit pages open only to a seat holding every roster and
-recruiting line at its maximum.
+schedule (LAN-431). Attendance recording is unchanged for every seat.
+
+**Working the roster and recruits within the grants (LAN-432).** The roster
+board, a player's record, People, a person's record and Missing data open for
+any seat that reaches Roster; the recruitment board and a prospect's record for
+any seat that reaches Recruitment. On the board a group at None has no columns,
+no filters and no card chips; at View its values are text and its column
+caption reads "view"; at Edit it is as before. With None on Person a row is the
+name alone. With None on Contact & emergency the Contactable indicator carries
+no number and the 375 card has no Call. On a record every section stays in its
+place: a section at None is its head with a lock, cannot be opened, and nothing
+of it is sent to the browser. The player record's sections read Person, Contact
+& emergency (Mobile phone, Personal email, Emergency contact — its own section
+after Person), Onboarding (and Activity), Membership, Availability, the five
+assignment groups and Kit; Their other seasons and Status history read as
+Membership; Attendance is always open. On People and a person's record, Who
+they are, Restricted, Where they stand, Messaging and What changed read as
+Person, How to reach them (and the emergency contact) as Contact & emergency,
+Their seasons as Membership; Correct this record needs Edit on Person or
+Contact & emergency and edits only those; Add a person needs Edit on Person;
+Merge needs every roster and recruiting line at its maximum. On a prospect's
+record Personal questionnaire, How to reach them, Who they are, Restricted,
+Where they stand and Their seasons read as Person information; Recruitment,
+Notes, What changed and Status history as Recruit details; Recruitment events
+as Event details. The record header's status is text, not a pill. Every write
+re-checks its own category at Edit on the server. **Add players** appears only
+with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
+**Add recruit** and **QR code** only with "May add recruits"; their pages and
+actions refuse without it.
 
 The heading reads `Roster` and beneath it `Season 2026-27 · 42 players · 20
 columns`.

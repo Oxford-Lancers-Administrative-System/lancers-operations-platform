@@ -13,7 +13,7 @@
  * allowed to click, exactly the position a POST from an attacker (or a
  * fifth-role operator who found the button) is in.
  *
- * `person_record_authority` is deliberately the wrong gate for the flip: it
+ * the old person-record capability is deliberately the wrong gate for the flip: it
  * admits `it_officer` (LAN-124's standing administrative exception), which
  * is correct for `setRecruitmentStatusAction` and every other surface in
  * this package but not for the mission's one irreversible action —
@@ -64,7 +64,7 @@ const FLIP_ROLES = ["president", "vice_president", "secretary", "general_manager
  * administrative seat is the *correct* holder (LAN-124); here it is
  * F-LAN204-001's own regression: an `it_officer`-only operator could reach
  * `flipRecruitmentProspectAction` before this correction, because it opened
- * with `person_record_authority` rather than a core-four-only check.
+ * with the old person-record capability rather than a core-four-only check.
  */
 const OTHER_ROLES = [
   "it_officer",
@@ -166,7 +166,7 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
   }
 });
 
-describe("setRecruitmentStatusAction — the person_record_authority gate, unchanged by this correction", () => {
+describe("setRecruitmentStatusAction — the Recruit details gate (LAN-432; the old person-record capability before it)", () => {
   it("lets an IT Officer change a status — the administrative seat is correct here (LAN-124)", async () => {
     givenAccess({ state: "active", operator: actor(["it_officer"]) });
 

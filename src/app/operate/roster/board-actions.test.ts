@@ -79,7 +79,7 @@ const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
 const SEASON_ID = "55555555-5555-4555-8555-555555555555";
 
-/** `person_record_authority`'s role list — see `[membershipId]/record-actions.test.ts`'s own comment. */
+/** the old person-record capability's role list — see `[membershipId]/record-actions.test.ts`'s own comment. */
 const FOUR_ROLE = ["president", "vice_president", "secretary", "general_manager"];
 
 const OTHER_ROLES = [
@@ -241,7 +241,7 @@ describe("commitOnboardingItemAction", () => {
 });
 
 /**
- * Every other cell action's own `person_record_authority` gate — advisory F2,
+ * Every other cell action's own the old person-record capability gate — advisory F2,
  * PR 204 correction round. `commitBpsAction` and `commitOnboardingItemAction`
  * above already carried this proof; deleting `requireCapability(...)` from
  * `commitWarmupSmallGroupAction` left all of this file's (and its siblings')

@@ -53,7 +53,7 @@ const SEASON = { id: "season-1", label: "2026-27", status: "active", startsOn: n
 describe("an operator outside the four offices", () => {
   it("is refused, with no person data anywhere in the payload", async () => {
     // The Treasurer: a seated operator, holding no coaching seat and no
-    // `person_record_authority` — the capability refusal itself, not the
+    // the old person-record capability — the capability refusal itself, not the
     // separate narrow-attendance-recorder path a coach would take.
     signedInAs(["treasurer"]);
     vi.mocked(listPeople).mockResolvedValue({
