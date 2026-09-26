@@ -537,7 +537,13 @@ export default function PlayerRecordView({
             testId="onboarding"
             locked
           />
-          <Section variant="banded" band="onboarding" title="Activity" testId="activity" locked />
+          <Section
+            variant="banded"
+            band="onboarding"
+            title="Onboarding activity"
+            testId="activity"
+            locked
+          />
         </>
       ) : (
         <>
@@ -624,7 +630,7 @@ export default function PlayerRecordView({
           <Section
             variant="banded"
             band="onboarding"
-            title="Activity"
+            title="Onboarding activity"
             testId="activity"
             collapsible
             defaultOpen={!collapsedGroups.has("activity")}

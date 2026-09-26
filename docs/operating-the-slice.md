@@ -181,7 +181,7 @@ no number and the 375 card has no Call. On a record every section stays in its
 place: a section at None is its head with a lock, cannot be opened, and nothing
 of it is sent to the browser. The player record's sections read Person, Contact
 & emergency (Mobile phone, Personal email, Emergency contact — its own section
-after Person), Onboarding (and Activity), Membership, Availability, the five
+after Person), Onboarding (and Onboarding activity), Membership, Availability, the five
 assignment groups and Kit; Their other seasons and Status history read as
 Membership; Attendance is always open. On People and a person's record, Who
 they are, Restricted, Where they stand, Messaging and What changed read as
