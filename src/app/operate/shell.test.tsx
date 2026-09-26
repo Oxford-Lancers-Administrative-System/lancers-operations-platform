@@ -560,12 +560,17 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     expect(container.innerHTML.toLowerCase()).not.toContain("president");
   });
 
-  it("renders each ordinary destination for any active operator", async () => {
-    // Roster is no longer one of them (LAN-186, `Q-4`) — its own describe
-    // block below proves that boundary; this covers the destinations that
-    // remain ordinary.
-    givenAccess({ state: "active", operator: actor([]) });
+  it("opens Events for a seat with View on one template", async () => {
+    // LAN-431: Events is no longer ordinary — it follows the seat's template
+    // grants (or an attendance capability). Roster left earlier (LAN-186).
+    givenAccess({ state: "active", operator: viewerOfOneTemplate() });
     expect(render(await EventsPage(eventsProps())).container.textContent).toContain("Events");
+  });
+
+  it("refuses Events, even by typed URL, to a seat with no template and no attendance", async () => {
+    givenAccess({ state: "active", operator: actor([]) });
+    render(await EventsPage(eventsProps()));
+    expect(screen.getByTestId("operator-not-permitted")).not.toBeNull();
   });
 });
 

@@ -20,6 +20,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -77,6 +87,8 @@ import { revalidatePath } from "next/cache";
 import { dispatchEventInvitations } from "@/lib/services/delivery";
 import { EMPTY_FORM_STATE, EMPTY_TRANSITION_STATE } from "./form-state";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { GRANT_REQUIREMENT } from "@/lib/auth/access";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
@@ -270,16 +282,13 @@ describe("only the four calendar roles may manage the calendar", () => {
     },
   );
 
-  it("names the roles the action needs, and never the ones the caller holds", async () => {
+  it("names no seat at all — neither the action's nor the caller's (LAN-431)", async () => {
     givenAccess({ state: "active", operator: actor(["treasurer", "media_secretary"]) });
 
     const error = await refusalFrom(() => createEventDraftAction(EMPTY_FORM_STATE, draftForm()));
 
-    expect(error.message).toContain("President");
-    expect(error.message).toContain("General Manager");
-    // The seats the caller actually holds. `it_officer` is no longer one of
-    // them, and could not be: LAN-124 put it in this grant, so the requirement
-    // sentence names it — which is the action's need, not the caller's holding.
+    // Access is data on the seat now, so there is no role list to recite.
+    expect(error.message).toBe(`You do not have access to this action. ${GRANT_REQUIREMENT}`);
     expect(error.message).not.toMatch(/treasurer|media secretary/i);
   });
 
@@ -461,7 +470,7 @@ describe("approveEventAction is the authorization boundary for releasing invitat
       );
 
       expect(error).toBeInstanceOf(NotPermitted);
-      expect(error.rule).toBe("capability:event_approval");
+      expect(error.rule).toBe("grant:template.7e34a764-7ed1-535e-8cef-73e00a62eafc>=manage");
       // Nothing was approved, and nothing was even attempted.
       expect(approveEvent).not.toHaveBeenCalled();
     },
@@ -621,7 +630,7 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
     );
 
     expect(error).toBeInstanceOf(NotPermitted);
-    expect(error.rule).toBe("capability:event_approval");
+    expect(error.rule).toBe("grant:template.7e34a764-7ed1-535e-8cef-73e00a62eafc>=manage");
     expect(saveEventAudience).not.toHaveBeenCalled();
   });
 
@@ -734,3 +743,66 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
  * above, in "exports no action that submits an event, or asserts what happened
  * to one" — a module-level check, so their return would be visible in a diff.
  */
+
+// ---------------------------------------------------------------------------
+// LAN-431 — Manage on the event's template, read from the database
+// ---------------------------------------------------------------------------
+
+describe("the event workflow's actions follow the seat's template grants — LAN-431", () => {
+  // `./template-of` is mocked (top of file) so every event belongs to this template.
+  const GRANTED = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+  const OTHER = "8fb4acfc-1d41-53b0-bda8-202f454a8629";
+
+  function socialSecretaryWith(templates: Record<string, "view" | "manage">) {
+    givenAccess({
+      state: "active",
+      operator: { ...actor(["social_secretary"]), grants: { ...NO_GRANTS, templates } },
+    });
+  }
+
+  it("lets a seat with Manage on the template create, save and approve", async () => {
+    socialSecretaryWith({ [GRANTED]: "manage" });
+
+    for (const { call, service } of ACTIONS) {
+      await expect(call()).rejects.toThrow(/^REDIRECT:/);
+      expect(service).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("refuses a forged create for a template the seat does not manage", async () => {
+    socialSecretaryWith({ [GRANTED]: "manage", [OTHER]: "view" });
+
+    const error = await refusalFrom(() =>
+      createEventDraftAction(EMPTY_FORM_STATE, draftForm({ templateId: OTHER })),
+    );
+
+    expect(error.kind).toBe("not_permitted");
+    expect(createEventDraft).not.toHaveBeenCalled();
+  });
+
+  it("refuses moving a draft onto a template the seat does not manage", async () => {
+    socialSecretaryWith({ [GRANTED]: "manage" });
+
+    const error = await refusalFrom(() =>
+      updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID, templateId: OTHER })),
+    );
+
+    expect(error.kind).toBe("not_permitted");
+    expect(updateEventDraft).not.toHaveBeenCalled();
+  });
+
+  it("refuses every write to a seat that only views the template", async () => {
+    socialSecretaryWith({ [GRANTED]: "view" });
+
+    for (const { call, service } of ACTIONS) {
+      const error = await refusalFrom(call);
+      expect(error.kind).toBe("not_permitted");
+      expect(service).not.toHaveBeenCalled();
+    }
+    const audience = await refusalFrom(() =>
+      saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm()),
+    );
+    expect(audience.kind).toBe("not_permitted");
+    expect(saveEventAudience).not.toHaveBeenCalled();
+  });
+});

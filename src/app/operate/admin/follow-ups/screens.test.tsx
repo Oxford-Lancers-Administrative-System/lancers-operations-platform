@@ -51,6 +51,7 @@ import { chaseSelectedAction } from "./actions";
 import FollowUpsPage from "./page";
 import { LAST_MESSAGE_NONE, RANGE_FROM_LABEL, RANGE_TO_LABEL, TABLE_PERSON } from "./presentation";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -68,6 +69,26 @@ function signedInAs(roleCodes: string[]): void {
     state: "active",
     operator: operator(roleCodes),
   });
+}
+
+/**
+ * LAN-431: a seat holding View on one template and nothing else. The queue the
+ * service returns it is its own (the service filters by template), and no row
+ * is its to chase.
+ */
+function signedInWithViewOnly(): void {
+  vi.mocked(resolveOperatorAccess).mockResolvedValue({
+    state: "active",
+    operator: {
+      ...operator(["social_secretary"]),
+      grants: { ...NO_GRANTS, templates: { "template-game": "view" } },
+    },
+  });
+  const viewOnly = (event: FollowUpEvent): FollowUpEvent => ({
+    ...event,
+    people: event.people.map((person) => ({ ...person, mayChase: false })),
+  });
+  vi.mocked(readFollowUpsQueue).mockResolvedValue([viewOnly(HAWKS), viewOnly(PRACTICE)]);
 }
 
 async function renderPage(query: Record<string, string> = {}) {
@@ -98,6 +119,7 @@ const HAWKS: FollowUpEvent = {
         at: new Date("2026-09-11T08:00:00Z"),
       },
       chaseable: true,
+      mayChase: true,
     },
     {
       invitationId: "invitation-2",
@@ -108,6 +130,7 @@ const HAWKS: FollowUpEvent = {
       status: "delivery_problem",
       lastDelivery: { state: "failed", channel: "whatsapp", at: new Date("2026-09-11T08:00:00Z") },
       chaseable: true,
+      mayChase: true,
     },
     {
       invitationId: "invitation-3",
@@ -118,6 +141,7 @@ const HAWKS: FollowUpEvent = {
       status: "escalation_held",
       lastDelivery: null,
       chaseable: true,
+      mayChase: true,
     },
   ],
 };
@@ -141,6 +165,7 @@ const PRACTICE: FollowUpEvent = {
         at: new Date("2026-09-10T08:00:00Z"),
       },
       chaseable: true,
+      mayChase: true,
     },
   ],
 };
@@ -176,8 +201,16 @@ beforeEach(() => {
 });
 
 describe("who may open the Follow-ups queue", () => {
-  it("admits any linked, active operator", async () => {
+  it("refuses a seat holding no event template, even by typed URL — LAN-431", async () => {
     signedInAs([]);
+    const { container } = await renderPage();
+    expect(container.querySelector('[data-testid="follow-ups-screen"]')).toBeNull();
+    expect(screen.getByTestId("operator-not-permitted")).not.toBeNull();
+    expect(readFollowUpsQueue).not.toHaveBeenCalled();
+  });
+
+  it("admits a seat with View on one template — LAN-431", async () => {
+    signedInWithViewOnly();
     const { container } = await renderPage();
     expect(container.querySelector('[data-testid="follow-ups-screen"]')).not.toBeNull();
   });
@@ -561,7 +594,7 @@ describe("reaching the person and the event from a row — LAN-329", () => {
   });
 
   it("renders the name as plain text for a seat that cannot open a person record", async () => {
-    signedInAs([]);
+    signedInWithViewOnly();
     await renderPage();
     const row = screen.getAllByTestId("follow-ups-row")[0];
     expect(within(row).queryByRole("link", { name: "Gideon Thornbury" })).toBeNull();
@@ -572,8 +605,8 @@ describe("reaching the person and the event from a row — LAN-329", () => {
 });
 
 describe("chasing several people from the queue — LAN-322", () => {
-  it("offers no selection and no chase to a seat without delivery administration", async () => {
-    signedInAs([]);
+  it("offers no selection and no chase on a row whose template the seat only views — LAN-431", async () => {
+    signedInWithViewOnly();
     await renderPage();
     expect(
       screen.queryAllByLabelText(

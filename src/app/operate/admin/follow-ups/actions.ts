@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { sendEventChases } from "@/lib/services/messaging-scheduler";
 import { WAITING_ALLOWANCE_LABEL } from "@/lib/services/messaging-safety";
+import { requireInvitationsGrant } from "@/lib/services/events";
 import { CHASE_NOBODY_SELECTED, CHASE_REFUSAL_UNRECORDED, NOT_CHASEABLE } from "./presentation";
 
 /**
@@ -12,12 +13,12 @@ import { CHASE_NOBODY_SELECTED, CHASE_REFUSAL_UNRECORDED, NOT_CHASEABLE } from "
  * `/operate/people/missing`'s existing selection-and-nudge shape rather than a
  * second one (`actions.ts` there).
  *
- * Gated on `delivery_administration`, not on the page's own floor: the queue
- * is open to any seated operator because reading who is silent harms nobody,
- * but pressing this sends real messages to players about a real event, which
- * is the same act `retryDeliveryAction` and `revokeAndReissueAction` already
- * require that capability for. The checkboxes are hidden from a seat without
- * it; this guard is what actually decides.
+ * Gated on Manage on the template of every selected row's event (LAN-431),
+ * not on the page's own floor: the queue is open to View because reading who
+ * is silent harms nobody, but pressing this sends real messages to players
+ * about a real event, which is the same act `retryDeliveryAction` and
+ * `revokeAndReissueAction` require Manage for. The checkboxes are hidden on a
+ * row without it; this guard is what actually decides.
  */
 export interface ChaseActionResult {
   readonly error: string | null;
@@ -54,12 +55,15 @@ const EMPTY: Omit<ChaseActionResult, "error"> = Object.freeze({
 export async function chaseSelectedAction(
   invitationIds: readonly string[],
 ): Promise<ChaseActionResult> {
-  const operator = await requireCapability("delivery_administration");
+  await requireGrant({ anyOf: "template", minimum: "manage" });
 
   const ids = Array.from(new Set(invitationIds.filter((id) => id.trim() !== "")));
   if (ids.length === 0) {
     return { ...EMPTY, error: CHASE_NOBODY_SELECTED };
   }
+
+  // LAN-431: Manage on the template of every selected row's event, read from the invitations.
+  const operator = await requireInvitationsGrant(ids, "manage");
 
   try {
     const results = await sendEventChases(operator.personId, ids);

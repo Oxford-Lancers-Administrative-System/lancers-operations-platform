@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireCapability, requireGrant } from "@/lib/auth/guards";
+import { requireTemplateGrant } from "@/lib/services/events";
 import { isServiceError, withTransaction } from "@/lib/db";
 import {
   readMessagingScheduleIn,
@@ -38,7 +39,7 @@ export async function updateOneMessagingScheduleAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability("delivery_administration");
+  await requireGrant({ anyOf: "template", minimum: "manage" });
 
   const templateId = formData.get("templateId");
   if (typeof templateId !== "string" || templateId.trim() === "") {
@@ -47,6 +48,9 @@ export async function updateOneMessagingScheduleAction(
       error: "This submission did not say which template it was for, so nothing was saved.",
     };
   }
+
+  // LAN-431: a template's messaging schedule is Manage on that template.
+  const operator = await requireTemplateGrant(templateId, "manage");
 
   // LAN-265: read before checked, so a refusal names the template in the
   // club's words, not a browser-chosen hidden label.

@@ -16,6 +16,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -176,6 +186,8 @@ import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
 import EditEventPage from "./[id]/edit/page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
+import { GRANT_REQUIREMENT } from "@/lib/auth/access";
 
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -225,9 +237,17 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
   };
 }
 
-/** An operator with no calendar role. The Treasurer is deliberately one. */
+/** LAN-431: a seat with View on every seeded template and Manage on none. */
 function reader(): ResolvedOperator {
-  return operator(["treasurer"]);
+  return {
+    ...operator(["treasurer"]),
+    grants: {
+      ...NO_GRANTS,
+      templates: Object.fromEntries(
+        Object.values(SEEDED_TEMPLATE_IDS).map((id) => [id, "view" as const]),
+      ),
+    },
+  };
 }
 
 function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
@@ -1668,10 +1688,7 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
     // Everybody else reads the structural rule, which is on the page for every
     // pre-approval event regardless of role. LAN-76's criterion — a draft states
     // plainly that nothing has gone out — holds for both readers.
-    vi.mocked(resolveOperatorAccess).mockResolvedValue({
-      state: "active",
-      operator: operator(["treasurer"]),
-    });
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: reader() });
     render(await EventDetailPage(detailProps()));
     expect(screen.getByTestId("distribution-fact")).toHaveTextContent("Nothing distributed");
     expect(screen.queryByRole("link", { name: "Choose audience and approve" })).toBeNull();
@@ -1838,12 +1855,12 @@ describe("LAN-419 — an approved event's edit URL forwards to the one edit page
 // Brian's clarification — who the calendar is managed by
 // ---------------------------------------------------------------------------
 
-describe("an operator without a calendar role reads the calendar and changes nothing", () => {
+describe("a seat with View and no Manage reads the calendar and changes nothing — LAN-431", () => {
   beforeEach(() => {
     vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: reader() });
   });
 
-  it("still sees the club's events — Events is an ordinary operator surface", async () => {
+  it("still sees the events of the templates it views", async () => {
     givenList([listEntry()]);
 
     const { container } = render(await EventsPage(listProps()));
@@ -1886,9 +1903,8 @@ describe("an operator without a calendar role reads the calendar and changes not
     expect(flatten(container.textContent)).toContain("Wednesday practice");
     expect(screen.queryByRole("link", { name: "Edit draft" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Abandon draft" })).toBeNull();
-    expect(flatten(screen.getByTestId("read-only-note").textContent)).toContain(
-      "President, Vice-President, Secretary and General Manager",
-    );
+    // Absent, not explained: no sentence names who may.
+    expect(screen.queryByTestId("read-only-note")).toBeNull();
   });
 
   it("is refused the editor outright, and told what it needs", async () => {
@@ -1897,7 +1913,7 @@ describe("an operator without a calendar role reads the calendar and changes not
     render(await EditEventPage(editProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
-    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toContain("President");
+    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toBe(GRANT_REQUIREMENT);
     expect(readEvent).not.toHaveBeenCalled();
   });
 
@@ -1905,9 +1921,7 @@ describe("an operator without a calendar role reads the calendar and changes not
     render(await NewEventPage(newProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
-    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toContain(
-      "General Manager",
-    );
+    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toBe(GRANT_REQUIREMENT);
   });
 
   it("is never told which roles it holds", async () => {

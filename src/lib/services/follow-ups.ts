@@ -1,7 +1,8 @@
 import "server-only";
 
 import { withTransaction, type Tx } from "@/lib/db";
-import { requireGeneralOperator } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
+import { grantAtLeast, templatesAtLeast } from "@/lib/auth/grants";
 import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 
@@ -43,6 +44,8 @@ export interface FollowUpRow {
   readonly lastDelivery: FollowUpDelivery | null;
   /** `REQ-never-harsh`: a recruit is never chased a second time, so the queue says the row cannot be. */
   readonly chaseable: boolean;
+  /** LAN-431: Manage on the event's template. Without it the row offers no chase at all. */
+  readonly mayChase: boolean;
 }
 
 export interface FollowUpEvent {
@@ -57,6 +60,7 @@ export interface FollowUpEvent {
 interface QueueRow {
   invitation_id: string;
   event_id: string;
+  template_id: string;
   event_name: string;
   person_id: string;
   capacity: string;
@@ -76,9 +80,9 @@ interface QueueRow {
 }
 
 /** OWNER-LAN173-06: orders by `NOTIFICATION_JOB_RECENCY_ORDER` (see `./delivery.ts`). */
-async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
+async function readQueueRowsIn(tx: Tx, templateIds: readonly string[]): Promise<QueueRow[]> {
   const result = await tx.query<QueueRow>(
-    `select q.invitation_id, q.event_id, q.event_name, q.scheduled_on::text as scheduled_on,
+    `select q.invitation_id, q.event_id, ev.template_id::text as template_id, q.event_name, q.scheduled_on::text as scheduled_on,
             q.expires_at, q.capacity::text as capacity, p.id as person_id,
             ${displayName("p")} as display_name,
             delivery.state as delivery_state,
@@ -91,6 +95,7 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
             (f.invitation_id is not null) as flag_open
        from public.nonresponse_queue q
        join public.invitations i on i.id = q.invitation_id
+       join public.events ev on ev.id = q.event_id
        left join public.season_memberships m on m.id = i.season_membership_id
        join public.people p on p.id = coalesce(i.person_id, m.person_id)
        left join lateral (
@@ -126,8 +131,10 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
                               where rp.person_id = i.person_id
                                 and rp.season_id = i.season_id
                                 and rp.status = any($1::public.prospect_status[])))
+        -- LAN-431: only events of templates the reader holds at View or above.
+        and ev.template_id::text = any($2::text[])
       order by q.scheduled_on nulls last, q.event_name, display_name`,
-    [[...EXIT_STATUSES]],
+    [[...EXIT_STATUSES], [...templateIds]],
   );
   return result.rows;
 }
@@ -172,11 +179,15 @@ async function readChaseJobsForIn(
   return byInvitation;
 }
 
-/** The cross-event queue, grouped by event, soonest first (W5). Requires `requireGeneralOperator()`, same floor as the participation table. */
+/**
+ * The cross-event queue, grouped by event, soonest first (W5). LAN-431: any template at View, and
+ * only rows of events whose template the reader holds at View or above; each row says whether the
+ * reader may chase it (Manage on that template).
+ */
 export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
-  await requireGeneralOperator();
+  const operator = await requireGrant({ anyOf: "template", minimum: "view" });
   return withTransaction(async (tx) => {
-    const rows = await readQueueRowsIn(tx);
+    const rows = await readQueueRowsIn(tx, templatesAtLeast(operator.grants, "view"));
     const jobsByInvitation = await readChaseJobsForIn(
       tx,
       rows.map((row) => row.invitation_id),
@@ -254,6 +265,11 @@ export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
         // recruit either — `sendEventChases` refuses one, and this is the same
         // fact said on the row rather than a second rule.
         chaseable: row.capacity !== "recruit",
+        mayChase: grantAtLeast(
+          operator.grants,
+          { kind: "template", templateId: row.template_id },
+          "manage",
+        ),
       };
 
       const existing = byEvent.get(row.event_id);

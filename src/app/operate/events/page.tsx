@@ -3,12 +3,15 @@ import { EmptyState } from "@/components/empty-state";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
-import { operatorHasCapability } from "@/lib/auth/guards";
+import { operatorHasCapability, operatorHoldsAccess } from "@/lib/auth/guards";
 import {
+  ANY_TEMPLATE_MANAGE,
+  ANY_TEMPLATE_VIEW,
   derivedEventState,
   EVENT_SORT_COLUMNS,
   EVENT_STATUS_FILTERS,
   listEventsForOperator,
+  onlyGrantedTemplates,
   type EventList,
 } from "@/lib/services/events";
 import { bucketedCount, bucketEventsByPeriod, PERIOD_LABELS } from "@/lib/services/event-periods";
@@ -38,19 +41,30 @@ import { emptyMessage, emptyTestId, SORT_OPTIONS, statusLabel } from "./events-l
 
 export default async function EventsPage({ searchParams }: PageProps<"/operate/events">) {
   // LAN-110: the coach shell's one destination, so it opts in and renders `./coach-eligible-events.tsx` instead.
-  const gate = await gateShellPage(OPERATOR_EVENTS_PATH, undefined, { narrowRecorder: "allow" });
+  // LAN-431: open to a seat with any template at View, or an attendance capability — nobody else.
+  const gate = await gateShellPage(
+    OPERATOR_EVENTS_PATH,
+    { either: [ANY_TEMPLATE_VIEW, "attendance_recording", "attendance_recorder"] },
+    { narrowRecorder: "allow" },
+  );
   if ("screen" in gate) return gate.screen;
 
   const params = await searchParams;
 
-  if (isNarrowAttendanceRecorder(gate.operator.roleCodes, gate.operator.grants)) {
+  // LAN-431: a seat that sees no template at all reaches the attendance surface only, which lists every event.
+  if (
+    isNarrowAttendanceRecorder(gate.operator.roleCodes, gate.operator.grants) ||
+    !operatorHoldsAccess(gate.operator, ANY_TEMPLATE_VIEW)
+  ) {
     return await coachEventList(first(params.q));
   }
 
   const query = readListQuery(params, Object.keys(EVENT_SORT_COLUMNS));
 
-  // Reading the calendar is open to any linked, active operator; actions guard themselves regardless.
-  const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
+  // LAN-431: Create event with Manage on any template; the list shows only granted templates.
+  const mayManage = operatorHoldsAccess(gate.operator, ANY_TEMPLATE_MANAGE);
+  // Template administration and bulk import are not granted by templates: they keep the capability.
+  const mayAdministerTemplates = operatorHasCapability(gate.operator, "event_calendar_management");
 
   // One reading of the club's clock for the whole page — filter, Status column and bucket boundaries must agree.
   const today = todayInClubZone();
@@ -69,7 +83,10 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
         direction: query.direction,
         today,
       }),
-      listEventTemplateOptions(),
+      // LAN-431: the Type filter lists only the templates this seat sees.
+      listEventTemplateOptions().then((options) =>
+        onlyGrantedTemplates(gate.operator.grants, options, "view"),
+      ),
     ]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
@@ -103,8 +120,8 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
         subtitle={<span data-testid="season-label">{`Season ${list.season.label}`}</span>}
         actions={
           <>
-            {mayManage ? <CreateEventMenu /> : null}
-            {mayManage ? <EditTemplatesButton /> : null}
+            {mayManage ? <CreateEventMenu mayImport={mayAdministerTemplates} /> : null}
+            {mayAdministerTemplates ? <EditTemplatesButton /> : null}
             <SubscribeToCalendarButton />
           </>
         }

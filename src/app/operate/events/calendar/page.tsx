@@ -1,12 +1,17 @@
 import { PageHeader } from "@/components/page-header";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import { operatorHasCapability } from "@/lib/auth/guards";
+import { operatorHoldsAccess } from "@/lib/auth/guards";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { defaultMonth, parseMonth } from "@/lib/services/calendar";
-import { listEventsForOperator, type EventList } from "@/lib/services/events";
+import {
+  ANY_TEMPLATE_MANAGE,
+  ANY_TEMPLATE_VIEW,
+  listEventsForOperator,
+  type EventList,
+} from "@/lib/services/events";
 import { first } from "@/app/calendar/query";
 import {
   OPERATOR_CALENDAR_PATH,
@@ -30,12 +35,13 @@ function modeOf(value: string): CalendarMode {
 export default async function EventCalendarPage({
   searchParams,
 }: PageProps<"/operate/events/calendar">) {
-  const gate = await gateShellPage(OPERATOR_CALENDAR_PATH);
+  // LAN-431: any template at View; the calendar shows only granted templates' events.
+  const gate = await gateShellPage(OPERATOR_CALENDAR_PATH, ANY_TEMPLATE_VIEW);
   if ("screen" in gate) return gate.screen;
 
   const params = await searchParams;
   const mode = modeOf(first(params.mode));
-  const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
+  const mayManage = operatorHoldsAccess(gate.operator, ANY_TEMPLATE_MANAGE);
   const today = todayInClubZone();
 
   let list: EventList;

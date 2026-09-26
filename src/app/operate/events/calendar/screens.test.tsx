@@ -70,6 +70,7 @@ import { listTermWindows } from "@/lib/services/seasons";
 import type { TermWindow } from "@/lib/services/event-input";
 import EventCalendarPage from "./page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS, SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
 
 const MICHAELMAS: TermWindow = {
   id: "55555555-5555-4555-8555-555555555551",
@@ -131,9 +132,15 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
   };
 }
 
-/** A linked, active operator with no calendar role. The Treasurer is one. */
+/** LAN-431: a seat with View on every seeded template and Manage on none. */
 function reader(): ResolvedOperator {
-  return operator(["treasurer"]);
+  return {
+    ...operator(["treasurer"]),
+    grants: {
+      ...NO_GRANTS,
+      templates: Object.fromEntries(SEEDED_TEMPLATE_IDS.map((id) => [id, "view" as const])),
+    },
+  };
 }
 
 let nextId = 0;
@@ -798,9 +805,22 @@ describe("authorization and side effects", () => {
     expect(screen.getByRole("link", { name: "Create event" })).toBeTruthy();
   });
 
-  it("gives an operator without a calendar role a read-only calendar", async () => {
-    // Events is an ordinary operator surface: any linked, active operator reads
-    // it, and only the four calendar-management roles get the Create control.
+  it("refuses the calendar, even by typed URL, to a seat holding no template — LAN-431", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+
+    const { container } = render(await EventCalendarPage(calendarProps()));
+
+    expect(container.querySelector('[data-testid="gregorian-grid"]')).toBeNull();
+    expect(screen.getByTestId("operator-not-permitted")).toBeTruthy();
+    expect(listEventsForOperator).not.toHaveBeenCalled();
+  });
+
+  it("gives a seat with View and no Manage a read-only calendar", async () => {
+    // LAN-431: View on a template reads its events; only Manage on at least
+    // one template gets the Create control.
     //
     // The note that used to sit here — "Every linked, active operator can read
     // this calendar…" — went with LAN-153. It narrated a rule rather than saying

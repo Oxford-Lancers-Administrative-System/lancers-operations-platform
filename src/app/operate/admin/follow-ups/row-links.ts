@@ -51,7 +51,7 @@ export function selectRowLabel(
 export interface QueueSelection {
   readonly selected: ReadonlySet<string>;
   readonly pending: boolean;
-  /** `delivery_administration`. Without it the queue is the report it has always been. */
+  /** Manage on any row's template (LAN-431); each row carries its own. Without it the queue is the report it has always been. */
   readonly mayChase: boolean;
   /** `person_record_authority`. Without it the name is text, never a link into a refusal. */
   readonly mayOpenPerson: boolean;

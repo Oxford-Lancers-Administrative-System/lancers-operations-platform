@@ -3,6 +3,7 @@ import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { isServiceError } from "@/lib/db";
 import { operatorHasCapability } from "@/lib/auth/guards";
+import { templatesAtLeast } from "@/lib/auth/grants";
 import { readMessagingSafetyStatus } from "@/lib/services/messaging-safety";
 import { listMessagingSchedulesWithPreview } from "@/lib/services/messaging-schedule";
 import { listRecruitmentCycleSteps } from "@/lib/services/recruitment-cycle";
@@ -23,44 +24,55 @@ import { RECRUIT_SCHEDULE_FIELDS, SCHEDULE_FIELDS } from "./validation";
 
 /** **Messaging schedule** — Administration's third destination, W7's settings page. LAN-171. Editable per template, never per event. */
 export default async function MessagingSchedulePage() {
-  const gate = await gateShellPage("/operate/admin/messaging", "delivery_administration");
+  // LAN-431: Manage on any template opens the page, and it lists only the templates managed.
+  const gate = await gateShellPage("/operate/admin/messaging", {
+    anyOf: "template",
+    minimum: "manage",
+  });
   if ("screen" in gate) return gate.screen;
 
+  // The recruitment cycle, the onboarding chase and the safety section are not any template's:
+  // they stay with `delivery_administration`, their existing capability.
+  const mayAdministerDelivery = operatorHasCapability(gate.operator, "delivery_administration");
+  const managed = new Set(templatesAtLeast(gate.operator.grants, "manage"));
+
   let rows: ScheduleRowData[];
-  let cycleSteps: Awaited<ReturnType<typeof listRecruitmentCycleSteps>>;
-  let onboardingChase: Awaited<ReturnType<typeof readOnboardingChaseSettings>>;
-  let safety: Awaited<ReturnType<typeof readMessagingSafetyStatus>>;
+  let cycleSteps: Awaited<ReturnType<typeof listRecruitmentCycleSteps>> | null;
+  let onboardingChase: Awaited<ReturnType<typeof readOnboardingChaseSettings>> | null;
+  let safety: Awaited<ReturnType<typeof readMessagingSafetyStatus>> | null;
   try {
     const [withPreview, steps, chase, safetyStatus] = await Promise.all([
       listMessagingSchedulesWithPreview(),
-      listRecruitmentCycleSteps(),
-      readOnboardingChaseSettings(),
-      readMessagingSafetyStatus(),
+      mayAdministerDelivery ? listRecruitmentCycleSteps() : null,
+      mayAdministerDelivery ? readOnboardingChaseSettings() : null,
+      mayAdministerDelivery ? readMessagingSafetyStatus() : null,
     ]);
     cycleSteps = steps;
     onboardingChase = chase;
     safety = safetyStatus;
-    rows = withPreview.map(({ schedule, preview }) => {
-      const values: Record<string, number> = {};
-      for (const field of SCHEDULE_FIELDS) {
-        values[field.key] = schedule[field.field];
-      }
-      // LAN-203, DEC-split-on-the-schedule: populated only for the Recruitment row.
-      const recruitValues: Record<string, number> | null =
-        schedule.eventType === "recruitment"
-          ? Object.fromEntries(
-              RECRUIT_SCHEDULE_FIELDS.map((field) => [field.key, schedule[field.field] ?? 0]),
-            )
-          : null;
-      return {
-        templateId: schedule.templateId,
-        eventType: schedule.eventType,
-        label: schedule.templateName,
-        values,
-        recruitValues,
-        preview: buildSchedulePreview(preview, schedule),
-      };
-    });
+    rows = withPreview
+      .filter(({ schedule }) => managed.has(schedule.templateId))
+      .map(({ schedule, preview }) => {
+        const values: Record<string, number> = {};
+        for (const field of SCHEDULE_FIELDS) {
+          values[field.key] = schedule[field.field];
+        }
+        // LAN-203, DEC-split-on-the-schedule: populated only for the Recruitment row.
+        const recruitValues: Record<string, number> | null =
+          schedule.eventType === "recruitment"
+            ? Object.fromEntries(
+                RECRUIT_SCHEDULE_FIELDS.map((field) => [field.key, schedule[field.field] ?? 0]),
+              )
+            : null;
+        return {
+          templateId: schedule.templateId,
+          eventType: schedule.eventType,
+          label: schedule.templateName,
+          values,
+          recruitValues,
+          preview: buildSchedulePreview(preview, schedule),
+        };
+      });
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -75,7 +87,7 @@ export default async function MessagingSchedulePage() {
   // LAN-394. Whether to *offer* the controls. Every action behind them guards
   // itself, and so does the service: this decides what is drawn, nothing more.
   const mayControl = operatorHasCapability(gate.operator, "messaging_safety_authority");
-  const paused = safety.pausedAt !== null || safety.emergencyStopped;
+  const paused = safety !== null && (safety.pausedAt !== null || safety.emergencyStopped);
 
   return (
     <Stack spacing={3}>
@@ -103,7 +115,7 @@ export default async function MessagingSchedulePage() {
         onboardingChase={onboardingChase}
       />
 
-      <MessagingSafetySection status={safety} mayControl={mayControl} />
+      {safety === null ? null : <MessagingSafetySection status={safety} mayControl={mayControl} />}
     </Stack>
   );
 }

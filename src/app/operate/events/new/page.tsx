@@ -3,12 +3,15 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
+import { grantAtLeast } from "@/lib/auth/grants";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { listTermWindows } from "@/lib/services/seasons";
 import { readEventFormDefaults } from "@/lib/services/event-templates";
 import { DEFAULT_TEMPLATE_CLASS } from "@/lib/services/event-template-input";
 import {
+  ANY_TEMPLATE_MANAGE,
   joinQuestionChoices,
+  onlyGrantedTemplateRecord,
   readEvent,
   readEventQuestions,
   type EventDetail,
@@ -23,7 +26,8 @@ import EventForm from "../event-form";
  * id>` prefills and writes nothing (Brian, 2026-08-22); the date is never copied.
  */
 export default async function NewEventPage({ searchParams }: PageProps<"/operate/events/new">) {
-  const gate = await gateShellPage("/operate/events", "event_calendar_management");
+  // LAN-431: Manage on at least one template, and only those templates are offered.
+  const gate = await gateShellPage("/operate/events", ANY_TEMPLATE_MANAGE);
   if ("screen" in gate) return gate.screen;
 
   const query = await searchParams;
@@ -32,7 +36,9 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
   let terms;
   let templates;
   try {
-    [terms, templates] = await Promise.all([listTermWindows(), readEventFormDefaults()]);
+    let allTemplates;
+    [terms, allTemplates] = await Promise.all([listTermWindows(), readEventFormDefaults()]);
+    templates = onlyGrantedTemplateRecord(gate.operator.grants, allTemplates, "manage");
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -50,14 +56,23 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
   let sourceQuestions: RawEventQuestion[] = [];
   if (from !== null) {
     try {
-      source = await readEvent(from);
-      sourceQuestions = (await readEventQuestions(from)).map((question) => ({
-        prompt: question.prompt,
-        answerType: question.answerType,
-        required: question.isRequired ? "required" : "optional",
-        choices: joinQuestionChoices(question.choices),
-        fromTemplate: question.fromTemplate ? "true" : "false",
-      }));
+      const read = await readEvent(from);
+      // LAN-431: a source of a template this seat cannot see is refused, and the form opens empty.
+      const visible = grantAtLeast(
+        gate.operator.grants,
+        { kind: "template", templateId: read.templateId },
+        "view",
+      );
+      if (visible) {
+        source = read;
+        sourceQuestions = (await readEventQuestions(from)).map((question) => ({
+          prompt: question.prompt,
+          answerType: question.answerType,
+          required: question.isRequired ? "required" : "optional",
+          choices: joinQuestionChoices(question.choices),
+          fromTemplate: question.fromTemplate ? "true" : "false",
+        }));
+      }
     } catch (error) {
       // A deleted-since-rendered source is not a refusal — the form just opens empty.
       if (!isServiceError(error)) throw error;
@@ -70,7 +85,8 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
       ? undefined
       : {
           name: source.name,
-          templateId: source.templateId,
+          // A source whose template this seat does not manage opens on one it does.
+          templateId: source.templateId in templates ? source.templateId : "",
           scheduledOn: "",
           startsAt: source.startsAt ?? "",
           endsAt: source.endsAt ?? "",

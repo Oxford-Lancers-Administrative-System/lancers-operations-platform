@@ -2,11 +2,15 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import {
+  ANY_TEMPLATE_MANAGE,
   createEventDraft,
   deleteEventDraft,
+  requireEventGrant,
+  requireTemplateGrant,
   updateEventDraft,
   validateEventDraft,
   validateEventQuestions,
@@ -17,9 +21,20 @@ import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventQuestionInput, RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
 
-// The event workflow's server actions — LAN-76, LAN-77. Every action opens
-// with requireCapability() against the verified session; NotPermitted is
-// rethrown, not a form message. No ownership term.
+// The event workflow's server actions — LAN-76, LAN-77. Every action requires
+// Manage on the event's template (LAN-431) against the verified session: the
+// template read from the stored event, and for a create or a change of
+// template, the template posted as well. NotPermitted is rethrown, not a form
+// message. No ownership term.
+
+/** Manage on this event's template; a missing event is a message for the form, a refusal is thrown. */
+async function managerOf(eventId: string): Promise<ResolvedOperator | { error: string }> {
+  try {
+    return await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+}
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -84,7 +99,7 @@ export async function createEventDraftAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const operator = await requireCapability("event_calendar_management");
+  await requireGrant(ANY_TEMPLATE_MANAGE);
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
 
@@ -99,6 +114,9 @@ export async function createEventDraftAction(
       questions: rawQuestions,
     };
   }
+
+  // Only a template this seat manages; a forged one is refused, not saved.
+  const operator = await requireTemplateGrant(validation.value.templateId, "manage");
 
   let eventId: string;
   try {
@@ -127,10 +145,20 @@ export async function updateEventDraftAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
+
+  const manager = await managerOf(eventId);
+  if ("error" in manager) {
+    return {
+      issues: [],
+      questionIssues: [],
+      error: manager.error,
+      values: raw,
+      questions: rawQuestions,
+    };
+  }
 
   const validation = validateEventDraft(raw);
   const questions = validateEventQuestions(rawQuestions ?? []);
@@ -143,6 +171,9 @@ export async function updateEventDraftAction(
       questions: rawQuestions,
     };
   }
+
+  // A draft may move to another template only one this seat also manages.
+  const operator = await requireTemplateGrant(validation.value.templateId, "manage");
 
   try {
     await updateEventDraft(
@@ -171,8 +202,9 @@ export async function deleteEventDraftAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return operator;
 
   try {
     await deleteEventDraft(operator.personId, eventId);
@@ -190,8 +222,9 @@ export async function approveEventAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_approval");
   const eventId = text(formData, "eventId");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return operator;
 
   try {
     await approveEvent(operator.personId, eventId);
@@ -218,8 +251,9 @@ export async function saveEventAudienceAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_approval");
   const eventId = text(formData, "eventId");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return operator;
   const keys = formData
     .getAll("audienceKey")
     .filter((key): key is string => typeof key === "string");

@@ -2,7 +2,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
-import { operatorHasCapability } from "@/lib/auth/guards";
 import { readEvent, readEventQuestions, type EventDetail } from "@/lib/services/events";
 import { readEventAttendanceSummary } from "@/lib/services/attendance";
 import {
@@ -27,7 +26,7 @@ import {
 } from "@/lib/services/club-link";
 import { publicOrigin } from "../../../participation/origin";
 import { buildShareMessage } from "../../../participation/share-message";
-import { gateShellPage } from "../../gate";
+import { gateEventPage } from "../event-gate";
 import { AudienceBuilder } from "./audience-builder";
 import {
   ApprovalLayout,
@@ -50,10 +49,11 @@ export default async function EventDetailPage({
   params,
   searchParams,
 }: PageProps<"/operate/events/[id]">) {
-  const gate = await gateShellPage("/operate/events");
+  const { id } = await params;
+  // LAN-431: View on this event's template opens the page; Manage adds every control.
+  const gate = await gateEventPage("/operate/events", id, "view");
   if ("screen" in gate) return gate.screen;
 
-  const { id } = await params;
   const query = await searchParams;
   const step = typeof query.step === "string" ? query.step : "";
   const justApproved = query.approved === "1";
@@ -76,9 +76,11 @@ export default async function EventDetailPage({
     );
   }
 
-  const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
-  const mayApprove = operatorHasCapability(gate.operator, "event_approval");
-  const mayAdministerDelivery = operatorHasCapability(gate.operator, "delivery_administration");
+  // LAN-431: all three follow Manage on this event's template — creating, editing, deleting,
+  // approving, releasing invitations, amending, cancelling and delivery are one level.
+  const mayManage = gate.level === "manage";
+  const mayApprove = mayManage;
+  const mayAdministerDelivery = mayManage;
   const canWorkOnAudience = mayApprove && event.status === "draft";
 
   // UX-40/41: audience data loaded only for an approver working a draft.
@@ -162,7 +164,8 @@ export default async function EventDetailPage({
       : null;
 
   // Dialog reads the live link; a page render must not write.
-  const clubLink = shareOpen && mayManage ? await readEventClubLink(event.id) : null;
+  // W4-05: the Event info link shares and sends nothing, so View holds it.
+  const clubLink = shareOpen ? await readEventClubLink(event.id) : null;
 
   /**
    * The six lines the share panel shows and its button copies — LAN-410.
@@ -211,7 +214,7 @@ export default async function EventDetailPage({
       participationFilters={participationFilters}
       frozenPlan={frozenPlan}
       share={
-        shareOpen && mayManage
+        shareOpen
           ? {
               url: clubLink === null ? null : clubLinkUrl(await publicOrigin(), clubLink.token),
               message: shareMessage,

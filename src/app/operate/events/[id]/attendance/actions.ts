@@ -11,12 +11,13 @@ import {
   removeAttendance,
   type AttendancePresence,
 } from "@/lib/services/attendance";
+import { requireEventGrant } from "@/lib/services/events";
 import type { AttendanceSaveState, WalkUpFormState } from "./action-state";
 
 // The attendance server actions — LAN-80. `attendance_recording` (general
 // operators + coaching seats, `slice-ux.md` § 8) guards record/save/walk-up;
-// `event_calendar_management` guards removal (LAN-110 excludes coaches from
-// that).
+// Manage on the event's template guards removal (LAN-431; LAN-110 excludes
+// coaches from that, and a coaching seat holds no template by default).
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -77,13 +78,13 @@ export async function recordAttendanceAction(
   }
 }
 
-/** Removes one attendance record — the only way to unwind a mistaken row. Guarded on `event_calendar_management`, not LAN-110's coach capability. */
+/** Removes one attendance record — the only way to unwind a mistaken row. Guarded on Manage on the event's template (LAN-431), not LAN-110's coach capability. */
 export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
+  const operator = await requireEventGrant(eventId, "manage");
   const key = text(formData, "participantKey");
 
   try {

@@ -1,7 +1,7 @@
 "use server";
 
-import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
+import { requireEventGrant } from "@/lib/services/events";
 import { recordRosterFormGenerated, type Kit } from "@/lib/services/roster-form";
 import { ROSTER_FORM_GENERATE_FAILED, type GenerateRosterFormState } from "./action-state";
 
@@ -12,7 +12,8 @@ export async function generateRosterFormAction(
   playerCount: number,
   coachCount: number,
 ): Promise<GenerateRosterFormState> {
-  const operator = await requireCapability("event_calendar_management");
+  // LAN-431: Manage on this event's template.
+  const operator = await requireEventGrant(eventId, "manage");
 
   try {
     await recordRosterFormGenerated({

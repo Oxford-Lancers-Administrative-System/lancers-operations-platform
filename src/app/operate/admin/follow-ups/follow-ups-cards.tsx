@@ -54,7 +54,7 @@ export default function FollowUpsCards({
             )
           }
           trailing={
-            selection.mayChase && row.chaseable ? (
+            selection.mayChase && row.mayChase && row.chaseable ? (
               <Checkbox
                 size="small"
                 checked={selection.selected.has(row.invitationId)}
@@ -89,7 +89,7 @@ export default function FollowUpsCards({
             </FactGrid>,
           ]}
           actions={
-            selection.mayChase ? (
+            selection.mayChase && row.mayChase ? (
               row.chaseable ? (
                 <Button
                   variant="outlined"

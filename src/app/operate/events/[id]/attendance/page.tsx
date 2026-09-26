@@ -6,10 +6,10 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
-import { operatorHasCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { readAttendanceBoard, type AttendanceBoard } from "@/lib/services/attendance";
+import { readEventTemplateLevel } from "@/lib/services/events";
 import { gateShellPage } from "../../../gate";
 import { formatDetailWhen, labelFor, STATUS_LABELS } from "../../presentation";
 import { AttendanceFilters } from "./attendance-filters";
@@ -49,12 +49,19 @@ export default async function AttendancePage({
   });
   if ("screen" in gate) return gate.screen;
 
-  // Which board to draw, not which writes to allow — ./actions.ts re-resolves the operator on every save.
-  const isCoachView = isNarrowAttendanceRecorder(gate.operator.roleCodes, gate.operator.grants);
-  // Same roles removeAttendanceAction requires — event_calendar_management carries the list event_occurrence_assertion had before LAN-151.
-  const mayRemove = operatorHasCapability(gate.operator, "event_calendar_management");
-
   const { id } = await params;
+
+  // LAN-431: attendance is outside the access list, so this page opens for
+  // every recording seat whatever its template grants. What the event is to
+  // the seat decides the board: with no View on its template, the event page
+  // does not exist for them, so they get the coach's board and its way back.
+  const level = await readEventTemplateLevel(gate.operator, id);
+  // Which board to draw, not which writes to allow — ./actions.ts re-resolves the operator on every save.
+  const isCoachView =
+    isNarrowAttendanceRecorder(gate.operator.roleCodes, gate.operator.grants) || level === "none";
+  // What removeAttendanceAction requires: Manage on this event's template.
+  const mayRemove = level === "manage";
+
   const query = await searchParams;
   const search = typeof query.q === "string" ? query.q : "";
   const rsvp = typeof query.rsvp === "string" ? query.rsvp : "";

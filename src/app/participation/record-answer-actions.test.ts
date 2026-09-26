@@ -20,6 +20,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -38,6 +48,7 @@ import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
 import { recordOperatorAnswerAction } from "./record-answer-actions";
 import { EMPTY_RECORD_ANSWER_STATE } from "./record-answer-state";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 const EVENT_ID = "44444444-4444-4444-8444-444444444444";
 const INVITATION_ID = "55555555-5555-4555-8555-555555555555";
@@ -115,6 +126,19 @@ describe("recordOperatorAnswerAction refuses a caller with no operator profile",
   }
 });
 
+// LAN-431: the template `./template-of` is mocked to, and the rule a refusal carries.
+const TEMPLATE_ID = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+const MANAGE_RULE = `grant:template.${TEMPLATE_ID}>=manage`;
+
+function signedInWithTemplate(level: "view" | "manage"): ResolvedOperator {
+  const operator = {
+    ...actor(["social_secretary"]),
+    grants: { ...NO_GRANTS, templates: { [TEMPLATE_ID]: level } },
+  };
+  givenAccess({ state: "active", operator });
+  return operator;
+}
+
 describe("recordOperatorAnswerAction excludes the narrow attendance-recording coach — LAN-110", () => {
   it("refuses a head_coach holding no other seat", async () => {
     signedInAs(["head_coach"]);
@@ -124,8 +148,7 @@ describe("recordOperatorAnswerAction excludes the narrow attendance-recording co
     );
 
     expect(error.kind).toBe("not_permitted");
-    expect(error.rule).toBe("general_operator_required");
-    expect(error.message).toMatch(/attendance recording/i);
+    expect(error.rule).toBe(MANAGE_RULE);
     expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 
@@ -137,14 +160,11 @@ describe("recordOperatorAnswerAction excludes the narrow attendance-recording co
     );
 
     expect(error.kind).toBe("not_permitted");
-    expect(error.rule).toBe("general_operator_required");
+    expect(error.rule).toBe(MANAGE_RULE);
     expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 
-  it("still admits a coach who also holds a general operator seat", async () => {
-    // `isNarrowAttendanceRecorder` asks whether attendance recording is *all*
-    // the operator holds. A committee member who also coaches keeps every
-    // general-operator surface they already had.
+  it("still admits a coach who also holds a seat managing the event's template", async () => {
     const operator = signedInAs(["head_coach", "secretary"]);
 
     const state = await recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm());
@@ -159,29 +179,60 @@ describe("recordOperatorAnswerAction excludes the narrow attendance-recording co
   });
 });
 
-describe("recordOperatorAnswerAction admits an ordinary operator", () => {
-  const PERMITTED_ROLES = ["secretary", "treasurer", "social_secretary", "media_secretary"];
-
-  for (const role of PERMITTED_ROLES) {
-    it(`lets a ${role} record an answer, with the session's actor`, async () => {
-      const operator = signedInAs([role]);
-
-      const state = await recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm());
-
-      expect(state.error).toBeNull();
-      expect(state.success).toBe(true);
-      expect(recordOperatorRsvpResponse).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(recordOperatorRsvpResponse).mock.calls[0][0]).toBe(operator.personId);
-    });
-  }
-
-  it("admits an operator holding no seat at all — the floor names no capability", async () => {
-    signedInAs([]);
+describe("recordOperatorAnswerAction requires Manage on the event's template — LAN-431", () => {
+  it("lets a secretary, seeded at Manage everywhere, record an answer with the session's actor", async () => {
+    const operator = signedInAs(["secretary"]);
 
     const state = await recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm());
 
     expect(state.error).toBeNull();
+    expect(state.success).toBe(true);
     expect(recordOperatorRsvpResponse).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(recordOperatorRsvpResponse).mock.calls[0][0]).toBe(operator.personId);
+  });
+
+  it("lets a seat with Manage on this template alone record an answer", async () => {
+    const operator = signedInWithTemplate("manage");
+
+    const state = await recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm());
+
+    expect(state.success).toBe(true);
+    expect(vi.mocked(recordOperatorRsvpResponse).mock.calls[0][0]).toBe(operator.personId);
+  });
+
+  it("refuses a forged post from a seat with View on the template", async () => {
+    signedInWithTemplate("view");
+
+    const error = await refusalFrom(() =>
+      recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm()),
+    );
+
+    expect(error.rule).toBe(MANAGE_RULE);
+    expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
+  });
+
+  for (const role of ["treasurer", "social_secretary", "media_secretary"]) {
+    it(`refuses a ${role} holding no template`, async () => {
+      signedInAs([role]);
+
+      const error = await refusalFrom(() =>
+        recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm()),
+      );
+
+      expect(error.kind).toBe("not_permitted");
+      expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
+    });
+  }
+
+  it("refuses an operator holding no seat at all", async () => {
+    signedInAs([]);
+
+    const error = await refusalFrom(() =>
+      recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm()),
+    );
+
+    expect(error.kind).toBe("not_permitted");
+    expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 
   it("ignores an actor supplied in the form body", async () => {

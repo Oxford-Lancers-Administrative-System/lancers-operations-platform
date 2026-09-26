@@ -1,7 +1,6 @@
 import "server-only";
 
 import { NotFound, withTransaction, type Tx } from "@/lib/db";
-import { requireCapability, requireGeneralOperator } from "@/lib/auth/guards";
 import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 
@@ -23,7 +22,7 @@ import {
   NOTIFICATION_JOB_RECENCY_ORDER,
   type DeliveryState,
 } from "./delivery";
-import { readEventIn } from "./events";
+import { readEventIn, requireEventGrant } from "./events";
 import { JOB_CANCELLED_REASON } from "./rsvp";
 import { personDisplayNameSql as displayName } from "./sql-text";
 import {
@@ -459,9 +458,9 @@ async function readEventFactsIn(tx: Tx, eventId: string) {
   };
 }
 
-/** The operator's participation table — every column, delivery included. Floor is `requireGeneralOperator()`, not a capability; a coach reads it via the club link instead (LAN-110). */
+/** The operator's participation table — every column, delivery included. LAN-431: View on the event's template (was the general-operator floor); a coach reads it via the club link instead (LAN-110). */
 export async function readOperatorParticipation(eventId: string): Promise<OperatorParticipation> {
-  await requireGeneralOperator();
+  await requireEventGrant(eventId, "view");
   return withTransaction((tx) => buildOperatorParticipationIn(tx, eventId));
 }
 
@@ -542,12 +541,12 @@ export async function readClubLinkParticipation(
   });
 }
 
-/** Issue — or return — this event's club link. §4.15, inventory amendment 1. Gated on `event_calendar_management`, not the ordinary operator floor or `event_approval`. */
+/** Issue — or return — this event's club link. §4.15, inventory amendment 1. LAN-431: View on the event's template — the Event info link shares and sends nothing (W4-05). */
 export async function issueEventClubLink(
   eventId: string,
   options: { env?: EnvSource } = {},
 ): Promise<IssuedClubLink> {
-  const operator = await requireCapability("event_calendar_management");
+  const operator = await requireEventGrant(eventId, "view");
   return withTransaction((tx) =>
     issueClubLinkIn(tx, eventId, { actorPersonId: operator.personId, env: options.env }),
   );
@@ -576,7 +575,7 @@ export async function readEventShareFacts(
   eventId: string,
   options: { env?: EnvSource } = {},
 ): Promise<EventShareFacts> {
-  const operator = await requireCapability("event_calendar_management");
+  const operator = await requireEventGrant(eventId, "view");
   return withTransaction(async (tx) => {
     const { facts } = await readEventFactsIn(tx, eventId);
     const headline = await readHeadlineIn(tx, eventId);
@@ -607,7 +606,7 @@ export async function readEventClubLink(
   eventId: string,
   options: { env?: EnvSource } = {},
 ): Promise<{ readonly linkId: string; readonly token: string } | null> {
-  await requireCapability("event_calendar_management");
+  await requireEventGrant(eventId, "view");
   return withTransaction(async (tx) => {
     const live = await tx.query<{ id: string }>(
       `select id from public.club_link_tokens
