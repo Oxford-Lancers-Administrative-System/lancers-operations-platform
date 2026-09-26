@@ -295,7 +295,15 @@ describe("a recovery session reaches the reset page and nothing else", () => {
  * The counterweight is asserted below, in both directions.
  */
 describe("the recovery surfaces are public, and keep no trace", () => {
-  const RECOVERY = ["/forgot-password", "/reset-password", "/auth/recovery", "/auth/invitation"];
+  const RECOVERY = [
+    "/forgot-password",
+    "/reset-password",
+    "/auth/recovery",
+    "/auth/invitation",
+    // LAN-441: the POST-only exchanges behind the two email-link buttons.
+    "/auth/recovery/exchange",
+    "/auth/invitation/exchange",
+  ];
 
   it.each(RECOVERY)("%s is matched by the proxy, or none of the below would run", (path) => {
     expect(matcherRuns(path)).toBe(true);

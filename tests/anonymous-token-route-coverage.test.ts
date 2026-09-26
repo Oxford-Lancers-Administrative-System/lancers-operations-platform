@@ -12,8 +12,10 @@ function filesBelow(directory: string): string[] {
   });
 }
 
+// LAN-441 moved the email-link token from the callback's query string to its
+// page's `query.token_hash` and the exchange's form body, so both are matched.
 const TOKEN_ACCESS =
-  /searchParams\.get\("token_hash"\)|hub\.verify_token|resolveRsvpTokenIn|form\.get\("token"\)/;
+  /get\("token_hash"\)|query\.token_hash|hub\.verify_token|resolveRsvpTokenIn|form\.get\("token"\)/;
 
 const expected = [
   {
@@ -22,13 +24,23 @@ const expected = [
     refusal: /the wrong token[\s\S]*no token[\s\S]*status\)\.toBe\(403\)/,
   },
   {
-    source: "src/app/auth/invitation/route.ts",
-    test: "src/app/auth/invitation/route.test.ts",
+    source: "src/app/auth/invitation/exchange/route.ts",
+    test: "src/app/auth/invitation/exchange/route.test.ts",
     refusal: /an injected token[\s\S]*verifyOtp\)\.not\.toHaveBeenCalled/,
   },
   {
-    source: "src/app/auth/recovery/route.ts",
-    test: "src/app/auth/recovery/route.test.ts",
+    source: "src/app/auth/invitation/page.tsx",
+    test: "src/app/auth/invitation/screens.test.tsx",
+    refusal: /an injected token[\s\S]*verifyOtp\)\.not\.toHaveBeenCalled/,
+  },
+  {
+    source: "src/app/auth/recovery/exchange/route.ts",
+    test: "src/app/auth/recovery/exchange/route.test.ts",
+    refusal: /an injected token[\s\S]*verifyOtp\)\.not\.toHaveBeenCalled/,
+  },
+  {
+    source: "src/app/auth/recovery/page.tsx",
+    test: "src/app/auth/recovery/screens.test.tsx",
     refusal: /an injected token[\s\S]*verifyOtp\)\.not\.toHaveBeenCalled/,
   },
   {

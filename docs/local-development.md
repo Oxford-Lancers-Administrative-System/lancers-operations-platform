@@ -455,8 +455,11 @@ instead of sending it, so the whole recovery journey is exercisable by hand.
    account exists" rather than "sent".
 3. Open Mailpit at <http://127.0.0.1:54324> and click the link in **Reset your
    Lancers Operations password**.
-4. The link lands on `/auth/recovery`, which exchanges the one-time token and
-   sends the browser to `/reset-password` with the token stripped from the URL.
+4. The link lands on `/auth/recovery`, which shows one **Reset your password**
+   button and exchanges nothing (LAN-441: an email security scanner that
+   pre-opens links would otherwise spend the token). The button posts to
+   `/auth/recovery/exchange`, which exchanges the one-time token and sends the
+   browser to `/reset-password` with the token stripped from the URL.
 5. Choose a new password. You are signed out and returned to `/login`, where the
    new password works and the old one does not.
 
@@ -475,10 +478,12 @@ either. This is the whole first-access journey, end to end.
    `inviteOperator()` from a script or a test.
 2. Open Mailpit at <http://127.0.0.1:54324> and click the link in **Your Oxford
    Lancers operations account**.
-3. The link lands on `/auth/invitation`, which exchanges the one-time invite
-   token and sends the browser to `/reset-password` with the token stripped from
-   the URL. A token that does **not** exchange goes to `/invitation-link`
-   instead — LAN-311. Both destinations are fixed in `src/lib/auth/invitation.ts`
+3. The link lands on `/auth/invitation`, which shows one **Set up your
+   account** button and exchanges nothing (LAN-441). The button posts to
+   `/auth/invitation/exchange`, which exchanges the one-time invite token and
+   sends the browser to `/reset-password` with the token stripped from the URL.
+   A token that does **not** exchange, or a link that is not an invitation
+   token at all, goes to `/invitation-link` instead — LAN-311. Both destinations are fixed in `src/lib/auth/invitation.ts`
    and neither is ever read from the query string.
 4. Choose a password. The account is recorded as activated at that moment — not
    when the link was opened — and Administration moves it from **Invitation

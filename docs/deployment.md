@@ -444,7 +444,9 @@ the environment: a value set by hand would be erased by the next manual
 deploy, and recovery would stop sending without any error appearing anywhere.
 
 **It also decides where an email link lands after the token is spent** — LAN-141.
-`/auth/invitation` and `/auth/recovery` used to build that redirect from the
+The exchanges (`/auth/invitation/exchange` and `/auth/recovery/exchange`, POST
+only since LAN-441, behind the one button the emailed link's page shows) used to
+build that redirect from the
 request's own origin, which behind Cloud Run is the container's bind address, so
 a working invitation ended at `http://0.0.0.0:8080/reset-password` and
 `ERR_CONNECTION_REFUSED`. They now use the same rule as the outbound link:

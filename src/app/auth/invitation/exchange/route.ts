@@ -9,14 +9,24 @@ import { emailLinkRedirectDestination } from "@/lib/auth/recovery";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * The one-time exchange the invitation email lands on — LAN-131, LAN-141.
+ * The one-time exchange behind the invitation email's button — LAN-131,
+ * LAN-141, LAN-441.
+ *
+ * ## POST only, since LAN-441
+ *
+ * The emailed link lands on `/auth/invitation`, a page that renders one button
+ * and exchanges nothing. This handler is that button's form target. Until
+ * LAN-441 the exchange ran on the link's own GET, and an email security scanner
+ * that pre-opens links spent the one-time token before the invitee clicked, so
+ * the invitee's own click landed on `/invitation-link`. A GET here is answered
+ * 405 by Next, because no `GET` is exported.
  *
  * A deliberate mirror of `/auth/recovery` (LAN-125), for the reasons that route
  * records at length and which apply here unchanged: `verifyOtp` writes the
- * session cookies and a Server Component cannot, so the emailed link enters a
+ * session cookies and a Server Component cannot, so the button posts to a
  * Route Handler which performs the exchange and then redirects — with the token
- * gone from the address bar, out of the browser history entry for the page that
- * shows a password field, and out of any `Referer` a later request carries.
+ * out of the address bar and the browser history entry of the page that shows a
+ * password field, and out of any `Referer` a later request carries.
  *
  * It has exactly two destinations, both of them module constants:
  * `/reset-password` when the token was exchanged, `/invitation-link` when it
@@ -55,9 +65,12 @@ import { createClient } from "@/lib/supabase/server";
  * So activation is recorded by the action that sets the password, in
  * `src/app/reset-password/actions.ts`, against the session this route minted.
  */
-export async function GET(request: NextRequest) {
-  const tokenHash = request.nextUrl.searchParams.get("token_hash");
-  const type = request.nextUrl.searchParams.get("type");
+export async function POST(request: NextRequest) {
+  // The form body, never the query string. A body that is not a form — or no
+  // body at all — reads as no token and lands on the unusable-link screen.
+  const form = await request.formData().catch(() => null);
+  const tokenHash = stringOrNull(form?.get("token_hash"));
+  const type = stringOrNull(form?.get("type"));
 
   let exchanged = false;
 
@@ -99,4 +112,8 @@ export async function GET(request: NextRequest) {
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
 
   return response;
+}
+
+function stringOrNull(value: FormDataEntryValue | null | undefined): string | null {
+  return typeof value === "string" ? value : null;
 }

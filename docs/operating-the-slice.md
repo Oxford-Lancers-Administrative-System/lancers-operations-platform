@@ -142,6 +142,15 @@ grants and capabilities every page gates on (see "Who sees what" below), so it
 never offers a page that then refuses. Bottom left it says who you are signed
 in as and "Authorized operator".
 
+**Emailed links wait for a press (LAN-441).** An invitation or password-reset
+email's link opens a page with one button — **Set up your account** or **Reset
+your password** — and spends nothing on opening, so an email security scanner
+that pre-opens links leaves it usable. The press exchanges the one-time token
+and lands on **Choose a new password**. An expired, spent, wrong-type or
+malformed invitation lands on **This invitation link cannot be used**; a reset
+link in the same state on **This reset link cannot be used**. Nothing in the
+address says why.
+
 **Who sees what (LAN-429, LAN-430).** Access is edited on a seat's page
 (Administration → Roles → a seat) by the President, General Manager and IT
 Officer, whose own access is fixed. The page's **Access** section, under
