@@ -143,10 +143,10 @@ users, grant hosted access, decide retention, or write production data.
 
 ## Security and production
 
-Local Supabase only. Developer commands, tests, migrations, type generation, and agents never target
-production. The sole deployed-runtime exception is the fixed Cloud Run branch in
-`src/lib/db/runtime-target.ts`; never add it to `src/lib/db/url.ts` or `scripts/lib/local-db.mjs`,
-and never make it configurable.
+Local Supabase only. Developer commands, tests, migrations and type generation never target production;
+agents reach it only read-only through `npm run prod:inspect` (ADR 0040). The sole runtime exception is
+the Cloud Run branch in `src/lib/db/runtime-target.ts`; never add either path to `src/lib/db/url.ts` or
+`scripts/lib/local-db.mjs`, and never make either configurable.
 
 Never expose a secret in code, prompts, logs, fixtures, commits, Notion, or a
 client bundle. `NEXT_PUBLIC_` is public. Real secrets live in GCP Secret

@@ -270,3 +270,47 @@ correct — nothing has been left behind, but the deployment is not verified.
 Diagnosis and the exact activation steps are in
 [`docs/deployment.md`](../../docs/deployment.md) § Activating the runtime
 database connection.
+
+## `agent-readonly.sql`
+
+Creates `agent_readonly`, the login diagnostic agents use through
+`npm run prod:inspect` — LAN-435, [ADR 0040](../../docs/adr/0040-read-only-production-inspection-for-agents.md).
+It can read the non-sensitive columns of `public` and write nothing; PostgreSQL
+refuses every write, every hidden column and every other schema.
+
+### First run
+
+1. Paste the whole file into the Supabase SQL editor for the production
+   project and run it.
+2. The result is one row. The four counts (`unsafe_attributes`,
+   `write_privileges`, `hidden_columns_readable`,
+   `definer_functions_callable`) must all be **0**; if any is not, stop.
+3. Copy `agent_readonly_password` into the `.env.local` of the primary checkout
+   as one line, `AGENT_READONLY_PASSWORD=<value>`. Never paste it into chat,
+   Linear or a document.
+
+### Re-running
+
+Run the file again after a migration adds a table or column agents should see.
+It recomputes every grant, leaves the password alone and reports it as
+`unchanged`. A new sensitive column belongs in the file's hidden list, in the
+same pull request as its migration; the name pattern catches the obvious ones
+(`email`, `phone`, `postcode`, `address`, `password`, `secret`, `…_hash`) even
+if nobody lists them.
+
+### Rotating the password
+
+In the SQL editor:
+
+```sql
+select set_config('lancers.pw', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), false);
+do $$ begin execute format('alter role agent_readonly password %L', current_setting('lancers.pw')); end $$;
+select current_setting('lancers.pw') as agent_readonly_password;
+```
+
+Then replace the line in `.env.local`.
+
+### Revoking
+
+`alter role agent_readonly nologin;` stops every connection from logging in
+again at once. `alter role agent_readonly login;` restores it.
