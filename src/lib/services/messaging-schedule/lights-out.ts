@@ -18,9 +18,9 @@ import { CLUB_TIME_ZONE } from "@/lib/club-time";
 import type { MessageKind } from "@/lib/delivery/provider";
 
 /** The first hour held, inclusive. */
-export const LIGHTS_OUT_START_HOUR = 22;
+const LIGHTS_OUT_START_HOUR = 22;
 /** The first hour released, inclusive — 07:00 sends. */
-export const LIGHTS_OUT_END_HOUR = 7;
+const LIGHTS_OUT_END_HOUR = 7;
 
 /**
  * Which message kinds go at any hour. Exactly three, because an operator
