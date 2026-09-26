@@ -122,6 +122,17 @@ function messageFor(error: unknown): string {
 }
 
 /**
+ * A form's message for any service failure, a refusal included — LAN-423. A
+ * save refused because Manage was lowered under an open form comes back as the
+ * form's own error, shown in its Notice with every entry intact, rather than a
+ * crashed page. Anything that is not a `ServiceError` still throws.
+ */
+function formMessageFor(error: unknown): string {
+  if (!isServiceError(error)) throw error;
+  return error.message;
+}
+
+/**
  * LAN-419 — one save for an approved event's details *and* its questions.
  *
  * Brian, on the 2026-09-22 call: "for some reason when the system made its
@@ -158,16 +169,22 @@ export async function editApprovedEventAction(
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
 
-  const operator = await managerOf(eventId);
-  if ("error" in operator) {
-    return {
-      issues: [],
-      questionIssues: [],
-      error: operator.error,
-      values: raw,
-      questions: rawQuestions,
-      questionChange: null,
-    };
+  // LAN-423: every failure from here on, a refusal included, is the form's
+  // own error, and the operator's entries come back with it.
+  const refused = (message: string): EventFormState => ({
+    issues: [],
+    questionIssues: [],
+    error: message,
+    values: raw,
+    questions: rawQuestions,
+    questionChange: null,
+  });
+
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return refused(formMessageFor(error));
   }
 
   const validation = validateEventDraft(raw);
@@ -187,15 +204,6 @@ export async function editApprovedEventAction(
   const confirmed = text(formData, "confirm") === "1";
   const correction = text(formData, "correction") === "1";
 
-  const refused = (message: string): EventFormState => ({
-    issues: [],
-    questionIssues: [],
-    error: message,
-    values: raw,
-    questions: rawQuestions,
-    questionChange: null,
-  });
-
   let questionsChanged: boolean;
   try {
     const stored = await readEventQuestions(eventId);
@@ -213,7 +221,7 @@ export async function editApprovedEventAction(
         submitted,
       );
   } catch (error) {
-    return refused(messageFor(error));
+    return refused(formMessageFor(error));
   }
 
   if (questionsChanged && !confirmed) {
@@ -237,7 +245,7 @@ export async function editApprovedEventAction(
         };
       }
     } catch (error) {
-      return refused(messageFor(error));
+      return refused(formMessageFor(error));
     }
   }
 
@@ -254,7 +262,7 @@ export async function editApprovedEventAction(
     // this page's "there was nothing to do on the details half", and nothing
     // else. Every other refusal is still a refusal.
     if (!isServiceError(error) || error.rule !== NOTHING_CHANGED_RULE || !questionsChanged) {
-      return refused(messageFor(error));
+      return refused(formMessageFor(error));
     }
   }
 
@@ -263,7 +271,7 @@ export async function editApprovedEventAction(
       await updateEventQuestions(operator.personId, eventId, submitted, { correction });
     }
   } catch (error) {
-    return refused(messageFor(error));
+    return refused(formMessageFor(error));
   }
 
   revalidatePath("/operate/events");

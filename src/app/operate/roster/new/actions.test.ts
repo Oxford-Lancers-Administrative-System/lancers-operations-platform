@@ -40,7 +40,7 @@ class RedirectSignal extends Error {
   }
 }
 
-import { Conflict, isServiceError } from "@/lib/db";
+import { Conflict } from "@/lib/db";
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { enterReturningPlayer, findPersonCandidates } from "@/lib/services/roster";
 import { submitReturnerIntake } from "./actions";
@@ -108,13 +108,16 @@ describe("who may call it", () => {
     it(`refuses ${label}, and reads nothing`, async () => {
       signedInAs(access);
 
-      const thrown = await submitReturnerIntake(
+      // LAN-423: the refusal is the form's own state, never a throw.
+      const state = await submitReturnerIntake(
         INITIAL_INTAKE_STATE,
         form({ ...VALID_DETAILS, intent: "check" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(thrown)).toBe(true);
-      expect(thrown).toMatchObject({ kind: "not_permitted" });
+      expect(state).toMatchObject({
+        step: "details",
+        formError: expect.stringMatching(/^This action needs an active Lancers operator profile\./),
+      });
 
       // The refusal happened before any club data was touched.
       expect(findPersonCandidates).not.toHaveBeenCalled();
@@ -125,12 +128,11 @@ describe("who may call it", () => {
       signedInAs(access);
 
       for (const intent of ["confirm_new", "use_existing"]) {
-        await expect(
-          submitReturnerIntake(
-            INITIAL_INTAKE_STATE,
-            form({ ...VALID_DETAILS, intent, personId: "irrelevant" }),
-          ),
-        ).rejects.toMatchObject({ kind: "not_permitted" });
+        const state = await submitReturnerIntake(
+          INITIAL_INTAKE_STATE,
+          form({ ...VALID_DETAILS, intent, personId: "irrelevant" }),
+        );
+        expect(state).toMatchObject({ step: "details", formError: expect.any(String) });
       }
 
       expect(enterReturningPlayer).not.toHaveBeenCalled();
@@ -140,22 +142,56 @@ describe("who may call it", () => {
   it("names no role and leaks no account detail in the refusal", async () => {
     signedInAs({ state: "unlinked" });
 
-    const thrown = (await submitReturnerIntake(
+    const state = await submitReturnerIntake(
       INITIAL_INTAKE_STATE,
       form({ ...VALID_DETAILS, intent: "check" }),
-    ).catch((error: unknown) => error)) as Error;
+    );
 
-    expect(thrown.message).not.toMatch(/president|secretary|coach|role code/i);
+    expect("formError" in state && state.formError).toBeTruthy();
+    expect("formError" in state ? state.formError : "").not.toMatch(
+      /president|secretary|coach|role code/i,
+    );
   });
 
   it("refuses a seat without the May add to the roster switch, and reads nothing (LAN-432)", async () => {
     signedInAs(activeOperator([], NO_GRANTS));
 
-    await expect(
-      submitReturnerIntake(INITIAL_INTAKE_STATE, form({ ...VALID_DETAILS, intent: "check" })),
-    ).rejects.toMatchObject({ kind: "not_permitted", rule: "grant:switch.add_to_roster>=yes" });
+    const state = await submitReturnerIntake(
+      INITIAL_INTAKE_STATE,
+      form({ ...VALID_DETAILS, intent: "check" }),
+    );
+
+    expect(state).toEqual({
+      step: "details",
+      values: expect.objectContaining({ givenName: VALID_DETAILS.givenName }),
+      errors: {},
+      formError:
+        "You do not have access to this action. This needs access your seat does not hold.",
+    });
     expect(findPersonCandidates).not.toHaveBeenCalled();
   });
+
+  // LAN-423 fix round 3, H3: the switch turned off under an open form. Each
+  // press comes back as the details step with the refusal and every entry.
+  for (const intent of ["check", "confirm_new", "use_existing", "back_to_candidates"]) {
+    it(`returns the refusal with the form intact when ${intent} is pressed after the switch is off`, async () => {
+      signedInAs(activeOperator([], NO_GRANTS));
+
+      const state = await submitReturnerIntake(
+        INITIAL_INTAKE_STATE,
+        form({ ...VALID_DETAILS, intent, personId: "irrelevant" }),
+      );
+
+      expect(state.step).toBe("details");
+      expect("formError" in state && state.formError).toBe(
+        "You do not have access to this action. This needs access your seat does not hold.",
+      );
+      expect(state.values.givenName).toBe(VALID_DETAILS.givenName);
+      expect(state.values.familyName).toBe(VALID_DETAILS.familyName);
+      expect(findPersonCandidates).not.toHaveBeenCalled();
+      expect(enterReturningPlayer).not.toHaveBeenCalled();
+    });
+  }
 
   it("admits a seat holding the May add to the roster switch and no club role at all", async () => {
     // LAN-432: adding to the roster is the seat page's switch, not a role.

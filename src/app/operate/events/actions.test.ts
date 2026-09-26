@@ -159,6 +159,25 @@ async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceErro
   throw new Error("Expected the action to refuse this, but it returned.");
 }
 
+/**
+ * The refusal one of {@link ACTIONS} produced. Create and approve throw it; the
+ * edit save hands it back as the form's own error with every entry intact, so
+ * a seat whose Manage was lowered under an open form keeps the form (LAN-423).
+ */
+async function refusalOf(action: (typeof ACTIONS)[number]): Promise<string> {
+  if (action.name === "updateEventDraftAction") {
+    const state = await action.call();
+    expect(state.values?.name).toBe("Wednesday practice");
+    expect(state.error).toMatch(
+      /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+    );
+    return state.error as string;
+  }
+  const error = await refusalFrom(action.call);
+  expect(error.kind).toBe("not_permitted");
+  return error.message;
+}
+
 /** Every action in this workflow, and a valid call to it. */
 const ACTIONS = [
   {
@@ -212,20 +231,18 @@ describe("every action refuses a caller with no operator profile", () => {
 
   for (const access of UNRESOLVED) {
     describe(`when the session is ${access.state}`, () => {
-      it.each(ACTIONS)("$name refuses with NotPermitted", async ({ call }) => {
+      it.each(ACTIONS)("$name refuses", async (action) => {
         givenAccess(access);
 
-        const error = await refusalFrom(call);
-
-        expect(error.kind).toBe("not_permitted");
+        await refusalOf(action);
       });
 
-      it.each(ACTIONS)("$name reaches no service call", async ({ call, service }) => {
+      it.each(ACTIONS)("$name reaches no service call", async (action) => {
         givenAccess(access);
 
-        await refusalFrom(call);
+        await refusalOf(action);
 
-        expect(service).not.toHaveBeenCalled();
+        expect(action.service).not.toHaveBeenCalled();
       });
     });
   }
@@ -260,27 +277,22 @@ describe("only the four calendar roles may manage the calendar", () => {
   }
 
   for (const role of NON_CALENDAR_ROLES) {
-    it.each(ACTIONS)(`$name refuses a ${role}`, async ({ call, service }) => {
+    it.each(ACTIONS)(`$name refuses a ${role}`, async (action) => {
       givenAccess({ state: "active", operator: actor([role]) });
 
-      const error = await refusalFrom(call);
+      await refusalOf(action);
 
-      expect(error.kind).toBe("not_permitted");
-      expect(service).not.toHaveBeenCalled();
+      expect(action.service).not.toHaveBeenCalled();
     });
   }
 
-  it.each(ACTIONS)(
-    "$name refuses an operator holding no seat at all",
-    async ({ call, service }) => {
-      givenAccess({ state: "active", operator: actor([]) });
+  it.each(ACTIONS)("$name refuses an operator holding no seat at all", async (action) => {
+    givenAccess({ state: "active", operator: actor([]) });
 
-      const error = await refusalFrom(call);
+    await refusalOf(action);
 
-      expect(error.kind).toBe("not_permitted");
-      expect(service).not.toHaveBeenCalled();
-    },
-  );
+    expect(action.service).not.toHaveBeenCalled();
+  });
 
   it("names no seat at all — neither the action's nor the caller's (LAN-431)", async () => {
     givenAccess({ state: "active", operator: actor(["treasurer", "media_secretary"]) });
@@ -299,11 +311,10 @@ describe("only the four calendar roles may manage the calendar", () => {
     // refused the calendar.
     givenAccess({ state: "active", operator: actor(["head_coach"]) });
 
-    const error = await refusalFrom(() =>
-      updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID })),
-    );
+    const state = await updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID }));
 
-    expect(error.kind).toBe("not_permitted");
+    expect(state.error).toBe(`You do not have access to this action. ${GRANT_REQUIREMENT}`);
+    expect(updateEventDraft).not.toHaveBeenCalled();
   });
 
   it("ignores an actor supplied in the form body", async () => {
@@ -392,14 +403,40 @@ describe("a refusal from the service is shown, and an authorization refusal is n
     expect(state.values?.name).toBe("Wednesday practice");
   });
 
-  it("never renders a NotPermitted as a form message", async () => {
-    vi.mocked(updateEventDraft).mockRejectedValue(new NotPermitted("You may not do that."));
+  it("never renders a NotPermitted as a form message on create", async () => {
+    vi.mocked(createEventDraft).mockRejectedValue(new NotPermitted("You may not do that."));
 
-    const error = await refusalFrom(() =>
-      updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID })),
-    );
+    const error = await refusalFrom(() => createEventDraftAction(EMPTY_FORM_STATE, draftForm()));
 
     expect(error.kind).toBe("not_permitted");
+  });
+
+  // LAN-423 fix round 3, H3: Manage lowered while the edit form is open. The
+  // save comes back as the form's refusal, entries intact, not a crashed page.
+  it("hands a refused edit save back to the open form with its entries", async () => {
+    vi.mocked(updateEventDraft).mockRejectedValue(new NotPermitted("You may not do that."));
+
+    const state = await updateEventDraftAction(
+      EMPTY_FORM_STATE,
+      draftForm({ eventId: EVENT_ID, name: "Wednesday practice, moved" }),
+    );
+
+    expect(state.error).toBe("You may not do that.");
+    expect(state.values?.name).toBe("Wednesday practice, moved");
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("hands the edit save's own grant refusal back to the open form", async () => {
+    givenAccess({ state: "active", operator: { ...actor(["secretary"]), grants: NO_GRANTS } });
+
+    const state = await updateEventDraftAction(
+      EMPTY_FORM_STATE,
+      draftForm({ eventId: EVENT_ID, name: "Wednesday practice, moved" }),
+    );
+
+    expect(state.error).toBe(`You do not have access to this action. ${GRANT_REQUIREMENT}`);
+    expect(state.values?.name).toBe("Wednesday practice, moved");
+    expect(updateEventDraft).not.toHaveBeenCalled();
   });
 
   it("lets an unexpected failure reach the error boundary as itself", async () => {
@@ -783,21 +820,23 @@ describe("the event workflow's actions follow the seat's template grants — LAN
   it("refuses moving a draft onto a template the seat does not manage", async () => {
     socialSecretaryWith({ [GRANTED]: "manage" });
 
-    const error = await refusalFrom(() =>
-      updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID, templateId: OTHER })),
+    // LAN-423: the edit save hands its refusal back to the open form.
+    const state = await updateEventDraftAction(
+      EMPTY_FORM_STATE,
+      draftForm({ eventId: EVENT_ID, templateId: OTHER }),
     );
 
-    expect(error.kind).toBe("not_permitted");
+    expect(state.error).toMatch(/^You do not have access to this action\./);
+    expect(state.values?.templateId).toBe(OTHER);
     expect(updateEventDraft).not.toHaveBeenCalled();
   });
 
   it("refuses every write to a seat that only views the template", async () => {
     socialSecretaryWith({ [GRANTED]: "view" });
 
-    for (const { call, service } of ACTIONS) {
-      const error = await refusalFrom(call);
-      expect(error.kind).toBe("not_permitted");
-      expect(service).not.toHaveBeenCalled();
+    for (const action of ACTIONS) {
+      await refusalOf(action);
+      expect(action.service).not.toHaveBeenCalled();
     }
     const audience = await refusalFrom(() =>
       saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm()),

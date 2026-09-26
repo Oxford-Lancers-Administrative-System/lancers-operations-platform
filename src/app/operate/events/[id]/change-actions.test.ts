@@ -53,7 +53,7 @@ vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
   return { ...actual, amendApprovedEvent: vi.fn() };
 });
 
-import { ConstraintViolated, NotPermitted } from "@/lib/db";
+import { ConstraintViolated } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
   previewEventQuestionChanges,
@@ -167,9 +167,12 @@ describe("who may save", () => {
       operator: actor(["treasurer"]),
     });
 
-    await expect(editApprovedEventAction(EMPTY_FORM_STATE, editForm())).rejects.toBeInstanceOf(
-      NotPermitted,
-    );
+    // LAN-423 fix round 3, H3: the refusal is the open form's own error, with
+    // the entries handed back, never a crashed page.
+    const state = await editApprovedEventAction(EMPTY_FORM_STATE, editForm({ venue: "Iffley" }));
+
+    expect(state.error).toMatch(/^You do not have access to this action\./);
+    expect(state.values?.venue).toBe("Iffley");
     expect(amendApprovedEvent).not.toHaveBeenCalled();
     expect(updateEventQuestions).not.toHaveBeenCalled();
   });

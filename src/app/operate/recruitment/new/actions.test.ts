@@ -56,6 +56,7 @@ import { finishRecruitmentAddIn, refuseIfAlreadyAMemberIn } from "@/lib/services
 import { submitAddRecruit } from "./actions";
 import { INITIAL_ADD_RECRUIT_STATE } from "./create-state";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 const OPERATOR_PERSON_ID = "11111111-1111-4111-8111-111111111111";
 const SEASON_ID = "22222222-2222-4222-8222-222222222222";
@@ -124,11 +125,50 @@ describe("who may call it", () => {
       },
     });
 
-    await expect(
-      submitAddRecruit(INITIAL_ADD_RECRUIT_STATE, form({ intent: "check" })),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    // LAN-423: the refusal is the form's own state, never a throw.
+    const state = await submitAddRecruit(INITIAL_ADD_RECRUIT_STATE, form({ intent: "check" }));
+
+    expect(state.formError).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    expect(state.candidates).toBeNull();
     expect(findPersonDuplicates).not.toHaveBeenCalled();
   });
+
+  // LAN-423 fix round 3, H3: the switch turned off under an open form.
+  for (const intent of ["check", "create", "link"]) {
+    it(`returns the refusal with the entries intact when ${intent} is pressed after the switch is off`, async () => {
+      signedInAs({
+        state: "active",
+        operator: {
+          authUserId: "00000000-1111-4111-8111-111111111112",
+          personId: "33333333-3333-4333-8333-333333333333",
+          displayName: "Nobody Special",
+          roleCodes: [],
+          grants: NO_GRANTS,
+          isActive: true,
+        },
+      });
+
+      const state = await submitAddRecruit(
+        INITIAL_ADD_RECRUIT_STATE,
+        form({
+          intent,
+          givenName: "Marguerite",
+          familyName: "Ashdown",
+          ...(intent === "link" ? { linkPersonId: "44444444-4444-4444-8444-444444444444" } : {}),
+        }),
+      );
+
+      expect(state.formError).toBe(
+        "You do not have access to this action. This needs access your seat does not hold.",
+      );
+      expect(state.values.givenName).toBe("Marguerite");
+      expect(state.values.familyName).toBe("Ashdown");
+      expect(findPersonDuplicates).not.toHaveBeenCalled();
+      expect(createPerson).not.toHaveBeenCalled();
+    });
+  }
 });
 
 describe("required fields", () => {

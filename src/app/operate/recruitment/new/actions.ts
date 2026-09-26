@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError, withTransaction } from "@/lib/db";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { createPerson } from "@/lib/services/person-create";
@@ -31,10 +32,18 @@ export async function submitAddRecruit(
   previous: AddRecruitState,
   formData: FormData,
 ): Promise<AddRecruitState> {
-  // LAN-432: the May add recruits switch.
-  const operator = await requireGrant(ADD_RECRUITS);
-
   const values = readAddRecruitValues(formData);
+
+  // LAN-432: the May add recruits switch. LAN-423: a seat whose switch was
+  // turned off under an open form gets the refusal on the details, entries
+  // intact — not a crashed page.
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireGrant(ADD_RECRUITS);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { values, errors: {}, candidates: null, exactMatch: null, formError: error.message };
+  }
   const linkPersonId = formData.get("linkPersonId");
   const intent =
     typeof linkPersonId === "string" && linkPersonId !== "" ? "link" : formData.get("intent");

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { ADD_TO_ROSTER } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import {
@@ -23,10 +24,18 @@ export async function submitReturnerIntake(
   _previous: IntakeState,
   formData: FormData,
 ): Promise<IntakeState> {
-  const operator = await requireGrant(ADD_TO_ROSTER);
-
   const values = readIntakeValues(formData);
   const intent = formData.get("intent");
+
+  // LAN-423: a seat whose switch was turned off under an open form gets the
+  // refusal on the details step, entries intact — not a crashed page.
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireGrant(ADD_TO_ROSTER);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { step: "details", values, errors: {}, formError: error.message };
+  }
 
   if (intent === "back_to_details") {
     return { step: "details", values, errors: {} };

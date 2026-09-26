@@ -25,7 +25,8 @@ import type { EventFormState, EventTransitionState } from "./form-state";
 // Manage on the event's template (LAN-431) against the verified session: the
 // template read from the stored event, and for a create or a change of
 // template, the template posted as well. NotPermitted is rethrown, not a form
-// message. No ownership term.
+// message — except by the edit save, which hands it back to the open form
+// (LAN-423). No ownership term.
 
 /** Manage on this event's template; a missing event is a message for the form, a refusal is thrown. */
 async function managerOf(eventId: string): Promise<ResolvedOperator | { error: string }> {
@@ -61,6 +62,17 @@ function readDraft(formData: FormData): RawEventDraft {
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
   if (error.kind === "not_permitted") throw error;
+  return error.message;
+}
+
+/**
+ * A form's message for any service failure, a refusal included — LAN-423. A
+ * save refused because Manage was lowered under an open form comes back as the
+ * form's own error, shown in its Notice with every entry intact, rather than a
+ * crashed page. Anything that is not a `ServiceError` still throws.
+ */
+function formMessageFor(error: unknown): string {
+  if (!isServiceError(error)) throw error;
   return error.message;
 }
 
@@ -149,15 +161,20 @@ export async function updateEventDraftAction(
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
 
-  const manager = await managerOf(eventId);
-  if ("error" in manager) {
-    return {
-      issues: [],
-      questionIssues: [],
-      error: manager.error,
-      values: raw,
-      questions: rawQuestions,
-    };
+  // LAN-423: every failure from here on, a refusal included, is the form's
+  // own error, and the operator's entries come back with it.
+  const refused = (error: unknown): EventFormState => ({
+    issues: [],
+    questionIssues: [],
+    error: formMessageFor(error),
+    values: raw,
+    questions: rawQuestions,
+  });
+
+  try {
+    await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return refused(error);
   }
 
   const validation = validateEventDraft(raw);
@@ -172,10 +189,9 @@ export async function updateEventDraftAction(
     };
   }
 
-  // A draft may move to another template only one this seat also manages.
-  const operator = await requireTemplateGrant(validation.value.templateId, "manage");
-
   try {
+    // A draft may move to another template only one this seat also manages.
+    const operator = await requireTemplateGrant(validation.value.templateId, "manage");
     await updateEventDraft(
       operator.personId,
       eventId,
@@ -183,13 +199,7 @@ export async function updateEventDraftAction(
       rawQuestions === null ? undefined : (questions.value as EventQuestionInput[]),
     );
   } catch (error) {
-    return {
-      issues: [],
-      questionIssues: [],
-      error: messageFor(error),
-      values: raw,
-      questions: rawQuestions,
-    };
+    return refused(error);
   }
 
   revalidatePath("/operate/events");
