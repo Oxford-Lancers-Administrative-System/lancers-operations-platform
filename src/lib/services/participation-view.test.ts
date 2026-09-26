@@ -418,14 +418,6 @@ describe("applyParticipationView sorting", () => {
    * below is a row order only that column produces.
    */
   const EXPECTED_ORDER: Readonly<Record<string, string[]>> = {
-    // Committee, then the three players, then the walk-up sentinel last.
-    capacity: [
-      "Fen Marchbanks",
-      "Alaric Brindlewood",
-      "Bar Sedgewick",
-      "Cassian Wolvercote",
-      "Wilfrid Danecroft",
-    ],
     // `no` before `yes` before the two with no answer; ties by name.
     answer: [
       "Bar Sedgewick",
@@ -470,6 +462,27 @@ describe("applyParticipationView sorting", () => {
       // five above evidence that the column was read.
       expect(order, column).not.toEqual(names(applyParticipationView(ROSTER, EMPTY_FILTERS, [])));
     }
+  });
+
+  // LAN-442 (R-correction-1). By the capacity shown: committee-stored Fen
+  // reads as Player and sorts inside the players (ties by name), after the
+  // coach; the walk-up sentinel last. Capacity is out of the table above
+  // because on ROSTER alone this order is the name order.
+  it("sorts the As column by the capacity each row shows", () => {
+    const withCoach = [
+      ...ROSTER,
+      operatorPerson({ displayName: "Zeno Pellingham", capacity: "coach" }),
+    ];
+    expect(names(applyParticipationView(withCoach, withFilters({ sort: "capacity" }), []))).toEqual(
+      [
+        "Zeno Pellingham",
+        "Alaric Brindlewood",
+        "Bar Sedgewick",
+        "Cassian Wolvercote",
+        "Fen Marchbanks",
+        "Wilfrid Danecroft",
+      ],
+    );
   });
 
   /**

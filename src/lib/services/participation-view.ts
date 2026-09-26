@@ -267,7 +267,8 @@ function shownCapacity(capacity: string): string {
 function sortValue(person: ParticipationPerson, column: string): string | number {
   switch (column) {
     case "capacity":
-      return person.isWalkUp ? "￿walk-up" : person.capacity;
+      // LAN-442: by the capacity shown, so committee sits with the players it reads as.
+      return person.isWalkUp ? "￿walk-up" : shownCapacity(person.capacity);
     case "invited":
       // Walk-ups/un-issued sort last, not first.
       return person.invitedAt ?? "￿";
