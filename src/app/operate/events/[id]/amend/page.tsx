@@ -9,6 +9,7 @@ import {
   type AmendmentContext,
 } from "@/lib/services/event-amendment";
 import { readAddableAudience } from "@/lib/services/event-audience-amendment";
+import { redactAudienceCandidates } from "@/lib/services/event-audience-access";
 import type { RawEventDraft, TermWindow } from "@/lib/services/event-input";
 import { joinQuestionChoices, readEventQuestions } from "@/lib/services/events";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
@@ -139,7 +140,11 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
       {context.isFuture ? (
         <AddToAudience
           eventId={event.id}
-          candidates={addable.candidates}
+          candidates={redactAudienceCandidates(
+            addable.candidates,
+            gate.operator.grants,
+            event.eventType,
+          )}
           counts={addable.counts}
           alreadyOnEvent={addable.alreadyOnEvent}
         />

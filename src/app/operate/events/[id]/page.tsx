@@ -26,6 +26,10 @@ import {
 } from "@/lib/services/club-link";
 import { publicOrigin } from "../../../participation/origin";
 import { buildShareMessage } from "../../../participation/share-message";
+import {
+  redactAudienceCandidates,
+  redactAudienceMembers,
+} from "@/lib/services/event-audience-access";
 import { gateEventPage } from "../event-gate";
 import { AudienceBuilder } from "./audience-builder";
 import {
@@ -86,6 +90,10 @@ export default async function EventDetailPage({
   // UX-40/41: audience data loaded only for an approver working a draft.
   if (canWorkOnAudience && (step === "audience" || step === "review")) {
     const preview = await readApprovalPreview(event.id);
+    // LAN-423: the per-person detail follows the seat's roster and recruiting
+    // grants; Manage on the template alone carries names and groups.
+    const grants = gate.operator.grants;
+    const audienceMembers = redactAudienceMembers(preview.audience, grants);
 
     if (step === "audience") {
       // D47: read only for the "selected" sentence — may differ from the stored draft.
@@ -96,9 +104,14 @@ export default async function EventDetailPage({
             eventId={event.id}
             eventType={event.eventType}
             templateName={event.templateName}
-            candidates={preview.catalogue.candidates}
+            candidates={redactAudienceCandidates(
+              preview.catalogue.candidates,
+              grants,
+              event.eventType,
+              [...preview.audienceGroups, ...template.audienceGroups],
+            )}
             counts={preview.catalogue.counts}
-            initialKeys={preview.audience.map((member) => `${member.capacity}:${member.anchorId}`)}
+            initialKeys={audienceMembers.map((member) => `${member.capacity}:${member.anchorId}`)}
             initialGroups={preview.audienceGroups}
             templateGroups={template.audienceGroups}
           />
@@ -111,12 +124,12 @@ export default async function EventDetailPage({
         {preview.missing.length > 0 ? (
           <IncompleteRefusal eventId={event.id} missing={preview.missing} />
         ) : null}
-        {preview.audience.length === 0 ? (
+        {audienceMembers.length === 0 ? (
           <EmptyAudienceRefusal eventId={event.id} />
         ) : (
           <ApprovalReview
             event={event}
-            audience={preview.audience}
+            audience={audienceMembers}
             questions={preview.questions}
             groupSummary={preview.groupSummary}
             approvable={preview.missing.length === 0}
@@ -129,7 +142,10 @@ export default async function EventDetailPage({
                 : null
             }
             plan={preview.plan}
-            unreachable={preview.unreachable}
+            unreachable={preview.unreachable.map((entry) => ({
+              ...entry,
+              member: redactAudienceMembers([entry.member], grants)[0],
+            }))}
           />
         )}
       </ApprovalLayout>
@@ -137,7 +153,10 @@ export default async function EventDetailPage({
   }
 
   // Audience shown on detail from the moment one is proposed (no second screen after approval).
-  const audience = event.audienceCount > 0 ? await readEventAudience(event.id) : [];
+  const audience =
+    event.audienceCount > 0
+      ? redactAudienceMembers(await readEventAudience(event.id), gate.operator.grants)
+      : [];
 
   // Amendment W4-A1: read on every status.
   const questions = await readEventQuestions(event.id);
