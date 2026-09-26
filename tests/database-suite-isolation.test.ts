@@ -230,6 +230,12 @@ describe("the hot and gate projects", () => {
     expect(workflow).toContain("npm run test:ci");
     expect(workflow).toContain("npm run test:gate:ci");
     expect(workflow).toContain("npm run test:tooling");
+    // CI runs both halves of `npm run test`: the unit project in its own job,
+    // the database project against the runner's stack through `test:ci`.
+    expect(scripts["test:unit"]).toBe("vitest run --project unit");
+    expect(workflow).toContain("npm run test:unit");
+    const wrapper = fs.readFileSync(path.join(repoRoot, "scripts/ci-local-command.mjs"), "utf8");
+    expect(wrapper).toMatch(/operation === "test" \? "database" : "gate"/);
   });
 });
 

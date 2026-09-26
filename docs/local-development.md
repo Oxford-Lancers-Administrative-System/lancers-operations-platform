@@ -378,17 +378,18 @@ Run `npm run verify` before opening a pull request. It is what CI runs.
 
 ### What CI runs, and what each check means
 
-`.github/workflows/ci.yml` runs four jobs in parallel on every pull request:
+`.github/workflows/ci.yml` runs its jobs in parallel on every pull request:
 
-| Job         | Runs                                                                                                                                                                 | Required                                               |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `static`    | format check, lint, typecheck, build — no database                                                                                                                   | through `quality`                                      |
-| `tests`     | a local Supabase stack: migrations from empty, RLS posture, type drift, the synthetic seed, then `unit` + `database` (`npm run test:ci`) and `gate` (`test:gate:ci`) | through `quality`                                      |
-| `quality`   | nothing itself; passes only when `static` and `tests` both succeeded                                                                                                 | **Yes** — "Format, lint, typecheck, test, build"       |
-| `container` | builds the production image and probes it                                                                                                                            | **Yes** — "Container builds and serves"                |
-| `tooling`   | `npm run test:tooling`, only when the change touches `scripts/`, `.claude/`, `.github/`, `missions/`, `supabase/`, the tooling tests or the Vitest/npm config        | **No** — it is skipped on most pull requests by design |
+| Job         | Runs                                                                                                                                                                    | Required                                               |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `static`    | format check, lint, typecheck, build — no database                                                                                                                      | through `quality`                                      |
+| `unit`      | the `unit` project (`npm run test:unit`) — no database                                                                                                                  | through `quality`                                      |
+| `tests`     | a local Supabase stack: migrations from empty, RLS posture, type drift, the synthetic seed, then the `database` project (`npm run test:ci`) and `gate` (`test:gate:ci`) | through `quality`                                      |
+| `quality`   | nothing itself; passes only when `static`, `unit` and `tests` all succeeded                                                                                             | **Yes** — "Format, lint, typecheck, test, build"       |
+| `container` | builds the production image and probes it                                                                                                                               | **Yes** — "Container builds and serves"                |
+| `tooling`   | `npm run test:tooling`, only when the change touches `scripts/`, `.claude/`, `.github/`, `missions/`, `supabase/`, the tooling tests or the Vitest/npm config           | **No** — it is skipped on most pull requests by design |
 
-Locally, `npm run verify` covers the first two, apart from the gate suites;
+Locally, `npm run verify` covers the first three, apart from the gate suites;
 run `npm run verify:gate` too when you change a loader, a seed or a production
 procedure, and `npm run test:tooling` when you change the agent tooling.
 

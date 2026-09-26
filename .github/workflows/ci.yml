@@ -15,11 +15,12 @@ permissions:
 
 jobs:
   # The required check "Format, lint, typecheck, test, build" is the `quality`
-  # job at the bottom. It does no work itself: it passes only when both halves
-  # below succeeded, so a failure in any of format, lint, typecheck, test, gate
-  # or build still fails the check branch protection requires (LAN-436). The
-  # halves carry no `name:`, deliberately — every named job in this file is a
-  # required check, and `.github/merge-rules.json` lists exactly those.
+  # job at the bottom. It does no work itself: it passes only when all three
+  # parts below succeeded, so a failure in any of format, lint, typecheck, unit
+  # tests, database tests, gate or build still fails the check branch
+  # protection requires (LAN-436). The parts carry no `name:`, deliberately —
+  # every named job in this file is a required check, and
+  # `.github/merge-rules.json` lists exactly those.
 
   # Needs no database, so it runs beside the Supabase job instead of after it.
   static:
@@ -54,6 +55,32 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # The unit project needs no stack either — `vitest.setup.ts` refuses it a
+  # database connection — so it runs on its own runner instead of competing
+  # with the serialized database suites for one.
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The same unroutable placeholder: the Data API guard in
+      # `vitest.setup.ts` refuses this origin, and nothing reaches it.
+      NEXT_PUBLIC_SUPABASE_URL: http://192.0.2.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm run test:unit
 
   tests:
     runs-on: ubuntu-latest
@@ -131,13 +158,14 @@ jobs:
           TEST_USER_PASSWORD: ${{ secrets.CI_TEST_USER_PASSWORD || 'CiLocalPassword123!' }}
         run: npm run db:seed-user:ci
 
-      - name: Test
+      - name: Test database suites
         env:
           # Turns "local Supabase not configured" from a silent skip into a failure.
           REQUIRE_SUPABASE_TESTS: "1"
           TEST_USER_EMAIL: ci.user@oxfordlancers.local
           TEST_USER_PASSWORD: ${{ secrets.CI_TEST_USER_PASSWORD || 'CiLocalPassword123!' }}
         # The runner-local stack was created above and has no agent-session lease.
+        # `test:ci` is the database project; the unit project is the `unit` job.
         run: npm run test:ci
 
       - name: Test gate suites
@@ -153,23 +181,25 @@ jobs:
 
   quality:
     name: Format, lint, typecheck, test, build
-    needs: [static, tests]
-    # Always runs, so a failed or cancelled half fails this check rather than
+    needs: [static, unit, tests]
+    # Always runs, so a failed or cancelled part fails this check rather than
     # skipping it: branch protection treats a skipped required check as passed.
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Require both halves to have succeeded
+      - name: Require every part to have succeeded
         env:
           STATIC_RESULT: ${{ needs.static.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
           TESTS_RESULT: ${{ needs.tests.result }}
         # Anything but `success` — failure, cancelled or skipped — fails.
         run: |
           echo "format, lint, typecheck, build: $STATIC_RESULT"
-          echo "migrations, types, tests, gate suites: $TESTS_RESULT"
-          [ "$STATIC_RESULT" = "success" ] && [ "$TESTS_RESULT" = "success" ]
+          echo "unit tests: $UNIT_RESULT"
+          echo "migrations, types, database tests, gate suites: $TESTS_RESULT"
+          [ "$STATIC_RESULT" = "success" ] && [ "$UNIT_RESULT" = "success" ] && [ "$TESTS_RESULT" = "success" ]
 
   # The agent-tooling suites (TOOLING_SUITES in vitest.config.ts). NOT a
   # required check, and it must never become one: on a pull request that
