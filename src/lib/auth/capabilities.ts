@@ -502,7 +502,7 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    */
   event_calendar_management: capability({
     key: "event_calendar_management",
-    action: "create, edit, submit or withdraw an event draft",
+    action: "administer event templates, and import or export events",
     roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Brian, 12 August 2026 (LAN-76 owner clarification): the club calendar is managed by " +
@@ -537,7 +537,7 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    */
   event_approval: capability({
     key: "event_approval",
-    action: "approve an event and release its invitations",
+    action: "retained approval gate — approving an event follows Manage on its template",
     roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Brian, 12 August 2026 (LAN-77 owner clarification): the President, Vice-President, " +
@@ -764,7 +764,8 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    */
   delivery_administration: capability({
     key: "delivery_administration",
-    action: "inspect delivery, retry a failed invitation, and reissue a link",
+    action:
+      "read messaging safety and edit the club-wide messaging settings — the recruitment cycle and the onboarding chase",
     roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Lead, 13 August 2026 (LAN-78): derived from Brian's LAN-77 event-workflow authority — " +

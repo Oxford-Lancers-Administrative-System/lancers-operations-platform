@@ -1032,6 +1032,29 @@ describe("LAN-129 — Administration's permission copy is derived, not duplicate
     expect(summary).not.toContain(CAPABILITIES.role_management.action);
   });
 
+  it("words the three retained event capabilities by what they now gate — LAN-423", () => {
+    // Per-event work follows the template grant since LAN-431; these three
+    // keep template administration, import and export, and messaging safety.
+    expect(CAPABILITIES.event_calendar_management.action).toBe(
+      "administer event templates, and import or export events",
+    );
+    expect(CAPABILITIES.event_approval.action).toBe(
+      "retained approval gate — approving an event follows Manage on its template",
+    );
+    expect(CAPABILITIES.delivery_administration.action).toBe(
+      "read messaging safety and edit the club-wide messaging settings — the recruitment cycle and the onboarding chase",
+    );
+    for (const key of [
+      "event_calendar_management",
+      "event_approval",
+      "delivery_administration",
+    ] as const) {
+      expect(CAPABILITIES[key].action, key).not.toMatch(
+        /event draft|release its invitations|inspect delivery|retry a failed invitation/,
+      );
+    }
+  });
+
   it("produces only sentences that exist in the capability map", () => {
     // The mechanism, asserted directly. A hand-written description added
     // anywhere in this projection would fail here, which is the "stale
