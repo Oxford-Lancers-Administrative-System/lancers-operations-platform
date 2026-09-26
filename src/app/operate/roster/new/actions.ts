@@ -6,6 +6,11 @@ import { requireGrant } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { ADD_TO_ROSTER } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
+import type { OperatorGrants } from "@/lib/auth/grants";
+import {
+  redactRosterCandidates,
+  type SeatPersonCandidate,
+} from "@/lib/services/person-candidate-access";
 import {
   enterReturningPlayer,
   findPersonCandidates,
@@ -56,7 +61,9 @@ export async function submitReturnerIntake(
 
   if (intent === "check" || intent === "back_to_candidates") {
     try {
-      return { step: "candidates", values, candidates: await findPersonCandidates(input) };
+      // LAN-423: narrowed to the seat's own grants before it leaves the server.
+      const candidates = redactRosterCandidates(await findPersonCandidates(input), operator.grants);
+      return { step: "candidates", values, candidates };
     } catch (error) {
       return { step: "details", values, errors: {}, formError: safeMessage(error) };
     }
@@ -71,7 +78,7 @@ export async function submitReturnerIntake(
     return {
       step: "candidates",
       values,
-      candidates: await candidatesOrNone(input),
+      candidates: await candidatesOrNone(input, operator.grants),
       formError: "Choose the person this is, or confirm that this is a new person.",
     };
   }
@@ -87,7 +94,7 @@ export async function submitReturnerIntake(
           : { kind: "new", confirmed: true },
     });
   } catch (error) {
-    return buildFailureState(error, values, input, selectedPersonId);
+    return buildFailureState(error, values, input, selectedPersonId, operator.grants);
   }
 
   // Outside the try — redirect() throws, and catching it here would turn a
@@ -111,8 +118,9 @@ async function buildFailureState(
   values: IntakeFormValues,
   input: Parameters<typeof findPersonCandidates>[0],
   selectedPersonId: FormDataEntryValue | null,
+  grants: OperatorGrants,
 ): Promise<IntakeState> {
-  const candidates = await candidatesOrNone(input);
+  const candidates = await candidatesOrNone(input, grants);
 
   if (
     isServiceError(error) &&
@@ -143,12 +151,13 @@ function safeMessage(error: unknown): string {
   return isServiceError(error) ? error.message : GENERIC_FAILURE;
 }
 
-/** The candidate list, or an empty one — never a throw; both call sites are already reporting a failure. */
+/** The seat's candidate list, or an empty one — never a throw; both call sites are already reporting a failure. */
 async function candidatesOrNone(
   input: Parameters<typeof findPersonCandidates>[0],
-): Promise<Awaited<ReturnType<typeof findPersonCandidates>>> {
+  grants: OperatorGrants,
+): Promise<SeatPersonCandidate[]> {
   try {
-    return await findPersonCandidates(input);
+    return redactRosterCandidates(await findPersonCandidates(input), grants);
   } catch {
     return [];
   }

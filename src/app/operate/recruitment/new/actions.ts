@@ -6,6 +6,8 @@ import { requireGrant } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError, withTransaction } from "@/lib/db";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
+import type { OperatorGrants } from "@/lib/auth/grants";
+import { redactRecruitCandidates } from "@/lib/services/person-candidate-access";
 import { createPerson } from "@/lib/services/person-create";
 import { readCandidateIdentitiesIn } from "@/lib/services/recruitment-candidate-identity";
 import {
@@ -60,6 +62,7 @@ export async function submitAddRecruit(
     }
     try {
       const candidates = await withIdentities(
+        operator.grants,
         await findPersonDuplicates({
           givenName: values.givenName,
           familyName: values.familyName,
@@ -196,6 +199,7 @@ export async function submitAddRecruit(
         const candidates =
           previous.candidates ??
           (await withIdentities(
+            operator.grants,
             await findPersonDuplicates({
               givenName: values.givenName,
               familyName: values.familyName,
@@ -232,11 +236,13 @@ export async function submitAddRecruit(
   return { ...previous, formError: GENERIC_FAILURE };
 }
 
+/** The matches with who each one is, narrowed to the seat's own grants before they leave the server (LAN-423). */
 async function withIdentities(
+  grants: OperatorGrants,
   candidates: Awaited<ReturnType<typeof findPersonDuplicates>>,
 ): Promise<AddRecruitCandidate[]> {
   if (candidates.length === 0) return [];
-  return withTransaction(async (tx) => {
+  const identified = await withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
     const identities = await readCandidateIdentitiesIn(
       tx,
@@ -248,6 +254,7 @@ async function withIdentities(
       identity: identities.get(candidate.personId) ?? { kind: "none" as const },
     }));
   });
+  return redactRecruitCandidates(identified, grants);
 }
 
 function requiredErrors(values: {

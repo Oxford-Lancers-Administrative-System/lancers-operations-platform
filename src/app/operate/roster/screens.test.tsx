@@ -60,6 +60,10 @@ vi.mock("./new/actions", async () => {
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { type PersonCandidate } from "@/lib/services/roster";
+import {
+  redactRosterCandidates,
+  type SeatPersonCandidate,
+} from "@/lib/services/person-candidate-access";
 import { submitReturnerIntake } from "./new/actions";
 import type { IntakeState } from "./new/intake-state";
 import NewReturnerPage from "./new/page";
@@ -135,7 +139,10 @@ function expectTouchTargets(buttons: string[], links: string[] = []): void {
   }
 }
 
-const CANDIDATES: PersonCandidate[] = [
+/** A seat that sees every fact the match list carries. */
+const SEES_ALL = { contact: false, membershipStatus: false } as const;
+
+const CANDIDATES: SeatPersonCandidate[] = [
   {
     personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     givenName: "Avery",
@@ -145,6 +152,7 @@ const CANDIDATES: PersonCandidate[] = [
     phone: "+44 7700 900101",
     currentMembership: null,
     matchedOn: ["given name", "email"],
+    withheld: SEES_ALL,
   },
   {
     // The case this issue exists for: a first-name-only record.
@@ -160,6 +168,7 @@ const CANDIDATES: PersonCandidate[] = [
       seasonLabel: "2026-27",
     },
     matchedOn: ["given name"],
+    withheld: SEES_ALL,
   },
 ];
 
@@ -409,7 +418,7 @@ describe("UX-11 — Review possible matches", () => {
    * the rule changes under it. It is held to the shared function instead.
    */
   it("names a candidate formally, whatever alias the record carries", async () => {
-    const aliased: PersonCandidate = {
+    const aliased: SeatPersonCandidate = {
       personId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
       givenName: "Ambrose",
       familyName: "Kittiwake",
@@ -418,6 +427,7 @@ describe("UX-11 — Review possible matches", () => {
       phone: null,
       currentMembership: null,
       matchedOn: ["known as"],
+      withheld: SEES_ALL,
     };
     // `beforeEach` already mounted the standard list, so this render is scoped
     // to its own container rather than read off the whole document.
@@ -439,6 +449,76 @@ describe("UX-11 — Review possible matches", () => {
       Array.from(hidden).map((input) => [input.getAttribute("name"), input.getAttribute("value")]),
     );
     expect(carried).toMatchObject(VALUES);
+  });
+});
+
+// LAN-423 fix round 3, H1: Add player is opened by a switch, so its match list
+// is narrowed to the seat's grants on the server. The HTML a switch-only seat
+// receives carries the names and why they matched, and no contact or status.
+describe("UX-11 — a seat holding the switch and nothing else", () => {
+  const FULL: PersonCandidate[] = [
+    {
+      personId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      givenName: "Corwin",
+      familyName: "Vellacott",
+      displayAlias: null,
+      email: "corwin.vellacott@ashridge.ox.ac.example",
+      phone: "07700 900999",
+      currentMembership: {
+        id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        status: "active",
+        seasonLabel: "2026-27",
+      },
+      matchedOn: ["phone"],
+    },
+  ];
+  const SWITCH_ONLY = mergeGrantRows([
+    { subject_kind: "switch", subject_key: "add_to_roster", template_id: null, level: "yes" },
+  ]);
+  const WITH_CONTACT = mergeGrantRows([
+    { subject_kind: "switch", subject_key: "add_to_roster", template_id: null, level: "yes" },
+    {
+      subject_kind: "roster_category",
+      subject_key: "contact_emergency",
+      template_id: null,
+      level: "view",
+    },
+  ]);
+
+  it("draws the name and the match reason, and no email, phone or status", async () => {
+    const view = await renderIntakeAt({
+      step: "candidates",
+      values: VALUES,
+      candidates: redactRosterCandidates(FULL, SWITCH_ONLY),
+    });
+
+    const html = view.container.innerHTML;
+    expect(html).toContain("Corwin Vellacott");
+    expect(html).toContain("Matched on phone");
+    expect(html).toContain("Already a member");
+    expect(html).not.toContain("corwin.vellacott@ashridge.ox.ac.example");
+    expect(html).not.toContain("900999");
+    expect(html).not.toMatch(/\(active\)|Active/);
+    const row = within(view.container).getByTestId("candidate");
+    expect(within(row).queryByText("Email")).toBeNull();
+    expect(within(row).queryByText("Phone")).toBeNull();
+    // Still usable for its purpose.
+    expect(screen.getByRole("radio")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Confirm this is a new person" }),
+    ).toBeInTheDocument();
+  });
+
+  it("draws the email and phone to a seat holding Contact & emergency at View", async () => {
+    const view = await renderIntakeAt({
+      step: "candidates",
+      values: VALUES,
+      candidates: redactRosterCandidates(FULL, WITH_CONTACT),
+    });
+
+    const html = view.container.innerHTML;
+    expect(html).toContain("corwin.vellacott@ashridge.ox.ac.example");
+    expect(html).toContain("07700 900999");
   });
 });
 

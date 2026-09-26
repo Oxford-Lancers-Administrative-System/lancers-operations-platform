@@ -475,3 +475,76 @@ describe("the write, and how it ends", () => {
     expect(message).not.toMatch(/ECONNREFUSED|127\.0\.0\.1|password|hunter2/);
   });
 });
+
+// LAN-423 fix round 3, H1: the duplicate check's payload, narrowed on the
+// server to the seat's own grants.
+describe("the duplicate check's matches, as a seat holding the switch receives them", () => {
+  beforeEach(() => {
+    vi.mocked(findPersonCandidates).mockResolvedValue([
+      {
+        personId: "44444444-4444-4444-8444-444444444444",
+        givenName: "Corwin",
+        familyName: "Vellacott",
+        displayAlias: null,
+        email: "corwin.vellacott@ashridge.ox.ac.example",
+        phone: "07700 900999",
+        currentMembership: {
+          id: "55555555-5555-4555-8555-555555555555",
+          status: "active",
+          seasonLabel: "2026-27",
+        },
+        matchedOn: ["phone"],
+      },
+    ]);
+  });
+
+  const check = () =>
+    submitReturnerIntake(INITIAL_INTAKE_STATE, form({ ...VALID_DETAILS, intent: "check" }));
+
+  it("carries the name and the match reason, and no email, phone or status, with everything else None", async () => {
+    signedInAs(activeOperator([], MAY_ADD_TO_ROSTER));
+
+    const state = await check();
+    if (state.step !== "candidates") throw new Error(`expected candidates, got ${state.step}`);
+    const payload = JSON.stringify(state.candidates);
+
+    expect(state.candidates[0]).toMatchObject({
+      givenName: "Corwin",
+      familyName: "Vellacott",
+      matchedOn: ["phone"],
+      email: null,
+      phone: null,
+      currentMembership: { status: "", seasonLabel: "2026-27" },
+      withheld: { contact: true, membershipStatus: true },
+    });
+    expect(payload).not.toContain("corwin.vellacott");
+    expect(payload).not.toContain("900999");
+    expect(payload).not.toContain("active");
+  });
+
+  it("carries the email and phone with Contact & emergency at View", async () => {
+    signedInAs(
+      activeOperator(
+        [],
+        mergeGrantRows([
+          { subject_kind: "switch", subject_key: "add_to_roster", template_id: null, level: "yes" },
+          {
+            subject_kind: "roster_category",
+            subject_key: "contact_emergency",
+            template_id: null,
+            level: "view",
+          },
+        ]),
+      ),
+    );
+
+    const state = await check();
+    if (state.step !== "candidates") throw new Error(`expected candidates, got ${state.step}`);
+
+    expect(state.candidates[0]).toMatchObject({
+      email: "corwin.vellacott@ashridge.ox.ac.example",
+      phone: "07700 900999",
+      withheld: { contact: false, membershipStatus: true },
+    });
+  });
+});
