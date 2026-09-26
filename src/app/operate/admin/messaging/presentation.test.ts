@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { buildSchedulePreview, formatScheduleWhen } from "./presentation";
 import type { MessagingPlan, MessagingSchedule } from "@/lib/services/messaging-schedule";

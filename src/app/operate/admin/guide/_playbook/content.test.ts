@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The playbook's words — LAN-399.
  *

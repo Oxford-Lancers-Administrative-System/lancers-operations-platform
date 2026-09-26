@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * LAN-306. The rule three surfaces used to disagree about, now in one place:
  * the name is the formal one, and Known as is a value of its own.

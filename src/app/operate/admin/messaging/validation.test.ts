@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { readOneScheduleChange, scheduleChanged, SCHEDULE_FIELDS } from "./validation";
 import type { MessagingSchedule, MessagingScheduleChange } from "@/lib/services/messaging-schedule";

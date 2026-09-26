@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The durable page's own writes — LAN-172.
  *

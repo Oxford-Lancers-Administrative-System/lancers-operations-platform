@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The continuous academic year — LAN-153, `REQ-oxford-continuous`.
  *

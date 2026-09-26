@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The Gregorian month projection, and the Oxford week arithmetic beneath it —
  * LAN-114, narrowed by LAN-153.

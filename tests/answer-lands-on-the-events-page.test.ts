@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Answering an invitation really does land on a rendered events page — LAN-343.
  *

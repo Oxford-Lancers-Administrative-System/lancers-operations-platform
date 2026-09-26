@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The answer link's one write, and its cookie gate — LAN-172, Q-11.
  *

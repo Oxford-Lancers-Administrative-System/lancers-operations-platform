@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The response headers the production audit found missing — LAN-352.
  *

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Reading a versioned agreement's body — LAN-347. Pure text, no database: what
  * is under test is that the page can find the section it needs to put a field

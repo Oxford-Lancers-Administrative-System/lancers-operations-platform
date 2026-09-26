@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The local delivery sink — LAN-169.
  *

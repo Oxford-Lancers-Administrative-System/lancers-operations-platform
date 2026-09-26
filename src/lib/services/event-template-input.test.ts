@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * What a template may hold, and what it deliberately may not — LAN-154, W8.
  *

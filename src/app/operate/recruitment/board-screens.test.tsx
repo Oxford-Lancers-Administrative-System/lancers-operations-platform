@@ -12,7 +12,7 @@
  * filters, columns) is already proved in `recruitment-board-view.test.tsx`
  * and `board-data.test.ts`; this file exists for the gate alone.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
@@ -84,6 +84,10 @@ function givenBoard(overrides: Partial<RecruitmentBoardData> = {}): void {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(readOperatorPreferences).mockResolvedValue({});
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("REQ-authority / REQ-core-four — coach-role exclusion, the walk's own gap", () => {
@@ -180,6 +184,7 @@ describe("which groups are folded away, remembered on the account", () => {
   it("writes the whole set back once the toggling has settled", async () => {
     givenPopulatedBoard();
     render(await RecruitmentBoardPage(pageProps()));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 
     const board = screen.getByTestId("recruitment-board");
     // Arriving is not a change: what the board arrived holding is what the
@@ -191,8 +196,9 @@ describe("which groups are folded away, remembered on the account", () => {
       fireEvent.click(within(board).getByTestId("band-toggle-events:event-2"));
     });
     // Debounced: two clicks in a moment are one write, of where they ended up.
+    // The 600ms debounce, on a fake clock rather than a real wait.
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 900));
+      vi.advanceTimersByTime(900);
     });
 
     expect(saveRecruitmentCollapsedGroupsAction).toHaveBeenCalledTimes(1);

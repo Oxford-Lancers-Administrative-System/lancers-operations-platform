@@ -205,7 +205,9 @@ describe("UX-10 — Add player", () => {
     // name is not in the form data at all. The three plain text boxes are
     // therefore what carries a `name` here, and the phone's `name` is
     // asserted on the hidden input below, where it actually lives.
-    const rendered = screen.getAllByRole("textbox").map((input) => input.getAttribute("name"));
+    const rendered = screen
+      .getAllByRole("textbox", { hidden: false })
+      .map((input) => input.getAttribute("name"));
     expect(rendered).toEqual(["givenName", "familyName", "email", null, null]);
 
     const phone = document.querySelector('input[type="hidden"][name="phone"]');

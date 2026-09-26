@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * One naming rule, two runtimes — LAN-306.
  *

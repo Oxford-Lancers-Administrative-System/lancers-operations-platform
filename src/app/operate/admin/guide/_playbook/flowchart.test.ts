@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The committed flowcharts are the specs — LAN-399.
  *
