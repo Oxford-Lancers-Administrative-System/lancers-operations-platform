@@ -63,11 +63,11 @@ import { type PersonCandidate } from "@/lib/services/roster";
 import { submitReturnerIntake } from "./new/actions";
 import type { IntakeState } from "./new/intake-state";
 import NewReturnerPage from "./new/page";
-import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { mergeGrantRows } from "@/lib/auth/grants";
 
 /**
- * An operator holding no club role at all — the weakest actor these screens
- * must still serve, because returner intake is an ordinary operator action.
+ * An operator holding no club role at all and only the May add to the roster
+ * switch (LAN-432) — the weakest actor these screens must still serve.
  */
 const OPERATOR: OperatorAccess = {
   state: "active",
@@ -76,7 +76,9 @@ const OPERATOR: OperatorAccess = {
     personId: "11111111-1111-4111-8111-111111111111",
     displayName: "Morgan Pike",
     roleCodes: [],
-    grants: seededGrantsFor([]),
+    grants: mergeGrantRows([
+      { subject_kind: "switch", subject_key: "add_to_roster", template_id: null, level: "yes" },
+    ]),
     isActive: true,
   },
 };

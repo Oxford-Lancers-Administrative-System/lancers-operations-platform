@@ -46,7 +46,12 @@ import { enterReturningPlayer, findPersonCandidates } from "@/lib/services/roste
 import { submitReturnerIntake } from "./actions";
 import { INITIAL_INTAKE_STATE } from "./intake-state";
 import { GIVEN_NAME_REQUIRED, EMAIL_SHAPE } from "./validation";
-import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { mergeGrantRows, NO_GRANTS, type OperatorGrants } from "@/lib/auth/grants";
+
+/** LAN-432: the May add to the roster switch, and nothing else. */
+const MAY_ADD_TO_ROSTER: OperatorGrants = mergeGrantRows([
+  { subject_kind: "switch", subject_key: "add_to_roster", template_id: null, level: "yes" },
+]);
 
 const OPERATOR_PERSON_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -54,8 +59,11 @@ function signedInAs(state: OperatorAccess): void {
   vi.mocked(resolveOperatorAccess).mockResolvedValue(state);
 }
 
-/** Defaults to an operator holding no club role — intake needs none. */
-function activeOperator(roleCodes: string[] = []): OperatorAccess {
+/** Defaults to an operator holding no club role and the May add to the roster switch — intake needs nothing else. */
+function activeOperator(
+  roleCodes: string[] = [],
+  grants: OperatorGrants = MAY_ADD_TO_ROSTER,
+): OperatorAccess {
   return {
     state: "active",
     operator: {
@@ -63,7 +71,7 @@ function activeOperator(roleCodes: string[] = []): OperatorAccess {
       personId: OPERATOR_PERSON_ID,
       displayName: "Morgan Pike",
       roleCodes,
-      grants: seededGrantsFor(roleCodes),
+      grants,
       isActive: true,
     },
   };
@@ -140,11 +148,17 @@ describe("who may call it", () => {
     expect(thrown.message).not.toMatch(/president|secretary|coach|role code/i);
   });
 
-  it("admits a linked, active operator holding no club role at all", async () => {
-    // Returner intake is an ordinary operator action: `slice-ux.md` § 8's first
-    // row, LAN-73's capability map does not name it, and LAN-74 asks only for
-    // "an authenticated operator". Adding a role requirement here would be a
-    // policy decision this issue is not allowed to take.
+  it("refuses a seat without the May add to the roster switch, and reads nothing (LAN-432)", async () => {
+    signedInAs(activeOperator([], NO_GRANTS));
+
+    await expect(
+      submitReturnerIntake(INITIAL_INTAKE_STATE, form({ ...VALID_DETAILS, intent: "check" })),
+    ).rejects.toMatchObject({ kind: "not_permitted", rule: "grant:switch.add_to_roster>=yes" });
+    expect(findPersonCandidates).not.toHaveBeenCalled();
+  });
+
+  it("admits a seat holding the May add to the roster switch and no club role at all", async () => {
+    // LAN-432: adding to the roster is the seat page's switch, not a role.
     signedInAs(activeOperator([]));
 
     const state = await submitReturnerIntake(
