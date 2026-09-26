@@ -24,11 +24,12 @@ import type { EventFormState, EventTransitionState } from "./form-state";
 // The event workflow's server actions — LAN-76, LAN-77. Every action requires
 // Manage on the event's template (LAN-431) against the verified session: the
 // template read from the stored event, and for a create or a change of
-// template, the template posted as well. NotPermitted is rethrown, not a form
-// message — except by the edit save, which hands it back to the open form
-// (LAN-423). No ownership term.
+// template, the template posted as well. No ownership term. A refusal is the
+// form's own error, never a throw (LAN-423): a seat whose Manage was lowered
+// under an open page gets the refusal in the page's Notice, entries intact,
+// rather than "This page couldn't load".
 
-/** Manage on this event's template; a missing event is a message for the form, a refusal is thrown. */
+/** Manage on this event's template; a missing event or a refusal is a message for the form. */
 async function managerOf(eventId: string): Promise<ResolvedOperator | { error: string }> {
   try {
     return await requireEventGrant(eventId, "manage");
@@ -58,20 +59,13 @@ function readDraft(formData: FormData): RawEventDraft {
   };
 }
 
-/** Turns a service failure into a readable message; rethrows a refusal or anything not a `ServiceError`. */
-function messageFor(error: unknown): string {
-  if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
-  return error.message;
-}
-
 /**
  * A form's message for any service failure, a refusal included — LAN-423. A
  * save refused because Manage was lowered under an open form comes back as the
  * form's own error, shown in its Notice with every entry intact, rather than a
  * crashed page. Anything that is not a `ServiceError` still throws.
  */
-function formMessageFor(error: unknown): string {
+function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
   return error.message;
 }
@@ -111,9 +105,23 @@ export async function createEventDraftAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  await requireGrant(ANY_TEMPLATE_MANAGE);
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
+
+  // LAN-423: a refusal is the open form's own error, with its entries.
+  const refused = (error: unknown): EventFormState => ({
+    issues: [],
+    questionIssues: [],
+    error: messageFor(error),
+    values: raw,
+    questions: rawQuestions,
+  });
+
+  try {
+    await requireGrant(ANY_TEMPLATE_MANAGE);
+  } catch (error) {
+    return refused(error);
+  }
 
   const validation = validateEventDraft(raw);
   const questions = validateEventQuestions(rawQuestions ?? []);
@@ -127,11 +135,10 @@ export async function createEventDraftAction(
     };
   }
 
-  // Only a template this seat manages; a forged one is refused, not saved.
-  const operator = await requireTemplateGrant(validation.value.templateId, "manage");
-
   let eventId: string;
   try {
+    // Only a template this seat manages; a forged one is refused, not saved.
+    const operator = await requireTemplateGrant(validation.value.templateId, "manage");
     const event = await createEventDraft(
       operator.personId,
       validation.value,
@@ -140,13 +147,7 @@ export async function createEventDraftAction(
     );
     eventId = event.id;
   } catch (error) {
-    return {
-      issues: [],
-      questionIssues: [],
-      error: messageFor(error),
-      values: raw,
-      questions: rawQuestions,
-    };
+    return refused(error);
   }
 
   revalidatePath("/operate/events");
@@ -166,7 +167,7 @@ export async function updateEventDraftAction(
   const refused = (error: unknown): EventFormState => ({
     issues: [],
     questionIssues: [],
-    error: formMessageFor(error),
+    error: messageFor(error),
     values: raw,
     questions: rawQuestions,
   });

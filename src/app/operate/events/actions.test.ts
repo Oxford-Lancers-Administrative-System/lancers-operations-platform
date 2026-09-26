@@ -46,6 +46,7 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     ...actual,
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
+    deleteEventDraft: vi.fn(),
   };
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
@@ -62,24 +63,19 @@ vi.mock("@/lib/services/delivery", async (importOriginal) => {
   return { ...actual, dispatchEventInvitations: vi.fn() };
 });
 
-import {
-  ConstraintViolated,
-  InvalidTransition,
-  NotPermitted,
-  isServiceError,
-  type ServiceError,
-} from "@/lib/db";
+import { ConstraintViolated, InvalidTransition, NotPermitted } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { createEventDraft, updateEventDraft } from "@/lib/services/events";
+import { createEventDraft, deleteEventDraft, updateEventDraft } from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { EMPTY_AUDIENCE_MESSAGE } from "@/lib/services/audience-selection";
 import {
   approveEventAction,
   createEventDraftAction,
+  deleteEventDraftAction,
   saveEventAudienceAction,
   updateEventDraftAction,
 } from "./actions";
@@ -148,34 +144,32 @@ function draftForm(overrides: Record<string, string> = {}): FormData {
   return form;
 }
 
-/** Runs `attempt`, and returns the `ServiceError` it was supposed to throw. */
-async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceError> {
-  try {
-    await attempt();
-  } catch (error) {
-    if (isServiceError(error)) return error;
-    throw error;
-  }
-  throw new Error("Expected the action to refuse this, but it returned.");
+/** A refusal's headline: the guard's own, or the unresolved session's. */
+const REFUSAL =
+  /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/;
+
+/**
+ * The refusal `attempt` handed back as its own state — LAN-423. Every action
+ * here returns a refusal (the form's or the button's `error`) rather than
+ * throwing it, so a seat whose Manage was lowered under an open page sees the
+ * refusal in the page's Notice instead of "This page couldn't load". A throw
+ * fails this helper.
+ */
+async function refusalFrom(attempt: () => Promise<unknown>): Promise<string> {
+  const state = (await attempt()) as { error?: unknown } | undefined;
+  expect(state?.error).toMatch(REFUSAL);
+  return state?.error as string;
 }
 
 /**
- * The refusal one of {@link ACTIONS} produced. Create and approve throw it; the
- * edit save hands it back as the form's own error with every entry intact, so
- * a seat whose Manage was lowered under an open form keeps the form (LAN-423).
+ * The refusal one of {@link ACTIONS} handed back. A form (create, edit) also
+ * hands back every entry, so the operator retypes nothing (LAN-423).
  */
 async function refusalOf(action: (typeof ACTIONS)[number]): Promise<string> {
-  if (action.name === "updateEventDraftAction") {
-    const state = await action.call();
-    expect(state.values?.name).toBe("Wednesday practice");
-    expect(state.error).toMatch(
-      /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
-    );
-    return state.error as string;
-  }
-  const error = await refusalFrom(action.call);
-  expect(error.kind).toBe("not_permitted");
-  return error.message;
+  const message = await refusalFrom(action.call);
+  const state = (await action.call()) as { values?: { name?: string } | null };
+  if ("values" in state) expect(state.values?.name).toBe("Wednesday practice");
+  return message;
 }
 
 /** Every action in this workflow, and a valid call to it. */
@@ -252,7 +246,7 @@ describe("every action refuses a caller with no operator profile", () => {
 
     const error = await refusalFrom(() => createEventDraftAction(EMPTY_FORM_STATE, draftForm()));
 
-    expect(error.message).not.toMatch(/president|secretary|coach|role/i);
+    expect(error).not.toMatch(/president|secretary|coach|role/i);
   });
 });
 
@@ -300,8 +294,8 @@ describe("only the four calendar roles may manage the calendar", () => {
     const error = await refusalFrom(() => createEventDraftAction(EMPTY_FORM_STATE, draftForm()));
 
     // Access is data on the seat now, so there is no role list to recite.
-    expect(error.message).toBe(`You do not have access to this action. ${GRANT_REQUIREMENT}`);
-    expect(error.message).not.toMatch(/treasurer|media secretary/i);
+    expect(error).toBe(`You do not have access to this action. ${GRANT_REQUIREMENT}`);
+    expect(error).not.toMatch(/treasurer|media secretary/i);
   });
 
   it("refuses an attendance-recording coach, who reaches another part of the app", async () => {
@@ -403,12 +397,32 @@ describe("a refusal from the service is shown, and an authorization refusal is n
     expect(state.values?.name).toBe("Wednesday practice");
   });
 
-  it("never renders a NotPermitted as a form message on create", async () => {
+  // LAN-423 fix round 4, J1: a refused create is the open form's own error,
+  // entries intact, like the edit save — never a crashed page.
+  it("hands a refused create back to the open form with its entries", async () => {
     vi.mocked(createEventDraft).mockRejectedValue(new NotPermitted("You may not do that."));
 
-    const error = await refusalFrom(() => createEventDraftAction(EMPTY_FORM_STATE, draftForm()));
+    const state = await createEventDraftAction(
+      EMPTY_FORM_STATE,
+      draftForm({ name: "Wednesday practice, moved" }),
+    );
 
-    expect(error.kind).toBe("not_permitted");
+    expect(state.error).toBe("You may not do that.");
+    expect(state.values?.name).toBe("Wednesday practice, moved");
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("hands the create's own grant refusal back to the open form", async () => {
+    givenAccess({ state: "active", operator: { ...actor(["secretary"]), grants: NO_GRANTS } });
+
+    const state = await createEventDraftAction(
+      EMPTY_FORM_STATE,
+      draftForm({ name: "Wednesday practice, moved" }),
+    );
+
+    expect(state.error).toBe(`You do not have access to this action. ${GRANT_REQUIREMENT}`);
+    expect(state.values?.name).toBe("Wednesday practice, moved");
+    expect(createEventDraft).not.toHaveBeenCalled();
   });
 
   // LAN-423 fix round 3, H3: Manage lowered while the edit form is open. The
@@ -502,12 +516,12 @@ describe("approveEventAction is the authorization boundary for releasing invitat
     async (code) => {
       givenAccess({ state: "active", operator: actor([code]) });
 
-      const error = await refusalFrom(() =>
-        approveEventAction(EMPTY_TRANSITION_STATE, approvalForm()),
-      );
+      // LAN-423: handed back as the button's refusal, never thrown.
+      const state = await approveEventAction(EMPTY_TRANSITION_STATE, approvalForm());
 
-      expect(error).toBeInstanceOf(NotPermitted);
-      expect(error.rule).toMatch(/^grant:.*>=manage$/);
+      expect(state).toEqual({
+        error: `You do not have access to this action. ${GRANT_REQUIREMENT}`,
+      });
       // Nothing was approved, and nothing was even attempted.
       expect(approveEvent).not.toHaveBeenCalled();
     },
@@ -516,11 +530,8 @@ describe("approveEventAction is the authorization boundary for releasing invitat
   it("refuses an operator holding no role at all", async () => {
     givenAccess({ state: "active", operator: actor([]) });
 
-    const error = await refusalFrom(() =>
-      approveEventAction(EMPTY_TRANSITION_STATE, approvalForm()),
-    );
+    await refusalFrom(() => approveEventAction(EMPTY_TRANSITION_STATE, approvalForm()));
 
-    expect(error).toBeInstanceOf(NotPermitted);
     expect(approveEvent).not.toHaveBeenCalled();
   });
 
@@ -662,12 +673,10 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
   it.each(NON_CALENDAR_ROLES)("refuses %s in the action", async (code) => {
     givenAccess({ state: "active", operator: actor([code]) });
 
-    const error = await refusalFrom(() =>
-      saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm()),
-    );
+    // LAN-423: handed back as the page's refusal, never thrown.
+    const state = await saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm());
 
-    expect(error).toBeInstanceOf(NotPermitted);
-    expect(error.rule).toMatch(/^grant:.*>=manage$/);
+    expect(state).toEqual({ error: `You do not have access to this action. ${GRANT_REQUIREMENT}` });
     expect(saveEventAudience).not.toHaveBeenCalled();
   });
 
@@ -747,19 +756,18 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
     expect(state.error).toBe("Only a draft can be approved. This event is already approved.");
   });
 
-  it("rethrows a refusal rather than rendering it beside the button", async () => {
+  // LAN-423 fix round 4, J1: Manage lowered to View while the approval page is
+  // open. The refusal is the page's own Notice, not "This page couldn't load".
+  it("hands a refusal from below back as the page's refusal", async () => {
     givenAccess({ state: "active", operator: actor(["president"]) });
     vi.mocked(approveEvent).mockRejectedValue(
       new NotPermitted("You do not have access to this action.", { rule: "capability:x" }),
     );
 
-    // A `NotPermitted` from below must not be flattened into form state: red
-    // text beside a button reads as "fix your input", which is the wrong
-    // instruction and hides an authorization event inside a validation failure.
-    const error = await refusalFrom(() =>
-      approveEventAction(EMPTY_TRANSITION_STATE, approvalForm()),
-    );
-    expect(error).toBeInstanceOf(NotPermitted);
+    const state = await approveEventAction(EMPTY_TRANSITION_STATE, approvalForm());
+
+    expect(state).toEqual({ error: "You do not have access to this action." });
+    expect(dispatchEventInvitations).not.toHaveBeenCalled();
   });
 });
 
@@ -809,11 +817,10 @@ describe("the event workflow's actions follow the seat's template grants — LAN
   it("refuses a forged create for a template the seat does not manage", async () => {
     socialSecretaryWith({ [GRANTED]: "manage", [OTHER]: "view" });
 
-    const error = await refusalFrom(() =>
-      createEventDraftAction(EMPTY_FORM_STATE, draftForm({ templateId: OTHER })),
-    );
+    const state = await createEventDraftAction(EMPTY_FORM_STATE, draftForm({ templateId: OTHER }));
 
-    expect(error.kind).toBe("not_permitted");
+    expect(state.error).toMatch(/^You do not have access to this action\./);
+    expect(state.values?.templateId).toBe(OTHER);
     expect(createEventDraft).not.toHaveBeenCalled();
   });
 
@@ -838,10 +845,65 @@ describe("the event workflow's actions follow the seat's template grants — LAN
       await refusalOf(action);
       expect(action.service).not.toHaveBeenCalled();
     }
-    const audience = await refusalFrom(() =>
-      saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm()),
-    );
-    expect(audience.kind).toBe("not_permitted");
+    await refusalFrom(() => saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm()));
     expect(saveEventAudience).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-423 fix round 4, J1 — a refusal is handed back, never thrown
+// ---------------------------------------------------------------------------
+
+describe("deleteEventDraftAction hands its refusal back to the page", () => {
+  const GRANTED = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+
+  function deleteForm(): FormData {
+    const form = new FormData();
+    form.set("eventId", EVENT_ID);
+    return form;
+  }
+
+  it("returns the refusal to a seat whose Manage was lowered to View", async () => {
+    givenAccess({
+      state: "active",
+      operator: {
+        ...actor(["social_secretary"]),
+        grants: { ...NO_GRANTS, templates: { [GRANTED]: "view" } },
+      },
+    });
+
+    const state = await deleteEventDraftAction(EMPTY_TRANSITION_STATE, deleteForm());
+
+    expect(state).toEqual({ error: `You do not have access to this action. ${GRANT_REQUIREMENT}` });
+    expect(deleteEventDraft).not.toHaveBeenCalled();
+  });
+
+  it("returns a refusal from the service rather than throwing it", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    vi.mocked(deleteEventDraft).mockRejectedValue(new NotPermitted("You may not do that."));
+
+    const state = await deleteEventDraftAction(EMPTY_TRANSITION_STATE, deleteForm());
+
+    expect(state).toEqual({ error: "You may not do that." });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("still lets an unexpected failure reach the error boundary", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    const boom = new TypeError("something entirely different broke");
+    vi.mocked(deleteEventDraft).mockRejectedValue(boom);
+
+    await expect(deleteEventDraftAction(EMPTY_TRANSITION_STATE, deleteForm())).rejects.toBe(boom);
+  });
+});
+
+describe("saveEventAudienceAction hands a refusal from below back to the page", () => {
+  it("returns it as the page's refusal", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    vi.mocked(saveEventAudience).mockRejectedValue(new NotPermitted("You may not do that."));
+
+    const state = await saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm());
+
+    expect(state).toEqual({ error: "You may not do that." });
   });
 });
