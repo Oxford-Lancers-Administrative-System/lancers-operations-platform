@@ -29,7 +29,12 @@ import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator"
 import { openObserver, seededActorPersonId } from "../../../../../../tests/helpers/service-layer";
 import { readPersonRecord } from "@/lib/services/person-record";
 import { personVersion } from "@/lib/services/person-write";
-import { submitPersonEdit } from "./actions";
+import {
+  submitAddAlias,
+  submitPersonEdit,
+  submitRemoveAlias,
+  submitSetDisplayAlias,
+} from "./actions";
 import { INITIAL_EDIT_STATE } from "./edit-state";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
 import { mergeGrantRows } from "@/lib/auth/grants";
@@ -138,7 +143,8 @@ afterAll(async () => {
       where (entity_table = 'people' and entity_id = any($1::uuid[]))
          or (entity_table = 'contact_points'
              and entity_id in (select id from public.contact_points where person_id = any($1::uuid[])))
-         or (entity_table = 'person_emergency_contacts' and entity_id = any($1::uuid[]))`,
+         or (entity_table = 'person_emergency_contacts' and entity_id = any($1::uuid[]))
+         or (entity_table = 'person_aliases' and (context->>'person_id')::uuid = any($1::uuid[]))`,
     [createdPersonIds],
   );
   await observer.query(`delete from public.people where id = any($1::uuid[])`, [createdPersonIds]);
@@ -526,5 +532,86 @@ describe("each field needs its own category at edit — LAN-432", () => {
     const after = await readPersonRecord(personId);
     expect(after.degreeField).toBe("LAN432 Studies");
     expect(after.contacts.find((c) => c.validUntil === null)?.rawValue).toBe("+447700900303");
+  });
+
+  describe("the alias actions return a refusal to the open section — LAN-423 K1", () => {
+    const REFUSAL =
+      "You do not have access to this action. This needs access your seat does not hold.";
+
+    async function withAliases(): Promise<{ personId: string; aliasIds: string[] }> {
+      const personId = await insertPerson({ givenName: unique("Aliased") });
+      const inserted = await observer.query<{ id: string }>(
+        `insert into public.person_aliases (person_id, alias, source)
+         values ($1::uuid, 'LAN423 Kept One', 'test fixture'),
+                ($1::uuid, 'LAN423 Kept Two', 'test fixture')
+         returning id`,
+        [personId],
+      );
+      return { personId, aliasIds: inserted.rows.map((row) => row.id) };
+    }
+
+    async function aliasesOf(personId: string): Promise<string[]> {
+      const record = await readPersonRecord(personId);
+      return record.aliases.map((alias) => alias.alias).sort();
+    }
+
+    it("refuses Add for a Person-at-view seat and writes nothing", async () => {
+      const { personId } = await withAliases();
+      signedInWith({ person: "view" });
+      const data = new FormData();
+      data.set("newAlias", "LAN423 Refused");
+
+      await expect(submitAddAlias(personId, data)).resolves.toEqual({ error: REFUSAL });
+      expect(await aliasesOf(personId)).toEqual(["LAN423 Kept One", "LAN423 Kept Two"]);
+    });
+
+    it("refuses Remove for a Person-at-view seat and removes nothing", async () => {
+      const { personId, aliasIds } = await withAliases();
+      signedInWith({ person: "view" });
+
+      await expect(submitRemoveAlias(personId, aliasIds[0])).resolves.toEqual({
+        error: REFUSAL,
+      });
+      expect(await aliasesOf(personId)).toEqual(["LAN423 Kept One", "LAN423 Kept Two"]);
+    });
+
+    it("refuses Make display name for a Person-at-view seat and changes nothing", async () => {
+      const { personId, aliasIds } = await withAliases();
+      signedInWith({ person: "view" });
+      const before = (await readPersonRecord(personId)).displayName;
+
+      await expect(submitSetDisplayAlias(personId, aliasIds[1])).resolves.toEqual({
+        error: REFUSAL,
+      });
+      expect((await readPersonRecord(personId)).displayName).toBe(before);
+    });
+
+    it("adds, makes the display name and removes for a Person-at-edit seat", async () => {
+      const { personId, aliasIds } = await withAliases();
+      signedInWith({ person: "edit" });
+      const data = new FormData();
+      data.set("newAlias", "LAN423 Added");
+
+      await expect(submitAddAlias(personId, data)).rejects.toBeInstanceOf(RedirectSignal);
+      await expect(submitSetDisplayAlias(personId, aliasIds[1])).rejects.toBeInstanceOf(
+        RedirectSignal,
+      );
+      await expect(submitRemoveAlias(personId, aliasIds[0])).rejects.toBeInstanceOf(RedirectSignal);
+      const after = await readPersonRecord(personId);
+      expect(after.aliases.map((alias) => alias.alias).sort()).toEqual([
+        "LAN423 Added",
+        "LAN423 Kept Two",
+      ]);
+      expect(after.aliases.find((alias) => alias.isDisplayName)?.alias).toBe("LAN423 Kept Two");
+    });
+
+    it("still throws an error that is not a service refusal", async () => {
+      const { personId } = await withAliases();
+      vi.mocked(resolveOperatorAccess).mockRejectedValueOnce(new Error("connection reset"));
+      const data = new FormData();
+      data.set("newAlias", "LAN423 Crashed");
+
+      await expect(submitAddAlias(personId, data)).rejects.toThrow("connection reset");
+    });
   });
 });

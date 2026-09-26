@@ -22,7 +22,7 @@ import {
   submitRemoveAlias,
   submitSetDisplayAlias,
 } from "./actions";
-import { INITIAL_EDIT_STATE } from "./edit-state";
+import { INITIAL_ALIAS_STATE, INITIAL_EDIT_STATE, type AliasState } from "./edit-state";
 
 const MIN_TOUCH_TARGET = 44;
 
@@ -449,15 +449,25 @@ function MobilePreview({
  * Three alias actions share the outer edit `<form>` — HTML forbids nesting,
  * so each is a submit button with its own bound `formAction` (`personId`
  * and, for remove/set-display, the alias id) — React overrides a button's
- * own name/value once `formAction` is a function.
+ * own name/value once `formAction` is a function. LAN-423: each runs through
+ * one action state, so a refusal shows here with the typed alias kept.
  */
 function AliasesEditor({ personId, record }: { personId: string; record: EditablePersonRecord }) {
-  const addAction = submitAddAlias.bind(null, personId);
+  const [aliasState, runAlias] = useActionState(
+    (_previous: AliasState, write: () => Promise<AliasState>) => write(),
+    INITIAL_ALIAS_STATE,
+  );
+  const [newAlias, setNewAlias] = useState("");
   return (
     <Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
         Aliases
       </Typography>
+      {aliasState.error ? (
+        <Notice severity="warning" testId="alias-error">
+          {aliasState.error}
+        </Notice>
+      ) : null}
       <Stack spacing={0.75}>
         {record.aliases.map((alias) => (
           <Stack
@@ -477,7 +487,7 @@ function AliasesEditor({ personId, record }: { personId: string; record: Editabl
             {!alias.isDisplayName ? (
               <Button
                 type="submit"
-                formAction={submitSetDisplayAlias.bind(null, personId, alias.id)}
+                formAction={() => runAlias(() => submitSetDisplayAlias(personId, alias.id))}
                 formNoValidate
                 size="small"
                 sx={{ minHeight: 44 }}
@@ -487,7 +497,7 @@ function AliasesEditor({ personId, record }: { personId: string; record: Editabl
             ) : null}
             <Button
               type="submit"
-              formAction={submitRemoveAlias.bind(null, personId, alias.id)}
+              formAction={() => runAlias(() => submitRemoveAlias(personId, alias.id))}
               formNoValidate
               size="small"
               color="inherit"
@@ -499,10 +509,16 @@ function AliasesEditor({ personId, record }: { personId: string; record: Editabl
         ))}
       </Stack>
       <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-        <Field name="newAlias" label="Add an alias" sx={{ flexGrow: 1 }} />
+        <Field
+          name="newAlias"
+          label="Add an alias"
+          value={newAlias}
+          onChange={(event) => setNewAlias(event.target.value)}
+          sx={{ flexGrow: 1 }}
+        />
         <Button
           type="submit"
-          formAction={addAction}
+          formAction={(formData) => runAlias(() => submitAddAlias(personId, formData))}
           formNoValidate
           variant="outlined"
           sx={{ minHeight: MIN_TOUCH_TARGET }}

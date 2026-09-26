@@ -24,6 +24,7 @@ import {
   GENERIC_FAILURE,
   readEditFormValues,
   type EditFieldErrors,
+  type AliasState,
   type EditFormValues,
   type EditState,
 } from "./edit-state";
@@ -388,33 +389,56 @@ function safeMessage(error: unknown): string {
 // (HTML forbids a nested form), bound with personId/aliasId via .bind since
 // React overrides a formAction button's own name/value.
 
-export async function submitRemoveAlias(personId: string, aliasId: string): Promise<void> {
-  // LAN-432: aliases are Person's.
-  const operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
-  await removePersonAlias({ actorPersonId: operator.personId, personId, aliasId });
+export async function submitRemoveAlias(personId: string, aliasId: string): Promise<AliasState> {
+  // LAN-432: aliases are Person's. LAN-423: a refusal is the section's own error.
+  const refused = await aliasRefusal(async (operator) => {
+    await removePersonAlias({ actorPersonId: operator.personId, personId, aliasId });
+  });
+  if (refused) return refused;
   redirect(`/operate/people/${personId}/edit`);
 }
 
-export async function submitSetDisplayAlias(personId: string, aliasId: string): Promise<void> {
-  // LAN-432: aliases are Person's.
-  const operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
-  await setDisplayNamePersonAlias({ actorPersonId: operator.personId, personId, aliasId });
+export async function submitSetDisplayAlias(
+  personId: string,
+  aliasId: string,
+): Promise<AliasState> {
+  // LAN-432: aliases are Person's. LAN-423: a refusal is the section's own error.
+  const refused = await aliasRefusal(async (operator) => {
+    await setDisplayNamePersonAlias({ actorPersonId: operator.personId, personId, aliasId });
+  });
+  if (refused) return refused;
   redirect(`/operate/people/${personId}/edit`);
 }
 
-export async function submitAddAlias(personId: string, formData: FormData): Promise<void> {
-  // LAN-432: aliases are Person's.
-  const operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
+export async function submitAddAlias(personId: string, formData: FormData): Promise<AliasState> {
+  // LAN-432: aliases are Person's. LAN-423: a refusal is the section's own error.
   const newAlias = formData.get("newAlias");
-  if (typeof newAlias === "string" && newAlias.trim() !== "") {
-    await addPersonAlias({
-      actorPersonId: operator.personId,
-      personId,
-      alias: newAlias,
-      source: "operator correction",
-    });
-  }
+  const refused = await aliasRefusal(async (operator) => {
+    if (typeof newAlias === "string" && newAlias.trim() !== "") {
+      await addPersonAlias({
+        actorPersonId: operator.personId,
+        personId,
+        alias: newAlias,
+        source: "operator correction",
+      });
+    }
+  });
+  if (refused) return refused;
   redirect(`/operate/people/${personId}/edit`);
+}
+
+/** Runs one alias write under Person at edit; a service error comes back as the state, anything else throws. */
+async function aliasRefusal(
+  write: (operator: ResolvedOperator) => Promise<void>,
+): Promise<AliasState | null> {
+  try {
+    const operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
+    await write(operator);
+    return null;
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { error: error.message };
+  }
 }
 
 // ---------------------------------------------------------------------------

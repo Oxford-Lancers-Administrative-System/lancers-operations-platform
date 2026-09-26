@@ -64,6 +64,13 @@ export interface EditState {
 
 export const INITIAL_EDIT_STATE: EditState = { errors: {} };
 
+/** The aliases section's own state — LAN-423: a refused alias write, shown in place. */
+export interface AliasState {
+  error?: string;
+}
+
+export const INITIAL_ALIAS_STATE: AliasState = {};
+
 export const GENERIC_FAILURE =
   "That could not be saved, and nothing was written. Try again, and tell the club " +
   "administrator if it keeps happening.";
