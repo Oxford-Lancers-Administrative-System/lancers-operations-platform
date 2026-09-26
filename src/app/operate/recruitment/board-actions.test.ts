@@ -184,15 +184,57 @@ describe("setRecruitmentStatusAction — the Recruit details gate (LAN-432; the 
     );
   });
 
-  it("refuses a coaching seat", async () => {
+  it("refuses a coaching seat, returning the refusal as the cell's state", async () => {
     givenAccess({ state: "active", operator: actor(["head_coach"]) });
 
-    const failure = await setRecruitmentStatusAction({
+    const state = await setRecruitmentStatusAction({
       prospectId: PROSPECT_ID,
       toStatus: "declined",
-    }).catch((error: unknown) => error);
+    });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expect(state).toEqual({
+      error: "You do not have access to this action. This needs access your seat does not hold.",
+    });
     expect(updateRecruitmentProspectStatus).not.toHaveBeenCalled();
   });
+
+  // LAN-423 fix round 3, H4: the walk's case — Recruit details lowered to
+  // View under a live board. The refusal comes back, it does not throw.
+  it("refuses a seat holding Recruit details at view without throwing", async () => {
+    const officer = actor(["it_officer"]);
+    givenAccess({
+      state: "active",
+      operator: {
+        ...officer,
+        grants: {
+          ...officer.grants,
+          recruiting: { ...officer.grants.recruiting, recruit_details: "view" },
+        },
+      },
+    });
+
+    const state = await setRecruitmentStatusAction({
+      prospectId: PROSPECT_ID,
+      toStatus: "engaged",
+    });
+
+    expect(state).toEqual({
+      error: "You do not have access to this action. This needs access your seat does not hold.",
+    });
+    expect(updateRecruitmentProspectStatus).not.toHaveBeenCalled();
+  });
+
+  for (const state of ["unlinked", "inactive", "no_session"] as const) {
+    it(`returns the refusal to a ${state} caller`, async () => {
+      givenAccess({ state } as OperatorAccess);
+
+      const result = await setRecruitmentStatusAction({
+        prospectId: PROSPECT_ID,
+        toStatus: "engaged",
+      });
+
+      expect(result.error).toMatch(/^This action needs an active Lancers operator profile\./);
+      expect(updateRecruitmentProspectStatus).not.toHaveBeenCalled();
+    });
+  }
 });

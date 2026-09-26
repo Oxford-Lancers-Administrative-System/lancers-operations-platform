@@ -18,9 +18,9 @@ function refresh(prospectId?: string): void {
   if (prospectId) revalidatePath(`/operate/recruitment/${prospectId}`);
 }
 
+/** A `NotPermitted` comes back as state like any service error (LAN-423); a bug still throws. */
 function stateFor(error: unknown): RecruitmentActionState {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return { error: error.message };
 }
 
@@ -32,9 +32,10 @@ export async function setRecruitmentStatusAction(params: {
   toStatus: Exclude<ProspectStatus, "joined">;
   reason?: string;
 }): Promise<RecruitmentActionState> {
-  // LAN-432: Recruit details at edit.
-  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
+    // LAN-432: Recruit details at edit. Inside the try: a refusal is the
+    // cell's answer, shown beside the stored status, never a crashed board.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     await updateRecruitmentProspectStatus(operator.personId, params.prospectId, params.toStatus, {
       reason: params.reason,
     });
