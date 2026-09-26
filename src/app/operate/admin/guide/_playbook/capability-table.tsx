@@ -113,6 +113,6 @@ export function CapabilityTable() {
  */
 export function capabilityHeading(key: CapabilityKey): string {
   const action = CAPABILITIES[key].action;
-  const clause = action.split(/,| and | — /)[0].trim();
+  const clause = action.split(/,|;| and | — /)[0].trim();
   return clause.charAt(0).toUpperCase() + clause.slice(1);
 }

@@ -537,7 +537,7 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    */
   event_approval: capability({
     key: "event_approval",
-    action: "retained approval gate — approving an event follows Manage on its template",
+    action: "no remaining action; events are approved under Manage on their template",
     roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Brian, 12 August 2026 (LAN-77 owner clarification): the President, Vice-President, " +

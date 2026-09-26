@@ -1039,7 +1039,7 @@ describe("LAN-129 — Administration's permission copy is derived, not duplicate
       "administer event templates, and import or export events",
     );
     expect(CAPABILITIES.event_approval.action).toBe(
-      "retained approval gate — approving an event follows Manage on its template",
+      "no remaining action; events are approved under Manage on their template",
     );
     expect(CAPABILITIES.delivery_administration.action).toBe(
       "read messaging safety and edit the club-wide messaging settings — the recruitment cycle and the onboarding chase",

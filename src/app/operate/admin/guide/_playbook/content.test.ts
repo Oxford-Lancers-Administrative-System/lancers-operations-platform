@@ -247,6 +247,7 @@ describe("the seat table is generated, not typed", () => {
     const headings = CAPABILITY_KEYS.map(capabilityHeading);
     expect(headings).not.toContain("Approve an event");
     expect(headings).not.toContain("Inspect delivery");
+    expect(capabilityHeading("event_approval")).toBe("No remaining action");
   });
 });
 
