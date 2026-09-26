@@ -5,6 +5,8 @@ export {
   ADMINISTRATION_ACTIONS,
   ADMINISTRATION_EVENTS,
   ROLE_RELATED_ADMINISTRATION_ACTIONS,
+  ACCESS_ADMINISTRATION_ACTIONS,
+  HOLDER_HISTORY_ACTIONS,
   isAdministrationAction,
   administrationEvent,
 } from "./vocabulary";

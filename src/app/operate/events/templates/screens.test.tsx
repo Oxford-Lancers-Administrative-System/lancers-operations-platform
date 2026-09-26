@@ -67,6 +67,7 @@ import EventTemplatesPage from "./page";
 import EventTemplatePage from "./[templateId]/page";
 import { TEMPLATES_DELETE_RULE } from "./presentation";
 import TemplateEditor from "./template-editor";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 /**
  * The seven templates the migration seeds — LAN-265.
@@ -101,6 +102,7 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

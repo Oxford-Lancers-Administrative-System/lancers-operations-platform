@@ -7,22 +7,22 @@ import {
   readEventDeliveryDiagnostics,
   type EventDelivery,
 } from "@/lib/services/delivery";
-import { gateShellPage } from "../../../gate";
+import { gateEventPage } from "../../event-gate";
 import { DeliveryLayout } from "./delivery-layout";
 import { Overview } from "./delivery-overview";
 import { Diagnostics } from "./delivery-diagnostics";
 import { RepairPanel } from "./delivery-repair-panel";
 
 // Delivery — UX-50, UX-51, UX-52, LAN-78: one route at three depths. Gated
-// on `delivery_administration`.
+// on Manage on the event's template (LAN-431; `delivery_administration` before).
 export default async function DeliveryPage({
   params,
   searchParams,
 }: PageProps<"/operate/events/[id]/delivery">) {
-  const gate = await gateShellPage("/operate/events", "delivery_administration");
+  const { id } = await params;
+  const gate = await gateEventPage("/operate/events", id, "manage");
   if ("screen" in gate) return gate.screen;
 
-  const { id } = await params;
   const query = await searchParams;
   const view = typeof query.view === "string" ? query.view : "";
   const selected = typeof query.invitation === "string" ? query.invitation : "";

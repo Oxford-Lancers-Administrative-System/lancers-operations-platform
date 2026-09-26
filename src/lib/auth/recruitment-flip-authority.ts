@@ -6,7 +6,7 @@
  * "President, Vice President, Secretary and General Manager, and nobody
  * else, ever" for the mission's one irreversible action, and `REQ-core-four`
  * is explicit that recruitment mints no new capability for it — so this is
- * not `person_record_authority` (which admits `it_officer`, LAN-124's
+ * not the old person-record capability (which admits `it_officer`, LAN-124's
  * standing administrative exception, correct for every other surface in
  * this package but not for this one) and it is not a new entry in
  * `capabilities.ts` either: every "core four" capability that map has ever
@@ -23,7 +23,7 @@
  * independent of `capabilityRoleCodes` and everything that widens through
  * it — found by review after `board-actions.test.ts` proved an
  * IT-Officer-only operator could reach the flip through
- * `person_record_authority` (F-LAN204-001).
+ * the old person-record capability (F-LAN204-001).
  *
  * ## Why this lives in its own file
  *

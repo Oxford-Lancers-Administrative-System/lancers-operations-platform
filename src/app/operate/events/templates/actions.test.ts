@@ -32,18 +32,31 @@ vi.mock("@/lib/services/event-templates", async (importOriginal) => {
     ...actual,
     createEventTemplate: vi.fn(),
     saveEventTemplate: vi.fn(),
+    deleteEventTemplate: vi.fn(),
+    planEventTemplateChange: vi.fn(),
   };
 });
 
-import { Conflict, isServiceError, NotPermitted, type ServiceError } from "@/lib/db";
+import { Conflict, NotPermitted, type ServiceError } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { createEventTemplate, saveEventTemplate } from "@/lib/services/event-templates";
-import { createEventTemplateAction, saveEventTemplateAction } from "./actions";
+import {
+  createEventTemplate,
+  deleteEventTemplate,
+  planEventTemplateChange,
+  saveEventTemplate,
+} from "@/lib/services/event-templates";
+import {
+  createEventTemplateAction,
+  deleteEventTemplateAction,
+  previewEventTemplateAction,
+  saveEventTemplateAction,
+} from "./actions";
 import { EMPTY_TEMPLATE_FORM_STATE } from "./form-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const TEMPLATE_ID = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
@@ -54,6 +67,7 @@ function actor(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }
@@ -80,14 +94,19 @@ function templateForm(overrides: Record<string, string> = {}): FormData {
   return form;
 }
 
+/**
+ * The refusal an action handed back as its own state — LAN-423 fix round 4,
+ * J1 — read back as the refusal it is. A throw fails this helper: a thrown
+ * refusal is what rendered "This page couldn't load" when a grant was lowered
+ * under an open page.
+ */
 async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceError> {
-  try {
-    await attempt();
-  } catch (error) {
-    if (isServiceError(error)) return error;
-    throw error;
-  }
-  throw new Error("Expected the action to refuse this, but it returned.");
+  const returned = (await attempt()) as { error?: unknown; formError?: unknown } | null;
+  const message = typeof returned?.formError === "string" ? returned.formError : returned?.error;
+  expect(message).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+  return new NotPermitted(message as string);
 }
 
 /** The real `redirect()`'s throw, surfaced as the URL it was given. */
@@ -251,5 +270,47 @@ describe("creating redirects to the template list, not to the template it just m
 
     expect(error).toBeInstanceOf(NotPermitted);
     expect(createEventTemplate).not.toHaveBeenCalled();
+  });
+});
+
+// LAN-423 fix round 4, J1: calendar management taken away while the editor is
+// open. Every template action hands the refusal back as the editor's own
+// error — entries intact where there are entries — never a crashed page.
+describe("every template action returns its refusal", () => {
+  beforeEach(() => {
+    givenAccess({ state: "active", operator: actor(["treasurer"]) });
+  });
+
+  it("the preview hands back the refusal and every entry", async () => {
+    const state = await previewEventTemplateAction(
+      EMPTY_TEMPLATE_FORM_STATE,
+      templateForm({ templateId: TEMPLATE_ID, name: "Kicking Clinic, moved" }),
+    );
+
+    expect(state.phase).toBe("editing");
+    expect(state.error).toMatch(/^You do not have access to this action\./);
+    expect(state.values?.name).toBe("Kicking Clinic, moved");
+    expect(planEventTemplateChange).not.toHaveBeenCalled();
+  });
+
+  it("the save hands back the entries with the refusal", async () => {
+    const state = await saveEventTemplateAction(
+      EMPTY_TEMPLATE_FORM_STATE,
+      templateForm({ templateId: TEMPLATE_ID, name: "Kicking Clinic, moved" }),
+    );
+
+    expect(state.error).toMatch(/^You do not have access to this action\./);
+    expect(state.values?.name).toBe("Kicking Clinic, moved");
+  });
+
+  it("the delete hands back the refusal", async () => {
+    const state = await deleteEventTemplateAction(
+      EMPTY_TEMPLATE_FORM_STATE,
+      templateForm({ templateId: TEMPLATE_ID }),
+    );
+
+    expect(state.phase).toBe("editing");
+    expect(state.error).toMatch(/^You do not have access to this action\./);
+    expect(deleteEventTemplate).not.toHaveBeenCalled();
   });
 });

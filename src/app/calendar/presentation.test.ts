@@ -82,10 +82,10 @@ describe("formatWeekRange", () => {
 
 describe("colour by template — LAN-276 correction round 1", () => {
   it("offers more than the seven seeded templates a colour of their own", () => {
-    // Eight to twelve, so an operator's templates have real choices beyond the
+    // Eight to thirteen (LAN-429 added Lancer Gold), so an operator's templates have real choices beyond the
     // seven the migration seeds — not one colour reused for everything new.
     expect(TEMPLATE_COLOUR_PALETTE.length).toBeGreaterThanOrEqual(8);
-    expect(TEMPLATE_COLOUR_PALETTE.length).toBeLessThanOrEqual(12);
+    expect(TEMPLATE_COLOUR_PALETTE.length).toBeLessThanOrEqual(13);
   });
 
   it("keeps the colours distinguishable from one another", () => {

@@ -58,10 +58,12 @@ export default function MessagingScheduleForm({
   onboardingChase,
 }: {
   rows: readonly ScheduleRowData[];
-  cycleSteps: readonly RecruitmentCycleStep[];
-  onboardingChase: OnboardingChaseSettings;
+  /** `null` for a seat without `delivery_administration`: the section is absent (LAN-431). */
+  cycleSteps: readonly RecruitmentCycleStep[] | null;
+  /** `null` for a seat without `delivery_administration`: the section is absent (LAN-431). */
+  onboardingChase: OnboardingChaseSettings | null;
 }) {
-  const stepsByName = new Map(cycleSteps.map((step) => [step.step, step]));
+  const stepsByName = new Map((cycleSteps ?? []).map((step) => [step.step, step]));
   const welcome = stepsByName.get("welcome");
   const detailsReminder = stepsByName.get("details_reminder");
   const interestAsk = stepsByName.get("interest_ask");
@@ -70,33 +72,37 @@ export default function MessagingScheduleForm({
   return (
     <OutcomeSlotProvider>
       <Stack spacing={5}>
-        <Stack spacing={1.5} data-testid="recruitment-cycle-section">
-          <Typography variant="h2" component="h2">
-            {RECRUITMENT_SECTION_HEADING}
-          </Typography>
-          {welcome && detailsReminder ? (
-            <CycleStepRow
-              steps={[welcome, detailsReminder]}
-              rowLabel={CYCLE_STEP_LABELS.welcome}
-              saveLabel="SAVE WELCOME"
-            />
-          ) : null}
-          {interestAsk && interestReminder ? (
-            <CycleStepRow
-              steps={[interestAsk, interestReminder]}
-              rowLabel={CYCLE_STEP_LABELS.interest_ask}
-              saveLabel="SAVE RECRUITMENT QUESTIONNAIRE"
-            />
-          ) : null}
-        </Stack>
+        {cycleSteps === null ? null : (
+          <Stack spacing={1.5} data-testid="recruitment-cycle-section">
+            <Typography variant="h2" component="h2">
+              {RECRUITMENT_SECTION_HEADING}
+            </Typography>
+            {welcome && detailsReminder ? (
+              <CycleStepRow
+                steps={[welcome, detailsReminder]}
+                rowLabel={CYCLE_STEP_LABELS.welcome}
+                saveLabel="SAVE WELCOME"
+              />
+            ) : null}
+            {interestAsk && interestReminder ? (
+              <CycleStepRow
+                steps={[interestAsk, interestReminder]}
+                rowLabel={CYCLE_STEP_LABELS.interest_ask}
+                saveLabel="SAVE RECRUITMENT QUESTIONNAIRE"
+              />
+            ) : null}
+          </Stack>
+        )}
 
         {/* LAN-218, W11: onboarding chases sit directly below Recruitment. */}
-        <Stack spacing={1.5} data-testid="onboarding-section">
-          <Typography variant="h2" component="h2">
-            {ONBOARDING_SECTION_HEADING}
-          </Typography>
-          <OnboardingChaseRow settings={onboardingChase} />
-        </Stack>
+        {onboardingChase === null ? null : (
+          <Stack spacing={1.5} data-testid="onboarding-section">
+            <Typography variant="h2" component="h2">
+              {ONBOARDING_SECTION_HEADING}
+            </Typography>
+            <OnboardingChaseRow settings={onboardingChase} />
+          </Stack>
+        )}
 
         <Stack spacing={1.5} data-testid="event-messaging-section">
           <Typography variant="h2" component="h2">

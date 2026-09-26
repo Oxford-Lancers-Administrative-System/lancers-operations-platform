@@ -47,7 +47,7 @@ import path from "node:path";
 
 import pg, { type Client } from "pg";
 
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool, resolveDatabaseUrl, withTransaction } from "@/lib/db";
 import { readAdministrationSubject } from "@/lib/services/operator-invitations";
@@ -70,6 +70,7 @@ function operator(roleCodes: readonly string[], personId?: string): ResolvedOper
     personId: personId ?? actorPersonId,
     displayName: "Administrator",
     roleCodes: [...roleCodes],
+    grants: seededGrantsFor([...roleCodes]),
     isActive: true,
   };
 }

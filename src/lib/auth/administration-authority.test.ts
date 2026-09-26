@@ -53,7 +53,12 @@ import {
   type AdministrationTargetAction,
   type AdministrationTargetRequest,
 } from "./administration-authority";
-import { CAPABILITY_KEYS, capabilityRoleCodes, describeLeadershipLimits } from "./capabilities";
+import {
+  CAPABILITY_KEYS,
+  capabilityRoleCodes,
+  describeLeadershipLimits,
+  seededGrantsFor,
+} from "./capabilities";
 import { capabilityRule, OPERATOR_REQUIRED_MESSAGE, OPERATOR_REQUIRED_RULE } from "./guards";
 import { resolveOperatorAccess, type OperatorAccess, type ResolvedOperator } from "./operator";
 
@@ -102,6 +107,7 @@ function actor(personId: string, roleCodes: string[]): ResolvedOperator {
     personId,
     displayName: "Test Operator",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

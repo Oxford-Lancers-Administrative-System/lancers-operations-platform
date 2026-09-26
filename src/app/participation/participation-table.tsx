@@ -267,13 +267,17 @@ export function ParticipationTable({
   basePath,
   participation,
   filters,
+  mayRecordAnswer = true,
 }: {
   /** Where the sort links point — `/operate/events/<id>` or `/e/<token>`. */
   basePath: string;
   participation: Participation;
   filters: ParticipationFilters;
+  /** LAN-431: Manage on the event's template. Under View the Answer cell reads as the answer. */
+  mayRecordAnswer?: boolean;
 }) {
   const operator = participation.tier === "operator";
+  const recording = operator && mayRecordAnswer;
   const { questions } = participation;
   const people = applyParticipationView(participation.people, filters, questions);
   const total = participation.people.length;
@@ -310,7 +314,7 @@ export function ParticipationTable({
                           label={TABLE_HEADINGS.answer}
                           value={
                             <AnswerCell
-                              operator={operator}
+                              operator={recording}
                               event={event}
                               person={person}
                               questions={questions}
@@ -437,7 +441,7 @@ export function ParticipationTable({
                         ) : null}
                         <TableCell>
                           <AnswerCell
-                            operator={operator}
+                            operator={recording}
                             event={event}
                             person={person}
                             questions={questions}

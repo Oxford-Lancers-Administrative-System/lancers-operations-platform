@@ -11,6 +11,8 @@ import {
 import { readEventQuestionsIn, type EventQuestion } from "../event-questions";
 import { SHOWED_PRESENCES } from "../attendance-vocabulary";
 import { requireEventOperatorTier } from "@/lib/auth/event-tier";
+import { templatesAtLeast } from "@/lib/auth/grants";
+import { requireEventGrant } from "./access";
 import { readCurrentSeasonIn, type Season } from "../seasons";
 import { safeUri } from "../safe-uri";
 import { escapeLikePattern, personDisplayNameSql } from "../sql-text";
@@ -41,6 +43,11 @@ export interface EventListFilters {
   direction?: string | null;
   /** Today in the club's zone, `YYYY-MM-DD`; defaults to the real one (kept a parameter so the derived filter is testable). */
   today?: string;
+  /**
+   * LAN-431: only events of these templates, `totalInSeason` included. Absent
+   * means every template; an empty list means none.
+   */
+  withinTemplateIds?: readonly string[];
 }
 
 export interface EventList {
@@ -186,6 +193,7 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
     const status = optional(filters.status);
     const templateId = optional(filters.templateId);
     const today = filters.today ?? todayInClubZone();
+    const within = filters.withinTemplateIds === undefined ? null : [...filters.withinTemplateIds];
 
     // Q-6: selects the derived column's word (mirrors statusLabel), not raw e.status; today is a
     // parameter, not current_date.
@@ -210,13 +218,16 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
           -- string, and a hand-typed ?template=chalk must match nothing rather
           -- than raise an invalid-input error the list has no way to render.
           and ($4::text is null or e.template_id::text = $4)
+          and ($7::text[] is null or e.template_id::text = any($7::text[]))
         order by ${orderBy(optional(filters.sort), optional(filters.direction))}`,
-      [season.id, search, status, templateId, OCCURRED_FILTER, today],
+      [season.id, search, status, templateId, OCCURRED_FILTER, today, within],
     );
 
     const total = await tx.query<{ count: string }>(
-      "select count(*)::text as count from public.events where season_id = $1",
-      [season.id],
+      `select count(*)::text as count from public.events
+        where season_id = $1
+          and ($2::text[] is null or template_id::text = any($2::text[]))`,
+      [season.id, within],
     );
 
     return {
@@ -227,10 +238,20 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
   });
 }
 
-/** The same list, behind the operator tier's own guard (LAN-153, `REQ-three-tiers`) — the third of three independent refusals, not a replacement for `/operate`'s gate or the layout check. Floor: LAN-76's linked, active operator. */
-export async function listEventsForOperator(filters: EventListFilters = {}): Promise<EventList> {
-  await requireEventOperatorTier();
-  return listCurrentSeasonEvents(filters);
+/**
+ * The same list, behind the operator tier's own guard (LAN-153, `REQ-three-tiers`) — the third of
+ * three independent refusals, not a replacement for `/operate`'s gate or the layout check. Floor:
+ * LAN-76's linked, active operator. LAN-431: only events of templates the operator holds at `view`
+ * or above; a template at `none` does not exist for them here.
+ */
+export async function listEventsForOperator(
+  filters: Omit<EventListFilters, "withinTemplateIds"> = {},
+): Promise<EventList> {
+  const operator = await requireEventOperatorTier();
+  return listCurrentSeasonEvents({
+    ...filters,
+    withinTemplateIds: templatesAtLeast(operator.grants, "view"),
+  });
 }
 
 /** The questions this event asks, in order. A read of its own rather than a field on `EventDetail`, since the list screen never shows one. */
@@ -238,8 +259,22 @@ export async function readEventQuestions(eventId: string): Promise<EventQuestion
   return withTransaction(async (tx) => readEventQuestionsIn(tx, eventId));
 }
 
-/** One event, with everything the detail screen states as fact. */
+/**
+ * One event, with everything the detail screen states as fact — for the
+ * current operator only if they hold View on its template (LAN-423: the
+ * service is the boundary, not the page's gate). `NotPermitted` otherwise;
+ * `NotFound` for no such event.
+ */
 export async function readEvent(eventId: string): Promise<EventDetail> {
+  await requireEventGrant(eventId, "view");
+  return readEventUnchecked(eventId);
+}
+
+/**
+ * The same read with no operator — for services, scripts and tests that run
+ * without a session. Nothing under `src/app/` imports it.
+ */
+export async function readEventUnchecked(eventId: string): Promise<EventDetail> {
   return withTransaction(async (tx) => readEventIn(tx, eventId));
 }
 

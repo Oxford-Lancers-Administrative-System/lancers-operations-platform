@@ -8,7 +8,7 @@ export default async function OperatePage() {
   const gate = await gateShellPage("/operate", undefined, { narrowRecorder: "allow" });
   if ("screen" in gate) return gate.screen;
 
-  const destination = firstPermittedDestination(gate.operator.roleCodes);
+  const destination = firstPermittedDestination(gate.operator);
   if (destination) {
     redirect(destination.href);
   }

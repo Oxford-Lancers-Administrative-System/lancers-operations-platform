@@ -425,15 +425,19 @@ function AlreadyMemberScreen({
 }: {
   alreadyMember: { displayName: string; membershipStatus: string; seasonLabel: string };
 }) {
+  // LAN-423: an empty status was withheld from this seat; the sentence drops it.
   const statusLabel =
     MEMBERSHIP_STATUS_LABELS[alreadyMember.membershipStatus as MembershipStatus] ??
     alreadyMember.membershipStatus;
+  const held = statusLabel
+    ? `${alreadyMember.seasonLabel} membership (${statusLabel})`
+    : `${alreadyMember.seasonLabel} membership`;
   return (
     <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="add-recruit-already-member">
       <PageHeader title={`${alreadyMember.displayName} is already a member`} />
       <Surface>
         <Typography color="text.secondary">
-          {`They already hold a ${alreadyMember.seasonLabel} membership (${statusLabel}). A player is not a recruit, so no changes have been made.`}
+          {`They already hold a ${held}. A player is not a recruit, so no changes have been made.`}
         </Typography>
       </Surface>
       <Box>
@@ -453,11 +457,23 @@ function AlreadyMemberScreen({
 /** "Player · Active · this season" / "Recruit · identified · this season" / "Past member · last played 2024-25" — `W8`. */
 function identityLabel(candidate: AddRecruitCandidate): string | null {
   const identity = candidate.identity;
+  // LAN-423: an empty status was withheld from this seat, and is left out.
+  const parts = (kind: string, status: string, season: string) =>
+    [kind, status, season].filter(Boolean).join(" · ");
   if (identity.kind === "player") {
-    return `Player · ${MEMBERSHIP_STATUS_LABELS[identity.membershipStatus as MembershipStatus] ?? identity.membershipStatus} · ${identity.seasonLabel}`;
+    return parts(
+      "Player",
+      MEMBERSHIP_STATUS_LABELS[identity.membershipStatus as MembershipStatus] ??
+        identity.membershipStatus,
+      identity.seasonLabel,
+    );
   }
   if (identity.kind === "recruit") {
-    return `Recruit · ${PROSPECT_STATUS_LABELS[identity.prospectStatus as ProspectStatus] ?? identity.prospectStatus} · ${identity.seasonLabel}`;
+    return parts(
+      "Recruit",
+      PROSPECT_STATUS_LABELS[identity.prospectStatus as ProspectStatus] ?? identity.prospectStatus,
+      identity.seasonLabel,
+    );
   }
   if (identity.kind === "past_member") {
     return `Past member · last played ${identity.lastSeasonLabel}`;
@@ -491,7 +507,7 @@ function CandidateRow({
       ]}
       chips={
         <>
-          {candidate.identity.kind === "player" ? (
+          {candidate.identity.kind === "player" && candidate.identity.membershipStatus ? (
             <StatusChip
               domain="membership"
               status={candidate.identity.membershipStatus}
@@ -501,7 +517,7 @@ function CandidateRow({
               }
             />
           ) : null}
-          {candidate.identity.kind === "recruit" ? (
+          {candidate.identity.kind === "recruit" && candidate.identity.prospectStatus ? (
             <StatusChip
               domain="recruitment"
               status={candidate.identity.prospectStatus}

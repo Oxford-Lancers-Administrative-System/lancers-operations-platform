@@ -2,11 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import {
   previewEventQuestionChanges,
   readEventQuestions,
+  requireEventGrant,
   updateEventQuestions,
   validateEventDraft,
 } from "@/lib/services/events";
@@ -28,14 +29,28 @@ import type { EventFormState, EventTransitionState } from "../form-state";
 import type { CancelFormState } from "./change-state";
 
 // The actions W5 and W6 add to an approved event — LAN-156. Every one guards
-// on `event_approval`, deliberately (event-amendment.ts carries no
-// authorization of its own — this guard is the only gate that exists,
-// LAN-181 F-D1). silenceConfirmed is required, never defaulted, but is a
-// client-asserted boolean the service cannot verify was actually shown.
+// on Manage on the event's stored template (LAN-431; `event_approval` before
+// it), deliberately (event-amendment.ts carries no authorization of its own —
+// this guard is the only gate that exists, LAN-181 F-D1). silenceConfirmed is
+// required, never defaulted, but is a client-asserted boolean the service
+// cannot verify was actually shown.
 //
 // LAN-419 replaced `amendEventAction` with `editApprovedEventAction`: one
-// save for the details and the questions together, guarding on the questions'
-// own capability as well. Nothing posts the details alone any more.
+// save for the details and the questions together. Nothing posts the details
+// alone any more.
+
+/**
+ * Manage on this event's template; a missing event or a refusal is a message
+ * (LAN-423): a seat whose Manage was lowered under an open page gets the
+ * refusal in the page's Notice, never "This page couldn't load".
+ */
+async function managerOf(eventId: string): Promise<ResolvedOperator | { error: string }> {
+  try {
+    return await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+}
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -104,9 +119,14 @@ function readBaseline(formData: FormData): AmendableEvent | undefined {
   }
 }
 
+/**
+ * A form's message for any service failure, a refusal included — LAN-423. A
+ * save refused because Manage was lowered under an open form comes back as the
+ * form's own error, shown in its Notice with every entry intact, rather than a
+ * crashed page. Anything that is not a `ServiceError` still throws.
+ */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
 }
 
@@ -127,11 +147,8 @@ function messageFor(error: unknown): string {
  *
  * Three things are worth saying about the composition.
  *
- * It guards on both capabilities. `event_approval` is the amendment's, and
- * `event_calendar_management` is the questions'. They carry the same role list
- * today and are deliberately still two decisions (`capabilities.ts`), so a
- * page that does both asks for both rather than picking the one that happens
- * to be equivalent this week.
+ * It guards once, on Manage on the event's template (LAN-431): the amendment
+ * and the questions are both Manage, so there is one decision, not two.
  *
  * Nothing is written until the whole save is confirmed. LAN-367's confirmation
  * comes back before either write, so an operator who abandons it at the
@@ -146,12 +163,27 @@ export async function editApprovedEventAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const operator = await requireCapability("event_approval");
-  await requireCapability("event_calendar_management");
-
   const eventId = text(formData, "eventId");
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
+
+  // LAN-423: every failure from here on, a refusal included, is the form's
+  // own error, and the operator's entries come back with it.
+  const refused = (message: string): EventFormState => ({
+    issues: [],
+    questionIssues: [],
+    error: message,
+    values: raw,
+    questions: rawQuestions,
+    questionChange: null,
+  });
+
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return refused(messageFor(error));
+  }
 
   const validation = validateEventDraft(raw);
   const questions = validateEventQuestions(rawQuestions ?? []);
@@ -169,15 +201,6 @@ export async function editApprovedEventAction(
   const submitted = questions.value;
   const confirmed = text(formData, "confirm") === "1";
   const correction = text(formData, "correction") === "1";
-
-  const refused = (message: string): EventFormState => ({
-    issues: [],
-    questionIssues: [],
-    error: message,
-    values: raw,
-    questions: rawQuestions,
-    questionChange: null,
-  });
 
   let questionsChanged: boolean;
   try {
@@ -260,8 +283,9 @@ export async function renotifyEventAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_approval");
   const eventId = text(formData, "eventId");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return operator;
 
   try {
     await renotifyEvent(operator.personId, eventId);
@@ -278,15 +302,16 @@ export async function renotifyEventAction(
  * LAN-393 — adding a named person to an approved event's audience.
  *
  * Its own action for the same reason it is its own service: the amendment diff
- * refuses an audience-only change outright. Guarded on `event_approval`, like
- * the three above.
+ * refuses an audience-only change outright. Guarded on Manage on the event's
+ * template, like the three above.
  */
 export async function addEventAudienceAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_approval");
   const eventId = text(formData, "eventId");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return operator;
   const keys = formData
     .getAll("audienceKey")
     .filter((key): key is string => typeof key === "string");
@@ -307,9 +332,10 @@ export async function cancelEventAction(
   _previous: CancelFormState,
   formData: FormData,
 ): Promise<CancelFormState> {
-  const operator = await requireCapability("event_approval");
   const eventId = text(formData, "eventId");
   const reason = text(formData, "reason");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return { error: operator.error, reason };
 
   try {
     await cancelEvent(operator.personId, eventId, {

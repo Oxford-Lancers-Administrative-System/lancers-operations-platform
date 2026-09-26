@@ -26,7 +26,8 @@ export interface QueueRowView {
   readonly statusCode: string | null;
   readonly clubRoleSummary: string | null;
   readonly missingFieldLabels: readonly string[];
-  readonly correctHref: string;
+  /** `null` when the seat may not correct the record (LAN-432: Person or Contact & emergency at edit). */
+  readonly correctHref: string | null;
   readonly personHref: string;
   /** `null` for a row this package's chase does not apply to (not onboarding). */
   readonly lastContactLabel: string | null;
@@ -204,14 +205,16 @@ export default function QueueBoard({
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={1}>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        href={row.correctHref}
-                        sx={{ minHeight: 44 }}
-                      >
-                        Correct
-                      </Button>
+                      {row.correctHref ? (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          href={row.correctHref}
+                          sx={{ minHeight: 44 }}
+                        >
+                          Correct
+                        </Button>
+                      ) : null}
                       {row.membershipId && row.nudgeable ? (
                         <Button
                           variant="outlined"
@@ -279,9 +282,11 @@ export default function QueueBoard({
             ]}
             actions={
               <>
-                <Button variant="outlined" href={row.correctHref}>
-                  Correct
-                </Button>
+                {row.correctHref ? (
+                  <Button variant="outlined" href={row.correctHref}>
+                    Correct
+                  </Button>
+                ) : null}
                 {row.membershipId && row.nudgeable ? (
                   <Button
                     variant="outlined"

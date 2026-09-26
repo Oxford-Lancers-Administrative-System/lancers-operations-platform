@@ -2,7 +2,7 @@ import { EmptyState } from "@/components/empty-state";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
-import { operatorHasCapability } from "@/lib/auth/guards";
+import { operatorHoldsGrant } from "@/lib/auth/guards";
 import { EVENT_PERIODS, periodBounds, type EventPeriod } from "@/lib/services/event-periods";
 import { countPeople, readFollowUpsQueue, type FollowUpEvent } from "@/lib/services/follow-ups";
 import { UnavailableScreen } from "@/app/operate/unavailable";
@@ -26,7 +26,11 @@ const FOLLOW_UPS_PATH = "/operate/admin/follow-ups";
 export default async function FollowUpsPage({
   searchParams,
 }: PageProps<"/operate/admin/follow-ups">) {
-  const gate = await gateShellPage("/operate/admin/follow-ups");
+  // LAN-431: any template at View. The queue itself holds only granted templates' rows.
+  const gate = await gateShellPage("/operate/admin/follow-ups", {
+    anyOf: "template",
+    minimum: "view",
+  });
   if ("screen" in gate) return gate.screen;
 
   const query = await searchParams;
@@ -96,8 +100,14 @@ export default async function FollowUpsPage({
         <FollowUpsBoard
           filters={filters}
           rows={sorted}
-          mayChase={operatorHasCapability(gate.operator, "delivery_administration")}
-          mayOpenPerson={operatorHasCapability(gate.operator, "person_record_authority")}
+          // LAN-431: the chase column exists when any row's template is managed; each row says its own.
+          mayChase={rows.some((row) => row.mayChase)}
+          // LAN-432: the person record opens with Person at view.
+          mayOpenPerson={operatorHoldsGrant(
+            gate.operator,
+            { kind: "roster", key: "person" },
+            "view",
+          )}
         />
       )}
     </Stack>

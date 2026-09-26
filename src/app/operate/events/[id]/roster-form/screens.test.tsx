@@ -18,6 +18,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
@@ -36,7 +46,7 @@ vi.mock("@/lib/services/roster-form", async (importOriginal) => {
 });
 
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import { readRosterFormData, type RosterFormData } from "@/lib/services/roster-form";
 import type { EventDetail } from "@/lib/services/events";
 import RosterFormPage from "./page";
@@ -61,6 +71,7 @@ function operator(roleCodes: string[]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

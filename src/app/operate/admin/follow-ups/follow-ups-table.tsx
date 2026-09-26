@@ -76,7 +76,7 @@ export default function FollowUpsTable({
   rows: readonly QueueRow[];
   selection: QueueSelection;
 }) {
-  const chaseable = rows.filter((row) => row.chaseable);
+  const chaseable = rows.filter((row) => row.chaseable && row.mayChase);
 
   return (
     <DesktopOnly>
@@ -113,7 +113,7 @@ export default function FollowUpsTable({
               <TableRow key={row.invitationId} data-testid="follow-ups-row">
                 {selection.mayChase ? (
                   <TableCell padding="checkbox">
-                    {row.chaseable ? (
+                    {row.chaseable && row.mayChase ? (
                       <Checkbox
                         size="small"
                         checked={selection.selected.has(row.invitationId)}
@@ -159,7 +159,7 @@ export default function FollowUpsTable({
                 </TableCell>
                 {selection.mayChase ? (
                   <TableCell>
-                    {row.chaseable ? (
+                    {!row.mayChase ? null : row.chaseable ? (
                       <Button
                         variant="outlined"
                         size="small"

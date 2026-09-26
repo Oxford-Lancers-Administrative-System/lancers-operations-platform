@@ -65,7 +65,7 @@ import {
   assertAdministrationTarget,
   type AdministrationSubject,
 } from "@/lib/auth/administration-authority";
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool, resolveDatabaseUrl, withTransaction } from "@/lib/db";
 import { readOperatorAuditHistory } from "./administration-audit";
@@ -183,6 +183,7 @@ function operator(roleCodes: readonly string[]): ResolvedOperator {
     personId: actorPersonId,
     displayName: "Administrator",
     roleCodes: [...roleCodes],
+    grants: seededGrantsFor([...roleCodes]),
     isActive: true,
   };
 }

@@ -3,6 +3,7 @@ import Button from "@mui/material/Button";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { readRosterImportContext } from "@/lib/services/roster-import";
+import { ADD_TO_ROSTER } from "@/lib/auth/roster-access";
 import { gateShellPage } from "../../gate";
 import ImportScreen from "./import-screen";
 
@@ -12,6 +13,9 @@ import ImportScreen from "./import-screen";
 export default async function RosterImportPage() {
   const gate = await gateShellPage("/operate/roster/import", "roster_bulk_import");
   if ("screen" in gate) return gate.screen;
+  // LAN-432: and the May add to the roster switch, as the action asks.
+  const switchGate = await gateShellPage("/operate/roster/import", ADD_TO_ROSTER);
+  if ("screen" in switchGate) return switchGate.screen;
 
   let context;
   try {

@@ -29,8 +29,15 @@ import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator"
 import { openObserver, seededActorPersonId } from "../../../../../../tests/helpers/service-layer";
 import { readPersonRecord } from "@/lib/services/person-record";
 import { personVersion } from "@/lib/services/person-write";
-import { submitPersonEdit } from "./actions";
+import {
+  submitAddAlias,
+  submitPersonEdit,
+  submitRemoveAlias,
+  submitSetDisplayAlias,
+} from "./actions";
 import { INITIAL_EDIT_STATE } from "./edit-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { mergeGrantRows } from "@/lib/auth/grants";
 
 const MARKER = "LAN185EditActions";
 let counter = 0;
@@ -74,6 +81,7 @@ function signedInAs(): void {
       personId: actorPersonId,
       displayName: "Caspian Hallowfield",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     },
   };
@@ -135,7 +143,8 @@ afterAll(async () => {
       where (entity_table = 'people' and entity_id = any($1::uuid[]))
          or (entity_table = 'contact_points'
              and entity_id in (select id from public.contact_points where person_id = any($1::uuid[])))
-         or (entity_table = 'person_emergency_contacts' and entity_id = any($1::uuid[]))`,
+         or (entity_table = 'person_emergency_contacts' and entity_id = any($1::uuid[]))
+         or (entity_table = 'person_aliases' and (context->>'person_id')::uuid = any($1::uuid[]))`,
     [createdPersonIds],
   );
   await observer.query(`delete from public.people where id = any($1::uuid[])`, [createdPersonIds]);
@@ -152,12 +161,21 @@ describe("who may call it", () => {
         personId: "22222222-1111-4111-8111-111111111111",
         displayName: "Someone",
         roleCodes: ["treasurer"],
+        grants: seededGrantsFor(["treasurer"]),
         isActive: true,
       },
     });
     const data = new FormData();
     data.set("personId", "00000000-0000-4000-8000-000000000000");
-    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toThrow();
+
+    // LAN-423 fix round 4, J1: the form's own error, never a crashed page.
+    const state = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+
+    expect(state).toEqual({
+      errors: {},
+      formError:
+        "You do not have access to this action. This needs access your seat does not hold.",
+    });
   });
 });
 
@@ -194,6 +212,39 @@ describe("filling and correcting", () => {
     const superseded = after.contacts.find((c) => c.validUntil !== null);
     expect(current?.rawValue).toBe("+44 7700 900988");
     expect(superseded?.rawValue).toBe("+44 7700 900412");
+  });
+
+  // LAN-423 K3: the form posts the normalised number; the record may hold it as typed.
+  it("saves an unchanged mobile held in national form without asking for a reason", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("National") });
+    await insertContact(personId, { kind: "phone", rawValue: "07700 900169" });
+    const data = await formFrom(personId, {
+      mobile: "+447700900169",
+      degreeField: "LAN423 Unchanged Mobile",
+    });
+
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toThrow(RedirectSignal);
+    const after = await readPersonRecord(personId);
+    expect(after.degreeField).toBe("LAN423 Unchanged Mobile");
+    const phones = after.contacts.filter((c) => c.kind === "phone");
+    expect(phones).toHaveLength(1);
+    expect(phones[0].rawValue).toBe("07700 900169");
+  });
+
+  it("still asks for a reason to change a mobile held in national form to another number", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("NationalChange") });
+    await insertContact(personId, { kind: "phone", rawValue: "07700 900169" });
+    const data = await formFrom(personId, { mobile: "+447700900170" });
+
+    const refused = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+
+    expect(refused.formError).toMatch(/needs a reason/);
+    const after = await readPersonRecord(personId);
+    expect(after.contacts.filter((c) => c.kind === "phone").map((c) => c.rawValue)).toEqual([
+      "07700 900169",
+    ]);
   });
 
   it("refuses a malformed number and a malformed email, per field, naming the rule", async () => {
@@ -388,5 +439,212 @@ describe("filling and correcting", () => {
       [personId],
     );
     expect(after.rows[0].n).toBe(before.rows[0].n);
+  });
+});
+
+describe("each field needs its own category at edit — LAN-432", () => {
+  function signedInWith(levels: Record<string, string>): void {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: {
+        authUserId: "00000000-1111-4111-8111-111111111111",
+        personId: actorPersonId,
+        displayName: "Caspian Hallowfield",
+        roleCodes: [],
+        grants: mergeGrantRows(
+          Object.entries(levels).map(([key, level]) => ({
+            subject_kind: "roster_category",
+            subject_key: key,
+            template_id: null,
+            level,
+          })),
+        ),
+        isActive: true,
+      },
+    });
+  }
+
+  it("refuses a forged edit from a seat holding Person and Contact & emergency at view", async () => {
+    const personId = await insertPerson({ givenName: unique("Viewonly") });
+    const data = await formFrom(personId, { givenName: unique("Forged") });
+    signedInWith({ person: "view", contact_emergency: "view" });
+
+    // LAN-423 fix round 4, J1: returned as the form's own error.
+    const state = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+
+    expect(state.formError).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    const after = await readPersonRecord(personId);
+    expect(after.givenName).not.toContain("Forged");
+  });
+
+  it("refuses a mobile smuggled in by a seat with Person at edit and Contact & emergency at view", async () => {
+    const personId = await insertPerson({ givenName: unique("Personedit") });
+    await insertContact(personId, { kind: "phone", rawValue: "+447700900301" });
+    const data = await formFrom(personId, { mobile: "+447700900302" });
+    signedInWith({ person: "edit", contact_emergency: "view" });
+
+    // LAN-423 fix round 4, J1: Contact & emergency lowered to View under the
+    // open form is the form's own error, not a crashed page.
+    const state = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+
+    expect(state.formError).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    const after = await readPersonRecord(personId);
+    expect(after.contacts.find((c) => c.validUntil === null)?.rawValue).toBe("+447700900301");
+  });
+
+  it("answers a right and a wrong guess at a withheld value identically — LAN-423", async () => {
+    const personId = await insertPerson({ givenName: unique("Oracle") });
+    await insertContact(personId, { kind: "phone", rawValue: "+447700900304" });
+    signedInWith({ person: "edit", contact_emergency: "view" });
+
+    async function outcomeOf(guess: string): Promise<unknown> {
+      const data = await formFrom(personId, { degreeField: "LAN423 Oracle Studies" });
+      // Only the guessed field arrives from the withheld half, as a probe would send it.
+      for (const field of [
+        "personalEmail",
+        "collegeEmail",
+        "emergencyGivenName",
+        "emergencyFamilyName",
+        "emergencyRelationship",
+        "emergencyPhone",
+        "emergencyEmail",
+      ]) {
+        data.delete(field);
+      }
+      data.set("mobile", guess);
+      try {
+        return { resolved: await submitPersonEdit(INITIAL_EDIT_STATE, data) };
+      } catch (error) {
+        if (error instanceof RedirectSignal) return { redirected: true };
+        const { kind, rule, message } = error as { kind?: string; rule?: string; message: string };
+        return { kind, rule, message };
+      }
+    }
+
+    const right = await outcomeOf("+447700900304");
+    const wrong = await outcomeOf("+447700900399");
+    expect(right).toEqual(wrong);
+    // LAN-423 fix round 4, J1: the refusal is handed back as the form's error.
+    expect(right).toEqual({
+      resolved: {
+        errors: {},
+        formError:
+          "You do not have access to this action. This needs access your seat does not hold.",
+      },
+    });
+    const after = await readPersonRecord(personId);
+    expect(after.degreeField).toBeNull();
+  });
+
+  it("writes Person's fields and leaves the contacts it was never sent", async () => {
+    const personId = await insertPerson({ givenName: unique("Partial") });
+    await insertContact(personId, { kind: "phone", rawValue: "+447700900303" });
+    const full = await formFrom(personId, { degreeField: "LAN432 Studies" });
+    // The form draws no contact field for this seat, so none arrives.
+    const contactFields = [
+      "mobile",
+      "personalEmail",
+      "collegeEmail",
+      "emergencyGivenName",
+      "emergencyFamilyName",
+      "emergencyRelationship",
+      "emergencyPhone",
+      "emergencyEmail",
+    ];
+    const data = new FormData();
+    for (const [key, value] of full.entries()) {
+      if (!contactFields.includes(key)) data.append(key, value);
+    }
+    signedInWith({ person: "edit" });
+
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toBeInstanceOf(RedirectSignal);
+    const after = await readPersonRecord(personId);
+    expect(after.degreeField).toBe("LAN432 Studies");
+    expect(after.contacts.find((c) => c.validUntil === null)?.rawValue).toBe("+447700900303");
+  });
+
+  describe("the alias actions return a refusal to the open section — LAN-423 K1", () => {
+    const REFUSAL =
+      "You do not have access to this action. This needs access your seat does not hold.";
+
+    async function withAliases(): Promise<{ personId: string; aliasIds: string[] }> {
+      const personId = await insertPerson({ givenName: unique("Aliased") });
+      const inserted = await observer.query<{ id: string }>(
+        `insert into public.person_aliases (person_id, alias, source)
+         values ($1::uuid, 'LAN423 Kept One', 'test fixture'),
+                ($1::uuid, 'LAN423 Kept Two', 'test fixture')
+         returning id`,
+        [personId],
+      );
+      return { personId, aliasIds: inserted.rows.map((row) => row.id) };
+    }
+
+    async function aliasesOf(personId: string): Promise<string[]> {
+      const record = await readPersonRecord(personId);
+      return record.aliases.map((alias) => alias.alias).sort();
+    }
+
+    it("refuses Add for a Person-at-view seat and writes nothing", async () => {
+      const { personId } = await withAliases();
+      signedInWith({ person: "view" });
+      const data = new FormData();
+      data.set("newAlias", "LAN423 Refused");
+
+      await expect(submitAddAlias(personId, data)).resolves.toEqual({ error: REFUSAL });
+      expect(await aliasesOf(personId)).toEqual(["LAN423 Kept One", "LAN423 Kept Two"]);
+    });
+
+    it("refuses Remove for a Person-at-view seat and removes nothing", async () => {
+      const { personId, aliasIds } = await withAliases();
+      signedInWith({ person: "view" });
+
+      await expect(submitRemoveAlias(personId, aliasIds[0])).resolves.toEqual({
+        error: REFUSAL,
+      });
+      expect(await aliasesOf(personId)).toEqual(["LAN423 Kept One", "LAN423 Kept Two"]);
+    });
+
+    it("refuses Make display name for a Person-at-view seat and changes nothing", async () => {
+      const { personId, aliasIds } = await withAliases();
+      signedInWith({ person: "view" });
+      const before = (await readPersonRecord(personId)).displayName;
+
+      await expect(submitSetDisplayAlias(personId, aliasIds[1])).resolves.toEqual({
+        error: REFUSAL,
+      });
+      expect((await readPersonRecord(personId)).displayName).toBe(before);
+    });
+
+    it("adds, makes the display name and removes for a Person-at-edit seat", async () => {
+      const { personId, aliasIds } = await withAliases();
+      signedInWith({ person: "edit" });
+      const data = new FormData();
+      data.set("newAlias", "LAN423 Added");
+
+      await expect(submitAddAlias(personId, data)).rejects.toBeInstanceOf(RedirectSignal);
+      await expect(submitSetDisplayAlias(personId, aliasIds[1])).rejects.toBeInstanceOf(
+        RedirectSignal,
+      );
+      await expect(submitRemoveAlias(personId, aliasIds[0])).rejects.toBeInstanceOf(RedirectSignal);
+      const after = await readPersonRecord(personId);
+      expect(after.aliases.map((alias) => alias.alias).sort()).toEqual([
+        "LAN423 Added",
+        "LAN423 Kept Two",
+      ]);
+      expect(after.aliases.find((alias) => alias.isDisplayName)?.alias).toBe("LAN423 Kept Two");
+    });
+
+    it("still throws an error that is not a service refusal", async () => {
+      const { personId } = await withAliases();
+      vi.mocked(resolveOperatorAccess).mockRejectedValueOnce(new Error("connection reset"));
+      const data = new FormData();
+      data.set("newAlias", "LAN423 Crashed");
+
+      await expect(submitAddAlias(personId, data)).rejects.toThrow("connection reset");
+    });
   });
 });

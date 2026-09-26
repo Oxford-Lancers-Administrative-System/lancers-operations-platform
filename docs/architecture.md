@@ -273,6 +273,10 @@ src/lib/auth/guards.ts         the decision: assertRole / assertCapability (pure
 src/lib/auth/administration-authority.ts
                                the second layer, LAN-129: whether this actor may
                                take this action against *this target*
+src/lib/auth/grants.ts         LAN-429: the seat access grants' vocabulary and
+                               the union-maximum an operator holds across seats
+src/lib/auth/access.ts         LAN-429: one requirement over both halves — a
+                               capability, a grant rule, or either
 ```
 
 Four properties this arrangement is built to have, and which tests hold it to:
@@ -296,6 +300,72 @@ Four properties this arrangement is built to have, and which tests hold it to:
 
 An operator with no currently-effective seat is still a legitimate operator: they
 open the shell, and are refused each privileged action individually.
+
+**Seat access grants — LAN-429 (mission M-GRANULAR-ROLES-AND-PERMISSIONS, parent
+LAN-423, Brian 2026-09-25).** The part of access the committee changes is data,
+not code: `public.role_access_grants`, one row per (seat, line), edited on the
+seat page by `role_management` holders. Eleven roster categories (the board's
+ten groups plus Contact & emergency) and Person information and Recruit details
+are None / View / Edit; Attendance (a twelfth roster line, LAN-423 round 6) and
+Event details None / View; each event template None /
+View / Manage; two switches (may add to the roster, may add recruits) No / Yes.
+`resolveOperatorAccess` reads the union-maximum across the operator's current
+seats once per request and carries it as `operator.grants`;
+`requireGrant(subject, minimum)` and `assertGrant` sit beside
+`requireCapability`, and `gateShellPage` takes any `AccessRule` — a capability
+key as before, a grant rule, or `{ either: [...] }` of both. A refusal is
+`NotPermitted`, never null or false. The floor is a service rule
+(`src/lib/services/access-grants.ts`): the President, General Manager and IT
+Officer hold every line at its maximum and no write may change them; the
+Vice-President and Secretary start full and are removable; every other seat
+starts at None; a template added later starts at Manage for the fixed three
+only. Every grant change is one `audit_events` row in the seat's History.
+
+Which capabilities became grants, and which stay in code:
+
+| Capability                                                                                                                                                                                             | After LAN-429                                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `person_record_authority`                                                                                                                                                                              | **Removed.** Roster, people and recruit surfaces answer to the roster and recruiting categories, each column and section its own (LAN-432, `src/lib/auth/roster-access.ts`). Merge asks every roster and recruiting line at its maximum. |
+| `event_calendar_management`, `event_approval`, `delivery_administration`                                                                                                                               | **Kept** for template administration (`/operate/events/templates/*`), event import and export, and messaging safety. Their per-event uses move to the event's template grant at Manage (LAN-431).                                        |
+| `role_management`, `leadership_report`, `attendance_recording`, `attendance_recorder`, `membership_activation`, `roster_bulk_import`, `person_erasure`, `messaging_safety_authority`, `operator_guide` | **Unchanged**, in code. Recording attendance is not a grant; the Attendance roster line governs only the player record's Attendance section.                                                                                             |
+
+The sidebar follows grants: Roster, People and Missing data appear with any
+roster category at View; Recruitment with any recruiting category at View;
+Events with any template at View or an attendance capability; Follow-ups with
+any template at View; the Messaging schedule with any template at Manage. Report
+is drawn only for the seats holding `leadership_report` (the core four and the
+IT Officer; LAN-423 round 6) and is never a grant line; the rest of
+Administration is unchanged.
+
+The Attendance roster line (None / View; View for the five seats seeded full,
+None elsewhere) governs only the player record's Attendance section: at None the
+section is a locked head and its rows are not sent. The roster board has no
+attendance columns, and recording attendance on an event, the coach's event
+list and the attendance shell keep `attendance_recording` and
+`attendance_recorder`, unchanged. The coach shell rule ("no grant above None")
+counts this line like any other.
+
+**Events within granted templates — LAN-431 (W4).** An event of a template the
+seat holds at None does not exist for it: `listEventsForOperator` reads only
+templates at View or above (the season total too), and every
+`/operate/events/[id]` page and action reads the event's template from the
+database (`src/lib/services/events/template-of.ts`, guarded through
+`./access.ts`) rather than from anything posted. View opens the event with its
+audience, answers, reasons, attendance and the Event info link, which shares
+and sends nothing. Manage adds create, edit, delete, approving and releasing
+invitations, amend, cancel, re-notify, the delivery page and its repairs, the
+roster form, recording an answer, removing an attendance record, the Follow-ups
+chase (per row) and the template's own messaging schedule. Create event appears
+with Manage on any template and offers only those; a create, or a draft moved
+to another template, also needs Manage on the template posted. `/operate/events`
+opens with a template at View or an attendance capability, and a seat seeing no
+template gets the attendance list only; the attendance route keeps
+`attendance_recording` and lists every event. What stays on the three old
+capabilities: the templates pages and actions, bulk import and export
+(`event_calendar_management`, which also draws _Edit templates_ and the import
+choice in _Create event_), and on the Messaging schedule page the recruitment
+cycle, the onboarding chase and the safety section (`delivery_administration`),
+none of which belongs to a template. The public calendar feed is unchanged.
 
 **Two capabilities are narrower than every other, and deliberately exclude the
 IT Officer.** `person_erasure` and `operator_guide` are the only two exceptions
@@ -327,7 +397,8 @@ It was first withheld from that seat on the erasure reasoning; Brian reversed
 it after the first production deploy, when the seat that diagnoses a runaway
 from the Messaging safety section could read the state but not stop it.
 
-The Messaging schedule page itself stays on `delivery_administration`, so the IT
+The Messaging schedule page opens with Manage on any template (LAN-431), and its
+safety section is read by `delivery_administration`, so the IT
 Officer can still _read_ the safety state — seeing that messaging is paused is
 how somebody diagnoses a deployment — and each control refuses them
 individually, which is the ordinary arrangement for a surface whose actions are
@@ -353,8 +424,10 @@ occurred-event attendance surface and nothing else, per
 capability, because the surfaces being withheld (Roster, the event detail) are
 open to any linked operator and so have no capability to fail. It is derived
 instead, in the same module: `isNarrowAttendanceRecorder()` is true when the
-operator holds `attendance_recorder` and holds no capability outside the
-attendance pair. Three consequences worth knowing:
+operator holds `attendance_recorder`, holds no capability outside the
+attendance pair, and — since LAN-429 — holds no grant above None. A coach leaves
+the attendance shell the moment one grant is set. Three consequences worth
+knowing:
 
 - It only ever **removes** surfaces, and only from that one actor. Somebody who
   coaches _and_ holds a committee seat keeps the operator's board, deliberately —
@@ -430,26 +503,29 @@ administrator able to create OAuth credentials, both open club-side items.
 
 ## Guardrails that run in CI
 
-| Gate                                              | Mechanism                                     |
-| ------------------------------------------------- | --------------------------------------------- |
-| Formatting, lint, types, tests, build             | `npm run verify`                              |
-| Migrations apply cleanly from empty               | `supabase db reset` in CI                     |
-| The seed loads after a clean reset                | `npm run db:seed` in `ci.yml`                 |
-| Generated types match the schema                  | `npm run types:check`                         |
-| Every new table enables RLS                       | `npm run check:rls`                           |
-| A browser-safe key reads nothing                  | `tests/rls-posture.test.ts`                   |
-| Sign-in works, public sign-up does not            | `tests/auth-flow.test.ts`                     |
-| Frozen invariants are really enforced             | `tests/schema-invariants.test.ts`             |
-| Valid messy data is still accepted                | `tests/schema-accepts.test.ts`                |
-| The audience relation and P7's five states        | `tests/schema-event-audience.test.ts`         |
-| RLS, grants and view rights hold                  | `tests/schema-security.test.ts`               |
-| The operator join is unreachable and undeletable  | `tests/schema-operator-accounts.test.ts`      |
-| Capability grants are exactly what was decided    | `src/lib/auth/capabilities.test.ts`           |
-| Guards refuse, and disclose nothing doing it      | `src/lib/auth/guards.test.ts`                 |
-| Privileged actions enforce, not their pages       | `src/app/operate/actions.test.ts`             |
-| Only the capability map names a role code         | `tests/capability-map-single-source.test.ts`  |
-| Every capability's role codes exist in the schema | `tests/operator-capability-catalogue.test.ts` |
-| `/operate` is unreachable without a session       | `tests/operate-route-protection.test.ts`      |
-| The local operator link script stays local        | `tests/link-test-operator.test.ts`            |
-| The synthetic dataset stays messy                 | `tests/synthetic-seed.test.ts`                |
-| The container builds and serves                   | `container` job in `ci.yml`                   |
+| Gate                                               | Mechanism                                     |
+| -------------------------------------------------- | --------------------------------------------- |
+| Formatting, lint, types, tests, build              | `npm run verify`                              |
+| Migrations apply cleanly from empty                | `supabase db reset` in CI                     |
+| The seed loads after a clean reset                 | `npm run db:seed` in `ci.yml`                 |
+| Generated types match the schema                   | `npm run types:check`                         |
+| Every new table enables RLS                        | `npm run check:rls`                           |
+| A browser-safe key reads nothing                   | `tests/rls-posture.test.ts`                   |
+| Sign-in works, public sign-up does not             | `tests/auth-flow.test.ts`                     |
+| Frozen invariants are really enforced              | `tests/schema-invariants.test.ts`             |
+| Valid messy data is still accepted                 | `tests/schema-accepts.test.ts`                |
+| The audience relation and P7's five states         | `tests/schema-event-audience.test.ts`         |
+| RLS, grants and view rights hold                   | `tests/schema-security.test.ts`               |
+| The operator join is unreachable and undeletable   | `tests/schema-operator-accounts.test.ts`      |
+| Capability grants are exactly what was decided     | `src/lib/auth/capabilities.test.ts`           |
+| The seeded access matrix is exactly the seed rule  | `tests/printed-access.test.ts` (gate)         |
+| Grant resolution, rules and the union across seats | `src/lib/auth/grants.test.ts`                 |
+| Access writes, the floor and their audit           | `src/lib/services/access-grants.test.ts`      |
+| Guards refuse, and disclose nothing doing it       | `src/lib/auth/guards.test.ts`                 |
+| Privileged actions enforce, not their pages        | `src/app/operate/actions.test.ts`             |
+| Only the capability map names a role code          | `tests/capability-map-single-source.test.ts`  |
+| Every capability's role codes exist in the schema  | `tests/operator-capability-catalogue.test.ts` |
+| `/operate` is unreachable without a session        | `tests/operate-route-protection.test.ts`      |
+| The local operator link script stays local         | `tests/link-test-operator.test.ts`            |
+| The synthetic dataset stays messy                  | `tests/synthetic-seed.test.ts`                |
+| The container builds and serves                    | `container` job in `ci.yml`                   |

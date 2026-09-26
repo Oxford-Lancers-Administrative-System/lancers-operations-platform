@@ -28,6 +28,7 @@ import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator"
 import { openObserver, seededActorPersonId } from "../../../../../../tests/helpers/service-layer";
 import { submitMerge } from "./actions";
 import { INITIAL_MERGE_STATE } from "./merge-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const MARKER = "LAN185MergeActions";
 let counter = 0;
@@ -60,6 +61,7 @@ function signedInAs(roleCodes: string[]): void {
       personId: actorPersonId,
       displayName: "Caspian Hallowfield",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };
@@ -91,22 +93,25 @@ describe("who may call it", () => {
   // F2, LAN-185 correction (`inv-ae866233-f12`): `redirect()` is mocked to
   // throw the same `RedirectSignal` a *successful* merge also throws, so
   // `.rejects.toThrow()` alone cannot tell a refusal from a completed merge —
-  // the reviewer proved this by widening `person_record_authority` by one
+  // the reviewer proved this by widening the old person-record capability by one
   // role and watching this test stay green while the merge actually
-  // completed. Assert the specific `NotPermitted` error (a `RedirectSignal`
-  // would fail `toMatchObject`), and confirm the loser was never touched, the
+  // completed. Assert the specific refusal, handed back as the form's own
+  // error since LAN-423 (a `RedirectSignal` would reject instead), and
+  // confirm the loser was never touched, the
   // same stronger pattern `the reason gate` below already uses. Widening
-  // `person_record_authority` must turn this test red.
+  // the old person-record capability must turn this test red.
   it("refuses an operator outside the four offices, and never touches the loser", async () => {
     signedInAs(["treasurer"]);
     const survivorId = await insertPerson({ givenName: unique("Survivor") });
     const loserId = await insertPerson({ givenName: unique("Loser") });
-    await expect(
-      submitMerge(
-        INITIAL_MERGE_STATE,
-        form({ survivorPersonId: survivorId, loserPersonId: loserId, reason: "Same person" }),
-      ),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    const state = await submitMerge(
+      INITIAL_MERGE_STATE,
+      form({ survivorPersonId: survivorId, loserPersonId: loserId, reason: "Same person" }),
+    );
+    expect(state).toEqual({
+      formError:
+        "You do not have access to this action. This needs access your seat does not hold.",
+    });
 
     const loserRow = await observer.query<{ merged_into_person_id: string | null }>(
       `select merged_into_person_id from public.people where id = $1::uuid`,

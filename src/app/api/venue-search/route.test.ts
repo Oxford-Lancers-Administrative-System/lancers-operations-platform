@@ -16,10 +16,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-vi.mock("@/lib/auth/guards", () => ({ requireCapability: vi.fn() }));
+vi.mock("@/lib/auth/guards", () => ({ requireGrant: vi.fn() }));
 vi.mock("@/lib/venue-search/provider", () => ({ searchVenues: vi.fn() }));
 
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { NotPermitted } from "@/lib/db";
 import { searchVenues } from "@/lib/venue-search/provider";
 
@@ -37,9 +37,9 @@ function request(query: string): Request {
 }
 
 function permit() {
-  vi.mocked(requireCapability).mockResolvedValue({
+  vi.mocked(requireGrant).mockResolvedValue({
     personId: "11111111-1111-4111-8111-111111111111",
-  } as unknown as Awaited<ReturnType<typeof requireCapability>>);
+  } as unknown as Awaited<ReturnType<typeof requireGrant>>);
 }
 
 describe("GET /api/venue-search", () => {
@@ -47,13 +47,13 @@ describe("GET /api/venue-search", () => {
   // *this* test, so no call from a previous one may survive into the next.
   beforeEach(() => vi.clearAllMocks());
 
-  it("requires the same capability that setting a venue requires", async () => {
+  it("requires Manage on at least one template, what setting a venue requires — LAN-431", async () => {
     permit();
     vi.mocked(searchVenues).mockResolvedValue({ status: "ok", suggestions: [SUGGESTION] });
 
     await GET(request("horspath"));
 
-    expect(requireCapability).toHaveBeenCalledWith("event_calendar_management");
+    expect(requireGrant).toHaveBeenCalledWith({ anyOf: "template", minimum: "manage" });
   });
 
   it("returns the provider's suggestions to an authorized operator", async () => {
@@ -68,7 +68,7 @@ describe("GET /api/venue-search", () => {
   });
 
   it("refuses anyone else with a 403, and never reaches the provider", async () => {
-    vi.mocked(requireCapability).mockRejectedValue(new NotPermitted("Not permitted."));
+    vi.mocked(requireGrant).mockRejectedValue(new NotPermitted("Not permitted."));
 
     const response = await GET(request("horspath"));
 
@@ -118,7 +118,7 @@ describe("GET /api/venue-search", () => {
   });
 
   it("lets an unexpected fault through as itself", async () => {
-    vi.mocked(requireCapability).mockRejectedValue(new Error("the session store is down"));
+    vi.mocked(requireGrant).mockRejectedValue(new Error("the session store is down"));
 
     // Not flattened into a 403. A genuine fault must reach the platform, or a
     // broken session store looks exactly like a permission decision.

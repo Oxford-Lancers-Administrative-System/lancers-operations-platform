@@ -7,19 +7,19 @@ import {
   readAmendmentContext,
   type AmendmentContext,
 } from "@/lib/services/event-amendment";
-import { gateShellPage } from "../../../gate";
+import { gateEventPage } from "../../event-gate";
 import { formatDetailWhen } from "../../presentation";
 import CancelForm from "./cancel-form";
 
 // W6 — cancelling an event, on its own route (not an overlay a stray click
-// could reach). Any one of the four operator roles cancels alone (D56, D61).
+// could reach). Any one seat with Manage on the event's template cancels alone
+// (D56, D61; LAN-431).
 export default async function CancelEventPage({
   params,
 }: PageProps<"/operate/events/[id]/cancel">) {
-  const gate = await gateShellPage("/operate/events", "event_approval");
-  if ("screen" in gate) return gate.screen;
-
   const { id } = await params;
+  const gate = await gateEventPage("/operate/events", id, "manage");
+  if ("screen" in gate) return gate.screen;
 
   let context: AmendmentContext;
   try {

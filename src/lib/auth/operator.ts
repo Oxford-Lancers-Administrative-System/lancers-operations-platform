@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { mergeGrantRows, NO_GRANTS, type GrantRow, type OperatorGrants } from "./grants";
 import { isRecoveryAuthenticatedSession } from "./recovery";
 
 /**
@@ -44,6 +45,14 @@ export interface ResolvedOperator {
    * or coaching seat right now is resolved, just unroled.
    */
   roleCodes: string[];
+  /**
+   * LAN-429. The union-maximum of every current seat's `role_access_grants`
+   * lines, read once per request with `roleCodes`. Ask it through
+   * `grantAtLeast` / `grantRuleHolds` (`./grants.ts`) or the guards
+   * (`requireGrant`, `gateShellPage`), never by indexing it directly for a
+   * template (a missing template key means `none`).
+   */
+  grants: OperatorGrants;
   /** Always `true`. An inactive account resolves to `null`, never to an object. */
   isActive: boolean;
 }
@@ -338,20 +347,24 @@ async function readOperatorAccess(): Promise<OperatorAccess> {
   // club record has gone missing.
   if (!person) return { state: "unlinked" };
 
+  const seats = await readCurrentSeats(admin, account.person_id);
+
   return {
     state: "active",
     operator: {
       authUserId: user.id,
       personId: person.id,
       displayName: formatDisplayName(person),
-      roleCodes: await readCurrentRoleCodes(admin, account.person_id),
+      roleCodes: seats.roleCodes,
+      grants: await readSeatGrants(admin, seats.roleIds),
       isActive: true,
     },
   };
 }
 
 /**
- * The person's currently-effective role codes.
+ * The person's currently-effective seats: their role ids (for the grant read)
+ * and codes.
  *
  * Two queries rather than one embedded select: `role_assignments` reaches
  * `roles` through two foreign keys — `role_id`, and the composite
@@ -360,10 +373,10 @@ async function readOperatorAccess(): Promise<OperatorAccess> {
  * constraint name, which is a worse thing to depend on than a second round trip
  * over a handful of rows.
  */
-async function readCurrentRoleCodes(
+async function readCurrentSeats(
   admin: ReturnType<typeof createAdminClient>,
   personId: string,
-): Promise<string[]> {
+): Promise<{ roleIds: string[]; roleCodes: string[] }> {
   const { data: assignments, error: assignmentError } = await admin
     .from("role_assignments")
     .select("role_id, effective_from, effective_to")
@@ -382,17 +395,44 @@ async function readCurrentRoleCodes(
     ),
   ];
 
-  if (currentRoleIds.length === 0) return [];
+  if (currentRoleIds.length === 0) return { roleIds: [], roleCodes: [] };
 
   const { data: roles, error: roleError } = await admin
     .from("roles")
-    .select("code")
+    .select("id, code")
     .in("id", currentRoleIds);
 
   if (roleError) {
     throw new Error(`Could not read roles: ${roleError.message}`);
   }
 
-  // Sorted so the value is stable for display, comparison and snapshotting.
-  return [...new Set((roles ?? []).map((role) => role.code))].sort();
+  return {
+    roleIds: (roles ?? []).map((role) => role.id),
+    // Sorted so the value is stable for display, comparison and snapshotting.
+    roleCodes: [...new Set((roles ?? []).map((role) => role.code))].sort(),
+  };
+}
+
+/**
+ * LAN-429. Every grant line of the operator's current seats, merged to the
+ * union-maximum. One query per request (the whole resolution is `cache`d). A
+ * failed read throws rather than resolving to "no grants": an operator whose
+ * access could not be read is an error, not a quietly narrowed session.
+ */
+async function readSeatGrants(
+  admin: ReturnType<typeof createAdminClient>,
+  roleIds: readonly string[],
+): Promise<OperatorGrants> {
+  if (roleIds.length === 0) return NO_GRANTS;
+
+  const { data, error } = await admin
+    .from("role_access_grants")
+    .select("subject_kind, subject_key, template_id, level")
+    .in("role_id", [...roleIds]);
+
+  if (error) {
+    throw new Error(`Could not read access grants: ${error.message}`);
+  }
+
+  return mergeGrantRows((data ?? []) as GrantRow[]);
 }

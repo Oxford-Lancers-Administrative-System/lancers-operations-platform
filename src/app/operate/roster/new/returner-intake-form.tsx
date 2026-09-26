@@ -20,7 +20,7 @@ import { Field as InputField, NO_AUTOFILL } from "@/components/field";
 import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
-import type { PersonCandidate } from "@/lib/services/roster";
+import type { SeatPersonCandidate } from "@/lib/services/person-candidate-access";
 import { personDisplayName } from "@/lib/services/person-name";
 import { submitReturnerIntake } from "./actions";
 import { INITIAL_INTAKE_STATE, type IntakeState } from "./intake-state";
@@ -261,7 +261,7 @@ function CandidatesStep({
  * information, and current-season membership decides whether selecting
  * this person is refused, so it is never the field dropped for phone.
  */
-function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
+function CandidateRow({ candidate }: { candidate: SeatPersonCandidate }) {
   // The one function that composes a person's name (LAN-306, rule 8). This said
   // the same thing in its own words, which is how the four implementations that
   // rule replaced came to disagree in the first place.
@@ -302,13 +302,22 @@ function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
               )}
             </Typography>
             <Fact label="Known as" value={candidate.displayAlias} />
-            <Fact label="Email" value={candidate.email} />
-            <Fact label="Phone" value={candidate.phone} />
+            {/* LAN-423: withheld from this seat, so not drawn — never "not recorded". */}
+            {candidate.withheld.contact ? null : (
+              <>
+                <Fact label="Email" value={candidate.email} />
+                <Fact label="Phone" value={candidate.phone} />
+              </>
+            )}
             <Box>
               <Typography variant="overline" component="p">
                 Current season
               </Typography>
-              {candidate.currentMembership ? (
+              {candidate.currentMembership && candidate.withheld.membershipStatus ? (
+                <Typography variant="body2" data-testid="candidate-has-membership">
+                  Already a member
+                </Typography>
+              ) : candidate.currentMembership ? (
                 <StatusChip
                   domain="membership"
                   status={candidate.currentMembership.status}

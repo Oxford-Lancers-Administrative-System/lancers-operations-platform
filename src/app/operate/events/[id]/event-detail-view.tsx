@@ -212,7 +212,8 @@ export function EventDetailView({
             </Stack>
           }
           actions={
-            mayManage && event.status !== "draft" ? (
+            // W4-05: shares, never sends — View holds it (LAN-431).
+            event.status !== "draft" ? (
               <Button
                 variant="outlined"
                 href={`/operate/events/${event.id}?share=1`}
@@ -424,6 +425,7 @@ export function EventDetailView({
               basePath={`/operate/events/${event.id}`}
               participation={participation}
               filters={participationFilters}
+              mayRecordAnswer={mayManage}
             />
           </Stack>
         ) : null}
@@ -434,7 +436,7 @@ export function EventDetailView({
           ) : null}
 
           {mayAdministerDelivery && !preApproval ? (
-            // LAN-78: shown only once there is something to look at; the route itself guards `delivery_administration`.
+            // LAN-78: shown only once there is something to look at; the route itself guards Manage on the template (LAN-431).
             <Button
               variant="outlined"
               href={`/operate/events/${event.id}/delivery`}
@@ -487,13 +489,6 @@ export function EventDetailView({
               {DUPLICATE_ACTION}
             </Button>
           ) : null}
-
-          {mayManage ? null : (
-            <Typography variant="body2" color="text.secondary" data-testid="read-only-note">
-              You can see the club calendar. Creating and changing events is done by the President,
-              Vice-President, Secretary and General Manager.
-            </Typography>
-          )}
 
           <Button variant="text" href="/operate/events">
             Back to events

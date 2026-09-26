@@ -44,7 +44,7 @@ import path from "node:path";
 import pg, { type Client } from "pg";
 
 import { FINAL_ADMINISTRATION_PATH_RULE } from "@/lib/auth/administration-authority";
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool, isServiceError, resolveDatabaseUrl, withTransaction } from "@/lib/db";
 import { addClubDays, formatClubDay } from "@/lib/club-time";
@@ -128,6 +128,7 @@ function operator(roleCodes: readonly string[], personId?: string): ResolvedOper
     personId: personId ?? actorPersonId,
     displayName: "Administrator",
     roleCodes: [...roleCodes],
+    grants: seededGrantsFor([...roleCodes]),
     isActive: true,
   };
 }

@@ -33,6 +33,7 @@ import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator"
 import { listMissingDataQueue } from "@/lib/services/people-directory";
 import { readOnboardingChaseQueueInfoIn } from "@/lib/services/onboarding-chase";
 import MissingDataPage from "./page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function signedInAs(roleCodes: string[]): void {
   const access: OperatorAccess = {
@@ -42,6 +43,7 @@ function signedInAs(roleCodes: string[]): void {
       personId: "11111111-1111-4111-8111-111111111111",
       displayName: "Morgan Pike",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };

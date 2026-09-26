@@ -16,15 +16,24 @@ import { readCurrentSeason } from "@/lib/services/seasons";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import RecruitmentRecordView from "./record-view";
+import { operatorHoldsGrant } from "@/lib/auth/guards";
+import { roleCodesPermit } from "@/lib/auth/capabilities";
+import { RECRUITING_REACH } from "@/lib/auth/roster-access";
+import { recruitingAccessFor, redactProspectRecord } from "@/lib/services/recruitment-board-access";
 
 // `/operate/recruitment/[prospectId]` — `W2`, LAN-204, on ../roster/[membershipId]'s shell (LAN-187).
 export default async function RecruitmentRecordPage({
   params,
 }: PageProps<"/operate/recruitment/[prospectId]">) {
   const { prospectId } = await params;
-  const gate = await gateShellPage(`/operate/recruitment/${prospectId}`, "person_record_authority");
+  // LAN-432: records open for anyone who reaches Recruitment; each section
+  // then follows its recruiting category, and a `none` section's contents
+  // never leave this server.
+  const gate = await gateShellPage(`/operate/recruitment/${prospectId}`, RECRUITING_REACH);
   if ("screen" in gate) return gate.screen;
   const { operator } = gate;
+  const access = recruitingAccessFor(operator.grants);
+  const personOpen = access.recruit_person !== "none";
 
   let record: Awaited<ReturnType<typeof readRecruitmentProspect>>;
   try {
@@ -41,25 +50,28 @@ export default async function RecruitmentRecordPage({
   }
   if (!record) notFound();
 
-  let person: Partial<PersonRecord>;
-  try {
-    const fullPerson = await readPersonRecord(record.personId);
-    person = redactPersonRecord(
-      fullPerson as unknown as Record<string, unknown>,
-      operator.roleCodes,
-    ) as unknown as Partial<PersonRecord>;
-  } catch (error) {
-    if (!isServiceError(error)) throw error;
-    person = {};
+  let person: Partial<PersonRecord> = {};
+  if (personOpen) {
+    try {
+      const fullPerson = await readPersonRecord(record.personId);
+      person = redactPersonRecord(
+        fullPerson as unknown as Record<string, unknown>,
+        operator.grants,
+        "recruiting",
+      ) as unknown as Partial<PersonRecord>;
+    } catch (error) {
+      if (!isServiceError(error)) throw error;
+      person = {};
+    }
   }
 
   /**
    * LAN-307. The same sections the canonical person page draws, from the same
    * record and the same redaction — an operator looking at a recruit before
    * pressing send should not have to open a second page to find out what the
-   * club holds about them, or where the message is going. No new grant: this
-   * page already gates on `person_record_authority`, and `redactPersonRecord`
-   * above still decides every field.
+   * club holds about them, or where the message is going. LAN-432: they are
+   * Person information's (Their seasons too), and What changed is Recruit
+   * details'; none of them is read for a seat holding its category at `none`.
    */
   const [roles, seasons, history, currentSeason]: [
     readonly PersonRoleAssignment[],
@@ -67,9 +79,14 @@ export default async function RecruitmentRecordPage({
     readonly PersonHistoryEntry[],
     { label: string } | null,
   ] = await Promise.all([
-    listPersonRoleAssignments(record.personId),
-    listPersonSeasons(record.personId),
-    readPersonHistory(record.personId),
+    personOpen ? listPersonRoleAssignments(record.personId) : Promise.resolve([]),
+    personOpen ? listPersonSeasons(record.personId) : Promise.resolve([]),
+    // LAN-423: without Person information, What changed is Recruit details'
+    // rows alone; a person field, alias, contact point or membership row
+    // carries its raw value and never leaves the service.
+    access.recruit_details !== "none"
+      ? readPersonHistory(record.personId, personOpen ? {} : { only: "recruit_details" })
+      : Promise.resolve([]),
     readCurrentSeason().catch(() => null),
   ]);
 
@@ -81,8 +98,10 @@ export default async function RecruitmentRecordPage({
 
   return (
     <RecruitmentRecordView
-      record={record}
+      record={redactProspectRecord(record, access)}
       person={person}
+      mayOpenPerson={operatorHoldsGrant(operator, { kind: "roster", key: "person" }, "view")}
+      mayAssignRole={roleCodesPermit(operator.roleCodes, "role_management")}
       roles={roles}
       seasons={seasons}
       history={history}

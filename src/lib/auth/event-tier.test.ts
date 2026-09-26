@@ -32,6 +32,7 @@ import {
   type EventReadTier,
 } from "./event-tier";
 import type { ParticipationTier } from "@/lib/services/participation-view";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 /**
  * The two tier vocabularies are one vocabulary — R157-B7.
@@ -68,6 +69,7 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

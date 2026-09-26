@@ -2,10 +2,12 @@ import Box from "@mui/material/Box";
 import { gateShellPage } from "../../gate";
 import { readCurrentSeason } from "@/lib/services/seasons";
 import AddRecruitForm from "./add-recruit-form";
+import { ADD_RECRUITS } from "@/lib/auth/roster-access";
 
 // `/operate/recruitment/new` — `W6`, LAN-206.
 export default async function AddRecruitPage() {
-  const gate = await gateShellPage("/operate/recruitment/new", "person_record_authority");
+  // LAN-432: the May add recruits switch.
+  const gate = await gateShellPage("/operate/recruitment/new", ADD_RECRUITS);
   if ("screen" in gate) return gate.screen;
 
   const season = await readCurrentSeason();

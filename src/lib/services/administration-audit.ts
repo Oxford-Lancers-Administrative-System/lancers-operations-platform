@@ -10,9 +10,9 @@ import {
   ADMINISTRATION_CONTEXT_KEY,
   ADMINISTRATION_ENVELOPE_VERSION,
   ADMINISTRATION_EVENTS,
+  HOLDER_HISTORY_ACTIONS,
   isUuid,
   prepareAdministrationEvent,
-  ROLE_RELATED_ADMINISTRATION_ACTIONS,
   type AdministrationAction,
   type AdministrationEventDefinition,
   type AdministrationEventFamily,
@@ -78,7 +78,7 @@ export interface AdministrationHistoryEntry {
     operatorAccountId: string | null;
     name: string | null;
   };
-  role: { id: string; code: string; assignmentId: string } | null; // present only in the role-related subset
+  role: { id: string; code: string; assignmentId: string | null } | null; // role-related subset, and access events (assignmentId null)
   operatingYear: AdministrationOperatingYear;
   fromState: string | null;
   toState: string | null;
@@ -226,7 +226,7 @@ function toEntry(row: HistoryRow): AdministrationHistoryEntry | null {
   }
 
   const targetPersonId = asStringOrNull(envelope.targetPersonId);
-  if (targetPersonId === null) {
+  if (targetPersonId === null && definition.family !== "access") {
     return toUnreadableEntry(row, definition, "missing-envelope", storedVersion); // version matched but the shape it promises did not
   }
 
@@ -250,7 +250,9 @@ function toEntry(row: HistoryRow): AdministrationHistoryEntry | null {
       name: row.target_name,
     },
     role:
-      roleId !== null && roleCode !== null && roleAssignmentId !== null
+      roleId !== null &&
+      roleCode !== null &&
+      (roleAssignmentId !== null || definition.family === "access")
         ? { id: roleId, code: roleCode, assignmentId: roleAssignmentId }
         : null,
     operatingYear: {
@@ -324,8 +326,9 @@ export async function readHolderHistoryIn(
   assertReadable(operator);
   assertSubjectId(roleId, "role");
 
+  // LAN-429: a seat's History carries its access changes beside its assignments.
   const result = await tx.query<HistoryRow>(historyQuery("roleId"), [
-    [...ROLE_RELATED_ADMINISTRATION_ACTIONS],
+    [...HOLDER_HISTORY_ACTIONS],
     roleId,
   ]);
 

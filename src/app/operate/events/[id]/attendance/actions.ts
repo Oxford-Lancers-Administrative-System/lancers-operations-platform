@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import {
   isAttendancePresence,
@@ -11,23 +12,35 @@ import {
   removeAttendance,
   type AttendancePresence,
 } from "@/lib/services/attendance";
+import { requireEventGrant } from "@/lib/services/events";
 import type { AttendanceSaveState, WalkUpFormState } from "./action-state";
 
 // The attendance server actions — LAN-80. `attendance_recording` (general
 // operators + coaching seats, `slice-ux.md` § 8) guards record/save/walk-up;
-// `event_calendar_management` guards removal (LAN-110 excludes coaches from
-// that).
+// Manage on the event's template guards removal (LAN-431; LAN-110 excludes
+// coaches from that, and a coaching seat holds no template by default).
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
   return typeof value === "string" ? value : "";
 }
 
-/** A refusal is rethrown; everything else becomes a sentence for the screen. */
+/** Every service failure, a refusal included (LAN-423), becomes a sentence for the screen; a bug still throws. */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
+}
+
+/** A guard's refusal as the row's own state (LAN-423): the row keeps what was stored. */
+function rowRefusal(key: string, error: unknown): AttendanceSaveState {
+  return {
+    key,
+    presence: null,
+    recordedAt: null,
+    recordedByName: null,
+    attempted: null,
+    error: messageFor(error),
+  };
 }
 
 /** Saves one participant's attendance; never redirects — § 9 needs the row's own Saving/Saved state. */
@@ -35,10 +48,16 @@ export async function recordAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireCapability("attendance_recording");
   const eventId = text(formData, "eventId");
   const key = text(formData, "participantKey");
   const presence = text(formData, "presence");
+
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireCapability("attendance_recording");
+  } catch (error) {
+    return rowRefusal(key, error);
+  }
 
   // Narrowed here rather than cast, so the service is never handed a value the
   // enum has no member for.
@@ -77,14 +96,20 @@ export async function recordAttendanceAction(
   }
 }
 
-/** Removes one attendance record — the only way to unwind a mistaken row. Guarded on `event_calendar_management`, not LAN-110's coach capability. */
+/** Removes one attendance record — the only way to unwind a mistaken row. Guarded on Manage on the event's template (LAN-431), not LAN-110's coach capability. */
 export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
   const key = text(formData, "participantKey");
+
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return rowRefusal(key, error);
+  }
 
   try {
     await removeAttendance(operator.personId, eventId, key);
@@ -110,7 +135,6 @@ export async function recordWalkUpAction(
   _previous: WalkUpFormState,
   formData: FormData,
 ): Promise<WalkUpFormState> {
-  const operator = await requireCapability("attendance_recording");
   const eventId = text(formData, "eventId");
 
   const values = {
@@ -119,6 +143,13 @@ export async function recordWalkUpAction(
     phone: text(formData, "phone"),
     email: text(formData, "email"),
   };
+
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireCapability("attendance_recording");
+  } catch (error) {
+    return { error: messageFor(error), values };
+  }
 
   try {
     await recordWalkUpAttendance(operator.personId, eventId, {

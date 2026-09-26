@@ -46,7 +46,7 @@ import { listAudienceCatalogueIn, type AudienceCatalogue } from "./event-audienc
 import {
   createEventDraft,
   listCurrentSeasonEvents,
-  readEvent,
+  readEventUnchecked,
   type EventDraftInput,
 } from "./events";
 import { readAttendanceBoard, readEventAttendanceSummary } from "./attendance";
@@ -383,7 +383,7 @@ describe("an approved event is amended in place", () => {
       );
 
       expect(failure.rule).toBe(NOTHING_CHANGED_RULE);
-      expect((await readEvent(fixture.eventId)).venue).toBe("University Parks");
+      expect((await readEventUnchecked(fixture.eventId)).venue).toBe("University Parks");
     });
 
     it("still applies a field it did change, and records it from the value that was there", async () => {
@@ -476,7 +476,7 @@ describe("an approved event is amended in place", () => {
     );
 
     expect(failure.rule).toBe(AMENDMENT_NEEDS_A_DATE_RULE);
-    expect((await readEvent(fixture.eventId)).scheduledOn).not.toBeNull();
+    expect((await readEventUnchecked(fixture.eventId)).scheduledOn).not.toBeNull();
   });
 
   it("refuses to amend a draft", async () => {
@@ -610,7 +610,7 @@ describe("silencing a change that moved a future date, time or venue", () => {
     );
 
     expect(failure.rule).toBe(SILENCE_NEEDS_CONFIRMATION_RULE);
-    expect((await readEvent(fixture.eventId)).venue).toBe("Iffley Road Astro");
+    expect((await readEventUnchecked(fixture.eventId)).venue).toBe("Iffley Road Astro");
     expect(await readEventChangeHistory(fixture.eventId)).toHaveLength(1);
   });
 
@@ -640,7 +640,7 @@ describe("silencing a change that moved a future date, time or venue", () => {
     );
 
     expect(outcome.notified).toBe(false);
-    expect((await readEvent(fixture.eventId)).venue).toBe("University Parks");
+    expect((await readEventUnchecked(fixture.eventId)).venue).toBe("University Parks");
 
     const history = await readEventChangeHistory(fixture.eventId);
     expect(history[0]).toMatchObject({ kind: "amended", notified: false, recipients: 6 });
@@ -663,7 +663,7 @@ describe("silencing a change that moved a future date, time or venue", () => {
     );
 
     expect(outcome.notified).toBe(false);
-    expect((await readEvent(fixture.eventId)).venue).toBe("University Parks");
+    expect((await readEventUnchecked(fixture.eventId)).venue).toBe("University Parks");
   });
 
   it("asks nothing for a corrected description on a future event", async () => {
@@ -1088,14 +1088,14 @@ describe("re-notify", () => {
       { notify: false, silenceConfirmed: true },
     );
 
-    const eventBefore = await readEvent(fixture.eventId);
+    const eventBefore = await readEventUnchecked(fixture.eventId);
     const participationBefore = await participationOf(fixture.eventId);
 
     const outcome = await renotifyEvent(actorPersonId, fixture.eventId);
 
     expect(outcome.recipients).toBe(6);
     expect(outcome.noticesOwed).toBe(6);
-    expect(await readEvent(fixture.eventId)).toEqual(eventBefore);
+    expect(await readEventUnchecked(fixture.eventId)).toEqual(eventBefore);
     expect(await participationOf(fixture.eventId)).toEqual(participationBefore);
   });
 
@@ -1495,7 +1495,7 @@ describe("the internal cancellation reason", () => {
 
     await cancelEvent(actorPersonId, fixture.eventId, { reason: REASON, notify: true });
 
-    expect((await readEvent(fixture.eventId)).decisionReason).toBe(REASON);
+    expect((await readEventUnchecked(fixture.eventId)).decisionReason).toBe(REASON);
 
     const audit = await observer.query<{ reason: string | null }>(
       `select reason from public.audit_events
@@ -1651,7 +1651,7 @@ describe("a cancelled event is never removed", () => {
       notify: true,
     });
 
-    const event = await readEvent(fixture.eventId);
+    const event = await readEventUnchecked(fixture.eventId);
     expect(event.invitationCount).toBe(6);
     expect(event.responseCount).toBe(4);
   });

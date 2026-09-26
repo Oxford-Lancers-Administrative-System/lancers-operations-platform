@@ -27,6 +27,7 @@ import { applySeasonImport } from "@/lib/services/event-import";
 import { planImport, type ImportableEvent, type ImportPlan } from "@/lib/services/event-csv";
 import { importEventsAction } from "./actions";
 import { EMPTY_IMPORT_STATE, type ImportScreenState } from "./import-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function operator(): ResolvedOperator {
   return {
@@ -34,6 +35,7 @@ function operator(): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes: ["secretary"],
+    grants: seededGrantsFor(["secretary"]),
     isActive: true,
   };
 }
@@ -154,6 +156,26 @@ describe("applying a proposal the season moved under", () => {
     expect(await importEventsAction(confirmed(planFor([EXISTING])), formData)).toEqual(
       EMPTY_IMPORT_STATE,
     );
+    expect(applySeasonImport).not.toHaveBeenCalled();
+  });
+});
+
+// LAN-423 fix round 4, J1: calendar management taken away while a proposal is
+// on screen. The refusal is the screen's error and the proposal stays — never
+// a throw that rendered "This page couldn't load" — and nothing is written.
+describe("a seat without calendar management", () => {
+  it("gets the refusal back with the proposal still on screen", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: { ...operator(), roleCodes: ["treasurer"], grants: seededGrantsFor(["treasurer"]) },
+    });
+    const read = planFor([EXISTING]);
+
+    const state = await importEventsAction(confirmed(read), applyForm(read));
+
+    expect(state.error).toMatch(/^You do not have access to this action\./);
+    expect(state.plan).toBe(read);
+    expect(state.applied).toBeNull();
     expect(applySeasonImport).not.toHaveBeenCalled();
   });
 });

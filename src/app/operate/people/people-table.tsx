@@ -143,7 +143,16 @@ function TypeCell({ status }: { status: PersonListEntry["status"] }) {
   );
 }
 
-function PersonRow({ person }: { person: PersonListEntry }) {
+function PersonRow({ person, nameOnly }: { person: PersonListEntry; nameOnly: boolean }) {
+  if (nameOnly) {
+    return (
+      <TableRow hover data-testid="people-row">
+        <TableCell>
+          <NameCell person={person} />
+        </TableCell>
+      </TableRow>
+    );
+  }
   return (
     <TableRow hover data-testid="people-row">
       <TableCell>
@@ -183,11 +192,14 @@ export default function PeopleTable({
   sort,
   direction,
   query,
+  nameOnly = false,
 }: {
   entries: readonly PersonListEntry[];
   sort: string;
   direction: string;
   query: Record<string, string | string[] | undefined>;
+  /** LAN-432 — None on Person: the Name column alone. */
+  nameOnly?: boolean;
 }) {
   return (
     <DesktopOnly>
@@ -202,46 +214,50 @@ export default function PeopleTable({
                 direction={direction}
                 query={query}
               />
-              <PeopleSortableHeader
-                column="status"
-                label="Status"
-                sort={sort}
-                direction={direction}
-                query={query}
-              />
-              <PeopleSortableHeader
-                column="club"
-                label="To the club"
-                sort={sort}
-                direction={direction}
-                query={query}
-              />
-              <PeopleSortableHeader
-                column="contactable"
-                label="Contactable"
-                sort={sort}
-                direction={direction}
-                query={query}
-              />
-              <PeopleSortableHeader
-                column="missing"
-                label="Missing"
-                sort={sort}
-                direction={direction}
-                query={query}
-              />
-              <PeopleSortableHeader
-                column="type"
-                label="Type"
-                sort={sort}
-                direction={direction}
-                query={query}
-              />
+              {nameOnly ? null : (
+                <>
+                  <PeopleSortableHeader
+                    column="status"
+                    label="Status"
+                    sort={sort}
+                    direction={direction}
+                    query={query}
+                  />
+                  <PeopleSortableHeader
+                    column="club"
+                    label="To the club"
+                    sort={sort}
+                    direction={direction}
+                    query={query}
+                  />
+                  <PeopleSortableHeader
+                    column="contactable"
+                    label="Contactable"
+                    sort={sort}
+                    direction={direction}
+                    query={query}
+                  />
+                  <PeopleSortableHeader
+                    column="missing"
+                    label="Missing"
+                    sort={sort}
+                    direction={direction}
+                    query={query}
+                  />
+                  <PeopleSortableHeader
+                    column="type"
+                    label="Type"
+                    sort={sort}
+                    direction={direction}
+                    query={query}
+                  />
+                </>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
             {entries.map((person) => (
-              <PersonRow key={person.personId} person={person} />
+              <PersonRow key={person.personId} person={person} nameOnly={nameOnly} />
             ))}
           </TableBody>
         </Table>

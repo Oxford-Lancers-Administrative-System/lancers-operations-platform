@@ -31,6 +31,7 @@ import { createPerson } from "@/lib/services/person-create";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { submitCreatePerson } from "./actions";
 import { INITIAL_CREATE_STATE } from "./create-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -46,6 +47,7 @@ function fourRoleOperator(): OperatorAccess {
       personId: OPERATOR_PERSON_ID,
       displayName: "Caspian Hallowfield",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     },
   };
@@ -71,17 +73,23 @@ describe("who may call it", () => {
         personId: "22222222-1111-4111-8111-111111111111",
         displayName: "Someone",
         roleCodes: ["treasurer"],
+        grants: seededGrantsFor(["treasurer"]),
         isActive: true,
       },
     });
 
-    await expect(
-      submitCreatePerson(
-        INITIAL_CREATE_STATE,
-        form({ intent: "check", givenName: "A", familyName: "B" }),
-      ),
-    ).rejects.toThrow();
+    // LAN-423 fix round 4, J1: the refusal is the form's own error, with the
+    // entries handed back — never a throw that crashed the page.
+    const state = await submitCreatePerson(
+      INITIAL_CREATE_STATE,
+      form({ intent: "check", givenName: "A", familyName: "B" }),
+    );
 
+    expect(state.formError).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    expect(state.values.givenName).toBe("A");
+    expect(state.values.familyName).toBe("B");
     expect(createPerson).not.toHaveBeenCalled();
     expect(findPersonDuplicates).not.toHaveBeenCalled();
   });

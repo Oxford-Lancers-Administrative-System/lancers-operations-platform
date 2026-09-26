@@ -25,8 +25,18 @@ const CREATE_MENU_CHOICES: readonly {
   }),
 ]);
 
-export default function CreateEventMenu() {
+/** `mayImport`: bulk import stays with template administration (`event_calendar_management`, LAN-431). */
+export default function CreateEventMenu({ mayImport }: { mayImport: boolean }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+
+  // One choice is no menu: the button opens the form, as it does on the calendar.
+  if (!mayImport) {
+    return (
+      <Button variant="contained" href={CREATE_MENU_CHOICES[0].href} data-testid="create-event">
+        Create event
+      </Button>
+    );
+  }
 
   return (
     <>

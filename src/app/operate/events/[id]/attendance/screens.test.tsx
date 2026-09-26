@@ -15,6 +15,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -115,6 +125,7 @@ import AttendancePage from "./page";
 import { filterParticipants } from "./attendance-filter-logic";
 import { AttendanceRow } from "./attendance-row";
 import EventDetailPage from "../page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 const MEMBERSHIP_ID = "55555555-5555-4555-8555-555555555555";
@@ -127,6 +138,7 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Morgan Pike",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

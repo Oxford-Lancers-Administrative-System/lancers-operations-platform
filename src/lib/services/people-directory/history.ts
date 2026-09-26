@@ -16,6 +16,33 @@ export interface PersonHistoryEntry {
   toValue: string | null;
   actorDisplayName: string;
   reason: string | null;
+  /**
+   * LAN-432 — a change to a contact point or the emergency contact: Contact &
+   * emergency, which a seat may hold at `none` while it reads the rest of the
+   * history as Person. The record page drops these for that seat.
+   */
+  contactFact?: boolean;
+}
+
+/**
+ * LAN-423. The recruiting category a history row belongs to. Recruit details
+ * owns the recruitment rows (status, notes, questionnaire, consent, events),
+ * written as `recruitment_*` actions or against `recruitment_prospects`.
+ * Every other row (a person field, an alias, a contact point, a membership's
+ * status) is Person information's and carries its raw value.
+ */
+type PersonHistoryCategory = "recruit_details" | "person";
+
+function personHistoryCategory(entityTable: string, action: string): PersonHistoryCategory {
+  if (entityTable === "recruitment_prospects" || action.startsWith("recruitment_")) {
+    return "recruit_details";
+  }
+  return "person";
+}
+
+/** `only` keeps that category's rows; omitted, every row. */
+interface PersonHistoryScope {
+  only?: PersonHistoryCategory;
 }
 
 function humanizeAction(action: string): string {
@@ -45,7 +72,12 @@ const STATUS_HISTORY_LABELS: Readonly<Record<string, string>> = Object.freeze({
  * — unstructured JSON a future writer could put anything in;
  * `from_state`/`to_state` are the typed columns this module trusts.
  */
-export async function readPersonHistory(personId: string): Promise<PersonHistoryEntry[]> {
+export async function readPersonHistory(
+  personId: string,
+  scope: PersonHistoryScope = {},
+): Promise<PersonHistoryEntry[]> {
+  const keep = (entityTable: string, action: string): boolean =>
+    scope.only === undefined || personHistoryCategory(entityTable, action) === scope.only;
   return withTransaction(async (tx) => {
     const memberships = await tx.query<{ id: string; season_label: string }>(
       `select m.id, s.label as season_label
@@ -109,7 +141,9 @@ export async function readPersonHistory(personId: string): Promise<PersonHistory
       [personId, membershipIds],
     );
 
-    const fromStatusEvents: PersonHistoryEntry[] = statusEvents.rows.map((row) => {
+    // A membership's status events are Person information's, like its audit rows.
+    const statusRows = keep("season_memberships", "status_changed") ? statusEvents.rows : [];
+    const fromStatusEvents: PersonHistoryEntry[] = statusRows.map((row) => {
       const seasonLabel = seasonLabelByMembership.get(row.season_membership_id) ?? "";
       const from = row.from_status
         ? (STATUS_HISTORY_LABELS[row.from_status] ?? row.from_status)
@@ -127,16 +161,20 @@ export async function readPersonHistory(personId: string): Promise<PersonHistory
       };
     });
 
-    const fromAudit: PersonHistoryEntry[] = auditRows.rows.map((row) => ({
-      id: `audit-event-${row.id}`,
-      occurredAt: row.occurred_at,
-      field: fieldFromAction(row.action, row.entity_table),
-      summary: humanizeAction(row.action),
-      fromValue: row.from_state,
-      toValue: row.to_state,
-      actorDisplayName: row.actor_display_name ?? row.actor_label ?? "Unknown",
-      reason: row.reason,
-    }));
+    const fromAudit: PersonHistoryEntry[] = auditRows.rows
+      .filter((row) => keep(row.entity_table, row.action))
+      .map((row) => ({
+        id: `audit-event-${row.id}`,
+        occurredAt: row.occurred_at,
+        field: fieldFromAction(row.action, row.entity_table),
+        summary: humanizeAction(row.action),
+        fromValue: row.from_state,
+        toValue: row.to_state,
+        actorDisplayName: row.actor_display_name ?? row.actor_label ?? "Unknown",
+        reason: row.reason,
+        contactFact:
+          row.entity_table === "contact_points" || row.entity_table === "person_emergency_contacts",
+      }));
 
     return [...fromStatusEvents, ...fromAudit].sort(
       (a, b) => b.occurredAt.getTime() - a.occurredAt.getTime(),

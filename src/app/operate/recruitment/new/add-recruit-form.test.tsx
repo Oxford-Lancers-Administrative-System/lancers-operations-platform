@@ -19,6 +19,8 @@ vi.mock("./actions", () => ({ submitAddRecruit: vi.fn() }));
 import { submitAddRecruit } from "./actions";
 import { INITIAL_ADD_RECRUIT_STATE } from "./create-state";
 import AddRecruitForm from "./add-recruit-form";
+import { redactRecruitCandidates } from "@/lib/services/person-candidate-access";
+import { mergeGrantRows } from "@/lib/auth/grants";
 
 describe("V-1, correction round 2 — inline phone and email validation", () => {
   it("shows no format error and an enabled Check button before anything is typed", () => {
@@ -232,5 +234,76 @@ describe("the confirm boxes on Add recruit", () => {
     expect(posted.get("mobile")).toBe("+447700900461");
     expect(posted.get("emergencyPhone")).toBe("+447700900777");
     expect([...posted.keys()].filter((key) => key.toLowerCase().includes("confirm"))).toEqual([]);
+  });
+});
+
+// LAN-423 fix round 3, H1: Add recruit is opened by a switch, so its match
+// list is narrowed to the seat's grants on the server. The HTML a switch-only
+// seat receives carries the name and why it matched, and no contact or status.
+describe("the duplicate check, to a seat holding the switch and nothing else", () => {
+  const FULL = [
+    {
+      personId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      givenName: "Corwin",
+      familyName: "Vellacott",
+      displayAlias: null,
+      displayName: "Corwin Vellacott",
+      currentEmails: ["corwin.vellacott@ashridge.ox.ac.example"],
+      currentPhones: ["+447700900999"],
+      matchedOn: ["phone" as const],
+      identity: { kind: "player" as const, membershipStatus: "active", seasonLabel: "2026-27" },
+    },
+  ];
+  const SWITCH_ONLY = mergeGrantRows([
+    { subject_kind: "switch", subject_key: "add_recruits", template_id: null, level: "yes" },
+  ]);
+  const WITH_PERSON = mergeGrantRows([
+    { subject_kind: "switch", subject_key: "add_recruits", template_id: null, level: "yes" },
+    {
+      subject_kind: "recruiting_category",
+      subject_key: "recruit_person",
+      template_id: null,
+      level: "view",
+    },
+    {
+      subject_kind: "roster_category",
+      subject_key: "membership",
+      template_id: null,
+      level: "view",
+    },
+  ]);
+
+  async function checkedWith(grants: typeof SWITCH_ONLY) {
+    vi.mocked(submitAddRecruit).mockResolvedValue({
+      ...INITIAL_ADD_RECRUIT_STATE,
+      candidates: redactRecruitCandidates(FULL, grants),
+    });
+    const { container } = render(<AddRecruitForm seasonLabel="2026-27" />);
+    fireEvent.click(screen.getByTestId("add-recruit-check"));
+    await act(async () => {
+      fireEvent.submit(container.querySelector("form")!);
+    });
+    await screen.findByText("Corwin Vellacott");
+    return container.innerHTML;
+  }
+
+  it("draws the name and the match reason, and no email, phone or membership status", async () => {
+    const html = await checkedWith(SWITCH_ONLY);
+
+    expect(html).toContain("Corwin Vellacott");
+    expect(html).toContain("matched phone");
+    expect(html).not.toContain("corwin.vellacott@ashridge.ox.ac.example");
+    expect(html).not.toContain("900999");
+    expect(html).not.toContain("Active");
+    // Still usable for its purpose.
+    expect(screen.getByRole("button", { name: "This is them" })).toBeTruthy();
+  });
+
+  it("draws them to a seat holding Person information and Membership at View", async () => {
+    const html = await checkedWith(WITH_PERSON);
+
+    expect(html).toContain("corwin.vellacott@ashridge.ox.ac.example");
+    expect(html).toContain("+447700900999");
+    expect(html).toContain("Active");
   });
 });

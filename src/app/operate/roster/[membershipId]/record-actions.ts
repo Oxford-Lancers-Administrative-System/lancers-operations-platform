@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError, withTransaction } from "@/lib/db";
 import { readOnboardingSendStatusIn } from "@/lib/services/onboarding-chase";
 import {
@@ -42,22 +42,28 @@ import {
 } from "@/lib/services/roster-board";
 import { kitValuesOf } from "@/lib/services/roster-board/vocabulary";
 import type { BoardActionState } from "../board-action-state";
+import { categoryOfPosition } from "@/lib/auth/roster-access";
 
 // Player detail's own server actions — LAN-187, `REQ-player-detail`. Each
 // wraps the same commit function ../board-actions.ts uses, revalidating
 // both routes since this record's collision domain is [membershipId]/**.
-// Every season-fact wrapper opens with `requireCapability("person_record_authority")`
-// (`REQ-authority`), including recordResolveOnboardingItemAction as of
-// LAN-214 round 2 (F-NEW-001, OD7-four-role-only, Brian 2026-09-02).
+// Every wrapper opens with `requireGrant` on the field's own roster category
+// at `edit` (LAN-432) — the same category the board's cell asks, so the
+// record and the board refuse the same seats.
 
 function refresh(membershipId: string): void {
   revalidatePath("/operate/roster");
   revalidatePath(`/operate/roster/${membershipId}`);
 }
 
+/**
+ * A refusal is the cell's own answer, not a crash (LAN-423): `NotPermitted`
+ * comes back as the state like any other service error, so the cell prints the
+ * refusal and keeps the stored value. Anything that is not a service error is
+ * a bug and still throws.
+ */
 function stateFor(error: unknown): BoardActionState {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return { error: error.message };
 }
 
@@ -67,8 +73,9 @@ export async function recordSetStatusAction(params: {
   membershipId: string;
   status: MembershipStatus;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-429: Membership edit — the status ladder is the Membership category.
+    const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
     await setMembershipStatus({
       actorPersonId: operator.personId,
       membershipId: params.membershipId,
@@ -85,8 +92,9 @@ export async function recordCommitEntryAction(params: {
   membershipId: string;
   entry: "new" | "returning";
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
     await commitEntry({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -101,8 +109,12 @@ export async function recordCommitPositionAction(params: {
   column: PositionColumn;
   code: string | null;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: Offensive or Defensive assignments at edit, by the slot written.
+    const operator = await requireGrant(
+      { kind: "roster", key: categoryOfPosition(params.column) },
+      "edit",
+    );
     await commitPosition({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -117,8 +129,9 @@ export async function recordCommitJerseyNumbersAction(params: {
   kit: Kit;
   numbers: readonly string[];
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
     await commitJerseyNumbers({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -132,8 +145,9 @@ export async function recordCommitCoachingGroupsAction(params: {
   seasonId: string;
   groups: readonly string[];
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "coaching" }, "edit");
     await commitCoachingGroups({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -148,8 +162,9 @@ export async function recordCommitPositionGroupsAction(params: {
   side: PositionGroupSide;
   groups: readonly string[];
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "coaching" }, "edit");
     await commitPositionGroups({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -165,8 +180,9 @@ export async function recordCommitSpecialTeamsAssignmentAction(params: {
   slot: SpecialTeamsSlot;
   positionName: string | null;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "special_teams" }, "edit");
     await commitSpecialTeamsAssignment({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -182,8 +198,9 @@ export async function recordCommitKitItemAction(params: {
   /** One value, a whole set for Braces L / Braces R (LAN-409), or `null` to blank the field. */
   value: string | readonly string[] | null;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "kit" }, "edit");
     await commitKitItemValues({
       actorPersonId: operator.personId,
       membershipId: params.membershipId,
@@ -203,8 +220,9 @@ export async function recordCommitWarmupSmallGroupAction(params: {
   seasonId: string;
   smallGroup: string | null;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "warmup" }, "edit");
     await commitWarmupSmallGroup({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -218,8 +236,9 @@ export async function recordCommitFormalwearItemsAction(params: {
   seasonId: string;
   items: readonly FormalwearItemKey[];
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "kit" }, "edit");
     await commitFormalwearItems({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -234,8 +253,9 @@ export async function recordCommitBpsAction(params: {
   seasonId: string;
   value: BpsValue;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
     await commitBps({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -249,8 +269,9 @@ export async function recordCommitBluesAction(params: {
   seasonId: string;
   value: BluesValue;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
     await commitBlues({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -264,8 +285,9 @@ export async function recordCommitEligibilityAction(params: {
   seasonId: string;
   status: EligibilityStatus;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
     await commitEligibility({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -278,8 +300,9 @@ export async function recordCommitAvailabilityAction(params: {
   membershipId: string;
   level: AvailabilityLevel;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "availability" }, "edit");
     await commitAvailability({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
@@ -291,7 +314,7 @@ export async function recordCommitAvailabilityAction(params: {
 // The record's own Send onboarding questionnaire — LAN-266, Brian 2026-09-09.
 // Calls sendOnboardingNudges with one membership — the same function
 // /operate/people/missing's Nudge calls, so both routes stay in one
-// activity/audit trail. person_record_authority, same as every other write.
+// activity/audit trail. Onboarding at edit, like the items it chases.
 // The refusal reason is read back from the job's own stored, provider-
 // neutral sentence rather than invented (requirement 3).
 export async function recordSendOnboardingQuestionnaireAction(params: {
@@ -302,9 +325,10 @@ export async function recordSendOnboardingQuestionnaireAction(params: {
     reason: string | null;
   }
 > {
-  const operator = await requireCapability("person_record_authority");
   let results: readonly OnboardingNudgeResult[];
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
     results = await sendOnboardingNudges(operator.personId, [params.membershipId]);
   } catch (error) {
     return { ...stateFor(error), outcome: null, reason: null };
@@ -334,8 +358,9 @@ export async function recordResolveOnboardingItemAction(params: {
   status: OnboardingItemStatus;
   reason?: string;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: the field's own category at edit.
+    const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
     await resolveOnboardingItem({
       actorPersonId: operator.personId,
       membershipId: params.membershipId,

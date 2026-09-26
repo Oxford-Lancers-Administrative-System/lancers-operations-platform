@@ -53,6 +53,7 @@ import {
   openObserver,
   seededIdentityCreatedAt,
 } from "../../../tests/helpers/service-layer";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const MARKER = "LAN394SafetySuite";
 const PROVIDER_MESSAGE_PREFIX = `wamid.LAN394.${crypto.randomUUID().slice(0, 8)}.`;
@@ -73,6 +74,7 @@ function operator(personId: string, roleCodes: string[]): ResolvedOperator {
     personId,
     displayName: "Safety Suite Operator",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

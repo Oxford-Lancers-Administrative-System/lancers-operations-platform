@@ -21,6 +21,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -40,7 +50,11 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
 });
 vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();
-  return { ...actual, amendApprovedEvent: vi.fn() };
+  return { ...actual, amendApprovedEvent: vi.fn(), renotifyEvent: vi.fn(), cancelEvent: vi.fn() };
+});
+vi.mock("@/lib/services/event-audience-amendment", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/event-audience-amendment")>();
+  return { ...actual, addEventAudienceMembers: vi.fn() };
 });
 
 import { ConstraintViolated, NotPermitted } from "@/lib/db";
@@ -50,9 +64,24 @@ import {
   readEventQuestions,
   updateEventQuestions,
 } from "@/lib/services/events";
-import { amendApprovedEvent, NOTHING_CHANGED_RULE } from "@/lib/services/event-amendment";
-import { EMPTY_FORM_STATE } from "../form-state";
-import { editApprovedEventAction } from "./change-actions";
+import {
+  amendApprovedEvent,
+  cancelEvent,
+  NOTHING_CHANGED_RULE,
+  renotifyEvent,
+} from "@/lib/services/event-amendment";
+import { addEventAudienceMembers } from "@/lib/services/event-audience-amendment";
+import { EMPTY_FORM_STATE, EMPTY_TRANSITION_STATE } from "../form-state";
+import { EMPTY_CANCEL_STATE } from "./change-state";
+import {
+  addEventAudienceAction,
+  cancelEventAction,
+  editApprovedEventAction,
+  renotifyEventAction,
+} from "./change-actions";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { GRANT_REQUIREMENT } from "@/lib/auth/access";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
@@ -65,6 +94,7 @@ function actor(roleCodes: string[] = ["president"]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }
@@ -155,9 +185,12 @@ describe("who may save", () => {
       operator: actor(["treasurer"]),
     });
 
-    await expect(editApprovedEventAction(EMPTY_FORM_STATE, editForm())).rejects.toBeInstanceOf(
-      NotPermitted,
-    );
+    // LAN-423 fix round 3, H3: the refusal is the open form's own error, with
+    // the entries handed back, never a crashed page.
+    const state = await editApprovedEventAction(EMPTY_FORM_STATE, editForm({ venue: "Iffley" }));
+
+    expect(state.error).toMatch(/^You do not have access to this action\./);
+    expect(state.values?.venue).toBe("Iffley");
     expect(amendApprovedEvent).not.toHaveBeenCalled();
     expect(updateEventQuestions).not.toHaveBeenCalled();
   });
@@ -356,5 +389,90 @@ describe("a questions-only save", () => {
 
     expect(state.error).toContain("Nothing has changed");
     expect(updateEventQuestions).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * LAN-423 fix round 4, J1 — Manage lowered to View while an approved event's
+ * page is open. Every change action hands the refusal back as the page's own
+ * state (the Notice beside the button, or the cancel form with its reason
+ * intact), never "This page couldn't load".
+ */
+describe("every change action hands its refusal back rather than throwing it", () => {
+  const TEMPLATE = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+  const REFUSED = `You do not have access to this action. ${GRANT_REQUIREMENT}`;
+
+  function viewOnlySeat(): void {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: {
+        ...actor(["social_secretary"]),
+        grants: { ...NO_GRANTS, templates: { [TEMPLATE]: "view" } },
+      },
+    });
+  }
+
+  function eventForm(fields: Record<string, string> = {}): FormData {
+    const form = new FormData();
+    form.set("eventId", EVENT_ID);
+    for (const [key, value] of Object.entries(fields)) form.set(key, value);
+    return form;
+  }
+
+  it("renotifyEventAction returns the refusal and sends nothing", async () => {
+    viewOnlySeat();
+
+    const state = await renotifyEventAction(EMPTY_TRANSITION_STATE, eventForm());
+
+    expect(state).toEqual({ error: REFUSED });
+    expect(renotifyEvent).not.toHaveBeenCalled();
+  });
+
+  it("addEventAudienceAction returns the refusal and adds nobody", async () => {
+    viewOnlySeat();
+    const form = eventForm();
+    form.append("audienceKey", "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1");
+
+    const state = await addEventAudienceAction(EMPTY_TRANSITION_STATE, form);
+
+    expect(state).toEqual({ error: REFUSED });
+    expect(addEventAudienceMembers).not.toHaveBeenCalled();
+  });
+
+  it("cancelEventAction returns the refusal with the reason intact", async () => {
+    viewOnlySeat();
+
+    const state = await cancelEventAction(
+      EMPTY_CANCEL_STATE,
+      eventForm({ reason: "Pitch waterlogged", notify: "on" }),
+    );
+
+    expect(state).toEqual({ error: REFUSED, reason: "Pitch waterlogged" });
+    expect(cancelEvent).not.toHaveBeenCalled();
+  });
+
+  it("returns a refusal the services raise, too", async () => {
+    vi.mocked(renotifyEvent).mockRejectedValue(new NotPermitted("You may not do that."));
+    vi.mocked(addEventAudienceMembers).mockRejectedValue(new NotPermitted("You may not do that."));
+    vi.mocked(cancelEvent).mockRejectedValue(new NotPermitted("You may not do that."));
+
+    expect(await renotifyEventAction(EMPTY_TRANSITION_STATE, eventForm())).toEqual({
+      error: "You may not do that.",
+    });
+    expect(await addEventAudienceAction(EMPTY_TRANSITION_STATE, eventForm())).toEqual({
+      error: "You may not do that.",
+    });
+    expect(
+      await cancelEventAction(EMPTY_CANCEL_STATE, eventForm({ reason: "Pitch waterlogged" })),
+    ).toEqual({ error: "You may not do that.", reason: "Pitch waterlogged" });
+  });
+
+  it("still lets an unexpected failure reach the error boundary", async () => {
+    const boom = new TypeError("something entirely different broke");
+    vi.mocked(cancelEvent).mockRejectedValue(boom);
+
+    await expect(
+      cancelEventAction(EMPTY_CANCEL_STATE, eventForm({ reason: "Pitch waterlogged" })),
+    ).rejects.toBe(boom);
   });
 });

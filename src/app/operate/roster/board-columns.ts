@@ -1,5 +1,6 @@
-import { BAND_COLOURS } from "@/components/section";
-import { roleCodesPermit } from "@/lib/auth/capabilities";
+import { BAND_COLOURS, type BandColours } from "@/components/band-colours";
+import type { OperatorGrants, RosterCategory } from "@/lib/auth/grants";
+import { categoryOfBand, mayEditRoster, mayViewRoster } from "@/lib/auth/roster-access";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
 // Straight from the vocabulary module, never through the service index: that
@@ -22,8 +23,10 @@ import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
 // The board's column model — LAN-186. Every column is one entry here, driving
 // banding, pinning, sorting, filtering, edit-in-place and routing — never a
-// `<TableCell>` copied around the file. Each carries a `requires` capability
-// (REQ-authority) so `visibleColumns()` can narrow later without a rewrite.
+// `<TableCell>` copied around the file. Each carries its roster category
+// (LAN-432): `visibleColumns()` drops a `none` category's columns and marks a
+// `view` category's read-only, and `redactRow()` drops the fields of every
+// column not drawn, so the payload proves the omission.
 
 /**
  * LAN-387 — the board's groups, in the order Brian and Stewart settled on the
@@ -49,12 +52,9 @@ export type Band =
   | "warmup"
   | "kit";
 
-export interface BandDef {
+export interface BandDef extends BandColours {
   readonly key: Band;
   readonly label: string;
-  readonly header: string;
-  readonly tint: string;
-  readonly solid: string;
 }
 
 export const BAND_ROW_HEIGHT = 28;
@@ -130,56 +130,46 @@ export const COLLAPSED_LABEL_MAX_HEIGHT = 88;
 /** The vertical label's own line box — two of them fit the collapsed cell's width. */
 export const COLLAPSED_LABEL_LINE_HEIGHT = 12;
 
-const BANDS: readonly BandDef[] = Object.freeze([
+const BANDS: readonly Pick<BandDef, "key" | "label">[] = Object.freeze([
   Object.freeze({
     key: "person" as const,
     label: "Person",
-    ...BAND_COLOURS.person,
   }),
   Object.freeze({
     key: "onboarding" as const,
     label: "Onboarding",
-    ...BAND_COLOURS.onboarding,
   }),
   Object.freeze({
     key: "membership" as const,
     label: "Membership",
-    ...BAND_COLOURS.membership,
   }),
   Object.freeze({
     key: "availability" as const,
     label: "Availability",
-    ...BAND_COLOURS.availability,
   }),
   Object.freeze({
     key: "coaching" as const,
     label: "Coaching assignments",
-    ...BAND_COLOURS.coaching,
   }),
   Object.freeze({
     key: "offensive" as const,
     label: "Offensive assignments",
-    ...BAND_COLOURS.offensive,
   }),
   Object.freeze({
     key: "defensive" as const,
     label: "Defensive assignments",
-    ...BAND_COLOURS.defensive,
   }),
   Object.freeze({
     key: "specialTeams" as const,
     label: "Special teams assignments",
-    ...BAND_COLOURS.specialTeams,
   }),
   Object.freeze({
     key: "warmup" as const,
     label: "Warmup assignments",
-    ...BAND_COLOURS.warmup,
   }),
   Object.freeze({
     key: "kit" as const,
     label: "Kit",
-    ...BAND_COLOURS.kit,
   }),
 ]);
 
@@ -221,10 +211,13 @@ export function collapsedBandsFrom(stored: readonly string[] | undefined): Reado
  * the same screen family. `collapsedBandsFrom` already drops what it does not
  * recognise, so the board simply never sees them.
  */
-type RecordSection = "activity" | "attendance" | "otherSeasons" | "statusHistory";
+type RecordSection =
+  "contactEmergency" | "activity" | "attendance" | "otherSeasons" | "statusHistory";
 export type RecordGroup = Band | RecordSection;
 
 const RECORD_SECTIONS: readonly RecordSection[] = Object.freeze([
+  // LAN-432: Contact & emergency, split out of Person. It opens as Person does.
+  "contactEmergency",
   "activity",
   "attendance",
   "otherSeasons",
@@ -239,7 +232,10 @@ const RECORD_SECTIONS: readonly RecordSection[] = Object.freeze([
  * Onboarding and Membership stay open.
  */
 const RECORD_COLLAPSED_BY_DEFAULT: ReadonlySet<RecordGroup> = Object.freeze(
-  new Set<RecordGroup>([...COLLAPSED_BY_DEFAULT, ...RECORD_SECTIONS]),
+  new Set<RecordGroup>([
+    ...COLLAPSED_BY_DEFAULT,
+    ...RECORD_SECTIONS.filter((section) => section !== "contactEmergency"),
+  ]),
 );
 
 function isRecordGroup(key: string): key is RecordGroup {
@@ -263,10 +259,18 @@ export function nonBandCollapsedKeys(stored: readonly string[] | undefined): rea
   return (stored ?? []).filter((key) => !isBand(key));
 }
 
-export function bandOf(key: Band): BandDef {
+/**
+ * A group's name and colours. LAN-430: the colours are the club's choice
+ * (`roster_group_colours`), which the board reads through `useBandColours()`
+ * and passes here; without them a group wears its seeded colour.
+ */
+export function bandOf(
+  key: Band,
+  colours: Readonly<Record<Band, BandColours>> = BAND_COLOURS,
+): BandDef {
   const found = BANDS.find((band) => band.key === key);
   if (!found) throw new Error(`Unknown band: ${key}`);
-  return found;
+  return { ...found, ...colours[key] };
 }
 
 // `record` routes to the person record; `select`/`multiselect`/`jersey` edit
@@ -289,8 +293,13 @@ export interface ColumnDef {
   readonly width: number;
   readonly sortable: boolean;
   readonly filterable: boolean;
-  /** The capability a viewer must hold for this column to render at all. */
-  readonly requires: "person_record_authority";
+  /** The roster category this column belongs to — its group's (LAN-432). */
+  readonly category: RosterCategory;
+  /**
+   * Set by `visibleColumns` when the viewer holds the category at `view`: the
+   * value is text, no editor opens, and the column caption reads "view".
+   */
+  readonly viewOnly?: true;
   /** Not a column: the one narrow cell a collapsed group leaves behind (LAN-387). */
   readonly placeholder?: true;
 }
@@ -305,7 +314,7 @@ function collapsedPlaceholder(band: Band): ColumnDef {
     width: 28,
     sortable: false,
     filterable: false,
-    requires: "person_record_authority",
+    category: categoryOfBand(band),
     placeholder: true,
   });
 }
@@ -381,7 +390,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
   const positionOptionLabels = (options: PositionOptions[keyof PositionOptions]) =>
     Object.fromEntries(options.map((option) => [option.code, option.label]));
 
-  return Object.freeze([
+  const columns: readonly Omit<ColumnDef, "category">[] = [
     // ---------------------------------------------------------------- Person --
     {
       key: "college",
@@ -391,7 +400,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "matriculation",
@@ -401,7 +409,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 104,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "graduation",
@@ -411,7 +418,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 100,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "degree",
@@ -421,7 +427,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 148,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "contactable",
@@ -431,7 +436,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "missing",
@@ -441,7 +445,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 108,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // ------------------------------------------------------------ Onboarding --
     {
@@ -452,7 +455,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 190,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // Correction round 2, item 5: the seven operator-ticked items (LAN-217).
     {
@@ -465,7 +467,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "subsPaid",
@@ -477,7 +478,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // LAN-375: derived from the kit issued, never typed. It stays the red flag
     // it was; `edit: "none"` is what stops it opening a control.
@@ -491,7 +491,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 120,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "bucsPlay",
@@ -503,7 +502,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "hudlAccess",
@@ -515,7 +513,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "squadPhoto",
@@ -527,7 +524,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "commsGroup",
@@ -539,7 +535,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 140,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // ------------------------------------------------------------ Membership --
     // Renamed from Season (LAN-387); the facts and their order are Brian's own
@@ -555,7 +550,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 128,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "entry",
@@ -566,7 +560,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 116,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "blueNumbers",
@@ -577,7 +570,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 120,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "whiteNumbers",
@@ -588,7 +580,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 120,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "blues",
@@ -599,7 +590,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 116,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "eligibility",
@@ -611,7 +601,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 128,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // Brian, 2026-09-05: BPS was to sit immediately before Availability and
     // Availability last (LAN-217, round 5). LAN-412 takes Availability out of
@@ -627,7 +616,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 96,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // ------------------------------------------------------- Availability --
     // LAN-412. One column, and its own group: the values, the picker and the
@@ -643,7 +631,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 128,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // ---------------------------------------------- Coaching assignments --
     // Three uncapped multi-selects (LAN-387). A player may be in every group
@@ -657,7 +644,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 190,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "offensivePositionGroups",
@@ -668,7 +654,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 210,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "defensivePositionGroups",
@@ -679,7 +664,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 210,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // --------------------------------------------- Offensive assignments --
     // The primary/backup pair. Both draw on the season's offence vocabulary
@@ -694,7 +678,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "offenceBackupPosition",
@@ -706,7 +689,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // --------------------------------------------- Defensive assignments --
     {
@@ -719,7 +701,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     {
       key: "defenceBackupPosition",
@@ -731,7 +712,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // ----------------------------------------- Special teams assignments --
     // LAN-374: six squads, four cells each, twenty-four columns. Each is one
@@ -747,7 +727,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
         width: 176,
         sortable: true,
         filterable: true,
-        requires: "person_record_authority" as const,
       })),
     ),
     // ------------------------------------------ Warmup assignments --
@@ -761,7 +740,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 190,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
     // ------------------------------------------------------------------ Kit --
     // LAN-375: eleven issued-kit items from Clint's sheet. Nine are a single
@@ -778,7 +756,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 190,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority" as const,
     })),
     {
       key: "formalwear",
@@ -790,17 +767,28 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
     },
-  ]) satisfies readonly ColumnDef[];
+  ];
+  // LAN-432: every column carries its group's roster category.
+  return Object.freeze(
+    columns.map((column) => Object.freeze({ ...column, category: categoryOfBand(column.band) })),
+  );
 }
 
-/** The columns this viewer's role codes may see — absent from the payload, not hidden (`REQ-authority`). */
+/**
+ * The columns this viewer's grants may see — absent from the payload, not
+ * hidden (`REQ-authority`). LAN-432: a `none` category's columns are dropped;
+ * a `view` category's come back marked `viewOnly`.
+ */
 export function visibleColumns(
   columns: readonly ColumnDef[],
-  roleCodes: readonly string[],
+  grants: OperatorGrants,
 ): readonly ColumnDef[] {
-  return columns.filter((column) => roleCodesPermit(roleCodes, column.requires));
+  return columns
+    .filter((column) => mayViewRoster(grants, column.category))
+    .map((column) =>
+      mayEditRoster(grants, column.category) ? column : { ...column, viewOnly: true as const },
+    );
 }
 
 /** Which `RosterBoardRow` fields a column key exposes — explicit, since display keys and field names diverge. A field in no entry is never carried, regardless of columns granted. */
@@ -848,20 +836,31 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     commsGroup: ["onboardingItems"],
   });
 
-/** Redacts a row to exactly the columns this viewer may see, plus identity fields. */
+/**
+ * Redacts a row to exactly the columns this viewer may see, plus the name.
+ *
+ * LAN-432. The name and the ids that open the record always travel: records
+ * open for anyone who can reach the roster. Aliases are Person data (LAN186-F1)
+ * and travel only with Person. The number behind the phone card's Call travels
+ * only with both Person and Contact & emergency: with None on Person the row is
+ * the name alone, and with None on Contact & emergency Contactable is a plain
+ * indicator that dials nothing.
+ */
 export function redactRow(
   row: RosterBoardRow,
   columns: readonly ColumnDef[],
+  grants: OperatorGrants,
 ): Partial<RosterBoardRow> {
+  const person = mayViewRoster(grants, "person");
   const redacted: Partial<RosterBoardRow> = {
     membershipId: row.membershipId,
     personId: row.personId,
     displayName: row.displayName,
-    // Carried unconditionally, never as a column: aliases are identity data
-    // (LAN186-F1); phoneForCall is the one functional exception (voice call).
-    aliases: row.aliases,
-    phoneForCall: row.phoneForCall,
+    aliases: person ? row.aliases : [],
   };
+  if (person && mayViewRoster(grants, "contact_emergency")) {
+    redacted.phoneForCall = row.phoneForCall;
+  }
   const target = redacted as unknown as Record<string, unknown>;
   for (const column of columns) {
     for (const field of COLUMN_ROW_FIELDS[column.key] ?? []) {

@@ -63,7 +63,13 @@ export async function pauseMessagingAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireCapability("messaging_safety_authority");
+  try {
+    await requireCapability("messaging_safety_authority");
+  } catch (error) {
+    // LAN-423: the refusal is the control's own state, never a crashed page.
+    if (!isServiceError(error)) throw error;
+    return { ...EMPTY_ADMIN_ACTION_STATE, refusal: error.message };
+  }
 
   const scope = target(formData);
   const reason = reasonFrom(formData);
@@ -88,7 +94,13 @@ export async function resumeMessagingAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireCapability("messaging_safety_authority");
+  try {
+    await requireCapability("messaging_safety_authority");
+  } catch (error) {
+    // LAN-423: the refusal is the control's own state, never a crashed page.
+    if (!isServiceError(error)) throw error;
+    return { ...EMPTY_ADMIN_ACTION_STATE, refusal: error.message };
+  }
 
   const scope = target(formData);
   const reason = reasonFrom(formData);

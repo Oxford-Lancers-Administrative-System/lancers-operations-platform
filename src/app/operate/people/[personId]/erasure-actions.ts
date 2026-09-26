@@ -19,9 +19,9 @@ export interface ErasureActionState {
   readonly done: "awaiting-second" | "erased" | "withdrawn" | null;
 }
 
+/** A `NotPermitted` comes back as state like any service error (LAN-423); a bug still throws. */
 function stateFor(error: unknown): ErasureActionState {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return { error: error.message, done: null };
 }
 
@@ -64,7 +64,6 @@ export async function exportPersonAction(params: {
     return { json: JSON.stringify(exported, null, 2), error: null };
   } catch (error) {
     if (!isServiceError(error)) throw error;
-    if (error.kind === "not_permitted") throw error;
     return { json: null, error: error.message };
   }
 }

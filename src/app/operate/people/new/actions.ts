@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { createPerson } from "@/lib/services/person-create";
@@ -16,16 +17,29 @@ import {
 
 /**
  * `/operate/people/new`'s one server action — W3, LAN-185. Every request
- * re-calls `requireCapability("person_record_authority")`. Three intents
+ * re-calls `requireGrant` on Person at `edit` (LAN-432). Three intents
  * ("check"/"create"/"link") on one action, all re-reading and re-authorizing.
  */
 export async function submitCreatePerson(
   previous: CreateState,
   formData: FormData,
 ): Promise<CreateState> {
-  const operator = await requireCapability("person_record_authority");
-
   const values = readCreateValues(formData);
+
+  // LAN-423: a refusal is the form's own error, entries intact.
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return {
+      values,
+      errors: {},
+      candidates: previous?.candidates ?? null,
+      exactMatch: null,
+      formError: error.message,
+    };
+  }
   const linkPersonId = formData.get("linkPersonId");
   const intent =
     typeof linkPersonId === "string" && linkPersonId !== "" ? "link" : formData.get("intent");

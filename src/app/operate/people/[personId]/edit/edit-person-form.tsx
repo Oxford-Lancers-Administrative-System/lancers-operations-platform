@@ -22,12 +22,35 @@ import {
   submitRemoveAlias,
   submitSetDisplayAlias,
 } from "./actions";
-import { INITIAL_EDIT_STATE } from "./edit-state";
+import { INITIAL_ALIAS_STATE, INITIAL_EDIT_STATE, type AliasState } from "./edit-state";
 
 const MIN_TOUCH_TARGET = 44;
 
+/**
+ * What the form reads — LAN-432. The page fills it only from the categories
+ * the seat may edit: without Contact & emergency the contacts are empty and
+ * the emergency contact null; without Person the person's facts are blank.
+ */
+export type EditablePersonRecord = Pick<
+  PersonRecord,
+  | "displayName"
+  | "contacts"
+  | "emergencyContact"
+  | "givenName"
+  | "middleName"
+  | "familyName"
+  | "aliases"
+  | "college"
+  | "matriculationYear"
+  | "expectedGraduationYear"
+  | "degreeField"
+  | "studentNumber"
+  | "bafaRegistrationNumber"
+  | "dateOfBirth"
+>;
+
 function currentContact(
-  record: PersonRecord,
+  record: EditablePersonRecord,
   kind: "email" | "phone",
   scope: "college" | "personal" | null,
 ) {
@@ -48,11 +71,17 @@ export default function EditPersonForm({
   record,
   expectedVersion,
   seasonLabel,
+  mayEditPerson = true,
+  mayEditContact = true,
 }: {
   personId: string;
-  record: PersonRecord;
+  record: EditablePersonRecord;
   expectedVersion: string | null;
   seasonLabel: string;
+  /** LAN-432 — Person at `edit`: Who they are and the date of birth. */
+  mayEditPerson?: boolean;
+  /** LAN-432 — Contact & emergency at `edit`: How to reach them and the emergency contact. */
+  mayEditContact?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(submitPersonEdit, INITIAL_EDIT_STATE);
   const mobile = currentContact(record, "phone", null);
@@ -111,168 +140,178 @@ export default function EditPersonForm({
           </Notice>
         ) : null}
 
-        <Section title="How to reach them">
-          <Stack spacing={2}>
-            <CorrectableField
-              name="mobile"
-              reasonName="mobileReason"
-              label="Mobile phone"
-              phone
-              original={mobile?.rawValue ?? ""}
-              error={state.errors.mobile}
-              renderExtra={(value, changed) =>
-                changed ? (
-                  <MobilePreview
-                    value={value}
-                    original={mobile?.rawValue ?? ""}
-                    seasonLabel={seasonLabel}
-                  />
-                ) : null
-              }
-            />
-            <CorrectableField
-              name="personalEmail"
-              reasonName="personalEmailReason"
-              label="Personal email"
-              original={personalEmail?.rawValue ?? ""}
-              error={state.errors.personalEmail}
-            />
-            {/* LAN-268: same rule as the recruitment doors and player questionnaire — refused before write, no override. */}
-            <CorrectableField
-              name="collegeEmail"
-              reasonName="collegeEmailReason"
-              label="College email"
-              original={collegeEmail?.rawValue ?? ""}
-              error={state.errors.collegeEmail}
-              unchangedHelperText="Their university address — it ends in ox.ac.uk or .edu."
-            />
-          </Stack>
-        </Section>
+        {mayEditContact ? (
+          <Section title="How to reach them">
+            <Stack spacing={2}>
+              <CorrectableField
+                name="mobile"
+                reasonName="mobileReason"
+                label="Mobile phone"
+                phone
+                original={mobile?.rawValue ?? ""}
+                error={state.errors.mobile}
+                renderExtra={(value, changed) =>
+                  changed ? (
+                    <MobilePreview
+                      value={value}
+                      original={mobile?.rawValue ?? ""}
+                      seasonLabel={seasonLabel}
+                    />
+                  ) : null
+                }
+              />
+              <CorrectableField
+                name="personalEmail"
+                reasonName="personalEmailReason"
+                label="Personal email"
+                original={personalEmail?.rawValue ?? ""}
+                error={state.errors.personalEmail}
+              />
+              {/* LAN-268: same rule as the recruitment doors and player questionnaire — refused before write, no override. */}
+              <CorrectableField
+                name="collegeEmail"
+                reasonName="collegeEmailReason"
+                label="College email"
+                original={collegeEmail?.rawValue ?? ""}
+                error={state.errors.collegeEmail}
+                unchangedHelperText="Their university address — it ends in ox.ac.uk or .edu."
+              />
+            </Stack>
+          </Section>
+        ) : null}
 
         {/* LAN-365 correction, Brian 2026-09-16: "no academic section" — the
             four academic fields fold in here too, after the contact details
             above and before the two identifiers below, keeping the same
             `academic` field category and capability gating as everything
             else in this section. */}
-        <Section title="Who they are">
-          <Stack spacing={2}>
-            <CorrectableField
-              name="givenName"
-              reasonName="givenNameReason"
-              label="First name"
-              required
-              original={record.givenName}
-              error={state.errors.givenName}
-            />
-            {/* LAN-366: optional, beside the given and family name. */}
-            <CorrectableField
-              name="middleName"
-              reasonName="middleNameReason"
-              label="Middle name"
-              original={record.middleName ?? ""}
-              error={state.errors.middleName}
-            />
-            <CorrectableField
-              name="familyName"
-              reasonName="familyNameReason"
-              label="Last name"
-              original={record.familyName ?? ""}
-              error={state.errors.familyName}
-            />
-            <AliasesEditor personId={personId} record={record} />
-            <CorrectableField
-              name="college"
-              reasonName="collegeReason"
-              label="College"
-              original={record.college ?? ""}
-            />
-            <CorrectableField
-              name="matriculationYear"
-              reasonName="matriculationYearReason"
-              label="Matriculation year"
-              original={record.matriculationYear !== null ? String(record.matriculationYear) : ""}
-            />
-            <CorrectableField
-              name="expectedGraduationYear"
-              reasonName="expectedGraduationYearReason"
-              label="Expected graduation"
-              original={
-                record.expectedGraduationYear !== null ? String(record.expectedGraduationYear) : ""
-              }
-            />
-            <CorrectableField
-              name="degreeField"
-              reasonName="degreeFieldReason"
-              label="Degree field"
-              original={record.degreeField ?? ""}
-            />
-            {/* LAN-365: both identifiers moved here from Academic. They are
+        {mayEditPerson ? (
+          <Section title="Who they are">
+            <Stack spacing={2}>
+              <CorrectableField
+                name="givenName"
+                reasonName="givenNameReason"
+                label="First name"
+                required
+                original={record.givenName}
+                error={state.errors.givenName}
+              />
+              {/* LAN-366: optional, beside the given and family name. */}
+              <CorrectableField
+                name="middleName"
+                reasonName="middleNameReason"
+                label="Middle name"
+                original={record.middleName ?? ""}
+                error={state.errors.middleName}
+              />
+              <CorrectableField
+                name="familyName"
+                reasonName="familyNameReason"
+                label="Last name"
+                original={record.familyName ?? ""}
+                error={state.errors.familyName}
+              />
+              <AliasesEditor personId={personId} record={record} />
+              <CorrectableField
+                name="college"
+                reasonName="collegeReason"
+                label="College"
+                original={record.college ?? ""}
+              />
+              <CorrectableField
+                name="matriculationYear"
+                reasonName="matriculationYearReason"
+                label="Matriculation year"
+                original={record.matriculationYear !== null ? String(record.matriculationYear) : ""}
+              />
+              <CorrectableField
+                name="expectedGraduationYear"
+                reasonName="expectedGraduationYearReason"
+                label="Expected graduation"
+                original={
+                  record.expectedGraduationYear !== null
+                    ? String(record.expectedGraduationYear)
+                    : ""
+                }
+              />
+              <CorrectableField
+                name="degreeField"
+                reasonName="degreeFieldReason"
+                label="Degree field"
+                original={record.degreeField ?? ""}
+              />
+              {/* LAN-365: both identifiers moved here from Academic. They are
                 facts about the person. BAFA is last because the club fills it
                 in — a student never knows their own registration number, so
                 it is never asked for in onboarding. */}
-            <CorrectableField
-              name="studentNumber"
-              reasonName="studentNumberReason"
-              label="Student number"
-              original={record.studentNumber ?? ""}
-              unchangedHelperText="Printed beside their name on the officials' roster form."
-            />
-            <CorrectableField
-              name="bafaRegistrationNumber"
-              reasonName="bafaRegistrationNumberReason"
-              label="BAFA registration number"
-              original={record.bafaRegistrationNumber ?? ""}
-              unchangedHelperText="Printed beside every coach and sideline person on the officials' roster form."
-            />
-          </Stack>
-        </Section>
+              <CorrectableField
+                name="studentNumber"
+                reasonName="studentNumberReason"
+                label="Student number"
+                original={record.studentNumber ?? ""}
+                unchangedHelperText="Printed beside their name on the officials' roster form."
+              />
+              <CorrectableField
+                name="bafaRegistrationNumber"
+                reasonName="bafaRegistrationNumberReason"
+                label="BAFA registration number"
+                original={record.bafaRegistrationNumber ?? ""}
+                unchangedHelperText="Printed beside every coach and sideline person on the officials' roster form."
+              />
+            </Stack>
+          </Section>
+        ) : null}
 
         <Section title="Restricted">
           <Stack spacing={2}>
-            <CorrectableField
-              name="dateOfBirth"
-              reasonName="dateOfBirthReason"
-              label="Date of birth"
-              type="date"
-              original={record.dateOfBirth ?? ""}
-            />
+            {mayEditPerson ? (
+              <CorrectableField
+                name="dateOfBirth"
+                reasonName="dateOfBirthReason"
+                label="Date of birth"
+                type="date"
+                original={record.dateOfBirth ?? ""}
+              />
+            ) : null}
 
             {/* B2, LAN-185 round 2: emergency contact is one subject, grouped rather than loose among restricted fields. */}
-            <FieldGroup title="Emergency contact">
-              <Stack spacing={2}>
-                <CorrectableField
-                  name="emergencyGivenName"
-                  reasonName="emergencyGivenNameReason"
-                  label="First name"
-                  original={ec?.givenName ?? ""}
-                />
-                <CorrectableField
-                  name="emergencyFamilyName"
-                  reasonName="emergencyFamilyNameReason"
-                  label="Last name"
-                  original={ec?.familyName ?? ""}
-                />
-                <CorrectableField
-                  name="emergencyRelationship"
-                  reasonName="emergencyRelationshipReason"
-                  label="Relationship"
-                  original={ec?.relationship ?? ""}
-                />
-                <CorrectableField
-                  name="emergencyPhone"
-                  reasonName="emergencyPhoneReason"
-                  label="Phone"
-                  phone
-                  original={ec?.phone ?? ""}
-                />
-                <CorrectableField
-                  name="emergencyEmail"
-                  reasonName="emergencyEmailReason"
-                  label="Email"
-                  original={ec?.email ?? ""}
-                />
-              </Stack>
-            </FieldGroup>
+            {mayEditContact ? (
+              <FieldGroup title="Emergency contact">
+                <Stack spacing={2}>
+                  <CorrectableField
+                    name="emergencyGivenName"
+                    reasonName="emergencyGivenNameReason"
+                    label="First name"
+                    original={ec?.givenName ?? ""}
+                  />
+                  <CorrectableField
+                    name="emergencyFamilyName"
+                    reasonName="emergencyFamilyNameReason"
+                    label="Last name"
+                    original={ec?.familyName ?? ""}
+                  />
+                  <CorrectableField
+                    name="emergencyRelationship"
+                    reasonName="emergencyRelationshipReason"
+                    label="Relationship"
+                    original={ec?.relationship ?? ""}
+                  />
+                  <CorrectableField
+                    name="emergencyPhone"
+                    reasonName="emergencyPhoneReason"
+                    label="Phone"
+                    phone
+                    original={ec?.phone ?? ""}
+                  />
+                  <CorrectableField
+                    name="emergencyEmail"
+                    reasonName="emergencyEmailReason"
+                    label="Email"
+                    original={ec?.email ?? ""}
+                  />
+                </Stack>
+              </FieldGroup>
+            ) : null}
           </Stack>
         </Section>
         <ActionBar
@@ -410,15 +449,25 @@ function MobilePreview({
  * Three alias actions share the outer edit `<form>` — HTML forbids nesting,
  * so each is a submit button with its own bound `formAction` (`personId`
  * and, for remove/set-display, the alias id) — React overrides a button's
- * own name/value once `formAction` is a function.
+ * own name/value once `formAction` is a function. LAN-423: each runs through
+ * one action state, so a refusal shows here with the typed alias kept.
  */
-function AliasesEditor({ personId, record }: { personId: string; record: PersonRecord }) {
-  const addAction = submitAddAlias.bind(null, personId);
+function AliasesEditor({ personId, record }: { personId: string; record: EditablePersonRecord }) {
+  const [aliasState, runAlias] = useActionState(
+    (_previous: AliasState, write: () => Promise<AliasState>) => write(),
+    INITIAL_ALIAS_STATE,
+  );
+  const [newAlias, setNewAlias] = useState("");
   return (
     <Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
         Aliases
       </Typography>
+      {aliasState.error ? (
+        <Notice severity="warning" testId="alias-error">
+          {aliasState.error}
+        </Notice>
+      ) : null}
       <Stack spacing={0.75}>
         {record.aliases.map((alias) => (
           <Stack
@@ -438,7 +487,7 @@ function AliasesEditor({ personId, record }: { personId: string; record: PersonR
             {!alias.isDisplayName ? (
               <Button
                 type="submit"
-                formAction={submitSetDisplayAlias.bind(null, personId, alias.id)}
+                formAction={() => runAlias(() => submitSetDisplayAlias(personId, alias.id))}
                 formNoValidate
                 size="small"
                 sx={{ minHeight: 44 }}
@@ -448,7 +497,7 @@ function AliasesEditor({ personId, record }: { personId: string; record: PersonR
             ) : null}
             <Button
               type="submit"
-              formAction={submitRemoveAlias.bind(null, personId, alias.id)}
+              formAction={() => runAlias(() => submitRemoveAlias(personId, alias.id))}
               formNoValidate
               size="small"
               color="inherit"
@@ -460,10 +509,16 @@ function AliasesEditor({ personId, record }: { personId: string; record: PersonR
         ))}
       </Stack>
       <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-        <Field name="newAlias" label="Add an alias" sx={{ flexGrow: 1 }} />
+        <Field
+          name="newAlias"
+          label="Add an alias"
+          value={newAlias}
+          onChange={(event) => setNewAlias(event.target.value)}
+          sx={{ flexGrow: 1 }}
+        />
         <Button
           type="submit"
-          formAction={addAction}
+          formAction={(formData) => runAlias(() => submitAddAlias(personId, formData))}
           formNoValidate
           variant="outlined"
           sx={{ minHeight: MIN_TOUCH_TARGET }}

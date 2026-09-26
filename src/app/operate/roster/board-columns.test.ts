@@ -2,6 +2,33 @@ import { describe, expect, it } from "vitest";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { mergeGrantRows, type CategoryLevel, type RosterCategory } from "@/lib/auth/grants";
+
+/** A seat holding exactly these roster levels, everything else `none`. */
+function seat(levels: Partial<Record<RosterCategory, CategoryLevel>>) {
+  return mergeGrantRows(
+    Object.entries(levels).map(([key, level]) => ({
+      subject_kind: "roster_category",
+      subject_key: key,
+      template_id: null,
+      level: level as string,
+    })),
+  );
+}
+
+/** The Kit Manager of W3-01: View on Person, Edit on Kit, None on the rest. */
+const KIT_MANAGER = seat({ person: "view", kit: "edit" });
+/** The coach of W3-02: View on Person, Edit on Availability and the five assignment groups. */
+const COACH = seat({
+  person: "view",
+  availability: "edit",
+  coaching: "edit",
+  offensive: "edit",
+  defensive: "edit",
+  special_teams: "edit",
+  warmup: "edit",
+});
 
 const POSITION_OPTIONS = {
   offence: [{ code: "QB", label: "Quarterback" }],
@@ -56,26 +83,88 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
  * criterion actually means by "absent from the payload" — independently of
  * whether any particular role is narrowed today.
  */
-describe("visibleColumns / redactRow — the grant-driven mechanism", () => {
-  it("keeps every column for a role holding person_record_authority", () => {
+describe("visibleColumns / redactRow — the grant-driven mechanism (LAN-432)", () => {
+  it("keeps every column, editable, for a seat holding every roster category at edit", () => {
     const columns = buildColumns(POSITION_OPTIONS);
-    const visible = visibleColumns(columns, ["secretary"]);
+    const visible = visibleColumns(columns, seededGrantsFor(["secretary"]));
     expect(visible).toHaveLength(columns.length);
+    expect(visible.some((column) => column.viewOnly)).toBe(false);
   });
 
-  it("drops every column for a role holding nothing — the coach case", () => {
+  it("drops every column for a seat holding nothing", () => {
     const columns = buildColumns(POSITION_OPTIONS);
-    const visible = visibleColumns(columns, ["head_coach"]);
+    const visible = visibleColumns(columns, seededGrantsFor(["head_coach"]));
     expect(visible).toHaveLength(0);
   });
 
-  it("redacts a row to only identity fields plus the call-only phone when no column is granted", () => {
+  it("gives every column its group's category", () => {
     const columns = buildColumns(POSITION_OPTIONS);
-    const visible = visibleColumns(columns, ["head_coach"]);
-    const redacted = redactRow(row(), visible);
+    for (const column of columns) {
+      const expected = column.band === "specialTeams" ? "special_teams" : column.band;
+      expect(column.category, column.key).toBe(expected);
+    }
+  });
+
+  it("the Kit Manager: Person's columns at view, Kit's editable, nothing else", () => {
+    const visible = visibleColumns(buildColumns(POSITION_OPTIONS), KIT_MANAGER);
+    const bands = new Set(visible.map((column) => column.band));
+    expect([...bands].sort()).toEqual(["kit", "person"]);
+    for (const column of visible) {
+      expect(column.viewOnly === true, column.key).toBe(column.band === "person");
+    }
+  });
+
+  it("the coach: Person at view, the six football groups editable", () => {
+    const visible = visibleColumns(buildColumns(POSITION_OPTIONS), COACH);
+    const bands = new Set(visible.map((column) => column.band));
+    expect([...bands].sort()).toEqual(
+      [
+        "availability",
+        "coaching",
+        "defensive",
+        "offensive",
+        "person",
+        "specialTeams",
+        "warmup",
+      ].sort(),
+    );
+    expect(visible.filter((column) => column.viewOnly).every((c) => c.band === "person")).toBe(
+      true,
+    );
+  });
+
+  it("None on Person: the row is the name alone — no Contactable, no Missing, no aliases, no number", () => {
+    const grants = seat({ kit: "edit" });
+    const visible = visibleColumns(buildColumns(POSITION_OPTIONS), grants);
+    const redacted = redactRow(row({ aliases: ["Av"], missingCount: 3 }), visible, grants);
+    expect("hasMobile" in redacted).toBe(false);
+    expect("missingCount" in redacted).toBe(false);
+    expect("phoneForCall" in redacted).toBe(false);
+    expect(redacted.aliases).toEqual([]);
+    expect(redacted.displayName).toBe("Avery Fielding");
+  });
+
+  it("View on Person, None on Contact & emergency: Contactable is an indicator and the number never travels", () => {
+    const visible = visibleColumns(buildColumns(POSITION_OPTIONS), KIT_MANAGER);
+    const redacted = redactRow(row(), visible, KIT_MANAGER);
+    expect(redacted.hasMobile).toBe(true);
+    expect("phoneForCall" in redacted).toBe(false);
+    expect(JSON.stringify(redacted)).not.toContain("7700");
+  });
+
+  it("View on Person and Contact & emergency: the number travels for the phone card's Call", () => {
+    const grants = seat({ person: "view", contact_emergency: "view" });
+    const visible = visibleColumns(buildColumns(POSITION_OPTIONS), grants);
+    expect(redactRow(row(), visible, grants).phoneForCall).toBe("+44 7700 900101");
+  });
+
+  it("redacts a row to the name and ids when no column is granted", () => {
+    const grants = seededGrantsFor(["head_coach"]);
+    const visible = visibleColumns(buildColumns(POSITION_OPTIONS), grants);
+    const redacted = redactRow(row(), visible, grants);
 
     expect(Object.keys(redacted).sort()).toEqual(
-      ["aliases", "displayName", "membershipId", "personId", "phoneForCall"].sort(),
+      ["aliases", "displayName", "membershipId", "personId"].sort(),
     );
     // The restricted and season facts are absent, not merely unset.
     expect("status" in redacted).toBe(false);
@@ -85,14 +174,16 @@ describe("visibleColumns / redactRow — the grant-driven mechanism", () => {
   });
 
   it("carries every field once a column is granted, mapped from its own key", () => {
+    const grants = seededGrantsFor(["secretary"]);
     const columns = buildColumns(POSITION_OPTIONS);
-    const redacted = redactRow(row(), columns);
+    const redacted = redactRow(row(), columns, grants);
     expect(redacted.status).toBe("active");
     expect(redacted.matriculationYear).toBe(2024); // "matriculation" column -> matriculationYear field
     expect(redacted.expectedGraduationYear).toBe(2027); // "graduation" column -> expectedGraduationYear field
     expect(redacted.degreeField).toBe("Engineering"); // "degree" column -> degreeField field
     expect(redacted.blueNumbers).toEqual(["7"]);
     expect(redacted.availability).toBe("green");
+    expect(redacted.phoneForCall).toBe("+44 7700 900101");
   });
 });
 
@@ -176,7 +267,7 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
     // The values, the picker and who may write are unchanged by the regrouping.
     expect(availability[0].edit).toBe("select");
     expect(availability[0].options).toEqual(["green", "orange", "red"]);
-    expect(availability[0].requires).toBe("person_record_authority");
+    expect(availability[0].category).toBe("availability");
   });
 
   it("pairs a primary and a backup a side, both on the season's own vocabulary", () => {

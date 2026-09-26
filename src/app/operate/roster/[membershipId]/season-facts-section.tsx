@@ -1,6 +1,11 @@
 import { RecordField } from "@/components/record-field";
 import { Section } from "@/components/section";
-import type { PlayerRecordData } from "@/lib/services/player-record";
+import type { CategoryLevel, RosterCategory } from "@/lib/auth/grants";
+import {
+  FULL_RECORD_ACCESS,
+  type RecordAccess,
+  type VisiblePlayerRecord,
+} from "@/lib/services/player-record-access";
 import {
   type RecordGroup,
   AVAILABILITY_LABELS,
@@ -42,8 +47,10 @@ export default function SeasonFactsSection({
   commitSeasonField,
   collapsedGroups,
   onToggleGroup,
+  access = FULL_RECORD_ACCESS,
 }: {
-  record: PlayerRecordData;
+  /** Narrowed on the server: a `none` category's facts are absent (LAN-432). */
+  record: VisiblePlayerRecord;
   editing: string | null;
   closed: boolean;
   /** The one field whose save is in flight — LAN-380. It takes no further edit until it is back. */
@@ -55,6 +62,8 @@ export default function SeasonFactsSection({
   /** Which groups this operator has folded away, from their account — LAN-387, Brian's visual pass item 1; every group since LAN-403. */
   collapsedGroups: ReadonlySet<RecordGroup>;
   onToggleGroup: (group: RecordGroup, open: boolean) => void;
+  /** LAN-432 — the seat's level on each category: `none` locks a group, `view` makes it text. */
+  access?: RecordAccess;
 }) {
   const errorFor = (key: string) => (fieldErrorKey === key ? fieldErrorMessage : null);
   const savingOf = (key: string) => savingKey === key;
@@ -71,10 +80,12 @@ export default function SeasonFactsSection({
    */
   const locked = closed || savingKey !== null;
 
-  /** The five props every field in here wires the same way. */
-  const common = (key: string) => ({
+  const level = (category: RosterCategory): CategoryLevel => access[category];
+
+  /** The five props every field in here wires the same way; a `view` category is read-only. */
+  const common = (key: string, category: RosterCategory) => ({
     editing: editing === key,
-    readOnly: locked,
+    readOnly: locked || level(category) === "view",
     saving: savingOf(key),
     error: errorFor(key),
     onOpen: () => setEditing(key),
@@ -83,271 +94,345 @@ export default function SeasonFactsSection({
 
   return (
     <>
-      <Section
-        variant="banded"
-        band="membership"
-        title={`Membership · ${record.seasonLabel}`}
-        testId="season"
-        collapsible
-        defaultOpen={!collapsedGroups.has("membership")}
-        onToggleOpen={(open) => onToggleGroup("membership", open)}
-      >
-        <RecordField
-          label="Status"
-          value={labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}
-          status={{ domain: "membership", code: record.status }}
-          options={[...STATUSES]}
-          optionLabels={STATUS_OPTION_LABELS}
-          {...common("status")}
-          onCommit={(next) => commitSeasonField("status", next)}
-          rawValue={record.status}
-          note={closed ? "This season is over. Nothing here changes it." : undefined}
+      {level("membership") === "none" ? (
+        <Section
+          variant="banded"
+          band="membership"
+          title={`Membership · ${record.seasonLabel}`}
+          testId="season"
+          locked
         />
-        <RecordField
-          label="Entry"
-          value={labelFor(ENTRY_LABELS, record.entry)}
-          options={[...ENTRIES]}
-          {...common("entry")}
-          onCommit={(next) => commitSeasonField("entry", next)}
-          rawValue={record.entry}
-        />
-        <RecordField
-          label="Confirmed"
-          value={record.confirmedOn ? formatDay(record.confirmedOn) : null}
-          readOnly
-        />
-        <RecordField
-          label="Activated"
-          value={record.activatedOn ? formatDay(record.activatedOn) : null}
-          readOnly
-        />
-        <RecordField
-          label="Departed"
-          value={record.departedOn ? formatDay(record.departedOn) : null}
-          readOnly
-        />
-        <RecordField
-          label="Expected return"
-          value={record.expectedReturnOn ? formatDay(record.expectedReturnOn) : null}
-          readOnly
-        />
+      ) : (
+        <Section
+          variant="banded"
+          band="membership"
+          title={`Membership · ${record.seasonLabel}`}
+          testId="season"
+          collapsible
+          defaultOpen={!collapsedGroups.has("membership")}
+          onToggleOpen={(open) => onToggleGroup("membership", open)}
+        >
+          <RecordField
+            label="Status"
+            value={labelFor(MEMBERSHIP_STATUS_LABELS, record.status ?? "")}
+            status={{ domain: "membership", code: record.status ?? "" }}
+            options={[...STATUSES]}
+            optionLabels={STATUS_OPTION_LABELS}
+            {...common("status", "membership")}
+            onCommit={(next) => commitSeasonField("status", next)}
+            rawValue={record.status ?? null}
+            note={closed ? "This season is over. Nothing here changes it." : undefined}
+          />
+          <RecordField
+            label="Entry"
+            value={labelFor(ENTRY_LABELS, record.entry ?? "")}
+            options={[...ENTRIES]}
+            {...common("entry", "membership")}
+            onCommit={(next) => commitSeasonField("entry", next)}
+            rawValue={record.entry ?? null}
+          />
+          <RecordField
+            label="Confirmed"
+            value={record.confirmedOn ? formatDay(record.confirmedOn) : null}
+            readOnly
+          />
+          <RecordField
+            label="Activated"
+            value={record.activatedOn ? formatDay(record.activatedOn) : null}
+            readOnly
+          />
+          <RecordField
+            label="Departed"
+            value={record.departedOn ? formatDay(record.departedOn) : null}
+            readOnly
+          />
+          <RecordField
+            label="Expected return"
+            value={record.expectedReturnOn ? formatDay(record.expectedReturnOn) : null}
+            readOnly
+          />
 
-        <JerseyField
-          label="Jersey — Blue"
-          held={record.season.blueNumbers}
-          holders={record.jerseyHolders.blue}
-          {...common("blueNumbers")}
-          onCommit={(next) => commitSeasonField("blueNumbers", next)}
-        />
-        <JerseyField
-          label="Jersey — White"
-          held={record.season.whiteNumbers}
-          holders={record.jerseyHolders.white}
-          {...common("whiteNumbers")}
-          onCommit={(next) => commitSeasonField("whiteNumbers", next)}
-        />
+          <JerseyField
+            label="Jersey — Blue"
+            held={record.season.blueNumbers ?? []}
+            holders={record.jerseyHolders?.blue ?? {}}
+            {...common("blueNumbers", "membership")}
+            onCommit={(next) => commitSeasonField("blueNumbers", next)}
+          />
+          <JerseyField
+            label="Jersey — White"
+            held={record.season.whiteNumbers ?? []}
+            holders={record.jerseyHolders?.white ?? {}}
+            {...common("whiteNumbers", "membership")}
+            onCommit={(next) => commitSeasonField("whiteNumbers", next)}
+          />
 
-        <RecordField
-          label="Half / Full Blue"
-          value={record.season.blues}
-          options={[...BLUES_VALUES]}
-          {...common("blues")}
-          onCommit={(next) => commitSeasonField("blues", next)}
-          rawValue={record.season.blues}
-        />
-        <RecordField
-          label="Eligibility"
-          value={
-            record.season.eligibility
-              ? labelFor(ELIGIBILITY_LABELS, record.season.eligibility)
-              : null
-          }
-          options={[...ELIGIBILITY_VALUES]}
-          optionLabels={ELIGIBILITY_LABELS}
-          {...common("eligibility")}
-          onCommit={(next) => commitSeasonField("eligibility", next)}
-          rawValue={record.season.eligibility}
-        />
-        <RecordField
-          label="BPS"
-          value={record.season.bps}
-          options={["Yes", "No"]}
-          {...common("bps")}
-          onCommit={(next) => commitSeasonField("bps", next)}
-          rawValue={record.season.bps}
-        />
-      </Section>
+          <RecordField
+            label="Half / Full Blue"
+            value={record.season.blues ?? null}
+            options={[...BLUES_VALUES]}
+            {...common("blues", "membership")}
+            onCommit={(next) => commitSeasonField("blues", next)}
+            rawValue={record.season.blues ?? null}
+          />
+          <RecordField
+            label="Eligibility"
+            value={
+              record.season.eligibility
+                ? labelFor(ELIGIBILITY_LABELS, record.season.eligibility)
+                : null
+            }
+            options={[...ELIGIBILITY_VALUES]}
+            optionLabels={ELIGIBILITY_LABELS}
+            {...common("eligibility", "membership")}
+            onCommit={(next) => commitSeasonField("eligibility", next)}
+            rawValue={record.season.eligibility ?? null}
+          />
+          <RecordField
+            label="BPS"
+            value={record.season.bps ?? null}
+            options={["Yes", "No"]}
+            {...common("bps", "membership")}
+            onCommit={(next) => commitSeasonField("bps", next)}
+            rawValue={record.season.bps ?? null}
+          />
+        </Section>
+      )}
 
       {/* LAN-412 — Availability is its own section, in the same banded idiom
           and the same place in the order as the board's own group. The field,
           its values and its write are exactly what they were inside
           Membership; only the band around them is new. */}
-      <Section
-        variant="banded"
-        band="availability"
-        title="Availability"
-        testId="availability"
-        collapsible
-        defaultOpen={!collapsedGroups.has("availability")}
-        onToggleOpen={(open) => onToggleGroup("availability", open)}
-      >
-        <RecordField
-          label="Availability"
-          value={
-            record.season.availability
-              ? labelFor(AVAILABILITY_LABELS, record.season.availability)
-              : null
-          }
-          options={[...AVAILABILITY_VALUES]}
-          optionLabels={AVAILABILITY_LABELS}
-          {...common("availability")}
-          onCommit={(next) => commitSeasonField("availability", next)}
-          rawValue={record.season.availability}
+      {level("availability") === "none" ? (
+        <Section
+          variant="banded"
+          band="availability"
+          title={"Availability"}
+          testId="availability"
+          locked
         />
-      </Section>
+      ) : (
+        <Section
+          variant="banded"
+          band="availability"
+          title="Availability"
+          testId="availability"
+          collapsible
+          defaultOpen={!collapsedGroups.has("availability")}
+          onToggleOpen={(open) => onToggleGroup("availability", open)}
+        >
+          <RecordField
+            label="Availability"
+            value={
+              record.season.availability
+                ? labelFor(AVAILABILITY_LABELS, record.season.availability)
+                : null
+            }
+            options={[...AVAILABILITY_VALUES]}
+            optionLabels={AVAILABILITY_LABELS}
+            {...common("availability", "availability")}
+            onCommit={(next) => commitSeasonField("availability", next)}
+            rawValue={record.season.availability ?? null}
+          />
+        </Section>
+      )}
 
-      <Section
-        variant="banded"
-        band="coaching"
-        title="Coaching assignments"
-        testId="coaching"
-        collapsible
-        defaultOpen={!collapsedGroups.has("coaching")}
-        onToggleOpen={(open) => onToggleGroup("coaching", open)}
-      >
-        <MultiSelectField
-          label="Coaching group"
-          values={record.season.coachingGroups}
-          options={COACHING_GROUPS}
-          {...common("coachingGroups")}
-          onCommit={(next) => commitSeasonField("coachingGroups", next)}
+      {level("coaching") === "none" ? (
+        <Section
+          variant="banded"
+          band="coaching"
+          title={"Coaching assignments"}
+          testId="coaching"
+          locked
         />
-        <MultiSelectField
-          label="Offensive position group"
-          values={record.season.offensivePositionGroups}
-          options={OFFENSIVE_POSITION_GROUPS}
-          {...common("offensivePositionGroups")}
-          onCommit={(next) => commitSeasonField("offensivePositionGroups", next)}
-        />
-        <MultiSelectField
-          label="Defensive position group"
-          values={record.season.defensivePositionGroups}
-          options={DEFENSIVE_POSITION_GROUPS}
-          {...common("defensivePositionGroups")}
-          onCommit={(next) => commitSeasonField("defensivePositionGroups", next)}
-        />
-      </Section>
+      ) : (
+        <Section
+          variant="banded"
+          band="coaching"
+          title="Coaching assignments"
+          testId="coaching"
+          collapsible
+          defaultOpen={!collapsedGroups.has("coaching")}
+          onToggleOpen={(open) => onToggleGroup("coaching", open)}
+        >
+          <MultiSelectField
+            label="Coaching group"
+            values={record.season.coachingGroups ?? []}
+            options={COACHING_GROUPS}
+            {...common("coachingGroups", "coaching")}
+            onCommit={(next) => commitSeasonField("coachingGroups", next)}
+          />
+          <MultiSelectField
+            label="Offensive position group"
+            values={record.season.offensivePositionGroups ?? []}
+            options={OFFENSIVE_POSITION_GROUPS}
+            {...common("offensivePositionGroups", "coaching")}
+            onCommit={(next) => commitSeasonField("offensivePositionGroups", next)}
+          />
+          <MultiSelectField
+            label="Defensive position group"
+            values={record.season.defensivePositionGroups ?? []}
+            options={DEFENSIVE_POSITION_GROUPS}
+            {...common("defensivePositionGroups", "coaching")}
+            onCommit={(next) => commitSeasonField("defensivePositionGroups", next)}
+          />
+        </Section>
+      )}
 
-      <Section
-        variant="banded"
-        band="offensive"
-        title="Offensive assignments"
-        testId="offensive"
-        collapsible
-        defaultOpen={!collapsedGroups.has("offensive")}
-        onToggleOpen={(open) => onToggleGroup("offensive", open)}
-      >
-        <PositionField
-          label="Primary position"
-          value={record.season.offencePosition}
-          options={record.positionOptions.offence}
-          {...common("offencePosition")}
-          onCommit={(next) => commitSeasonField("offencePosition", next)}
+      {level("offensive") === "none" ? (
+        <Section
+          variant="banded"
+          band="offensive"
+          title={"Offensive assignments"}
+          testId="offensive"
+          locked
         />
-        <PositionField
-          label="Backup position"
-          value={record.season.offenceBackupPosition}
-          options={record.positionOptions.offence}
-          {...common("offenceBackupPosition")}
-          onCommit={(next) => commitSeasonField("offenceBackupPosition", next)}
-        />
-      </Section>
+      ) : (
+        <Section
+          variant="banded"
+          band="offensive"
+          title="Offensive assignments"
+          testId="offensive"
+          collapsible
+          defaultOpen={!collapsedGroups.has("offensive")}
+          onToggleOpen={(open) => onToggleGroup("offensive", open)}
+        >
+          <PositionField
+            label="Primary position"
+            value={record.season.offencePosition ?? null}
+            options={record.positionOptions.offence}
+            {...common("offencePosition", "offensive")}
+            onCommit={(next) => commitSeasonField("offencePosition", next)}
+          />
+          <PositionField
+            label="Backup position"
+            value={record.season.offenceBackupPosition ?? null}
+            options={record.positionOptions.offence}
+            {...common("offenceBackupPosition", "offensive")}
+            onCommit={(next) => commitSeasonField("offenceBackupPosition", next)}
+          />
+        </Section>
+      )}
 
-      <Section
-        variant="banded"
-        band="defensive"
-        title="Defensive assignments"
-        testId="defensive"
-        collapsible
-        defaultOpen={!collapsedGroups.has("defensive")}
-        onToggleOpen={(open) => onToggleGroup("defensive", open)}
-      >
-        <PositionField
-          label="Primary position"
-          value={record.season.defencePosition}
-          options={record.positionOptions.defence}
-          {...common("defencePosition")}
-          onCommit={(next) => commitSeasonField("defencePosition", next)}
+      {level("defensive") === "none" ? (
+        <Section
+          variant="banded"
+          band="defensive"
+          title={"Defensive assignments"}
+          testId="defensive"
+          locked
         />
-        <PositionField
-          label="Backup position"
-          value={record.season.defenceBackupPosition}
-          options={record.positionOptions.defence}
-          {...common("defenceBackupPosition")}
-          onCommit={(next) => commitSeasonField("defenceBackupPosition", next)}
+      ) : (
+        <Section
+          variant="banded"
+          band="defensive"
+          title="Defensive assignments"
+          testId="defensive"
+          collapsible
+          defaultOpen={!collapsedGroups.has("defensive")}
+          onToggleOpen={(open) => onToggleGroup("defensive", open)}
+        >
+          <PositionField
+            label="Primary position"
+            value={record.season.defencePosition ?? null}
+            options={record.positionOptions.defence}
+            {...common("defencePosition", "defensive")}
+            onCommit={(next) => commitSeasonField("defencePosition", next)}
+          />
+          <PositionField
+            label="Backup position"
+            value={record.season.defenceBackupPosition ?? null}
+            options={record.positionOptions.defence}
+            {...common("defenceBackupPosition", "defensive")}
+            onCommit={(next) => commitSeasonField("defenceBackupPosition", next)}
+          />
+        </Section>
+      )}
+
+      {level("special_teams") === "none" ? (
+        <Section
+          variant="banded"
+          band="specialTeams"
+          title="Special teams assignments"
+          testId="special-teams"
+          locked
         />
-      </Section>
-
-      <SpecialTeamsSection
-        open={!collapsedGroups.has("specialTeams")}
-        onToggleOpen={(open) => onToggleGroup("specialTeams", open)}
-        assignments={record.season.specialTeams}
-        editing={editing}
-        locked={locked}
-        savingOf={savingOf}
-        errorFor={errorFor}
-        setEditing={setEditing}
-        commitSeasonField={commitSeasonField}
-      />
-
-      {/* LAN-401 — Stewart's warmup small groups. One cell, collapsed on arrival
-          like the two groups either side of it. */}
-      <Section
-        variant="banded"
-        band="warmup"
-        title="Warmup assignments"
-        testId="warmup"
-        collapsible
-        defaultOpen={!collapsedGroups.has("warmup")}
-        onToggleOpen={(open) => onToggleGroup("warmup", open)}
-      >
-        <RecordField
-          label="Small Group Assignment"
-          value={record.season.warmupSmallGroup}
-          options={[...WARMUP_SMALL_GROUPS]}
-          {...common("warmupSmallGroup")}
-          onCommit={(next) => commitSeasonField("warmupSmallGroup", next)}
-          rawValue={record.season.warmupSmallGroup}
-        />
-      </Section>
-
-      <Section
-        variant="banded"
-        band="kit"
-        title="Kit"
-        testId="kit"
-        collapsible
-        defaultOpen={!collapsedGroups.has("kit")}
-        onToggleOpen={(open) => onToggleGroup("kit", open)}
-      >
-        <KitItemsFields
-          items={record.season.kit}
+      ) : (
+        <SpecialTeamsSection
+          open={!collapsedGroups.has("specialTeams")}
+          onToggleOpen={(open) => onToggleGroup("specialTeams", open)}
+          assignments={record.season.specialTeams ?? {}}
           editing={editing}
-          locked={locked}
+          locked={locked || level("special_teams") === "view"}
           savingOf={savingOf}
           errorFor={errorFor}
           setEditing={setEditing}
           commitSeasonField={commitSeasonField}
         />
-        <MultiSelectField
-          label="Formalwear"
-          values={FORMALWEAR_ITEMS.filter((item) => record.season.formalwear[item])}
-          options={[...FORMALWEAR_ITEMS]}
-          optionLabels={FORMALWEAR_LABELS}
-          {...common("formalwear")}
-          onCommit={(next) => commitSeasonField("formalwear", next)}
+      )}
+
+      {/* LAN-401 — Stewart's warmup small groups. One cell, collapsed on arrival
+          like the two groups either side of it. */}
+      {level("warmup") === "none" ? (
+        <Section
+          variant="banded"
+          band="warmup"
+          title={"Warmup assignments"}
+          testId="warmup"
+          locked
         />
-      </Section>
+      ) : (
+        <Section
+          variant="banded"
+          band="warmup"
+          title="Warmup assignments"
+          testId="warmup"
+          collapsible
+          defaultOpen={!collapsedGroups.has("warmup")}
+          onToggleOpen={(open) => onToggleGroup("warmup", open)}
+        >
+          <RecordField
+            label="Small Group Assignment"
+            value={record.season.warmupSmallGroup ?? null}
+            options={[...WARMUP_SMALL_GROUPS]}
+            {...common("warmupSmallGroup", "warmup")}
+            onCommit={(next) => commitSeasonField("warmupSmallGroup", next)}
+            rawValue={record.season.warmupSmallGroup ?? null}
+          />
+        </Section>
+      )}
+
+      {level("kit") === "none" ? (
+        <Section variant="banded" band="kit" title={"Kit"} testId="kit" locked />
+      ) : (
+        <Section
+          variant="banded"
+          band="kit"
+          title="Kit"
+          testId="kit"
+          collapsible
+          defaultOpen={!collapsedGroups.has("kit")}
+          onToggleOpen={(open) => onToggleGroup("kit", open)}
+        >
+          <KitItemsFields
+            items={record.season.kit ?? {}}
+            editing={editing}
+            locked={locked || level("kit") === "view"}
+            savingOf={savingOf}
+            errorFor={errorFor}
+            setEditing={setEditing}
+            commitSeasonField={commitSeasonField}
+          />
+          <MultiSelectField
+            label="Formalwear"
+            values={FORMALWEAR_ITEMS.filter((item) => record.season.formalwear?.[item])}
+            options={[...FORMALWEAR_ITEMS]}
+            optionLabels={FORMALWEAR_LABELS}
+            {...common("formalwear", "kit")}
+            onCommit={(next) => commitSeasonField("formalwear", next)}
+          />
+        </Section>
+      )}
     </>
   );
 }

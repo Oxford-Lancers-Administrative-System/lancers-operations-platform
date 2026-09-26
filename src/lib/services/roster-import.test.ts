@@ -46,6 +46,7 @@ import { groupSelectionKeys } from "./audience-selection";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn } from "./event-audience";
 import { createEventDraft } from "./events";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const MARKER = "LAN215RosterImport";
 
@@ -62,6 +63,7 @@ function operator(): ResolvedOperator {
     personId: actorPersonId,
     displayName: "Roster Import Suite Operator",
     roleCodes: ["president"],
+    grants: seededGrantsFor(["president"]),
     isActive: true,
   };
 }
