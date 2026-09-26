@@ -6,6 +6,7 @@ import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 import ButtonBase from "@mui/material/ButtonBase";
+import { useBandColours } from "@/components/band-colours-provider";
 import { FilterButton, groupRuns } from "../board-filter-controls";
 import {
   BAND_LABEL_INSET_PX,
@@ -46,6 +47,7 @@ export default function BoardTableHead({
   filters: Readonly<Record<string, string>>;
   onOpenFilter: (anchor: HTMLElement, column: ColumnDef) => void;
 }) {
+  const colours = useBandColours();
   return (
     <TableHead>
       <TableRow sx={{ height: BAND_ROW_HEIGHT }}>
@@ -64,7 +66,7 @@ export default function BoardTableHead({
           }}
         />
         {groupRuns(columns).map((run) => {
-          const band = bandOf(run.band);
+          const band = bandOf(run.band, colours);
           return (
             <TableCell
               key={run.band}
@@ -72,7 +74,7 @@ export default function BoardTableHead({
               sx={{
                 top: 0,
                 bgcolor: band.header,
-                color: "common.white",
+                color: band.text,
                 pl: `${BAND_LABEL_INSET_PX}px`,
                 pr: 0,
                 py: 0,
@@ -153,7 +155,7 @@ export default function BoardTableHead({
         </TableCell>
 
         {columns.map((column) => {
-          const band = bandOf(column.band);
+          const band = bandOf(column.band, colours);
           const filtered = (filters[column.key] ?? "") !== "";
           if (column.placeholder) {
             // Brian's visual pass, item 2: a folded-up group used to be a bare

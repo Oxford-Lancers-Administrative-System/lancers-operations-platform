@@ -1,5 +1,9 @@
 import type { RecruitmentBoardRow, RecruitmentEventColumn } from "@/lib/services/recruitment-board";
-import { BAND_COLOURS as CLUB_BANDS } from "@/components/section";
+import {
+  BAND_COLOURS as CLUB_BANDS,
+  type Band as ClubBand,
+  type BandColours,
+} from "@/components/band-colours";
 import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitment-vocabulary";
 
 /**
@@ -13,15 +17,17 @@ import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitme
 export type Band = "person" | "recruitment" | `events:${string}`;
 type BandKind = "person" | "recruitment" | "events";
 
-const BAND_COLOURS: Readonly<
-  Record<"person" | "recruitment", { header: string; tint: string; solid: string }>
-> = Object.freeze({
-  person: CLUB_BANDS.person,
-  recruitment: CLUB_BANDS.recruitment,
+/**
+ * Where each kind of band takes its colour from. Person is the roster's Person
+ * group, in the colour the club chose for it (LAN-430, `roster_group_colours`);
+ * Recruitment keeps its code colour; the Events band reuses the Season band's
+ * own blue, `W1`'s own reasoning.
+ */
+const CLUB_BAND_OF_KIND: Readonly<Record<BandKind, ClubBand>> = Object.freeze({
+  person: "person",
+  recruitment: "recruitment",
+  events: "season",
 });
-
-/** The Events band reuses the Season band's own blue, `W1`'s own reasoning. */
-const EVENTS_BAND_COLOUR = CLUB_BANDS.season;
 
 export const BAND_ROW_HEIGHT = 28;
 export const BAND_LABEL_INSET_PX = 16;
@@ -32,10 +38,16 @@ function bandKind(band: Band): BandKind {
   return band.startsWith("events:") ? "events" : (band as BandKind);
 }
 
-/** The colours for a band value — `person`/`recruitment`'s own, or the one shared events blue. */
-export function bandColour(band: Band): { header: string; tint: string; solid: string } {
-  const kind = bandKind(band);
-  return kind === "events" ? EVENTS_BAND_COLOUR : BAND_COLOURS[kind];
+/**
+ * The colours for a band value — `person`/`recruitment`'s own, or the one
+ * shared events blue. `colours` is the board's `useBandColours()`; without it
+ * the seeded colours stand.
+ */
+export function bandColour(
+  band: Band,
+  colours: Readonly<Record<ClubBand, BandColours>> = CLUB_BANDS,
+): BandColours {
+  return colours[CLUB_BAND_OF_KIND[bandKind(band)]];
 }
 
 /** The event id encoded in an events-band value, or `null` for `person`/`recruitment`. */

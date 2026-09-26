@@ -8,6 +8,7 @@ import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { useBandColours } from "@/components/band-colours-provider";
 import { StatusPill } from "../board-filter-controls";
 import {
   BOARD_CELL_CONTROL_HEIGHT,
@@ -64,7 +65,8 @@ export function Cell({
   onClose: () => void;
   onCommit: (next: string | string[]) => void;
 }) {
-  const band = bandOf(column.band);
+  const colours = useBandColours();
+  const band = bandOf(column.band, colours);
   // LAN-387: a collapsed group leaves one narrow, empty cell so the row keeps
   // its shape — the band header above it is what brings the columns back.
   const shell = {

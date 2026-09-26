@@ -5,6 +5,7 @@ import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
 import Typography from "@mui/material/Typography";
+import { useBandColours } from "@/components/band-colours-provider";
 import { PhoneIcon } from "@/components/phone-icon";
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
 import {
@@ -75,7 +76,7 @@ export function RecruitCell({
   bandEnd: boolean;
   seasonLabel: string;
 }) {
-  const colours = bandColour(column.band);
+  const colours = bandColour(column.band, useBandColours());
   const shell = {
     bgcolor: colours.tint,
     minWidth: column.width,

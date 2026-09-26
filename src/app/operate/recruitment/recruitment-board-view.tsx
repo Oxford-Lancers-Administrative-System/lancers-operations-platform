@@ -1,5 +1,6 @@
 "use client";
 
+import { useBandColours } from "@/components/band-colours-provider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -99,6 +100,7 @@ export default function RecruitmentBoardView({
   /** What this operator's account remembers about folded-away groups, or `undefined` where it remembers nothing (LAN-404). */
   initialCollapsedGroups?: readonly string[] | undefined;
 }) {
+  const bandColours = useBandColours();
   const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState<BoardFilters>(initialFilters);
   const [sort, setSort] = useState<BoardSort | null>(
@@ -418,7 +420,7 @@ export default function RecruitmentBoardView({
                     }}
                   />
                   {groupRuns(drawn).map((run) => {
-                    const colours = bandColour(run.band);
+                    const colours = bandColour(run.band, bandColours);
                     const folded = collapsedBands.has(run.band);
                     return (
                       <TableCell
@@ -427,7 +429,7 @@ export default function RecruitmentBoardView({
                         sx={{
                           top: 0,
                           bgcolor: colours.header,
-                          color: "common.white",
+                          color: colours.text,
                           pl: `${BAND_LABEL_INSET_PX}px`,
                           pr: 0,
                           py: 0,
@@ -510,7 +512,7 @@ export default function RecruitmentBoardView({
                   </TableCell>
 
                   {drawn.map((column) => {
-                    const colours = bandColour(column.band);
+                    const colours = bandColour(column.band, bandColours);
                     const filtered = (filters[column.key] ?? "") !== "";
                     if (column.placeholder) {
                       // The roster board's own answer to a folded-away group:

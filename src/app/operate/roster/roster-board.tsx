@@ -98,6 +98,7 @@ export default function RosterBoard({
   initialSortDirection,
   initialCollapsedGroups,
   seasonHasOnboardingItemTypes,
+  canEditCategories = false,
 }: {
   operator: ResolvedOperator;
   columns: readonly ColumnDef[];
@@ -116,6 +117,8 @@ export default function RosterBoard({
   initialSortDirection: "asc" | "desc";
   /** What this operator's account remembers about folded-up groups, or `undefined` where it remembers nothing (LAN-387). */
   initialCollapsedGroups: readonly string[] | undefined;
+  /** LAN-430 — whether this operator holds `role_management`, and so sees Edit categories. */
+  canEditCategories?: boolean;
 }) {
   const [, startTransition] = useTransition();
   const [searchBox, setSearchBox] = useState(initialSearch);
@@ -578,6 +581,7 @@ export default function RosterBoard({
           count={seasonEmpty ? 0 : totalInSeason}
           columns={columns.length + 1}
           seasonLabel={seasonLabel}
+          canEditCategories={canEditCategories}
         />
         {noItemTypes}
         {pinned}
@@ -617,6 +621,7 @@ export default function RosterBoard({
         count={visible.length}
         columns={columns.length + 1}
         seasonLabel={seasonLabel}
+        canEditCategories={canEditCategories}
       />
       {noItemTypes}
       {pinned}

@@ -7,6 +7,7 @@ import type { BoardFilters } from "./board-data";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 import RosterBoard from "./roster-board";
 import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { operatorHasCapability } from "@/lib/auth/guards";
 
 // `/operate/roster` — W5, LAN-186. Gated on `person_record_authority` (`REQ-authority`).
 export default async function RosterPage({ searchParams }: PageProps<"/operate/roster">) {
@@ -67,6 +68,7 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
       initialSortKey={sortKey}
       initialSortDirection={sortDirection}
       initialCollapsedGroups={preferences.rosterCollapsedGroups}
+      canEditCategories={operatorHasCapability(operator, "role_management")}
     />
   );
 }

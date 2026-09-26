@@ -1,4 +1,4 @@
-import { BAND_COLOURS } from "@/components/section";
+import { BAND_COLOURS, type BandColours } from "@/components/band-colours";
 import {
   grantRuleHolds,
   PERSON_RECORD_BRIDGE,
@@ -59,12 +59,9 @@ export type Band =
   | "warmup"
   | "kit";
 
-export interface BandDef {
+export interface BandDef extends BandColours {
   readonly key: Band;
   readonly label: string;
-  readonly header: string;
-  readonly tint: string;
-  readonly solid: string;
 }
 
 export const BAND_ROW_HEIGHT = 28;
@@ -140,56 +137,46 @@ export const COLLAPSED_LABEL_MAX_HEIGHT = 88;
 /** The vertical label's own line box — two of them fit the collapsed cell's width. */
 export const COLLAPSED_LABEL_LINE_HEIGHT = 12;
 
-const BANDS: readonly BandDef[] = Object.freeze([
+const BANDS: readonly Pick<BandDef, "key" | "label">[] = Object.freeze([
   Object.freeze({
     key: "person" as const,
     label: "Person",
-    ...BAND_COLOURS.person,
   }),
   Object.freeze({
     key: "onboarding" as const,
     label: "Onboarding",
-    ...BAND_COLOURS.onboarding,
   }),
   Object.freeze({
     key: "membership" as const,
     label: "Membership",
-    ...BAND_COLOURS.membership,
   }),
   Object.freeze({
     key: "availability" as const,
     label: "Availability",
-    ...BAND_COLOURS.availability,
   }),
   Object.freeze({
     key: "coaching" as const,
     label: "Coaching assignments",
-    ...BAND_COLOURS.coaching,
   }),
   Object.freeze({
     key: "offensive" as const,
     label: "Offensive assignments",
-    ...BAND_COLOURS.offensive,
   }),
   Object.freeze({
     key: "defensive" as const,
     label: "Defensive assignments",
-    ...BAND_COLOURS.defensive,
   }),
   Object.freeze({
     key: "specialTeams" as const,
     label: "Special teams assignments",
-    ...BAND_COLOURS.specialTeams,
   }),
   Object.freeze({
     key: "warmup" as const,
     label: "Warmup assignments",
-    ...BAND_COLOURS.warmup,
   }),
   Object.freeze({
     key: "kit" as const,
     label: "Kit",
-    ...BAND_COLOURS.kit,
   }),
 ]);
 
@@ -273,10 +260,18 @@ export function nonBandCollapsedKeys(stored: readonly string[] | undefined): rea
   return (stored ?? []).filter((key) => !isBand(key));
 }
 
-export function bandOf(key: Band): BandDef {
+/**
+ * A group's name and colours. LAN-430: the colours are the club's choice
+ * (`roster_group_colours`), which the board reads through `useBandColours()`
+ * and passes here; without them a group wears its seeded colour.
+ */
+export function bandOf(
+  key: Band,
+  colours: Readonly<Record<Band, BandColours>> = BAND_COLOURS,
+): BandDef {
   const found = BANDS.find((band) => band.key === key);
   if (!found) throw new Error(`Unknown band: ${key}`);
-  return found;
+  return { ...found, ...colours[key] };
 }
 
 // `record` routes to the person record; `select`/`multiselect`/`jersey` edit

@@ -3,69 +3,20 @@ import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { CLUB, SEMANTIC } from "@/theme-tokens";
+import type { Band } from "./band-colours";
+import BandedSection from "./banded-section";
+
+export { BAND_COLOURS, type Band } from "./band-colours";
 
 /**
  * One card with a heading — LAN-225, brief §2. Two variants: `plain` (an
  * outlined card, `h3` heading) and `banded` (a filled overline band over a
  * tinted body). `collapsible` makes `plain` a disclosure (`<details>`),
- * closed unless `defaultOpen` (player-surfaces finding P8). Band colours are
- * brief §1.5's mapping — never a traffic-light hue; a band is a place, not a
- * verdict.
+ * closed unless `defaultOpen` (player-surfaces finding P8). A band is a
+ * place, not a verdict. LAN-430: the ten roster groups wear the colour the
+ * club chose (`./band-colours.ts`); the banded variant renders on the client
+ * (`./banded-section.tsx`) so it can read them.
  */
-export type Band =
-  | "person"
-  | "season"
-  | "membership"
-  | "availability"
-  | "coaching"
-  | "offensive"
-  | "defensive"
-  | "specialTeams"
-  | "warmup"
-  | "kit"
-  | "recruitment"
-  | "onboarding"
-  | "attendance"
-  | "history";
-
-export interface BandColours {
-  readonly header: string;
-  readonly tint: string;
-  /** The opaque version of `tint`, for sticky cells that must hide what scrolls under them. */
-  readonly solid: string;
-}
-
-export const BAND_COLOURS: Readonly<Record<Band, BandColours>> = Object.freeze({
-  person: { header: CLUB.oxfordBlue, tint: "rgba(0, 33, 71, 0.045)", solid: "#F3F5F8" },
-  season: { header: CLUB.royalBlue, tint: "rgba(29, 66, 166, 0.045)", solid: "#F4F6FB" },
-  // LAN-387's five new roster groups. Places, not verdicts: the membership
-  // group keeps the Season band's blue because it is the same facts renamed,
-  // and the four assignment/kit groups step away from it in tone without
-  // borrowing a traffic-light hue.
-  membership: { header: CLUB.royalBlue, tint: "rgba(29, 66, 166, 0.045)", solid: "#F4F6FB" },
-  // LAN-412's group, immediately after Membership. Deliberately the most
-  // desaturated band on the board: its one column is the only traffic-light
-  // column the club has, and green, orange and red have to read as the value
-  // they are against a place that is saying nothing. The rule is the same one
-  // as everywhere else here, just at its sharpest — a band is a place, not a
-  // verdict.
-  availability: { header: "#455A64", tint: "rgba(69, 90, 100, 0.055)", solid: "#F2F5F6" },
-  coaching: { header: CLUB.oxfordBlue, tint: "rgba(0, 33, 71, 0.06)", solid: "#F1F4F7" },
-  offensive: { header: "#1F5C4A", tint: "rgba(31, 92, 74, 0.055)", solid: "#F1F7F5" },
-  defensive: { header: "#5B3A7E", tint: "rgba(91, 58, 126, 0.055)", solid: "#F6F2F9" },
-  specialTeams: { header: "#7A4A18", tint: "rgba(122, 74, 24, 0.055)", solid: "#F9F4EE" },
-  // LAN-401's group. It sits between Special teams and Kit and takes a tone of
-  // its own on the same rule as the rest: a place, not a verdict, and never a
-  // traffic-light hue.
-  warmup: { header: "#1D4A7A", tint: "rgba(29, 74, 122, 0.055)", solid: "#F1F5F9" },
-  kit: { header: CLUB.oldGold, tint: "rgba(141, 113, 73, 0.07)", solid: "#F8F5F0" },
-  recruitment: { header: CLUB.royalBlue, tint: "rgba(29, 66, 166, 0.045)", solid: "#F4F6FB" },
-  onboarding: { header: CLUB.oldGold, tint: "rgba(141, 113, 73, 0.07)", solid: "#F8F5F0" },
-  attendance: { header: SEMANTIC.neutral.main, tint: "rgba(90, 87, 84, 0.05)", solid: "#F5F5F4" },
-  history: { header: SEMANTIC.neutral.main, tint: "rgba(90, 87, 84, 0.05)", solid: "#F5F5F4" },
-});
-
 export function Section({
   title,
   variant = "plain",
@@ -112,96 +63,20 @@ export function Section({
   headingLevel?: 2 | 3;
 }) {
   if (variant === "banded") {
-    const colours = BAND_COLOURS[band];
-    const bandHead = (
-      <Stack
-        direction="row"
-        sx={{
-          bgcolor: colours.header,
-          color: "common.white",
-          px: 2,
-          py: 0.75,
-          minHeight: 36,
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 2,
-          flexWrap: "wrap",
-        }}
-      >
-        <Typography
-          variant="overline"
-          component={headingLevel === 2 ? "h2" : "h3"}
-          data-testid={titleTestId}
-          sx={{ fontWeight: 700, color: "inherit" }}
-        >
-          {title}
-        </Typography>
-        {action ?? null}
-        {collapsible ? (
-          <Box
-            component="span"
-            aria-hidden="true"
-            data-disclosure-indicator
-            sx={{
-              width: 10,
-              height: 10,
-              flexShrink: 0,
-              borderRight: "2px solid",
-              borderBottom: "2px solid",
-              borderColor: "common.white",
-              transform: "rotate(45deg)",
-            }}
-          />
-        ) : null}
-      </Stack>
-    );
-
-    // LAN-387: a roster group is collapsible on the record exactly as it is on
-    // the board, so the band itself is the disclosure control here.
-    if (collapsible) {
-      return (
-        <Paper
-          component="details"
-          variant="outlined"
-          open={defaultOpen || undefined}
-          onToggle={
-            onToggleOpen
-              ? (event) => onToggleOpen((event.currentTarget as HTMLDetailsElement).open)
-              : undefined
-          }
-          sx={{
-            overflow: "hidden",
-            "& > summary": { cursor: "pointer", listStyle: "none" },
-            "& > summary::-webkit-details-marker": { display: "none" },
-            "& > summary:focus-visible": {
-              outline: "2px solid",
-              outlineColor: "primary.light",
-              outlineOffset: -2,
-            },
-            "&[open] > summary [data-disclosure-indicator]": {
-              transform: "translateY(3px) rotate(225deg)",
-            },
-          }}
-          data-testid={testId ? `section-${testId}` : undefined}
-          data-band={band}
-        >
-          <Box component="summary">{bandHead}</Box>
-          <Box sx={{ bgcolor: colours.tint, px: 2, py: 0.5 }}>{children}</Box>
-        </Paper>
-      );
-    }
-
     return (
-      <Paper
-        variant="outlined"
-        component="section"
-        sx={{ overflow: "hidden" }}
-        data-testid={testId ? `section-${testId}` : undefined}
-        data-band={band}
+      <BandedSection
+        title={title}
+        band={band}
+        action={action}
+        collapsible={collapsible}
+        defaultOpen={defaultOpen}
+        onToggleOpen={onToggleOpen}
+        testId={testId}
+        titleTestId={titleTestId}
+        headingLevel={headingLevel}
       >
-        {bandHead}
-        <Box sx={{ bgcolor: colours.tint, px: 2, py: 0.5 }}>{children}</Box>
-      </Paper>
+        {children}
+      </BandedSection>
     );
   }
 

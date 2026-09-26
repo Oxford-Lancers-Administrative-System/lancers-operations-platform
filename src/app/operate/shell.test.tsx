@@ -77,6 +77,12 @@ vi.mock("@/lib/services/membership", async (importOriginal) => ({
     totalInSeason: 0,
   })),
 }));
+// LAN-430: the layout reads the roster group colours for every band; the seeded ones here.
+vi.mock("@/lib/services/roster-group-colours", async () => ({
+  readRosterGroupColours: vi.fn(
+    async () => (await import("@/components/band-colours")).DEFAULT_ROSTER_GROUP_COLOURS,
+  ),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("../login/actions", () => ({ signOut: vi.fn() }));
 
