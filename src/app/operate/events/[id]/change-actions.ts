@@ -39,7 +39,11 @@ import type { CancelFormState } from "./change-state";
 // save for the details and the questions together. Nothing posts the details
 // alone any more.
 
-/** Manage on this event's template; a missing event is a message, a refusal is thrown. */
+/**
+ * Manage on this event's template; a missing event or a refusal is a message
+ * (LAN-423): a seat whose Manage was lowered under an open page gets the
+ * refusal in the page's Notice, never "This page couldn't load".
+ */
 async function managerOf(eventId: string): Promise<ResolvedOperator | { error: string }> {
   try {
     return await requireEventGrant(eventId, "manage");
@@ -115,19 +119,13 @@ function readBaseline(formData: FormData): AmendableEvent | undefined {
   }
 }
 
-function messageFor(error: unknown): string {
-  if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
-  return error.message;
-}
-
 /**
  * A form's message for any service failure, a refusal included — LAN-423. A
  * save refused because Manage was lowered under an open form comes back as the
  * form's own error, shown in its Notice with every entry intact, rather than a
  * crashed page. Anything that is not a `ServiceError` still throws.
  */
-function formMessageFor(error: unknown): string {
+function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
   return error.message;
 }
@@ -184,7 +182,7 @@ export async function editApprovedEventAction(
   try {
     operator = await requireEventGrant(eventId, "manage");
   } catch (error) {
-    return refused(formMessageFor(error));
+    return refused(messageFor(error));
   }
 
   const validation = validateEventDraft(raw);
@@ -221,7 +219,7 @@ export async function editApprovedEventAction(
         submitted,
       );
   } catch (error) {
-    return refused(formMessageFor(error));
+    return refused(messageFor(error));
   }
 
   if (questionsChanged && !confirmed) {
@@ -245,7 +243,7 @@ export async function editApprovedEventAction(
         };
       }
     } catch (error) {
-      return refused(formMessageFor(error));
+      return refused(messageFor(error));
     }
   }
 
@@ -262,7 +260,7 @@ export async function editApprovedEventAction(
     // this page's "there was nothing to do on the details half", and nothing
     // else. Every other refusal is still a refusal.
     if (!isServiceError(error) || error.rule !== NOTHING_CHANGED_RULE || !questionsChanged) {
-      return refused(formMessageFor(error));
+      return refused(messageFor(error));
     }
   }
 
@@ -271,7 +269,7 @@ export async function editApprovedEventAction(
       await updateEventQuestions(operator.personId, eventId, submitted, { correction });
     }
   } catch (error) {
-    return refused(formMessageFor(error));
+    return refused(messageFor(error));
   }
 
   revalidatePath("/operate/events");
