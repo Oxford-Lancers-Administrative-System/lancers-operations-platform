@@ -1114,6 +1114,31 @@ export async function heldForLightsOut(jobId: string): Promise<boolean> {
 }
 
 /**
+ * LAN-442 (W-2). An operator's dispatch that was held back must still go.
+ *
+ * A job an operator presses Retry on is usually `failed` with no
+ * `next_attempt_at` — a terminal failure somebody has since fixed — and the
+ * due predicate never selects that shape. Deferring it and changing nothing
+ * told the operator "Queued" about a message no sweep would ever send. So a
+ * held `failed` job becomes `pending`, the shape of every message waiting for
+ * 07:00: the release (lights-out) or the guard's own `safety_retry_at` (the
+ * sending allowance) then makes it due, and the ordinary sweep re-checks
+ * eligibility and paces it. A job in any other state is already one the sweep
+ * will pick up and is left alone.
+ */
+async function queueOperatorDeferralIn(jobId: string): Promise<void> {
+  await withTransaction((tx) =>
+    tx.query(
+      `update public.notification_jobs
+          set status = 'pending', next_attempt_at = null,
+              claimed_at = null, claimed_by = null, updated_at = now()
+        where id = $1 and status = 'failed' and held_at is null`,
+      [jobId],
+    ),
+  );
+}
+
+/**
  * Dispatches one job: claim, send, record.
  *
  * Returns what happened so a caller can summarise. Never throws for a delivery
@@ -1131,8 +1156,12 @@ export async function dispatchJob(
   } = {},
 ): Promise<DispatchOutcome> {
   // LAN-433. Before anything is read or claimed: overnight, a held job is
-  // simply not sent yet, and nothing about it changes.
-  if (await heldForLightsOut(jobId)) return "deferred";
+  // simply not sent yet, and nothing about it changes — unless an operator
+  // asked for it (below).
+  if (await heldForLightsOut(jobId)) {
+    if (!options.automatic) await queueOperatorDeferralIn(jobId);
+    return "deferred";
+  }
   // LAN-169. Read before the provider is resolved, because the provider is
   // chosen by the job's own channel: `REQ-ladder-order` fixes the sequence
   // WhatsApp, WhatsApp again, email, and the scheduler writes the rung's
@@ -1282,7 +1311,10 @@ export async function dispatchJob(
     // said no; `skipped` means there was nothing to send. A deferral means the
     // message is waiting, and saying either of the other two about it would put
     // a failure on a screen where a queue belongs.
-    if (claim.outcome.reason === "deferred") return "deferred";
+    if (claim.outcome.reason === "deferred") {
+      if (!options.automatic) await queueOperatorDeferralIn(jobId);
+      return "deferred";
+    }
     return claim.outcome.reason === "undeliverable" ||
       claim.outcome.reason === "unschedulable" ||
       claim.outcome.reason === "not_consented"

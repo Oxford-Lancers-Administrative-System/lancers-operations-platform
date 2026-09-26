@@ -32,6 +32,7 @@ import {
   dispatchJob,
   EMAIL_FALLBACK_SUFFIX,
   readEventDeliveryDiagnostics,
+  retryDelivery,
 } from "./delivery";
 import { updateEventQuestions } from "./events";
 import {
@@ -2323,6 +2324,91 @@ describe("LAN-433 — lights-out holds automated messages from 22:00 to 07:00", 
     const retried = await jobRow(target.invitationJobId);
     expect(retried.status).toBe("processing");
     expect(retried.attempt_count).toBe(2);
+  });
+
+  // LAN-442 (W-2). The job an operator retries is a failed one with no
+  // automatic retry pending — the shape the due predicate never selects.
+  async function failedWithNoRetryPending(): Promise<Awaited<ReturnType<typeof fixture>>> {
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    await dispatchJob(target.invitationJobId, {
+      source: CONFIGURED,
+      transport: failingTransport(),
+      automatic: true,
+    });
+    await observer.query(
+      "update public.notification_jobs set next_attempt_at = null where id = $1",
+      [target.invitationJobId],
+    );
+    const failed = await jobRow(target.invitationJobId);
+    expect(failed.status).toBe("failed");
+    expect(failed.next_attempt_at).toBeNull();
+    return target;
+  }
+
+  it("queues a failed invitation retried at 23:00 and sends it at the first 07:00 sweep", async () => {
+    const target = await failedWithNoRetryPending();
+    atClubTime("23:00");
+    const { sent, transport } = acceptingTransport();
+    expect(
+      await retryDelivery(target.personId, target.invitationJobId, {
+        source: CONFIGURED,
+        transport,
+      }),
+    ).toBe("deferred");
+    expect(sent).toHaveLength(0);
+    const queued = await jobRow(target.invitationJobId);
+    expect(queued.status).toBe("pending");
+    expect(queued.attempt_count).toBe(1);
+
+    atClubTime("06:59", "2026-10-02");
+    await agePastSafetyPacing(observer);
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+    expect((await jobRow(target.invitationJobId)).status).toBe("pending");
+
+    atClubTime("07:00", "2026-10-02");
+    const morning = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport: morning.transport });
+    const retried = await jobRow(target.invitationJobId);
+    expect(morning.sent.length).toBeGreaterThanOrEqual(1);
+    expect(retried.status).toBe("processing");
+    expect(retried.attempt_count).toBe(2);
+  });
+
+  it("queues a failed invitation the sending allowance defers, and the sweep sends it once allowed", async () => {
+    const target = await failedWithNoRetryPending();
+    // The failed attempt a moment ago is inside the recipient's pacing window.
+    const { sent, transport } = acceptingTransport();
+    const outcome = await retryDelivery(target.personId, target.invitationJobId, {
+      source: CONFIGURED,
+      transport,
+    });
+    expect(outcome).toBe("deferred");
+    expect(sent).toHaveLength(0);
+    expect((await jobRow(target.invitationJobId)).status).toBe("pending");
+
+    await agePastSafetyPacing(observer);
+    const later = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport: later.transport });
+    const retried = await jobRow(target.invitationJobId);
+    expect(retried.status).toBe("processing");
+    expect(retried.attempt_count).toBe(2);
+  });
+
+  it("sends an exempt notice an operator re-dispatches at 23:00 immediately", async () => {
+    const target = await noticeFixture({
+      jobType: "schedule_change_notice",
+      cancelled: false,
+      scheduleChange: { previousVenue: "Iffley Road Astro", newVenue: "University Parks" },
+    });
+    await observer.query(
+      "update public.notification_jobs set status = 'failed', next_attempt_at = null where id = $1",
+      [target.jobId],
+    );
+    atClubTime("23:00");
+    const { sent, transport } = acceptingTransport();
+    expect(await dispatchJob(target.jobId, { source: CONFIGURED, transport })).toBe("accepted");
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    expect((await jobRow(target.jobId)).status).toBe("processing");
   });
 
   it("does not send an obsolete reminder at 07:00 when the invitee answered overnight", async () => {
