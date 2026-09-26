@@ -56,12 +56,31 @@ vi.mock("@/lib/services/operator-administration", async (importOriginal) => {
 
 import { ConstraintViolated, NotPermitted } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
-import { resendOperatorInvitation } from "@/lib/services/operator-invitations";
-import { deactivateOperatorAccess } from "@/lib/services/operator-administration";
 import {
+  correctOperatorInvitation,
+  findOperatorCandidates,
+  inviteOperator,
+  resendOperatorInvitation,
+} from "@/lib/services/operator-invitations";
+import {
+  assignRole,
+  deactivateOperatorAccess,
+  endRoleAssignment,
+  replaceRoleHolder,
+  restoreOperatorAccess,
+  startOperatorEmailRehome,
+} from "@/lib/services/operator-administration";
+import {
+  assignRoleAction,
+  correctInvitationAction,
   deactivateOperatorAction,
+  endRoleAction,
+  inviteOperatorAction,
+  replaceRoleHolderAction,
   resendInvitationAction,
+  restoreOperatorAction,
   searchCandidatesAction,
+  startEmailRehomeAction,
 } from "./actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "./action-state";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
@@ -262,5 +281,60 @@ describe("every refusal path, not only the one Brian happened to hit", () => {
 
     expect(state.refusal).toBe(REFUSAL);
     expect(state.candidates).toBeNull();
+  });
+});
+
+/**
+ * LAN-423 fix round 4, J1 — the administration guard itself. A seat whose
+ * role management was taken away while an administration page was open gets
+ * the guard's refusal back in `refusal`, exactly like a refusal from the
+ * service, and no service is reached. It used to throw out of the action and
+ * render "This page couldn't load".
+ */
+describe("the administration guard's own refusal is state, not a throw", () => {
+  const ACTIONS = [
+    { name: "searchCandidatesAction", run: searchCandidatesAction },
+    { name: "inviteOperatorAction", run: inviteOperatorAction },
+    { name: "resendInvitationAction", run: resendInvitationAction },
+    { name: "correctInvitationAction", run: correctInvitationAction },
+    { name: "deactivateOperatorAction", run: deactivateOperatorAction },
+    { name: "restoreOperatorAction", run: restoreOperatorAction },
+    { name: "startEmailRehomeAction", run: startEmailRehomeAction },
+    { name: "assignRoleAction", run: assignRoleAction },
+    { name: "endRoleAction", run: endRoleAction },
+    { name: "replaceRoleHolderAction", run: replaceRoleHolderAction },
+  ] as const;
+
+  const SERVICES = [
+    findOperatorCandidates,
+    inviteOperator,
+    resendOperatorInvitation,
+    correctOperatorInvitation,
+    deactivateOperatorAccess,
+    restoreOperatorAccess,
+    startOperatorEmailRehome,
+    assignRole,
+    endRoleAssignment,
+    replaceRoleHolder,
+  ];
+
+  it.each(ACTIONS)("$name returns the refusal to a seat without it", async ({ run }) => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: { ...actor(), roleCodes: ["treasurer"], grants: seededGrantsFor(["treasurer"]) },
+    });
+
+    const state = await run(
+      EMPTY_ADMIN_ACTION_STATE,
+      form({ operatorAccountId: OPERATOR_ACCOUNT_ID, email: "someone@example.invalid" }),
+    );
+
+    expect(state).toEqual({
+      error: null,
+      notice: null,
+      candidates: null,
+      refusal: expect.stringMatching(/^You do not have access to this action\./),
+    });
+    for (const service of SERVICES) expect(service).not.toHaveBeenCalled();
   });
 });

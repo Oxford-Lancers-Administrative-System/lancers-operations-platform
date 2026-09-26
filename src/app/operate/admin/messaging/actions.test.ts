@@ -29,11 +29,10 @@
  * The write's SQL and its audit row are proved against the real database
  * elsewhere (`messaging-schedule.test.ts`).
  *
- * One thing this file deliberately does *not* change: `requireCapability` is
- * called before the `try` block, exactly as every action in the sibling
- * `admin/actions.ts` calls its own floor check — so a caller who reaches this
- * action without the capability at all gets `NotPermitted` as a rejection,
- * not a graceful `state.refusal`.
+ * A caller who reaches an action without the grant or capability at all gets
+ * the refusal back in `state.refusal`, the same as a refusal from the service
+ * — never a rejection (LAN-423 fix round 4, J1: a thrown refusal rendered
+ * "This page couldn't load" when access was lowered under an open page).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -83,7 +82,7 @@ vi.mock("@/lib/services/onboarding-chase", async (importOriginal) => {
 });
 
 import { revalidatePath } from "next/cache";
-import { ConstraintViolated, isServiceError } from "@/lib/db";
+import { ConstraintViolated } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
@@ -110,7 +109,7 @@ import {
   updateOneMessagingScheduleAction,
   updateRecruitmentCycleStepsAction,
 } from "./actions";
-import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
+import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../action-state";
 import {
   NO_SCHEDULE_CHANGES_NOTICE,
   cycleStepSavedNotice,
@@ -251,24 +250,29 @@ beforeEach(() => {
   );
 });
 
+/**
+ * A refusal handed back in `state.refusal` — LAN-423 fix round 4, J1. Never a
+ * throw: a thrown refusal is what rendered "This page couldn't load".
+ */
+function expectRefused(state: AdminActionState): void {
+  expect(state.refusal).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+  expect(state.notice).toBeNull();
+}
+
 describe("without delivery_administration", () => {
   it("is refused before the write, and writes nothing", async () => {
     // Treasurer: a real committee seat, not on delivery_administration's list
     // (president, vice_president, secretary, general_manager, it_officer).
     givenSession({ state: "active", operator: actor(["treasurer"]) });
 
-    let thrown: unknown;
-    try {
-      await updateOneMessagingScheduleAction(
-        EMPTY_ADMIN_ACTION_STATE,
-        rowForm(CHALK, { escalationHours: 48 }),
-      );
-    } catch (error) {
-      thrown = error;
-    }
+    const state = await updateOneMessagingScheduleAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      rowForm(CHALK, { escalationHours: 48 }),
+    );
 
-    expect(isServiceError(thrown)).toBe(true);
-    expect((thrown as { kind: string }).kind).toBe("not_permitted");
+    expectRefused(state);
     expect(readMessagingScheduleIn).not.toHaveBeenCalled();
     expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
@@ -277,9 +281,7 @@ describe("without delivery_administration", () => {
   it("refuses a signed-out caller the same way — a server action is a reachable POST", async () => {
     givenSession({ state: "no_session" });
 
-    await expect(
-      updateOneMessagingScheduleAction(EMPTY_ADMIN_ACTION_STATE, rowForm(CHALK)),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    expectRefused(await updateOneMessagingScheduleAction(EMPTY_ADMIN_ACTION_STATE, rowForm(CHALK)));
     expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
   });
 });
@@ -309,9 +311,7 @@ describe("a seat managing one template — LAN-431", () => {
   it("refuses a forged save of another template's schedule, and writes nothing", async () => {
     givenSession({ state: "active", operator: socialSecretary() });
 
-    await expect(
-      updateOneMessagingScheduleAction(EMPTY_ADMIN_ACTION_STATE, rowForm(CHALK)),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    expectRefused(await updateOneMessagingScheduleAction(EMPTY_ADMIN_ACTION_STATE, rowForm(CHALK)));
     expect(readMessagingScheduleIn).not.toHaveBeenCalled();
     expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
   });
@@ -319,12 +319,12 @@ describe("a seat managing one template — LAN-431", () => {
   it("is still refused the recruitment cycle, which is no template's", async () => {
     givenSession({ state: "active", operator: socialSecretary() });
 
-    await expect(
-      updateRecruitmentCycleStepsAction(
+    expectRefused(
+      await updateRecruitmentCycleStepsAction(
         EMPTY_ADMIN_ACTION_STATE,
         cycleForm(["welcome", "details_reminder"]),
       ),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    );
   });
 });
 
@@ -409,15 +409,12 @@ describe("updateRecruitmentCycleStepsAction, without delivery_administration", (
   it("is refused before the write, and writes nothing", async () => {
     givenSession({ state: "active", operator: actor(["treasurer"]) });
 
-    let thrown: unknown;
-    try {
-      await updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, cycleForm(["welcome"]));
-    } catch (error) {
-      thrown = error;
-    }
+    const state = await updateRecruitmentCycleStepsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      cycleForm(["welcome"]),
+    );
 
-    expect(isServiceError(thrown)).toBe(true);
-    expect((thrown as { kind: string }).kind).toBe("not_permitted");
+    expectRefused(state);
     expect(listRecruitmentCycleStepsIn).not.toHaveBeenCalled();
     expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
@@ -426,9 +423,9 @@ describe("updateRecruitmentCycleStepsAction, without delivery_administration", (
   it("refuses a signed-out caller the same way", async () => {
     givenSession({ state: "no_session" });
 
-    await expect(
-      updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, cycleForm(["welcome"])),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    expectRefused(
+      await updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, cycleForm(["welcome"])),
+    );
     expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
   });
 });
@@ -605,14 +602,12 @@ describe("updateOnboardingChaseSettingsAction", () => {
   it("refuses an operator outside delivery_administration, before touching the database", async () => {
     givenSession({ state: "active", operator: actor(["treasurer"]) });
 
-    let thrown: unknown;
-    try {
-      await updateOnboardingChaseSettingsAction(EMPTY_ADMIN_ACTION_STATE, onboardingChaseForm());
-    } catch (error) {
-      thrown = error;
-    }
+    const state = await updateOnboardingChaseSettingsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      onboardingChaseForm(),
+    );
 
-    expect(isServiceError(thrown) && thrown.kind).toBe("not_permitted");
+    expectRefused(state);
     expect(setOnboardingChaseSettingsIn).not.toHaveBeenCalled();
   });
 

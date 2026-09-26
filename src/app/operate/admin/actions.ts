@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { invitationCallbackUrl } from "@/lib/auth/invitation";
 import { recoveryCallbackUrl } from "@/lib/auth/recovery";
 import { requireCapability } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import {
   correctOperatorInvitation,
@@ -51,6 +52,18 @@ function failure(error: unknown): AdminActionState {
     return { error: null, notice: null, candidates: null, refusal: error.message };
   }
   return { error: error.message, notice: null, candidates: null, refusal: null };
+}
+
+/**
+ * The administration guard, its refusal handed back as state in `refusal`
+ * (LAN-423) like a refusal from the service — never thrown to the framework.
+ */
+async function administrator(): Promise<ResolvedOperator | AdminActionState> {
+  try {
+    return await requireCapability(ADMINISTRATION_CAPABILITY);
+  } catch (error) {
+    return failure(error);
+  }
 }
 
 function done(notice: string): AdminActionState {
@@ -101,7 +114,8 @@ export async function searchCandidatesAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
 
   try {
     const found = await findOperatorCandidates(operator, {
@@ -141,7 +155,8 @@ export async function inviteOperatorAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const personId = optional(formData, "personId");
   const roleCode = text(formData, "roleCode");
   const callbacks = await callbackUrls();
@@ -190,7 +205,8 @@ export async function resendInvitationAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const operatorAccountId = text(formData, "operatorAccountId");
   const callbacks = await callbackUrls();
 
@@ -212,7 +228,8 @@ export async function correctInvitationAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const operatorAccountId = text(formData, "operatorAccountId");
   const callbacks = await callbackUrls();
 
@@ -237,7 +254,8 @@ export async function deactivateOperatorAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const operatorAccountId = text(formData, "operatorAccountId");
 
   try {
@@ -261,7 +279,8 @@ export async function restoreOperatorAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const operatorAccountId = text(formData, "operatorAccountId");
 
   try {
@@ -282,7 +301,8 @@ export async function startEmailRehomeAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const operatorAccountId = text(formData, "operatorAccountId");
   const callbacks = await callbackUrls();
 
@@ -312,7 +332,8 @@ export async function assignRoleAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const roleId = text(formData, "roleId");
 
   try {
@@ -335,7 +356,8 @@ export async function endRoleAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const roleId = text(formData, "roleId");
 
   try {
@@ -361,7 +383,8 @@ export async function replaceRoleHolderAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability(ADMINISTRATION_CAPABILITY);
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
   const roleId = text(formData, "roleId");
 
   try {

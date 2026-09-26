@@ -55,17 +55,20 @@ const EMPTY: Omit<ChaseActionResult, "error"> = Object.freeze({
 export async function chaseSelectedAction(
   invitationIds: readonly string[],
 ): Promise<ChaseActionResult> {
-  await requireGrant({ anyOf: "template", minimum: "manage" });
+  try {
+    await requireGrant({ anyOf: "template", minimum: "manage" });
+  } catch (error) {
+    return refusedChase(error);
+  }
 
   const ids = Array.from(new Set(invitationIds.filter((id) => id.trim() !== "")));
   if (ids.length === 0) {
     return { ...EMPTY, error: CHASE_NOBODY_SELECTED };
   }
 
-  // LAN-431: Manage on the template of every selected row's event, read from the invitations.
-  const operator = await requireInvitationsGrant(ids, "manage");
-
   try {
+    // LAN-431: Manage on the template of every selected row's event, read from the invitations.
+    const operator = await requireInvitationsGrant(ids, "manage");
     const results = await sendEventChases(operator.personId, ids);
 
     revalidatePath("/operate/admin/follow-ups");
@@ -106,8 +109,12 @@ export async function chaseSelectedAction(
         .map((result) => result.invitationId),
     };
   } catch (error) {
-    if (!isServiceError(error)) throw error;
-    if (error.kind === "not_permitted") throw error;
-    return { ...EMPTY, error: error.message };
+    return refusedChase(error);
   }
+}
+
+/** A service failure, a refusal included (LAN-423), as the notice's error; a bug still throws. */
+function refusedChase(error: unknown): ChaseActionResult {
+  if (!isServiceError(error)) throw error;
+  return { ...EMPTY, error: error.message };
 }

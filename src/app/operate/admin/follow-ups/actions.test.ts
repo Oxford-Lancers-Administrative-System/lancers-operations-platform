@@ -30,7 +30,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/services/messaging-scheduler", () => ({ sendEventChases: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
-import { ConstraintViolated, isServiceError } from "@/lib/db";
+import { ConstraintViolated } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { sendEventChases } from "@/lib/services/messaging-scheduler";
 import { chaseSelectedAction } from "./actions";
@@ -77,9 +77,12 @@ describe("who may chase from the queue", () => {
 
   it.each(REFUSED)("refuses %s, and sends nothing", async (role) => {
     signedInAs([role]);
-    await expect(chaseSelectedAction([REACHABLE])).rejects.toSatisfy(
-      (error: unknown) => isServiceError(error) && error.kind === "not_permitted",
+    // LAN-423 fix round 4, J1: the refusal is the notice's error, never a throw.
+    const result = await chaseSelectedAction([REACHABLE]);
+    expect(result.error).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
     );
+    expect(result.accepted).toBe(0);
     expect(sendEventChases).not.toHaveBeenCalled();
   });
 
@@ -102,9 +105,12 @@ describe("who may chase from the queue", () => {
 
   it("refuses a forged chase from a seat that only views the rows' template — LAN-431", async () => {
     seatWith({ [TEMPLATE]: "view", "00000000-0000-4000-8000-0000000000aa": "manage" });
-    await expect(chaseSelectedAction([REACHABLE])).rejects.toSatisfy(
-      (error: unknown) => isServiceError(error) && error.kind === "not_permitted",
+    // LAN-423 fix round 4, J1: the refusal is the notice's error, never a throw.
+    const result = await chaseSelectedAction([REACHABLE]);
+    expect(result.error).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
     );
+    expect(result.accepted).toBe(0);
     expect(sendEventChases).not.toHaveBeenCalled();
   });
 });
