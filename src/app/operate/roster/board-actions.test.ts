@@ -35,7 +35,6 @@ vi.mock("@/lib/services/roster-board", () => ({
 }));
 vi.mock("@/lib/services/membership", () => ({ resolveOnboardingItem: vi.fn() }));
 
-import { isServiceError } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
@@ -102,6 +101,19 @@ function actor(roleCodes: string[] = ["president"]): ResolvedOperator {
   };
 }
 
+/**
+ * LAN-423 fix round 3, H2: a refused commit comes back as the action's own
+ * state — the cell prints it and keeps the stored value — never as a throw
+ * (which the board rendered as an HTTP 500 and a silent revert).
+ */
+function expectRefused(state: unknown) {
+  expect(state).toMatchObject({
+    error: expect.stringMatching(
+      /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+    ),
+  });
+}
+
 function givenAccess(access: OperatorAccess) {
   vi.mocked(resolveOperatorAccess).mockResolvedValue(access);
 }
@@ -144,9 +156,9 @@ describe("commitBpsAction", () => {
         membershipId: MEMBERSHIP_ID,
         seasonId: SEASON_ID,
         value: "Yes",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(commitBps).not.toHaveBeenCalled();
     });
   }
@@ -158,9 +170,9 @@ describe("commitBpsAction", () => {
       membershipId: MEMBERSHIP_ID,
       seasonId: SEASON_ID,
       value: "Yes",
-    }).catch((error: unknown) => error);
+    });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectRefused(failure);
     expect(commitBps).not.toHaveBeenCalled();
   });
 
@@ -172,9 +184,9 @@ describe("commitBpsAction", () => {
         membershipId: MEMBERSHIP_ID,
         seasonId: SEASON_ID,
         value: "Yes",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(commitBps).not.toHaveBeenCalled();
     });
   }
@@ -217,9 +229,9 @@ describe("commitOnboardingItemAction", () => {
         membershipId: MEMBERSHIP_ID,
         itemId: ITEM_ID,
         status: "complete",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -232,9 +244,9 @@ describe("commitOnboardingItemAction", () => {
         membershipId: MEMBERSHIP_ID,
         itemId: ITEM_ID,
         status: "complete",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -461,9 +473,9 @@ describe("every other roster-cell action's authorization gate", () => {
         it(`refuses the ${role}, and never reaches the service`, async () => {
           givenAccess({ state: "active", operator: actor([role]) });
 
-          const failure = await call().catch((error: unknown) => error);
+          const failure = await call();
 
-          expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+          expectRefused(failure);
           expect(service).not.toHaveBeenCalled();
         });
       }
@@ -471,9 +483,9 @@ describe("every other roster-cell action's authorization gate", () => {
       it("refuses an operator holding no seat at all", async () => {
         givenAccess({ state: "active", operator: actor([]) });
 
-        const failure = await call().catch((error: unknown) => error);
+        const failure = await call();
 
-        expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+        expectRefused(failure);
         expect(service).not.toHaveBeenCalled();
       });
 
@@ -481,12 +493,38 @@ describe("every other roster-cell action's authorization gate", () => {
         it(`is refused to a ${state} caller`, async () => {
           givenAccess({ state } as OperatorAccess);
 
-          const failure = await call().catch((error: unknown) => error);
+          const failure = await call();
 
-          expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+          expectRefused(failure);
           expect(service).not.toHaveBeenCalled();
         });
       }
     });
   }
+});
+
+describe("a seat holding Kit at view (LAN-423 fix round 3, H2)", () => {
+  it("gets the refusal back as state and never reaches the service", async () => {
+    const president = actor(["president"]);
+    givenAccess({
+      state: "active",
+      operator: {
+        ...president,
+        grants: { ...president.grants, roster: { ...president.grants.roster, kit: "view" } },
+      },
+    });
+
+    const state = await commitKitItemAction({
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      item: "helmet",
+      value: "Large",
+    });
+
+    expectRefused(state);
+    expect(state.error).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    expect(commitKitItemValues).not.toHaveBeenCalled();
+  });
 });
