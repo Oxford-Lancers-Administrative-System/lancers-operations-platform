@@ -508,10 +508,10 @@ describe("the configuration itself", () => {
   });
 });
 
-describe("no quiet hours", () => {
+describe("the plan is unmoved by lights-out", () => {
   it("puts an early-morning event's rungs at early-morning times, unmoved", async () => {
-    // `REQ-no-quiet-hours` is absolute, and this is where it would be violated
-    // by accident. An 07:00 session produces an 07:00 deadline and 07:00
+    // LAN-433 holds sends 22:00-07:00 at dispatch; the plan itself is never
+    // moved. An 07:00 session produces an 07:00 deadline and 07:00
     // reminders, and nothing here delays or drops a message on that basis.
     const plan = await withTransaction((tx) =>
       resolveMessagingPlanIn(

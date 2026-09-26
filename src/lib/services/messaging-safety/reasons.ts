@@ -39,6 +39,8 @@ export type SafetyReasonCode =
  */
 const WAITING_PAUSED_LABEL = "Queued — messaging paused";
 export const WAITING_ALLOWANCE_LABEL = "Queued — waiting for the sending allowance";
+/** LAN-433. Held overnight by lights-out, not by the safety guard. */
+export const WAITING_LIGHTS_OUT_LABEL = "Queued — sends at 07:00";
 
 export function waitingLabelFor(code: SafetyReasonCode): string {
   return code === "paused_by_operator" ||

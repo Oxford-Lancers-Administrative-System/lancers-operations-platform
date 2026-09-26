@@ -40,6 +40,7 @@ import {
   runMessagingSweep,
 } from "./messaging-scheduler";
 import { stopChasingIn } from "./rsvp";
+import { setLightsOutClockForTesting } from "./messaging-schedule/lights-out";
 import { escalationCarriesNoPersonalData } from "@/lib/delivery/templates";
 import {
   agePastSafetyPacing,
@@ -762,8 +763,8 @@ describe("time-based backoff", () => {
   });
 
   it("spaces attempts further apart as they accumulate, and reads no clock", () => {
-    // `REQ-no-quiet-hours`. A backoff is exactly where "wait until 8am" gets
-    // reintroduced by accident, and nothing here reads the hour of day.
+    // A backoff reads no clock: lights-out (LAN-433) holds the send at
+    // dispatch, and never moves the retry's own due time.
     const from = new Date("2026-10-18T03:00:00Z");
     const first = backoffFrom(1, from);
     const last = backoffFrom(MAX_ATTEMPTS, from);
@@ -2214,5 +2215,152 @@ describe("LAN-367 -- the sweep claims a question-change re-ask (B1's correction)
       [target.invitationId],
     );
     expect(answer.rows[0].superseded_at).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Lights-out — LAN-433
+// ---------------------------------------------------------------------------
+
+/** 2026-10-01 is BST: this London wall-clock time on that day (or `day`), as an instant. */
+function clubTime(hhmm: string, day = "2026-10-01"): Date {
+  const [h, m] = hhmm.split(":").map(Number);
+  const [y, mo, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, d, h - 1, m));
+}
+
+function atClubTime(hhmm: string, day?: string): void {
+  const instant = clubTime(hhmm, day);
+  setLightsOutClockForTesting(() => instant);
+}
+
+describe("LAN-433 — lights-out holds automated messages from 22:00 to 07:00", () => {
+  afterEach(() => {
+    // Back to `vitest.setup.ts`'s own pinned midday.
+    setLightsOutClockForTesting(() => new Date("2026-06-15T11:00:00Z"));
+  });
+
+  it("sends a due invitation at 21:59", async () => {
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    atClubTime("21:59");
+    const { sent, transport } = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    expect((await jobRow(target.invitationJobId)).status).toBe("processing");
+  });
+
+  it.each(["22:00", "22:01", "06:59"])(
+    "holds a due invitation at %s — queued, untouched, nothing spent",
+    async (hhmm) => {
+      const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+      atClubTime(hhmm);
+      const { sent, transport } = acceptingTransport();
+      await runMessagingSweep({ source: CONFIGURED, transport });
+
+      expect(sent).toHaveLength(0);
+      const job = await jobRow(target.invitationJobId);
+      expect(job.status).toBe("pending");
+      expect(job.attempt_count).toBe(0);
+    },
+  );
+
+  it("sends the held invitation at 07:00, through the ordinary sweep", async () => {
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    atClubTime("23:00");
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+    expect((await jobRow(target.invitationJobId)).status).toBe("pending");
+
+    atClubTime("07:00", "2026-10-02");
+    const { sent, transport } = acceptingTransport();
+    await agePastSafetyPacing(observer);
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    const job = await jobRow(target.invitationJobId);
+    expect(job.status).toBe("processing");
+    expect(job.attempt_count).toBe(1);
+  });
+
+  it("holds a direct dispatch too — approval, Retry and every other door return deferred", async () => {
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    atClubTime("23:30");
+    const { sent, transport } = acceptingTransport();
+
+    expect(await dispatchJob(target.invitationJobId, { source: CONFIGURED, transport })).toBe(
+      "deferred",
+    );
+    expect(sent).toHaveLength(0);
+    const job = await jobRow(target.invitationJobId);
+    expect(job.status).toBe("pending");
+    expect(job.attempt_count).toBe(0);
+  });
+
+  it("holds a retry whose backoff falls due overnight, then retries it at 07:00", async () => {
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    await dispatchJob(target.invitationJobId, {
+      source: CONFIGURED,
+      transport: failingTransport(),
+      automatic: true,
+    });
+    // Due, and far enough overdue to sort ahead of the seed's ambient jobs (F-W1).
+    await observer.query(
+      "update public.notification_jobs set next_attempt_at = now() - interval '8760 hours' where id = $1",
+      [target.invitationJobId],
+    );
+    expect((await jobRow(target.invitationJobId)).status).toBe("failed");
+
+    atClubTime("02:00", "2026-10-02");
+    await agePastSafetyPacing(observer);
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+    const held = await jobRow(target.invitationJobId);
+    expect(held.status).toBe("failed");
+    expect(held.attempt_count).toBe(1);
+
+    atClubTime("07:00", "2026-10-02");
+    await agePastSafetyPacing(observer);
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+    const retried = await jobRow(target.invitationJobId);
+    expect(retried.status).toBe("processing");
+    expect(retried.attempt_count).toBe(2);
+  });
+
+  it("does not send an obsolete reminder at 07:00 when the invitee answered overnight", async () => {
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
+    const reminderId = await firstReminderJob(target.eventId);
+    atClubTime("23:00");
+    expect(await dispatchJob(reminderId, { source: CONFIGURED })).toBe("deferred");
+
+    await answerDirectly(target.invitationId, "yes");
+
+    atClubTime("07:00", "2026-10-02");
+    const { sent, transport } = acceptingTransport();
+    expect(await dispatchJob(reminderId, { source: CONFIGURED, transport })).toBe("skipped");
+    expect(sent).toHaveLength(0);
+    expect((await jobRow(reminderId)).status).toBe("cancelled");
+  });
+
+  it("sends a cancellation notice at any hour", async () => {
+    const target = await noticeFixture({ jobType: "cancellation_notice" });
+    atClubTime("23:30");
+    const { sent, transport } = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    expect((await jobRow(target.jobId)).status).toBe("processing");
+  });
+
+  it("sends a schedule-change notice at any hour", async () => {
+    const target = await noticeFixture({
+      jobType: "schedule_change_notice",
+      cancelled: false,
+      scheduleChange: { previousVenue: "Iffley Road Astro", newVenue: "University Parks" },
+    });
+    atClubTime("03:00", "2026-10-02");
+    const { sent, transport } = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    expect((await jobRow(target.jobId)).status).toBe("processing");
   });
 });

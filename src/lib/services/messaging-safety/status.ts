@@ -22,7 +22,12 @@ import {
 } from "./policy";
 import type { SafetyReasonCode } from "./reasons";
 import { MAX_ATTEMPTS } from "../delivery";
-import { DUE_JOB_PREDICATE } from "../messaging-queue";
+import { DUE_JOB_PREDICATE, lightsOutAdmitsSql, sendableSinceSql } from "../messaging-queue";
+import {
+  isLightsOut,
+  lastLightsOutReleaseAt,
+  lightsOutNow,
+} from "../messaging-schedule/lights-out";
 import { GLOBAL_SCOPE_KEY, readActiveScopesIn, readScopeIn, policyMatches } from "./scopes";
 
 /**
@@ -270,9 +275,10 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
       // queue warning that fires on work nobody is waiting for is a warning
       // nobody reads.
       `with due as (
-         select coalesce(next_attempt_at, scheduled_for, created_at) as due_at
+         select ${sendableSinceSql("$3")} as due_at
            from public.notification_jobs
           where ${DUE_JOB_PREDICATE}
+            and ${lightsOutAdmitsSql("$2")}
        )
        select
          (select count(*)::text from due) as due,
@@ -282,7 +288,7 @@ export async function readMessagingSafetyStatus(): Promise<MessagingSafetyStatus
              and coalesce(scheduled_for, created_at) > now()) as ahead,
          (select count(*)::text from public.notification_jobs
            where safety_reason_code is not null and status in ('pending', 'ready')) as held`,
-      [MAX_ATTEMPTS],
+      [MAX_ATTEMPTS, isLightsOut(lightsOutNow()), lastLightsOutReleaseAt(lightsOutNow())],
     );
 
     const usage = await tx.query<{ pacing: string; hour: string; day: string; week: string }>(

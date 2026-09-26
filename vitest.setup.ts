@@ -3,6 +3,8 @@ import "@testing-library/jest-dom/vitest";
 import { afterAll } from "vitest";
 import pg from "pg";
 
+import { setLightsOutClockForTesting } from "./src/lib/services/messaging-schedule/lights-out";
+
 /**
  * The guard that keeps the parallel test project away from the one local
  * database.
@@ -114,3 +116,11 @@ if (!isDatabaseProject) {
     globalThis.fetch = originalFetch;
   });
 }
+
+/**
+ * LAN-433. Lights-out holds automated messages from 22:00 to 07:00 club time,
+ * and every suite that dispatches a message would otherwise pass or fail by
+ * the hour CI happened to run it. The lights-out clock is pinned to midday
+ * here; the suites that test the window set their own instants.
+ */
+setLightsOutClockForTesting(() => new Date("2026-06-15T11:00:00Z"));

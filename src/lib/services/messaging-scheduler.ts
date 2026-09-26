@@ -23,6 +23,7 @@ import {
   MAX_ATTEMPTS,
   concludeExpiredDeliveries,
   dispatchJob,
+  heldForLightsOut,
   type DispatchOutcome,
 } from "./delivery";
 import {
@@ -37,6 +38,7 @@ import {
   SHARED_PACING_WINDOW_MINUTES,
   waitingLabelFor,
   WAITING_ALLOWANCE_LABEL,
+  WAITING_LIGHTS_OUT_LABEL,
   type AdmissionGranted,
 } from "./messaging-safety";
 import {
@@ -63,7 +65,13 @@ import {
   readRecruitmentCycleCompletionIn,
   type RecruitmentCycleStepName,
 } from "./recruitment-cycle";
-import { DUE_JOB_PREDICATE } from "./messaging-queue";
+import { DUE_JOB_PREDICATE, lightsOutAdmitsSql, sendableSinceSql } from "./messaging-queue";
+import {
+  isLightsOut,
+  lastLightsOutReleaseAt,
+  lightsOutNow,
+  lightsOutWaitingUntil,
+} from "./messaging-schedule/lights-out";
 import type { MessagingPlan } from "./messaging-schedule";
 import { personDisplayAliasSql } from "./sql-text";
 
@@ -101,12 +109,14 @@ import { personDisplayAliasSql } from "./sql-text";
  * message per job and not two, and that property is the existing dispatcher's
  * rather than a new one this file would have to get right a second time.
  *
- * ## There are no quiet hours
+ * ## Lights-out, 22:00 to 07:00
  *
- * `REQ-no-quiet-hours` is absolute and this is where it would be violated.
- * Nothing here reads the hour of day. A rung due at 03:00 is dispatched at
- * 03:00, and no batching, compression or recovery may delay or drop a message on
- * that basis.
+ * `REQ-no-quiet-hours` was reversed by Brian on 2026-09-26 (LAN-433). From
+ * 22:00 to 07:00 club time nothing automated is dispatched except the three
+ * notices an operator sent — a cancellation, a change notice, a question
+ * change. A rung due at 03:00 is still due at 03:00 (the ladder is unmoved);
+ * `readDueJobs` does not select it and every dispatcher refuses it until 07:00,
+ * when it goes with every dispatch-time check re-run. Held, never dropped.
  */
 
 /** What one tick did. Returned so a trigger can be observed rather than trusted. */
@@ -728,6 +738,9 @@ async function readDueJobs(limit: number, after: DueJob | null = null): Promise<
               coalesce(next_attempt_at, scheduled_for, created_at) as due_at
          from public.notification_jobs
         where ${DUE_JOB_PREDICATE}
+          -- LAN-433. Overnight, a held job is not due at all, so the sweep
+          -- neither claims it nor spends its scan budget on it.
+          and ${lightsOutAdmitsSql("$5")}
           -- LAN-394. The keyset. Without it a sweep that deferred its first
           -- fifty candidates would fetch the same fifty again on the next page
           -- for ever; with it, each page starts after the last row examined.
@@ -738,7 +751,7 @@ async function readDueJobs(limit: number, after: DueJob | null = null): Promise<
                or (coalesce(next_attempt_at, scheduled_for, created_at), id) > ($3::timestamptz, $4::uuid))
         order by coalesce(next_attempt_at, scheduled_for, created_at), id
         limit $2`,
-      [MAX_ATTEMPTS, limit, after?.dueAt ?? null, after?.id ?? null],
+      [MAX_ATTEMPTS, limit, after?.dueAt ?? null, after?.id ?? null, isLightsOut(lightsOutNow())],
     );
     return result.rows.map((row) => ({
       id: row.id,
@@ -884,9 +897,10 @@ export async function runMessagingSweep(
       admitted_pacing: string;
     }>(
       `with due as (
-         select coalesce(next_attempt_at, scheduled_for, created_at) as due_at
+         select ${sendableSinceSql("$4")} as due_at
            from public.notification_jobs
           where ${DUE_JOB_PREDICATE}
+            and ${lightsOutAdmitsSql("$3")}
        )
        select
          (select count(*)::text from due) as due,
@@ -895,7 +909,12 @@ export async function runMessagingSweep(
            where safety_admitted_at > now() - interval '24 hours') as admitted_day,
          (select count(*)::text from public.delivery_attempts
            where safety_admitted_at > now() - ($2 || ' minutes')::interval) as admitted_pacing`,
-      [MAX_ATTEMPTS, String(SHARED_PACING_WINDOW_MINUTES)],
+      [
+        MAX_ATTEMPTS,
+        String(SHARED_PACING_WINDOW_MINUTES),
+        isLightsOut(lightsOutNow()),
+        lastLightsOutReleaseAt(lightsOutNow()),
+      ],
     );
     const counts = {
       admittedInDay: Number(row.rows[0].admitted_day),
@@ -976,6 +995,9 @@ export async function dispatchEscalationJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<DispatchOutcome> {
+  // LAN-433. Before anything is read or claimed: overnight, a held job is
+  // simply not sent yet, and nothing about it changes.
+  if (await heldForLightsOut(jobId)) return "deferred";
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       "select channel::text as channel from public.notification_jobs where id = $1 and job_type = 'escalation'",
@@ -1480,6 +1502,9 @@ export async function dispatchRecruitmentCycleJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<DispatchOutcome> {
+  // LAN-433. Before anything is read or claimed: overnight, a held job is
+  // simply not sent yet, and nothing about it changes.
+  if (await heldForLightsOut(jobId)) return "deferred";
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       `select channel::text as channel from public.notification_jobs
@@ -1874,6 +1899,9 @@ export async function dispatchOnboardingWelcomeJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<DispatchOutcome> {
+  // LAN-433. Before anything is read or claimed: overnight, a held job is
+  // simply not sent yet, and nothing about it changes.
+  if (await heldForLightsOut(jobId)) return "deferred";
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       `select channel::text as channel from public.notification_jobs
@@ -2388,6 +2416,9 @@ export async function dispatchOnboardingChaseEscalationJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<DispatchOutcome> {
+  // LAN-433. Before anything is read or claimed: overnight, a held job is
+  // simply not sent yet, and nothing about it changes.
+  if (await heldForLightsOut(jobId)) return "deferred";
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null; template_variables: { outstandingCount?: number } }>(
       `select channel::text as channel, template_variables
@@ -2658,6 +2689,9 @@ export async function dispatchOnboardingChaseJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<DispatchOutcome> {
+  // LAN-433. Before anything is read or claimed: overnight, a held job is
+  // simply not sent yet, and nothing about it changes.
+  if (await heldForLightsOut(jobId)) return "deferred";
   const routed = await withTransaction(async (tx) =>
     tx.query<{ channel: string | null }>(
       `select channel::text as channel from public.notification_jobs where id = $1 and job_type = 'other'`,
@@ -3048,7 +3082,7 @@ export async function sendOnboardingNudges(
       personId: membership.personId,
       membershipId,
       outcome,
-      waitingUntil: waiting?.nextEligibleAt ?? null,
+      waitingUntil: waiting?.nextEligibleAt ?? lightsOutWaitingUntil(outcome),
     });
   }
   return results;
@@ -3218,7 +3252,11 @@ export async function sendEventChases(
       results.push({
         invitationId,
         outcome: "deferred",
-        reason: waiting ? waitingLabelFor(waiting.reasonCode) : WAITING_ALLOWANCE_LABEL,
+        reason: waiting
+          ? waitingLabelFor(waiting.reasonCode)
+          : lightsOutWaitingUntil(outcome)
+            ? WAITING_LIGHTS_OUT_LABEL
+            : WAITING_ALLOWANCE_LABEL,
       });
       continue;
     }
@@ -3285,6 +3323,9 @@ export async function dispatchNoticeJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<DispatchOutcome> {
+  // LAN-433. Before anything is read or claimed: overnight, a held job is
+  // simply not sent yet, and nothing about it changes.
+  if (await heldForLightsOut(jobId)) return "deferred";
   const resolution = resolveDeliveryProvider(options.source ?? process.env, options.transport);
 
   if (!resolution.ok) {

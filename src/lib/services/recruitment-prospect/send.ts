@@ -6,6 +6,7 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { MAX_ATTEMPTS } from "../delivery";
 import { dispatchRecruitmentCycleJob } from "../messaging-scheduler";
 import { readWaitingIn } from "../messaging-safety";
+import { lightsOutWaitingUntil } from "../messaging-schedule/lights-out";
 import { recordAudit } from "../audit";
 import {
   declareRecruitmentCycleJobsIn,
@@ -142,5 +143,9 @@ export async function sendRecruitmentQuestionnaire(
   // The recruitment ask has a deterministic person/season/step job key, so the
   // job this returns is the one already waiting rather than a second request.
   const waiting = await withTransaction((tx) => readWaitingIn(tx, jobId));
-  return { ...result, delivery, waitingUntil: waiting?.nextEligibleAt ?? null };
+  return {
+    ...result,
+    delivery,
+    waitingUntil: waiting?.nextEligibleAt ?? lightsOutWaitingUntil(delivery),
+  };
 }

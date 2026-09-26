@@ -37,6 +37,7 @@ import {
 } from "./player-questionnaire";
 import { computePlayerOutstanding, readPlayerHasOutstandingIn } from "./player-questionnaire/read";
 import { resolveOpenSeason } from "./roster";
+import { setLightsOutClockForTesting } from "./messaging-schedule/lights-out";
 
 const MARKER = "LAN437ChaseOutstanding";
 const OPERATOR_ITEM_CODES = ["kit_sorted", "subs_invoiced", "subs_paid", "comms_groups", "photo"];
@@ -391,6 +392,39 @@ describe("the onboarding chase counts only what the player can act on — LAN-43
     await setChase({ firstChaseAfterHours: 0, chaseCount: 4, chaseIntervalDays: 3 });
     await sweepTwice(acceptingTransport().transport);
     expect(await chaseJob(membershipId, 1)).not.toBeNull();
+  });
+
+  it("holds a chase overnight, and drops it at 07:00 when the player finished in the night — LAN-433", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await answerPlayerSide(personId, membershipId, { codeOfConduct: true });
+    const inserted = await observer.query<{ id: string }>(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, person_id, channel, scheduled_for, template_variables)
+       values ($1, 'other', 'pending', $2::uuid, 'whatsapp', now(), '{}'::jsonb)
+       returning id`,
+      [`${ONBOARDING_CHASE_KEY_PREFIX}${membershipId}:1`, personId],
+    );
+    const jobId = inserted.rows[0].id;
+    const { sent, transport } = acceptingTransport();
+    try {
+      setLightsOutClockForTesting(() => new Date("2026-10-01T22:30:00Z")); // 23:30 BST
+      expect(await dispatchOnboardingChaseJob(jobId, { source: CONFIGURED, transport })).toBe(
+        "deferred",
+      );
+      expect((await chaseJob(membershipId, 1))?.status).toBe("pending");
+
+      await agreeCodeOfConduct(personId, membershipId);
+
+      setLightsOutClockForTesting(() => new Date("2026-10-02T06:00:00Z")); // 07:00 BST
+      await agePastSafetyPacing(observer);
+      expect(await dispatchOnboardingChaseJob(jobId, { source: CONFIGURED, transport })).toBe(
+        "skipped",
+      );
+    } finally {
+      setLightsOutClockForTesting(() => new Date("2026-06-15T11:00:00Z"));
+    }
+    expect(sent).toHaveLength(0);
+    expect((await chaseJob(membershipId, 1))?.last_error).toMatch(/nothing left to fill in/);
   });
 
   it("drops a chase declared before the player finished, at dispatch", async () => {

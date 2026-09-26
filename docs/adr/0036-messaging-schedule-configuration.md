@@ -136,3 +136,23 @@ runs.
   remain the record of why the deadlines are what they are. Only its
   configuration-surface prohibition and its fixed 18:00 anchor are superseded
   here.
+
+## Amended 2026-09-26 (LAN-433)
+
+Brian reversed `OWN-no-quiet-hours`, his own decision of 2026-08-24: "I just
+don't want to be sending messages between 10:01pm–6:59am local time. It's just
+not good form with students." From 22:00 (inclusive) to 07:00 (exclusive),
+Europe/London wall-clock time and never the recipient's, no automated message is
+dispatched. Exactly three message kinds are exempt and go at any hour, because an
+operator pressed Send on each: `cancellation`, `change_notice` and
+`question_change`. Every other kind waits, including an invitation that would
+dispatch immediately at approval and both office-facing escalations.
+
+The hold is applied at dispatch only (`messaging-schedule/lights-out.ts`, read by
+`readDueJobs` and by every dispatcher). The ladder arithmetic above is unchanged:
+an 07:00 session still produces an 07:00 deadline, and a rung whose moment falls
+in the window keeps that moment and is simply not due until 07:00. Retries,
+already-queued jobs and jobs rescheduled by approval or amendment obey it alike,
+and at release every dispatch-time eligibility check runs, under normal pacing.
+The bullet above that calls `OWN-no-quiet-hours` absolute is superseded to that
+extent; no data was repaired.

@@ -34,6 +34,11 @@ import { JOB_CANCELLED_REASON } from "./rsvp";
 import { issueAnswerTokenIn } from "./player-answer-tokens";
 import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
 import { personDisplayAliasSql } from "./sql-text";
+import {
+  isJobTypeLightsOutExempt,
+  isLightsOut,
+  lightsOutNow,
+} from "./messaging-schedule/lights-out";
 
 /**
  * Automated delivery. LAN-78.
@@ -130,12 +135,13 @@ export const DISPATCH_BUDGET_MS = 90_000;
  * is briefly unhappy" has stopped being the likely explanation and the job is
  * about to become a **Failed** somebody reads.
  *
- * ## There are no quiet hours in it
+ * ## The hour of day is not read here
  *
- * `REQ-no-quiet-hours` is absolute, and a backoff is exactly the kind of place
- * one gets reintroduced by accident — "wait until 8am" looks like politeness
- * and is a rule that drops a message for eight hours. Nothing here reads the
- * hour of day, and a retry due at 03:00 is attempted at 03:00.
+ * `REQ-no-quiet-hours` was reversed by Brian on 2026-09-26 (LAN-433): nothing
+ * automated is sent from 22:00 to 07:00. That hold lives in one place, at
+ * dispatch (`heldForLightsOut`, `messaging-schedule/lights-out.ts`), not in
+ * this arithmetic — a retry due at 03:00 is still due at 03:00, and simply is
+ * not sent until 07:00.
  */
 export const BACKOFF_MINUTES: readonly number[] = Object.freeze([5, 15, 60, 240, 240]);
 
@@ -1089,6 +1095,25 @@ async function dispatchFallbackBestEffort(
 }
 
 /**
+ * LAN-433. Whether lights-out holds this job right now — checked by every
+ * dispatcher before it reads or claims anything, so the approval path, an
+ * operator's Retry or nudge, a fallback and the sweep all obey it alike. A held
+ * job is left exactly as it was: still pending (or failed with its backoff),
+ * and due again at 07:00. No query at all in the daytime.
+ */
+export async function heldForLightsOut(jobId: string): Promise<boolean> {
+  if (!isLightsOut(lightsOutNow())) return false;
+  const row = await withTransaction((tx) =>
+    tx.query<{ job_type: string }>(
+      "select job_type::text as job_type from public.notification_jobs where id = $1",
+      [jobId],
+    ),
+  );
+  const jobType = row.rows[0]?.job_type;
+  return jobType !== undefined && !isJobTypeLightsOutExempt(jobType);
+}
+
+/**
  * Dispatches one job: claim, send, record.
  *
  * Returns what happened so a caller can summarise. Never throws for a delivery
@@ -1105,6 +1130,9 @@ export async function dispatchJob(
     automatic?: boolean;
   } = {},
 ): Promise<DispatchOutcome> {
+  // LAN-433. Before anything is read or claimed: overnight, a held job is
+  // simply not sent yet, and nothing about it changes.
+  if (await heldForLightsOut(jobId)) return "deferred";
   // LAN-169. Read before the provider is resolved, because the provider is
   // chosen by the job's own channel: `REQ-ladder-order` fixes the sequence
   // WhatsApp, WhatsApp again, email, and the scheduler writes the rung's

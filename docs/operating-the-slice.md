@@ -466,8 +466,38 @@ is five days for a practice and ten for a game. So:
 Reminders then count **forward** from the invitation on a 24-hour cadence, in a
 fixed order that is not configurable: WhatsApp, WhatsApp again, email, and then
 an escalation to whoever currently holds the President's seat, twelve hours
-after the response deadline. There are **no quiet hours** — an early-morning
-event produces early-morning messages and nothing delays them.
+after the response deadline.
+
+### Lights-out, 22:00 to 07:00
+
+Nothing automated is sent from **22:00 to 07:00**, club time (Europe/London,
+whatever the recipient's own zone), on every night including the two
+clock-change nights (LAN-433, Brian 2026-09-26: "It's just not good form with
+students"). The plan's times do not move — the panel still shows the rung's real
+moment, and says **Automated sends wait 22:00–07:00.** — but a message whose
+moment falls in the window is held until 07:00. That covers everything: an
+invitation that would otherwise go the moment an event is approved, reminders,
+event and onboarding nudges, the recruitment and onboarding messages, the
+onboarding chase, a retry whose backoff lands overnight, an operator's
+**Retry**, and both escalations to the office. Held means queued: nothing is
+dropped, marked sent or spent against the attempt ceiling, and an operator
+action overnight reads **Queued**.
+
+Exactly three kinds go at any hour, because an operator pressed Send on them
+and the news cannot wait: a **cancellation notice**, a **change notice** and a
+**question change**.
+
+At 07:00 the held messages go through the ordinary sweep, under the ordinary
+pacing — a large overnight pile drains over the following ticks rather than
+arriving at once — and every dispatch-time check runs first. A reminder whose
+invitee answered in the night is withdrawn rather than sent, an onboarding chase
+for a player who finished in the night is dropped, and a rung for an event that
+has since started or been cancelled is not sent. The queue-age warning counts a
+held message from 07:00, not from its rung.
+
+To see it locally, run the ticker after 22:00 against an approved event whose
+invitation is due: nothing reaches the sink, and the invitation's job stays
+`pending` until the first tick at or after 07:00.
 
 ### What the onboarding chase counts
 
