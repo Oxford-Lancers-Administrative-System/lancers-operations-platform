@@ -3,7 +3,6 @@
 import { useState, useTransition, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -440,24 +439,7 @@ export default function AccessSection({
   return (
     <Section title="Access" testId="access">
       <Stack spacing={2}>
-        {fixed ? (
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            sx={{ alignItems: { sm: "center" } }}
-            data-testid="access-fixed"
-          >
-            <Chip
-              size="small"
-              variant="outlined"
-              label="Central rule · LAN-423"
-              sx={{ alignSelf: "flex-start" }}
-            />
-            <Typography variant="body2" color="text.secondary">
-              Fixed for the President, General Manager and IT Officer.
-            </Typography>
-          </Stack>
-        ) : (
+        {fixed ? null : (
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <Button
               variant="outlined"

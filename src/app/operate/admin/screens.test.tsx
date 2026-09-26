@@ -1438,7 +1438,9 @@ describe("one role's record", () => {
     render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
 
     const access = screen.getByTestId("section-access");
-    expect(within(access).getByTestId("access-fixed")).toHaveTextContent("Central rule");
+    // Round 6, M1: the values stand alone, with no chip or sentence above them.
+    expect(within(access).queryByTestId("access-fixed")).toBeNull();
+    expect(access).not.toHaveTextContent(/Central rule|LAN-423|Fixed for the President/);
     expect(within(access).queryAllByRole("button", { name: /^(None|View|Edit|Manage)$/ })).toEqual(
       [],
     );
