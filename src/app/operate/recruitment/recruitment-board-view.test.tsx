@@ -312,3 +312,39 @@ describe("the board's scrollbar gutter — LAN-395", () => {
     expect(window.getComputedStyle(table).overflow).toBe("auto");
   });
 });
+
+describe("Personal sent follows Person information, as the record does — LAN-423", () => {
+  function renderWith(access: {
+    recruit_person: "none" | "view" | "edit";
+    recruit_details: "none" | "view" | "edit";
+  }) {
+    return render(
+      <RecruitmentBoardView
+        operatorPersonId="operator-1"
+        season={SEASON}
+        rows={[row()]}
+        events={[]}
+        totalInSeason={1}
+        initialSearch=""
+        initialFilters={{}}
+        initialSortKey={null}
+        initialSortDirection="asc"
+        access={{ ...access, recruit_events: "none" }}
+      />,
+    );
+  }
+
+  it("is not shown to a Recruit-details-only seat, as column or filter", () => {
+    const { container } = renderWith({ recruit_person: "none", recruit_details: "view" });
+    expect(container.querySelector('[data-testid="recruitment-filter-personal-sent"]')).toBeNull();
+    expect(within(container).queryAllByText("Personal sent")).toEqual([]);
+  });
+
+  it("is shown to a Person-information seat without Recruit details", () => {
+    const { container } = renderWith({ recruit_person: "view", recruit_details: "none" });
+    expect(
+      container.querySelector('[data-testid="recruitment-filter-personal-sent"]'),
+    ).not.toBeNull();
+    expect(within(container).getAllByText("Personal sent").length).toBeGreaterThan(0);
+  });
+});

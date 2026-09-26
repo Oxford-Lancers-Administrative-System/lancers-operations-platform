@@ -328,10 +328,21 @@ const RECRUITMENT_COLUMN_TABLE: readonly Omit<ColumnDef, "category">[] = [
   },
 ];
 
-/** The Person and Recruitment columns, each carrying its band's recruiting category (LAN-432). */
+/**
+ * Columns whose recruiting category is not their band's. Personal sent is the
+ * personal questionnaire's send state, which the record keeps under Person
+ * information (LAN-423), so board and record agree.
+ */
+const COLUMN_CATEGORY_OVERRIDES: Readonly<Partial<Record<string, RecruitingCategory>>> =
+  Object.freeze({ personalSent: "recruit_person" });
+
+/** The Person and Recruitment columns, each carrying its recruiting category (LAN-432). */
 export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze(
   RECRUITMENT_COLUMN_TABLE.map((column) =>
-    Object.freeze({ ...column, category: categoryOfRecruitmentBand(column.band) }),
+    Object.freeze({
+      ...column,
+      category: COLUMN_CATEGORY_OVERRIDES[column.key] ?? categoryOfRecruitmentBand(column.band),
+    }),
   ),
 );
 

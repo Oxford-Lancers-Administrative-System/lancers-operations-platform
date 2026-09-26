@@ -66,6 +66,23 @@ describe("redactRecruitmentRow", () => {
     }
     expect(JSON.stringify(row)).not.toContain("7700900555");
   });
+
+  it("Personal sent follows Person information, as the record does — LAN-423", () => {
+    expect("personalSent" in redactRecruitmentRow(ROW, DETAILS_VIEW)).toBe(false);
+    const personOnly = recruitingAccessFor(
+      mergeGrantRows([
+        {
+          subject_kind: "recruiting_category",
+          subject_key: "recruit_person",
+          template_id: null,
+          level: "view",
+        },
+      ]),
+    );
+    const row = redactRecruitmentRow(ROW, personOnly);
+    expect(row.personalSent).toBe(false);
+    expect("recruitmentSent" in row).toBe(false);
+  });
 });
 
 describe("redactProspectRecord", () => {

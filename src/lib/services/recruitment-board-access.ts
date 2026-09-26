@@ -14,8 +14,9 @@ import type { RecruitmentProspectRecord } from "./recruitment-prospect";
  * The roster board's pattern, on the recruit board: the name and the ids that
  * open a record always travel (records open for anyone who reaches
  * Recruitment); Person information carries the recruit's person facts, the
- * aliases search reads and the number behind the phone card's Call; Recruit
- * details carries status, source, the two sends, consent and the
+ * aliases search reads, the number behind the phone card's Call and the
+ * personal questionnaire's send; Recruit details carries status, source, the
+ * recruitment send, consent and the
  * questionnaire answers; Event details carries every event cell. A `none`
  * category's fields are not on the row at all.
  */
@@ -40,13 +41,15 @@ const PERSON_FIELDS = Object.freeze([
   "hasMobile",
   "hasEmail",
   "phoneForCall",
+  // The personal questionnaire's send state is Person information's on the
+  // record (LAN-423), so it is here too.
+  "personalSent",
 ] as const satisfies readonly (keyof RecruitmentBoardRow)[]);
 
 const DETAIL_FIELDS = Object.freeze([
   "status",
   "source",
   "firstContactOn",
-  "personalSent",
   "recruitmentSent",
   "consent",
   "consentChangedAt",

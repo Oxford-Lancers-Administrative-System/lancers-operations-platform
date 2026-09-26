@@ -122,8 +122,10 @@ export default function RecruitmentBoardView({
     () => visibleRecruitmentColumns([...RECRUITMENT_COLUMNS, ...eventColumns(events)], access),
     [events, access],
   );
-  // LAN-432: the pinned filters follow their categories — the four Recruitment
-  // ones Recruit details, Attended an event Event details.
+  // LAN-432: the pinned filters follow their categories — Status, consent and
+  // Recruitment sent Recruit details, Personal sent Person information
+  // (LAN-423), Attended an event Event details.
+  const personShown = access.recruit_person !== "none";
   const detailsShown = access.recruit_details !== "none";
   const eventsShown = access.recruit_events !== "none";
   const eventByBand = useMemo(
@@ -270,7 +272,7 @@ export default function RecruitmentBoardView({
           minWidth={170}
         />
       ) : null}
-      {detailsShown ? (
+      {personShown ? (
         <PinnedSelect
           label="Personal sent"
           value={filters.personalSent ?? ""}
@@ -408,7 +410,7 @@ export default function RecruitmentBoardView({
         <>
           <Stack spacing={2} sx={{ mb: 2 }}>
             <Box sx={{ display: { xs: "none", md: "block" } }}>{pinned}</Box>
-            {detailsShown || eventsShown ? (
+            {personShown || detailsShown || eventsShown ? (
               <Box sx={{ display: { xs: "block", md: "none" } }}>
                 <Button variant="outlined" onClick={() => setPhoneFilters(true)} sx={{ mb: 1 }}>
                   Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
