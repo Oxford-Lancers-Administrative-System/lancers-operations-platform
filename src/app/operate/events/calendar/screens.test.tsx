@@ -438,6 +438,22 @@ describe("the Oxford View", () => {
     expect(text).not.toContain("Outside term");
   });
 
+  it("prints each week's exact Gregorian range, across the term and vacation seam", async () => {
+    // The week numbering itself is proved in oxford-year.test.ts; this pins the
+    // rendered range text — day, month rollover, year and the en dash.
+    const { container } = render(await oxford());
+
+    expect(flatten(weekRow(container, "−1st week").textContent)).toContain("27 Sep – 3 Oct 2026");
+    expect(flatten(weekRow(container, "8th week").textContent)).toContain("29 Nov – 5 Dec 2026");
+    expect(flatten(weekRow(container, "Christmas Vacation 1").textContent)).toContain(
+      "6 – 12 Dec 2026",
+    );
+    expect(flatten(weekRow(container, "Christmas Vacation 5").textContent)).toContain(
+      "3 – 9 Jan 2027",
+    );
+    expect(flatten(weekRow(container, "0th week", 1).textContent)).toContain("10 – 16 Jan 2027");
+  });
+
   it("lays out Sunday through Saturday as the columns", async () => {
     const { container } = render(await oxford());
     const headers = [...container.querySelectorAll('th[scope="col"]')].map((header) =>
