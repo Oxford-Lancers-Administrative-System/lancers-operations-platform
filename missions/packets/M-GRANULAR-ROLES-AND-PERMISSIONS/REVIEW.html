@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Granular Roles &amp; Permissions — review index</title>
+    <style>
+      /* Tokens from .claude/skills/mission-intake/assets/mockup-exemplar.html (src/theme.ts, MUI defaults). Nothing here is a redesign. */
+      :root {
+        --primary: #0b3d91;
+        --primary-tint: rgba(11, 61, 145, 0.04);
+        --text-primary: rgba(0, 0, 0, 0.87);
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #fff;
+        --grey100: #f5f5f5;
+        --grey800: #424242;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --radius: 8px;
+        --current: #5c6b7a;
+        --proposed: #0b3d91;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Geist Sans", system-ui, "Helvetica Neue",
+          Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        font-family: var(--font);
+        color: var(--text-primary);
+        line-height: 1.45;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      header.top {
+        background: var(--paper);
+        border-radius: var(--radius);
+        padding: 20px 24px;
+        margin-bottom: 16px;
+        border: 1px solid var(--divider);
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: var(--text-secondary);
+        margin: 0;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 12px;
+        font-size: 13px;
+      }
+      .band {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      .band.cur {
+        background: var(--current);
+      }
+      .band.pro {
+        background: var(--proposed);
+      }
+      .chip {
+        display: inline-block;
+        border: 1px dashed var(--outline);
+        border-radius: 12px;
+        padding: 0 8px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-left: 6px;
+      }
+      .chip.solid {
+        border-style: solid;
+      }
+      .note {
+        background: var(--info-bg);
+        color: var(--info-text);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        font-size: 14px;
+        margin: 12px 0 0;
+      }
+      .warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+      section.wf {
+        background: var(--paper);
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 16px 24px;
+        margin-bottom: 14px;
+      }
+      section.wf h2 {
+        font-size: 17px;
+        margin: 0 0 2px;
+      }
+      section.wf h2 a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+      section.wf h2 a:hover {
+        text-decoration: underline;
+      }
+      .meta {
+        color: var(--text-secondary);
+        font-size: 13px;
+        margin: 0 0 10px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 7px 8px;
+        border-bottom: 1px solid var(--divider);
+        vertical-align: top;
+      }
+      th {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: var(--text-secondary);
+        font-weight: 600;
+      }
+      td.id a {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      td.id a:hover {
+        text-decoration: underline;
+      }
+      td.disp {
+        white-space: nowrap;
+      }
+      .d-existing {
+        color: var(--text-secondary);
+      }
+      .d-modified {
+        color: var(--primary);
+      }
+      .d-new {
+        color: #7a3e00;
+      }
+      ol.q {
+        margin: 8px 0 0 18px;
+        padding: 0;
+        font-size: 14px;
+      }
+      ol.q li {
+        margin-bottom: 4px;
+      }
+      .progress {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .stat {
+        background: var(--grey100);
+        border-radius: var(--radius);
+        padding: 10px 12px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .stat b {
+        display: block;
+        font-size: 20px;
+        color: var(--text-primary);
+      }
+      footer {
+        color: var(--text-secondary);
+        font-size: 12px;
+        margin-top: 24px;
+      }
+      @media (max-width: 600px) {
+        th:nth-child(4),
+        td:nth-child(4) {
+          display: none;
+        }
+        section.wf {
+          padding: 12px 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="top">
+        <h1>Granular Roles &amp; Permissions — review index</h1>
+        <p class="sub">
+          LAN-424 design sprint, round 4 · ledger
+          <code>missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS</code> · application head
+          <code>0d4b6ce5</code> merged as <code>726c9346</code>; round 4 re-shot W2-01, W2-02, W3-03
+          and W3-04b at <code>57480009</code> · Now: 25 Sep 2026
+        </p>
+        <div class="legend">
+          <span><span class="band cur"></span>CURRENT — on <code>main</code> today</span>
+          <span><span class="band pro"></span>PROPOSED — this mission</span>
+          <span><span class="chip">Proposed</span> a control absent from the current build</span>
+          <span><span class="chip solid">Central rule</span> locked by LAN-423</span>
+        </div>
+        <div class="progress">
+          <div class="stat"><b>4</b>workflows; W1 approved, W2–W4 draft</div>
+          <div class="stat"><b>18</b>screens, all photographed both sides</div>
+          <div class="stat"><b>0</b>screens drawn</div>
+          <div class="stat"><b>1280 · 375</b>frames per screen</div>
+        </div>
+        <p class="note">
+          Every screen is the running application photographed twice: once as it is on
+          <code>main</code>, once with the proposal scripted into the same page. Seats without a
+          local login are the review account narrowed by script; each screen head says so. This page
+          is hand-built for review; the generated hub (<code>mockups/index.html</code>) appears once
+          the boundary, overview and inventory approvals are recorded in the ledger.
+        </p>
+      </header>
+
+      <section class="wf" id="W1">
+        <h2>
+          <a href="mockups/W1-administer-a-seats-grants.html">W1 — Administer a seat's grants</a>
+        </h2>
+        <p class="meta">
+          Actor: President, General Manager, IT Officer · Route:
+          <code>/operate/admin/roles</code> and a seat's page · Spec:
+          <a href="workflows/W1-administer-a-seats-grants.md">W1.md</a> · <b>Approved by Brian</b>
+        </p>
+        <table>
+          <tr>
+            <th>Screen</th>
+            <th>Shows</th>
+            <th>Disposition</th>
+            <th>Judge</th>
+          </tr>
+          <tr>
+            <td class="id"><a href="mockups/W1-administer-a-seats-grants.html#W1-01">W1-01</a></td>
+            <td>Roles index. Nothing changes; the pair is identical.</td>
+            <td class="disp d-existing">Existing</td>
+            <td>That it truly needs no change.</td>
+          </tr>
+          <tr>
+            <td class="id"><a href="mockups/W1-administer-a-seats-grants.html#W1-03">W1-03</a></td>
+            <td>
+              Kit Manager's seat page: holder at the top; Access below with Roster (11), Recruiting
+              (3), the 7 templates, 2 add switches; Copy access and Grant everything marked
+              Proposed; Kit None → Edit notice and History lines.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>The seat page is the whole surface. Adopt the two mass edits?</td>
+          </tr>
+          <tr>
+            <td class="id"><a href="mockups/W1-administer-a-seats-grants.html#W1-04">W1-04</a></td>
+            <td>Vice-President: full and removable one grant at a time; groups fold at 375.</td>
+            <td class="disp d-modified">Modified</td>
+            <td>Removable reads as removable.</td>
+          </tr>
+          <tr>
+            <td class="id"><a href="mockups/W1-administer-a-seats-grants.html#W1-05">W1-05</a></td>
+            <td>President: every control locked under the Central rule chip; no mass edits.</td>
+            <td class="disp d-modified">Modified</td>
+            <td>Locked is unmistakable.</td>
+          </tr>
+          <tr>
+            <td class="id"><a href="mockups/W1-administer-a-seats-grants.html#W1-07">W1-07</a></td>
+            <td>
+              Treasurer: Copy access from Vice-President, 23 changes listed before confirming.
+            </td>
+            <td class="disp d-new">New</td>
+            <td>Only if mass edits are adopted.</td>
+          </tr>
+          <tr>
+            <td class="id"><a href="mockups/W1-administer-a-seats-grants.html#W1-08">W1-08</a></td>
+            <td>After the copy: one Notice, one History entry with a line per grant.</td>
+            <td class="disp d-modified">Modified</td>
+            <td>Audit shape matches existing History.</td>
+          </tr>
+        </table>
+      </section>
+
+      <section class="wf" id="W2">
+        <h2>
+          <a href="mockups/W2-edit-roster-group-colours.html">W2 — Edit roster group colours</a>
+        </h2>
+        <p class="meta">
+          Actor: President, General Manager, IT Officer (proposed) · Route:
+          <code>/operate/roster</code> · Spec:
+          <a href="workflows/W2-edit-roster-group-colours.md">W2.md</a>
+        </p>
+        <table>
+          <tr>
+            <th>Screen</th>
+            <th>Shows</th>
+            <th>Disposition</th>
+            <th>Judge</th>
+          </tr>
+          <tr>
+            <td class="id"><a href="mockups/W2-edit-roster-group-colours.html#W2-01">W2-01</a></td>
+            <td>
+              Roster with an Edit categories button beside Add players, the same Button and size.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>Resolved: same variant and size as Add players, side by side (round 4).</td>
+          </tr>
+          <tr>
+            <td class="id"><a href="mockups/W2-edit-roster-group-colours.html#W2-02">W2-02</a></td>
+            <td>
+              Roster categories dialog: ten groups, band preview and colour select each; Kit's menu
+              open on the thirteen-swatch palette: Oxford Blue (was Blue), Lancer Gold (new).
+            </td>
+            <td class="disp d-new">New</td>
+            <td>
+              Resolved: Oxford Blue <code>#002147</code> replaces Blue, Lancer Gold
+              <code>#C09723</code> added, no Lancer Blue; charcoal text on gold and orange (round
+              4).
+            </td>
+          </tr>
+        </table>
+        <p class="note warn">
+          Build facts: new template colour keys need a forward migration on the check constraint;
+          editable group colours are a new stored fact needing a data-model entry, RLS and grants.
+          The calendar feed carries no colour.
+        </p>
+      </section>
+
+      <section class="wf" id="W3">
+        <h2>
+          <a href="mockups/W3-work-the-roster-within-granted-categories.html"
+            >W3 — Work the roster within granted categories</a
+          >
+        </h2>
+        <p class="meta">
+          Actor: any granted seat · Routes: <code>/operate/roster</code>, a player's record,
+          <code>/operate/recruitment</code>, a prospect's record · Spec:
+          <a href="workflows/W3-work-the-roster-within-granted-categories.md">W3.md</a>
+        </p>
+        <table>
+          <tr>
+            <th>Screen</th>
+            <th>Shows</th>
+            <th>Disposition</th>
+            <th>Judge</th>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W3-work-the-roster-within-granted-categories.html#W3-01">W3-01</a>
+            </td>
+            <td>
+              Board as the Kit Manager: Person (view) and Kit columns only; Add players absent.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>Resolved: only granted groups appear.</td>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W3-work-the-roster-within-granted-categories.html#W3-02">W3-02</a>
+            </td>
+            <td>
+              Board as a coach with example grants: Person view, six edit groups; rows open the
+              record.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>
+              Resolved on LAN-424: the Contactable chip carries no number when Contact &amp;
+              emergency is None.
+            </td>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W3-work-the-roster-within-granted-categories.html#W3-03">W3-03</a>
+            </td>
+            <td>
+              A player's record as the Kit Manager: Person and Kit open; Contact &amp; emergency and
+              every other section locked, no contents; no status pill at the top.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>
+              Resolved: the lock reads as a lock; Attendance open (decided on LAN-424; the shot
+              still draws it locked); header status as text, never a pill (round 4).
+            </td>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W3-work-the-roster-within-granted-categories.html#W3-04a">W3-04a</a>
+            </td>
+            <td>
+              Recruits board with View on Recruit details only: Recruitment columns only; QR code
+              and Add recruit absent.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>Resolved: the board matches the roster rule.</td>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W3-work-the-roster-within-granted-categories.html#W3-04b">W3-04b</a>
+            </td>
+            <td>
+              A prospect's record as the same seat: Person information and Event details locked;
+              Recruitment read-only; Recruit status beside the name as plain text.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>
+              Resolved: Notes, What changed and Status history as Recruit details; header status as
+              text, not a pill (round 4).
+            </td>
+          </tr>
+        </table>
+      </section>
+
+      <section class="wf" id="W4">
+        <h2>
+          <a href="mockups/W4-work-events-of-a-granted-template.html"
+            >W4 — Work events of a granted template</a
+          >
+        </h2>
+        <p class="meta">
+          Actor: any granted seat · Routes: <code>/operate/events</code>, an event's page, the
+          calendar, <code>/operate/admin/follow-ups</code> · Spec:
+          <a href="workflows/W4-work-events-of-a-granted-template.md">W4.md</a>
+        </p>
+        <table>
+          <tr>
+            <th>Screen</th>
+            <th>Shows</th>
+            <th>Disposition</th>
+            <th>Judge</th>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W4-work-events-of-a-granted-template.html#W4-01">W4-01</a>
+            </td>
+            <td>Events list as the Social Secretary; the Type menu lists only Social.</td>
+            <td class="disp d-modified">Modified</td>
+            <td>Nothing but socials anywhere on the page.</td>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W4-work-events-of-a-granted-template.html#W4-02">W4-02</a>
+            </td>
+            <td>
+              A social event as the Social Secretary: everything visible, every manage control
+              present.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>Manage is complete: create, edit, delete, send, schedule.</td>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W4-work-events-of-a-granted-template.html#W4-03">W4-03</a>
+            </td>
+            <td>
+              Calendar as the Social Secretary: socials only, in the Social template's own colour.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>No other template leaks in.</td>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W4-work-events-of-a-granted-template.html#W4-04">W4-04</a>
+            </td>
+            <td>Follow-ups as the Social Secretary: social rows only.</td>
+            <td class="disp d-modified">Modified</td>
+            <td>Per-event Delivery page is scoped the same way (not shot).</td>
+          </tr>
+          <tr>
+            <td class="id">
+              <a href="mockups/W4-work-events-of-a-granted-template.html#W4-05">W4-05</a>
+            </td>
+            <td>
+              A game with View on the Game template: manage controls absent, not disabled; Event
+              info link kept.
+            </td>
+            <td class="disp d-modified">Modified</td>
+            <td>Absent, never greyed.</td>
+          </tr>
+        </table>
+      </section>
+
+      <section class="wf" id="decisions">
+        <h2>Open for Brian</h2>
+        <ol class="q">
+          <li>
+            <b>W1-03 / W1-07 / W1-08</b> — adopt Copy access from another seat and Grant everything?
+          </li>
+          <li>
+            <b>Ledger</b> — the approval words for the four-workflow inventory, so the hub can
+            generate and the packet can be assembled.
+          </li>
+        </ol>
+        <p class="meta" style="margin-top: 10px">
+          W1 is approved. Everything else raised in <a href="HANDOFF.md">HANDOFF.md</a> is decided
+          and recorded on LAN-424.
+        </p>
+      </section>
+
+      <footer>
+        Retired in round 3: W1-02a–e, W1-09, and the earlier W2-01 to W2-03 (template categories).
+        Round 4 retired nothing. Restart steps for the live pages are in
+        <a href="HANDOFF.md">HANDOFF.md</a>.
+      </footer>
+    </main>
+  </body>
+</html>

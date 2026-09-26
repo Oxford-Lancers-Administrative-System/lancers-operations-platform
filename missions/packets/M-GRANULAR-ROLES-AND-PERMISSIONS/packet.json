@@ -1,0 +1,957 @@
+{
+  "packet_version": 1,
+  "mission_id": "M-GRANULAR-ROLES-AND-PERMISSIONS",
+  "status": "approved",
+  "title": "Granular Roles & Permissions",
+  "objective": "Every seat gets exactly the access its job needs, and the club changes it on the seat's page without a code change. Each seat holds None, View or Edit on each roster category (the board's ten groups plus Contact & emergency) and on the recruiting group (Person information, Recruit details, Event details), None, View or Manage on each event template, and two add switches. The President, General Manager and IT Officer set each seat's access on that seat's page under Roles, with a full audit trail; those three hold everything and cannot be reduced. Enforcement applies on the roster and recruitment boards and records, where a locked category's information never leaves the server, and everywhere events appear. Roster group colours become editable from the roster on a thirteen-swatch palette.",
+  "why_now": "Only the core four (President, Vice-President, Secretary, General Manager) and the IT Officer can do anything in the app. Every other seat, including every coach, the Social Secretary and the Kit Manager, has no powers beyond attendance, and the interim elevation of named seats (LAN-406) is a code change standing in for a club decision. The club needs to give each seat exactly the access its job requires, and change that itself, without a code change (Scope and Quote v2, 25 September 2026).",
+  "non_goals": [
+    "No per-group scoping for coaches: a coach with edit on a category edits it for the whole squad",
+    "No change to who may pause messaging (LAN-407)",
+    "No change to erasure",
+    "No change to the Roles page's seat-replacement rules",
+    "No generalised messaging module",
+    "No change to the Monday report, its scoping to granted templates, or who may open it",
+    "No change to the attendance-sheet email",
+    "No change to the event templates page; templates keep their own colour",
+    "No time-limited delegation",
+    "No change to attendance recording for any seat",
+    "No real member data in any environment, and no hosted migration applied by an agent",
+    "No Mission Lead work packages, worker assignment or implementation sequencing in this packet",
+    "No execution before Brian merges this packet version"
+  ],
+  "sources": [
+    {
+      "id": "SRC-LAN-424",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-424",
+      "version": "2026-09-25: definition, seven decisions, call with Stewart, round-3 amendments, round-4 corrections, late name-only rule"
+    },
+    {
+      "id": "SRC-SOW-V2",
+      "kind": "document",
+      "ref": "Scope and Quote v2, 'Oxford Lancers — Granular Roles & Permissions', prepared for OULAFC",
+      "version": "25 September 2026, revised the same day after the call with Stewart"
+    },
+    {
+      "id": "SRC-MAIN",
+      "kind": "github",
+      "ref": "main",
+      "version": "0d4b6ce517985ca1a04a176cce64d6335a7f435d, observed 2026-09-25"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-seat-page-access",
+      "text": "Access is edited on the seat page (/operate/admin/roles/[roleId]) and nowhere else. An Access section replaces today's Permissions list, with the holder kept at the top. The Roles index is unchanged.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-roster-categories",
+      "text": "Roster categories are the board's ten groups on main (Person, Onboarding, Membership, Availability, Coaching, Offensive, Defensive, Special teams and Warmup assignments, Kit) plus Contact & emergency: eleven lines, each None / View / Edit.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-recruiting-group",
+      "text": "Recruiting is its own group: Person information and Recruit details (None / View / Edit) and Event details (None / View).",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-template-grants",
+      "text": "Events are granted per template at None / View / Manage. Every template on main (Chalk, Game, Meeting, Practice, Recruitment, Social, Strength and conditioning) and every template the club adds later is one line. A template added after delivery starts at Manage for the fixed seats only (President, General Manager, IT Officer) and at None for every other seat, Vice-President and Secretary included. No event types, no categories.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-switches",
+      "text": "Two switches per seat: may add to the roster (governs Add players) and may add recruits (governs Add recruit and QR code). There is no records switch.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-floor",
+      "text": "President, General Manager and IT Officer hold everything and cannot be reduced; no control exists and the server refuses regardless. Vice-President and Secretary start full and are removable one grant at a time. Every other seat starts with None on every category and every template.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-editors",
+      "text": "Grants are edited only by holders of role_management (President, General Manager, IT Officer); the seat page gate is unchanged.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-save-on-press",
+      "text": "A grant change saves on press and reads back as an outcome Notice and a History entry on the seat page; a failed save returns the control to the stored value and says the grant was not changed. Groups fold at 375.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-mass-edit",
+      "text": "Copy access from another seat (choose the seat, read every change, confirm; no expiry) and Grant everything (confirm, listing every grant that changes) are seat-page actions, each one audited action. Copying from a fixed seat copies grants, never fixed status. No time-limited delegation.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-audit",
+      "text": "Every grant change is one audit_events entry; a Copy access or Grant everything is one entry with one line per grant; every group-colour save is one entry with a line per changed group.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-group-colours",
+      "text": "Roster group colours are club data, edited from an Edit categories control at the top right of the roster (the same contained Button and size as Add players, side by side) in a Roster categories dialog listing the ten groups with a band preview and a colour Select. The board and the record draw every band in the stored colour for every operator from the next request.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-palette",
+      "text": "The palette is thirteen swatches: key blue becomes Oxford Blue #002147; Lancer Gold #C09723 (key lancer_gold) is added; Teal, Purple, Red, Orange, Green, Slate, Indigo, Pink, Brown, Cyan and Lime are unchanged. No Lancer Blue. Band text is charcoal on Lancer Gold and Orange. Templates on key blue turn Oxford Blue.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-starting-colours",
+      "text": "Starting group colours: Person and Membership Oxford Blue; Onboarding and Kit Lancer Gold; Availability Slate; Coaching Indigo; Offensive Teal; Defensive Purple; Special teams Brown; Warmup Cyan. Contact & emergency has no board columns and no colour.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-board-none",
+      "text": "On the roster and recruitment boards a None group's columns, filters and card chips are absent; View values read as text with the column caption view; Edit is as today.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-name-only",
+      "text": "With None on Person a roster row shows the player's name only; the Contactable and Missing indicators are absent. Under View on Person, Contactable stays in Person and Missing stays where it is; with None on Contact & emergency, Contactable is a plain indicator and never carries or dials a number (the Mobile chip and the 375 card's Call alike).",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-record-locked",
+      "text": "Records open for anyone who can reach the roster or recruits. Inside a record a None section keeps its place, collapsed, with a lock in place of the chevron; it cannot be expanded and its contents are never sent to the browser. The name stays at the top. Summary tiles built from None categories are absent. View on the board is view in the record. The Attendance section is always open, whatever the seat's grants, because attendance is not in the access list.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-contact-emergency",
+      "text": "Contact & emergency (Mobile phone, Personal email, Emergency contact) becomes its own record section after Person, split out of Person.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-header-status-text",
+      "text": "Record header status is plain text in the header's secondary style (body2, text.secondary), never a pill.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-recruit-sections",
+      "text": "Recruiting categories map to the prospect record: Person information is Personal questionnaire, How to reach them, Who they are, Restricted, Where they stand and Their seasons; Recruit details is the Recruitment section with Notes, What changed and Status history; Event details is Recruitment events.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-navigation",
+      "text": "A seat with no roster grant does not see Roster in the sidebar; with no recruiting grant, no Recruitment. Coaches become ordinary operators driven by their grants and leave the attendance-only shell.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-events-none",
+      "text": "None on a template hides its events from the events list, the calendar, the event pages and the Follow-ups queue. The events Type filter lists only granted templates.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-events-view",
+      "text": "View shows the event and everything in it (audience, answers, reasons, attendance); every control that creates, edits, deletes, sends or schedules is absent, not disabled. Event info link stays under View.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-events-manage",
+      "text": "Manage adds create, edit, delete, sending, approving and releasing invitations, and the template's messaging schedule. Create event appears with Manage on at least one template and offers only those templates. A template manager cannot edit the template itself.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-attendance",
+      "text": "Attendance is not in the access list; recording stays as it is for every seat.",
+      "source_id": "SRC-LAN-424"
+    },
+    {
+      "id": "REQ-templates-page",
+      "text": "The event templates page is unchanged by this delivery; templates keep their own colour.",
+      "source_id": "SRC-LAN-424"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-lan-424-d-seat-page",
+      "workflow": "W1",
+      "text": "Access is edited on the seat page and nowhere else; the Roles index is unchanged.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-roster-categories",
+      "workflow": "W1",
+      "text": "Roster categories are the board's ten groups plus Contact & emergency, none / view / edit each.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-recruiting-group",
+      "workflow": "W1",
+      "text": "Recruiting is its own group: Person information, Recruit details (none / view / edit), Event details (none / view).",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-template-grants",
+      "workflow": "W1",
+      "text": "Events are granted per template at none / view / manage; no event types or categories; a template added later is one more line.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-switches",
+      "workflow": "W1",
+      "text": "Two switches per seat, may add to the roster and may add recruits; there is no records switch.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-floor",
+      "workflow": "W1",
+      "text": "President, General Manager and IT Officer hold everything and cannot be reduced; Vice-President and Secretary start full and are removable one grant at a time; every other seat starts with None.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-editors",
+      "workflow": "W1",
+      "text": "Grants are edited by holders of role_management (President, General Manager, IT Officer).",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-audit",
+      "workflow": "W1",
+      "text": "Every grant change, Copy access and Grant everything is audited in audit_events.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-mass-edit",
+      "workflow": "W1",
+      "text": "Copy access from another seat and Grant everything, each one audited action on the seat page; approved with W1 as drawn on W1-03, W1-07 and W1-08.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-no-delegation",
+      "workflow": "W1",
+      "text": "No time-limited delegation in this delivery; W1-09 retired in round 3.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-roster-count-eleven",
+      "workflow": "W1",
+      "text": "The Roster group lists eleven categories (Recruits moved to Recruiting); approved as drawn on W1-03.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-group-colours",
+      "workflow": "W2",
+      "text": "Roster group colours become editable from an Edit categories control at the top right of the roster.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-edit-categories-button",
+      "workflow": "W2",
+      "text": "Edit categories is the same contained Button and size as Add players, side by side (round 4).",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-palette",
+      "workflow": "W2",
+      "text": "Thirteen swatches: key blue becomes Oxford Blue #002147, Lancer Gold #C09723 added, every other swatch unchanged; no Lancer Blue (round 4).",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-starting-colours",
+      "workflow": "W2",
+      "text": "Person and Membership Oxford Blue; Onboarding and Kit Lancer Gold; Availability Slate; Coaching Indigo; Offensive Teal; Defensive Purple; Special teams Brown; Warmup Cyan.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-band-text",
+      "workflow": "W2",
+      "text": "Band head text is charcoal on Lancer Gold and Orange, white elsewhere.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-colour-editors",
+      "workflow": "W2",
+      "text": "Group colours are edited by holders of role_management; approved as drawn on W2-01.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-board-none",
+      "workflow": "W3",
+      "text": "On the board a None group's columns, filters and card chips are absent.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-record-locked",
+      "workflow": "W3",
+      "text": "In a record a None section is collapsed and locked, a lock in place of the chevron, cannot be expanded, and its contents are never sent to the browser; the name stays at the top.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-records-open",
+      "workflow": "W3",
+      "text": "Records open for anyone who can reach the roster or recruits; view on the board is view in the record.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-contact-emergency",
+      "workflow": "W3",
+      "text": "Contact & emergency becomes its own record section, split out of Person.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-contactable-missing",
+      "workflow": "W3",
+      "text": "Contactable stays in Person and Missing stays where it is on the board; under View on Person with None on Contact & emergency, Contactable is a plain indicator and never carries or dials a number (Lead decision on LAN-424, 2026-09-25; W3-02 draws the chip dialling and the build follows the rule).",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-name-only",
+      "workflow": "W3",
+      "text": "With None on Person a roster row shows the name only; the Contactable and Missing indicators are absent (late locked decision, 2026-09-25).",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-header-status-text",
+      "workflow": "W3",
+      "text": "Record header status is plain secondary text, never a pill (round 4).",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-record-attendance",
+      "workflow": "W3",
+      "text": "The record's Attendance section is always open, whatever the seat's grants, because attendance is not in the access list (Lead decision on LAN-424, 2026-09-25; W3-03 draws it locked and the build follows the rule).",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-recruit-notes",
+      "workflow": "W3",
+      "text": "Notes, What changed and Status history on a prospect record read as Recruit details; approved as drawn on W3-04b.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-coaches-on-grants",
+      "workflow": "W3",
+      "text": "Coaches become ordinary operators driven by their grants and leave the attendance-only shell; a seat with no roster or recruiting grant does not see Roster or Recruitment.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-none-hides",
+      "workflow": "W4",
+      "text": "None on a template hides its events from the events list, the calendar, the event pages and Follow-ups.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-view-absent",
+      "workflow": "W4",
+      "text": "Under View every control that creates, edits, deletes, sends or schedules is absent, not disabled.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-manage-approves",
+      "workflow": "W4",
+      "text": "Manage includes approving and releasing invitations.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-create-granted",
+      "workflow": "W4",
+      "text": "Create event appears with Manage on at least one template and offers only those templates.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-type-filter",
+      "workflow": "W4",
+      "text": "The events Type filter lists only granted templates.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-templates-page",
+      "workflow": "W4",
+      "text": "Templates keep their own colour and the event templates page is unchanged by this delivery.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-attendance-outside",
+      "workflow": "W4",
+      "text": "Attendance is not in the access list; recording stays as it is for every seat.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-follow-ups-board",
+      "workflow": "W4",
+      "text": "The delivery board is the Follow-ups queue, narrowed to granted templates; approved as drawn on W4-04.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-event-info-link",
+      "workflow": "W4",
+      "text": "Event info link stays under View because it copies a public link and sends nothing; approved as drawn on W4-05.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-template-self-edit",
+      "workflow": "W4",
+      "text": "A template manager cannot edit the template itself; Edit templates is absent, approved as drawn on W4-01.",
+      "classification": "locked",
+      "source": "SRC-LAN-424",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-lan-424-d-attendance-surface",
+      "workflow": null,
+      "text": "How the attendance recording surface lists events once grants exist is not drawn; the only fixed rule is that recording stays as it is for every seat.",
+      "classification": "delegated to Mission Lead",
+      "source": "SRC-LAN-424",
+      "status": "delegated_to_mission_lead"
+    },
+    {
+      "id": "DEC-lan-424-d-delivery-page-scoping",
+      "workflow": null,
+      "text": "Scoping of the per-event Delivery page follows the template grant of its event; the mechanism is not drawn.",
+      "classification": "delegated to Mission Lead",
+      "source": "SRC-LAN-424",
+      "status": "delegated_to_mission_lead"
+    },
+    {
+      "id": "DEC-lan-424-d-lan406-revert",
+      "workflow": null,
+      "text": "Reverting the interim elevation of named seats (LAN-406) when grants ship, and its ordering against the grant seed, is the Lead's.",
+      "classification": "delegated to Mission Lead",
+      "source": "SRC-LAN-424",
+      "status": "delegated_to_mission_lead"
+    },
+    {
+      "id": "DEC-lan-424-d-printed-matrix-test",
+      "workflow": null,
+      "text": "A printed-access test that pins the seed to the seed rule is required; its form is the Lead's.",
+      "classification": "delegated to Mission Lead",
+      "source": "SRC-LAN-424",
+      "status": "delegated_to_mission_lead"
+    },
+    {
+      "id": "DEC-lan-424-d-package-decomposition",
+      "workflow": null,
+      "text": "Table shapes, capability derivation, audit row shape and the package split are the Lead's.",
+      "classification": "delegated to Mission Lead",
+      "source": "SRC-LAN-424",
+      "status": "delegated_to_mission_lead"
+    },
+    {
+      "id": "DEC-lan-424-d-pause-messaging",
+      "workflow": null,
+      "text": "Who may pause messaging (LAN-407) stays in code.",
+      "classification": "excluded",
+      "source": "SRC-LAN-424",
+      "status": "excluded"
+    },
+    {
+      "id": "DEC-lan-424-d-erasure",
+      "workflow": null,
+      "text": "Erasure is unchanged.",
+      "classification": "excluded",
+      "source": "SRC-LAN-424",
+      "status": "excluded"
+    },
+    {
+      "id": "DEC-lan-424-d-seat-replacement",
+      "workflow": null,
+      "text": "The Roles page's seat-replacement rules are unchanged.",
+      "classification": "excluded",
+      "source": "SRC-LAN-424",
+      "status": "excluded"
+    },
+    {
+      "id": "DEC-lan-424-d-messaging-module",
+      "workflow": null,
+      "text": "The generalised messaging module is separate work with its own scope and price.",
+      "classification": "excluded",
+      "source": "SRC-LAN-424",
+      "status": "excluded"
+    },
+    {
+      "id": "DEC-lan-424-d-monday-report",
+      "workflow": null,
+      "text": "The Monday report is not scoped to granted templates by this delivery, and who may open it is unchanged.",
+      "classification": "excluded",
+      "source": "SRC-LAN-424",
+      "status": "excluded"
+    },
+    {
+      "id": "DEC-lan-424-d-attendance-sheet-email",
+      "workflow": null,
+      "text": "The attendance-sheet email is unchanged.",
+      "classification": "excluded",
+      "source": "SRC-LAN-424",
+      "status": "excluded"
+    },
+    {
+      "id": "DEC-lan-424-d-coach-group-scoping",
+      "workflow": null,
+      "text": "Per-group scoping for coaches: a coach with edit on a category edits it for the whole squad.",
+      "classification": "excluded",
+      "source": "SRC-LAN-424",
+      "status": "excluded"
+    },
+    {
+      "id": "DEC-sow-v2-sow-seat-page-editor",
+      "workflow": "W1",
+      "text": "Each seat's page under Roles becomes the access editor for the three administering seats, with a full audit trail.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-permissions-data",
+      "workflow": "W1",
+      "text": "Grants for role x roster category and role x event template are club data; on delivery the core four and IT Officer hold everything and every other seat holds nothing.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-new-template-seats",
+      "workflow": "W1",
+      "text": "A template added after delivery starts at Manage for the fixed seats only (President, General Manager, IT Officer) and at None for every other seat, Vice-President and Secretary included (Brian and the Scope and Quote v2, recorded on LAN-424 2026-09-25).",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-roster-colours",
+      "workflow": "W2",
+      "text": "The colour of each roster group becomes editable from the roster page.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-roster-enforcement",
+      "workflow": "W3",
+      "text": "View and edit per category on the board and the record, with locked sections and the two add switches.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-coaches-on-grants",
+      "workflow": "W3",
+      "text": "Coaches become ordinary operators driven by their grants; the attendance-only view is retired.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-case-kit-manager",
+      "workflow": "W3",
+      "text": "Acceptance case: the Kit Manager opens a player and records kit; contact, emergency and availability are locked and never reach the screen; entries audited under the Kit Manager's seat.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-case-coaches",
+      "workflow": "W3",
+      "text": "Acceptance case: once granted, coaches view the football categories and edit availability, coaching, offensive, defensive, special teams and warm-up for any player; attendance unchanged.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-event-enforcement",
+      "workflow": "W4",
+      "text": "Template visibility applies everywhere events appear; create, edit, delete, send and schedule are gated by Manage. The attendance list and the report are governed by LAN-424's D-attendance-surface and D-monday-report.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-case-social-secretary",
+      "workflow": "W4",
+      "text": "Acceptance case: the Social Secretary manages the Social template, sees every social event with its RSVPs and answers, creates, edits, sends and runs delivery, and sees no other event.",
+      "classification": "locked",
+      "source": "SRC-SOW-V2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-sow-v2-sow-one-release",
+      "workflow": null,
+      "text": "Delivered as one release to the production app with the club's existing data and seats intact; release order and migration sequencing are the Lead's.",
+      "classification": "delegated to Mission Lead",
+      "source": "SRC-SOW-V2",
+      "status": "delegated_to_mission_lead"
+    },
+    {
+      "id": "DEC-sow-v2-sow-lancer-blue",
+      "workflow": null,
+      "text": "The quote's palette (Lancer Blue added, the current blue kept as Oxford Blue) is replaced by Brian's round-4 palette: key blue becomes Oxford Blue, Lancer Gold added, no Lancer Blue.",
+      "classification": "superseded",
+      "source": "SRC-SOW-V2",
+      "status": "superseded"
+    },
+    {
+      "id": "DEC-sow-v2-sow-out-of-scope",
+      "workflow": null,
+      "text": "The quote's four exclusions: per-group scoping for coaches, who may pause messaging, erasure and seat-replacement rules, the generalised messaging module.",
+      "classification": "excluded",
+      "source": "SRC-SOW-V2",
+      "status": "excluded"
+    },
+    {
+      "id": "DEC-main-main-roles-pages",
+      "workflow": "W1",
+      "text": "/operate/admin/roles and /operate/admin/roles/[roleId] exist, gated by role_management; the seat page's Permissions list is replaced by Access.",
+      "classification": "locked",
+      "source": "SRC-MAIN",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-main-main-audit-events",
+      "workflow": "W1",
+      "text": "audit_events is the existing append-only audit store and is reused for grant and colour changes.",
+      "classification": "locked",
+      "source": "SRC-MAIN",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-main-main-band-colours",
+      "workflow": "W2",
+      "text": "Roster group colours are hard-coded as BAND_COLOURS in src/components/section.tsx and become stored club data.",
+      "classification": "locked",
+      "source": "SRC-MAIN",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-main-main-template-palette",
+      "workflow": "W2",
+      "text": "TEMPLATE_COLOUR_PALETTE and the event_templates_colour_key_known check constraint hold the palette keys that W2 extends.",
+      "classification": "locked",
+      "source": "SRC-MAIN",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-main-main-person-record-authority",
+      "workflow": "W3",
+      "text": "Every roster and recruitment route is gated by person_record_authority on main and becomes grant-driven.",
+      "classification": "locked",
+      "source": "SRC-MAIN",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-main-main-attendance-only-shell",
+      "workflow": "W3",
+      "text": "Coaches see the attendance-only shell on main; granted coaches leave it.",
+      "classification": "locked",
+      "source": "SRC-MAIN",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-main-main-event-gates",
+      "workflow": "W4",
+      "text": "Event actions are gated by event_calendar_management, event_approval and delivery_administration on main and become per-template Manage.",
+      "classification": "locked",
+      "source": "SRC-MAIN",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-main-main-capabilities",
+      "workflow": null,
+      "text": "Which of the thirteen capabilities in src/lib/auth/capabilities.ts become derived from grants and which stay in code is the Lead's.",
+      "classification": "delegated to Mission Lead",
+      "source": "SRC-MAIN",
+      "status": "delegated_to_mission_lead"
+    }
+  ],
+  "baseline": {
+    "branch": "main",
+    "commit": "0d4b6ce517985ca1a04a176cce64d6335a7f435d"
+  },
+  "repository_drift": {
+    "startup_rule": "The Mission Lead compares current main with the baseline and runs the canonical harness drift checks before planning or dispatch. A newer main is acceptable only when this packet's meaning, feasibility, invariants, interfaces and acceptance are unchanged by it.",
+    "stop_rule": "Stop and raise a packet revision when main has changed src/lib/auth/capabilities.ts, the seat page /operate/admin/roles/[roleId], the roster board's groups in src/app/operate/roster/board-columns.ts, BAND_COLOURS in src/components/section.tsx, TEMPLATE_COLOUR_PALETTE or the event_templates_colour_key_known constraint, the set of event templates, or the gates on /operate/roster, /operate/recruitment, /operate/events or /operate/admin/follow-ups, in a way that alters a locked behaviour here. Every screen is photographed: a surface that changed must be re-photographed before the affected work is dispatched.",
+    "known_drift": [
+      "The sprint's photographs were taken at 726c9346 and 57480009, which add only this ledger to main 0d4b6ce5; no application code differs.",
+      "W1 and W4 screens draw event templates in today's colours; W2's palette re-tones key blue (Practice) to Oxford Blue. Known and accepted; the build follows W2.",
+      "W3-02's photograph predates the name-only rule under None on Person; the build follows the rule."
+    ]
+  },
+  "gates": {
+    "owner": ["Brian merges this intake-artifacts-only packet PR before any execution begins."],
+    "external": [
+      "None. This mission sends nothing, integrates with nothing, and requires no credential or third-party account."
+    ]
+  },
+  "merge_envelope": {
+    "auto_merge_classes": [],
+    "owner_gated": [
+      "schema-migration",
+      "rls-auth-security",
+      "secrets-credentials",
+      "deployment-production-data",
+      "whatsapp-external-configuration",
+      "highest-risk",
+      "visual-without-approval",
+      "Every package in this mission. It adds grant and group-colour tables with RLS, changes who may reach shipped surfaces, withholds data from the browser by grant, and changes shipped surfaces that Brian approves visually."
+    ]
+  },
+  "workflow_matrix": [
+    {
+      "id": "W1",
+      "name": "Administer a seat's grants on the seat page",
+      "actor": "A holder of role_management: President, General Manager, IT Officer.",
+      "trigger": "A seat changes hands, a job changes, the committee re-seats for a new year, or a vacant seat's work goes to someone else.",
+      "entry_point": "Administration → Roles → a seat.",
+      "placement": "/operate/admin/roles unchanged (W1-01); /operate/admin/roles/[roleId] keeps the holder at the top, Access replaces the Permissions list (W1-03).",
+      "actions": [
+        "Change one roster category (None / View / Edit), one recruiting category (Event details None / View), one template (None / View / Manage) or one switch; it saves on press.",
+        "Copy access from another seat: choose the seat, read every change, confirm.",
+        "Grant everything: confirm, reading every grant that changes.",
+        "Read the outcome Notice and the new History entry."
+      ],
+      "state_transitions": [
+        "Grant: any value to any value within its vocabulary.",
+        "Copy: every grant of the target becomes the source seat's value, with no end date.",
+        "Grant everything: every grant becomes its maximum.",
+        "A template created after delivery arrives at Manage for President, General Manager and IT Officer only, and at None for every other seat, Vice-President and Secretary included.",
+        "Fixed seats: no transition exists."
+      ],
+      "handoffs": [
+        "W3 and W4 read the grants on the holder's next request.",
+        "The seat's History shows each change."
+      ],
+      "exceptions": [
+        "Reducing a fixed seat: no control; the server refuses (Central rule · LAN-423).",
+        "Copy from a fixed seat copies grants, never the fixed status.",
+        "A failed save returns the control to the stored value and the Notice says the grant was not changed.",
+        "A deleted template's grant lines go with it, audited."
+      ],
+      "user_visible_result": "The seat's grants read as changed on the seat page and in its History, and its holders see only what is granted from their next request.",
+      "acceptance": [
+        "Walk W1-01, W1-03, W1-04, W1-05, W1-07 and W1-08 on the built surface at 1280 and 375.",
+        "Change one grant of each kind and read one audit entry per change.",
+        "Copy access from the Vice-President to the Treasurer and read one History entry listing every changed grant.",
+        "Confirm the President's controls are locked and a server request to reduce them is refused.",
+        "Add a template: President, General Manager and IT Officer hold Manage on it; every other seat, Vice-President and Secretary included, holds None.",
+        "Confirm a printed-access test pins the delivery-day seed to the seed rule."
+      ],
+      "source_id": "SRC-LAN-424",
+      "classification": "locked"
+    },
+    {
+      "id": "W2",
+      "name": "Edit roster group colours",
+      "actor": "A holder of role_management: President, General Manager, IT Officer.",
+      "trigger": "The club wants a group to look different, or the team colours on the board.",
+      "entry_point": "Roster → Edit categories, top right beside Add players.",
+      "placement": "/operate/roster; the Roster categories dialog over the board (W2-01, W2-02).",
+      "actions": [
+        "Press Edit categories.",
+        "Choose a palette colour for any of the ten groups; the band preview follows.",
+        "Save colours; the dialog closes and the board redraws."
+      ],
+      "state_transitions": [
+        "A group's colour key moves from any palette key to any palette key; duplicates are allowed."
+      ],
+      "handoffs": [
+        "W3 draws every band in the stored colour.",
+        "Event templates on key blue re-tone to Oxford Blue."
+      ],
+      "exceptions": [
+        "A failed save keeps the dialog open with an error Notice and changes nothing.",
+        "A key later removed from the palette falls back to the default (delegated)."
+      ],
+      "user_visible_result": "Every band head of the group on the board and every record section of the group in the new colour, for every operator, from the next request.",
+      "acceptance": [
+        "Walk W2-01 and W2-02 at 1280 and 375: Edit categories matches Add players in variant and size.",
+        "The palette lists thirteen swatches with Oxford Blue #002147 and Lancer Gold #C09723 and no Lancer Blue.",
+        "Change Kit's colour, save, and see the board and a record redraw; read one audit entry.",
+        "Band text on Lancer Gold and Orange is charcoal and passes the contrast test.",
+        "A seat without role_management sees no Edit categories."
+      ],
+      "source_id": "SRC-LAN-424",
+      "classification": "locked"
+    },
+    {
+      "id": "W3",
+      "name": "Work the roster and recruits within granted categories, board and record",
+      "actor": "Any seat holding at least View on one roster or recruiting category.",
+      "trigger": "Opening Roster or Recruitment to do the seat's job.",
+      "entry_point": "Roster; Recruitment.",
+      "placement": "/operate/roster, /operate/roster/[membershipId], /operate/recruitment and its record, new and QR routes. No new route.",
+      "actions": [
+        "Read and edit only granted groups on the board.",
+        "Open any record the seat can reach; None sections are locked.",
+        "Add players or recruits only with the matching switch."
+      ],
+      "state_transitions": [
+        "Edits under Edit grants behave as today and are audited under the seat's own holder."
+      ],
+      "handoffs": [
+        "W1 changes what this workflow shows on the next request.",
+        "W2 sets the band colours."
+      ],
+      "exceptions": [
+        "None on Person: the row shows the name only; Contactable and Missing absent.",
+        "A request for a locked section's data is refused by the server.",
+        "No roster or recruiting grant: Roster or Recruitment absent from the sidebar."
+      ],
+      "user_visible_result": "The board shows only granted groups; the record shows every section with None sections collapsed and locked; only Edit categories are editable.",
+      "acceptance": [
+        "Walk W3-01 to W3-04b at 1280 and 375 on the built surface.",
+        "Kit Manager case: open a player and record kit; contact, emergency and availability are locked and absent from the payload; the entry is audited under the Kit Manager's seat.",
+        "Coach case: once granted, view the football categories and edit availability, coaching, offensive, defensive, special teams and warm-up for any player; attendance unchanged; the attendance-only shell is gone.",
+        "With None on Person a row shows the name only; with View on Person and None on Contact & emergency, Contactable carries no number and dials nothing.",
+        "The record's Attendance section is open for every seat that reaches the record.",
+        "Record header status is text, not a pill."
+      ],
+      "source_id": "SRC-LAN-424",
+      "classification": "locked"
+    },
+    {
+      "id": "W4",
+      "name": "Work events of a granted template, view or manage",
+      "actor": "Any seat holding View or Manage on at least one event template.",
+      "trigger": "Opening Events to run or follow the seat's events.",
+      "entry_point": "Events.",
+      "placement": "/operate/events, /operate/events/calendar, /operate/events/[id] and its delivery, edit, amend and cancel routes; /operate/admin/follow-ups. No new route.",
+      "actions": [
+        "See only granted templates' events in the list, calendar and Follow-ups.",
+        "Under Manage: create, edit, delete, send, approve and release invitations, and schedule.",
+        "Under View: read everything, change nothing."
+      ],
+      "state_transitions": [
+        "Event actions under Manage behave as today and are audited under the seat's own holder."
+      ],
+      "handoffs": [
+        "W1 changes what this workflow shows on the next request.",
+        "Attendance recording is outside the access list."
+      ],
+      "exceptions": [
+        "A direct request for an event of a None template is refused.",
+        "View: manage controls are absent, not disabled."
+      ],
+      "user_visible_result": "Events of None templates never appear; View shows the event and everything in it; Manage adds every create, change, send and schedule action.",
+      "acceptance": [
+        "Walk W4-01 to W4-05 at 1280 and 375 on the built surface.",
+        "Social Secretary case: Manage on Social; sees every social event with its RSVPs and answers, creates, edits, sends and runs delivery; sees no other event anywhere.",
+        "View on Game: every create, edit, delete, send and schedule control absent.",
+        "The Type filter lists only granted templates; Create event offers only managed templates.",
+        "Attendance recording works as today for every seat."
+      ],
+      "source_id": "SRC-LAN-424",
+      "classification": "locked"
+    }
+  ],
+  "delegated_to_mission_lead": [
+    "Table shapes for grants, switches and group colours, and the audit row shape",
+    "Which capabilities in src/lib/auth/capabilities.ts become derived from grants and which stay in code",
+    "Guard derivation per column and per record section, and the server-side omission of locked contents",
+    "Query filtering of events by template, and how the attendance recording surface lists events once grants exist",
+    "Scoping of the per-event Delivery page by its event's template grant",
+    "Reverting the interim elevation of named seats (LAN-406) when grants ship, and its order against the seed",
+    "The form of the printed-access test that pins the delivery-day seed to the seed rule",
+    "Whether lancer_gold joins event_templates_colour_key_known by forward migration or groups keep their own key list",
+    "The fallback when a palette key is later removed",
+    "Concurrent edits of the same grant: last write wins, both audited",
+    "Package decomposition and execution order within one release"
+  ],
+  "nonblocking_unknowns": [],
+  "escalation_rules": {
+    "permitted_clarifications": [
+      "Copy, spacing and component composition that do not alter a grant's vocabulary, who may edit, what is absent, what is locked, or acceptance",
+      "Defect fixes that restore this packet's locked behaviour without changing scope"
+    ],
+    "requires_packet_revision": [
+      "Adding, removing or renaming a category, a template grant level or a switch",
+      "Any change to the floor or the delivery-day seed",
+      "Sending a None category's contents to the browser, or disabling a control where this packet makes it absent",
+      "Any change to the palette's swatches or to the starting colours",
+      "Bringing the Monday report, the attendance-sheet email, messaging pause authority or time-limited delegation into scope",
+      "Any change to the event templates page",
+      "Any departure from an approved mockup's structure"
+    ]
+  },
+  "completion_evidence": [
+    "Canonical packet validation passes and Brian merges this packet version before execution",
+    "npm run verify passes; migration-touching packages also pass db:reset, db:seed, types:generate and check:rls, with new tables carrying RLS and narrow grants and mapped in docs/architecture/data-model.md",
+    "A printed-access test pins the delivery-day seed: President, General Manager and IT Officer full and fixed; Vice-President and Secretary full; every other seat None",
+    "Every acceptance criterion in the workflow matrix is demonstrated against seeded synthetic data at 1280 and 375",
+    "The Scope and Quote's three seat cases pass once those seats are granted: Kit Manager, Social Secretary, coaches",
+    "A locked section's contents are shown absent from the server response, not only from the rendered page",
+    "Every grant, Copy access, Grant everything and group-colour change reads back as audit_events entries",
+    "No secret, no real member data and no unauthorized club concept is added"
+  ],
+  "blockers": [],
+  "approval": {
+    "approved_by": "Brian Schuster",
+    "date": "2026-09-25",
+    "evidence": "Recorded in missions/intake/M-GRANULAR-ROLES-AND-PERMISSIONS/state.json and acceptance/: W1 \"W1 is approved.\"; the boundary, overview, four-workflow inventory, and W2 to W4 specifications, mockups and acceptance \"Other than that, I think this is approved. We can go ahead and create the packet and push it.\" (after round 4 applied his three corrections); the late locked rule \"if the person record is not viewable … I should just see the name, not the contactable and missing.\" Packet approval is Brian's merge of this packet version."
+  }
+}

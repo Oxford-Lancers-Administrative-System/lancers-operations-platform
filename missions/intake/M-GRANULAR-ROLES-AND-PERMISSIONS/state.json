@@ -1,0 +1,951 @@
+{
+  "mission_id": "M-GRANULAR-ROLES-AND-PERMISSIONS",
+  "ledger_version": 3,
+  "stage": "pr_open",
+  "baseline": {
+    "branch": "main",
+    "commit": "0d4b6ce517985ca1a04a176cce64d6335a7f435d"
+  },
+  "approvals": {
+    "boundary": {
+      "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+      "date": "2026-09-25",
+      "by": "Brian Schuster"
+    },
+    "overview": {
+      "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+      "date": "2026-09-25",
+      "by": "Brian Schuster"
+    },
+    "inventory": {
+      "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+      "date": "2026-09-25",
+      "by": "Brian Schuster",
+      "count": 4
+    }
+  },
+  "workflows": [
+    {
+      "id": "W1",
+      "name": "Administer a seat's grants on the seat page",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "\"W1 is approved.\" Then: \"Other than that, I think this is approved. We can go ahead and create the packet and push it.\"",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "\"W1 is approved.\" Then: \"Other than that, I think this is approved. We can go ahead and create the packet and push it.\"",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "\"W1 is approved.\" Then: \"Other than that, I think this is approved. We can go ahead and create the packet and push it.\"",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        }
+      }
+    },
+    {
+      "id": "W2",
+      "name": "Edit roster group colours",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        }
+      }
+    },
+    {
+      "id": "W3",
+      "name": "Work the roster and recruits within granted categories, board and record",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        }
+      }
+    },
+    {
+      "id": "W4",
+      "name": "Work events of a granted template, view or manage",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25",
+          "by": "Brian Schuster"
+        }
+      }
+    }
+  ],
+  "mockup_hub": "generated",
+  "decision_coverage": {
+    "sources": [
+      {
+        "id": "SRC-LAN-424",
+        "ref": "https://linear.app/brian-schuster/issue/LAN-424",
+        "version": "2026-09-25: definition, seven decisions, call with Stewart, round-3 amendments, round-4 corrections, late name-only rule; carried in HANDOFF.md and workflows/",
+        "decision_ids": [
+          "D-seat-page",
+          "D-roster-categories",
+          "D-recruiting-group",
+          "D-template-grants",
+          "D-switches",
+          "D-floor",
+          "D-editors",
+          "D-audit",
+          "D-mass-edit",
+          "D-no-delegation",
+          "D-roster-count-eleven",
+          "D-group-colours",
+          "D-edit-categories-button",
+          "D-palette",
+          "D-starting-colours",
+          "D-band-text",
+          "D-colour-editors",
+          "D-board-none",
+          "D-record-locked",
+          "D-records-open",
+          "D-contact-emergency",
+          "D-contactable-missing",
+          "D-name-only",
+          "D-header-status-text",
+          "D-record-attendance",
+          "D-recruit-notes",
+          "D-coaches-on-grants",
+          "D-none-hides",
+          "D-view-absent",
+          "D-manage-approves",
+          "D-create-granted",
+          "D-type-filter",
+          "D-templates-page",
+          "D-attendance-outside",
+          "D-follow-ups-board",
+          "D-event-info-link",
+          "D-template-self-edit",
+          "D-attendance-surface",
+          "D-delivery-page-scoping",
+          "D-lan406-revert",
+          "D-printed-matrix-test",
+          "D-package-decomposition",
+          "D-pause-messaging",
+          "D-erasure",
+          "D-seat-replacement",
+          "D-messaging-module",
+          "D-monday-report",
+          "D-attendance-sheet-email",
+          "D-coach-group-scoping"
+        ]
+      },
+      {
+        "id": "SRC-SOW-V2",
+        "ref": "Scope and Quote v2, 'Oxford Lancers — Granular Roles & Permissions', schusteratops, prepared for OULAFC",
+        "version": "25 September 2026, revised the same day after the call with Stewart",
+        "decision_ids": [
+          "SOW-seat-page-editor",
+          "SOW-permissions-data",
+          "SOW-new-template-seats",
+          "SOW-roster-colours",
+          "SOW-roster-enforcement",
+          "SOW-coaches-on-grants",
+          "SOW-case-kit-manager",
+          "SOW-case-coaches",
+          "SOW-event-enforcement",
+          "SOW-case-social-secretary",
+          "SOW-one-release",
+          "SOW-lancer-blue",
+          "SOW-out-of-scope"
+        ]
+      },
+      {
+        "id": "SRC-MAIN",
+        "ref": "github main",
+        "version": "0d4b6ce517985ca1a04a176cce64d6335a7f435d",
+        "decision_ids": [
+          "MAIN-roles-pages",
+          "MAIN-audit-events",
+          "MAIN-band-colours",
+          "MAIN-template-palette",
+          "MAIN-person-record-authority",
+          "MAIN-attendance-only-shell",
+          "MAIN-event-gates",
+          "MAIN-capabilities"
+        ]
+      }
+    ],
+    "decisions": [
+      {
+        "id": "D-seat-page",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Access is edited on the seat page and nowhere else; the Roles index is unchanged.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-roster-categories",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Roster categories are the board's ten groups plus Contact & emergency, none / view / edit each.",
+        "also_referenced_by": ["W3"],
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-recruiting-group",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Recruiting is its own group: Person information, Recruit details (none / view / edit), Event details (none / view).",
+        "also_referenced_by": ["W3"],
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-template-grants",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Events are granted per template at none / view / manage; no event types or categories; a template added later is one more line.",
+        "also_referenced_by": ["W4"],
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-switches",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Two switches per seat, may add to the roster and may add recruits; there is no records switch.",
+        "also_referenced_by": ["W3"],
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-floor",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "President, General Manager and IT Officer hold everything and cannot be reduced; Vice-President and Secretary start full and are removable one grant at a time; every other seat starts with None.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-editors",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Grants are edited by holders of role_management (President, General Manager, IT Officer).",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-audit",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Every grant change, Copy access and Grant everything is audited in audit_events.",
+        "also_referenced_by": ["W2"],
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-mass-edit",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Copy access from another seat and Grant everything, each one audited action on the seat page; approved with W1 as drawn on W1-03, W1-07 and W1-08.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-no-delegation",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "No time-limited delegation in this delivery; W1-09 retired in round 3.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-roster-count-eleven",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "The Roster group lists eleven categories (Recruits moved to Recruiting); approved as drawn on W1-03.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-group-colours",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Roster group colours become editable from an Edit categories control at the top right of the roster.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-edit-categories-button",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Edit categories is the same contained Button and size as Add players, side by side (round 4).",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-palette",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Thirteen swatches: key blue becomes Oxford Blue #002147, Lancer Gold #C09723 added, every other swatch unchanged; no Lancer Blue (round 4).",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-starting-colours",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Person and Membership Oxford Blue; Onboarding and Kit Lancer Gold; Availability Slate; Coaching Indigo; Offensive Teal; Defensive Purple; Special teams Brown; Warmup Cyan.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-band-text",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Band head text is charcoal on Lancer Gold and Orange, white elsewhere.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-colour-editors",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Group colours are edited by holders of role_management; approved as drawn on W2-01.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-board-none",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "On the board a None group's columns, filters and card chips are absent.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-record-locked",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "In a record a None section is collapsed and locked, a lock in place of the chevron, cannot be expanded, and its contents are never sent to the browser; the name stays at the top.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-records-open",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Records open for anyone who can reach the roster or recruits; view on the board is view in the record.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-contact-emergency",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Contact & emergency becomes its own record section, split out of Person.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-contactable-missing",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Contactable stays in Person and Missing stays where it is on the board; under View on Person with None on Contact & emergency, Contactable is a plain indicator and never carries or dials a number (Lead decision on LAN-424, 2026-09-25; W3-02 draws the chip dialling and the build follows the rule).",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-name-only",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "With None on Person a roster row shows the name only; the Contactable and Missing indicators are absent (late locked decision, 2026-09-25).",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-header-status-text",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Record header status is plain secondary text, never a pill (round 4).",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-record-attendance",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The record's Attendance section is always open, whatever the seat's grants, because attendance is not in the access list (Lead decision on LAN-424, 2026-09-25; W3-03 draws it locked and the build follows the rule).",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-recruit-notes",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Notes, What changed and Status history on a prospect record read as Recruit details; approved as drawn on W3-04b.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-coaches-on-grants",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Coaches become ordinary operators driven by their grants and leave the attendance-only shell; a seat with no roster or recruiting grant does not see Roster or Recruitment.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-none-hides",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "None on a template hides its events from the events list, the calendar, the event pages and Follow-ups.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-view-absent",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Under View every control that creates, edits, deletes, sends or schedules is absent, not disabled.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-manage-approves",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Manage includes approving and releasing invitations.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-create-granted",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Create event appears with Manage on at least one template and offers only those templates.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-type-filter",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "The events Type filter lists only granted templates.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-templates-page",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Templates keep their own colour and the event templates page is unchanged by this delivery.",
+        "also_referenced_by": ["W2"],
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-attendance-outside",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Attendance is not in the access list; recording stays as it is for every seat.",
+        "also_referenced_by": ["W3"],
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-follow-ups-board",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "The delivery board is the Follow-ups queue, narrowed to granted templates; approved as drawn on W4-04.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-event-info-link",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Event info link stays under View because it copies a public link and sends nothing; approved as drawn on W4-05.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-template-self-edit",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "A template manager cannot edit the template itself; Edit templates is absent, approved as drawn on W4-01.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-attendance-surface",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "How the attendance recording surface lists events once grants exist is not drawn; the only fixed rule is that recording stays as it is for every seat.",
+        "evidence": "Round-1 decision 5 and the round-3 brief item 7 fix only that attendance is outside the access list; no screen draws the attendance surface.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-delivery-page-scoping",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "Scoping of the per-event Delivery page follows the template grant of its event; the mechanism is not drawn.",
+        "evidence": "HANDOFF.md open question W4-04 distinguishes the per-event Delivery page from the Follow-ups queue; only Follow-ups is drawn.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-lan406-revert",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "Reverting the interim elevation of named seats (LAN-406) when grants ship, and its ordering against the grant seed, is the Lead's.",
+        "evidence": "Scope and Quote v2: the interim elevation stays in place until this ships; W1 specification, Dependencies: LAN-406 untouched by the design.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-printed-matrix-test",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "A printed-access test that pins the seed to the seed rule is required; its form is the Lead's.",
+        "evidence": "W1 specification, Acceptance evidence: 'A printed-access test pins the seed to the seed rule (delegated).'",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-package-decomposition",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "Table shapes, capability derivation, audit row shape and the package split are the Lead's.",
+        "evidence": "W1 specification, Core decisions: 'Table shapes, capability derivation, audit row shape, printed-access test, package split — delegated to Mission Lead'.",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-pause-messaging",
+        "disposition": "excluded",
+        "reason": "Who may pause messaging (LAN-407) stays in code.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-erasure",
+        "disposition": "excluded",
+        "reason": "Erasure is unchanged.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-seat-replacement",
+        "disposition": "excluded",
+        "reason": "The Roles page's seat-replacement rules are unchanged.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-messaging-module",
+        "disposition": "excluded",
+        "reason": "The generalised messaging module is separate work with its own scope and price.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-monday-report",
+        "disposition": "excluded",
+        "reason": "The Monday report is not scoped to granted templates by this delivery, and who may open it is unchanged.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-attendance-sheet-email",
+        "disposition": "excluded",
+        "reason": "The attendance-sheet email is unchanged.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "D-coach-group-scoping",
+        "disposition": "excluded",
+        "reason": "Per-group scoping for coaches: a coach with edit on a category edits it for the whole squad.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "source_id": "SRC-LAN-424"
+      },
+      {
+        "id": "SOW-seat-page-editor",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Each seat's page under Roles becomes the access editor for the three administering seats, with a full audit trail.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-permissions-data",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Grants for role x roster category and role x event template are club data; on delivery the core four and IT Officer hold everything and every other seat holds nothing.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-new-template-seats",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "A template added after delivery starts at Manage for the fixed seats only (President, General Manager, IT Officer) and at None for every other seat, Vice-President and Secretary included (Brian and the Scope and Quote v2, recorded on LAN-424 2026-09-25).",
+        "also_referenced_by": ["W4"],
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-roster-colours",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The colour of each roster group becomes editable from the roster page.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-roster-enforcement",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "View and edit per category on the board and the record, with locked sections and the two add switches.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-coaches-on-grants",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Coaches become ordinary operators driven by their grants; the attendance-only view is retired.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-case-kit-manager",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Acceptance case: the Kit Manager opens a player and records kit; contact, emergency and availability are locked and never reach the screen; entries audited under the Kit Manager's seat.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-case-coaches",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Acceptance case: once granted, coaches view the football categories and edit availability, coaching, offensive, defensive, special teams and warm-up for any player; attendance unchanged.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-event-enforcement",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Template visibility applies everywhere events appear; create, edit, delete, send and schedule are gated by Manage. The attendance list and the report are governed by LAN-424's D-attendance-surface and D-monday-report.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-case-social-secretary",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Acceptance case: the Social Secretary manages the Social template, sees every social event with its RSVPs and answers, creates, edits, sends and runs delivery, and sees no other event.",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-one-release",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "Delivered as one release to the production app with the club's existing data and seats intact; release order and migration sequencing are the Lead's.",
+        "evidence": "Scope and Quote v2, Deliverables: 'Delivered as one release to the production app, with the club's existing data and seats intact.'",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-lancer-blue",
+        "disposition": "superseded",
+        "superseded_by": "D-palette",
+        "reason": "The quote's palette (Lancer Blue added, the current blue kept as Oxford Blue) is replaced by Brian's round-4 palette: key blue becomes Oxford Blue, Lancer Gold added, no Lancer Blue.",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        },
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "SOW-out-of-scope",
+        "disposition": "excluded",
+        "reason": "The quote's four exclusions: per-group scoping for coaches, who may pause messaging, erasure and seat-replacement rules, the generalised messaging module.",
+        "evidence": "Scope and Quote v2, Out of scope; 00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "source_id": "SRC-SOW-V2"
+      },
+      {
+        "id": "MAIN-roles-pages",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "/operate/admin/roles and /operate/admin/roles/[roleId] exist, gated by role_management; the seat page's Permissions list is replaced by Access.",
+        "source_id": "SRC-MAIN"
+      },
+      {
+        "id": "MAIN-audit-events",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "audit_events is the existing append-only audit store and is reused for grant and colour changes.",
+        "also_referenced_by": ["W2"],
+        "source_id": "SRC-MAIN"
+      },
+      {
+        "id": "MAIN-band-colours",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Roster group colours are hard-coded as BAND_COLOURS in src/components/section.tsx and become stored club data.",
+        "source_id": "SRC-MAIN"
+      },
+      {
+        "id": "MAIN-template-palette",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "TEMPLATE_COLOUR_PALETTE and the event_templates_colour_key_known check constraint hold the palette keys that W2 extends.",
+        "source_id": "SRC-MAIN"
+      },
+      {
+        "id": "MAIN-person-record-authority",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Every roster and recruitment route is gated by person_record_authority on main and becomes grant-driven.",
+        "source_id": "SRC-MAIN"
+      },
+      {
+        "id": "MAIN-attendance-only-shell",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Coaches see the attendance-only shell on main; granted coaches leave it.",
+        "source_id": "SRC-MAIN"
+      },
+      {
+        "id": "MAIN-event-gates",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Event actions are gated by event_calendar_management, event_approval and delivery_administration on main and become per-template Manage.",
+        "source_id": "SRC-MAIN"
+      },
+      {
+        "id": "MAIN-capabilities",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "Which of the thirteen capabilities in src/lib/auth/capabilities.ts become derived from grants and which stay in code is the Lead's.",
+        "evidence": "W1 specification, Dependencies: 'the capabilities the access list governs become derived from grants; the rest stay in code' — the derivation is unspecified.",
+        "source_id": "SRC-MAIN"
+      }
+    ]
+  },
+  "subject_coverage": {
+    "areas": [
+      {
+        "id": "S1",
+        "name": "Seat page access editor",
+        "belongs": "Where the club administers each seat's grants.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "modified",
+        "baseline": "/operate/admin/roles/[roleId] on main 0d4b6ce5: holder, Permissions list, Holder history",
+        "reason": "Access replaces the seat page's Permissions list; Copy access and Grant everything live here."
+      },
+      {
+        "id": "S2",
+        "name": "Roles index",
+        "belongs": "The route into every seat page.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "retained",
+        "baseline": "/operate/admin/roles on main 0d4b6ce5",
+        "reason": "Unchanged by this delivery (W1-01 is an identical pair)."
+      },
+      {
+        "id": "S3",
+        "name": "Grant floor and delivery-day seed",
+        "belongs": "Who holds what on delivery and who can never be reduced.",
+        "disposition": "invariant",
+        "invariant": "President, General Manager and IT Officer hold everything and cannot be reduced; Vice-President and Secretary start full and are removable one grant at a time; every other seat starts with None on every category and template.",
+        "reason": "Binds W1, W3 and W4 alike; the club cannot lock itself out."
+      },
+      {
+        "id": "S4",
+        "name": "Audit of grant and colour changes",
+        "belongs": "Every change to access or colours must be attributable.",
+        "disposition": "invariant",
+        "invariant": "Every grant change, Copy access, Grant everything and group-colour change is written to audit_events with actor and before and after per line.",
+        "reason": "Shared by W1 and W2."
+      },
+      {
+        "id": "S5",
+        "name": "Roster group colours and the shared palette",
+        "belongs": "Roster colours become club data, on the palette event templates also use.",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "implementation": "modified",
+        "baseline": "BAND_COLOURS in src/components/section.tsx; TEMPLATE_COLOUR_PALETTE in src/lib/services/event-template-input.ts",
+        "reason": "Edit categories on the roster; thirteen-swatch palette; key blue re-toned for templates too."
+      },
+      {
+        "id": "S6",
+        "name": "Roster board narrowing",
+        "belongs": "The board is where most granted seats work.",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "implementation": "modified",
+        "baseline": "/operate/roster on main 0d4b6ce5, gated by person_record_authority",
+        "reason": "None groups absent; View read-only; add switch governs Add players; name-only rows under None on Person."
+      },
+      {
+        "id": "S7",
+        "name": "Player record locking",
+        "belongs": "A granted seat opens records and must not receive locked data.",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "implementation": "modified",
+        "baseline": "/operate/roster/[membershipId] on main 0d4b6ce5",
+        "reason": "None sections collapsed and locked, never sent; Contact & emergency split out; header status as text."
+      },
+      {
+        "id": "S8",
+        "name": "Recruitment board and prospect record",
+        "belongs": "Recruiting is its own grant group.",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "implementation": "modified",
+        "baseline": "/operate/recruitment and its prospect record on main 0d4b6ce5",
+        "reason": "Person information, Recruit details and Event details govern columns and sections; may add recruits governs Add recruit and QR code."
+      },
+      {
+        "id": "S9",
+        "name": "Navigation and the coaches' attendance-only shell",
+        "belongs": "Granted seats must reach what they are granted, and only that.",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "implementation": "modified",
+        "baseline": "Operate sidebar and the attendance-only shell for coaches on main 0d4b6ce5",
+        "reason": "Roster and Recruitment appear only with a grant; coaches leave the attendance-only shell when granted."
+      },
+      {
+        "id": "S10",
+        "name": "Events list, calendar, event pages and Follow-ups",
+        "belongs": "Event access is granted per template.",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "implementation": "modified",
+        "baseline": "/operate/events, /operate/events/calendar, /operate/events/[id], /operate/admin/follow-ups on main 0d4b6ce5",
+        "reason": "None hides; View shows everything with manage controls absent; Manage adds create, edit, delete, send, schedule, approve and release."
+      },
+      {
+        "id": "S11",
+        "name": "Attendance recording",
+        "belongs": "Every seat records attendance today.",
+        "disposition": "invariant",
+        "invariant": "Attendance is not in the access list; recording stays as it is for every seat.",
+        "reason": "Locked by Brian; how the attendance surface lists events is delegated to the Lead."
+      },
+      {
+        "id": "S12",
+        "name": "Event templates page",
+        "belongs": "Templates are the unit of event grants.",
+        "disposition": "invariant",
+        "invariant": "The event templates page is unchanged; templates keep their own colour.",
+        "reason": "Locked in round 3; the palette re-tone of key blue is W2's consequence, not a page change."
+      },
+      {
+        "id": "S13",
+        "name": "Locked data never leaves the server",
+        "belongs": "The privacy posture of every narrowed surface.",
+        "disposition": "invariant",
+        "invariant": "A None category's contents are never sent to the browser; controls a seat may not use are absent, not disabled; the service layer enforces every grant.",
+        "reason": "Binds W3 and W4."
+      },
+      {
+        "id": "S14",
+        "name": "Who may pause messaging",
+        "belongs": "Adjacent authority question raised as LAN-407.",
+        "disposition": "excluded",
+        "reason": "Stays in code.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        }
+      },
+      {
+        "id": "S15",
+        "name": "Erasure",
+        "belongs": "Adjacent to seat access over person data.",
+        "disposition": "excluded",
+        "reason": "Unchanged by this delivery.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        }
+      },
+      {
+        "id": "S16",
+        "name": "Seat-replacement rules on the Roles page",
+        "belongs": "Same page as the access editor.",
+        "disposition": "excluded",
+        "reason": "Unchanged.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        }
+      },
+      {
+        "id": "S17",
+        "name": "Generalised messaging module",
+        "belongs": "Messaging permissions are adjacent.",
+        "disposition": "excluded",
+        "reason": "Separate work with its own scope.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        }
+      },
+      {
+        "id": "S18",
+        "name": "Monday report",
+        "belongs": "The quote names the report among places events appear.",
+        "disposition": "excluded",
+        "reason": "Its scoping to granted templates and who may open it are not in this delivery.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        }
+      },
+      {
+        "id": "S19",
+        "name": "Attendance-sheet email",
+        "belongs": "Attendance output adjacent to event access.",
+        "disposition": "excluded",
+        "reason": "Unchanged.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        }
+      },
+      {
+        "id": "S20",
+        "name": "Per-group scoping for coaches",
+        "belongs": "Coaches are the largest granted group.",
+        "disposition": "excluded",
+        "reason": "A coach with edit on a category edits it for the whole squad.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        }
+      },
+      {
+        "id": "S21",
+        "name": "Time-limited delegation",
+        "belongs": "Proposed in round 2 as W1-09.",
+        "disposition": "excluded",
+        "reason": "Retired in round 3; no time-limited delegation.",
+        "evidence": "00-boundary.md, Out of scope (approved by Brian 2026-09-25)",
+        "approval": {
+          "words": "Other than that, I think this is approved. We can go ahead and create the packet and push it.",
+          "date": "2026-09-25"
+        }
+      }
+    ]
+  },
+  "amendment_plan": {
+    "items": [],
+    "approval": null
+  },
+  "next_action": "Brian: review and merge the intake-artifacts-only draft PR; the merge approves packet v1."
+}
