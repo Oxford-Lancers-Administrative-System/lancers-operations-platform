@@ -443,6 +443,43 @@ describe("each field needs its own category at edit — LAN-432", () => {
     expect(after.contacts.find((c) => c.validUntil === null)?.rawValue).toBe("+447700900301");
   });
 
+  it("answers a right and a wrong guess at a withheld value identically — LAN-423", async () => {
+    const personId = await insertPerson({ givenName: unique("Oracle") });
+    await insertContact(personId, { kind: "phone", rawValue: "+447700900304" });
+    signedInWith({ person: "edit", contact_emergency: "view" });
+
+    async function outcomeOf(guess: string): Promise<unknown> {
+      const data = await formFrom(personId, { degreeField: "LAN423 Oracle Studies" });
+      // Only the guessed field arrives from the withheld half, as a probe would send it.
+      for (const field of [
+        "personalEmail",
+        "collegeEmail",
+        "emergencyGivenName",
+        "emergencyFamilyName",
+        "emergencyRelationship",
+        "emergencyPhone",
+        "emergencyEmail",
+      ]) {
+        data.delete(field);
+      }
+      data.set("mobile", guess);
+      try {
+        return { resolved: await submitPersonEdit(INITIAL_EDIT_STATE, data) };
+      } catch (error) {
+        if (error instanceof RedirectSignal) return { redirected: true };
+        const { kind, rule, message } = error as { kind?: string; rule?: string; message: string };
+        return { kind, rule, message };
+      }
+    }
+
+    const right = await outcomeOf("+447700900304");
+    const wrong = await outcomeOf("+447700900399");
+    expect(right).toEqual(wrong);
+    expect(right).toMatchObject({ kind: "not_permitted" });
+    const after = await readPersonRecord(personId);
+    expect(after.degreeField).toBeNull();
+  });
+
   it("writes Person's fields and leaves the contacts it was never sent", async () => {
     const personId = await insertPerson({ givenName: unique("Partial") });
     await insertContact(personId, { kind: "phone", rawValue: "+447700900303" });

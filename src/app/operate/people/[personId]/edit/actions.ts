@@ -495,8 +495,10 @@ function recordedValue(record: PersonRecord, field: EditableField): string {
 /**
  * The submission, held to the seat's categories. A category the seat may not
  * edit is not drawn on the form, so its fields arrive absent and keep the
- * recorded value; one that arrives anyway with a different value is a forged
- * edit, refused `NotPermitted` before anything is written.
+ * recorded value; one that arrives anyway is a forged edit, refused
+ * `NotPermitted` before anything is written. The refusal is on presence
+ * alone — never on a comparison with the recorded value, which would answer
+ * whether a guess was right (LAN-423).
  */
 function withinGrantedCategories(
   operator: ResolvedOperator,
@@ -512,14 +514,13 @@ function withinGrantedCategories(
   for (const [category, fields] of halves) {
     if (mayEditRoster(operator.grants, category)) continue;
     for (const field of fields) {
-      const recorded = recordedValue(current, field);
-      if (formData.has(field) && submitted[field].trim() !== recorded) {
+      if (formData.has(field)) {
         throw new NotPermitted(
           "You do not have access to this action. This needs access your seat does not hold.",
           { rule: `grant:roster.${category}>=edit` },
         );
       }
-      values[field] = recorded;
+      values[field] = recordedValue(current, field);
     }
   }
   return values;
