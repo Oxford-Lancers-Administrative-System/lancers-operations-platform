@@ -10,10 +10,12 @@ import {
   STORED_MISMATCH_CLASSES,
 } from "./discrepancy-vocabulary";
 import {
+  answerGroupOf,
   applyParticipationView,
   DELIVERY_FILTERS,
   discrepancyFor,
   EMPTY_FILTERS,
+  groupByAnswer,
   isParticipationSort,
   participationSortHref,
   participationSortState,
@@ -269,6 +271,49 @@ const names = (people: readonly ParticipationPerson[]) => people.map((one) => on
 function withFilters(patch: Partial<ParticipationFilters>): ParticipationFilters {
   return { ...EMPTY_FILTERS, ...patch };
 }
+
+// LAN-439 — the event page's audience reads Yes, then No, then No response.
+describe("groupByAnswer", () => {
+  const people = [
+    person({ displayName: "Ada None", answer: null }),
+    person({ displayName: "Bea No", answer: "no" }),
+    person({ displayName: "Cy Yes", answer: "yes" }),
+    person({ displayName: "Dot Walkup", isWalkUp: true, answer: null }),
+    person({ displayName: "Eve Yes", answer: "yes" }),
+    person({ displayName: "Fay No", answer: "no" }),
+  ];
+
+  it("orders yes, then no, then no response, keeping the sort inside each group", () => {
+    expect(names(groupByAnswer(applyParticipationView(people, EMPTY_FILTERS, [])))).toEqual([
+      "Cy Yes",
+      "Eve Yes",
+      "Bea No",
+      "Fay No",
+      "Ada None",
+      "Dot Walkup",
+    ]);
+  });
+
+  it("keeps a descending name sort inside each group", () => {
+    const sorted = applyParticipationView(
+      people,
+      withFilters({ sort: "name", direction: "desc" }),
+      [],
+    );
+    expect(names(groupByAnswer(sorted))).toEqual([
+      "Eve Yes",
+      "Cy Yes",
+      "Fay No",
+      "Bea No",
+      "Dot Walkup",
+      "Ada None",
+    ]);
+  });
+
+  it("puts somebody never asked with no response", () => {
+    expect(answerGroupOf({ answer: null })).toBe("none");
+  });
+});
 
 describe("applyParticipationView filters", () => {
   it("returns everybody with no filters, sorted by name", () => {

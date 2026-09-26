@@ -23,6 +23,7 @@ export function RowCard({
   testId,
   struckThrough = false,
   emphasized = false,
+  dense = false,
 }: {
   title: ReactNode;
   struckThrough?: boolean;
@@ -40,18 +41,34 @@ export function RowCard({
   /** Wider inline controls, such as the four-state attendance recorder. */
   actionWidth?: number | string;
   testId?: string;
+  /** LAN-439: tighter padding and a body-sized title, for a long list read on a phone. */
+  dense?: boolean;
 }) {
+  const pad = dense ? 1 : 2;
   const body = (
-    <Stack spacing={0.5} sx={{ p: 2, pb: actions ? { xs: 0, sm: 2 } : 2, minWidth: 0, flex: 1 }}>
+    <Stack
+      spacing={dense ? 0.25 : 0.5}
+      sx={{
+        px: dense ? 1.5 : 2,
+        py: pad,
+        pb: actions ? { xs: 0, sm: pad } : pad,
+        minWidth: 0,
+        flex: 1,
+      }}
+    >
       <Stack
         direction="row"
         spacing={1}
         sx={{ justifyContent: "space-between", alignItems: "baseline" }}
       >
         <Typography
-          variant="subtitle1"
+          variant={dense ? "body1" : "subtitle1"}
           component="p"
-          sx={{ minWidth: 0, textDecoration: struckThrough ? "line-through" : undefined }}
+          sx={{
+            minWidth: 0,
+            fontWeight: dense ? 600 : undefined,
+            textDecoration: struckThrough ? "line-through" : undefined,
+          }}
         >
           {title}
         </Typography>
@@ -138,8 +155,11 @@ export function RowCardList({
   component = "div",
   children,
   testId,
+  dense = false,
 }: {
   at?: "phone" | "all";
+  /** LAN-439: a tighter gap between cards. */
+  dense?: boolean;
   component?: "div" | "ul";
   children: ReactNode;
   testId?: string;
@@ -147,7 +167,7 @@ export function RowCardList({
   return (
     <Stack
       component={component}
-      spacing={1.5}
+      spacing={dense ? 0.75 : 1.5}
       sx={{
         display: at === "all" ? "flex" : { xs: "flex", md: "none" },
         ...(component === "ul" ? { listStyle: "none", p: 0, m: 0 } : {}),

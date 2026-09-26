@@ -3266,6 +3266,60 @@ describe("the participation table on the event page", () => {
       expect(players.getByTestId("response-counts").textContent).toBe("4 yes · 1 no / 7");
     });
 
+    // LAN-439 (client QA, 2026-09-26): "ranked by yes's, no's, and no responses".
+    it("groups the audience Yes, then No, then No response, in the table and the phone rows", async () => {
+      vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+      vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+      vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+      const person = PARTICIPATION.people[0];
+      vi.mocked(readOperatorParticipation).mockResolvedValue({
+        ...PARTICIPATION,
+        people: [
+          { ...person, key: "player:a", displayName: "Aldous None", answer: null },
+          { ...person, key: "player:b", displayName: "Bryony No", answer: "no" },
+          { ...person, key: "player:c", displayName: "Cyril Yes", answer: "yes" },
+          { ...person, key: "player:d", displayName: "Delia No", answer: "no" },
+          { ...person, key: "player:e", displayName: "Edwin Yes", answer: "yes" },
+        ],
+      });
+      const { container } = render(await EventDetailPage(detailProps()));
+
+      const order = (selector: string) =>
+        [...container.querySelectorAll(selector)].map((node) => node.getAttribute("data-person"));
+      const expected = ["player:c", "player:e", "player:b", "player:d", "player:a"];
+      expect(order('[data-testid="participation-row"]')).toEqual(expected);
+      expect(order('[data-testid="participation-card"]')).toEqual(expected);
+      expect(
+        [...container.querySelectorAll('[data-testid="participation-card"]')].map((node) =>
+          node.getAttribute("data-answer-group"),
+        ),
+      ).toEqual(["yes", "yes", "no", "no", "none"]);
+    });
+
+    it("draws each phone row compactly, every fact labelled and still there", async () => {
+      vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+      vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+      vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+      vi.mocked(readOperatorParticipation).mockResolvedValue(PARTICIPATION);
+      const { container } = render(await EventDetailPage(detailProps()));
+
+      const card = container.querySelector('[data-testid="participation-card"]')!;
+      // One wrapping line of label–value pairs, not a stacked grid of overline labels.
+      const facts = [...card.querySelectorAll('[data-testid="fact"]')];
+      expect(facts.map((fact) => fact.getAttribute("data-label"))).toEqual([
+        "Answer",
+        "Attendance",
+        "Delivery",
+        "Invitation sent",
+      ]);
+      expect(card.querySelector(".MuiTypography-overline")).toBeNull();
+      expect(card.textContent).toContain("Avery Fielding");
+      expect(card.textContent).toContain("Player");
+      expect(card.textContent).toContain("Absent");
+      expect(card.textContent).toContain("Delivered");
+      expect(card.querySelector("[data-discrepancy]")).not.toBeNull();
+    });
+
     it("shows no block at all before approval, when nobody is invited", async () => {
       vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
       vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);

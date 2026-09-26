@@ -828,6 +828,15 @@ the link was sent to are reading the same numbers.
 **Invited and Said yes are no longer tiles of their own**, because each block
 says both and their totals are the whole event's.
 
+**The audience is grouped Yes, then No, then No response** (LAN-439, client
+QA, 2026-09-26), in the desktop table and the phone rows alike. The chosen sort
+column still orders the people inside each group, and a walk-up sits with No
+response. On a phone each person is one compact row: the name and capacity on
+the first line, then Answer, Attendance, Delivery, Invitation sent, any reason
+and every question answer as labelled pairs sharing lines — every fact the
+desktop row carries, several to a line. The public **Event info link** page
+keeps its own order and card layout.
+
 **There is no Showed tile on this page at all** (Brian's visual review,
 2026-09-22): "Remove the Showed / Invited card entirely. The register panel
 below it stays; attendance is still recorded there." Stewart had moved it below

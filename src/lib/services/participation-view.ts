@@ -416,6 +416,27 @@ export function applyParticipationView<T extends ParticipationPerson>(
   );
 }
 
+/** LAN-439: the audience's three answer groups, in the order the event page shows them. */
+export type AnswerGroup = "yes" | "no" | "none";
+
+const ANSWER_GROUP_ORDER: readonly AnswerGroup[] = Object.freeze(["yes", "no", "none"]);
+
+export function answerGroupOf(person: Pick<ParticipationPerson, "answer">): AnswerGroup {
+  return person.answer ?? "none";
+}
+
+/**
+ * LAN-439 (client QA, 2026-09-26): the event page's audience reads Yes, then
+ * No, then No response, on every width. A stable partition over an already
+ * sorted list, so the chosen column still orders the people inside each group.
+ * A walk-up was never asked, so they sit with No response.
+ */
+export function groupByAnswer<T extends ParticipationPerson>(people: readonly T[]): readonly T[] {
+  return ANSWER_GROUP_ORDER.flatMap((group) =>
+    people.filter((person) => answerGroupOf(person) === group),
+  );
+}
+
 /** The href a column heading points at; every other filter is carried, so sorting never drops a filter. */
 export function participationSortHref(
   basePath: string,
