@@ -123,7 +123,7 @@ afterEach(async () => {
                 then case g.subject_kind
                        when 'event_template' then 'manage'
                        when 'switch' then 'yes'
-                       else case when g.subject_key = 'recruit_events' then 'view' else 'edit' end
+                       else case when g.subject_key in ('recruit_events', 'attendance') then 'view' else 'edit' end
                      end
               else 'none'
             end
@@ -248,7 +248,7 @@ describe("whole-seat edits", () => {
   it("copies the Vice-President onto the Treasurer as one History entry listing every changed line", async () => {
     signedInAs(["president"]);
     const plan = await planCopyAccessAction(roleIds.treasurer, roleIds.vice_president);
-    const expected = 11 + 3 + templates.length + 2;
+    const expected = 12 + 3 + templates.length + 2;
     expect(plan).toMatchObject({ ok: true });
     if (plan.ok) expect(plan.lines).toHaveLength(expected);
 
@@ -266,6 +266,7 @@ describe("whole-seat edits", () => {
     expect(lines).toHaveLength(expected);
     expect(lines[0]).toBe("Person: None → Edit");
     expect(lines).toContain("Contact & emergency: None → Edit");
+    expect(lines).toContain("Attendance: None → View");
     expect(lines.at(-1)).toBe("May add recruits: No → Yes");
     // No end date: the copied lines are ordinary rows, and the Treasurer is not made fixed.
     const again = await setAccessGrantAction(

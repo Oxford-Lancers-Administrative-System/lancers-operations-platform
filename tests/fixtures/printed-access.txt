@@ -9,6 +9,7 @@ general_manager        roster_category defensive                    edit
 general_manager        roster_category special_teams                edit
 general_manager        roster_category warmup                       edit
 general_manager        roster_category kit                          edit
+general_manager        roster_category attendance                   view
 general_manager        recruiting_category recruit_person           edit
 general_manager        recruiting_category recruit_details          edit
 general_manager        recruiting_category recruit_events           view
@@ -32,6 +33,7 @@ it_officer             roster_category defensive                    edit
 it_officer             roster_category special_teams                edit
 it_officer             roster_category warmup                       edit
 it_officer             roster_category kit                          edit
+it_officer             roster_category attendance                   view
 it_officer             recruiting_category recruit_person           edit
 it_officer             recruiting_category recruit_details          edit
 it_officer             recruiting_category recruit_events           view
@@ -55,6 +57,7 @@ president              roster_category defensive                    edit
 president              roster_category special_teams                edit
 president              roster_category warmup                       edit
 president              roster_category kit                          edit
+president              roster_category attendance                   view
 president              recruiting_category recruit_person           edit
 president              recruiting_category recruit_details          edit
 president              recruiting_category recruit_events           view
@@ -78,6 +81,7 @@ vice_president         roster_category defensive                    edit
 vice_president         roster_category special_teams                edit
 vice_president         roster_category warmup                       edit
 vice_president         roster_category kit                          edit
+vice_president         roster_category attendance                   view
 vice_president         recruiting_category recruit_person           edit
 vice_president         recruiting_category recruit_details          edit
 vice_president         recruiting_category recruit_events           view
@@ -101,6 +105,7 @@ secretary              roster_category defensive                    edit
 secretary              roster_category special_teams                edit
 secretary              roster_category warmup                       edit
 secretary              roster_category kit                          edit
+secretary              roster_category attendance                   view
 secretary              recruiting_category recruit_person           edit
 secretary              recruiting_category recruit_details          edit
 secretary              recruiting_category recruit_events           view
@@ -124,6 +129,7 @@ treasurer              roster_category defensive                    none
 treasurer              roster_category special_teams                none
 treasurer              roster_category warmup                       none
 treasurer              roster_category kit                          none
+treasurer              roster_category attendance                   none
 treasurer              recruiting_category recruit_person           none
 treasurer              recruiting_category recruit_details          none
 treasurer              recruiting_category recruit_events           none
@@ -147,6 +153,7 @@ social_secretary       roster_category defensive                    none
 social_secretary       roster_category special_teams                none
 social_secretary       roster_category warmup                       none
 social_secretary       roster_category kit                          none
+social_secretary       roster_category attendance                   none
 social_secretary       recruiting_category recruit_person           none
 social_secretary       recruiting_category recruit_details          none
 social_secretary       recruiting_category recruit_events           none
@@ -170,6 +177,7 @@ gameday_secretary      roster_category defensive                    none
 gameday_secretary      roster_category special_teams                none
 gameday_secretary      roster_category warmup                       none
 gameday_secretary      roster_category kit                          none
+gameday_secretary      roster_category attendance                   none
 gameday_secretary      recruiting_category recruit_person           none
 gameday_secretary      recruiting_category recruit_details          none
 gameday_secretary      recruiting_category recruit_events           none
@@ -193,6 +201,7 @@ kit_manager            roster_category defensive                    none
 kit_manager            roster_category special_teams                none
 kit_manager            roster_category warmup                       none
 kit_manager            roster_category kit                          none
+kit_manager            roster_category attendance                   none
 kit_manager            recruiting_category recruit_person           none
 kit_manager            recruiting_category recruit_details          none
 kit_manager            recruiting_category recruit_events           none
@@ -216,6 +225,7 @@ media_secretary        roster_category defensive                    none
 media_secretary        roster_category special_teams                none
 media_secretary        roster_category warmup                       none
 media_secretary        roster_category kit                          none
+media_secretary        roster_category attendance                   none
 media_secretary        recruiting_category recruit_person           none
 media_secretary        recruiting_category recruit_details          none
 media_secretary        recruiting_category recruit_events           none
@@ -239,6 +249,7 @@ head_coach             roster_category defensive                    none
 head_coach             roster_category special_teams                none
 head_coach             roster_category warmup                       none
 head_coach             roster_category kit                          none
+head_coach             roster_category attendance                   none
 head_coach             recruiting_category recruit_person           none
 head_coach             recruiting_category recruit_details          none
 head_coach             recruiting_category recruit_events           none
@@ -262,6 +273,7 @@ offence_coach          roster_category defensive                    none
 offence_coach          roster_category special_teams                none
 offence_coach          roster_category warmup                       none
 offence_coach          roster_category kit                          none
+offence_coach          roster_category attendance                   none
 offence_coach          recruiting_category recruit_person           none
 offence_coach          recruiting_category recruit_details          none
 offence_coach          recruiting_category recruit_events           none
@@ -285,6 +297,7 @@ defence_coach          roster_category defensive                    none
 defence_coach          roster_category special_teams                none
 defence_coach          roster_category warmup                       none
 defence_coach          roster_category kit                          none
+defence_coach          roster_category attendance                   none
 defence_coach          recruiting_category recruit_person           none
 defence_coach          recruiting_category recruit_details          none
 defence_coach          recruiting_category recruit_events           none
@@ -308,6 +321,7 @@ quarterbacks_coach     roster_category defensive                    none
 quarterbacks_coach     roster_category special_teams                none
 quarterbacks_coach     roster_category warmup                       none
 quarterbacks_coach     roster_category kit                          none
+quarterbacks_coach     roster_category attendance                   none
 quarterbacks_coach     recruiting_category recruit_person           none
 quarterbacks_coach     recruiting_category recruit_details          none
 quarterbacks_coach     recruiting_category recruit_events           none
@@ -331,6 +345,7 @@ offensive_line_coach   roster_category defensive                    none
 offensive_line_coach   roster_category special_teams                none
 offensive_line_coach   roster_category warmup                       none
 offensive_line_coach   roster_category kit                          none
+offensive_line_coach   roster_category attendance                   none
 offensive_line_coach   recruiting_category recruit_person           none
 offensive_line_coach   recruiting_category recruit_details          none
 offensive_line_coach   recruiting_category recruit_events           none
@@ -354,6 +369,7 @@ wide_receivers_coach   roster_category defensive                    none
 wide_receivers_coach   roster_category special_teams                none
 wide_receivers_coach   roster_category warmup                       none
 wide_receivers_coach   roster_category kit                          none
+wide_receivers_coach   roster_category attendance                   none
 wide_receivers_coach   recruiting_category recruit_person           none
 wide_receivers_coach   recruiting_category recruit_details          none
 wide_receivers_coach   recruiting_category recruit_events           none
@@ -377,6 +393,7 @@ defensive_line_coach   roster_category defensive                    none
 defensive_line_coach   roster_category special_teams                none
 defensive_line_coach   roster_category warmup                       none
 defensive_line_coach   roster_category kit                          none
+defensive_line_coach   roster_category attendance                   none
 defensive_line_coach   recruiting_category recruit_person           none
 defensive_line_coach   recruiting_category recruit_details          none
 defensive_line_coach   recruiting_category recruit_events           none
@@ -400,6 +417,7 @@ linebackers_coach      roster_category defensive                    none
 linebackers_coach      roster_category special_teams                none
 linebackers_coach      roster_category warmup                       none
 linebackers_coach      roster_category kit                          none
+linebackers_coach      roster_category attendance                   none
 linebackers_coach      recruiting_category recruit_person           none
 linebackers_coach      recruiting_category recruit_details          none
 linebackers_coach      recruiting_category recruit_events           none
@@ -423,6 +441,7 @@ defensive_backs_coach  roster_category defensive                    none
 defensive_backs_coach  roster_category special_teams                none
 defensive_backs_coach  roster_category warmup                       none
 defensive_backs_coach  roster_category kit                          none
+defensive_backs_coach  roster_category attendance                   none
 defensive_backs_coach  recruiting_category recruit_person           none
 defensive_backs_coach  recruiting_category recruit_details          none
 defensive_backs_coach  recruiting_category recruit_events           none
@@ -446,6 +465,7 @@ special_teams_coach    roster_category defensive                    none
 special_teams_coach    roster_category special_teams                none
 special_teams_coach    roster_category warmup                       none
 special_teams_coach    roster_category kit                          none
+special_teams_coach    roster_category attendance                   none
 special_teams_coach    recruiting_category recruit_person           none
 special_teams_coach    recruiting_category recruit_details          none
 special_teams_coach    recruiting_category recruit_events           none

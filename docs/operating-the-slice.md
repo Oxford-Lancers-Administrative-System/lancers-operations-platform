@@ -147,7 +147,8 @@ in as and "Authorized operator".
 Officer, whose own access is fixed. The page's **Access** section, under
 Current holder, lists four groups — Roster, Recruiting, Event templates and
 Adding people — one line each: None / View / Edit on eleven roster categories
-and on Person information and Recruit details, None / View on Event details,
+and on Person information and Recruit details, None / View on Attendance (the
+Roster group's last line) and on Event details,
 None / View / Manage on each event template, and No / Yes on "May add to the
 roster" and "May add recruits". A press saves at once; the Notice reads the
 change back and the seat's **History** gains an "Access changed" entry. **Copy
@@ -163,12 +164,15 @@ player and prospect records and the recruitment board draw from them. The
 sidebar follows: Roster, People and Missing data with any roster category at
 View; Recruitment with any recruiting category at View; Events with any template
 at View or an attendance capability; Follow-ups with any template at View; the
-Messaging schedule with any template at Manage. Report and the rest of
-Administration are unchanged. Events of a template at None appear nowhere — not
+Messaging schedule with any template at Manage. Report appears only for the
+seats that hold the report (the core four and the IT Officer), never as a grant
+line; the rest of Administration is unchanged. Events of a template at None appear nowhere — not
 on the list, the calendar, Follow-ups or by typed URL; View shows everything in
 the event, including the Event info link; Manage adds every create, edit,
 delete, send, approve, delivery and chase control and that template's messaging
-schedule (LAN-431). Attendance recording is unchanged for every seat.
+schedule (LAN-431). Attendance recording is unchanged for every seat: the
+Attendance line governs only the player record's Attendance section, and the
+roster board has no attendance columns.
 
 **Working the roster and recruits within the grants (LAN-432).** The roster
 board, a player's record, People, a person's record and Missing data open for
@@ -183,7 +187,8 @@ of it is sent to the browser. The player record's sections read Person, Contact
 & emergency (Mobile phone, Personal email, Emergency contact — its own section
 after Person), Onboarding (and Onboarding activity), Membership, Availability, the five
 assignment groups and Kit; Their other seasons and Status history read as
-Membership; Attendance is always open. On People and a person's record, Who
+Membership; Attendance reads as its own Attendance line (None / View), which
+governs only that section — recording attendance on an event is unchanged. On People and a person's record, Who
 they are, Restricted, Where they stand, Messaging and What changed read as
 Person, How to reach them (and the emergency contact) as Contact & emergency,
 Their seasons as Membership; Correct this record needs Edit on Person or

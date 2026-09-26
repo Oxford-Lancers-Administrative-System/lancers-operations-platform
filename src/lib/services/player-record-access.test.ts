@@ -63,17 +63,31 @@ const DATA = {
 } as unknown as PlayerRecordData;
 
 describe("redactPlayerRecord", () => {
-  it("the Kit Manager receives the name, Kit and attendance, and no other category", () => {
+  it("the Kit Manager receives the name and Kit, and no other category — attendance included", () => {
     const visible = redactPlayerRecord(DATA, seat({ person: "view", kit: "edit" }));
     expect(visible.displayName).toBe("Alaric Brindlewood");
     expect(Object.keys(visible.season).sort()).toEqual(["formalwear", "kit"]);
-    expect(visible.attendance).toHaveLength(1);
-    for (const key of ["status", "entry", "onboardingItems", "send", "jerseyHolders", "person"]) {
+    // Round 6, M5: Attendance at None is not sent.
+    for (const key of [
+      "status",
+      "entry",
+      "onboardingItems",
+      "send",
+      "jerseyHolders",
+      "person",
+      "attendance",
+    ]) {
       expect(key in visible, key).toBe(false);
     }
     expect(visible.positionOptions).toEqual({ offence: [], defence: [] });
     // A departed membership stays closed to writes without its status travelling.
     expect(visible.closed).toBe(true);
+  });
+
+  it("sends the attendance rows to a seat holding Attendance at view", () => {
+    const visible = redactPlayerRecord(DATA, seat({ person: "view", attendance: "view" }));
+    expect(visible.attendance).toHaveLength(1);
+    expect(visible.access?.attendance).toBe("view");
   });
 
   it("the coach receives the football groups and Availability, and no Membership", () => {

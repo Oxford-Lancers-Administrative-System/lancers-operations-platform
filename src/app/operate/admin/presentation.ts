@@ -300,7 +300,7 @@ export function membershipStatusLabel(status: string): string {
 // Access — LAN-430, W1 of mission M-GRANULAR-ROLES-AND-PERMISSIONS (LAN-423)
 // ---------------------------------------------------------------------------
 
-/** The Roster group's eleven lines, in the seat page's order (W1-03): the board's ten groups, then Contact & emergency. */
+/** The Roster group's twelve lines, in the seat page's order (W1-03): the board's ten groups, then Contact & emergency, then Attendance (None / View, LAN-423 round 6). */
 export const ACCESS_ROSTER_LINES: readonly { key: RosterCategory; label: string }[] = Object.freeze(
   [
     { key: "person", label: "Person" },
@@ -314,6 +314,7 @@ export const ACCESS_ROSTER_LINES: readonly { key: RosterCategory; label: string 
     { key: "warmup", label: "Warmup assignments" },
     { key: "kit", label: "Kit" },
     { key: "contact_emergency", label: "Contact & emergency" },
+    { key: "attendance", label: "Attendance" },
   ],
 );
 

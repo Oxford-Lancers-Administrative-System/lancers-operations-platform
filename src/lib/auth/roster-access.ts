@@ -127,7 +127,7 @@ export function mayEditRecruiting(grants: OperatorGrants, category: RecruitingCa
 
 /**
  * What a record section is, for the lock: its level, or `open` for a section
- * outside the access list (the player record's Attendance).
+ * outside the access list.
  */
 export type SectionAccess = CategoryLevel | "open";
 

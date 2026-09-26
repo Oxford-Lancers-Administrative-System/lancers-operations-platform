@@ -17,6 +17,7 @@ import {
   grantRuleHolds,
   grantRuleKey,
   holdsAnyGrant,
+  levelsFor,
   maximumLevel,
   mergeGrantRows,
   NO_GRANTS,
@@ -40,7 +41,7 @@ function row(
 }
 
 describe("the vocabulary", () => {
-  it("names the eleven roster categories, the three recruiting ones and the two switches", () => {
+  it("names the twelve roster categories, the three recruiting ones and the two switches", () => {
     expect([...ROSTER_CATEGORIES]).toEqual([
       "person",
       "contact_emergency",
@@ -53,6 +54,7 @@ describe("the vocabulary", () => {
       "special_teams",
       "warmup",
       "kit",
+      "attendance",
     ]);
     expect([...RECRUITING_CATEGORIES]).toEqual([
       "recruit_person",
@@ -62,15 +64,19 @@ describe("the vocabulary", () => {
     expect([...ACCESS_SWITCHES]).toEqual(["add_to_roster", "add_recruits"]);
   });
 
-  it("colours the ten board groups — every roster category but Contact & emergency", () => {
+  it("colours the ten board groups — every roster category but Contact & emergency and Attendance", () => {
     expect(ROSTER_GROUP_KEYS).toHaveLength(10);
     expect(ROSTER_GROUP_KEYS).not.toContain("contact_emergency");
+    expect(ROSTER_GROUP_KEYS).not.toContain("attendance");
   });
 
   it("stops Event details at View and every other line at its own maximum", () => {
     expect(maximumLevel({ kind: "recruiting", key: "recruit_events" })).toBe("view");
     expect(maximumLevel({ kind: "recruiting", key: "recruit_details" })).toBe("edit");
     expect(maximumLevel({ kind: "roster", key: "kit" })).toBe("edit");
+    // Round 6, M5: Attendance is None / View.
+    expect(maximumLevel({ kind: "roster", key: "attendance" })).toBe("view");
+    expect(levelsFor({ kind: "roster", key: "attendance" })).toEqual(["none", "view"]);
     expect(maximumLevel({ kind: "template", templateId: SOCIAL })).toBe("manage");
     expect(maximumLevel({ kind: "switch", key: "add_recruits" })).toBe("yes");
   });
@@ -133,6 +139,7 @@ describe("mergeGrantRows — the union across seats", () => {
     const merged = mergeGrantRows([
       row("roster_category", "recruits", "edit"),
       row("recruiting_category", "recruit_events", "edit"),
+      row("roster_category", "attendance", "edit"),
       row("switch", "add_to_roster", "edit"),
       row("records", "everything", "yes"),
     ]);
@@ -190,6 +197,9 @@ describe("rules", () => {
     const full = fullGrants([]);
     expect(full.recruiting.recruit_events).toBe("view");
     expect(grantRuleHolds(full, { everyOf: "recruiting", minimum: "edit" })).toBe(true);
+    // Attendance likewise: the whole record still reads as held at Edit.
+    expect(full.roster.attendance).toBe("view");
+    expect(grantRuleHolds(full, { everyOf: "roster", minimum: "edit" })).toBe(true);
   });
 
   it("names each rule for the refusal it produces", () => {
@@ -250,8 +260,14 @@ describe("diffGrants — what Copy access and Grant everything would change", ()
     const target = fullGrants([SOCIAL]);
 
     const changes = diffGrants(current, target, [SOCIAL]);
-    // Eleven roster lines less Kit, three recruiting, one template, two switches.
-    expect(changes).toHaveLength(10 + 3 + 1 + 2);
+    // Twelve roster lines less Kit, three recruiting, one template, two switches.
+    expect(changes).toHaveLength(11 + 3 + 1 + 2);
+    // Round 6, M5: Attendance moves to its own maximum, View.
+    expect(
+      changes.find(
+        (change) => change.subject.kind === "roster" && change.subject.key === "attendance",
+      ),
+    ).toEqual({ subject: { kind: "roster", key: "attendance" }, from: "none", to: "view" });
     expect(changes.find((change) => change.subject.kind === "template")).toEqual({
       subject: { kind: "template", templateId: SOCIAL },
       from: "none",

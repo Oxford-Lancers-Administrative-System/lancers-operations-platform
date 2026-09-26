@@ -32,7 +32,7 @@ import type { PlayerRecordData } from "./player-record";
  * | the twenty-four special-teams cells                                    | Special teams|
  * | the warmup small group                                                 | Warmup       |
  * | the eleven kit items and formalwear                                    | Kit          |
- * | attendance                                                             | always open  |
+ * | attendance (the record's section; not the event surface)               | Attendance   |
  *
  * The name always travels: it stays at the top of a record whatever the seat
  * holds. `closed` travels too — a departed or archived membership takes no
@@ -73,9 +73,9 @@ type OnboardingKeys = "onboardingItems" | "outstandingRequired" | "activityLog" 
  */
 export type VisiblePlayerRecord = Pick<
   PlayerRecordData,
-  "membershipId" | "personId" | "seasonId" | "seasonLabel" | "attendance"
+  "membershipId" | "personId" | "seasonId" | "seasonLabel"
 > &
-  Partial<Pick<PlayerRecordData, MembershipKeys | OnboardingKeys>> & {
+  Partial<Pick<PlayerRecordData, MembershipKeys | OnboardingKeys | "attendance">> & {
     season: Partial<SeasonFacts>;
     positionOptions: PlayerRecordData["positionOptions"];
     /** The name at the top of the record. */
@@ -141,7 +141,6 @@ export function redactPlayerRecord(
     seasonLabel: data.seasonLabel,
     displayName: data.person.displayName,
     closed: data.status === "departed" || data.status === "archived",
-    attendance: data.attendance,
     access,
     season,
     positionOptions: {
@@ -164,6 +163,9 @@ export function redactPlayerRecord(
     // Who wears each number: only the jersey editor uses it.
     if (access.membership === "edit") visible.jerseyHolders = data.jerseyHolders;
   }
+
+  // LAN-423 round 6: the attendance rows travel only to a seat that may view them.
+  if (open("attendance")) visible.attendance = data.attendance;
 
   if (open("onboarding")) {
     visible.onboardingItems = data.onboardingItems;

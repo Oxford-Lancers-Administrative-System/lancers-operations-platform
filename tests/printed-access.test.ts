@@ -62,6 +62,7 @@ const LINE_ORDER = [
   "roster_category special_teams",
   "roster_category warmup",
   "roster_category kit",
+  "roster_category attendance",
   "recruiting_category recruit_person",
   "recruiting_category recruit_details",
   "recruiting_category recruit_events",
@@ -99,13 +100,14 @@ function lineOf(row: MatrixRow): string {
 function rank(line: string): number {
   const index = LINE_ORDER.indexOf(line);
   // Templates sit between the recruiting lines and the switches, by name.
-  return index >= 0 ? (index < 14 ? index : index + 100) : 50;
+  return index >= 0 ? (index < 15 ? index : index + 100) : 50;
 }
 
 function maximumOf(row: MatrixRow): string {
   if (row.subject_kind === "event_template") return "manage";
   if (row.subject_kind === "switch") return "yes";
-  return row.subject_key === "recruit_events" ? "view" : "edit";
+  // Round 6 (Brian, 2026-09-26): Attendance, like Event details, stops at view.
+  return row.subject_key === "recruit_events" || row.subject_key === "attendance" ? "view" : "edit";
 }
 
 let client: Client;
@@ -136,14 +138,14 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
     expect(`${printed}\n`).toBe(readFileSync(FIXTURE, "utf8"));
   });
 
-  it("gives every one of the twenty seats every line: 11 + 3 + 7 templates + 2", async () => {
+  it("gives every one of the twenty seats every line: 12 + 3 + 7 templates + 2", async () => {
     const seats = await client.query<{ code: string }>("select code from public.roles");
     expect(seats.rows).toHaveLength(20);
     for (const { code } of seats.rows) {
       expect(
         rows.filter((row) => row.role_code === code),
         code,
-      ).toHaveLength(23);
+      ).toHaveLength(24);
     }
   });
 
@@ -155,7 +157,7 @@ describe.runIf(configured)("the printed access matrix — LAN-429", () => {
 
   it("holds every other seat at none on every line", () => {
     const others = rows.filter((entry) => !FULL_SEATS.includes(entry.role_code));
-    expect(others).toHaveLength(15 * 23);
+    expect(others).toHaveLength(15 * 24);
     for (const row of others) {
       expect(row.level, `${row.role_code} ${lineOf(row)}`).toBe("none");
     }

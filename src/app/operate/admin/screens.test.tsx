@@ -1456,9 +1456,19 @@ describe("one role's record", () => {
     const access = screen.getByTestId("section-access");
     expect(within(access).getByTestId("access-copy")).toBeVisible();
     expect(within(access).getByTestId("access-grant-everything")).toBeVisible();
-    // Eleven roster lines, three recruiting, one per template, two switches.
+    // Twelve roster lines, three recruiting, one per template, two switches.
     const lines = access.querySelectorAll("[data-level]");
-    expect(lines).toHaveLength(11 + 3 + SEEDED_TEMPLATE_IDS.length + 2);
+    expect(lines).toHaveLength(12 + 3 + SEEDED_TEMPLATE_IDS.length + 2);
+    // Round 6, M5: Attendance is the Roster group's last line, None / View.
+    const rosterLines = [...lines].map((line) => line.getAttribute("data-testid"));
+    expect(rosterLines.indexOf("access-line-attendance")).toBe(11);
+    expect(rosterLines.indexOf("access-line-contact_emergency")).toBe(10);
+    const attendance = within(access).getByTestId("access-line-attendance");
+    expect(
+      within(attendance)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["None", "View"]);
     const kit = within(access).getByTestId("access-line-kit");
     expect(within(kit).getByRole("button", { name: "None" })).toHaveAttribute(
       "aria-pressed",

@@ -146,7 +146,7 @@ afterEach(async () => {
                 then case g.subject_kind
                        when 'event_template' then 'manage'
                        when 'switch' then 'yes'
-                       else case when g.subject_key = 'recruit_events' then 'view' else 'edit' end
+                       else case when g.subject_key in ('recruit_events', 'attendance') then 'view' else 'edit' end
                      end
               else 'none'
             end
@@ -270,6 +270,24 @@ describe("setAccessGrant — one line, one audit row, one History entry", () => 
     expect(await levelOf("treasurer", "recruiting_category", "recruit_events", null)).toBe("none");
   });
 
+  it("sets Attendance to View and refuses Edit on it (round 6, M5)", async () => {
+    await setAccessGrant(administrator(), {
+      roleId: roleIds.treasurer,
+      subject: { kind: "roster", key: "attendance" },
+      level: "view",
+    });
+    expect(await levelOf("treasurer", "roster_category", "attendance", null)).toBe("view");
+    const refusal = await refusalFrom(() =>
+      setAccessGrant(administrator(), {
+        roleId: roleIds.treasurer,
+        subject: { kind: "roster", key: "attendance" },
+        level: "edit",
+      }),
+    );
+    expect(refusal.kind).toBe("constraint_violated");
+    expect(await levelOf("treasurer", "roster_category", "attendance", null)).toBe("view");
+  });
+
   it("refuses an operator without role_management", async () => {
     const refusal = await refusalFrom(() =>
       setAccessGrant(operator(["secretary"]), {
@@ -335,12 +353,12 @@ describe("copyAccessFrom and grantEverything — one audited action each", () =>
       roleId: roleIds.treasurer,
       sourceRoleId: roleIds.vice_president,
     });
-    // Every line of the Treasurer moves: 11 + 3 + templates + 2.
+    // Every line of the Treasurer moves: 12 + 3 + templates + 2.
     const templateCount = Number(
       (await observer.query<{ n: string }>("select count(*) as n from public.event_templates"))
         .rows[0].n,
     );
-    expect(planned).toHaveLength(11 + 3 + templateCount + 2);
+    expect(planned).toHaveLength(12 + 3 + templateCount + 2);
 
     const result = await copyAccessFrom(administrator(), {
       roleId: roleIds.treasurer,
@@ -348,6 +366,7 @@ describe("copyAccessFrom and grantEverything — one audited action each", () =>
     });
     expect(result.changes).toEqual(planned);
     expect(result.grants.roster.contact_emergency).toBe("edit");
+    expect(result.grants.roster.attendance).toBe("view");
 
     const rows = await accessAuditRows(roleIds.treasurer);
     expect(rows).toHaveLength(1);
@@ -378,6 +397,7 @@ describe("copyAccessFrom and grantEverything — one audited action each", () =>
     const result = await grantEverything(administrator(), { roleId: roleIds.media_secretary });
     expect(result.changes).toEqual(planned);
     expect(result.grants.recruiting.recruit_events).toBe("view");
+    expect(result.grants.roster.attendance).toBe("view");
     expect(result.grants.switches.add_to_roster).toBe("yes");
 
     const again = await grantEverything(administrator(), { roleId: roleIds.media_secretary });

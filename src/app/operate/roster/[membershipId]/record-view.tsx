@@ -655,17 +655,21 @@ export default function PlayerRecordView({
         access={access}
       />
 
-      <Section
-        variant="banded"
-        band="attendance"
-        title="Attendance"
-        testId="attendance"
-        collapsible
-        defaultOpen={!collapsedGroups.has("attendance")}
-        onToggleOpen={(open) => toggleGroup("attendance", open)}
-      >
-        <AttendanceSection events={record.attendance} />
-      </Section>
+      {lockedOf("attendance") ? (
+        <Section variant="banded" band="attendance" title="Attendance" testId="attendance" locked />
+      ) : (
+        <Section
+          variant="banded"
+          band="attendance"
+          title="Attendance"
+          testId="attendance"
+          collapsible
+          defaultOpen={!collapsedGroups.has("attendance")}
+          onToggleOpen={(open) => toggleGroup("attendance", open)}
+        >
+          <AttendanceSection events={record.attendance ?? []} />
+        </Section>
+      )}
 
       {/* LAN-432: Their other seasons and Status history read as Membership. */}
       {lockedOf("membership") ? (

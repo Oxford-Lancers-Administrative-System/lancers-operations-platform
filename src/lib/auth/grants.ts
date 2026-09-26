@@ -12,7 +12,7 @@
  *
  * | kind (`subject_kind`)  | subject                       | levels, lowest first      |
  * | ---------------------- | ----------------------------- | ------------------------- |
- * | `roster_category`      | one of {@link ROSTER_CATEGORIES}    | `none` `view` `edit`      |
+ * | `roster_category`      | one of {@link ROSTER_CATEGORIES}    | `none` `view` `edit` (`attendance`: `none` `view`) |
  * | `recruiting_category`  | one of {@link RECRUITING_CATEGORIES} | `none` `view` `edit` (`recruit_events`: `none` `view`) |
  * | `event_template`       | an `event_templates.id`       | `none` `view` `manage`    |
  * | `switch`               | one of {@link ACCESS_SWITCHES}      | `none` `yes`              |
@@ -46,14 +46,14 @@
 // ---------------------------------------------------------------------------
 
 /**
- * The eleven roster categories: the board's ten groups plus Contact &
- * emergency. Snake case, as stored; the board's `Band` for special teams is
- * `specialTeams`.
+ * The twelve roster categories: the board's ten groups plus Contact &
+ * emergency and Attendance. Snake case, as stored; the board's `Band` for
+ * special teams is `specialTeams`.
  *
  * - `person` — Person: who they are, name, college, standing.
  * - `contact_emergency` — Contact & emergency: mobile phone, personal email,
  *   emergency contact. No board columns of its own.
- * - `onboarding` — Onboarding (and the record's Activity).
+ * - `onboarding` — Onboarding (and the record's Onboarding activity).
  * - `membership` — Membership (and Their other seasons, Status history).
  * - `availability` — Availability.
  * - `coaching` — Coaching.
@@ -62,6 +62,9 @@
  * - `special_teams` — Special teams.
  * - `warmup` — Warmup.
  * - `kit` — Kit.
+ * - `attendance` — Attendance: the player record's Attendance section, and
+ *   nothing else (LAN-423 round 6). At most `view`. No board columns; event
+ *   attendance recording keeps its own capabilities.
  */
 export const ROSTER_CATEGORIES = Object.freeze([
   "person",
@@ -75,20 +78,26 @@ export const ROSTER_CATEGORIES = Object.freeze([
   "special_teams",
   "warmup",
   "kit",
+  "attendance",
 ] as const);
 
 export type RosterCategory = (typeof ROSTER_CATEGORIES)[number];
 
+/** The roster categories that are not a board group: no colour, no board columns. */
+type NonGroupCategory = "contact_emergency" | "attendance";
+
 /**
  * The ten roster groups that carry a colour (`public.roster_group_colours`):
  * every roster category except Contact & emergency, whose record section
- * wears Person's colour.
+ * wears Person's colour, and Attendance, whose section keeps its own.
  */
 export const ROSTER_GROUP_KEYS = Object.freeze(
-  ROSTER_CATEGORIES.filter((category) => category !== "contact_emergency"),
-) as readonly Exclude<RosterCategory, "contact_emergency">[];
+  ROSTER_CATEGORIES.filter(
+    (category) => category !== "contact_emergency" && category !== "attendance",
+  ),
+) as readonly Exclude<RosterCategory, NonGroupCategory>[];
 
-export type RosterGroupKey = Exclude<RosterCategory, "contact_emergency">;
+export type RosterGroupKey = Exclude<RosterCategory, NonGroupCategory>;
 
 /**
  * The three recruiting categories.
@@ -130,8 +139,16 @@ export type GrantLevel = CategoryLevel | TemplateLevel | SwitchLevel;
 export const CATEGORY_LEVELS: readonly CategoryLevel[] = Object.freeze(["none", "view", "edit"]);
 export const TEMPLATE_LEVELS: readonly TemplateLevel[] = Object.freeze(["none", "view", "manage"]);
 export const SWITCH_LEVELS: readonly SwitchLevel[] = Object.freeze(["none", "yes"]);
-/** `recruit_events` stops at `view`. */
+/** `recruit_events` and `attendance` stop at `view`. */
 export const RECRUIT_EVENTS_LEVELS: readonly CategoryLevel[] = Object.freeze(["none", "view"]);
+
+/** Whether a category line stops at `view`: Event details and Attendance. */
+function stopsAtView(subject: GrantSubject): boolean {
+  return (
+    (subject.kind === "recruiting" && subject.key === "recruit_events") ||
+    (subject.kind === "roster" && subject.key === "attendance")
+  );
+}
 
 /** The four `subject_kind` values, as stored. */
 export type GrantSubjectKind =
@@ -196,9 +213,8 @@ export const NO_GRANTS: OperatorGrants = Object.freeze({
 export function maximumLevel(subject: GrantSubject): GrantLevel {
   switch (subject.kind) {
     case "roster":
-      return "edit";
     case "recruiting":
-      return subject.key === "recruit_events" ? "view" : "edit";
+      return stopsAtView(subject) ? "view" : "edit";
     case "template":
       return "manage";
     case "switch":
@@ -210,9 +226,8 @@ export function maximumLevel(subject: GrantSubject): GrantLevel {
 export function levelsFor(subject: GrantSubject): readonly GrantLevel[] {
   switch (subject.kind) {
     case "roster":
-      return CATEGORY_LEVELS;
     case "recruiting":
-      return subject.key === "recruit_events" ? RECRUIT_EVENTS_LEVELS : CATEGORY_LEVELS;
+      return stopsAtView(subject) ? RECRUIT_EVENTS_LEVELS : CATEGORY_LEVELS;
     case "template":
       return TEMPLATE_LEVELS;
     case "switch":
@@ -223,9 +238,13 @@ export function levelsFor(subject: GrantSubject): readonly GrantLevel[] {
 /** Every line at its maximum, for the given templates. What a fixed seat holds, and what Grant everything writes. */
 export function fullGrants(templateIds: readonly string[]): OperatorGrants {
   return Object.freeze({
-    roster: Object.freeze(allAt(ROSTER_CATEGORIES, () => "edit" as CategoryLevel)),
+    roster: Object.freeze(
+      allAt(ROSTER_CATEGORIES, (key): CategoryLevel => (key === "attendance" ? "view" : "edit")),
+    ),
     recruiting: Object.freeze(
-      allAt(RECRUITING_CATEGORIES, (key) => (key === "recruit_events" ? "view" : "edit")),
+      allAt(RECRUITING_CATEGORIES, (key): CategoryLevel =>
+        key === "recruit_events" ? "view" : "edit",
+      ),
     ),
     templates: Object.freeze(allAt(templateIds, () => "manage" as TemplateLevel)),
     switches: Object.freeze(allAt(ACCESS_SWITCHES, () => "yes" as SwitchLevel)),
@@ -318,8 +337,8 @@ export function templatesAtLeast(grants: OperatorGrants, minimum: TemplateLevel)
  * - `{ anyOf: group, minimum }` — at least one line of the group at `minimum`
  *   or above (Roster in the sidebar: `{ anyOf: "roster", minimum: "view" }`).
  * - `{ everyOf: group, minimum }` — every line of the group at `minimum` or
- *   above; a line whose maximum is lower (`recruit_events` under `edit`) is
- *   held to its own maximum.
+ *   above; a line whose maximum is lower (`recruit_events` or `attendance`
+ *   under `edit`) is held to its own maximum.
  * - `{ all: [...] }` — every rule in the list.
  */
 export type GrantRule =

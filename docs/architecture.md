@@ -306,7 +306,8 @@ LAN-423, Brian 2026-09-25).** The part of access the committee changes is data,
 not code: `public.role_access_grants`, one row per (seat, line), edited on the
 seat page by `role_management` holders. Eleven roster categories (the board's
 ten groups plus Contact & emergency) and Person information and Recruit details
-are None / View / Edit; Event details None / View; each event template None /
+are None / View / Edit; Attendance (a twelfth roster line, LAN-423 round 6) and
+Event details None / View; each event template None /
 View / Manage; two switches (may add to the roster, may add recruits) No / Yes.
 `resolveOperatorAccess` reads the union-maximum across the operator's current
 seats once per request and carries it as `operator.grants`;
@@ -326,14 +327,23 @@ Which capabilities became grants, and which stay in code:
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `person_record_authority`                                                                                                                                                                              | **Removed.** Roster, people and recruit surfaces answer to the roster and recruiting categories, each column and section its own (LAN-432, `src/lib/auth/roster-access.ts`). Merge asks every roster and recruiting line at its maximum. |
 | `event_calendar_management`, `event_approval`, `delivery_administration`                                                                                                                               | **Kept** for template administration (`/operate/events/templates/*`), event import and export, and messaging safety. Their per-event uses move to the event's template grant at Manage (LAN-431).                                        |
-| `role_management`, `leadership_report`, `attendance_recording`, `attendance_recorder`, `membership_activation`, `roster_bulk_import`, `person_erasure`, `messaging_safety_authority`, `operator_guide` | **Unchanged**, in code. Attendance is not a grant.                                                                                                                                                                                       |
+| `role_management`, `leadership_report`, `attendance_recording`, `attendance_recorder`, `membership_activation`, `roster_bulk_import`, `person_erasure`, `messaging_safety_authority`, `operator_guide` | **Unchanged**, in code. Recording attendance is not a grant; the Attendance roster line governs only the player record's Attendance section.                                                                                             |
 
 The sidebar follows grants: Roster, People and Missing data appear with any
 roster category at View; Recruitment with any recruiting category at View;
 Events with any template at View or an attendance capability; Follow-ups with
 any template at View; the Messaging schedule with any template at Manage. Report
-is drawn for everyone as before and refuses on its page; the rest of
+is drawn only for the seats holding `leadership_report` (the core four and the
+IT Officer; LAN-423 round 6) and is never a grant line; the rest of
 Administration is unchanged.
+
+The Attendance roster line (None / View; View for the five seats seeded full,
+None elsewhere) governs only the player record's Attendance section: at None the
+section is a locked head and its rows are not sent. The roster board has no
+attendance columns, and recording attendance on an event, the coach's event
+list and the attendance shell keep `attendance_recording` and
+`attendance_recorder`, unchanged. The coach shell rule ("no grant above None")
+counts this line like any other.
 
 **Events within granted templates — LAN-431 (W4).** An event of a template the
 seat holds at None does not exist for it: `listEventsForOperator` reads only
