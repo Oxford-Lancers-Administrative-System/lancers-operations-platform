@@ -150,11 +150,47 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
  * suites are deliberately absent even when they are database-backed.
  */
 export const GATE_SUITES: readonly string[] = [
-  "tests/local-supabase-coordinator.test.ts",
   "tests/production-baseline-contract.test.ts",
   "tests/production-bootstrap-database.test.ts",
   "tests/showcase-loader.test.ts",
   "tests/synthetic-seed-messiness.test.ts",
+];
+
+/**
+ * Tests of the agent tooling — the mission and intake control planes, the
+ * local-stack coordinator, telemetry and the visual-review environment — and
+ * nothing else (LAN-436).
+ *
+ * No product code path runs through them, so they are not part of `npm run
+ * test` or the required pull-request check. They run in the `tooling` project:
+ * `npm run test:tooling` locally, and CI's separate, non-required tooling job
+ * whenever a change touches what they read (`scripts/`, `.claude/`,
+ * `.github/`, `missions/`, `supabase/`, the tests themselves, `package.json`
+ * or this file).
+ *
+ * The security fences that live beside them stay in `unit` on purpose:
+ * `local-only-guard-source`, `local-db-explicit-target`,
+ * `prod-inspect-contract`, `create-test-user-guard`, `merge-rule`,
+ * `merge-governance` and `agent-harness`. None of these reach the database.
+ */
+export const TOOLING_SUITES: readonly string[] = [
+  "tests/finish-mission.test.ts",
+  "tests/intake-decision-coverage.test.ts",
+  "tests/intake-hub.test.ts",
+  "tests/intake-state.test.ts",
+  "tests/intake-subject-coverage.test.ts",
+  "tests/intake-write-safety.test.ts",
+  "tests/local-review-account.test.ts",
+  "tests/local-supabase-coordinator.test.ts",
+  "tests/mission-cli.test.ts",
+  "tests/mission-intake-dry-run.test.ts",
+  "tests/mission-merge-proof.test.ts",
+  "tests/mission-rehearsals.test.ts",
+  "tests/mission-review-runtime.test.ts",
+  "tests/mission-state.test.ts",
+  "tests/telemetry-harvest.test.ts",
+  "tests/visual-environment.test.ts",
+  "tests/visual-review-readiness.test.ts",
 ];
 
 const HOT_DATABASE_SUITES = DATABASE_TEST_SUITES.filter((suite) => !GATE_SUITES.includes(suite));
@@ -162,7 +198,7 @@ const HOT_DATABASE_SUITES = DATABASE_TEST_SUITES.filter((suite) => !GATE_SUITES.
 const ALL_TEST_FILES = ["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"];
 
 /**
- * Shared between both projects.
+ * Shared between every project.
  *
  * Inline projects do not inherit the root Vite configuration, so the alias and
  * the environment are spread into each one rather than declared once above.
@@ -193,9 +229,15 @@ export default defineConfig({
           ...shared.test,
           name: "unit",
           include: [...ALL_TEST_FILES],
-          // Everything Vitest excludes by default, plus every database suite —
-          // those belong to the project below and must not also run here.
-          exclude: [...configDefaults.exclude, ...DATABASE_TEST_SUITES, ...GATE_SUITES],
+          // Everything Vitest excludes by default, plus every database, gate and
+          // tooling suite — those belong to the projects below and must not also
+          // run here.
+          exclude: [
+            ...configDefaults.exclude,
+            ...DATABASE_TEST_SUITES,
+            ...GATE_SUITES,
+            ...TOOLING_SUITES,
+          ],
         },
       },
       {
@@ -232,6 +274,15 @@ export default defineConfig({
           env: {
             LANCERS_TEST_PROJECT: "database",
           },
+        },
+      },
+      {
+        ...shared,
+        test: {
+          ...shared.test,
+          name: "tooling",
+          include: [...TOOLING_SUITES],
+          // No database: the parallel project's guard applies here too.
         },
       },
     ],

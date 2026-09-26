@@ -191,6 +191,8 @@ HUDL_JOIN_LINK=https://www.example.invalid/hudl-join
 | `npm run typecheck`                                                          | `next typegen` (route types) then `tsc --noEmit`  |
 | `npm run test` / `test:watch`                                                | Vitest                                            |
 | `npm run verify`                                                             | format:check → lint → typecheck → test → build    |
+| `npm run verify:gate`                                                        | The slow, serialized gate suites (`GATE_SUITES`)  |
+| `npm run test:tooling`                                                       | The agent-tooling suites (`TOOLING_SUITES`)       |
 | `npm run db:acquire -- LAN-###`                                              | Claim a fenced primary/overflow database slot     |
 | `npm run db:acquire-mission -- M-… --base-commit <sha> --migration-head <n>` | Allocate one isolated mission-owned stack         |
 | `npm run db:attach-mission -- M-… --token <token>`                           | Attach a mission worker worktree to its stack     |
@@ -374,12 +376,30 @@ record contains a password.
 
 Run `npm run verify` before opening a pull request. It is what CI runs.
 
-### Two test projects, and why your new test may be refused a database
+### What CI runs, and what each check means
 
-There is one local database, so `vitest.config.ts` splits the suite in two. The
+`.github/workflows/ci.yml` runs four jobs in parallel on every pull request:
+
+| Job         | Runs                                                                                                                                                                 | Required                                               |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `static`    | format check, lint, typecheck, build — no database                                                                                                                   | through `quality`                                      |
+| `tests`     | a local Supabase stack: migrations from empty, RLS posture, type drift, the synthetic seed, then `unit` + `database` (`npm run test:ci`) and `gate` (`test:gate:ci`) | through `quality`                                      |
+| `quality`   | nothing itself; passes only when `static` and `tests` both succeeded                                                                                                 | **Yes** — "Format, lint, typecheck, test, build"       |
+| `container` | builds the production image and probes it                                                                                                                            | **Yes** — "Container builds and serves"                |
+| `tooling`   | `npm run test:tooling`, only when the change touches `scripts/`, `.claude/`, `.github/`, `missions/`, `supabase/`, the tooling tests or the Vitest/npm config        | **No** — it is skipped on most pull requests by design |
+
+Locally, `npm run verify` covers the first two, apart from the gate suites;
+run `npm run verify:gate` too when you change a loader, a seed or a production
+procedure, and `npm run test:tooling` when you change the agent tooling.
+
+### Test projects, and why your new test may be refused a database
+
+There is one local database, so `vitest.config.ts` splits the suite. The
 files listed in `DATABASE_TEST_SUITES` run in the `database` project, **one at a
 time**; everything else runs in the `unit` project, in parallel, and is refused
-a PostgreSQL connection and a call to the local Supabase Data API.
+a PostgreSQL connection and a call to the local Supabase Data API. Two smaller
+projects sit beside them: `gate` (`GATE_SUITES`, slow and serialized) and
+`tooling` (`TOOLING_SUITES`, the agent-tooling tests, also refused a database).
 
 If a test you have just written fails with
 
