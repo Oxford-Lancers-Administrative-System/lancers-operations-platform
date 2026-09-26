@@ -125,6 +125,27 @@ export function redactAudienceCandidates(
   });
 }
 
+/**
+ * The review step's unreachable panel narrowed to one seat. Who has no usable
+ * WhatsApp number is a contact fact: the names travel only with Contact &
+ * emergency at View, the count always.
+ */
+export function redactUnreachable<
+  T extends {
+    readonly member: { readonly capacity: AudienceCapacity; readonly standing: string };
+  },
+>(unreachable: readonly T[], grants: OperatorGrants): { count: number; named: T[] } {
+  const visible = visibilityFor(grants);
+  if (!visible.contact) return { count: unreachable.length, named: [] };
+  return {
+    count: unreachable.length,
+    named: unreachable.map((entry) => ({
+      ...entry,
+      member: redactAudienceMembers([entry.member], grants)[0],
+    })),
+  };
+}
+
 /** An event's saved audience narrowed to one seat: the standing follows the same rule. */
 export function redactAudienceMembers<
   T extends { readonly capacity: AudienceCapacity; readonly standing: string },

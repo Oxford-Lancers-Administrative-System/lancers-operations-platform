@@ -10,9 +10,10 @@
  * database as that seat, and asserts none of those values is in the props or
  * the HTML while the names and the group structure still are.
  *
- * Fix round 2 (G3) adds the three other pages that carry the catalogue —
+ * Fix round 2 (G3, G4) adds the three other pages that carry the catalogue —
  * the amend page's Add people list and both template editors' candidate
- * counts.
+ * counts — and the review step's unreachable panel, whose names are a contact
+ * fact: the Social Secretary sees the count alone.
  *
  * The suite creates its own Social draft and one approved Social event, tagged
  * with a marker unique to this file, and deletes every row it wrote.
@@ -49,6 +50,7 @@ import {
   DEFAULT_TEMPLATE_CLASS,
   readTemplateAudienceCatalogue,
 } from "@/lib/services/event-templates";
+import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 import {
   audienceOptionsForEventType,
   groupSelectionKeys,
@@ -70,6 +72,7 @@ let eventId: string;
 let candidates: readonly AudienceCandidate[];
 let contactValues: string[];
 let amendEventId: string;
+let unreachableNames: string[];
 
 type Element = ReactElement<Record<string, unknown>>;
 
@@ -80,6 +83,22 @@ const SOCIAL_SECRETARY: OperatorGrants = mergeGrantRows([
     subject_key: null,
     template_id: SOCIAL_TEMPLATE_ID,
     level: "manage",
+  },
+] satisfies GrantRow[]);
+
+/** The same seat, plus Contact & emergency at View. */
+const SOCIAL_SECRETARY_WITH_CONTACT: OperatorGrants = mergeGrantRows([
+  {
+    subject_kind: "event_template",
+    subject_key: null,
+    template_id: SOCIAL_TEMPLATE_ID,
+    level: "manage",
+  },
+  {
+    subject_kind: "roster_category",
+    subject_key: "contact_emergency",
+    template_id: null,
+    level: "view",
   },
 ] satisfies GrantRow[]);
 
@@ -169,6 +188,9 @@ beforeAll(async () => {
     candidates.map((candidate) => candidate.key),
   );
   contactValues = contactsOf(candidates);
+  unreachableNames = (await readApprovalPreview(eventId)).unreachable.map(
+    (entry) => entry.member.displayName,
+  );
 
   // G3: an approved Social event ahead, holding two players, so the rest of
   // the catalogue is the amend page's Add people list.
@@ -320,5 +342,28 @@ describe("the other pages carrying the catalogue, as the Social Secretary — G3
     const element = (await NewEventTemplatePage()) as Element;
     expect(propsOf(element)).toContain('"candidates":[{');
     expectNoMemberDetail(element, contactsOf(catalogue.candidates));
+  });
+});
+
+describe("the review step's unreachable panel follows Contact & emergency — G4", () => {
+  it("the fixture is meaningful: some of the audience has no usable number", () => {
+    expect(unreachableNames.length).toBeGreaterThan(0);
+  });
+
+  it("gives the Social Secretary the count and no names", async () => {
+    signInAs(SOCIAL_SECRETARY);
+    const element = await renderStep("review");
+    const payload = propsOf(element);
+    const html = renderToStaticMarkup(element);
+    expect(payload).toContain(`"unreachable":{"count":${unreachableNames.length},"named":[]}`);
+    expect(payload).not.toContain(NO_USABLE_NUMBER_REASON);
+    expect(html).toContain('data-testid="whatsapp-errors"');
+    expect(html).not.toContain('data-testid="whatsapp-error-row"');
+  });
+
+  it("names them for a seat holding Contact & emergency at View", async () => {
+    signInAs(SOCIAL_SECRETARY_WITH_CONTACT);
+    const html = renderToStaticMarkup(await renderStep("review"));
+    expect(html.split('data-testid="whatsapp-error-row"').length - 1).toBe(unreachableNames.length);
   });
 });

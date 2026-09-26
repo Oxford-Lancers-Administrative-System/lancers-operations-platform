@@ -29,6 +29,7 @@ import { buildShareMessage } from "../../../participation/share-message";
 import {
   redactAudienceCandidates,
   redactAudienceMembers,
+  redactUnreachable,
 } from "@/lib/services/event-audience-access";
 import { gateEventPage } from "../event-gate";
 import { AudienceBuilder } from "./audience-builder";
@@ -142,10 +143,7 @@ export default async function EventDetailPage({
                 : null
             }
             plan={preview.plan}
-            unreachable={preview.unreachable.map((entry) => ({
-              ...entry,
-              member: redactAudienceMembers([entry.member], grants)[0],
-            }))}
+            unreachable={redactUnreachable(preview.unreachable, grants)}
           />
         )}
       </ApprovalLayout>
