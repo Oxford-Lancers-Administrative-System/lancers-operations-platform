@@ -106,7 +106,7 @@ describe("generateRosterFormAction — event_calendar_management, and nothing lo
     const refusal = await refusalFrom(() => generateRosterFormAction(EVENT, "blue", 22, 3));
 
     expect(refusal.kind).toBe("not_permitted");
-    expect(refusal.rule).toBe("grant:template.7e34a764-7ed1-535e-8cef-73e00a62eafc>=manage");
+    expect(refusal.rule).toMatch(/^grant:.*>=manage$/);
     expect(recordRosterFormGenerated).not.toHaveBeenCalled();
   });
 

@@ -61,6 +61,15 @@ export function onlyGrantedTemplateRecord<T>(
   return Object.fromEntries(Object.entries(record).filter(([id]) => granted.has(id)));
 }
 
+/**
+ * The current operator, refused before anything is read unless they hold some
+ * template at `minimum` — so a seat with no such grant (a coach, the Treasurer)
+ * costs the database nothing and learns nothing about which events exist.
+ */
+async function operatorHoldingAny(minimum: TemplateLevel): Promise<ResolvedOperator> {
+  return assertGrant(await requireOperator(), { anyOf: "template", minimum });
+}
+
 function assertTemplateGrant(
   operator: ResolvedOperator,
   templateId: string,
@@ -74,7 +83,7 @@ export async function requireTemplateGrant(
   templateId: string,
   minimum: TemplateLevel,
 ): Promise<ResolvedOperator> {
-  return assertTemplateGrant(await requireOperator(), templateId, minimum);
+  return assertTemplateGrant(await operatorHoldingAny(minimum), templateId, minimum);
 }
 
 /**
@@ -85,7 +94,7 @@ export async function requireEventGrant(
   eventId: string,
   minimum: TemplateLevel,
 ): Promise<ResolvedOperator> {
-  const operator = await requireOperator();
+  const operator = await operatorHoldingAny(minimum);
   const templateId = await eventTemplateIdOf(eventId);
   if (templateId === null) {
     throw new NotFound(EVENT_NOT_FOUND_MESSAGE, { rule: "event_not_found" });
@@ -114,7 +123,7 @@ export async function requireInvitationsGrant(
   invitationIds: readonly string[],
   minimum: TemplateLevel,
 ): Promise<ResolvedOperator> {
-  const operator = await requireOperator();
+  const operator = await operatorHoldingAny(minimum);
   for (const templateId of await invitationTemplateIdsOf(invitationIds)) {
     assertTemplateGrant(operator, templateId, minimum);
   }
@@ -131,7 +140,7 @@ export async function requireNotificationJobGrant(
   jobId: string,
   minimum: TemplateLevel,
 ): Promise<ResolvedOperator> {
-  const operator = await requireOperator();
+  const operator = await operatorHoldingAny(minimum);
   const job = await notificationJobTemplateOf(jobId);
   if (job === null) return operator;
   return assertTemplateGrant(operator, job.templateId ?? "", minimum);

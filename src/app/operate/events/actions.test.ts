@@ -470,7 +470,7 @@ describe("approveEventAction is the authorization boundary for releasing invitat
       );
 
       expect(error).toBeInstanceOf(NotPermitted);
-      expect(error.rule).toBe("grant:template.7e34a764-7ed1-535e-8cef-73e00a62eafc>=manage");
+      expect(error.rule).toMatch(/^grant:.*>=manage$/);
       // Nothing was approved, and nothing was even attempted.
       expect(approveEvent).not.toHaveBeenCalled();
     },
@@ -630,7 +630,7 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
     );
 
     expect(error).toBeInstanceOf(NotPermitted);
-    expect(error.rule).toBe("grant:template.7e34a764-7ed1-535e-8cef-73e00a62eafc>=manage");
+    expect(error.rule).toMatch(/^grant:.*>=manage$/);
     expect(saveEventAudience).not.toHaveBeenCalled();
   });
 

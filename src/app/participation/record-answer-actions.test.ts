@@ -128,7 +128,8 @@ describe("recordOperatorAnswerAction refuses a caller with no operator profile",
 
 // LAN-431: the template `./template-of` is mocked to, and the rule a refusal carries.
 const TEMPLATE_ID = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
-const MANAGE_RULE = `grant:template.${TEMPLATE_ID}>=manage`;
+/** A seat with no template at Manage is refused before the event is read (`grant:any(template)`). */
+const MANAGE_RULE = /^grant:.*>=manage$/;
 
 function signedInWithTemplate(level: "view" | "manage"): ResolvedOperator {
   const operator = {
@@ -148,7 +149,7 @@ describe("recordOperatorAnswerAction excludes the narrow attendance-recording co
     );
 
     expect(error.kind).toBe("not_permitted");
-    expect(error.rule).toBe(MANAGE_RULE);
+    expect(error.rule).toMatch(MANAGE_RULE);
     expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 
@@ -160,7 +161,7 @@ describe("recordOperatorAnswerAction excludes the narrow attendance-recording co
     );
 
     expect(error.kind).toBe("not_permitted");
-    expect(error.rule).toBe(MANAGE_RULE);
+    expect(error.rule).toMatch(MANAGE_RULE);
     expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 
@@ -207,7 +208,7 @@ describe("recordOperatorAnswerAction requires Manage on the event's template —
       recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm()),
     );
 
-    expect(error.rule).toBe(MANAGE_RULE);
+    expect(error.rule).toMatch(MANAGE_RULE);
     expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 

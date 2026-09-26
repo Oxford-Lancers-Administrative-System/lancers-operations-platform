@@ -4290,6 +4290,14 @@ describe("events within granted templates — LAN-431", () => {
     });
   }
 
+  /** Edit event, Cancel event, Delivery and Duplicate on an approved event, by where they go. */
+  const MANAGE_HREFS = [
+    `/operate/events/${EVENT_ID}/amend`,
+    `/operate/events/${EVENT_ID}/cancel`,
+    `/operate/events/${EVENT_ID}/delivery`,
+    `/operate/events/new?from=${EVENT_ID}`,
+  ];
+
   function eventOfTemplate(templateId: string) {
     vi.mocked(eventTemplateIdOf).mockImplementation(async () => templateId);
   }
@@ -4377,9 +4385,10 @@ describe("events within granted templates — LAN-431", () => {
 
     expect(flatten(container.textContent)).toContain("Wednesday practice");
     expect(screen.getByTestId("share-link-button")).toBeVisible();
-    for (const name of ["Edit event", "Cancel event", "Delivery", "Duplicate", "Roster form"]) {
-      expect(screen.queryByRole("link", { name }), name).toBeNull();
+    for (const href of MANAGE_HREFS) {
+      expect(container.querySelector(`a[href="${href}"]`), href).toBeNull();
     }
+    expect(container.querySelector(`a[href="/operate/events/${EVENT_ID}/roster-form"]`)).toBeNull();
     expect(screen.queryByTestId("read-only-note")).toBeNull();
   });
 
@@ -4391,10 +4400,10 @@ describe("events within granted templates — LAN-431", () => {
     );
     vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
 
-    render(await EventDetailPage(detailProps()));
+    const { container } = render(await EventDetailPage(detailProps()));
 
-    for (const name of ["Edit event", "Cancel event", "Delivery", "Duplicate"]) {
-      expect(screen.getByRole("link", { name }), name).toBeVisible();
+    for (const href of MANAGE_HREFS) {
+      expect(container.querySelector(`a[href="${href}"]`), href).not.toBeNull();
     }
     expect(screen.getByTestId("share-link-button")).toBeVisible();
   });
