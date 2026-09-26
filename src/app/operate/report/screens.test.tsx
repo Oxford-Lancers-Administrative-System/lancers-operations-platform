@@ -65,6 +65,7 @@ import {
   REPORT_HEADLINE,
   WALK_UPS_HEADLINE,
 } from "./presentation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const REPORT_ON = "2026-10-19";
 
@@ -74,6 +75,7 @@ function operator(roleCodes: string[]): ResolvedOperator {
     personId: "00000000-0000-4000-8000-000000000002",
     displayName: "Morgan Pike",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

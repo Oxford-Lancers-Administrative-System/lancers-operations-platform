@@ -50,7 +50,7 @@ export default async function AttendancePage({
   if ("screen" in gate) return gate.screen;
 
   // Which board to draw, not which writes to allow — ./actions.ts re-resolves the operator on every save.
-  const isCoachView = isNarrowAttendanceRecorder(gate.operator.roleCodes);
+  const isCoachView = isNarrowAttendanceRecorder(gate.operator.roleCodes, gate.operator.grants);
   // Same roles removeAttendanceAction requires — event_calendar_management carries the list event_occurrence_assertion had before LAN-151.
   const mayRemove = operatorHasCapability(gate.operator, "event_calendar_management");
 

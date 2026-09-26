@@ -30,7 +30,7 @@ vi.mock("server-only", () => ({}));
 
 import pg, { type Client } from "pg";
 
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool, isServiceError, resolveDatabaseUrl } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -58,6 +58,7 @@ function operator(roleCodes: readonly string[]): ResolvedOperator {
     personId: "00000000-0000-4000-8000-0000000133bb",
     displayName: "Administrator",
     roleCodes: [...roleCodes],
+    grants: seededGrantsFor([...roleCodes]),
     isActive: true,
   };
 }

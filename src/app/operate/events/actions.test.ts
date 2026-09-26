@@ -76,6 +76,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { dispatchEventInvitations } from "@/lib/services/delivery";
 import { EMPTY_FORM_STATE, EMPTY_TRANSITION_STATE } from "./form-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
@@ -106,6 +107,7 @@ function actor(roleCodes: string[] = ["president"]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

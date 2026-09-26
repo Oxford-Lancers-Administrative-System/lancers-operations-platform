@@ -4070,6 +4070,51 @@ export type Database = {
           },
         ]
       }
+      role_access_grants: {
+        Row: {
+          id: string
+          level: string
+          role_id: string
+          subject_key: string | null
+          subject_kind: string
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          level: string
+          role_id: string
+          subject_key?: string | null
+          subject_kind: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          level?: string
+          role_id?: string
+          subject_key?: string | null
+          subject_kind?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_access_grants_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_access_grants_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "event_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_aliases: {
         Row: {
           alias: string
@@ -4287,6 +4332,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      roster_group_colours: {
+        Row: {
+          colour_key: string
+          group_key: string
+          updated_at: string
+        }
+        Insert: {
+          colour_key: string
+          group_key: string
+          updated_at?: string
+        }
+        Update: {
+          colour_key?: string
+          group_key?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       rsvp_access_tokens: {
         Row: {

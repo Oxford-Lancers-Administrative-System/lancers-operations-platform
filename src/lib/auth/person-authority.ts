@@ -2,10 +2,11 @@
  * Column visibility for the person record — LAN-183, `REQ-authority` and
  * `REQ-restricted-fields`, answering `Q-4`.
  *
- * Pure. No database. Every function here takes role codes rather than a
- * session, for the reason `capabilities.ts` gives its own equivalent: the same
- * decision has to be checkable from a test with an arbitrary actor, from a
- * server function and from a page, without any of them differing.
+ * Pure. No database. Every function here takes an operator's grants
+ * (`./grants.ts`, LAN-429) rather than a session, for the reason
+ * `capabilities.ts` gives its own equivalent: the same decision has to be
+ * checkable from a test with an arbitrary actor, from a server function and
+ * from a page, without any of them differing.
  *
  * ## The decision this module builds to (`Q-4`, Brian, 2026-08-28)
  *
@@ -27,10 +28,10 @@
  * only module in `src/` permitted to name a `public.roles` code in a string
  * literal — "the capability map is the only place a role code decides
  * anything." This module answers a role-code question, so it reads
- * `capabilityRoleCodes("person_record_authority")` rather than naming a seat
- * of its own. That entry is where the administrative seat's inclusion is
- * decided too, on the same LAN-124 precedent every other grant in that file
- * carries — this module has no independent opinion about it.
+ * the grants rather than naming a seat of its own. Since LAN-429 the
+ * capability it used to read (`person_record_authority`) is gone; every
+ * category asks `PERSON_RECORD_BRIDGE` (LAN-429 bridge: replaced by LAN-432,
+ * which maps each category to its own roster grant).
  *
  * ## Why categories, not a field-by-field list
  *
@@ -58,7 +59,12 @@
  * after the fact. `redactPersonRecord` below is the *single-record* read's
  * gate; it is not consulted for a list, a board or a queue at all.
  */
-import { type CapabilityKey, capabilityRoleCodes } from "./capabilities";
+import {
+  grantRuleHolds,
+  PERSON_RECORD_BRIDGE,
+  type GrantRule,
+  type OperatorGrants,
+} from "./grants";
 
 /**
  * The categories a person's record is divided into. Every field this package
@@ -67,20 +73,21 @@ import { type CapabilityKey, capabilityRoleCodes } from "./capabilities";
 export type PersonFieldCategory = "identity" | "contact" | "academic" | "restricted" | "standing";
 
 /**
- * Which capability grants each category, on the person record.
+ * Which grant rule admits each category, on the person record.
  *
- * Every category reads `person_record_authority` today — see the module note
- * on why they are still separate keys. `Object.freeze`, matching
- * `capabilities.ts`'s own posture: no later module may repoint a category at
- * a different capability by mutation.
+ * LAN-429 bridge: replaced by LAN-432. Every category reads
+ * `PERSON_RECORD_BRIDGE` until the roster package maps each one to its own
+ * roster category (identity, academic, standing → Person; contact, restricted →
+ * Contact & emergency). `Object.freeze`, matching `capabilities.ts`'s own
+ * posture: no later module may repoint a category by mutation.
  */
-export const PERSON_CATEGORY_CAPABILITY: Readonly<Record<PersonFieldCategory, CapabilityKey>> =
+export const PERSON_CATEGORY_CAPABILITY: Readonly<Record<PersonFieldCategory, GrantRule>> =
   Object.freeze({
-    identity: "person_record_authority",
-    contact: "person_record_authority",
-    academic: "person_record_authority",
-    restricted: "person_record_authority",
-    standing: "person_record_authority",
+    identity: PERSON_RECORD_BRIDGE,
+    contact: PERSON_RECORD_BRIDGE,
+    academic: PERSON_RECORD_BRIDGE,
+    restricted: PERSON_RECORD_BRIDGE,
+    standing: PERSON_RECORD_BRIDGE,
   });
 
 /** Every category key, for exhaustive iteration. */
@@ -88,34 +95,30 @@ export const PERSON_FIELD_CATEGORIES: readonly PersonFieldCategory[] = Object.fr
   Object.keys(PERSON_CATEGORY_CAPABILITY) as PersonFieldCategory[],
 );
 
-/** Does this set of role codes hold the named category on the person record? */
-export function roleCodesHoldCategory(
-  roleCodes: readonly string[],
-  category: PersonFieldCategory,
-): boolean {
-  const permitted = capabilityRoleCodes(PERSON_CATEGORY_CAPABILITY[category]);
-  if (permitted.length === 0) return false;
-  return roleCodes.some((code) => permitted.includes(code));
+/** Do these grants hold the named category on the person record? */
+export function grantsHoldCategory(grants: OperatorGrants, category: PersonFieldCategory): boolean {
+  return grantRuleHolds(grants, PERSON_CATEGORY_CAPABILITY[category]);
 }
 
-/** Every category this set of role codes holds on the person record. */
-export function categoriesGranted(roleCodes: readonly string[]): ReadonlySet<PersonFieldCategory> {
+/** Every category these grants hold on the person record. */
+export function categoriesGranted(grants: OperatorGrants): ReadonlySet<PersonFieldCategory> {
   const granted = new Set<PersonFieldCategory>();
   for (const category of PERSON_FIELD_CATEGORIES) {
-    if (roleCodesHoldCategory(roleCodes, category)) granted.add(category);
+    if (grantsHoldCategory(grants, category)) granted.add(category);
   }
   return granted;
 }
 
 /**
- * Does this set of role codes hold every category the person record has?
+ * Do these grants hold every category the person record has?
  *
- * The four offices today; nobody else, including every coaching seat —
+ * On the seeded matrix: the President, Vice-President, Secretary, General
+ * Manager and IT Officer; nobody else, including every coaching seat —
  * `Q-4`'s "coaching seats reach no contact value at all" is the specific case
  * of the general rule this function checks.
  */
-export function holdsFullPersonRecordAuthority(roleCodes: readonly string[]): boolean {
-  return PERSON_FIELD_CATEGORIES.every((category) => roleCodesHoldCategory(roleCodes, category));
+export function holdsFullPersonRecordAuthority(grants: OperatorGrants): boolean {
+  return PERSON_FIELD_CATEGORIES.every((category) => grantsHoldCategory(grants, category));
 }
 
 /**
@@ -183,7 +186,7 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
   });
 
 /**
- * The full person record, redacted to exactly what this set of role codes may
+ * The full person record, redacted to exactly what these grants may
  * see — every disallowed key **absent from the object**, not present with a
  * `null` or a placeholder. `REQ-authority`: "absent from the DOM and the
  * payload, not hidden in it." `Object.keys()` on the result never names a key
@@ -196,9 +199,9 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
  */
 export function redactPersonRecord<T extends Record<string, unknown>>(
   record: T,
-  roleCodes: readonly string[],
+  grants: OperatorGrants,
 ): Partial<T> {
-  const granted = categoriesGranted(roleCodes);
+  const granted = categoriesGranted(grants);
   const visible: Partial<T> = {};
 
   for (const key of Object.keys(record) as (keyof T & string)[]) {

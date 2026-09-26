@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 const POSITION_OPTIONS = {
   offence: [{ code: "QB", label: "Quarterback" }],
@@ -57,21 +59,21 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
  * whether any particular role is narrowed today.
  */
 describe("visibleColumns / redactRow — the grant-driven mechanism", () => {
-  it("keeps every column for a role holding person_record_authority", () => {
+  it("keeps every column for a seat on the LAN-429 bridge (every roster and recruiting line at edit)", () => {
     const columns = buildColumns(POSITION_OPTIONS);
-    const visible = visibleColumns(columns, ["secretary"]);
+    const visible = visibleColumns(columns, seededGrantsFor(["secretary"]));
     expect(visible).toHaveLength(columns.length);
   });
 
   it("drops every column for a role holding nothing — the coach case", () => {
     const columns = buildColumns(POSITION_OPTIONS);
-    const visible = visibleColumns(columns, ["head_coach"]);
+    const visible = visibleColumns(columns, seededGrantsFor(["head_coach"]));
     expect(visible).toHaveLength(0);
   });
 
   it("redacts a row to only identity fields plus the call-only phone when no column is granted", () => {
     const columns = buildColumns(POSITION_OPTIONS);
-    const visible = visibleColumns(columns, ["head_coach"]);
+    const visible = visibleColumns(columns, seededGrantsFor(["head_coach"]));
     const redacted = redactRow(row(), visible);
 
     expect(Object.keys(redacted).sort()).toEqual(
@@ -176,7 +178,7 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
     // The values, the picker and who may write are unchanged by the regrouping.
     expect(availability[0].edit).toBe("select");
     expect(availability[0].options).toEqual(["green", "orange", "red"]);
-    expect(availability[0].requires).toBe("person_record_authority");
+    expect(availability[0].requires).toBe(PERSON_RECORD_BRIDGE);
   });
 
   it("pairs a primary and a backup a side, both on the season's own vocabulary", () => {

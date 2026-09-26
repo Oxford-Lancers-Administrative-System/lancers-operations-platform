@@ -21,7 +21,12 @@ vi.mock("server-only", () => ({}));
 vi.mock("./operator", () => ({ resolveOperatorAccess: vi.fn() }));
 
 import { isServiceError, NotPermitted, ServiceError } from "@/lib/db";
-import { CAPABILITY_KEYS, capabilityRoleCodes, type CapabilityKey } from "./capabilities";
+import {
+  CAPABILITY_KEYS,
+  capabilityRoleCodes,
+  type CapabilityKey,
+  seededGrantsFor,
+} from "./capabilities";
 import {
   assertCapability,
   assertGeneralOperator,
@@ -46,6 +51,7 @@ function actor(roleCodes: string[]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

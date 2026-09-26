@@ -33,7 +33,12 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
-import { CAPABILITY_KEYS, ROLE_LABELS, roleCodesPermit } from "@/lib/auth/capabilities";
+import {
+  CAPABILITY_KEYS,
+  ROLE_LABELS,
+  roleCodesPermit,
+  seededGrantsFor,
+} from "@/lib/auth/capabilities";
 import { PLAYBOOK_PAGES, PLAYBOOK_TITLE } from "./_playbook/content";
 import PlaybookIndexPage from "./workflows/page";
 import PlaybookWorkflowPage, { generateStaticParams } from "./[slug]/page";
@@ -46,6 +51,7 @@ function operator(roleCodes: string[]): ResolvedOperator {
     personId: "00000000-0000-4000-8000-000000000012",
     displayName: "Test Operator",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

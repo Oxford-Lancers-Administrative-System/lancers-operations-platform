@@ -1,5 +1,10 @@
 import { BAND_COLOURS } from "@/components/section";
-import { roleCodesPermit } from "@/lib/auth/capabilities";
+import {
+  grantRuleHolds,
+  PERSON_RECORD_BRIDGE,
+  type GrantRule,
+  type OperatorGrants,
+} from "@/lib/auth/grants";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
 // Straight from the vocabulary module, never through the service index: that
@@ -24,6 +29,11 @@ import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 // banding, pinning, sorting, filtering, edit-in-place and routing — never a
 // `<TableCell>` copied around the file. Each carries a `requires` capability
 // (REQ-authority) so `visibleColumns()` can narrow later without a rewrite.
+
+// LAN-429 bridge: replaced by LAN-432. Every column asks the person-record
+// bridge (every roster and recruiting line at its maximum) until the roster
+// package gives each column its own category.
+const BRIDGE_REQUIRES: GrantRule = PERSON_RECORD_BRIDGE;
 
 /**
  * LAN-387 — the board's groups, in the order Brian and Stewart settled on the
@@ -289,8 +299,12 @@ export interface ColumnDef {
   readonly width: number;
   readonly sortable: boolean;
   readonly filterable: boolean;
-  /** The capability a viewer must hold for this column to render at all. */
-  readonly requires: "person_record_authority";
+  /**
+   * The grant rule a viewer must satisfy for this column to render at all.
+   * LAN-429 bridge: replaced by LAN-432 (each column's own category). Every
+   * column reads `BRIDGE_REQUIRES` until then.
+   */
+  readonly requires: GrantRule;
   /** Not a column: the one narrow cell a collapsed group leaves behind (LAN-387). */
   readonly placeholder?: true;
 }
@@ -305,7 +319,7 @@ function collapsedPlaceholder(band: Band): ColumnDef {
     width: 28,
     sortable: false,
     filterable: false,
-    requires: "person_record_authority",
+    requires: BRIDGE_REQUIRES,
     placeholder: true,
   });
 }
@@ -391,7 +405,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "matriculation",
@@ -401,7 +415,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 104,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "graduation",
@@ -411,7 +425,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 100,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "degree",
@@ -421,7 +435,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 148,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "contactable",
@@ -431,7 +445,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "missing",
@@ -441,7 +455,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 108,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // ------------------------------------------------------------ Onboarding --
     {
@@ -452,7 +466,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 190,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // Correction round 2, item 5: the seven operator-ticked items (LAN-217).
     {
@@ -465,7 +479,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "subsPaid",
@@ -477,7 +491,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // LAN-375: derived from the kit issued, never typed. It stays the red flag
     // it was; `edit: "none"` is what stops it opening a control.
@@ -491,7 +505,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 120,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "bucsPlay",
@@ -503,7 +517,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "hudlAccess",
@@ -515,7 +529,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "squadPhoto",
@@ -527,7 +541,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 132,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "commsGroup",
@@ -539,7 +553,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 140,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // ------------------------------------------------------------ Membership --
     // Renamed from Season (LAN-387); the facts and their order are Brian's own
@@ -555,7 +569,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 128,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "entry",
@@ -566,7 +580,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 116,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "blueNumbers",
@@ -577,7 +591,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 120,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "whiteNumbers",
@@ -588,7 +602,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 120,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "blues",
@@ -599,7 +613,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 116,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "eligibility",
@@ -611,7 +625,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 128,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // Brian, 2026-09-05: BPS was to sit immediately before Availability and
     // Availability last (LAN-217, round 5). LAN-412 takes Availability out of
@@ -627,7 +641,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 96,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // ------------------------------------------------------- Availability --
     // LAN-412. One column, and its own group: the values, the picker and the
@@ -643,7 +657,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 128,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // ---------------------------------------------- Coaching assignments --
     // Three uncapped multi-selects (LAN-387). A player may be in every group
@@ -657,7 +671,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 190,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "offensivePositionGroups",
@@ -668,7 +682,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 210,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "defensivePositionGroups",
@@ -679,7 +693,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 210,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // --------------------------------------------- Offensive assignments --
     // The primary/backup pair. Both draw on the season's offence vocabulary
@@ -694,7 +708,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "offenceBackupPosition",
@@ -706,7 +720,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // --------------------------------------------- Defensive assignments --
     {
@@ -719,7 +733,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     {
       key: "defenceBackupPosition",
@@ -731,7 +745,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // ----------------------------------------- Special teams assignments --
     // LAN-374: six squads, four cells each, twenty-four columns. Each is one
@@ -747,7 +761,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
         width: 176,
         sortable: true,
         filterable: true,
-        requires: "person_record_authority" as const,
+        requires: BRIDGE_REQUIRES,
       })),
     ),
     // ------------------------------------------ Warmup assignments --
@@ -761,7 +775,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 190,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
     // ------------------------------------------------------------------ Kit --
     // LAN-375: eleven issued-kit items from Clint's sheet. Nine are a single
@@ -778,7 +792,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 190,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority" as const,
+      requires: BRIDGE_REQUIRES,
     })),
     {
       key: "formalwear",
@@ -790,17 +804,17 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       width: 150,
       sortable: true,
       filterable: true,
-      requires: "person_record_authority",
+      requires: BRIDGE_REQUIRES,
     },
   ]) satisfies readonly ColumnDef[];
 }
 
-/** The columns this viewer's role codes may see — absent from the payload, not hidden (`REQ-authority`). */
+/** The columns this viewer's grants may see — absent from the payload, not hidden (`REQ-authority`). */
 export function visibleColumns(
   columns: readonly ColumnDef[],
-  roleCodes: readonly string[],
+  grants: OperatorGrants,
 ): readonly ColumnDef[] {
-  return columns.filter((column) => roleCodesPermit(roleCodes, column.requires));
+  return columns.filter((column) => grantRuleHolds(grants, column.requires));
 }
 
 /** Which `RosterBoardRow` fields a column key exposes — explicit, since display keys and field names diverge. A field in no entry is never carried, regardless of columns granted. */

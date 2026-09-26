@@ -7,6 +7,7 @@ import { readPlayerRecord } from "@/lib/services/player-record";
 import type { PersonRecord } from "@/lib/services/person-record";
 import { gateShellPage } from "../../gate";
 import PlayerRecordView from "./record-view";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // `/operate/roster/[membershipId]` — W6, rebuilt, LAN-187. Gated on
 // `person_record_authority` (`REQ-authority`).
@@ -17,7 +18,8 @@ export default async function PlayerRecordPage({
   const { membershipId } = await params;
   const query = await searchParams;
 
-  const gate = await gateShellPage(`/operate/roster/${membershipId}`, "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage(`/operate/roster/${membershipId}`, PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
   const { operator } = gate;
 
@@ -40,7 +42,7 @@ export default async function PlayerRecordPage({
   const unsavedContacts = justCreated ? readUnsavedContacts(query.unsaved) : [];
   const person = redactPersonRecord(
     result.data.person as unknown as Record<string, unknown>,
-    operator.roleCodes,
+    operator.grants,
   ) as unknown as Partial<PersonRecord>;
 
   // LAN-387, Brian's visual pass item 1: the record's groups are the board's

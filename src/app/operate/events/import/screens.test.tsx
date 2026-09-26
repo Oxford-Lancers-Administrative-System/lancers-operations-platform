@@ -41,6 +41,7 @@ import { EMPTY_IMPORT_STATE, type ImportScreenState } from "./import-state";
 import { describePlanMoved } from "./presentation";
 import BulkImportPage from "./page";
 import ImportScreen, { type ImportScreenProps } from "./import-screen";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function operator(): ResolvedOperator {
   return {
@@ -48,6 +49,7 @@ function operator(): ResolvedOperator {
     personId: "00000000-0000-4000-8000-000000000011",
     displayName: "Rowan Ashdown",
     roleCodes: ["secretary"],
+    grants: seededGrantsFor(["secretary"]),
     isActive: true,
   };
 }

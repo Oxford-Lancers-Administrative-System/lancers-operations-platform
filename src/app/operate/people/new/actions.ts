@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { createPerson } from "@/lib/services/person-create";
@@ -13,17 +13,20 @@ import {
   type CreateFieldErrors,
   type CreateState,
 } from "./create-state";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 /**
  * `/operate/people/new`'s one server action — W3, LAN-185. Every request
- * re-calls `requireCapability("person_record_authority")`. Three intents
+ // LAN-429 bridge: replaced by LAN-432
+ * re-calls `requireGrant(PERSON_RECORD_BRIDGE)`. Three intents
  * ("check"/"create"/"link") on one action, all re-reading and re-authorizing.
  */
 export async function submitCreatePerson(
   previous: CreateState,
   formData: FormData,
 ): Promise<CreateState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
 
   const values = readCreateValues(formData);
   const linkPersonId = formData.get("linkPersonId");

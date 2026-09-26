@@ -34,6 +34,7 @@ import {
   withPlayersParam,
   withScopeParam,
 } from "./missing-query";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 /**
  * `W7-01` … `W7-05`, `W7-07` — the missing-data queue. LAN-184,
@@ -43,7 +44,8 @@ import {
 export default async function MissingDataPage({
   searchParams,
 }: PageProps<"/operate/people/missing">) {
-  const gate = await gateShellPage("/operate/people/missing", "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage("/operate/people/missing", PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
 
   const params = await searchParams;

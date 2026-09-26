@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { sendOnboardingNudges } from "@/lib/services/messaging-scheduler";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // The queue's own nudge — LAN-218, `W8`, `M3`, `T11-batch-nudge`. Unlimited,
 // outside the automated cap; gated on `person_record_authority`, the real
@@ -41,7 +42,8 @@ function nudgeProblemNotice(refused: number, total: number): string {
 export async function nudgeSelectedAction(
   membershipIds: readonly string[],
 ): Promise<NudgeActionResult> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
 
   const ids = Array.from(new Set(membershipIds.filter((id) => id.trim() !== "")));
   if (ids.length === 0) {

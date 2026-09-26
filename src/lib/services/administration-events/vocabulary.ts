@@ -8,6 +8,9 @@ export const ADMINISTRATION_EVENT_FAMILIES = Object.freeze([
   "account_state",
   "email_recovery",
   "role_assignment",
+  // LAN-429. A seat's access grants (`role_access_grants`): about a seat, not
+  // a person or an assignment, so these carry a role and no target.
+  "access",
 ] as const); // recorded on the event so a projection groups without parsing the action string
 
 export type AdministrationEventFamily = (typeof ADMINISTRATION_EVENT_FAMILIES)[number];
@@ -31,6 +34,9 @@ export const ADMINISTRATION_ACTIONS = Object.freeze([
   "administration.operator.email_rehome_failed",
   "administration.role.assigned",
   "administration.role.ended",
+  "administration.access.changed",
+  "administration.access.copied",
+  "administration.access.granted_all",
 ] as const);
 
 export type AdministrationAction = (typeof ADMINISTRATION_ACTIONS)[number];
@@ -200,12 +206,61 @@ export const ADMINISTRATION_EVENTS: Readonly<
     instantOrder: 0,
     label: "Role assignment ended",
   }),
+  // LAN-429. One grant line of one seat changed: fromState/toState are the
+  // levels, detail names the line (`subjectKind`, `subjectKey`, `templateId`).
+  "administration.access.changed": definition({
+    action: "administration.access.changed",
+    family: "access",
+    shape: "transition",
+    roleRelated: false,
+    reasonRequired: false,
+    selfActionForbidden: false,
+    selfAuthorityAllowed: false,
+    instantOrder: 0,
+    label: "Access changed",
+  }),
+  // LAN-429. Copy access from another seat: one row, detail.changes lists
+  // every line that changed, detail.sourceRoleId/sourceRoleCode the seat copied.
+  "administration.access.copied": definition({
+    action: "administration.access.copied",
+    family: "access",
+    shape: "attempt",
+    roleRelated: false,
+    reasonRequired: false,
+    selfActionForbidden: false,
+    selfAuthorityAllowed: false,
+    instantOrder: 0,
+    label: "Access copied from another seat",
+  }),
+  // LAN-429. Grant everything: one row, detail.changes lists every line raised.
+  "administration.access.granted_all": definition({
+    action: "administration.access.granted_all",
+    family: "access",
+    shape: "attempt",
+    roleRelated: false,
+    reasonRequired: false,
+    selfActionForbidden: false,
+    selfAuthorityAllowed: false,
+    instantOrder: 0,
+    label: "Everything granted",
+  }),
 });
 
 // Derived from roleRelated, never hand-listed, so the two can never disagree.
 export const ROLE_RELATED_ADMINISTRATION_ACTIONS: readonly AdministrationAction[] = Object.freeze(
   ADMINISTRATION_ACTIONS.filter((action) => ADMINISTRATION_EVENTS[action].roleRelated),
 );
+
+/** LAN-429. The seat-access family: about a seat's grants, never a person or an assignment. */
+export const ACCESS_ADMINISTRATION_ACTIONS: readonly AdministrationAction[] = Object.freeze(
+  ADMINISTRATION_ACTIONS.filter((action) => ADMINISTRATION_EVENTS[action].family === "access"),
+);
+
+/** What a seat's History shows: its assignments and its access (LAN-429). */
+export const HOLDER_HISTORY_ACTIONS: readonly AdministrationAction[] = Object.freeze([
+  ...ROLE_RELATED_ADMINISTRATION_ACTIONS,
+  ...ACCESS_ADMINISTRATION_ACTIONS,
+]);
 
 export function isAdministrationAction(value: unknown): value is AdministrationAction {
   return typeof value === "string" && (ADMINISTRATION_ACTIONS as readonly string[]).includes(value);

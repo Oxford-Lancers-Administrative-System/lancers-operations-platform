@@ -5,13 +5,15 @@ import { personVersion } from "@/lib/services/person-write";
 import { readCurrentSeason } from "@/lib/services/seasons";
 import { gateShellPage } from "../../../gate";
 import EditPersonForm from "./edit-person-form";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // `/operate/people/[personId]/edit` — W2-01..W2-10, LAN-185.
 export default async function EditPersonPage({
   params,
 }: PageProps<"/operate/people/[personId]/edit">) {
   const { personId } = await params;
-  const gate = await gateShellPage(`/operate/people/${personId}/edit`, "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage(`/operate/people/${personId}/edit`, PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
 
   let record;

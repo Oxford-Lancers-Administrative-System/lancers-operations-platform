@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   resolveOnboardingItem,
@@ -10,9 +10,11 @@ import {
   type OnboardingItemStatus,
 } from "@/lib/services/membership";
 import type { MembershipActionState } from "./action-state";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
-// The membership workflow's server actions — LAN-75, LAN-186 (Q-12). Both
-// guard on `person_record_authority` (`REQ-authority`).
+// The membership workflow's server actions — LAN-75, LAN-186 (Q-12). The
+// status change guards on Membership at `edit` (LAN-429); the onboarding item
+// is on the LAN-429 bridge until LAN-432.
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -35,7 +37,8 @@ export async function setMembershipStatusAction(params: {
   membershipId: string;
   status: MembershipStatus;
 }): Promise<MembershipActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429: Membership edit — the status ladder is the Membership category.
+  const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
 
   try {
     await setMembershipStatus({
@@ -56,7 +59,8 @@ export async function resolveOnboardingItemAction(
   _previous: MembershipActionState,
   formData: FormData,
 ): Promise<MembershipActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   const membershipId = text(formData, "membershipId");
 
   try {

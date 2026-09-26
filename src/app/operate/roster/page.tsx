@@ -6,10 +6,12 @@ import { gateShellPage } from "../gate";
 import type { BoardFilters } from "./board-data";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 import RosterBoard from "./roster-board";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // `/operate/roster` — W5, LAN-186. Gated on `person_record_authority` (`REQ-authority`).
 export default async function RosterPage({ searchParams }: PageProps<"/operate/roster">) {
-  const gate = await gateShellPage("/operate/roster", "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage("/operate/roster", PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
   const { operator } = gate;
 
@@ -25,7 +27,7 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
     return <UnavailableScreen title="Roster" message={error.message} testId="roster-unavailable" />;
   }
 
-  const columns = visibleColumns(buildColumns(data.positionOptions), operator.roleCodes);
+  const columns = visibleColumns(buildColumns(data.positionOptions), operator.grants);
   const columnKeys = new Set(columns.map((column) => column.key));
 
   const RESERVED = new Set(["q", "sort", "dir"]);

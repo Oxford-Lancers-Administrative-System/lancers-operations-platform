@@ -25,6 +25,7 @@ import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operato
 import { sendEventChases } from "@/lib/services/messaging-scheduler";
 import { chaseSelectedAction } from "./actions";
 import { CHASE_REFUSAL_UNRECORDED, NOT_CHASEABLE } from "./presentation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const REACHABLE = "00810081-0081-4081-8081-000000000001";
 const UNREACHABLE = "00810081-0081-4081-8081-000000000002";
@@ -44,6 +45,7 @@ function signedInAs(roleCodes: string[]): ResolvedOperator {
     personId: "00000000-0000-4000-8000-000000000002",
     displayName: "Morgan Pike",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator });

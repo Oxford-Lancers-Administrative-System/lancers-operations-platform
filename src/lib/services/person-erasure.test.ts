@@ -29,6 +29,7 @@ import {
   exportPersonRecord,
   readErasureState,
 } from "./person-erasure";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const MARKER = "LAN361Erasure";
 /** The values the scan hunts for. Every one is unmistakable and none is plausible as a real person's. */
@@ -60,6 +61,7 @@ function operator(personId: string, roleCodes: string[]): ResolvedOperator {
     personId,
     displayName: "Erasure Suite Operator",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

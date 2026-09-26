@@ -50,6 +50,7 @@ import { readCurrentSeason } from "@/lib/services/seasons";
 import { chaseSelectedAction } from "./actions";
 import FollowUpsPage from "./page";
 import { LAST_MESSAGE_NONE, RANGE_FROM_LABEL, RANGE_TO_LABEL, TABLE_PERSON } from "./presentation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -57,6 +58,7 @@ function operator(roleCodes: string[]): ResolvedOperator {
     personId: "00000000-0000-4000-8000-000000000002",
     displayName: "Casey Operator",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

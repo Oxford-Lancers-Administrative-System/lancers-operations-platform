@@ -55,6 +55,7 @@ import { readCandidateIdentitiesIn } from "@/lib/services/recruitment-candidate-
 import { finishRecruitmentAddIn, refuseIfAlreadyAMemberIn } from "@/lib/services/recruitment-add";
 import { submitAddRecruit } from "./actions";
 import { INITIAL_ADD_RECRUIT_STATE } from "./create-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "11111111-1111-4111-8111-111111111111";
 const SEASON_ID = "22222222-2222-4222-8222-222222222222";
@@ -71,6 +72,7 @@ function fourRoleOperator(): OperatorAccess {
       personId: OPERATOR_PERSON_ID,
       displayName: "Caspian Hallowfield",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     },
   };
@@ -117,6 +119,7 @@ describe("who may call it", () => {
         personId: "33333333-3333-4333-8333-333333333333",
         displayName: "Nobody Special",
         roleCodes: ["head_coach"],
+        grants: seededGrantsFor(["head_coach"]),
         isActive: true,
       },
     });

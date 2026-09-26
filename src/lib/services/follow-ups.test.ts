@@ -43,6 +43,7 @@ import {
   openObserver,
   seededIdentityCreatedAt,
 } from "../../../tests/helpers/service-layer";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const MARKER = "LAN173FollowUpsSuite";
 
@@ -94,6 +95,7 @@ function operator(): ResolvedOperator {
     personId: "55555555-5555-4555-8555-555555555556",
     displayName: "Follow-ups Suite Operator",
     roleCodes: ["secretary"],
+    grants: seededGrantsFor(["secretary"]),
     isActive: true,
   };
 }

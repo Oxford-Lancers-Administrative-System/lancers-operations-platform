@@ -115,6 +115,7 @@ import AttendancePage from "./page";
 import { filterParticipants } from "./attendance-filter-logic";
 import { AttendanceRow } from "./attendance-row";
 import EventDetailPage from "../page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 const MEMBERSHIP_ID = "55555555-5555-4555-8555-555555555555";
@@ -127,6 +128,7 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Morgan Pike",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

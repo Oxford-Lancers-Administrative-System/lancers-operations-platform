@@ -1,11 +1,8 @@
 import type { ReactElement } from "react";
 import { redirect } from "next/navigation";
-import { assertCapability } from "@/lib/auth/guards";
-import {
-  capabilityRequirement,
-  isNarrowAttendanceRecorder,
-  type CapabilityKey,
-} from "@/lib/auth/capabilities";
+import { describeAccessRule, type AccessRule } from "@/lib/auth/access";
+import { assertAccess } from "@/lib/auth/guards";
+import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import OperatorAccountState from "./account-state";
@@ -29,9 +26,22 @@ export interface ShellGateOptions {
   capabilityRefusal?: "operator" | "coach";
 }
 
+/**
+ * The gate every page under `/operate` opens with.
+ *
+ * `requirement` is an `AccessRule` (`@/lib/auth/access`): a capability key as
+ * before, or — LAN-429 — a grant rule, or `{ either: [...] }` of both:
+ *
+ * ```ts
+ * gateShellPage("/operate/admin/roles", "role_management");
+ * gateShellPage("/operate/roster", { anyOf: "roster", minimum: "view" });
+ * gateShellPage(route, { subject: { kind: "template", templateId }, minimum: "manage" });
+ * gateShellPage(route, { subject: { kind: "switch", key: "add_recruits" }, minimum: "yes" });
+ * ```
+ */
 export async function gateShellPage(
   route: string,
-  capability?: CapabilityKey,
+  requirement?: AccessRule,
   options: ShellGateOptions = {},
 ): Promise<ShellGate> {
   const access = await resolveOperatorAccess();
@@ -44,9 +54,12 @@ export async function gateShellPage(
     return { screen: <OperatorAccountState state={access.state} /> };
   }
 
-  if (options.narrowRecorder !== "allow" && isNarrowAttendanceRecorder(access.operator.roleCodes)) {
+  if (
+    options.narrowRecorder !== "allow" &&
+    isNarrowAttendanceRecorder(access.operator.roleCodes, access.operator.grants)
+  ) {
     // The ordinary refusal, not the coach one — UX-96 would be untrue here.
-    const fallback = firstPermittedDestination(access.operator.roleCodes);
+    const fallback = firstPermittedDestination(access.operator);
     return {
       screen: (
         <NotPermittedScreen
@@ -57,13 +70,13 @@ export async function gateShellPage(
     };
   }
 
-  if (capability) {
+  if (requirement) {
     try {
-      assertCapability(access.operator, capability);
+      assertAccess(access.operator, requirement);
     } catch (error) {
       if (!isServiceError(error) || error.kind !== "not_permitted") throw error;
 
-      const fallback = firstPermittedDestination(access.operator.roleCodes);
+      const fallback = firstPermittedDestination(access.operator);
       const returnHref = fallback && fallback.href !== route ? fallback.href : undefined;
 
       return {
@@ -72,7 +85,7 @@ export async function gateShellPage(
             <CoachNotPermittedScreen returnHref={returnHref} />
           ) : (
             <NotPermittedScreen
-              requirement={capabilityRequirement(capability)}
+              requirement={describeAccessRule(requirement)}
               returnHref={returnHref}
             />
           ),

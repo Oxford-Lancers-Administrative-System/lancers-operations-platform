@@ -28,7 +28,7 @@ vi.mock("@/lib/services/roster-form", async (importOriginal) => {
 });
 
 import { InvalidTransition, isServiceError } from "@/lib/db";
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { recordRosterFormGenerated } from "@/lib/services/roster-form";
 import { generateRosterFormAction } from "./actions";
@@ -48,6 +48,7 @@ function signedInAs(roleCodes: string[]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator });

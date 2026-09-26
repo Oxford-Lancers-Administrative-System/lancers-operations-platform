@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   addPersonAlias,
@@ -25,6 +25,7 @@ import {
   type EditFieldErrors,
   type EditState,
 } from "./edit-state";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // The record's one server action — W2, LAN-185. One submission for every
 // field: re-reads the record fresh, writes only what differs. The
@@ -36,7 +37,8 @@ export async function submitPersonEdit(
   previous: EditState,
   formData: FormData,
 ): Promise<EditState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   const personId = String(formData.get("personId") ?? "");
   const values = readEditFormValues(formData);
   const expectedVersion = values.expectedVersion === "" ? null : values.expectedVersion;
@@ -369,19 +371,22 @@ function safeMessage(error: unknown): string {
 // React overrides a formAction button's own name/value.
 
 export async function submitRemoveAlias(personId: string, aliasId: string): Promise<void> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   await removePersonAlias({ actorPersonId: operator.personId, personId, aliasId });
   redirect(`/operate/people/${personId}/edit`);
 }
 
 export async function submitSetDisplayAlias(personId: string, aliasId: string): Promise<void> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   await setDisplayNamePersonAlias({ actorPersonId: operator.personId, personId, aliasId });
   redirect(`/operate/people/${personId}/edit`);
 }
 
 export async function submitAddAlias(personId: string, formData: FormData): Promise<void> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   const newAlias = formData.get("newAlias");
   if (typeof newAlias === "string" && newAlias.trim() !== "") {
     await addPersonAlias({

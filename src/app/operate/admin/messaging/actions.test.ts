@@ -119,6 +119,7 @@ import {
 } from "./presentation";
 import { ONBOARDING_CHASE_FIELDS } from "./onboarding-chase-validation";
 import { SCHEDULE_FIELDS } from "./validation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const CHALK = "chalk";
 
@@ -138,6 +139,7 @@ function actor(roleCodes: string[]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashfield",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

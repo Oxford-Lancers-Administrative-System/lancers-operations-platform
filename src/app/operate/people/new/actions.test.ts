@@ -31,6 +31,7 @@ import { createPerson } from "@/lib/services/person-create";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { submitCreatePerson } from "./actions";
 import { INITIAL_CREATE_STATE } from "./create-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -46,6 +47,7 @@ function fourRoleOperator(): OperatorAccess {
       personId: OPERATOR_PERSON_ID,
       displayName: "Caspian Hallowfield",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     },
   };
@@ -71,6 +73,7 @@ describe("who may call it", () => {
         personId: "22222222-1111-4111-8111-111111111111",
         displayName: "Someone",
         roleCodes: ["treasurer"],
+        grants: seededGrantsFor(["treasurer"]),
         isActive: true,
       },
     });

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import theme, { CLUB, SEMANTIC } from "./theme";
+import { TEMPLATE_COLOUR_PALETTE } from "./lib/services/event-template-input";
+
+function swatch(key: string) {
+  const found = TEMPLATE_COLOUR_PALETTE.find((entry) => entry.key === key);
+  if (!found) throw new Error(`No swatch ${key}`);
+  return found;
+}
 
 /**
  * WCAG 2.x relative luminance and contrast, written out here rather than taken
@@ -91,6 +98,9 @@ describe("the club theme", () => {
     ["Charcoal on error tint", CLUB.charcoal, SEMANTIC.error.light, 14.05],
     ["Charcoal on info tint", CLUB.charcoal, SEMANTIC.info.light, 13.92],
     ["Charcoal on neutral tint", CLUB.charcoal, SEMANTIC.neutral.light, 13.9],
+    // LAN-429 (W2): the two band heads that print charcoal, not white.
+    ["Charcoal on Lancer Gold band", CLUB.charcoal, swatch("lancer_gold").accent, 6.12],
+    ["Charcoal on Orange band", CLUB.charcoal, swatch("orange").accent, 5.42],
   ];
 
   it.each(RECORDED)("%s meets AA at the recorded ratio", (_name, fg, bg, recorded) => {
@@ -114,5 +124,15 @@ describe("the club theme", () => {
       expect(theme.palette[key].contrastText).toBe(CLUB.white);
       expect(contrast(CLUB.white, theme.palette[key].main)).toBeGreaterThanOrEqual(AA_TEXT);
     }
+  });
+
+  it("prints every roster band head in a text colour that meets AA on its swatch — LAN-429", () => {
+    for (const entry of TEMPLATE_COLOUR_PALETTE) {
+      const charcoal = entry.key === "lancer_gold" || entry.key === "orange";
+      expect(entry.bandText, entry.key).toBe(charcoal ? CLUB.charcoal : CLUB.white);
+      expect(contrast(entry.bandText, entry.accent), entry.key).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+    expect(swatch("blue").accent).toBe(CLUB.oxfordBlue);
+    expect(swatch("lancer_gold").accent).toBe(CLUB.gold);
   });
 });

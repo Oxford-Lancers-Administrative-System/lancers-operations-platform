@@ -51,6 +51,7 @@ import {
   type EventDelivery,
 } from "@/lib/services/delivery";
 import DeliveryPage from "./page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const EVENT = "00780078-0078-4078-8078-000000000050";
 
@@ -60,6 +61,7 @@ function operator(roleCodes: string[]): ResolvedOperator {
     personId: "00000000-0000-4000-8000-000000000002",
     displayName: "Morgan Pike",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

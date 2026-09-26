@@ -31,6 +31,7 @@ import { readPersonRecord } from "@/lib/services/person-record";
 import { personVersion } from "@/lib/services/person-write";
 import { submitPersonEdit } from "./actions";
 import { INITIAL_EDIT_STATE } from "./edit-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const MARKER = "LAN185EditActions";
 let counter = 0;
@@ -74,6 +75,7 @@ function signedInAs(): void {
       personId: actorPersonId,
       displayName: "Caspian Hallowfield",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     },
   };
@@ -152,6 +154,7 @@ describe("who may call it", () => {
         personId: "22222222-1111-4111-8111-111111111111",
         displayName: "Someone",
         roleCodes: ["treasurer"],
+        grants: seededGrantsFor(["treasurer"]),
         isActive: true,
       },
     });

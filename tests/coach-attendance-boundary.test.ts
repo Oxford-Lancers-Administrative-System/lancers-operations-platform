@@ -137,7 +137,7 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { FIXED_COACHING_ROLE_CODES } from "@/lib/auth/capabilities";
+import { FIXED_COACHING_ROLE_CODES, seededGrantsFor } from "@/lib/auth/capabilities";
 import {
   resolveOnboardingItemAction,
   setMembershipStatusAction,
@@ -163,6 +163,7 @@ function actor(roleCodes: string[]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Casey North",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

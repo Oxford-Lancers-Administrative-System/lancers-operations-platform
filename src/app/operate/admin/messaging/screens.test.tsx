@@ -78,6 +78,7 @@ import {
 } from "@/lib/services/messaging-safety";
 import MessagingSchedulePage from "./page";
 import { updateOneMessagingScheduleAction } from "./actions";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function administrator(seat = "president"): ResolvedOperator {
   return {
@@ -85,6 +86,7 @@ function administrator(seat = "president"): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashfield",
     roleCodes: [seat],
+    grants: seededGrantsFor([seat]),
     isActive: true,
   };
 }

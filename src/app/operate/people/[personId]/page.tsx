@@ -27,6 +27,7 @@ import StatusSection from "./status-section";
 import SeasonsSection from "./seasons-section";
 import HistorySection from "./history-section";
 import { ErasurePanel } from "./erasure-panel";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -49,7 +50,8 @@ export default async function PersonRecordPage({
   searchParams,
 }: PageProps<"/operate/people/[personId]">) {
   const { personId } = await params;
-  const gate = await gateShellPage(`/operate/people/${personId}`, "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage(`/operate/people/${personId}`, PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
 
   let record: PersonRecord;
@@ -74,7 +76,7 @@ export default async function PersonRecordPage({
 
   const visible = redactPersonRecord(
     record as unknown as Record<string, unknown>,
-    gate.operator.roleCodes,
+    gate.operator.grants,
   ) as unknown as Partial<PersonRecord>;
 
   const [predecessors, roles, seasons, history, currentSeason, recruitConsent] = await Promise.all([

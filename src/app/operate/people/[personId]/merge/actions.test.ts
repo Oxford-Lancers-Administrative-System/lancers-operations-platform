@@ -28,6 +28,7 @@ import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator"
 import { openObserver, seededActorPersonId } from "../../../../../../tests/helpers/service-layer";
 import { submitMerge } from "./actions";
 import { INITIAL_MERGE_STATE } from "./merge-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const MARKER = "LAN185MergeActions";
 let counter = 0;
@@ -60,6 +61,7 @@ function signedInAs(roleCodes: string[]): void {
       personId: actorPersonId,
       displayName: "Caspian Hallowfield",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };

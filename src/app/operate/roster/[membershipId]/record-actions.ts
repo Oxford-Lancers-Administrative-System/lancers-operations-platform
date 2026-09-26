@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError, withTransaction } from "@/lib/db";
 import { readOnboardingSendStatusIn } from "@/lib/services/onboarding-chase";
 import {
@@ -42,11 +42,12 @@ import {
 } from "@/lib/services/roster-board";
 import { kitValuesOf } from "@/lib/services/roster-board/vocabulary";
 import type { BoardActionState } from "../board-action-state";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // Player detail's own server actions — LAN-187, `REQ-player-detail`. Each
 // wraps the same commit function ../board-actions.ts uses, revalidating
 // both routes since this record's collision domain is [membershipId]/**.
-// Every season-fact wrapper opens with `requireCapability("person_record_authority")`
+// Every season-fact wrapper opens with the LAN-429 bridge (`requireGrant(PERSON_RECORD_BRIDGE)`)
 // (`REQ-authority`), including recordResolveOnboardingItemAction as of
 // LAN-214 round 2 (F-NEW-001, OD7-four-role-only, Brian 2026-09-02).
 
@@ -67,7 +68,8 @@ export async function recordSetStatusAction(params: {
   membershipId: string;
   status: MembershipStatus;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429: Membership edit — the status ladder is the Membership category.
+  const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
   try {
     await setMembershipStatus({
       actorPersonId: operator.personId,
@@ -85,7 +87,8 @@ export async function recordCommitEntryAction(params: {
   membershipId: string;
   entry: "new" | "returning";
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitEntry({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -101,7 +104,8 @@ export async function recordCommitPositionAction(params: {
   column: PositionColumn;
   code: string | null;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitPosition({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -117,7 +121,8 @@ export async function recordCommitJerseyNumbersAction(params: {
   kit: Kit;
   numbers: readonly string[];
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitJerseyNumbers({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -132,7 +137,8 @@ export async function recordCommitCoachingGroupsAction(params: {
   seasonId: string;
   groups: readonly string[];
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitCoachingGroups({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -148,7 +154,8 @@ export async function recordCommitPositionGroupsAction(params: {
   side: PositionGroupSide;
   groups: readonly string[];
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitPositionGroups({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -165,7 +172,8 @@ export async function recordCommitSpecialTeamsAssignmentAction(params: {
   slot: SpecialTeamsSlot;
   positionName: string | null;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitSpecialTeamsAssignment({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -182,7 +190,8 @@ export async function recordCommitKitItemAction(params: {
   /** One value, a whole set for Braces L / Braces R (LAN-409), or `null` to blank the field. */
   value: string | readonly string[] | null;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitKitItemValues({
       actorPersonId: operator.personId,
@@ -203,7 +212,8 @@ export async function recordCommitWarmupSmallGroupAction(params: {
   seasonId: string;
   smallGroup: string | null;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitWarmupSmallGroup({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -218,7 +228,8 @@ export async function recordCommitFormalwearItemsAction(params: {
   seasonId: string;
   items: readonly FormalwearItemKey[];
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitFormalwearItems({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -234,7 +245,8 @@ export async function recordCommitBpsAction(params: {
   seasonId: string;
   value: BpsValue;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitBps({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -249,7 +261,8 @@ export async function recordCommitBluesAction(params: {
   seasonId: string;
   value: BluesValue;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitBlues({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -264,7 +277,8 @@ export async function recordCommitEligibilityAction(params: {
   seasonId: string;
   status: EligibilityStatus;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitEligibility({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -278,7 +292,8 @@ export async function recordCommitAvailabilityAction(params: {
   membershipId: string;
   level: AvailabilityLevel;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await commitAvailability({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -302,7 +317,8 @@ export async function recordSendOnboardingQuestionnaireAction(params: {
     reason: string | null;
   }
 > {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   let results: readonly OnboardingNudgeResult[];
   try {
     results = await sendOnboardingNudges(operator.personId, [params.membershipId]);
@@ -334,7 +350,8 @@ export async function recordResolveOnboardingItemAction(params: {
   status: OnboardingItemStatus;
   reason?: string;
 }): Promise<BoardActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await resolveOnboardingItem({
       actorPersonId: operator.personId,

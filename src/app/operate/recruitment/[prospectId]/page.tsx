@@ -16,13 +16,15 @@ import { readCurrentSeason } from "@/lib/services/seasons";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import RecruitmentRecordView from "./record-view";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // `/operate/recruitment/[prospectId]` — `W2`, LAN-204, on ../roster/[membershipId]'s shell (LAN-187).
 export default async function RecruitmentRecordPage({
   params,
 }: PageProps<"/operate/recruitment/[prospectId]">) {
   const { prospectId } = await params;
-  const gate = await gateShellPage(`/operate/recruitment/${prospectId}`, "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage(`/operate/recruitment/${prospectId}`, PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
   const { operator } = gate;
 
@@ -46,7 +48,7 @@ export default async function RecruitmentRecordPage({
     const fullPerson = await readPersonRecord(record.personId);
     person = redactPersonRecord(
       fullPerson as unknown as Record<string, unknown>,
-      operator.roleCodes,
+      operator.grants,
     ) as unknown as Partial<PersonRecord>;
   } catch (error) {
     if (!isServiceError(error)) throw error;

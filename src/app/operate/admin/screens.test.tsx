@@ -118,6 +118,7 @@ import OperatorRecordPage from "./operators/[operatorId]/page";
 import InviteOperatorPage from "./operators/new/page";
 import RolesPage from "./roles/page";
 import RoleRecordPage from "./roles/[roleId]/page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -132,6 +133,7 @@ function administrator(seat = "it_officer"): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Brian Schuster",
     roleCodes: [seat],
+    grants: seededGrantsFor([seat]),
     isActive: true,
   };
 }

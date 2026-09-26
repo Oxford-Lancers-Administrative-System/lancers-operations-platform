@@ -63,6 +63,7 @@ import { readRecruitmentProspect } from "@/lib/services/recruitment-prospect";
 import type { RecruitmentProspectRecord } from "@/lib/services/recruitment-prospect";
 import { readPersonRecord } from "@/lib/services/person-record";
 import RecruitmentRecordPage from "./page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const PROSPECT_ID = "44444444-4444-4444-8444-444444444444";
 const PERSON_ID = "55555555-5555-4555-8555-555555555555";
@@ -75,6 +76,7 @@ function operatorAccess(roleCodes: string[]): OperatorAccess {
       personId: "22222222-2222-4222-8222-222222222222",
       displayName: "Rowan Ashdown",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };

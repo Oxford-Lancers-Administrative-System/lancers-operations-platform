@@ -33,6 +33,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolveOperator, resolveOperatorAccess } from "./operator";
 import { requireCapability } from "./guards";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 type Row = Record<string, unknown>;
 type Tables = Record<string, Row[]>;
@@ -498,6 +499,7 @@ describe("resolveOperator — resolved operator", () => {
       personId: PERSON_ID,
       displayName: "Rowan Ashdown",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     });
   });

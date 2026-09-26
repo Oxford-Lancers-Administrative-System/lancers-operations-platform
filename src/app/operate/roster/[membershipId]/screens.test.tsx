@@ -87,6 +87,7 @@ import {
 import { COULD_NOT_SAVE } from "../board-action-state";
 import PlayerRecordPage from "./page";
 import { STATUSES, STATUS_OPTION_LABELS } from "../board-columns";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function operatorAccess(roleCodes: string[]): OperatorAccess {
   return {
@@ -96,6 +97,7 @@ function operatorAccess(roleCodes: string[]): OperatorAccess {
       personId: "22222222-2222-4222-8222-222222222222",
       displayName: "Morgan Pike",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };

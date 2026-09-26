@@ -43,7 +43,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
 
   const params = await searchParams;
 
-  if (isNarrowAttendanceRecorder(gate.operator.roleCodes)) {
+  if (isNarrowAttendanceRecorder(gate.operator.roleCodes, gate.operator.grants)) {
     return await coachEventList(first(params.q));
   }
 

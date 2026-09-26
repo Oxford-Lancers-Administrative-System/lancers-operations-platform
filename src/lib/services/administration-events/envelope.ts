@@ -44,11 +44,11 @@ interface AdministrationTarget {
   readonly operatorAccountId?: string | null; // where the event concerns the login rather than a role
 }
 
-/** The role and assignment a role-related event concerns. */
+/** The role and assignment a role-related event concerns; an access event names the seat alone. */
 interface AdministrationRoleSubject {
   readonly id: string;
   readonly code: string;
-  readonly assignmentId: string;
+  readonly assignmentId?: string | null; // required for role_assignment events, refused on access events
 }
 
 /** What a caller hands the writer. */
@@ -56,8 +56,8 @@ export interface AdministrationEventRecord {
   readonly action: AdministrationAction;
   readonly actorPersonId: string; // people.id, from resolveOperator()
   readonly authority: AdministrationAuthority;
-  readonly target: AdministrationTarget;
-  readonly role?: AdministrationRoleSubject | null; // required for role_assignment events, refused on every other family
+  readonly target?: AdministrationTarget | null; // required on every family but access, refused on access (LAN-429)
+  readonly role?: AdministrationRoleSubject | null; // required for role_assignment and access events, refused on every other family
   readonly operatingYear: AdministrationOperatingYear;
   readonly fromState?: string | null; // required by transition, refused by creation
   readonly toState?: string | null; // required by creation and transition
@@ -70,7 +70,7 @@ export interface AdministrationEventRecord {
 /** The envelope as it is stored under `context.administration`. */
 interface AdministrationEnvelope {
   readonly version: number;
-  readonly targetPersonId: string;
+  readonly targetPersonId: string | null; // null only on an access event (LAN-429)
   readonly targetOperatorAccountId: string | null;
   readonly roleId: string | null;
   readonly roleCode: string | null;
@@ -107,6 +107,7 @@ const ENTITY_TABLES: Readonly<Record<AdministrationEventFamily, string>> = Objec
   account_state: "public.operator_accounts",
   email_recovery: "public.operator_accounts",
   role_assignment: "public.role_assignments",
+  access: "public.roles", // LAN-429: about the seat, so the seat's own row
 });
 
 export const NO_CHANGE_RULE = "administration_no_change_not_recorded"; // exported so a caller matches on the rule, not message text
@@ -153,7 +154,15 @@ export function prepareAdministrationEvent(
     );
   }
 
-  if (!isUuid(record.target?.personId)) {
+  const seatAccess = definition.family === "access";
+  if (seatAccess) {
+    if (record.target) {
+      refuse(
+        `${definition.label} concerns a seat, not a Person, and must not name one.`,
+        "administration_target_not_permitted",
+      );
+    }
+  } else if (!isUuid(record.target?.personId)) {
     refuse(
       "An administration event must name the Person it affects.",
       "administration_target_required",
@@ -182,7 +191,7 @@ export function prepareAdministrationEvent(
         "administration_authority_required",
       );
     }
-    if (record.actorPersonId !== record.target.personId) {
+    if (record.actorPersonId !== record.target?.personId) {
       refuse(
         "An event recorded as self-service must name the account holder as the actor.",
         "administration_self_authority_mismatch",
@@ -211,7 +220,7 @@ export function prepareAdministrationEvent(
 
   // REQ-final-admin-protection, as a second line behind the service that refuses the action
   // itself — a self-action is not refusable-and-audited, it simply may not exist.
-  if (definition.selfActionForbidden && record.actorPersonId === record.target.personId) {
+  if (definition.selfActionForbidden && record.actorPersonId === record.target?.personId) {
     throw new NotPermitted(
       `${definition.label} cannot be performed by the operator on themselves.`,
       { rule: "administration_self_action_forbidden" },
@@ -239,6 +248,16 @@ export function prepareAdministrationEvent(
         "administration_role_required",
       );
     }
+  } else if (seatAccess) {
+    if (role === null || !isUuid(role.id) || blank(role.code)) {
+      refuse(`${definition.label} must name the seat it affects.`, "administration_role_required");
+    }
+    if (role.assignmentId !== undefined && role.assignmentId !== null) {
+      refuse(
+        `${definition.label} concerns a seat, not an assignment, and must not name one.`,
+        "administration_assignment_not_permitted",
+      );
+    }
   } else if (role !== null) {
     // a role on an account-state event would put it into Holder history, where it does not belong
     refuse(
@@ -248,7 +267,8 @@ export function prepareAdministrationEvent(
   }
 
   const entityTable = ENTITY_TABLES[definition.family];
-  const entityId = role === null ? record.target.operatorAccountId : role.assignmentId;
+  const entityId =
+    role === null ? record.target?.operatorAccountId : seatAccess ? role.id : role.assignmentId;
   if (!isUuid(entityId)) {
     refuse(
       definition.roleRelated
@@ -325,8 +345,8 @@ export function prepareAdministrationEvent(
 
   const envelope: AdministrationEnvelope = {
     version: ADMINISTRATION_ENVELOPE_VERSION,
-    targetPersonId: record.target.personId,
-    targetOperatorAccountId: record.target.operatorAccountId ?? null,
+    targetPersonId: record.target?.personId ?? null,
+    targetOperatorAccountId: record.target?.operatorAccountId ?? null,
     roleId: role?.id ?? null,
     roleCode: role?.code ?? null,
     roleAssignmentId: role?.assignmentId ?? null,

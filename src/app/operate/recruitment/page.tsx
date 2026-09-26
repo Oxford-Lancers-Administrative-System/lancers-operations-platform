@@ -4,13 +4,15 @@ import { listRecruitmentBoard } from "@/lib/services/recruitment-board";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
 import RecruitmentBoardView from "./recruitment-board-view";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // `/operate/recruitment` — `W1`, LAN-204, modelled on ../roster/page.tsx
 // (LAN-186). Gated on `person_record_authority` (`REQ-authority`).
 export default async function RecruitmentBoardPage({
   searchParams,
 }: PageProps<"/operate/recruitment">) {
-  const gate = await gateShellPage("/operate/recruitment", "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage("/operate/recruitment", PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
   const { operator } = gate;
 

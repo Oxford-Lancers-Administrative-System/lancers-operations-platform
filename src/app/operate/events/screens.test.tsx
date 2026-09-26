@@ -175,6 +175,7 @@ import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
 import EditEventPage from "./[id]/edit/page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -219,6 +220,7 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

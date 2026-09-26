@@ -76,6 +76,7 @@ import {
   displayColumns,
   squadBoundaryKeys,
 } from "./board-columns";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -83,6 +84,7 @@ function operator(roleCodes: string[]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Morgan Pike",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

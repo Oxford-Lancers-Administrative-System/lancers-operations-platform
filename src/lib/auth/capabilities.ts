@@ -1,3 +1,5 @@
+import { fullGrants, holdsAnyGrant, NO_GRANTS, type OperatorGrants } from "./grants";
+
 /**
  * The capability map: every privileged action in the First Operational Vertical
  * Slice, and the club role codes permitted to perform it.
@@ -59,7 +61,6 @@
  * | Delivery administration   | President, VP, Secretary, General Manager      | Lead, 13 Aug 2026  |
  * | Leadership report         | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Role management           | President, General Manager, IT Officer         | Brian, 18 Aug 2026 |
- * | Person record authority   | President, VP, Secretary, General Manager      | Brian, 28 Aug 2026 |
  * | Roster bulk import        | The four offices, plus General Manager         | W1, Brian 1 Sep 2026 |
  * | Person erasure            | President, VP, Secretary, General Manager      | Brian, 16 Sep 2026 |
  * | Messaging safety authority| President, VP, Secretary, General Manager      | Brian, 21 Sep 2026 |
@@ -98,6 +99,32 @@
  * None of them is re-derived here, and none may be re-derived by a later
  * implementer: they are recorded owner and lead decisions on LAN-73, LAN-77,
  * LAN-78, LAN-124 and LAN-129.
+ *
+ * ## What moved to grants — LAN-429 (LAN-423, Brian 2026-09-25)
+ *
+ * Since LAN-423 the access the committee changes lives in data, not here:
+ * `public.role_access_grants`, edited on the seat page, read through
+ * `./grants.ts` and carried on every operator as `grants`. The rule for this
+ * map is:
+ *
+ * - **Removed:** `person_record_authority`. Every person-record surface asks
+ *   the roster and recruiting categories instead. Until the roster package
+ *   (LAN-432) replaces its uses per category, the remaining ones ask
+ *   `PERSON_RECORD_BRIDGE` in `./grants.ts` (every roster and recruiting line
+ *   at its maximum — the old capability's meaning).
+ * - **Kept for template administration and messaging safety only:**
+ *   `event_calendar_management`, `event_approval` and
+ *   `delivery_administration`. Their per-event uses move to the event's
+ *   template grant (`manage`) in the events package (LAN-431); what stays is
+ *   `/operate/events/templates/*`, event import and export, and the messaging
+ *   safety surfaces.
+ * - **Unchanged, in code:** `role_management`, `leadership_report`,
+ *   `attendance_recording`, `attendance_recorder`, `membership_activation`,
+ *   `roster_bulk_import`, `person_erasure`, `messaging_safety_authority`,
+ *   `operator_guide`. Attendance is not a grant: recording is unchanged for
+ *   every seat.
+ *
+ * The seat page lists grants and never these capabilities.
  */
 
 /** The privileged actions this slice knows about. */
@@ -110,7 +137,6 @@ export type CapabilityKey =
   | "role_management"
   | "delivery_administration"
   | "leadership_report"
-  | "person_record_authority"
   | "roster_bulk_import"
   | "person_erasure"
   | "messaging_safety_authority"
@@ -837,45 +863,6 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   }),
 
   /**
-   * Every category of a person's record — LAN-183, `REQ-authority`,
-   * `REQ-restricted-fields`, `Q-4`.
-   *
-   * `src/lib/auth/person-authority.ts` reads this grant rather than naming a
-   * role code of its own: `tests/capability-map-single-source.test.ts` makes
-   * this file the only place in `src/` allowed to, and column visibility on
-   * the person record is exactly the kind of policy that test exists to keep
-   * from growing a second, divergent copy.
-   *
-   * Brian's Q-4 answer, quoted in full because every word carries weight:
-   * "The four offices keep everything; coaching seats reach no contact value
-   * at all; column visibility is a function of category grants, so widening
-   * access later drops restricted columns automatically. No login, seat or
-   * club role is granted or changed anywhere in this mission." No coaching
-   * seat holds this, and neither does any other role Q-4 does not name.
-   *
-   * `it_officer` is added for the same reason every other entry in this file
-   * carries it — Brian, 15 August 2026 (LAN-124): the administrative seat
-   * holds every capability here. Q-4's answer predates this file gaining a
-   * person-record entry and does not mention the IT Officer either way; LAN-124
-   * is the standing decision that resolves the silence, the same way it
-   * resolved it for `role_management`, `delivery_administration` and every
-   * other grant above. A reviewed owner decision may narrow it later.
-   */
-  person_record_authority: capability({
-    key: "person_record_authority",
-    action:
-      "see every category of a person's record — contact detail, academic fields, and the " +
-      "restricted category (date of birth, emergency contact)",
-    roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
-    decision:
-      'Brian, 28 August 2026 (Q-4, LAN-183): "The four offices keep everything; coaching ' +
-      "seats reach no contact value at all; column visibility is a function of category " +
-      'grants, so widening access later drops restricted columns automatically." ' +
-      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
-      "holds every capability in this file.",
-  }),
-
-  /**
    * The CSV bulk import of last season's squad — LAN-215, `WP-arrival-doors`,
    * workflow `W1`. "Four-role, not the general-operator floor the surrounding
    * roster surfaces use."
@@ -900,8 +887,8 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    * Anonymising a person at their own request, and exporting everything held
    * about one — LAN-361, Brian 2026-09-16.
    *
-   * Its own capability rather than a corner of `person_record_authority`: that
-   * one is "may this operator edit people", and this one ends a person's
+   * Its own capability rather than a corner of the person-record grants
+   * (`./grants.ts`): those say "may this operator edit people", and this one ends a person's
    * identity in the club's records for good. The two sign-offs the action
    * demands are a separate rule again, in `person-erasure.ts`; holding this
    * capability lets an operator start the act and confirm their own half of
@@ -977,6 +964,52 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
 });
 
 /**
+ * The access floor — LAN-429 (LAN-423, Brian 2026-09-25): President, General
+ * Manager and IT Officer hold every grant line at its maximum, on every
+ * template including those added later, and no write may change them
+ * (`src/lib/services/access-grants.ts` refuses with `access_fixed_seat`).
+ * Here rather than in `./grants.ts` because this is the only module that may
+ * name a seat.
+ */
+export const FIXED_ACCESS_SEATS: readonly string[] = Object.freeze([
+  "president",
+  "general_manager",
+  "it_officer",
+]);
+
+/**
+ * The five seats the grants migration seeds at full access: the fixed three
+ * plus the Vice-President and Secretary, whose access is removable. Every
+ * other seat starts at `none`. A template created after delivery starts at
+ * `manage` for the fixed three only.
+ */
+export const SEEDED_FULL_ACCESS_SEATS: readonly string[] = Object.freeze([
+  ...FIXED_ACCESS_SEATS,
+  "vice_president",
+  "secretary",
+]);
+
+/** Whether a seat's access is fixed. */
+export function isFixedAccessSeat(roleCode: string): boolean {
+  return FIXED_ACCESS_SEATS.includes(roleCode);
+}
+
+/**
+ * The seed rule as code: what `roleCodes` resolve to on a freshly migrated
+ * database, for the given templates. For tests and fixtures that build an
+ * operator without reading the database; the running application always
+ * reads the rows.
+ */
+export function seededGrantsFor(
+  roleCodes: readonly string[],
+  templateIds: readonly string[] = [],
+): OperatorGrants {
+  return roleCodes.some((code) => SEEDED_FULL_ACCESS_SEATS.includes(code))
+    ? fullGrants(templateIds)
+    : NO_GRANTS;
+}
+
+/**
  * The capabilities a **narrow attendance recorder** may hold, and the whole of
  * what that phrase means. LAN-110.
  *
@@ -1044,8 +1077,16 @@ export const NARROW_RECORDER_CAPABILITIES: readonly CapabilityKey[] = Object.fre
  * **render** and which surfaces to withhold; every action behind every surface
  * still calls its own guard.
  */
-export function isNarrowAttendanceRecorder(roleCodes: readonly string[]): boolean {
+export function isNarrowAttendanceRecorder(
+  roleCodes: readonly string[],
+  grants: OperatorGrants,
+): boolean {
   if (!roleCodesPermit(roleCodes, "attendance_recorder")) return false;
+
+  // LAN-429: a coach leaves the attendance shell the moment one grant is set.
+  // Grants are the other half of access now (`./grants.ts`), and a seat with
+  // any line above `none` has something beyond attendance to reach.
+  if (holdsAnyGrant(grants)) return false;
 
   return CAPABILITY_KEYS.every(
     (key) => NARROW_RECORDER_CAPABILITIES.includes(key) || !roleCodesPermit(roleCodes, key),

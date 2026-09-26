@@ -4,10 +4,12 @@ import { readCurrentSeasonIn } from "@/lib/services/seasons";
 import { publicOrigin } from "@/app/participation/origin";
 import { gateShellPage } from "../../gate";
 import QrCodeView from "./qr-code-view";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // `/operate/recruitment/qr` — `W1-04`. One live sign-up code per season, pointing at /join/[code] (LAN-202).
 export default async function RecruitmentQrPage() {
-  const gate = await gateShellPage("/operate/recruitment/qr", "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage("/operate/recruitment/qr", PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
 
   const [origin, { season, code }] = await Promise.all([

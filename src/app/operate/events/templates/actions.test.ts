@@ -44,6 +44,7 @@ import {
 import { createEventTemplate, saveEventTemplate } from "@/lib/services/event-templates";
 import { createEventTemplateAction, saveEventTemplateAction } from "./actions";
 import { EMPTY_TEMPLATE_FORM_STATE } from "./form-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const TEMPLATE_ID = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
@@ -54,6 +55,7 @@ function actor(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

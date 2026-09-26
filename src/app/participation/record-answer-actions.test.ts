@@ -37,6 +37,7 @@ import { isServiceError, type ServiceError } from "@/lib/db";
 import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
 import { recordOperatorAnswerAction } from "./record-answer-actions";
 import { EMPTY_RECORD_ANSWER_STATE } from "./record-answer-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const EVENT_ID = "44444444-4444-4444-8444-444444444444";
 const INVITATION_ID = "55555555-5555-4555-8555-555555555555";
@@ -48,6 +49,7 @@ function actor(roleCodes: string[]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

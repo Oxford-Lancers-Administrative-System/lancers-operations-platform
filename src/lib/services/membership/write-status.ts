@@ -57,8 +57,8 @@ async function recordStatusEvent(
 }
 
 // Sets a membership to any status in the ladder — no legal-transition check, no reason asked
-// (Q-12, see relocations.md). Authorization is not here — requireCapability("person_record_authority")
-// is in the server action. Flipping to active seeds onboarding items (see relocations.md).
+// (Q-12, see relocations.md). Authorization is not here — the server actions require the
+// Membership category at `edit` (LAN-429: requireGrant({ kind: "roster", key: "membership" }, "edit")). Flipping to active seeds onboarding items (see relocations.md).
 export async function setMembershipStatus(params: {
   actorPersonId: string;
   membershipId: string;

@@ -14,6 +14,7 @@ import { gateShellPage } from "../gate";
 import PeopleFilters from "./people-filters";
 import PeopleTable, { PEOPLE_SORT_OPTIONS } from "./people-table";
 import PeopleCards from "./people-cards";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -25,7 +26,8 @@ function first(value: string | string[] | undefined): string {
  * the widened (outside-season) view. LAN-184, `REQ-person-record`.
  */
 export default async function PeoplePage({ searchParams }: PageProps<"/operate/people">) {
-  const gate = await gateShellPage("/operate/people", "person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const gate = await gateShellPage("/operate/people", PERSON_RECORD_BRIDGE);
   if ("screen" in gate) return gate.screen;
 
   const params = await searchParams;

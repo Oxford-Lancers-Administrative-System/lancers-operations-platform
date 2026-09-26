@@ -27,6 +27,7 @@ import { pauseMessagingIn, resumeMessagingIn } from "@/lib/services/messaging-sa
 import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
 import { pauseMessagingAction, resumeMessagingAction } from "./safety-actions";
 import { REASON_REQUIRED, SAFETY_ACTION_FAILED } from "./safety-presentation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function form(fields: Record<string, string>): FormData {
   const data = new FormData();
@@ -43,6 +44,7 @@ beforeEach(() => {
     personId: "33333333-3333-4333-8333-333333333333",
     displayName: "Rowan Ashfield",
     roleCodes: ["president"],
+    grants: seededGrantsFor(["president"]),
     isActive: true,
   });
   vi.mocked(withTransaction).mockImplementation(async (fn) => fn({ query: vi.fn() } as never));

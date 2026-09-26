@@ -63,6 +63,7 @@ import { type PersonCandidate } from "@/lib/services/roster";
 import { submitReturnerIntake } from "./new/actions";
 import type { IntakeState } from "./new/intake-state";
 import NewReturnerPage from "./new/page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 /**
  * An operator holding no club role at all — the weakest actor these screens
@@ -75,6 +76,7 @@ const OPERATOR: OperatorAccess = {
     personId: "11111111-1111-4111-8111-111111111111",
     displayName: "Morgan Pike",
     roleCodes: [],
+    grants: seededGrantsFor([]),
     isActive: true,
   },
 };

@@ -46,6 +46,7 @@ import { enterReturningPlayer, findPersonCandidates } from "@/lib/services/roste
 import { submitReturnerIntake } from "./actions";
 import { INITIAL_INTAKE_STATE } from "./intake-state";
 import { GIVEN_NAME_REQUIRED, EMAIL_SHAPE } from "./validation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -62,6 +63,7 @@ function activeOperator(roleCodes: string[] = []): OperatorAccess {
       personId: OPERATOR_PERSON_ID,
       displayName: "Morgan Pike",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };

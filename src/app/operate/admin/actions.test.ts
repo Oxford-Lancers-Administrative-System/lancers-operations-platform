@@ -64,6 +64,7 @@ import {
   searchCandidatesAction,
 } from "./actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "./action-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_ACCOUNT_ID = "44444444-4444-4444-8444-444444444444";
 
@@ -82,6 +83,7 @@ function actor(): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes: ["it_officer"],
+    grants: seededGrantsFor(["it_officer"]),
     isActive: true,
   };
 }

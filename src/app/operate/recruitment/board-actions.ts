@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability, requireRole } from "@/lib/auth/guards";
+import { requireGrant, requireRole } from "@/lib/auth/guards";
 import { FLIP_ROLE_CODES, FLIP_ROLE_RULE } from "@/lib/auth/recruitment-flip-authority";
 import { isServiceError } from "@/lib/db";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/lib/services/recruitment-prospect";
 import type { ProspectStatus } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentActionState } from "./action-state";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // The board's own server actions — LAN-204.
 
@@ -32,7 +33,8 @@ export async function setRecruitmentStatusAction(params: {
   toStatus: Exclude<ProspectStatus, "joined">;
   reason?: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await updateRecruitmentProspectStatus(operator.personId, params.prospectId, params.toStatus, {
       reason: params.reason,

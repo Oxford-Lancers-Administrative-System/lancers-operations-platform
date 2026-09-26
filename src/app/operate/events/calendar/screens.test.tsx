@@ -69,6 +69,7 @@ import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { listTermWindows } from "@/lib/services/seasons";
 import type { TermWindow } from "@/lib/services/event-input";
 import EventCalendarPage from "./page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const MICHAELMAS: TermWindow = {
   id: "55555555-5555-4555-8555-555555555551",
@@ -125,6 +126,7 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

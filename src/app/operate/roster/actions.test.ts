@@ -44,6 +44,7 @@ import {
 import { resolveOnboardingItem, setMembershipStatus } from "@/lib/services/membership";
 import { resolveOnboardingItemAction, setMembershipStatusAction } from "./actions";
 import { EMPTY_MEMBERSHIP_ACTION_STATE } from "./action-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
@@ -95,6 +96,7 @@ function actor(roleCodes: string[] = ["president"]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

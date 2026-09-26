@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   addRecruitmentProspectNote,
@@ -12,6 +12,7 @@ import {
 import type { ConsentWithdrawalReason } from "@/lib/services/messaging-consent";
 import type { RecruitmentQuestionnaireTrack } from "@/lib/services/recruitment-prospect";
 import type { RecruitmentActionState } from "../action-state";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 function refresh(prospectId: string): void {
   revalidatePath(`/operate/recruitment/${prospectId}`);
@@ -31,7 +32,8 @@ export async function addRecruitmentNoteAction(params: {
   prospectId: string;
   note: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await addRecruitmentProspectNote(operator.personId, params.prospectId, params.note);
   } catch (error) {
@@ -56,7 +58,8 @@ export async function sendRecruitmentQuestionnaireAction(params: {
     reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
   }
 > {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     const result = await sendRecruitmentQuestionnaire(
       operator.personId,
@@ -88,7 +91,8 @@ export async function stopMessagesAction(params: {
   listedReason: ConsentWithdrawalReason;
   note: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await stopRecruitMessages(operator.personId, params.prospectId, {
       listedReason: params.listedReason,
@@ -106,7 +110,8 @@ export async function recordConsentAction(params: {
   prospectId: string;
   note: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
   try {
     await recordRecruitConsent(operator.personId, params.prospectId, params.note);
   } catch (error) {

@@ -52,7 +52,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import { INVITATION_CALLBACK_PATH as APP_INVITATION_CALLBACK_PATH } from "@/lib/auth/invitation";
 import { looksLikeEmailAddress as appLooksLikeEmailAddress } from "@/lib/auth/recovery";
 import type { ResolvedOperator } from "@/lib/auth/operator";
@@ -700,6 +700,7 @@ describe.runIf(configured)("the bootstrap, run against local Supabase", () => {
     personId,
     displayName: "Administrator",
     roleCodes: [...capabilityRoleCodes(ADMINISTRATION_HISTORY_CAPABILITY)],
+    grants: seededGrantsFor([...capabilityRoleCodes(ADMINISTRATION_HISTORY_CAPABILITY)]),
     isActive: true,
   });
 

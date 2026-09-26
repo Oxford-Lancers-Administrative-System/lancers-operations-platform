@@ -1,5 +1,5 @@
-import type { CapabilityKey } from "@/lib/auth/capabilities";
-import { isNarrowAttendanceRecorder, roleCodesPermit } from "@/lib/auth/capabilities";
+import { holdsAccess, type AccessHolder, type AccessRule } from "@/lib/auth/access";
+import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 
 /**
  * The playbook's index — LAN-399.
@@ -15,26 +15,43 @@ const GUIDE_INDEX_HREF = "/operate/admin/guide/workflows";
 export interface Destination {
   readonly href: string;
   readonly label: string;
-  readonly capability: CapabilityKey | null;
+  /**
+   * Who sees the entry: a capability, a grant rule, or either of several
+   * (`@/lib/auth/access`). `null` is every operator the list is shown to.
+   */
+  readonly access: AccessRule | null;
+  /**
+   * Drawn even for an operator `access` refuses; the page it opens refuses
+   * instead. Report alone, which LAN-429 leaves exactly as it was.
+   */
+  readonly shownRegardless?: true;
   readonly detail?: string;
 }
 
+/**
+ * LAN-429's sidebar rules (LAN-423, W1 "Handoffs"). Roster, People and Missing
+ * data follow any roster category at `view`; Recruitment any recruiting
+ * category at `view`; Events any template at `view` or an attendance
+ * capability; Follow-ups any template at `view`; Messaging any template at
+ * `manage`. Report and the rest of Administration are unchanged.
+ */
+const ANY_ROSTER: AccessRule = Object.freeze({ anyOf: "roster", minimum: "view" });
+const ANY_RECRUITING: AccessRule = Object.freeze({ anyOf: "recruiting", minimum: "view" });
+const ANY_TEMPLATE: AccessRule = Object.freeze({ anyOf: "template", minimum: "view" });
+const ANY_MANAGED_TEMPLATE: AccessRule = Object.freeze({ anyOf: "template", minimum: "manage" });
+const EVENTS: AccessRule = Object.freeze({
+  either: Object.freeze([ANY_TEMPLATE, "attendance_recording", "attendance_recorder"]),
+}) as AccessRule;
+
 const DESTINATIONS: readonly Destination[] = Object.freeze([
-  Object.freeze({
-    href: "/operate/roster",
-    label: "Roster",
-    capability: "person_record_authority" as CapabilityKey,
-  }),
-  Object.freeze({
-    href: "/operate/recruitment",
-    label: "Recruitment",
-    capability: "person_record_authority" as CapabilityKey,
-  }),
-  Object.freeze({ href: "/operate/events", label: "Events", capability: null }),
+  Object.freeze({ href: "/operate/roster", label: "Roster", access: ANY_ROSTER }),
+  Object.freeze({ href: "/operate/recruitment", label: "Recruitment", access: ANY_RECRUITING }),
+  Object.freeze({ href: "/operate/events", label: "Events", access: EVENTS }),
   Object.freeze({
     href: "/operate/report",
     label: "Report",
-    capability: "leadership_report" as CapabilityKey,
+    access: "leadership_report" as AccessRule,
+    shownRegardless: true as const,
   }),
 ]);
 
@@ -43,38 +60,30 @@ const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
   Object.freeze({
     href: "/operate/events",
     label: "Attendance",
-    capability: "attendance_recorder" as CapabilityKey,
+    access: "attendance_recorder" as AccessRule,
     detail: "This season's sessions",
   }),
 ]);
 
 // Administration is a second list, not more DESTINATIONS entries (LAN-133).
 const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
-  Object.freeze({ href: "/operate/admin/follow-ups", label: "Follow-ups", capability: null }),
-  Object.freeze({
-    href: "/operate/people",
-    label: "People",
-    capability: "person_record_authority" as CapabilityKey,
-  }),
-  Object.freeze({
-    href: "/operate/people/missing",
-    label: "Missing data",
-    capability: "person_record_authority" as CapabilityKey,
-  }),
+  Object.freeze({ href: "/operate/admin/follow-ups", label: "Follow-ups", access: ANY_TEMPLATE }),
+  Object.freeze({ href: "/operate/people", label: "People", access: ANY_ROSTER }),
+  Object.freeze({ href: "/operate/people/missing", label: "Missing data", access: ANY_ROSTER }),
   Object.freeze({
     href: "/operate/admin/operators",
     label: "Operators",
-    capability: "role_management" as CapabilityKey,
+    access: "role_management" as AccessRule,
   }),
   Object.freeze({
     href: "/operate/admin/messaging",
     label: "Messaging schedule",
-    capability: "delivery_administration" as CapabilityKey,
+    access: ANY_MANAGED_TEMPLATE,
   }),
   Object.freeze({
     href: "/operate/admin/roles",
     label: "Roles",
-    capability: "role_management" as CapabilityKey,
+    access: "role_management" as AccessRule,
   }),
   // LAN-399. Last, because it is the only entry that is read rather than
   // worked. Its capability is the core four's, so the other seats that reach
@@ -82,32 +91,34 @@ const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
   Object.freeze({
     href: GUIDE_INDEX_HREF,
     label: "Guide",
-    capability: "operator_guide" as CapabilityKey,
+    access: "operator_guide" as AccessRule,
   }),
 ]);
 
 export const ADMINISTRATION_SECTION = "Administration";
 
-export function administrationDestinationsFor(
-  roleCodes: readonly string[],
-): readonly Destination[] {
-  if (isNarrowAttendanceRecorder(roleCodes)) return [];
+export function administrationDestinationsFor(operator: AccessHolder): readonly Destination[] {
+  if (isNarrowAttendanceRecorder(operator.roleCodes, operator.grants)) return [];
   return ADMINISTRATION_DESTINATIONS.filter((destination) =>
-    permitsDestination(roleCodes, destination),
+    permitsDestination(operator, destination),
   );
 }
 
-export function destinationsFor(roleCodes: readonly string[]): readonly Destination[] {
-  return isNarrowAttendanceRecorder(roleCodes) ? COACH_DESTINATIONS : DESTINATIONS;
+/** The primary list. Filtered by access (LAN-429): an entry the operator cannot open is not drawn. */
+export function destinationsFor(operator: AccessHolder): readonly Destination[] {
+  if (isNarrowAttendanceRecorder(operator.roleCodes, operator.grants)) return COACH_DESTINATIONS;
+  return DESTINATIONS.filter(
+    (destination) => destination.shownRegardless || permitsDestination(operator, destination),
+  );
 }
 
-function permitsDestination(roleCodes: readonly string[], destination: Destination): boolean {
-  return destination.capability === null || roleCodesPermit(roleCodes, destination.capability);
+function permitsDestination(operator: AccessHolder, destination: Destination): boolean {
+  return destination.access === null || holdsAccess(operator, destination.access);
 }
 
-export function firstPermittedDestination(roleCodes: readonly string[]): Destination | null {
+export function firstPermittedDestination(operator: AccessHolder): Destination | null {
   return (
-    destinationsFor(roleCodes).find((destination) => permitsDestination(roleCodes, destination)) ??
+    destinationsFor(operator).find((destination) => permitsDestination(operator, destination)) ??
     null
   );
 }

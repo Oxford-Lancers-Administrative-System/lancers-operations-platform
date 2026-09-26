@@ -27,6 +27,7 @@ import { applySeasonImport } from "@/lib/services/event-import";
 import { planImport, type ImportableEvent, type ImportPlan } from "@/lib/services/event-csv";
 import { importEventsAction } from "./actions";
 import { EMPTY_IMPORT_STATE, type ImportScreenState } from "./import-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function operator(): ResolvedOperator {
   return {
@@ -34,6 +35,7 @@ function operator(): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes: ["secretary"],
+    grants: seededGrantsFor(["secretary"]),
     isActive: true,
   };
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
+import { readTemplateGrantsIn, seedTemplateGrantsIn } from "../access-grants";
 import { recordAudit } from "../audit";
 import { DEFAULT_TEMPLATE_CLASS, type EventTemplateInput } from "../event-template-input";
 import { createMessagingScheduleIn, DEFAULT_MESSAGING_SCHEDULE } from "../messaging-schedule";
@@ -93,6 +94,9 @@ export async function createEventTemplate(
 
     await createMessagingScheduleIn(tx, templateId, eventType);
     await createEventTypeSettingsIn(tx, templateId, eventType);
+    // LAN-429: one access line per seat — manage for the fixed seats, none for
+    // every other, Vice-President and Secretary included.
+    await seedTemplateGrantsIn(tx, templateId);
 
     await recordAudit(tx, {
       actorPersonId,
@@ -153,8 +157,12 @@ export async function deleteEventTemplate(
       throw new ConstraintViolated(TEMPLATE_DELETE_REFUSAL, { rule: TEMPLATE_IN_USE_RULE });
     }
 
-    // questions/audience/schedule/settings all carry on-delete-cascade, so one delete removes them
-    // all — written as one statement so a table added later cannot be forgotten here.
+    // LAN-429: the access lines go with the template (on-delete-cascade); the audit row below
+    // records every seat that held more than none on it.
+    const accessLinesRemoved = await readTemplateGrantsIn(tx, templateId);
+
+    // questions/audience/schedule/settings/access lines all carry on-delete-cascade, so one delete
+    // removes them all — written as one statement so a table added later cannot be forgotten here.
     await tx.query("delete from public.event_templates where id = $1::uuid", [templateId]);
 
     await recordAudit(tx, {
@@ -167,6 +175,7 @@ export async function deleteEventTemplate(
         eventType: template.eventType,
         questionCount: template.questions.length,
         audienceGroups: template.audienceGroups,
+        accessLinesRemoved,
       },
     });
 

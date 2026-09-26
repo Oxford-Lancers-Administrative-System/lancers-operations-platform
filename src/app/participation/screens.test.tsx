@@ -127,6 +127,7 @@ import {
   SORTABLE_NOTE,
   TABLE_HEADINGS,
 } from "./presentation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const LIFT: ParticipationQuestion = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -1256,6 +1257,7 @@ function resolvedOperator(personId = "operator-1") {
       personId,
       displayName: "Casey Operator",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     },
   };

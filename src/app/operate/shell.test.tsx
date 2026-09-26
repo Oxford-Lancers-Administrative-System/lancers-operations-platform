@@ -92,6 +92,7 @@ import OperatePage from "./page";
 import RosterPage from "./roster/page";
 import EventsPage from "./events/page";
 import ReportPage from "./report/page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 /** The approved unlinked copy — UX-03, `slice-ux.md` § 8. */
 const UNLINKED_COPY =
@@ -125,6 +126,7 @@ function actor(roleCodes: string[], displayName = "Rowan Ashdown"): ResolvedOper
     personId: "22222222-2222-4222-8222-222222222222",
     displayName,
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

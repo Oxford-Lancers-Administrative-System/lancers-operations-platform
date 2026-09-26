@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError, withTransaction } from "@/lib/db";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { createPerson } from "@/lib/services/person-create";
@@ -20,6 +20,7 @@ import {
   type AddRecruitFieldErrors,
   type AddRecruitState,
 } from "./create-state";
+import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 /**
  * `/operate/recruitment/new`'s one server action — `W6`, LAN-206. Same
@@ -30,7 +31,8 @@ export async function submitAddRecruit(
   previous: AddRecruitState,
   formData: FormData,
 ): Promise<AddRecruitState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-429 bridge: replaced by LAN-432
+  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
 
   const values = readAddRecruitValues(formData);
   const linkPersonId = formData.get("linkPersonId");

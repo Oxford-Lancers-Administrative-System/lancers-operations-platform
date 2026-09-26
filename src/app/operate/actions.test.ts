@@ -41,6 +41,7 @@ import {
   recordAttendance,
 } from "./actions";
 import { ActionNotImplemented } from "./not-implemented";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 type PrivilegedAction = () => Promise<never>;
 
@@ -105,6 +106,7 @@ function actor(roleCodes: string[]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }
