@@ -100,7 +100,7 @@ import RosterPage from "./roster/page";
 import EventsPage from "./events/page";
 import ReportPage from "./report/page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
-import { mergeGrantRows, SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
+import { fullGrants, mergeGrantRows, SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
 
 /** The approved unlinked copy — UX-03, `slice-ux.md` § 8. */
 const UNLINKED_COPY =
@@ -515,16 +515,15 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
   });
 
   it("opens nowhere for an operator holding no seat and no grant", async () => {
-    // LAN-429: nothing in the primary list is open to them — Report is drawn
-    // for everyone but refuses — so /operate says so rather than redirecting
-    // into a refusal.
+    // LAN-429: nothing in the primary list is open to them, so /operate says
+    // so rather than redirecting into a refusal.
     givenAccess({ state: "active", operator: actor([]) });
 
     const { container } = render(await OperatePage());
     expect(container.textContent).toContain("No destination in the operator shell");
   });
 
-  it("shows an operator who holds no seat and no grant only Report", async () => {
+  it("shows an operator who holds no seat and no grant no destination at all", async () => {
     givenAccess({ state: "active", operator: actor([]) });
 
     render(await OperateLayout(layoutProps(null)));
@@ -532,9 +531,47 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
 
     // LAN-429's sidebar rules: Roster and Recruitment follow the roster and
     // recruiting grants, Events any template or an attendance capability,
-    // Follow-ups any template. Report is drawn for everyone, as it always was;
-    // its page is what refuses.
-    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Report"]);
+    // Follow-ups any template. Report follows `leadership_report` (round 6).
+    expect(screen.queryAllByRole("link")).toEqual([]);
+  });
+
+  /**
+   * LAN-423 round 6, M4 (Brian): "the report should be just limited to the
+   * core four plus the IT manager ... We should not make that a selectable
+   * thing." Report is drawn for the seats holding `leadership_report` and no
+   * other, whatever grants a seat carries.
+   */
+  it.each([
+    ["president", true],
+    ["vice_president", true],
+    ["secretary", true],
+    ["general_manager", true],
+    ["it_officer", true],
+    ["kit_manager", false],
+    ["head_coach", false],
+    ["treasurer", false],
+  ] as const)("draws Report for %s: %s", async (seat, shown) => {
+    // Every line at its maximum, so a seat outside the five still reaches the
+    // ordinary shell: the grants are not what decides Report.
+    givenAccess({
+      state: "active",
+      operator: { ...actor([seat]), grants: fullGrants(SEEDED_TEMPLATE_IDS) },
+    });
+
+    render(await OperateLayout(layoutProps(null)));
+    openNav();
+
+    expect(screen.getByRole("link", { name: "Roster" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Report" }) !== null).toBe(shown);
+  });
+
+  it("draws Report for the review account's seats", async () => {
+    givenAccess({ state: "active", operator: actor(["president", "it_officer"]) });
+
+    render(await OperateLayout(layoutProps(null)));
+    openNav();
+
+    expect(screen.getByRole("link", { name: "Report" })).toBeVisible();
   });
 
   it("shows Events and Follow-ups to an operator granted View on one template", async () => {
@@ -545,7 +582,6 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
 
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Events",
-      "Report",
       "Follow-ups",
     ]);
   });
@@ -1443,7 +1479,7 @@ describe("LAN-133 — Administration in the shell", () => {
       expect(screen.queryByRole("link", { name: "Messaging schedule" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Guide" })).toBeNull();
-      expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Report"]);
+      expect(screen.queryAllByRole("link")).toEqual([]);
     },
   );
 
@@ -1611,11 +1647,10 @@ describe("LAN-429 — gateShellPage with a grant requirement", () => {
     render(await OperateLayout(layoutProps(null)));
     openNav();
     // The ordinary shell: Roster (Kit at View), Events (an attendance
-    // capability), Report — not the coach's single Attendance entry.
+    // capability) — not the coach's single Attendance entry, and no Report.
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Roster",
       "Events",
-      "Report",
       "People",
       "Missing data",
     ]);

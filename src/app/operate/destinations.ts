@@ -21,11 +21,6 @@ export interface Destination {
    * (`@/lib/auth/access`). `null` is every operator the list is shown to.
    */
   readonly access: AccessRule | null;
-  /**
-   * Drawn even for an operator `access` refuses; the page it opens refuses
-   * instead. Report alone, which LAN-429 leaves exactly as it was.
-   */
-  readonly shownRegardless?: true;
   readonly detail?: string;
 }
 
@@ -34,7 +29,9 @@ export interface Destination {
  * data follow any roster category at `view`; Recruitment any recruiting
  * category at `view`; Events any template at `view` or an attendance
  * capability; Follow-ups any template at `view`; Messaging any template at
- * `manage`. Report and the rest of Administration are unchanged.
+ * `manage`. Report is drawn only for the seats holding `leadership_report`
+ * (LAN-423 round 6, Brian: "not a permissions issue"), never a grant line.
+ * The rest of Administration is unchanged.
  */
 const ANY_ROSTER: AccessRule = ROSTER_REACH;
 const ANY_RECRUITING: AccessRule = RECRUITING_REACH;
@@ -52,7 +49,6 @@ const DESTINATIONS: readonly Destination[] = Object.freeze([
     href: "/operate/report",
     label: "Report",
     access: "leadership_report" as AccessRule,
-    shownRegardless: true as const,
   }),
 ]);
 
@@ -108,9 +104,7 @@ export function administrationDestinationsFor(operator: AccessHolder): readonly 
 /** The primary list. Filtered by access (LAN-429): an entry the operator cannot open is not drawn. */
 export function destinationsFor(operator: AccessHolder): readonly Destination[] {
   if (isNarrowAttendanceRecorder(operator.roleCodes, operator.grants)) return COACH_DESTINATIONS;
-  return DESTINATIONS.filter(
-    (destination) => destination.shownRegardless || permitsDestination(operator, destination),
-  );
+  return DESTINATIONS.filter((destination) => permitsDestination(operator, destination));
 }
 
 function permitsDestination(operator: AccessHolder, destination: Destination): boolean {
