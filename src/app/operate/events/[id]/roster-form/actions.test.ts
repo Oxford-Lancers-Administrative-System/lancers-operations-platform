@@ -42,7 +42,6 @@ import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { recordRosterFormGenerated } from "@/lib/services/roster-form";
 import { generateRosterFormAction } from "./actions";
-import { ROSTER_FORM_GENERATE_FAILED } from "./action-state";
 
 const EVENT = "00780078-0078-4078-8078-000000000050";
 
@@ -154,14 +153,24 @@ describe("generateRosterFormAction reports what actually happened", () => {
     expect(state.error).toContain("only for a game");
   });
 
-  it("falls back to its own sentence for a failure that is not a service refusal", async () => {
+  // LAN-423 K2: only a service error becomes the button's message; a
+  // database or connection failure throws, as it does everywhere else.
+  it("throws a failure that is not a service error", async () => {
     signedInAs(["secretary"]);
-    vi.mocked(recordRosterFormGenerated).mockRejectedValue(new Error("boom"));
+    vi.mocked(recordRosterFormGenerated).mockRejectedValue(new Error("connection reset"));
+
+    await expect(generateRosterFormAction(EVENT, "blue", 22, 3)).rejects.toThrow(
+      "connection reset",
+    );
+  });
+
+  it("returns a NotPermitted from the write as the refusal, not a throw", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(recordRosterFormGenerated).mockRejectedValue(new NotPermitted(GRANT_REFUSAL));
 
     const state = await generateRosterFormAction(EVENT, "blue", 22, 3);
 
-    expect(state.generatedAt).toBeNull();
-    expect(state.error).toBe(ROSTER_FORM_GENERATE_FAILED);
+    expect(state).toEqual({ generatedAt: null, error: GRANT_REFUSAL });
   });
 
   it("takes the kit it is given, and records that one", async () => {
