@@ -62,9 +62,9 @@ import {
  * account stays deactivated.
  */
 
-export const SEAT_LOGIN_EMAIL_FIELD = "Login email";
+const SEAT_LOGIN_EMAIL_FIELD = "Login email";
 export const SEAT_LOGIN_EMAIL_REQUIRED_RULE = "administration_seat_login_email_required";
-export const SEAT_LOGIN_EMAIL_REQUIRED_MESSAGE =
+const SEAT_LOGIN_EMAIL_REQUIRED_MESSAGE =
   `${SEAT_LOGIN_EMAIL_FIELD} is required. This person has no email address on record, and ` +
   "holding a role creates their operator account.";
 

@@ -55,7 +55,7 @@ export interface DuplicateCheckResult {
 }
 
 /** LAN-428. Digits a mobile needs before a partial is started — `PLAUSIBLE_MOBILE_MIN_DIGITS` in `recruitment-signup.ts`. */
-export const PARTIAL_START_MOBILE_MIN_DIGITS = 7;
+const PARTIAL_START_MOBILE_MIN_DIGITS = 7;
 
 /** LAN-425. What the partial save's first write returned. `retry` says whether the page should try again on the next pause: not after a name-and-mobile match, which the real Save handles. */
 export interface PartialSaveStart {

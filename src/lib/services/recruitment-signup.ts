@@ -750,7 +750,7 @@ async function setProspectSourceIn(
  * stands that a malformed mobile is kept raw, with no normalised number, for
  * an operator to fix.
  */
-export const PARTIAL_START_MOBILE_MESSAGE = "A mobile number is required.";
+const PARTIAL_START_MOBILE_MESSAGE = "A mobile number is required.";
 
 function requireStartMobile(submission: PartialSignupSubmission): string {
   const mobile = trimmedOrNull(submission.mobile);

@@ -369,7 +369,7 @@ const DEACTIVATED_LABEL = operatorAccountState("deactivated").label;
  * sent, to the recorded email or to a Login email this form requires; an
  * existing account, whatever its state, is left as it is.
  */
-export function SeatAccountCase({ candidate }: { candidate: CandidateChoice }) {
+function SeatAccountCase({ candidate }: { candidate: CandidateChoice }) {
   if (candidate.operatorAccountId !== null) {
     const deactivated = candidate.operatorState === DEACTIVATED_LABEL;
     return (
