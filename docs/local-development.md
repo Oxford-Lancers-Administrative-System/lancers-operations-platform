@@ -575,6 +575,26 @@ psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
 tests. Its guard refuses any host that is not loopback and any hosted Supabase
 connection string. Do not weaken it.
 
+## Reading production
+
+Agents investigating a production defect read the real rows with one command,
+read-only (ADR 0040):
+
+```bash
+npm run -s prod:inspect -- --purpose "LAN-###: what you are checking" --columns [table]
+npm run -s prod:inspect -- --purpose "LAN-###: what you are checking" "select … from public.<table> …"
+```
+
+- `--columns` lists what you may read; contact details, identity numbers and
+  tokens are hidden, so name columns instead of `select *`.
+- It connects as `agent_readonly`, which cannot write. One statement per call,
+  15 s timeout, 200 rows by default (`--limit`).
+- The password is `AGENT_READONLY_PASSWORD` in the primary checkout's
+  `.env.local`; the command finds it from any worktree. Never print it.
+- Every query is logged, without its rows, to `~/.lancers/prod-inspect.jsonl`.
+- Setup, re-running after a migration, rotation and revocation:
+  `scripts/production/README.md` § `agent-readonly.sql`.
+
 ## Troubleshooting
 
 **`Cannot connect to the Docker daemon`** — Docker is not running. Start it and
