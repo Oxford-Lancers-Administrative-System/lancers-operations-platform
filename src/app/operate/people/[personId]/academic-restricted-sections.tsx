@@ -11,7 +11,10 @@ import type { VisiblePersonRecord } from "./identity-contact-sections";
 // `IdentitySection` too — see that file. Nothing academic is rendered
 // separately any more; only `RestrictedSection` remains here.
 
-/** "Restricted" — only when `visible.dateOfBirth !== undefined` (page decides). */
+/**
+ * "Restricted" — Person's. The emergency contact inside it is Contact &
+ * emergency's (LAN-432): its row is drawn only when the redaction left it.
+ */
 export function RestrictedSection({ record }: { record: VisiblePersonRecord }) {
   return (
     <Section variant="banded" band="person" title="Restricted">
@@ -21,26 +24,28 @@ export function RestrictedSection({ record }: { record: VisiblePersonRecord }) {
       <Fact label="Under 18">
         {record.isUnder18 == null ? <NotRecorded /> : record.isUnder18 ? "Yes" : "No"}
       </Fact>
-      <Fact label="Emergency contact">
-        {record.emergencyContact ? (
-          <Stack>
-            <span>
-              {record.emergencyContact.givenName}
-              {record.emergencyContact.familyName ? ` ${record.emergencyContact.familyName}` : ""}
-              {record.emergencyContact.relationship
-                ? ` · ${record.emergencyContact.relationship}`
-                : ""}
-            </span>
-            <span>
-              {[record.emergencyContact.phone, record.emergencyContact.email]
-                .filter(Boolean)
-                .join(" · ") || <NotRecorded />}
-            </span>
-          </Stack>
-        ) : (
-          <NotRecorded />
-        )}
-      </Fact>
+      {record.emergencyContact === undefined ? null : (
+        <Fact label="Emergency contact">
+          {record.emergencyContact ? (
+            <Stack>
+              <span>
+                {record.emergencyContact.givenName}
+                {record.emergencyContact.familyName ? ` ${record.emergencyContact.familyName}` : ""}
+                {record.emergencyContact.relationship
+                  ? ` · ${record.emergencyContact.relationship}`
+                  : ""}
+              </span>
+              <span>
+                {[record.emergencyContact.phone, record.emergencyContact.email]
+                  .filter(Boolean)
+                  .join(" · ") || <NotRecorded />}
+              </span>
+            </Stack>
+          ) : (
+            <NotRecorded />
+          )}
+        </Fact>
+      )}
     </Section>
   );
 }

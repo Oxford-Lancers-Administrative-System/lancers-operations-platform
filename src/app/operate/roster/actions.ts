@@ -10,11 +10,10 @@ import {
   type OnboardingItemStatus,
 } from "@/lib/services/membership";
 import type { MembershipActionState } from "./action-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // The membership workflow's server actions — LAN-75, LAN-186 (Q-12). The
 // status change guards on Membership at `edit` (LAN-429); the onboarding item
-// is on the LAN-429 bridge until LAN-432.
+// on Onboarding at `edit` (LAN-432).
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -59,8 +58,8 @@ export async function resolveOnboardingItemAction(
   _previous: MembershipActionState,
   formData: FormData,
 ): Promise<MembershipActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: Onboarding at edit.
+  const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
   const membershipId = text(formData, "membershipId");
 
   try {

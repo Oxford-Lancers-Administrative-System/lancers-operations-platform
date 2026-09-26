@@ -5,6 +5,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { Band } from "./band-colours";
 import BandedSection from "./banded-section";
+import { LockIcon } from "./lock-icon";
 
 export { BAND_COLOURS, type Band } from "./band-colours";
 
@@ -31,6 +32,7 @@ export function Section({
   testId,
   titleTestId,
   headingLevel = 2,
+  locked = false,
 }: {
   title: string;
   variant?: "plain" | "banded";
@@ -61,6 +63,13 @@ export function Section({
   titleTestId?: string;
   /** Nested sections follow their page section in the heading outline. */
   headingLevel?: 2 | 3;
+  /**
+   * LAN-432 — the reader's seat holds None on this section's category. The
+   * section stays in its place with its head, a lock where the chevron was, no
+   * action and no body; it cannot be opened. The caller passes no children:
+   * a locked section's contents are never sent to the browser.
+   */
+  locked?: boolean;
 }) {
   if (variant === "banded") {
     return (
@@ -74,9 +83,37 @@ export function Section({
         testId={testId}
         titleTestId={titleTestId}
         headingLevel={headingLevel}
+        locked={locked}
       >
-        {children}
+        {locked ? null : children}
       </BandedSection>
+    );
+  }
+
+  if (locked) {
+    return (
+      <Paper
+        variant="outlined"
+        component="section"
+        sx={{ p: { xs: 2, md: 3 } }}
+        data-testid={testId ? `section-${testId}` : undefined}
+        data-locked="true"
+      >
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ justifyContent: "space-between", alignItems: "center", gap: 1 }}
+        >
+          <Typography
+            variant="h3"
+            component={headingLevel === 2 ? "h2" : "h3"}
+            data-testid={titleTestId}
+          >
+            {title}
+          </Typography>
+          <LockIcon />
+        </Stack>
+      </Paper>
     );
   }
 

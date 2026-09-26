@@ -191,6 +191,8 @@ export function Cell({
 
   const editable =
     !boardSaving &&
+    // LAN-432: a category held at view is text, never an editor.
+    column.viewOnly !== true &&
     (column.edit === "select" ||
       column.edit === "multiselect" ||
       column.edit === "jersey" ||
@@ -289,7 +291,7 @@ function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) 
   }
 
   const text = displayOf(row, column);
-  if (column.edit === "record") {
+  if (column.edit === "record" && column.viewOnly !== true) {
     return (
       <Tooltip title="Opens the person record — W2's rules apply" placement="top">
         <Typography

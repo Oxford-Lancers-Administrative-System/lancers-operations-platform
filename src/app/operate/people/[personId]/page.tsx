@@ -27,7 +27,15 @@ import StatusSection from "./status-section";
 import SeasonsSection from "./seasons-section";
 import HistorySection from "./history-section";
 import { ErasurePanel } from "./erasure-panel";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { Section } from "@/components/section";
+import {
+  mayEditRecruiting,
+  mayEditRoster,
+  mayViewRoster,
+  ROSTER_REACH,
+  WHOLE_RECORD_AUTHORITY,
+} from "@/lib/auth/roster-access";
+import { operatorHoldsAccess } from "@/lib/auth/guards";
 
 function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -50,9 +58,19 @@ export default async function PersonRecordPage({
   searchParams,
 }: PageProps<"/operate/people/[personId]">) {
   const { personId } = await params;
-  // LAN-429 bridge: replaced by LAN-432
-  const gate = await gateShellPage(`/operate/people/${personId}`, PERSON_RECORD_BRIDGE);
+  // LAN-432: the person record follows the roster's grants (Brian,
+  // 2026-09-25). Who they are, Restricted, Where they stand, Messaging and the
+  // history read as Person; How to reach them as Contact & emergency; Their
+  // seasons as Membership. A `none` section is a locked head, and nothing of
+  // it leaves this server.
+  const gate = await gateShellPage(`/operate/people/${personId}`, ROSTER_REACH);
   if ("screen" in gate) return gate.screen;
+  const grants = gate.operator.grants;
+  const personOpen = mayViewRoster(grants, "person");
+  const contactOpen = mayViewRoster(grants, "contact_emergency");
+  const membershipOpen = mayViewRoster(grants, "membership");
+  const mayCorrect = mayEditRoster(grants, "person") || mayEditRoster(grants, "contact_emergency");
+  const mayMerge = operatorHoldsAccess(gate.operator, WHOLE_RECORD_AUTHORITY);
 
   let record: PersonRecord;
   try {
@@ -79,16 +97,19 @@ export default async function PersonRecordPage({
     gate.operator.grants,
   ) as unknown as Partial<PersonRecord>;
 
-  const [predecessors, roles, seasons, history, currentSeason, recruitConsent] = await Promise.all([
-    listMergedPredecessors(personId),
-    listPersonRoleAssignments(personId),
-    listPersonSeasons(personId),
-    readPersonHistory(personId),
-    readCurrentSeason().catch(() => null),
-    // LAN-371. `null` for anybody who is not a recruit this season, which is
-    // what keeps the control off a roster player's record (LAN-372).
-    readRecruitConsentForPerson(personId).catch(() => null),
-  ]);
+  const [predecessors, roles, seasons, fullHistory, currentSeason, recruitConsent] =
+    await Promise.all([
+      listMergedPredecessors(personId),
+      personOpen ? listPersonRoleAssignments(personId) : Promise.resolve([]),
+      membershipOpen ? listPersonSeasons(personId) : Promise.resolve([]),
+      personOpen ? readPersonHistory(personId) : Promise.resolve([]),
+      readCurrentSeason().catch(() => null),
+      // LAN-371. `null` for anybody who is not a recruit this season, which is
+      // what keeps the control off a roster player's record (LAN-372).
+      personOpen ? readRecruitConsentForPerson(personId).catch(() => null) : Promise.resolve(null),
+    ]);
+  // A change to a contact point or the emergency contact is Contact & emergency's.
+  const history = contactOpen ? fullHistory : fullHistory.filter((entry) => !entry.contactFact);
 
   const sp = await searchParams;
   // LAN-257: "This is them" wrote nothing onto this person, and now says so
@@ -130,10 +151,10 @@ export default async function PersonRecordPage({
     <Stack spacing={3}>
       <PageHeader
         title={record.displayName}
-        subtitle={clubRoleSummary}
+        subtitle={personOpen ? clubRoleSummary : null}
         back={{ href: "/operate/people", label: "Back to people" }}
         status={
-          record.status !== null ? (
+          personOpen && record.status !== null ? (
             <StatusChip
               domain={record.status === "recruit" ? "personType" : "membership"}
               status={record.status}
@@ -142,12 +163,16 @@ export default async function PersonRecordPage({
           ) : undefined
         }
         actions={
-          <>
-            <Button variant="outlined" href={`/operate/people/${personId}/edit`}>
-              Correct this record
-            </Button>
-            <Button href={`/operate/people/${personId}/merge`}>Merge…</Button>
-          </>
+          mayCorrect || mayMerge ? (
+            <>
+              {mayCorrect ? (
+                <Button variant="outlined" href={`/operate/people/${personId}/edit`}>
+                  Correct this record
+                </Button>
+              ) : null}
+              {mayMerge ? <Button href={`/operate/people/${personId}/merge`}>Merge…</Button> : null}
+            </>
+          ) : undefined
         }
       />
 
@@ -177,7 +202,7 @@ export default async function PersonRecordPage({
         </Notice>
       ))}
 
-      {record.missingRequiredFields.length > 0 ? (
+      {personOpen && record.missingRequiredFields.length > 0 ? (
         <Notice severity="warning" testId="record-missing-banner">
           {record.missingRequiredFields.length} required{" "}
           {record.missingRequiredFields.length === 1 ? "fact is" : "facts are"} missing.
@@ -189,31 +214,53 @@ export default async function PersonRecordPage({
           LAN-365 correction: "Who they are" (IdentitySection, which now also
           carries the four academic facts and the two identifiers) is
           rendered after "How to reach them", per Brian's ordering. */}
-      {visible.contacts !== undefined ? (
+      {contactOpen ? (
         <ContactSection record={visible} currentSeasonLabel={currentSeason?.label ?? null} />
-      ) : null}
+      ) : (
+        <Section variant="banded" band="person" title="How to reach them" locked />
+      )}
 
-      <IdentitySection record={visible} />
+      {personOpen ? (
+        <IdentitySection record={visible} />
+      ) : (
+        <Section variant="banded" band="person" title="Who they are" locked />
+      )}
 
       {recruitConsent ? (
-        <MessagingSection consent={recruitConsent} displayName={record.displayName} />
+        <MessagingSection
+          consent={recruitConsent}
+          displayName={record.displayName}
+          mayChange={mayEditRecruiting(grants, "recruit_details")}
+        />
       ) : null}
 
-      {visible.dateOfBirth !== undefined ? <RestrictedSection record={visible} /> : null}
+      {personOpen ? (
+        <RestrictedSection record={visible} />
+      ) : (
+        <Section variant="banded" band="person" title="Restricted" locked />
+      )}
 
-      {visible.status !== undefined ? (
+      {personOpen ? (
         <StatusSection record={visible} roles={roles} alumniLabel={alumniLabel} />
+      ) : (
+        <Section variant="banded" band="person" title="Where they stand" locked />
+      )}
+
+      {membershipOpen ? (
+        <SeasonsSection seasons={seasons} />
+      ) : (
+        <Section variant="banded" band="season" title="Their seasons" locked />
+      )}
+
+      {personOpen ? (
+        <HistorySection
+          personId={personId}
+          history={history}
+          historyExpanded={historyExpanded}
+          historyField={historyField}
+          historyActor={historyActor}
+        />
       ) : null}
-
-      <SeasonsSection seasons={seasons} />
-
-      <HistorySection
-        personId={personId}
-        history={history}
-        historyExpanded={historyExpanded}
-        historyField={historyField}
-        historyActor={historyActor}
-      />
 
       {/* LAN-361: at the bottom of the record, and only for the core four.
           An operator who does not hold the capability sees nothing at all —

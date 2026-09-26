@@ -99,6 +99,9 @@ export default function RosterBoard({
   initialCollapsedGroups,
   seasonHasOnboardingItemTypes,
   canEditCategories = false,
+  canAddPlayers = false,
+  canBulkImport = false,
+  missingFilterGranted = false,
 }: {
   operator: ResolvedOperator;
   columns: readonly ColumnDef[];
@@ -119,6 +122,12 @@ export default function RosterBoard({
   initialCollapsedGroups: readonly string[] | undefined;
   /** LAN-430 — whether this operator holds `role_management`, and so sees Edit categories. */
   canEditCategories?: boolean;
+  /** LAN-432 — the May add to the roster switch. Without it there is no Add players. */
+  canAddPlayers?: boolean;
+  /** Whether the Add players menu offers Bulk import too (`roster_bulk_import`, in code). */
+  canBulkImport?: boolean;
+  /** LAN-432 — Missing onboarding data is an Onboarding filter over Person's Missing column; it needs both. */
+  missingFilterGranted?: boolean;
 }) {
   const [, startTransition] = useTransition();
   const [searchBox, setSearchBox] = useState(initialSearch);
@@ -489,6 +498,18 @@ export default function RosterBoard({
     }
   }
 
+  /**
+   * LAN-432: the pinned filters follow the columns. Status is Membership's,
+   * Availability is Availability's, and Missing onboarding data reads Person's
+   * Missing column for an Onboarding question, so it needs both.
+   */
+  const columnShown = (key: string) => columns.some((column) => column.key === key);
+  const pinnedStatus = columnShown("status");
+  const pinnedAvailability = columnShown("availability");
+  const pinnedMissing = columnShown("missing") && missingFilterGranted;
+  const anyPinnedFilter = pinnedStatus || pinnedAvailability || pinnedMissing;
+  const addPlayers = canAddPlayers ? <AddPlayersMenu canBulkImport={canBulkImport} /> : null;
+
   const pinned = (
     <Stack
       direction={{ xs: "column", md: "row" }}
@@ -502,27 +523,33 @@ export default function RosterBoard({
         onChange={(event) => setSearch(event.target.value)}
         sx={{ minWidth: { xs: "100%", md: 260 } }}
       />
-      <PinnedSelect
-        label="Status"
-        value={filters.status ?? ""}
-        options={["onboarding", "active", "inactive", "departed", "archived"]}
-        optionLabel={(value) => labelFor(MEMBERSHIP_STATUS_LABELS, value)}
-        onChange={(value) => setFilter("status", value)}
-      />
-      <PinnedSelect
-        label="Availability"
-        value={filters.availability ?? ""}
-        options={["green", "orange", "red"]}
-        optionLabel={(value) => value.charAt(0).toUpperCase() + value.slice(1)}
-        onChange={(value) => setFilter("availability", value)}
-      />
-      <PinnedSelect
-        label="Missing onboarding data"
-        value={filters.missing ?? ""}
-        options={["Yes", "No"]}
-        onChange={(value) => setFilter("missing", value)}
-        minWidth={230}
-      />
+      {pinnedStatus ? (
+        <PinnedSelect
+          label="Status"
+          value={filters.status ?? ""}
+          options={["onboarding", "active", "inactive", "departed", "archived"]}
+          optionLabel={(value) => labelFor(MEMBERSHIP_STATUS_LABELS, value)}
+          onChange={(value) => setFilter("status", value)}
+        />
+      ) : null}
+      {pinnedAvailability ? (
+        <PinnedSelect
+          label="Availability"
+          value={filters.availability ?? ""}
+          options={["green", "orange", "red"]}
+          optionLabel={(value) => value.charAt(0).toUpperCase() + value.slice(1)}
+          onChange={(value) => setFilter("availability", value)}
+        />
+      ) : null}
+      {pinnedMissing ? (
+        <PinnedSelect
+          label="Missing onboarding data"
+          value={filters.missing ?? ""}
+          options={["Yes", "No"]}
+          onChange={(value) => setFilter("missing", value)}
+          minWidth={230}
+        />
+      ) : null}
     </Stack>
   );
 
@@ -582,6 +609,7 @@ export default function RosterBoard({
           columns={columns.length + 1}
           seasonLabel={seasonLabel}
           canEditCategories={canEditCategories}
+          addPlayers={addPlayers}
         />
         {noItemTypes}
         {pinned}
@@ -607,7 +635,7 @@ export default function RosterBoard({
                   Clear filters
                 </Button>
               )}
-              <AddPlayersMenu />
+              {addPlayers}
             </Stack>
           </Stack>
         </Paper>
@@ -622,6 +650,7 @@ export default function RosterBoard({
         columns={columns.length + 1}
         seasonLabel={seasonLabel}
         canEditCategories={canEditCategories}
+        addPlayers={addPlayers}
       />
       {noItemTypes}
       {pinned}
@@ -749,9 +778,11 @@ export default function RosterBoard({
       </TableContainer>
 
       <Box sx={{ display: { xs: "block", md: "none" } }}>
-        <Button variant="outlined" onClick={() => setPhoneFilters(true)} sx={{ mb: 2 }}>
-          Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
-        </Button>
+        {anyPinnedFilter ? (
+          <Button variant="outlined" onClick={() => setPhoneFilters(true)} sx={{ mb: 2 }}>
+            Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
+          </Button>
+        ) : null}
         <Stack spacing={2}>
           {visible.map((row) => (
             <PlayerCard key={row.membershipId} row={row} />

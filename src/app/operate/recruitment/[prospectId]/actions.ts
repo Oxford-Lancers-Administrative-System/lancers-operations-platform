@@ -12,7 +12,6 @@ import {
 import type { ConsentWithdrawalReason } from "@/lib/services/messaging-consent";
 import type { RecruitmentQuestionnaireTrack } from "@/lib/services/recruitment-prospect";
 import type { RecruitmentActionState } from "../action-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 function refresh(prospectId: string): void {
   revalidatePath(`/operate/recruitment/${prospectId}`);
@@ -32,8 +31,8 @@ export async function addRecruitmentNoteAction(params: {
   prospectId: string;
   note: string;
 }): Promise<RecruitmentActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: Recruit details at edit.
+  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
     await addRecruitmentProspectNote(operator.personId, params.prospectId, params.note);
   } catch (error) {
@@ -58,8 +57,8 @@ export async function sendRecruitmentQuestionnaireAction(params: {
     reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
   }
 > {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: Recruit details at edit.
+  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
     const result = await sendRecruitmentQuestionnaire(
       operator.personId,
@@ -83,7 +82,7 @@ export async function sendRecruitmentQuestionnaireAction(params: {
  * **Stop messages** — LAN-371, Brian 2026-09-16. Withdraws this season's
  * consent for this recruit, with a required reason, and cancels everything
  * still queued for them rather than leaving each send to be refused one at a
- * time. `person_record_authority` is the same capability that edits the
+ * time. Recruit details at `edit` (LAN-432) is the same grant that edits the
  * recruit, which is what the issue asks for.
  */
 export async function stopMessagesAction(params: {
@@ -91,8 +90,8 @@ export async function stopMessagesAction(params: {
   listedReason: ConsentWithdrawalReason;
   note: string;
 }): Promise<RecruitmentActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: Recruit details at edit.
+  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
     await stopRecruitMessages(operator.personId, params.prospectId, {
       listedReason: params.listedReason,
@@ -110,8 +109,8 @@ export async function recordConsentAction(params: {
   prospectId: string;
   note: string;
 }): Promise<RecruitmentActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: Recruit details at edit.
+  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
     await recordRecruitConsent(operator.personId, params.prospectId, params.note);
   } catch (error) {

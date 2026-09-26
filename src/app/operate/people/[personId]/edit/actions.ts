@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 
 import { requireGrant } from "@/lib/auth/guards";
-import { isServiceError } from "@/lib/db";
+import { mayEditRoster } from "@/lib/auth/roster-access";
+import { isServiceError, NotPermitted } from "@/lib/db";
 import {
   addPersonAlias,
   removePersonAlias,
@@ -23,9 +24,10 @@ import {
   GENERIC_FAILURE,
   readEditFormValues,
   type EditFieldErrors,
+  type EditFormValues,
   type EditState,
 } from "./edit-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 
 // The record's one server action — W2, LAN-185. One submission for every
 // field: re-reads the record fresh, writes only what differs. The
@@ -37,11 +39,11 @@ export async function submitPersonEdit(
   previous: EditState,
   formData: FormData,
 ): Promise<EditState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: Person or Contact & emergency at edit; each field then needs its own.
+  const operator = requirePersonEditor(await requireGrant({ anyOf: "roster", minimum: "edit" }));
   const personId = String(formData.get("personId") ?? "");
-  const values = readEditFormValues(formData);
-  const expectedVersion = values.expectedVersion === "" ? null : values.expectedVersion;
+  const submitted = readEditFormValues(formData);
+  const expectedVersion = submitted.expectedVersion === "" ? null : submitted.expectedVersion;
 
   let current: PersonRecord;
   try {
@@ -49,6 +51,7 @@ export async function submitPersonEdit(
   } catch (error) {
     return { errors: {}, formError: safeMessage(error) };
   }
+  const values = withinGrantedCategories(operator, submitted, formData, current);
 
   const errors: EditFieldErrors = {};
   let versionChecked = false;
@@ -371,22 +374,22 @@ function safeMessage(error: unknown): string {
 // React overrides a formAction button's own name/value.
 
 export async function submitRemoveAlias(personId: string, aliasId: string): Promise<void> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: aliases are Person's.
+  const operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
   await removePersonAlias({ actorPersonId: operator.personId, personId, aliasId });
   redirect(`/operate/people/${personId}/edit`);
 }
 
 export async function submitSetDisplayAlias(personId: string, aliasId: string): Promise<void> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: aliases are Person's.
+  const operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
   await setDisplayNamePersonAlias({ actorPersonId: operator.personId, personId, aliasId });
   redirect(`/operate/people/${personId}/edit`);
 }
 
 export async function submitAddAlias(personId: string, formData: FormData): Promise<void> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: aliases are Person's.
+  const operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
   const newAlias = formData.get("newAlias");
   if (typeof newAlias === "string" && newAlias.trim() !== "") {
     await addPersonAlias({
@@ -397,4 +400,127 @@ export async function submitAddAlias(personId: string, formData: FormData): Prom
     });
   }
   redirect(`/operate/people/${personId}/edit`);
+}
+
+// ---------------------------------------------------------------------------
+// LAN-432 — each field needs its own category at edit
+// ---------------------------------------------------------------------------
+
+/** The mobile, the emails and the emergency contact: Contact & emergency's. Every other field is Person's. */
+const CONTACT_FIELDS = Object.freeze([
+  "mobile",
+  "personalEmail",
+  "collegeEmail",
+  "emergencyGivenName",
+  "emergencyFamilyName",
+  "emergencyRelationship",
+  "emergencyPhone",
+  "emergencyEmail",
+] as const);
+
+const PERSON_FIELDS = Object.freeze([
+  "givenName",
+  "middleName",
+  "familyName",
+  "college",
+  "matriculationYear",
+  "expectedGraduationYear",
+  "degreeField",
+  "studentNumber",
+  "bafaRegistrationNumber",
+  "dateOfBirth",
+] as const);
+
+type EditableField = (typeof CONTACT_FIELDS)[number] | (typeof PERSON_FIELDS)[number];
+
+/** A seat that edits neither half of the person has nothing to submit here. */
+function requirePersonEditor(operator: ResolvedOperator): ResolvedOperator {
+  if (
+    !mayEditRoster(operator.grants, "person") &&
+    !mayEditRoster(operator.grants, "contact_emergency")
+  ) {
+    throw new NotPermitted(
+      "You do not have access to this action. This needs access your seat does not hold.",
+      {
+        rule: "grant:roster.person>=edit|roster.contact_emergency>=edit",
+      },
+    );
+  }
+  return operator;
+}
+
+/** The value each field holds on the record now, in the form's own shape. */
+function recordedValue(record: PersonRecord, field: EditableField): string {
+  const ec = record.emergencyContact;
+  switch (field) {
+    case "mobile":
+      return currentMobile(record)?.rawValue ?? "";
+    case "personalEmail":
+      return currentEmail(record, "personal")?.rawValue ?? "";
+    case "collegeEmail":
+      return currentEmail(record, "college")?.rawValue ?? "";
+    case "emergencyGivenName":
+      return ec?.givenName ?? "";
+    case "emergencyFamilyName":
+      return ec?.familyName ?? "";
+    case "emergencyRelationship":
+      return ec?.relationship ?? "";
+    case "emergencyPhone":
+      return ec?.phone ?? "";
+    case "emergencyEmail":
+      return ec?.email ?? "";
+    case "givenName":
+      return record.givenName;
+    case "middleName":
+      return record.middleName ?? "";
+    case "familyName":
+      return record.familyName ?? "";
+    case "college":
+      return record.college ?? "";
+    case "matriculationYear":
+      return record.matriculationYear === null ? "" : String(record.matriculationYear);
+    case "expectedGraduationYear":
+      return record.expectedGraduationYear === null ? "" : String(record.expectedGraduationYear);
+    case "degreeField":
+      return record.degreeField ?? "";
+    case "studentNumber":
+      return record.studentNumber ?? "";
+    case "bafaRegistrationNumber":
+      return record.bafaRegistrationNumber ?? "";
+    case "dateOfBirth":
+      return record.dateOfBirth ?? "";
+  }
+}
+
+/**
+ * The submission, held to the seat's categories. A category the seat may not
+ * edit is not drawn on the form, so its fields arrive absent and keep the
+ * recorded value; one that arrives anyway with a different value is a forged
+ * edit, refused `NotPermitted` before anything is written.
+ */
+function withinGrantedCategories(
+  operator: ResolvedOperator,
+  submitted: EditFormValues,
+  formData: FormData,
+  current: PersonRecord,
+): EditFormValues {
+  const values: EditFormValues = { ...submitted };
+  const halves: readonly ["person" | "contact_emergency", readonly EditableField[]][] = [
+    ["person", PERSON_FIELDS],
+    ["contact_emergency", CONTACT_FIELDS],
+  ];
+  for (const [category, fields] of halves) {
+    if (mayEditRoster(operator.grants, category)) continue;
+    for (const field of fields) {
+      const recorded = recordedValue(current, field);
+      if (formData.has(field) && submitted[field].trim() !== recorded) {
+        throw new NotPermitted(
+          "You do not have access to this action. This needs access your seat does not hold.",
+          { rule: `grant:roster.${category}>=edit` },
+        );
+      }
+      values[field] = recorded;
+    }
+  }
+  return values;
 }

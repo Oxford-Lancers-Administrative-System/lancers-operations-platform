@@ -27,7 +27,11 @@ const ADD_PLAYERS_MENU_CHOICES: readonly {
   }),
 ]);
 
-export default function AddPlayersMenu() {
+export default function AddPlayersMenu({ canBulkImport = true }: { canBulkImport?: boolean }) {
+  // LAN-432: Bulk import keeps its own code capability beside the switch.
+  const choices = canBulkImport
+    ? ADD_PLAYERS_MENU_CHOICES
+    : ADD_PLAYERS_MENU_CHOICES.filter((choice) => choice.href !== "/operate/roster/import");
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
   return (
@@ -51,7 +55,7 @@ export default function AddPlayersMenu() {
         onClose={() => setAnchor(null)}
         slotProps={{ list: { "aria-labelledby": "add-players-button" } }}
       >
-        {ADD_PLAYERS_MENU_CHOICES.map((choice) => (
+        {choices.map((choice) => (
           <MenuItem
             key={choice.href}
             href={choice.href}

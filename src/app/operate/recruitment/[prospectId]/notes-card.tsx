@@ -18,9 +18,12 @@ import { addRecruitmentNoteAction } from "./actions";
 export default function NotesCard({
   prospectId,
   notes,
+  readOnly = false,
 }: {
   prospectId: string;
   notes: readonly RecruitmentProspectNote[];
+  /** LAN-432 — Recruit details at `view`: the notes read, nothing is added. */
+  readOnly?: boolean;
 }) {
   const slot = useOutcomeSlot("notes");
   const [draft, setDraft] = useState("");
@@ -57,26 +60,30 @@ export default function NotesCard({
           ))
         )}
       </Stack>
-      <Field
-        label="Add a note"
-        multiline
-        minRows={2}
-        placeholder="Add a note"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        data-testid="recruitment-note-draft"
-      />
-      {slot.showing && error ? <Notice severity="error">{error}</Notice> : null}
-      <Button
-        variant="outlined"
-        size="small"
-        sx={{ mt: 1, minHeight: 44 }}
-        disabled={pending || draft.trim() === ""}
-        onClick={submit}
-        data-testid="recruitment-note-add"
-      >
-        Add note
-      </Button>
+      {readOnly ? null : (
+        <>
+          <Field
+            label="Add a note"
+            multiline
+            minRows={2}
+            placeholder="Add a note"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            data-testid="recruitment-note-draft"
+          />
+          {slot.showing && error ? <Notice severity="error">{error}</Notice> : null}
+          <Button
+            variant="outlined"
+            size="small"
+            sx={{ mt: 1, minHeight: 44 }}
+            disabled={pending || draft.trim() === ""}
+            onClick={submit}
+            data-testid="recruitment-note-add"
+          >
+            Add note
+          </Button>
+        </>
+      )}
     </Box>
   );
 }

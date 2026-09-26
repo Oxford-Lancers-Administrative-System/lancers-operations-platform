@@ -20,9 +20,12 @@ import type { RecruitConsentSummary } from "@/lib/services/recruitment-prospect"
 export function MessagingSection({
   consent,
   displayName,
+  mayChange = true,
 }: {
   consent: RecruitConsentSummary;
   displayName: string;
+  /** LAN-432 — consent is a Recruit details write; without `edit` there the control is absent. */
+  mayChange?: boolean;
 }) {
   return (
     <Section variant="banded" band="person" title="Messaging">
@@ -32,13 +35,15 @@ export function MessagingSection({
           changedAt: consent.changedAt,
         })}
       </Fact>
-      <Fact label="Action">
-        <ConsentControl
-          prospectId={consent.prospectId}
-          displayName={displayName}
-          granted={consent.state === "granted"}
-        />
-      </Fact>
+      {mayChange ? (
+        <Fact label="Action">
+          <ConsentControl
+            prospectId={consent.prospectId}
+            displayName={displayName}
+            granted={consent.state === "granted"}
+          />
+        </Fact>
+      ) : null}
     </Section>
   );
 }

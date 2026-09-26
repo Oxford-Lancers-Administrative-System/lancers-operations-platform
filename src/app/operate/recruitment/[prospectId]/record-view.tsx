@@ -36,6 +36,9 @@ import {
   RSVP_LABEL,
 } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentProspectRecord } from "@/lib/services/recruitment-prospect";
+import type { VisibleProspectRecord } from "@/lib/services/recruitment-board-access";
+import { StatusPill } from "../../board-filter-controls";
+import { FULL_RECRUITING_ACCESS } from "../board-columns";
 import { NOT_RECORDED } from "@/components/fact";
 import { RecordField, RecordRow } from "@/components/record-field";
 import { Section } from "@/components/section";
@@ -70,23 +73,38 @@ export default function RecruitmentRecordView({
   history = [],
   alumniLabel = "Never a member",
   currentSeasonLabel = null,
+  mayOpenPerson = true,
 }: {
-  record: RecruitmentProspectRecord;
+  /** Narrowed on the server (LAN-432): a `none` category's keys are absent. */
+  record: VisibleProspectRecord;
   person: Partial<PersonRecord>;
   roles?: readonly PersonRoleAssignment[];
   seasons?: readonly PersonSeasonRecord[];
   history?: readonly PersonHistoryEntry[];
   alumniLabel?: string;
   currentSeasonLabel?: string | null;
+  /** LAN-432 — Person at `view` on the roster, which the person record asks. */
+  mayOpenPerson?: boolean;
 }) {
+  // LAN-432: each section follows its recruiting category. `none` is a locked
+  // head with nothing of it sent; `view` reads; `edit` as before.
+  const access = record.access ?? FULL_RECRUITING_ACCESS;
+  const personOpen = access.recruit_person !== "none";
+  const detailsOpen = access.recruit_details !== "none";
+  const detailsEdit = access.recruit_details === "edit";
+  const eventsOpen = access.recruit_events !== "none";
+
   // LAN-204 item 9: the consent deadlock, fixed — personal and recruitment
   // sends no longer share one gate. See `sendRecruitmentQuestionnaireIn`.
   // LAN-371: "WhatsApp granted", "Revoked (by operator, date)" or "Revoked (by
   // the person, date)" — the same sentence on the record and on the board.
-  const consentStatus = consentStatusLabel(record.consent, {
-    byOperator: record.consentByOperator,
-    changedAt: record.consentChangedAt,
-  });
+  const consentStatus =
+    record.consent !== undefined
+      ? consentStatusLabel(record.consent, {
+          byOperator: record.consentByOperator ?? false,
+          changedAt: record.consentChangedAt ?? null,
+        })
+      : null;
 
   const blockedByStatus = record.status === "declined";
   const blockedByRefusal = record.consent === "refused" || record.consent === "withdrawn";
@@ -95,7 +113,7 @@ export default function RecruitmentRecordView({
   const canSendPersonal = !blockedByStatus && !blockedByRefusal;
   const canSendRecruitment = !blockedByStatus && grantedViaSignupForm;
 
-  const declinedOn = record.statusHistory.find(
+  const declinedOn = record.statusHistory?.find(
     (event) => event.toStatus === "declined",
   )?.occurredAt;
 
@@ -127,6 +145,43 @@ export default function RecruitmentRecordView({
         ? "This recruit has withdrawn messaging consent."
         : null;
 
+  const personal = record.personal;
+  const answers = record.answers;
+  const events = eventsOpen ? record.events : undefined;
+  const statusHistory = record.statusHistory;
+  const recruitmentSend = record.recruitment;
+  const status = record.status;
+  const metrics = [
+    status !== undefined ? (
+      <Metric
+        key="status"
+        value={
+          <StatusChip domain="recruitment" status={status} label={PROSPECT_STATUS_LABELS[status]} />
+        }
+        label="Recruit status"
+      />
+    ) : null,
+    consentStatus !== null ? (
+      <Metric key="consent" value={consentStatus} label="WhatsApp consent" />
+    ) : null,
+    personal !== undefined ? (
+      <Metric
+        key="personal"
+        value={personal.lastSentAt ? "Sent" : personal.queuedFor ? "Queued" : "Not sent"}
+        label="Personal questionnaire"
+      />
+    ) : null,
+    recruitmentSend !== undefined ? (
+      <Metric
+        key="recruitment"
+        value={
+          recruitmentSend.lastSentAt ? "Sent" : recruitmentSend.queuedFor ? "Queued" : "Not sent"
+        }
+        label="Recruitment questionnaire"
+      />
+    ) : null,
+  ].filter((metric) => metric !== null);
+
   return (
     <OutcomeSlotProvider>
       <Box
@@ -146,27 +201,39 @@ export default function RecruitmentRecordView({
           title={record.displayName}
           eyebrow={`Recruitment · ${record.seasonLabel}`}
           subtitle={
-            <span data-testid="recruitment-subtitle">{`${record.seasonLabel} recruitment · ${PROSPECT_STATUS_LABELS[record.status]}`}</span>
+            <span data-testid="recruitment-subtitle">
+              {record.status !== undefined
+                ? `${record.seasonLabel} recruitment · ${PROSPECT_STATUS_LABELS[record.status]}`
+                : `${record.seasonLabel} recruitment`}
+            </span>
           }
           back={{ href: "/operate/recruitment", label: "Back to recruitment" }}
           status={
-            <StatusChip
-              domain="recruitment"
-              status={record.status}
-              label={`Recruit status · ${PROSPECT_STATUS_LABELS[record.status]}`}
-            />
+            // LAN-432, Brian round 4: the header's status is text, never a pill.
+            record.status !== undefined ? (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                component="span"
+                data-testid="recruitment-header-status"
+              >
+                {`Recruit status · ${PROSPECT_STATUS_LABELS[record.status]}`}
+              </Typography>
+            ) : undefined
           }
           actions={
             <>
               {/* LAN-307: where a correction is made, in the place the person
                   page puts its own record actions. */}
-              <Button
-                variant="outlined"
-                href={`/operate/people/${record.personId}`}
-                data-testid="open-person-record"
-              >
-                Open the person record
-              </Button>
+              {mayOpenPerson && personOpen ? (
+                <Button
+                  variant="outlined"
+                  href={`/operate/people/${record.personId}`}
+                  data-testid="open-person-record"
+                >
+                  Open the person record
+                </Button>
+              ) : null}
               {record.convertedMembershipId ? (
                 <Button variant="outlined" href={`/operate/roster/${record.convertedMembershipId}`}>
                   Joined — view on the roster
@@ -179,48 +246,23 @@ export default function RecruitmentRecordView({
                 the mechanism is this control. The reverse is the same control
                 when consent is not standing.
               */}
-              <ConsentControl
-                prospectId={record.prospectId}
-                displayName={record.displayName}
-                granted={record.consent === "granted"}
-              />
+              {detailsEdit ? (
+                <ConsentControl
+                  prospectId={record.prospectId}
+                  displayName={record.displayName}
+                  granted={record.consent === "granted"}
+                />
+              ) : null}
             </>
           }
         />
         {/* V-8: headline strip mirrors the roster record's own strip (own shape, not shared import). */}
-        <MetricRow columns={4} testId="recruitment-headline-strip">
-          <Metric
-            value={
-              <StatusChip
-                domain="recruitment"
-                status={record.status}
-                label={PROSPECT_STATUS_LABELS[record.status]}
-              />
-            }
-            label="Recruit status"
-          />
-          <Metric value={consentStatus} label="WhatsApp consent" />
-          <Metric
-            value={
-              record.personal.lastSentAt
-                ? "Sent"
-                : record.personal.queuedFor
-                  ? "Queued"
-                  : "Not sent"
-            }
-            label="Personal questionnaire"
-          />
-          <Metric
-            value={
-              record.recruitment.lastSentAt
-                ? "Sent"
-                : record.recruitment.queuedFor
-                  ? "Queued"
-                  : "Not sent"
-            }
-            label="Recruitment questionnaire"
-          />
-        </MetricRow>
+        {/* LAN-432: a tile built from a `none` category is absent. */}
+        {metrics.length > 0 ? (
+          <MetricRow columns={4} testId="recruitment-headline-strip">
+            {metrics}
+          </MetricRow>
+        ) : null}
 
         {/* Person and Recruitment stacked full width — mirrors the shipped roster bands. */}
         <Stack spacing={3} data-testid="recruitment-record-top-bands">
@@ -228,212 +270,276 @@ export default function RecruitmentRecordView({
               the same record under the same redaction — not a second, drifting
               four-field summary of it. The send actions stay at the top, with
               the destination beside them. */}
-          <Section variant="banded" band="person" title="Personal questionnaire" testId="person">
-            <RecordField label="Sends to" value={sendsTo} readOnly />
-            <Box sx={{ py: 1.5 }}>
-              <SendQuestionnaireButton
-                prospectId={record.prospectId}
-                track="personal"
-                displayName={record.displayName}
-                lastSentAt={record.personal.lastSentAt}
-                canSend={canSendPersonal}
-                disabledReason={personalDisabledReason}
-                blockedByDecline={blockedByStatus}
-              />
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 1 }}
-                data-testid="personal-send-caption"
-              >
-                {record.personal.lastSentAt ? (
-                  `Sent — last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
-                ) : record.personal.queuedFor ? (
-                  <QueuedSendTime scheduledFor={record.personal.queuedFor} />
-                ) : record.personal.cancelledReason ? (
-                  /* LAN-341: the state is still Not sent, and the club's own
-                     recorded reason says why nothing more is coming. */
-                  `Not sent — ${record.personal.cancelledReason}`
-                ) : (
-                  "Not sent"
-                )}
-              </Typography>
-            </Box>
-          </Section>
+          {personal === undefined ? (
+            <Section
+              variant="banded"
+              band="person"
+              title="Personal questionnaire"
+              testId="person"
+              locked
+            />
+          ) : (
+            <Section variant="banded" band="person" title="Personal questionnaire" testId="person">
+              <RecordField label="Sends to" value={sendsTo} readOnly />
+              <Box sx={{ py: 1.5 }}>
+                {detailsEdit ? (
+                  <SendQuestionnaireButton
+                    prospectId={record.prospectId}
+                    track="personal"
+                    displayName={record.displayName}
+                    lastSentAt={personal.lastSentAt}
+                    canSend={canSendPersonal}
+                    disabledReason={personalDisabledReason}
+                    blockedByDecline={blockedByStatus}
+                  />
+                ) : null}
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: "block", mt: 1 }}
+                  data-testid="personal-send-caption"
+                >
+                  {personal.lastSentAt ? (
+                    `Sent — last sent ${formatWhen(new Date(personal.lastSentAt))}`
+                  ) : personal.queuedFor ? (
+                    <QueuedSendTime scheduledFor={personal.queuedFor} />
+                  ) : personal.cancelledReason ? (
+                    /* LAN-341: the state is still Not sent, and the club's own
+                       recorded reason says why nothing more is coming. */
+                    `Not sent — ${personal.cancelledReason}`
+                  ) : (
+                    "Not sent"
+                  )}
+                </Typography>
+              </Box>
+            </Section>
+          )}
 
           {/* LAN-365 correction: "Who they are" (which now also carries the
               academic facts and the two identifiers) renders after "How to
               reach them", the same order the canonical person record uses. */}
-          {person.contacts !== undefined ? (
-            <ContactSection record={person} currentSeasonLabel={currentSeasonLabel} />
-          ) : null}
-          <IdentitySection record={person} />
-          {person.dateOfBirth !== undefined ? <RestrictedSection record={person} /> : null}
-          {person.status !== undefined ? (
-            <StatusSection record={person} roles={roles} alumniLabel={alumniLabel} />
-          ) : null}
+          {personOpen ? (
+            <>
+              {person.contacts !== undefined ? (
+                <ContactSection record={person} currentSeasonLabel={currentSeasonLabel} />
+              ) : null}
+              <IdentitySection record={person} />
+              {person.dateOfBirth !== undefined ? <RestrictedSection record={person} /> : null}
+              {person.status !== undefined ? (
+                <StatusSection record={person} roles={roles} alumniLabel={alumniLabel} />
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Section variant="banded" band="person" title="How to reach them" locked />
+              <Section variant="banded" band="person" title="Who they are" locked />
+              <Section variant="banded" band="person" title="Restricted" locked />
+              <Section variant="banded" band="person" title="Where they stand" locked />
+            </>
+          )}
 
-          <Section variant="banded" band="recruitment" title="Recruitment" testId="recruitment">
-            <StatusRow
-              status={record.status}
-              prospectId={record.prospectId}
-              displayName={record.displayName}
-              seasonLabel={record.seasonLabel}
+          {status === undefined || answers === undefined || recruitmentSend === undefined ? (
+            <Section
+              variant="banded"
+              band="recruitment"
+              title="Recruitment"
+              testId="recruitment"
+              locked
             />
-            <RecordField label="Source" value={record.source} readOnly />
-            <RecordField
-              label="First contact"
-              value={record.firstContactOn ? formatDay(record.firstContactOn) : null}
-              readOnly
-            />
-            <RecordField
-              label="Committed on"
-              value={record.committedOn ? formatDay(record.committedOn) : null}
-              readOnly
-            />
-            <RecordField label="WhatsApp consent" value={consentStatus} readOnly />
-            <RecordField
-              label="Played before"
-              value={record.answers.playedBefore ? RSVP_LABEL[record.answers.playedBefore] : null}
-              readOnly
-            />
-            <RecordField
-              label="Watched before"
-              value={record.answers.watchedBefore ? RSVP_LABEL[record.answers.watchedBefore] : null}
-              readOnly
-            />
-            <RecordField
-              label="Position interest"
-              value={record.answers.positionInterest}
-              readOnly
-            />
-            <RecordField label="Gear owned" value={record.answers.gearOwned} readOnly />
-            <RecordField label="How they heard" value={record.answers.howTheyHeard} readOnly />
-            <RecordField label="Anything else" value={record.answers.anythingElse} readOnly />
-            <Box sx={{ py: 1.5 }}>
-              <SendQuestionnaireButton
+          ) : (
+            <Section variant="banded" band="recruitment" title="Recruitment" testId="recruitment">
+              <StatusRow
+                editable={detailsEdit}
+                status={status}
                 prospectId={record.prospectId}
-                track="recruitment"
                 displayName={record.displayName}
-                lastSentAt={record.recruitment.lastSentAt}
-                canSend={canSendRecruitment}
-                disabledReason={recruitmentDisabledReason}
-                blockedByDecline={blockedByStatus}
+                seasonLabel={record.seasonLabel}
               />
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 1 }}
-                data-testid="recruitment-send-caption"
-              >
-                {record.recruitment.lastSentAt ? (
-                  `Sent — last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
-                ) : record.recruitment.queuedFor ? (
-                  <QueuedSendTime scheduledFor={record.recruitment.queuedFor} />
-                ) : record.recruitment.cancelledReason ? (
-                  /* LAN-341: the state is still Not sent, and the club's own
-                     recorded reason says why nothing more is coming. */
-                  `Not sent — ${record.recruitment.cancelledReason}`
-                ) : (
-                  "Not sent"
-                )}
-              </Typography>
-            </Box>
-          </Section>
+              <RecordField label="Source" value={record.source ?? null} readOnly />
+              <RecordField
+                label="First contact"
+                value={record.firstContactOn ? formatDay(record.firstContactOn) : null}
+                readOnly
+              />
+              <RecordField
+                label="Committed on"
+                value={record.committedOn ? formatDay(record.committedOn) : null}
+                readOnly
+              />
+              <RecordField label="WhatsApp consent" value={consentStatus} readOnly />
+              <RecordField
+                label="Played before"
+                value={answers.playedBefore ? RSVP_LABEL[answers.playedBefore] : null}
+                readOnly
+              />
+              <RecordField
+                label="Watched before"
+                value={answers.watchedBefore ? RSVP_LABEL[answers.watchedBefore] : null}
+                readOnly
+              />
+              <RecordField label="Position interest" value={answers.positionInterest} readOnly />
+              <RecordField label="Gear owned" value={answers.gearOwned} readOnly />
+              <RecordField label="How they heard" value={answers.howTheyHeard} readOnly />
+              <RecordField label="Anything else" value={answers.anythingElse} readOnly />
+              <Box sx={{ py: 1.5 }}>
+                {detailsEdit ? (
+                  <SendQuestionnaireButton
+                    prospectId={record.prospectId}
+                    track="recruitment"
+                    displayName={record.displayName}
+                    lastSentAt={recruitmentSend.lastSentAt}
+                    canSend={canSendRecruitment}
+                    disabledReason={recruitmentDisabledReason}
+                    blockedByDecline={blockedByStatus}
+                  />
+                ) : null}
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: "block", mt: 1 }}
+                  data-testid="recruitment-send-caption"
+                >
+                  {recruitmentSend.lastSentAt ? (
+                    `Sent — last sent ${formatWhen(new Date(recruitmentSend.lastSentAt))}`
+                  ) : recruitmentSend.queuedFor ? (
+                    <QueuedSendTime scheduledFor={recruitmentSend.queuedFor} />
+                  ) : recruitmentSend.cancelledReason ? (
+                    /* LAN-341: the state is still Not sent, and the club's own
+                       recorded reason says why nothing more is coming. */
+                    `Not sent — ${recruitmentSend.cancelledReason}`
+                  ) : (
+                    "Not sent"
+                  )}
+                </Typography>
+              </Box>
+            </Section>
+          )}
         </Stack>
 
         {/* LAN-253: recruitment events, notes and status history stacked single column, not two-up. */}
         <Stack spacing={3} data-testid="recruitment-record-lower-bands">
-          <Section variant="banded" band="attendance" title="Recruitment events" testId="events">
-            {record.events.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-                {NOT_RECORDED}
-              </Typography>
-            ) : (
-              <Box sx={{ overflowX: "auto" }}>
-                <Table size="small" data-testid="recruitment-record-events">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Event</TableCell>
-                      <TableCell>Date</TableCell>
-                      <TableCell>RSVP</TableCell>
-                      <TableCell>Attendance</TableCell>
-                      <TableCell>Event status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {record.events.map((event) => (
-                      <TableRow key={event.eventId}>
-                        <TableCell>{event.name}</TableCell>
-                        <TableCell>{event.date ? formatDay(event.date) : NOT_RECORDED}</TableCell>
-                        <TableCell>{event.rsvp ? RSVP_LABEL[event.rsvp] : NOT_RECORDED}</TableCell>
-                        <TableCell>
-                          {event.attendance ? ATTENDANCE_LABEL[event.attendance] : NOT_RECORDED}
-                        </TableCell>
-                        <TableCell>{EVENT_STATUS_LABEL[event.eventStatus]}</TableCell>
+          {events === undefined ? (
+            <Section
+              variant="banded"
+              band="attendance"
+              title="Recruitment events"
+              testId="events"
+              locked
+            />
+          ) : (
+            <Section variant="banded" band="attendance" title="Recruitment events" testId="events">
+              {events.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                  {NOT_RECORDED}
+                </Typography>
+              ) : (
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table size="small" data-testid="recruitment-record-events">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Event</TableCell>
+                        <TableCell>Date</TableCell>
+                        <TableCell>RSVP</TableCell>
+                        <TableCell>Attendance</TableCell>
+                        <TableCell>Event status</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHead>
+                    <TableBody>
+                      {events.map((event) => (
+                        <TableRow key={event.eventId}>
+                          <TableCell>{event.name}</TableCell>
+                          <TableCell>{event.date ? formatDay(event.date) : NOT_RECORDED}</TableCell>
+                          <TableCell>
+                            {event.rsvp ? RSVP_LABEL[event.rsvp] : NOT_RECORDED}
+                          </TableCell>
+                          <TableCell>
+                            {event.attendance ? ATTENDANCE_LABEL[event.attendance] : NOT_RECORDED}
+                          </TableCell>
+                          <TableCell>{EVENT_STATUS_LABEL[event.eventStatus]}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
+              )}
+            </Section>
+          )}
+
+          {record.notes === undefined ? (
+            <Section variant="banded" band="person" title="Notes" testId="notes" locked />
+          ) : (
+            <Section variant="banded" band="person" title="Notes" testId="notes">
+              <Box sx={{ py: 1 }}>
+                <NotesCard
+                  prospectId={record.prospectId}
+                  notes={record.notes}
+                  readOnly={!detailsEdit}
+                />
               </Box>
-            )}
-          </Section>
+            </Section>
+          )}
 
-          <Section variant="banded" band="person" title="Notes" testId="notes">
-            <Box sx={{ py: 1 }}>
-              <NotesCard prospectId={record.prospectId} notes={record.notes} />
-            </Box>
-          </Section>
-
-          <SeasonsSection seasons={seasons} />
+          {personOpen ? (
+            <SeasonsSection seasons={seasons} />
+          ) : (
+            <Section variant="banded" band="season" title="Their seasons" locked />
+          )}
 
           {/* Collapsed here. "Show all" opens the canonical page, which owns the
               filter form and the query string it reads (LAN-307). */}
-          <HistorySection
-            personId={record.personId}
-            history={history}
-            historyExpanded={false}
-            historyField=""
-            historyActor=""
-          />
+          {detailsOpen ? (
+            <HistorySection
+              personId={record.personId}
+              history={history}
+              historyExpanded={false}
+              historyField=""
+              historyActor=""
+            />
+          ) : (
+            <Section title="What changed" locked />
+          )}
 
-          <Section collapsible title="Status history" testId="status-history">
-            {record.statusHistory.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-                {NOT_RECORDED}
-              </Typography>
-            ) : (
-              <Box sx={{ overflowX: "auto" }}>
-                <Table size="small" data-testid="recruitment-record-history">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>From</TableCell>
-                      <TableCell>To</TableCell>
-                      <TableCell>When</TableCell>
-                      <TableCell>By</TableCell>
-                      <TableCell>Reason</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {record.statusHistory.map((event) => (
-                      <TableRow key={event.id}>
-                        <TableCell>
-                          {event.fromStatus
-                            ? PROSPECT_STATUS_LABELS[event.fromStatus]
-                            : NOT_RECORDED}
-                        </TableCell>
-                        <TableCell>{PROSPECT_STATUS_LABELS[event.toStatus]}</TableCell>
-                        {/* LAN-248: shared formatter, not toLocaleString() — docs/ux/standards.md rule 3. */}
-                        <TableCell>{formatWhen(new Date(event.occurredAt))}</TableCell>
-                        <TableCell>{event.actorLabel}</TableCell>
-                        <TableCell>{event.reason ?? NOT_RECORDED}</TableCell>
+          {statusHistory === undefined ? (
+            <Section title="Status history" testId="status-history" locked />
+          ) : (
+            <Section collapsible title="Status history" testId="status-history">
+              {statusHistory.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                  {NOT_RECORDED}
+                </Typography>
+              ) : (
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table size="small" data-testid="recruitment-record-history">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>From</TableCell>
+                        <TableCell>To</TableCell>
+                        <TableCell>When</TableCell>
+                        <TableCell>By</TableCell>
+                        <TableCell>Reason</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
-          </Section>
+                    </TableHead>
+                    <TableBody>
+                      {statusHistory.map((event) => (
+                        <TableRow key={event.id}>
+                          <TableCell>
+                            {event.fromStatus
+                              ? PROSPECT_STATUS_LABELS[event.fromStatus]
+                              : NOT_RECORDED}
+                          </TableCell>
+                          <TableCell>{PROSPECT_STATUS_LABELS[event.toStatus]}</TableCell>
+                          {/* LAN-248: shared formatter, not toLocaleString() — docs/ux/standards.md rule 3. */}
+                          <TableCell>{formatWhen(new Date(event.occurredAt))}</TableCell>
+                          <TableCell>{event.actorLabel}</TableCell>
+                          <TableCell>{event.reason ?? NOT_RECORDED}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
+              )}
+            </Section>
+          )}
         </Stack>
       </Box>
     </OutcomeSlotProvider>
@@ -444,16 +550,26 @@ export default function RecruitmentRecordView({
  * The Recruitment card's Status row — same click-to-edit pill as other board cells.
  */
 function StatusRow({
+  editable,
   status,
   prospectId,
   displayName,
   seasonLabel,
 }: {
+  /** LAN-432 — Recruit details at `edit`. At `view` the status is the board's own pill. */
+  editable: boolean;
   status: RecruitmentProspectRecord["status"];
   prospectId: string;
   displayName: string;
   seasonLabel: string;
 }) {
+  if (!editable) {
+    return (
+      <RecordRow label="Status">
+        <StatusPill domain="recruitment" status={status} label={PROSPECT_STATUS_LABELS[status]} />
+      </RecordRow>
+    );
+  }
   return (
     <RecordRow label="Status">
       <StatusCell

@@ -7,10 +7,12 @@ import { readPlayerRecord } from "@/lib/services/player-record";
 import type { PersonRecord } from "@/lib/services/person-record";
 import { gateShellPage } from "../../gate";
 import PlayerRecordView from "./record-view";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { ROSTER_REACH } from "@/lib/auth/roster-access";
+import { redactPlayerRecord } from "@/lib/services/player-record-access";
 
-// `/operate/roster/[membershipId]` — W6, rebuilt, LAN-187. Gated on
-// `person_record_authority` (`REQ-authority`).
+// `/operate/roster/[membershipId]` — W6, rebuilt, LAN-187. Records open for
+// anyone who reaches the roster (LAN-432); each section then follows its own
+// category, and a `none` section's contents never leave this server.
 export default async function PlayerRecordPage({
   params,
   searchParams,
@@ -18,8 +20,7 @@ export default async function PlayerRecordPage({
   const { membershipId } = await params;
   const query = await searchParams;
 
-  // LAN-429 bridge: replaced by LAN-432
-  const gate = await gateShellPage(`/operate/roster/${membershipId}`, PERSON_RECORD_BRIDGE);
+  const gate = await gateShellPage(`/operate/roster/${membershipId}`, ROSTER_REACH);
   if ("screen" in gate) return gate.screen;
   const { operator } = gate;
 
@@ -51,7 +52,7 @@ export default async function PlayerRecordPage({
 
   return (
     <PlayerRecordView
-      record={result.data}
+      record={redactPlayerRecord(result.data, operator.grants)}
       person={person}
       justCreated={justCreated}
       linkedExisting={linkedExisting}

@@ -2,7 +2,7 @@ import { EmptyState } from "@/components/empty-state";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
-import { operatorHoldsAccess } from "@/lib/auth/guards";
+import { operatorHoldsGrant } from "@/lib/auth/guards";
 import { EVENT_PERIODS, periodBounds, type EventPeriod } from "@/lib/services/event-periods";
 import { countPeople, readFollowUpsQueue, type FollowUpEvent } from "@/lib/services/follow-ups";
 import { UnavailableScreen } from "@/app/operate/unavailable";
@@ -19,7 +19,6 @@ import {
 } from "./queue-filters";
 import { currentTermBounds } from "./term-bounds";
 import { EMPTY_QUEUE, PAGE_HEADING, subheading } from "./presentation";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 const FOLLOW_UPS_PATH = "/operate/admin/follow-ups";
 
@@ -103,8 +102,12 @@ export default async function FollowUpsPage({
           rows={sorted}
           // LAN-431: the chase column exists when any row's template is managed; each row says its own.
           mayChase={rows.some((row) => row.mayChase)}
-          // LAN-429 bridge: replaced by LAN-432
-          mayOpenPerson={operatorHoldsAccess(gate.operator, PERSON_RECORD_BRIDGE)}
+          // LAN-432: the person record opens with Person at view.
+          mayOpenPerson={operatorHoldsGrant(
+            gate.operator,
+            { kind: "roster", key: "person" },
+            "view",
+          )}
         />
       )}
     </Stack>

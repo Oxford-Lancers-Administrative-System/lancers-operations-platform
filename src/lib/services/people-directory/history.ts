@@ -16,6 +16,12 @@ export interface PersonHistoryEntry {
   toValue: string | null;
   actorDisplayName: string;
   reason: string | null;
+  /**
+   * LAN-432 — a change to a contact point or the emergency contact: Contact &
+   * emergency, which a seat may hold at `none` while it reads the rest of the
+   * history as Person. The record page drops these for that seat.
+   */
+  contactFact?: boolean;
 }
 
 function humanizeAction(action: string): string {
@@ -136,6 +142,8 @@ export async function readPersonHistory(personId: string): Promise<PersonHistory
       toValue: row.to_state,
       actorDisplayName: row.actor_display_name ?? row.actor_label ?? "Unknown",
       reason: row.reason,
+      contactFact:
+        row.entity_table === "contact_points" || row.entity_table === "person_emergency_contacts",
     }));
 
     return [...fromStatusEvents, ...fromAudit].sort(

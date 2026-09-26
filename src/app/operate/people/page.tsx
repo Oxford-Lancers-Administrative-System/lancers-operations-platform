@@ -14,7 +14,8 @@ import { gateShellPage } from "../gate";
 import PeopleFilters from "./people-filters";
 import PeopleTable, { PEOPLE_SORT_OPTIONS } from "./people-table";
 import PeopleCards from "./people-cards";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { mayEditRoster, mayViewRoster, ROSTER_REACH } from "@/lib/auth/roster-access";
+import type { PersonListEntry } from "@/lib/services/people-directory";
 
 function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -26,15 +27,19 @@ function first(value: string | string[] | undefined): string {
  * the widened (outside-season) view. LAN-184, `REQ-person-record`.
  */
 export default async function PeoplePage({ searchParams }: PageProps<"/operate/people">) {
-  // LAN-429 bridge: replaced by LAN-432
-  const gate = await gateShellPage("/operate/people", PERSON_RECORD_BRIDGE);
+  // LAN-432: People follows the roster's grants (Brian, 2026-09-25). Anyone
+  // who reaches the roster reaches the list; with None on Person a row is the
+  // name alone, and nothing of Person is filtered, sorted or sent.
+  const gate = await gateShellPage("/operate/people", ROSTER_REACH);
   if ("screen" in gate) return gate.screen;
+  const personVisible = mayViewRoster(gate.operator.grants, "person");
+  const mayAdd = mayEditRoster(gate.operator.grants, "person");
 
   const params = await searchParams;
   const search = first(params.q);
-  const status = first(params.status);
-  const missingOnly = first(params.missing) === "yes";
-  const sort = first(params.sort) || DEFAULT_PEOPLE_SORT;
+  const status = personVisible ? first(params.status) : "";
+  const missingOnly = personVisible && first(params.missing) === "yes";
+  const sort = (personVisible ? first(params.sort) : "") || DEFAULT_PEOPLE_SORT;
   const direction = first(params.dir) || "asc";
   const scope: PeopleScope = first(params.scope) === "outside" ? "outside_season" : "in_season";
   const filtered = search !== "" || status !== "" || missingOnly;
@@ -54,6 +59,7 @@ export default async function PeoplePage({ searchParams }: PageProps<"/operate/p
     return <UnavailableScreen title="People" message={error.message} testId="people-unavailable" />;
   }
 
+  const entries = personVisible ? list.entries : list.entries.map(nameOnly);
   const basePath = "/operate/people";
   const outsideHref = `${basePath}?scope=outside`;
   const backHref = basePath;
@@ -70,11 +76,13 @@ export default async function PeoplePage({ searchParams }: PageProps<"/operate/p
         title="People"
         subtitle={<span data-testid="people-scope-label">{subline}</span>}
         actions={
-          list.entries.length > 0 ? (
+          entries.length > 0 ? (
             <>
-              <Button variant="contained" href="/operate/people/new">
-                Add a person
-              </Button>
+              {mayAdd ? (
+                <Button variant="contained" href="/operate/people/new">
+                  Add a person
+                </Button>
+              ) : null}
               <Button variant="outlined" href={scope === "in_season" ? outsideHref : backHref}>
                 {scope === "in_season" ? "See people outside this season" : "Back to this season"}
               </Button>
@@ -86,7 +94,8 @@ export default async function PeoplePage({ searchParams }: PageProps<"/operate/p
       <PeopleFilters
         basePath={basePath}
         scope={scope}
-        sortColumns={PEOPLE_SORT_OPTIONS}
+        sortColumns={personVisible ? PEOPLE_SORT_OPTIONS : PEOPLE_SORT_OPTIONS.slice(0, 1)}
+        nameOnly={!personVisible}
         search={search}
         status={status}
         missingOnly={missingOnly}
@@ -94,12 +103,18 @@ export default async function PeoplePage({ searchParams }: PageProps<"/operate/p
         direction={direction}
       />
 
-      {list.entries.length === 0 ? (
-        <EmptyPeople scope={scope} filtered={filtered} outsideHref={outsideHref} />
+      {entries.length === 0 ? (
+        <EmptyPeople scope={scope} filtered={filtered} outsideHref={outsideHref} mayAdd={mayAdd} />
       ) : (
         <>
-          <PeopleTable entries={list.entries} sort={sort} direction={direction} query={params} />
-          <PeopleCards entries={list.entries} />
+          <PeopleTable
+            entries={entries}
+            sort={sort}
+            direction={direction}
+            query={params}
+            nameOnly={!personVisible}
+          />
+          <PeopleCards entries={entries} />
         </>
       )}
     </Stack>
@@ -116,10 +131,13 @@ function EmptyPeople({
   scope,
   filtered,
   outsideHref,
+  mayAdd,
 }: {
   scope: PeopleScope;
   filtered: boolean;
   outsideHref: string;
+  /** Person at `edit` (LAN-432). */
+  mayAdd: boolean;
 }) {
   const title = filtered
     ? scope === "in_season"
@@ -152,11 +170,30 @@ function EmptyPeople({
               See people outside this season
             </Button>
           ) : null}
-          <Button variant="outlined" href="/operate/people/new" sx={{ minHeight: 44 }}>
-            Add a person
-          </Button>
+          {mayAdd ? (
+            <Button variant="outlined" href="/operate/people/new" sx={{ minHeight: 44 }}>
+              Add a person
+            </Button>
+          ) : null}
         </Stack>
       }
     />
   );
+}
+
+/**
+ * A row as a seat with None on Person receives it — LAN-432: the name and the
+ * id that opens the record, and nothing else of the person.
+ */
+function nameOnly(entry: PersonListEntry): PersonListEntry {
+  return {
+    personId: entry.personId,
+    displayName: entry.displayName,
+    matchedAlias: null,
+    status: null,
+    clubRoleSummary: null,
+    hasMobile: false,
+    hasPersonalEmail: false,
+    missingRequiredFields: [],
+  };
 }

@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 
-import { requireGeneralOperator } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
+import { ADD_TO_ROSTER } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import {
   enterReturningPlayer,
@@ -14,15 +15,15 @@ import { readIntakeValues, validateIntake, type IntakeFormValues } from "./valid
 
 // The returner intake server action — LAN-74, UX-10..13. One action with an
 // intent (check / use_existing / confirm_new), not three, so the guard can't
-// be forgotten on one path. Guarded on `requireGeneralOperator()` — deliberately
-// not a new capability (excludes coaching seats via LAN-110, not a mapping).
+// be forgotten on one path. Guarded on the May add to the roster switch
+// (LAN-432), which the seat page sets; a seat without it is refused.
 // Nothing writes until use_existing/confirm_new.
 
 export async function submitReturnerIntake(
   _previous: IntakeState,
   formData: FormData,
 ): Promise<IntakeState> {
-  const operator = await requireGeneralOperator();
+  const operator = await requireGrant(ADD_TO_ROSTER);
 
   const values = readIntakeValues(formData);
   const intent = formData.get("intent");

@@ -1,10 +1,12 @@
 import { gateShellPage } from "../../gate";
 import CreatePersonForm from "./create-person-form";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import type { GrantRule } from "@/lib/auth/grants";
+
+// LAN-432: creating a person needs Person at edit.
+const PERSON_EDIT: GrantRule = { subject: { kind: "roster", key: "person" }, minimum: "edit" };
 
 export default async function AddPersonPage() {
-  // LAN-429 bridge: replaced by LAN-432
-  const gate = await gateShellPage("/operate/people/new", PERSON_RECORD_BRIDGE);
+  const gate = await gateShellPage("/operate/people/new", PERSON_EDIT);
   if ("screen" in gate) return gate.screen;
 
   return <CreatePersonForm />;

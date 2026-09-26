@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireCapability, requireGrant } from "@/lib/auth/guards";
+import { ADD_TO_ROSTER } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import { MAX_IMPORT_BYTES } from "@/lib/services/roster-csv";
 import {
@@ -59,6 +60,8 @@ export async function importRosterAction(
   formData: FormData,
 ): Promise<ImportScreenState> {
   await requireCapability("roster_bulk_import");
+  // LAN-432: bulk import is adding to the roster, so it needs the switch too.
+  await requireGrant(ADD_TO_ROSTER);
 
   const intent = text(formData, "intent");
   if (intent === "cancel") return EMPTY_IMPORT_STATE;

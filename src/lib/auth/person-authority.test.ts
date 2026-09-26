@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { seededGrantsFor } from "./capabilities";
-import { mergeGrantRows, PERSON_RECORD_BRIDGE, type GrantRow } from "./grants";
+import { mergeGrantRows, type GrantRow } from "./grants";
 import {
   categoriesGranted,
   holdsFullPersonRecordAuthority,
@@ -59,46 +59,62 @@ describe("the person-record capability — the four offices and the administrati
     expect(holdsFullPersonRecordAuthority(seededGrantsFor(["it_officer"]))).toBe(true);
   });
 
-  it("reads the LAN-429 bridge for every category until LAN-432 splits them", () => {
-    // `person_record_authority` is gone (LAN-429); every category asks the
-    // bridge — every roster and recruiting line at its maximum.
+  it("maps each category to its own roster grant (LAN-432)", () => {
+    // Who they are, academic facts, date of birth and standing read as Person;
+    // the contacts and the emergency contact as Contact & emergency.
     for (const category of PERSON_FIELD_CATEGORIES) {
-      expect(PERSON_CATEGORY_CAPABILITY[category]).toBe(PERSON_RECORD_BRIDGE);
+      expect(PERSON_CATEGORY_CAPABILITY[category], category).toEqual({
+        subject: { kind: "roster", key: category === "contact" ? "contact_emergency" : "person" },
+        minimum: "view",
+      });
     }
   });
 
-  it("drops a seat off the bridge the moment one of its lines is lowered — never widens", () => {
-    // The Vice-President starts full and is removable (W1). Lowering one line
-    // takes the whole bridged record away until LAN-432 answers per category:
-    // the safe direction.
+  it("a seat with View on Person and None on Contact & emergency reads every fact but the contacts", () => {
+    const personOnly = mergeGrantRows([row("person", "view")]);
+    const visible = redactPersonRecord(FULL_RECORD, personOnly);
+    expect(visible.givenName).toBe("Bertram");
+    expect(visible.dateOfBirth).toBe("2005-01-01");
+    expect("contacts" in visible).toBe(false);
+    expect("emergencyContact" in visible).toBe(false);
+    expect(JSON.stringify(visible)).not.toContain("7700900123");
+  });
+
+  it("a seat with Contact & emergency alone reads the contacts and nothing of Person", () => {
+    const contactOnly = mergeGrantRows([row("contact_emergency", "view")]);
+    const visible = redactPersonRecord(FULL_RECORD, contactOnly);
+    expect(Object.keys(visible).sort()).toEqual(["contacts", "emergencyContact"]);
+  });
+
+  it("drops the whole-record answer the moment one of a full seat's lines is lowered", () => {
     const full = seededGrantsFor(["vice_president"]);
-    const rows: GrantRow[] = [
-      ...Object.entries(full.roster).map(([key, level]) => ({
-        subject_kind: "roster_category",
-        subject_key: key,
-        template_id: null,
-        level: key === "kit" ? "view" : level,
-      })),
-      ...Object.entries(full.recruiting).map(([key, level]) => ({
-        subject_kind: "recruiting_category",
-        subject_key: key,
-        template_id: null,
-        level,
-      })),
-    ];
+    const rows: GrantRow[] = Object.entries(full.roster).map(([key, level]) => ({
+      subject_kind: "roster_category",
+      subject_key: key,
+      template_id: null,
+      level: key === "contact_emergency" ? "none" : level,
+    }));
     expect(holdsFullPersonRecordAuthority(mergeGrantRows(rows))).toBe(false);
-    // And a seat holding only Contact & emergency never reaches the record.
-    const contactOnly = mergeGrantRows([
+  });
+
+  it("on a recruit's record every category is Person information", () => {
+    const recruitPerson = mergeGrantRows([
       {
-        subject_kind: "roster_category",
-        subject_key: "contact_emergency",
+        subject_kind: "recruiting_category",
+        subject_key: "recruit_person",
         template_id: null,
-        level: "edit",
+        level: "view",
       },
     ]);
-    expect(categoriesGranted(contactOnly).size).toBe(0);
+    expect(holdsFullPersonRecordAuthority(recruitPerson, "recruiting")).toBe(true);
+    expect(holdsFullPersonRecordAuthority(recruitPerson)).toBe(false);
+    expect(redactPersonRecord(FULL_RECORD, recruitPerson, "recruiting")).toEqual(FULL_RECORD);
   });
 });
+
+function row(key: string, level: string): GrantRow {
+  return { subject_kind: "roster_category", subject_key: key, template_id: null, level };
+}
 
 describe("redactPersonRecord — absent from the payload, not hidden in it", () => {
   it("returns the whole record to the four offices", () => {

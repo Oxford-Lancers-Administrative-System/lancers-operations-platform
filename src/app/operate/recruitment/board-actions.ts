@@ -10,7 +10,6 @@ import {
 } from "@/lib/services/recruitment-prospect";
 import type { ProspectStatus } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentActionState } from "./action-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // The board's own server actions — LAN-204.
 
@@ -33,8 +32,8 @@ export async function setRecruitmentStatusAction(params: {
   toStatus: Exclude<ProspectStatus, "joined">;
   reason?: string;
 }): Promise<RecruitmentActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: Recruit details at edit.
+  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
     await updateRecruitmentProspectStatus(operator.personId, params.prospectId, params.toStatus, {
       reason: params.reason,
@@ -46,7 +45,7 @@ export async function setRecruitmentStatusAction(params: {
   return OK;
 }
 
-/** `W14`. The one interruption in the mission — gated on the four constitutional offices, not `person_record_authority`. */
+/** `W14`. The one interruption in the mission — gated on the four constitutional offices (`recruitment-flip-authority`), not a grant. */
 export async function flipRecruitmentProspectAction(params: {
   prospectId: string;
 }): Promise<RecruitmentActionState> {

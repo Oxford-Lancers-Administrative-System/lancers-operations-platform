@@ -4,6 +4,7 @@
  * case is a snapshot built from rows, the way `resolveOperatorAccess` builds
  * one per request.
  */
+import { WHOLE_RECORD_AUTHORITY } from "./roster-access";
 import { describe, expect, it } from "vitest";
 
 import { holdsAccess, accessRuleKey, type AccessRule } from "./access";
@@ -19,7 +20,6 @@ import {
   maximumLevel,
   mergeGrantRows,
   NO_GRANTS,
-  PERSON_RECORD_BRIDGE,
   RECRUITING_CATEGORIES,
   ROSTER_CATEGORIES,
   ROSTER_GROUP_KEYS,
@@ -215,7 +215,7 @@ describe("rules", () => {
   });
 });
 
-describe("the LAN-429 bridge — the old person_record_authority, in grants", () => {
+describe("WHOLE_RECORD_AUTHORITY — merge's rule (LAN-432), the old whole-record meaning", () => {
   it("admits exactly the seeded full seats, and nobody else", () => {
     for (const code of [
       "president",
@@ -224,10 +224,10 @@ describe("the LAN-429 bridge — the old person_record_authority, in grants", ()
       "general_manager",
       "it_officer",
     ]) {
-      expect(grantRuleHolds(seededGrantsFor([code]), PERSON_RECORD_BRIDGE), code).toBe(true);
+      expect(grantRuleHolds(seededGrantsFor([code]), WHOLE_RECORD_AUTHORITY), code).toBe(true);
     }
     for (const code of ["treasurer", "kit_manager", "head_coach", "social_secretary"]) {
-      expect(grantRuleHolds(seededGrantsFor([code]), PERSON_RECORD_BRIDGE), code).toBe(false);
+      expect(grantRuleHolds(seededGrantsFor([code]), WHOLE_RECORD_AUTHORITY), code).toBe(false);
     }
   });
 
@@ -235,7 +235,7 @@ describe("the LAN-429 bridge — the old person_record_authority, in grants", ()
     expect(
       grantRuleHolds(
         mergeGrantRows([row("roster_category", "person", "edit")]),
-        PERSON_RECORD_BRIDGE,
+        WHOLE_RECORD_AUTHORITY,
       ),
     ).toBe(false);
   });

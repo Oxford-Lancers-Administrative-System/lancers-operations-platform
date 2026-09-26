@@ -11,9 +11,11 @@ import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
 /**
  * The phone card — LAN-186's owner walkthrough, item 15: name, status and the
- * missing-data flag only, no in-cell editing.
+ * missing-data flag only, no in-cell editing. LAN-432: each of them appears
+ * only when the viewer's grants sent it — with None on Person, the name alone.
  */
 export default function PlayerCard({ row }: { row: RosterBoardRow }) {
+  const callable = "phoneForCall" in row;
   return (
     <Card variant="outlined" sx={{ position: "relative", p: 0 }} data-testid="roster-card">
       <Box
@@ -41,12 +43,14 @@ export default function PlayerCard({ row }: { row: RosterBoardRow }) {
             {row.displayName}
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            <StatusPill
-              domain="membership"
-              status={row.status}
-              label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
-            />
-            {row.missingCount > 0 ? (
+            {row.status !== undefined ? (
+              <StatusPill
+                domain="membership"
+                status={row.status}
+                label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
+              />
+            ) : null}
+            {row.missingCount !== undefined && row.missingCount > 0 ? (
               <Chip
                 size="small"
                 color="warning"
@@ -59,32 +63,36 @@ export default function PlayerCard({ row }: { row: RosterBoardRow }) {
         </Stack>
       </Box>
 
-      {/* A sibling of the card-opening anchor, never nested inside it — two
+      {/* LAN-432: the number travels only with Person and Contact & emergency
+          (`redactRow`); without it there is no Call at all, not a dead one. */}
+      {callable ? (
+        /* A sibling of the card-opening anchor, never nested inside it — two
           anchors cannot nest, and stacking this one on top by position rather
-          than by DOM order is what keeps both tap targets independently real. */}
-      <Box
-        sx={{ position: "absolute", top: 8, right: 8 }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <Button
-          variant="contained"
-          component="a"
-          href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
-          disabled={!row.phoneForCall}
-          aria-label="Call"
+          than by DOM order is what keeps both tap targets independently real. */
+        <Box
+          sx={{ position: "absolute", top: 8, right: 8 }}
           onClick={(event) => event.stopPropagation()}
-          sx={{
-            minHeight: 44,
-            minWidth: 44,
-            width: 44,
-            height: 44,
-            p: 0,
-            borderRadius: "50%",
-          }}
         >
-          <PhoneIcon />
-        </Button>
-      </Box>
+          <Button
+            variant="contained"
+            component="a"
+            href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
+            disabled={!row.phoneForCall}
+            aria-label="Call"
+            onClick={(event) => event.stopPropagation()}
+            sx={{
+              minHeight: 44,
+              minWidth: 44,
+              width: 44,
+              height: 44,
+              p: 0,
+              borderRadius: "50%",
+            }}
+          >
+            <PhoneIcon />
+          </Button>
+        </Box>
+      ) : null}
     </Card>
   );
 }

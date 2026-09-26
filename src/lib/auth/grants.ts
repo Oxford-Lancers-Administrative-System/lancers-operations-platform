@@ -519,26 +519,3 @@ export const SEEDED_TEMPLATE_IDS: readonly string[] = Object.freeze([
   "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
   "660cdcb7-51e3-5a19-aaa2-08c5256af288",
 ]);
-
-// ---------------------------------------------------------------------------
-// LAN-429 bridge
-// ---------------------------------------------------------------------------
-
-/**
- * LAN-429 bridge: replaced by LAN-432.
- *
- * `person_record_authority` is gone from the capability map. Its uses outside
- * `destinations.ts`, `gate.tsx` and `membership/write-status.ts` are replaced
- * per category by the roster package (LAN-432); until then each of them asks
- * this rule instead. It is the old capability's meaning in grants — every
- * roster and recruiting line at its maximum — so it admits exactly the seats
- * the old capability admitted on the seeded matrix and never more: lowering
- * any one line takes a seat off every bridged surface, which is the safe
- * direction. Find every site with `grep -rn "LAN-429 bridge" src`.
- */
-export const PERSON_RECORD_BRIDGE: GrantRule = Object.freeze({
-  all: Object.freeze([
-    Object.freeze({ everyOf: "roster", minimum: "edit" }),
-    Object.freeze({ everyOf: "recruiting", minimum: "edit" }),
-  ]),
-}) as GrantRule;

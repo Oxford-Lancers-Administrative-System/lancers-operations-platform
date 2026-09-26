@@ -13,6 +13,7 @@ export default function PeopleFilters({
   missingOnly,
   sort,
   direction,
+  nameOnly = false,
 }: {
   basePath: string;
   scope: "in_season" | "outside_season";
@@ -22,6 +23,8 @@ export default function PeopleFilters({
   missingOnly: boolean;
   sort: string;
   direction: string;
+  /** LAN-432 — None on Person: search by name alone; no Person filters. */
+  nameOnly?: boolean;
 }) {
   return (
     <ListFilters
@@ -33,27 +36,31 @@ export default function PeopleFilters({
       searchPlaceholder="First name, last name or alias"
       searchMinWidth={240}
       carry={scope === "outside_season" ? { scope: "outside" } : {}}
-      fields={[
-        {
-          name: "status",
-          label: "Status",
-          value: status,
-          allLabel: "All statuses",
-          minWidth: 170,
-          options: FILTERABLE_STATUSES.map((value) => ({
-            value: value as string,
-            label: labelFor(STATUS_LABELS, value as string),
-          })),
-        },
-        {
-          name: "missing",
-          label: "Missing data",
-          value: missingOnly ? "yes" : "",
-          allLabel: "All",
-          minWidth: 170,
-          options: [{ value: "yes", label: "Missing something" }],
-        },
-      ]}
+      fields={
+        nameOnly
+          ? []
+          : [
+              {
+                name: "status",
+                label: "Status",
+                value: status,
+                allLabel: "All statuses",
+                minWidth: 170,
+                options: FILTERABLE_STATUSES.map((value) => ({
+                  value: value as string,
+                  label: labelFor(STATUS_LABELS, value as string),
+                })),
+              },
+              {
+                name: "missing",
+                label: "Missing data",
+                value: missingOnly ? "yes" : "",
+                allLabel: "All",
+                minWidth: 170,
+                options: [{ value: "yes", label: "Missing something" }],
+              },
+            ]
+      }
       sortColumns={sortColumns}
       sort={sort}
       direction={direction}

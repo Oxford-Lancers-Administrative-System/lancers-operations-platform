@@ -7,6 +7,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { Band } from "./band-colours";
 import { useBandColours } from "./band-colours-provider";
+import { LockIcon } from "./lock-icon";
 
 /**
  * `Section variant="banded"` — a filled overline band over a tinted body
@@ -25,6 +26,7 @@ export default function BandedSection({
   testId,
   titleTestId,
   headingLevel,
+  locked = false,
 }: {
   title: string;
   band: Band;
@@ -36,6 +38,8 @@ export default function BandedSection({
   testId?: string;
   titleTestId?: string;
   headingLevel: 2 | 3;
+  /** LAN-432 — the head alone, a lock in place of the chevron, no action, no body. */
+  locked?: boolean;
 }) {
   const colours = useBandColours()[band];
   const bandHead = (
@@ -61,8 +65,10 @@ export default function BandedSection({
       >
         {title}
       </Typography>
-      {action ?? null}
-      {collapsible ? (
+      {locked ? null : (action ?? null)}
+      {locked ? (
+        <LockIcon />
+      ) : collapsible ? (
         <Box
           component="span"
           aria-hidden="true"
@@ -80,6 +86,21 @@ export default function BandedSection({
       ) : null}
     </Stack>
   );
+
+  if (locked) {
+    return (
+      <Paper
+        variant="outlined"
+        component="section"
+        sx={{ overflow: "hidden" }}
+        data-testid={testId ? `section-${testId}` : undefined}
+        data-band={band}
+        data-locked="true"
+      >
+        {bandHead}
+      </Paper>
+    );
+  }
 
   // LAN-387: a roster group is collapsible on the record exactly as it is on
   // the board, so the band itself is the disclosure control here.

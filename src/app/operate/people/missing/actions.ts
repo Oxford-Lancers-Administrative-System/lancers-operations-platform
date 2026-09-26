@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { sendOnboardingNudges } from "@/lib/services/messaging-scheduler";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 // The queue's own nudge — LAN-218, `W8`, `M3`, `T11-batch-nudge`. Unlimited,
-// outside the automated cap; gated on `person_record_authority`, the real
-// boundary (the page's own gate is a courtesy).
+// outside the automated cap; gated on Onboarding at edit (LAN-432), the same
+// grant as the record's own send — the real boundary (the page's own gate is
+// a courtesy).
 export interface NudgeActionResult {
   readonly error: string | null;
   readonly notice: string | null;
@@ -42,8 +42,7 @@ function nudgeProblemNotice(refused: number, total: number): string {
 export async function nudgeSelectedAction(
   membershipIds: readonly string[],
 ): Promise<NudgeActionResult> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
 
   const ids = Array.from(new Set(membershipIds.filter((id) => id.trim() !== "")));
   if (ids.length === 0) {

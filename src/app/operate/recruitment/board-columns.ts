@@ -5,6 +5,7 @@ import {
   type BandColours,
 } from "@/components/band-colours";
 import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitment-vocabulary";
+import type { CategoryLevel, RecruitingCategory } from "@/lib/auth/grants";
 
 /**
  * The recruit board's column model — `W1`, LAN-204. Modelled on
@@ -65,8 +66,52 @@ export interface ColumnDef {
   readonly width: number;
   readonly sortable: boolean;
   readonly filterable: boolean;
+  /**
+   * The recruiting category this column belongs to (LAN-432): the recruit's
+   * person columns are Person information, the Recruitment columns Recruit
+   * details, every event band Event details.
+   */
+  readonly category: RecruitingCategory;
+  /** Set by {@link visibleRecruitmentColumns} for a category held at `view`: text, no control, caption "view". */
+  readonly viewOnly?: true;
   /** Not a column: the one narrow cell a folded-away group leaves behind — LAN-404, the roster board's own idiom. */
   readonly placeholder?: true;
+}
+
+/** A band's recruiting category. */
+export function categoryOfRecruitmentBand(band: Band): RecruitingCategory {
+  const kind = bandKind(band);
+  return kind === "person"
+    ? "recruit_person"
+    : kind === "recruitment"
+      ? "recruit_details"
+      : "recruit_events";
+}
+
+/** A seat's level on each recruiting category, as the board reads it. */
+export type RecruitingAccess = Readonly<Record<RecruitingCategory, CategoryLevel>>;
+
+/** Every recruiting category at its maximum — the board drawn without a seat (a test fixture). */
+export const FULL_RECRUITING_ACCESS: RecruitingAccess = Object.freeze({
+  recruit_person: "edit",
+  recruit_details: "edit",
+  recruit_events: "view",
+});
+
+/**
+ * The columns this seat may see — LAN-432, the roster board's own pattern: a
+ * `none` category's columns are dropped, a `view` category's (and Event
+ * details, which is never more than `view`) come back `viewOnly`.
+ */
+export function visibleRecruitmentColumns(
+  columns: readonly ColumnDef[],
+  access: RecruitingAccess,
+): readonly ColumnDef[] {
+  return columns
+    .filter((column) => access[column.category] !== "none")
+    .map((column) =>
+      access[column.category] === "edit" ? column : { ...column, viewOnly: true as const },
+    );
 }
 
 /**
@@ -102,6 +147,7 @@ function collapsedPlaceholder(band: Band): ColumnDef {
     width: 28,
     sortable: false,
     filterable: false,
+    category: categoryOfRecruitmentBand(band),
     placeholder: true as const,
   });
 }
@@ -123,7 +169,7 @@ export function displayColumns(
 }
 
 /** `W1`'s own column table. Person band first, then Recruitment — do not invent a column. */
-export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze([
+const RECRUITMENT_COLUMN_TABLE: readonly Omit<ColumnDef, "category">[] = [
   // ---------------------------------------------------------------- Person --
   {
     key: "college",
@@ -280,7 +326,14 @@ export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze([
     sortable: true,
     filterable: false,
   },
-]);
+];
+
+/** The Person and Recruitment columns, each carrying its band's recruiting category (LAN-432). */
+export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze(
+  RECRUITMENT_COLUMN_TABLE.map((column) =>
+    Object.freeze({ ...column, category: categoryOfRecruitmentBand(column.band) }),
+  ),
+);
 
 export const STATUS_FILTER_OPTIONS = Object.freeze(Object.keys(PROSPECT_STATUS_LABELS));
 export const CONSENT_FILTER_OPTIONS = Object.freeze(Object.keys(CONSENT_LABELS));
@@ -306,6 +359,7 @@ export function eventColumns(events: readonly RecruitmentEventColumn[]): readonl
         width: 90,
         sortable: true,
         filterable: false,
+        category: "recruit_events" as const,
       },
       {
         key: eventColumnKey(event.eventId, "attendance"),
@@ -315,6 +369,7 @@ export function eventColumns(events: readonly RecruitmentEventColumn[]): readonl
         width: 108,
         sortable: true,
         filterable: false,
+        category: "recruit_events" as const,
       },
     ];
   });

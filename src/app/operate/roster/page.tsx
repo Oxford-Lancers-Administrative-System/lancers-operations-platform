@@ -6,13 +6,14 @@ import { gateShellPage } from "../gate";
 import type { BoardFilters } from "./board-data";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 import RosterBoard from "./roster-board";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
-import { operatorHasCapability } from "@/lib/auth/guards";
+import { operatorHasCapability, operatorHoldsAccess } from "@/lib/auth/guards";
+import { ADD_TO_ROSTER, mayViewRoster, ROSTER_REACH } from "@/lib/auth/roster-access";
 
-// `/operate/roster` — W5, LAN-186. Gated on `person_record_authority` (`REQ-authority`).
+// `/operate/roster` — W5, LAN-186. Open to any roster category at `view`, the
+// same rule as the sidebar entry; each column then follows its own category
+// (LAN-432).
 export default async function RosterPage({ searchParams }: PageProps<"/operate/roster">) {
-  // LAN-429 bridge: replaced by LAN-432
-  const gate = await gateShellPage("/operate/roster", PERSON_RECORD_BRIDGE);
+  const gate = await gateShellPage("/operate/roster", ROSTER_REACH);
   if ("screen" in gate) return gate.screen;
   const { operator } = gate;
 
@@ -47,7 +48,15 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
       : "displayName";
   const sortDirection = first(params.dir) === "desc" ? "desc" : "asc";
 
-  const redactedRows = data.rows.map((row) => redactRow(row, columns)) as typeof data.rows;
+  const redactedRows = data.rows.map((row) =>
+    redactRow(row, columns, operator.grants),
+  ) as typeof data.rows;
+  // Jersey holders name who wears each number: Membership data, and only the
+  // editor uses them, so they travel only to a seat that may edit a jersey.
+  const jerseyEditable = columns.some(
+    (column) => column.edit === "jersey" && column.viewOnly !== true,
+  );
+  const jerseyHolders = jerseyEditable ? data.jerseyHolders : { blue: {}, white: {} };
 
   // LAN-387, Brian's visual pass item 1: which groups this operator folded away
   // last time, from their own account rather than from this browser.
@@ -61,7 +70,7 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
       totalInSeason={data.totalInSeason}
       seasonId={data.season.id}
       seasonLabel={data.season.label}
-      jerseyHolders={data.jerseyHolders}
+      jerseyHolders={jerseyHolders}
       seasonHasOnboardingItemTypes={data.seasonHasOnboardingItemTypes}
       initialSearch={search}
       initialFilters={filters}
@@ -69,6 +78,9 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
       initialSortDirection={sortDirection}
       initialCollapsedGroups={preferences.rosterCollapsedGroups}
       canEditCategories={operatorHasCapability(operator, "role_management")}
+      canAddPlayers={operatorHoldsAccess(operator, ADD_TO_ROSTER)}
+      canBulkImport={operatorHasCapability(operator, "roster_bulk_import")}
+      missingFilterGranted={mayViewRoster(operator.grants, "onboarding")}
     />
   );
 }

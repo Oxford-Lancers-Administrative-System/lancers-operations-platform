@@ -32,15 +32,15 @@ import {
 import { kitValuesOf } from "@/lib/services/roster-board/vocabulary";
 import { resolveOnboardingItem, type OnboardingItemStatus } from "@/lib/services/membership";
 import type { BoardActionState } from "./board-action-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { categoryOfPosition } from "@/lib/auth/roster-access";
 
 /**
  * The board's own server actions — LAN-186. Each opens with
- // LAN-429 bridge: replaced by LAN-432
- * `requireGrant(PERSON_RECORD_BRIDGE)` (`REQ-authority`),
- * commits with no confirmation, and revalidates the roster path. Status
- * change is deliberately not here — `./actions.ts`'s `setMembershipStatusAction`
- * (same capability) owns that column instead, not `membership_activation`
+ * `requireGrant` on the cell's own roster category at `edit` (LAN-432), so a
+ * seat holding the category at `view` or `none` is refused whatever the
+ * browser sends; commits with no confirmation, and revalidates the roster
+ * path. Status change is deliberately not here — `./actions.ts`'s
+ * `setMembershipStatusAction` (Membership at `edit`) owns that column
  * (RVW-186-001).
  */
 
@@ -62,8 +62,11 @@ export async function commitPositionAction(params: {
   column: PositionColumn;
   code: string | null;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: Offensive or Defensive assignments at edit, by the slot written.
+  const operator = await requireGrant(
+    { kind: "roster", key: categoryOfPosition(params.column) },
+    "edit",
+  );
   try {
     await commitPosition({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -79,8 +82,8 @@ export async function commitJerseyNumbersAction(params: {
   kit: Kit;
   numbers: readonly string[];
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
   try {
     await commitJerseyNumbers({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -95,8 +98,8 @@ export async function commitCoachingGroupsAction(params: {
   seasonId: string;
   groups: readonly string[];
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "coaching" }, "edit");
   try {
     await commitCoachingGroups({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -112,8 +115,8 @@ export async function commitPositionGroupsAction(params: {
   side: PositionGroupSide;
   groups: readonly string[];
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "coaching" }, "edit");
   try {
     await commitPositionGroups({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -130,8 +133,8 @@ export async function commitSpecialTeamsAssignmentAction(params: {
   slot: SpecialTeamsSlot;
   positionName: string | null;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "special_teams" }, "edit");
   try {
     await commitSpecialTeamsAssignment({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -148,8 +151,8 @@ export async function commitKitItemAction(params: {
   /** One value, a whole set for Braces L / Braces R (LAN-409), or `null` to blank the cell. */
   value: string | readonly string[] | null;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "kit" }, "edit");
   try {
     await commitKitItemValues({
       actorPersonId: operator.personId,
@@ -170,8 +173,8 @@ export async function commitWarmupSmallGroupAction(params: {
   seasonId: string;
   smallGroup: string | null;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "warmup" }, "edit");
   try {
     await commitWarmupSmallGroup({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -186,8 +189,8 @@ export async function commitFormalwearItemsAction(params: {
   seasonId: string;
   items: readonly FormalwearItemKey[];
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "kit" }, "edit");
   try {
     await commitFormalwearItems({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -202,8 +205,8 @@ export async function commitBluesAction(params: {
   seasonId: string;
   value: BluesValue;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
   try {
     await commitBlues({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -218,8 +221,8 @@ export async function commitBpsAction(params: {
   seasonId: string;
   value: BpsValue;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
   try {
     await commitBps({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -234,8 +237,8 @@ export async function commitEligibilityAction(params: {
   seasonId: string;
   status: EligibilityStatus;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
   try {
     await commitEligibility({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -249,8 +252,8 @@ export async function commitAvailabilityAction(params: {
   membershipId: string;
   level: AvailabilityLevel;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "availability" }, "edit");
   try {
     await commitAvailability({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -269,8 +272,8 @@ export async function commitOnboardingItemAction(params: {
   itemId: string;
   status: OnboardingItemStatus;
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
   try {
     await resolveOnboardingItem({ actorPersonId: operator.personId, ...params });
   } catch (error) {
@@ -284,8 +287,8 @@ export async function commitEntryAction(params: {
   membershipId: string;
   entry: "new" | "returning";
 }): Promise<BoardActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the field's own category at edit.
+  const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
   try {
     await commitEntry({ actorPersonId: operator.personId, ...params });
   } catch (error) {

@@ -6,12 +6,12 @@ import { isServiceError, withTransaction } from "@/lib/db";
 import { mintRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
 import { readCurrentSeasonIn } from "@/lib/services/seasons";
 import type { RecruitmentActionState } from "../action-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { ADD_RECRUITS } from "@/lib/auth/roster-access";
 
 // `W1-04`'s action — mint/re-mint the season's one live sign-up code, atomically (Brian, 2026-08-31).
 export async function mintRecruitmentSignupCodeAction(): Promise<RecruitmentActionState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the May add recruits switch.
+  const operator = await requireGrant(ADD_RECRUITS);
   try {
     await withTransaction(async (tx) => {
       const season = await readCurrentSeasonIn(tx);

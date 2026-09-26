@@ -44,6 +44,9 @@ import {
   eventIdOfBand,
   RECRUIT_COLUMN_WIDTH,
   RECRUITMENT_COLUMNS,
+  FULL_RECRUITING_ACCESS,
+  visibleRecruitmentColumns,
+  type RecruitingAccess,
   collapsedBandsFrom,
   displayColumns,
   eventColumns,
@@ -87,6 +90,8 @@ export default function RecruitmentBoardView({
   initialSortKey,
   initialSortDirection,
   initialCollapsedGroups,
+  access = FULL_RECRUITING_ACCESS,
+  mayAddRecruits = true,
 }: {
   operatorPersonId: string;
   season: Season;
@@ -99,6 +104,10 @@ export default function RecruitmentBoardView({
   initialSortDirection: "asc" | "desc";
   /** What this operator's account remembers about folded-away groups, or `undefined` where it remembers nothing (LAN-404). */
   initialCollapsedGroups?: readonly string[] | undefined;
+  /** LAN-432 — the seat's level on each recruiting category; a `none` category's columns are absent. */
+  access?: RecruitingAccess;
+  /** LAN-432 — the May add recruits switch: Add recruit and QR code. */
+  mayAddRecruits?: boolean;
 }) {
   const bandColours = useBandColours();
   const [search, setSearch] = useState(initialSearch);
@@ -109,7 +118,14 @@ export default function RecruitmentBoardView({
   const [menu, setMenu] = useState<{ anchor: HTMLElement; column: ColumnDef } | null>(null);
   const [phoneFilters, setPhoneFilters] = useState(false);
 
-  const columns = useMemo(() => [...RECRUITMENT_COLUMNS, ...eventColumns(events)], [events]);
+  const columns = useMemo(
+    () => visibleRecruitmentColumns([...RECRUITMENT_COLUMNS, ...eventColumns(events)], access),
+    [events, access],
+  );
+  // LAN-432: the pinned filters follow their categories — the four Recruitment
+  // ones Recruit details, Attended an event Event details.
+  const detailsShown = access.recruit_details !== "none";
+  const eventsShown = access.recruit_events !== "none";
   const eventByBand = useMemo(
     () => new Map(events.map((event) => [event.eventId, event])),
     [events],
@@ -230,53 +246,63 @@ export default function RecruitmentBoardView({
         sx={{ minWidth: { xs: "100%", md: 240 } }}
         data-testid="recruitment-search"
       />
-      <PinnedSelect
-        label="Status"
-        value={filters.status ?? ""}
-        options={filterOptions({ key: "status" })}
-        optionLabel={(value) =>
-          PROSPECT_STATUS_LABELS[value as keyof typeof PROSPECT_STATUS_LABELS]
-        }
-        onChange={(value) => setFilter("status", value)}
-        testId="recruitment-filter-status"
-        minWidth={160}
-      />
-      <PinnedSelect
-        label="WhatsApp consent"
-        value={filters.consent ?? ""}
-        options={filterOptions({ key: "consent" })}
-        optionLabel={(value) => CONSENT_LABELS[value as keyof typeof CONSENT_LABELS]}
-        onChange={(value) => setFilter("consent", value)}
-        testId="recruitment-filter-consent"
-        minWidth={170}
-      />
-      <PinnedSelect
-        label="Personal sent"
-        value={filters.personalSent ?? ""}
-        options={["yes", "no"]}
-        optionLabel={(value) => (value === "yes" ? "Sent" : "Not sent")}
-        onChange={(value) => setFilter("personalSent", value)}
-        testId="recruitment-filter-personal-sent"
-        minWidth={160}
-      />
-      <PinnedSelect
-        label="Recruitment sent"
-        value={filters.recruitmentSent ?? ""}
-        options={["yes", "no"]}
-        optionLabel={(value) => (value === "yes" ? "Sent" : "Not sent")}
-        onChange={(value) => setFilter("recruitmentSent", value)}
-        testId="recruitment-filter-recruitment-sent"
-        minWidth={160}
-      />
-      <PinnedSelect
-        label="Attended an event"
-        value={filters.attendedAnyEvent ?? ""}
-        options={["yes", "no"]}
-        optionLabel={(value) => (value === "yes" ? "Attended" : "Never attended")}
-        onChange={(value) => setFilter("attendedAnyEvent", value)}
-        testId="recruitment-filter-attended"
-        minWidth={170}
-      />
+      {detailsShown ? (
+        <PinnedSelect
+          label="Status"
+          value={filters.status ?? ""}
+          options={filterOptions({ key: "status" })}
+          optionLabel={(value) =>
+            PROSPECT_STATUS_LABELS[value as keyof typeof PROSPECT_STATUS_LABELS]
+          }
+          onChange={(value) => setFilter("status", value)}
+          testId="recruitment-filter-status"
+          minWidth={160}
+        />
+      ) : null}
+      {detailsShown ? (
+        <PinnedSelect
+          label="WhatsApp consent"
+          value={filters.consent ?? ""}
+          options={filterOptions({ key: "consent" })}
+          optionLabel={(value) => CONSENT_LABELS[value as keyof typeof CONSENT_LABELS]}
+          onChange={(value) => setFilter("consent", value)}
+          testId="recruitment-filter-consent"
+          minWidth={170}
+        />
+      ) : null}
+      {detailsShown ? (
+        <PinnedSelect
+          label="Personal sent"
+          value={filters.personalSent ?? ""}
+          options={["yes", "no"]}
+          optionLabel={(value) => (value === "yes" ? "Sent" : "Not sent")}
+          onChange={(value) => setFilter("personalSent", value)}
+          testId="recruitment-filter-personal-sent"
+          minWidth={160}
+        />
+      ) : null}
+      {detailsShown ? (
+        <PinnedSelect
+          label="Recruitment sent"
+          value={filters.recruitmentSent ?? ""}
+          options={["yes", "no"]}
+          optionLabel={(value) => (value === "yes" ? "Sent" : "Not sent")}
+          onChange={(value) => setFilter("recruitmentSent", value)}
+          testId="recruitment-filter-recruitment-sent"
+          minWidth={160}
+        />
+      ) : null}
+      {eventsShown ? (
+        <PinnedSelect
+          label="Attended an event"
+          value={filters.attendedAnyEvent ?? ""}
+          options={["yes", "no"]}
+          optionLabel={(value) => (value === "yes" ? "Attended" : "Never attended")}
+          onChange={(value) => setFilter("attendedAnyEvent", value)}
+          testId="recruitment-filter-attended"
+          minWidth={170}
+        />
+      ) : null}
     </Stack>
   );
 
@@ -332,24 +358,26 @@ export default function RecruitmentBoardView({
             {`${season.label} · ${visibleRows.length} ${visibleRows.length === 1 ? "recruit" : "recruits"}`}
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1.5}>
-          <Button
-            variant="outlined"
-            href="/operate/recruitment/qr"
-            sx={{ minHeight: 44 }}
-            data-testid="recruitment-qr-code-button"
-          >
-            QR CODE
-          </Button>
-          <Button
-            variant="contained"
-            href="/operate/recruitment/new"
-            sx={{ minHeight: 44 }}
-            data-testid="recruitment-add-button"
-          >
-            ADD RECRUIT
-          </Button>
-        </Stack>
+        {mayAddRecruits ? (
+          <Stack direction="row" spacing={1.5}>
+            <Button
+              variant="outlined"
+              href="/operate/recruitment/qr"
+              sx={{ minHeight: 44 }}
+              data-testid="recruitment-qr-code-button"
+            >
+              QR CODE
+            </Button>
+            <Button
+              variant="contained"
+              href="/operate/recruitment/new"
+              sx={{ minHeight: 44 }}
+              data-testid="recruitment-add-button"
+            >
+              ADD RECRUIT
+            </Button>
+          </Stack>
+        ) : null}
       </Stack>
 
       {empty ? (
@@ -365,24 +393,28 @@ export default function RecruitmentBoardView({
             Recruits arrive through the QR sign-up, a walk-up at an event, or an operator adding one
             by hand.
           </Typography>
-          <Stack direction="row" spacing={1.5} sx={{ justifyContent: "center" }}>
-            <Button variant="outlined" href="/operate/recruitment/qr" sx={{ minHeight: 44 }}>
-              QR CODE
-            </Button>
-            <Button variant="contained" href="/operate/recruitment/new" sx={{ minHeight: 44 }}>
-              ADD RECRUIT
-            </Button>
-          </Stack>
+          {mayAddRecruits ? (
+            <Stack direction="row" spacing={1.5} sx={{ justifyContent: "center" }}>
+              <Button variant="outlined" href="/operate/recruitment/qr" sx={{ minHeight: 44 }}>
+                QR CODE
+              </Button>
+              <Button variant="contained" href="/operate/recruitment/new" sx={{ minHeight: 44 }}>
+                ADD RECRUIT
+              </Button>
+            </Stack>
+          ) : null}
         </Paper>
       ) : (
         <>
           <Stack spacing={2} sx={{ mb: 2 }}>
             <Box sx={{ display: { xs: "none", md: "block" } }}>{pinned}</Box>
-            <Box sx={{ display: { xs: "block", md: "none" } }}>
-              <Button variant="outlined" onClick={() => setPhoneFilters(true)} sx={{ mb: 1 }}>
-                Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
-              </Button>
-            </Box>
+            {detailsShown || eventsShown ? (
+              <Box sx={{ display: { xs: "block", md: "none" } }}>
+                <Button variant="outlined" onClick={() => setPhoneFilters(true)} sx={{ mb: 1 }}>
+                  Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
+                </Button>
+              </Box>
+            ) : null}
             {chips}
           </Stack>
 
@@ -623,6 +655,15 @@ export default function RecruitmentBoardView({
                           >
                             {optionListLabel(column, filters[column.key])}
                           </Typography>
+                        ) : column.viewOnly ? (
+                          // LAN-432: the category is held at view.
+                          <Typography
+                            variant="caption"
+                            sx={{ display: "block", color: "text.disabled", lineHeight: 1.3 }}
+                            data-testid="column-view-caption"
+                          >
+                            view
+                          </Typography>
                         ) : column.edit === "record" ? (
                           <Typography
                             variant="caption"
@@ -705,7 +746,12 @@ export default function RecruitmentBoardView({
               </Typography>
             ) : (
               visibleRows.map((row) => (
-                <RecruitCard key={row.prospectId} row={row} seasonLabel={season.label} />
+                <RecruitCard
+                  key={row.prospectId}
+                  row={row}
+                  seasonLabel={season.label}
+                  statusEditable={access.recruit_details === "edit"}
+                />
               ))
             )}
           </Stack>

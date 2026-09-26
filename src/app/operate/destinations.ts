@@ -1,5 +1,6 @@
 import { holdsAccess, type AccessHolder, type AccessRule } from "@/lib/auth/access";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
+import { RECRUITING_REACH, ROSTER_REACH } from "@/lib/auth/roster-access";
 
 /**
  * The playbook's index — LAN-399.
@@ -35,8 +36,8 @@ export interface Destination {
  * capability; Follow-ups any template at `view`; Messaging any template at
  * `manage`. Report and the rest of Administration are unchanged.
  */
-const ANY_ROSTER: AccessRule = Object.freeze({ anyOf: "roster", minimum: "view" });
-const ANY_RECRUITING: AccessRule = Object.freeze({ anyOf: "recruiting", minimum: "view" });
+const ANY_ROSTER: AccessRule = ROSTER_REACH;
+const ANY_RECRUITING: AccessRule = RECRUITING_REACH;
 const ANY_TEMPLATE: AccessRule = Object.freeze({ anyOf: "template", minimum: "view" });
 const ANY_MANAGED_TEMPLATE: AccessRule = Object.freeze({ anyOf: "template", minimum: "manage" });
 const EVENTS: AccessRule = Object.freeze({

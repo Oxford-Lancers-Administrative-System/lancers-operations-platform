@@ -276,6 +276,15 @@ export default function BoardTableHead({
                 >
                   {filterOptionLabel(column, filters[column.key])}
                 </Typography>
+              ) : column.viewOnly ? (
+                // LAN-432: the category is held at view.
+                <Typography
+                  variant="caption"
+                  sx={{ display: "block", color: "text.disabled", lineHeight: 1.3 }}
+                  data-testid="column-view-caption"
+                >
+                  view
+                </Typography>
               ) : column.edit === "record" ? (
                 <Typography
                   variant="caption"

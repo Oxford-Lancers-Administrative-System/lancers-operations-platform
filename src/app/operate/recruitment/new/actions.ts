@@ -20,7 +20,7 @@ import {
   type AddRecruitFieldErrors,
   type AddRecruitState,
 } from "./create-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { ADD_RECRUITS } from "@/lib/auth/roster-access";
 
 /**
  * `/operate/recruitment/new`'s one server action — `W6`, LAN-206. Same
@@ -31,8 +31,8 @@ export async function submitAddRecruit(
   previous: AddRecruitState,
   formData: FormData,
 ): Promise<AddRecruitState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: the May add recruits switch.
+  const operator = await requireGrant(ADD_RECRUITS);
 
   const values = readAddRecruitValues(formData);
   const linkPersonId = formData.get("linkPersonId");

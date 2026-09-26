@@ -16,6 +16,8 @@ import {
 import { bandColour, rawValue, type ColumnDef } from "./board-columns";
 import { displayOf, NOT_RECORDED, optionListLabel } from "./board-data";
 import StatusCell from "./status-cell";
+import { StatusPill } from "../board-filter-controls";
+import { PROSPECT_STATUS_LABELS } from "@/lib/services/recruitment-vocabulary";
 
 /** A filter chip's field label, for the "Filtered by …" row. */
 export function labelForKey(key: string, columns: readonly ColumnDef[]): string {
@@ -92,6 +94,19 @@ export function RecruitCell({
     return <TableCell sx={{ ...shell, p: 0 }} />;
   }
 
+  if (column.key === "status" && column.viewOnly) {
+    // LAN-432: Recruit details at view — the status reads, it does not change.
+    return (
+      <TableCell sx={shell}>
+        <StatusPill
+          domain="recruitment"
+          status={row.status}
+          label={PROSPECT_STATUS_LABELS[row.status]}
+        />
+      </TableCell>
+    );
+  }
+
   if (column.key === "status") {
     return (
       <TableCell sx={shell}>
@@ -105,7 +120,7 @@ export function RecruitCell({
     );
   }
 
-  if (column.edit === "record") {
+  if (column.edit === "record" && !column.viewOnly) {
     // `W1`: routes to the person record on click, same as the roster board's person columns.
     const value = displayOf(rawValue(row, column.key));
     return (
@@ -148,11 +163,18 @@ export function RecruitCell({
 export function RecruitCard({
   row,
   seasonLabel,
+  statusEditable = true,
 }: {
   row: RecruitmentBoardRow;
   /** `W14`'s interruption names the season it would create a membership for. */
   seasonLabel: string;
+  /** LAN-432 — Recruit details at `edit`. At `view` the status is a pill; at `none` it is absent. */
+  statusEditable?: boolean;
 }) {
+  // LAN-432: each line of the card appears only when the seat's grants sent it.
+  const personShown = "college" in row;
+  const detailsShown = "status" in row;
+  const callable = "phoneForCall" in row;
   return (
     <Card
       variant="outlined"
@@ -184,50 +206,70 @@ export function RecruitCard({
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             {row.displayName}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {row.college ?? NOT_RECORDED} ·{" "}
-            {consentStatusLabel(row.consent, {
-              byOperator: row.consentByOperator,
-              changedAt: row.consentChangedAt,
-            })}
-          </Typography>
+          {personShown || detailsShown ? (
+            <Typography variant="body2" color="text.secondary">
+              {[
+                personShown ? (row.college ?? NOT_RECORDED) : null,
+                detailsShown
+                  ? consentStatusLabel(row.consent, {
+                      byOperator: row.consentByOperator,
+                      changedAt: row.consentChangedAt,
+                    })
+                  : null,
+              ]
+                .filter((part) => part !== null)
+                .join(" · ")}
+            </Typography>
+          ) : null}
         </Stack>
       </Box>
 
-      <Box sx={{ px: 2, pb: 2 }}>
-        <StatusCell
-          prospectId={row.prospectId}
-          status={row.status}
-          displayName={row.displayName}
-          seasonLabel={seasonLabel}
-          size="medium"
-          testIdPrefix="recruitment-card-status"
-        />
-      </Box>
+      {detailsShown ? (
+        <Box sx={{ px: 2, pb: 2 }}>
+          {statusEditable ? (
+            <StatusCell
+              prospectId={row.prospectId}
+              status={row.status}
+              displayName={row.displayName}
+              seasonLabel={seasonLabel}
+              size="medium"
+              testIdPrefix="recruitment-card-status"
+            />
+          ) : (
+            <StatusPill
+              domain="recruitment"
+              status={row.status}
+              label={PROSPECT_STATUS_LABELS[row.status]}
+            />
+          )}
+        </Box>
+      ) : null}
 
-      <Box
-        sx={{ position: "absolute", top: 8, right: 8 }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <Button
-          variant="contained"
-          component="a"
-          href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
-          disabled={!row.phoneForCall}
-          aria-label="Call"
+      {callable ? (
+        <Box
+          sx={{ position: "absolute", top: 8, right: 8 }}
           onClick={(event) => event.stopPropagation()}
-          sx={{
-            minHeight: 44,
-            minWidth: 44,
-            width: 44,
-            height: 44,
-            p: 0,
-            borderRadius: "50%",
-          }}
         >
-          <PhoneIcon />
-        </Button>
-      </Box>
+          <Button
+            variant="contained"
+            component="a"
+            href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
+            disabled={!row.phoneForCall}
+            aria-label="Call"
+            onClick={(event) => event.stopPropagation()}
+            sx={{
+              minHeight: 44,
+              minWidth: 44,
+              width: 44,
+              height: 44,
+              p: 0,
+              borderRadius: "50%",
+            }}
+          >
+            <PhoneIcon />
+          </Button>
+        </Box>
+      ) : null}
     </Card>
   );
 }

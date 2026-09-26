@@ -13,20 +13,17 @@ import {
   type CreateFieldErrors,
   type CreateState,
 } from "./create-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
 
 /**
  * `/operate/people/new`'s one server action — W3, LAN-185. Every request
- // LAN-429 bridge: replaced by LAN-432
- * re-calls `requireGrant(PERSON_RECORD_BRIDGE)`. Three intents
+ * re-calls `requireGrant` on Person at `edit` (LAN-432). Three intents
  * ("check"/"create"/"link") on one action, all re-reading and re-authorizing.
  */
 export async function submitCreatePerson(
   previous: CreateState,
   formData: FormData,
 ): Promise<CreateState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  const operator = await requireGrant({ kind: "roster", key: "person" }, "edit");
 
   const values = readCreateValues(formData);
   const linkPersonId = formData.get("linkPersonId");

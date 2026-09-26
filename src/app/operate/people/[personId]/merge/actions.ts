@@ -13,13 +13,13 @@ import {
   type MergeFieldChoices,
 } from "@/lib/services/person-merge";
 import { GENERIC_FAILURE, INITIAL_MERGE_STATE, type MergeState } from "./merge-state";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { WHOLE_RECORD_AUTHORITY } from "@/lib/auth/roster-access";
 
 // The merge page's one server action — W4, LAN-185. survivor/loserPersonId
 // swap by navigating (?with=), not by anything this action decides.
 export async function submitMerge(_previous: MergeState, formData: FormData): Promise<MergeState> {
-  // LAN-429 bridge: replaced by LAN-432
-  const operator = await requireGrant(PERSON_RECORD_BRIDGE);
+  // LAN-432: a merge rewrites a whole person, so it asks for the whole record.
+  const operator = await requireGrant(WHOLE_RECORD_AUTHORITY);
 
   const survivorPersonId = String(formData.get("survivorPersonId") ?? "");
   const loserPersonId = String(formData.get("loserPersonId") ?? "");

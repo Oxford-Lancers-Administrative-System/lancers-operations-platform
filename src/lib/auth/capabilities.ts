@@ -113,11 +113,10 @@ import {
  * `./grants.ts` and carried on every operator as `grants`. The rule for this
  * map is:
  *
- * - **Removed:** `person_record_authority`. Every person-record surface asks
- *   the roster and recruiting categories instead. Until the roster package
- *   (LAN-432) replaces its uses per category, the remaining ones ask
- *   `PERSON_RECORD_BRIDGE` in `./grants.ts` (every roster and recruiting line
- *   at its maximum — the old capability's meaning).
+ * - **Removed:** the single person-record capability. Every person-record
+ *   surface asks the roster and recruiting categories instead, each column
+ *   and section its own (LAN-432, `./roster-access.ts` and
+ *   `./person-authority.ts`).
  * - **Kept for template administration and messaging safety only:**
  *   `event_calendar_management`, `event_approval` and
  *   `delivery_administration`. Their per-event uses move to the event's

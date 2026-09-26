@@ -6,7 +6,7 @@ import { readPersonRecord, searchPeople } from "@/lib/services/person-record";
 import { gateShellPage } from "../../../gate";
 import FindOtherRecord from "./find-other-record";
 import MergeComparison from "./merge-comparison";
-import { PERSON_RECORD_BRIDGE } from "@/lib/auth/grants";
+import { WHOLE_RECORD_AUTHORITY } from "@/lib/auth/roster-access";
 
 // `/operate/people/[personId]/merge` — W4-01..W4-08, LAN-185, `REQ-merge`.
 // Reached only from a record the operator already holds, never a list.
@@ -15,8 +15,8 @@ export default async function MergePage({
   searchParams,
 }: PageProps<"/operate/people/[personId]/merge">) {
   const { personId } = await params;
-  // LAN-429 bridge: replaced by LAN-432
-  const gate = await gateShellPage(`/operate/people/${personId}/merge`, PERSON_RECORD_BRIDGE);
+  // LAN-432: a merge rewrites a whole person, so it asks for the whole record.
+  const gate = await gateShellPage(`/operate/people/${personId}/merge`, WHOLE_RECORD_AUTHORITY);
   if ("screen" in gate) return gate.screen;
 
   const sp = await searchParams;
