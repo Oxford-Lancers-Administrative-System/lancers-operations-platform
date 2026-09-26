@@ -164,7 +164,6 @@ describe("the hot and gate projects", () => {
   it("tell only the database project that it may connect", () => {
     expect(database.env?.LANCERS_TEST_PROJECT).toBe("database");
     expect(gate.env?.LANCERS_TEST_PROJECT).toBe("database");
-    expect(gate.env?.PILOT_GUARD_CHECK).toBe("1");
     expect(unit.env?.LANCERS_TEST_PROJECT).toBeUndefined();
   });
 

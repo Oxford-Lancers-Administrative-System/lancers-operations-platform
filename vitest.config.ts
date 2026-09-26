@@ -16,8 +16,8 @@ loadEnv({ path: path.resolve(import.meta.dirname, ".env.local"), quiet: true });
  * sessions against the same rows. Three separate failures came out of that, each
  * found by accident at the cost of a CI rerun (LAN-139):
  *
- * - `tests/pilot-scenario-lan-76.test.ts` wraps every test in
- *   `repeatable read` and rolls back. PostgreSQL is *specified* to abort such a
+ * - A suite that wraps every test in `repeatable read` and rolls back (the
+ *   since-retired LAN-76 pilot scenario did). PostgreSQL is *specified* to abort such a
  *   transaction with SQLSTATE `40001` the moment a concurrent session commits to
  *   a row it read. That is not bad luck; it is the isolation level's contract.
  * - Suites that commit fixtures into shared catalogue tables are exactly such a
@@ -117,17 +117,6 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/link-test-operator.test.ts",
   "tests/operator-capability-catalogue.test.ts",
   "tests/person-merge-reference-catalogue.test.ts",
-  "tests/pilot-scenario-lan-110.test.ts",
-  "tests/pilot-scenario-lan-74.test.ts",
-  "tests/pilot-scenario-lan-75.test.ts",
-  "tests/pilot-scenario-lan-76.test.ts",
-  "tests/pilot-scenario-lan-77.test.ts",
-  "tests/pilot-scenario-lan-78.test.ts",
-  "tests/pilot-scenario-lan-79.test.ts",
-  "tests/pilot-scenario-lan-80.test.ts",
-  "tests/pilot-scenario-lan-81.test.ts",
-  "tests/pilot-scenario-lan-82.test.ts",
-  "tests/pilot-scenario-lan-93.test.ts",
   "tests/production-baseline-contract.test.ts",
   "tests/production-bootstrap-database.test.ts",
   "tests/production-smoke-contract.test.ts",
@@ -164,17 +153,6 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
  */
 export const GATE_SUITES: readonly string[] = [
   "tests/local-supabase-coordinator.test.ts",
-  "tests/pilot-scenario-lan-110.test.ts",
-  "tests/pilot-scenario-lan-74.test.ts",
-  "tests/pilot-scenario-lan-75.test.ts",
-  "tests/pilot-scenario-lan-76.test.ts",
-  "tests/pilot-scenario-lan-77.test.ts",
-  "tests/pilot-scenario-lan-78.test.ts",
-  "tests/pilot-scenario-lan-79.test.ts",
-  "tests/pilot-scenario-lan-80.test.ts",
-  "tests/pilot-scenario-lan-81.test.ts",
-  "tests/pilot-scenario-lan-82.test.ts",
-  "tests/pilot-scenario-lan-93.test.ts",
   "tests/production-baseline-contract.test.ts",
   "tests/production-bootstrap-database.test.ts",
   "tests/showcase-loader.test.ts",
@@ -255,7 +233,6 @@ export default defineConfig({
           poolOptions: { forks: { singleFork: true } },
           env: {
             LANCERS_TEST_PROJECT: "database",
-            PILOT_GUARD_CHECK: "1",
           },
         },
       },

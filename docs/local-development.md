@@ -97,8 +97,8 @@ non-local database, prints no key material, and is safe to run twice.
 
 Both logins share one password, held in the protected machine-local review
 account. There is no hosted counterpart to `db:link-coach`: on hosted, a coaching
-seat is granted by Brian through the supported administrative path, and
-`scripts/pilot/lan-110/README.md` says exactly how.
+seat is granted by Brian through the supported administrative path described
+in `docs/pilot-data-runbook.md`.
 
 Sign in at the assigned `/login` URL shown by `db:acquire` with the fixed local
 review account supplied directly in a visual-review handoff. You should reach

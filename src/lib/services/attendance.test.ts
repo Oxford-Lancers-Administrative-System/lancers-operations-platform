@@ -96,7 +96,7 @@ beforeAll(async () => {
  *
  * It could not simply be scoped where it stood, because by then the attendance
  * rows it would have keyed on were already deleted. Deleting the audit first,
- * as `tests/pilot-scenario-lan-80.test.ts` and `-110` already do, is what makes
+ * as the retired LAN-80 and LAN-110 pilot-scenario suites did, is what makes
  * the scope expressible at all.
  */
 afterEach(async () => {

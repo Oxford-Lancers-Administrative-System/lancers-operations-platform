@@ -1,15 +1,23 @@
 // @vitest-environment node
 /**
- * The pilot-data contract (LAN-93 / ADR 0016) is documentation, a pull-request
- * template and two SQL files. Nothing else in the repository fails if the
+ * The pilot-data contract (LAN-93 / ADR 0016) is documentation and a
+ * pull-request template. Nothing else in the repository fails if the
  * real-roster prohibition is quietly softened, if the Production handoff block
  * loses the line about migrations, if a workflow starts running a pilot script,
  * or if somebody commits a real email address into a public repository.
  *
  * These assertions are that missing failure. They read checked-in files only —
- * no database, no network, no agent. The behaviour of the scripts themselves is
- * proved separately, against local Supabase, in
- * `tests/pilot-scenario-lan-93.test.ts`.
+ * no database, no network, no agent.
+ *
+ * The slice's scenarios under `scripts/pilot/` were retired with their suites
+ * on 2026-09-26 (LAN-436, ADR 0016's amendment). What stays is the procedure,
+ * so what stays here is the contract on the procedure: the runbook, the
+ * manifest, the template, and the directory's README. A future scenario brings
+ * its own local suite, as the runbook's checklist requires.
+ *
+ * Checks over a list of files collect every offender and assert the list is
+ * empty, rather than generating one test per file: the failure still names
+ * each offending file.
  *
  * The precedent for asserting on documentation as a test is
  * `tests/agent-harness.test.ts`; the reasoning is the same. A rule that only
@@ -29,7 +37,6 @@ const PILOT_RUNBOOK = "docs/pilot-data-runbook.md";
 const PILOT_MANIFEST = "docs/pilot-data-manifest.md";
 const MIGRATION_RUNBOOK = "docs/migration-runbook.md";
 const PR_TEMPLATE = ".github/PULL_REQUEST_TEMPLATE.md";
-const SCENARIO_DIR = "scripts/pilot/lan-93";
 
 /** Every file under a directory, recursively, as repo-relative paths. */
 function filesUnder(relativeDir: string): string[] {
@@ -85,8 +92,9 @@ describe("nothing applies pilot data without a human", () => {
     expect(read("AGENTS.md")).toMatch(/scripts\/pilot/);
   });
 
-  it.each(candidates)("%s does not reference scripts/pilot/", (file) => {
-    expect(read(file)).not.toMatch(/scripts\/pilot/);
+  it("no automatic path references scripts/pilot/", () => {
+    const offenders = candidates.filter((file) => /scripts\/pilot/.test(read(file)));
+    expect(offenders, "these files reference scripts/pilot/").toEqual([]);
   });
 
   it("says so in the runbook", () => {
@@ -117,12 +125,7 @@ describe("the local-only guard still refuses everything it refused before", () =
     expect(resolveLocalDatabaseUrl(url)).toBe(url);
   });
 
-  it("is the guard the pilot scenario test connects through", () => {
-    for (const issue of ["76", "93"]) {
-      const test = read(`tests/pilot-scenario-lan-${issue}.test.ts`);
-      expect(test).toMatch(/openLocalClient/);
-      expect(test).not.toMatch(/resolveLocalDatabaseUrl/);
-    }
+  it("is the guard the database fixtures connect through", () => {
     const parity = read("tests/service-layer-guard-parity.test.ts");
     expect(parity).toMatch(/from "\.\.\/scripts\/lib\/local-db\.mjs"/);
     for (const host of ["db.abcdefghijklmnop.supabase.co", "pooler.supabase.com", "10.0.0.7"])
@@ -191,11 +194,12 @@ describe("the pilot artifacts are value-free", () => {
   const UNROUTABLE_EMAIL = /[\w.%+-]+@(?:[\w-]+\.)*example\.(?:invalid|com|org|net)(?![\w.-])/gi;
   const RESERVED_PHONE = /(?:\+44\s?|0)7700\s?900\d{3}\b/g;
 
-  /** Every scenario's reserved block, for files that belong to no one scenario. */
-  const ALL_SCENARIO_BLOCKS = filesUnder("scripts/pilot")
-    .filter((file) => file.endsWith("cleanup.sql"))
-    .map(scenarioBlock)
-    .filter((block): block is RegExp => block !== null);
+  /**
+   * Any scenario's reserved block, for files that belong to no one scenario —
+   * `0NNN0NNN-0NNN-4NNN-8NNN-…` for any issue number, exactly the shape
+   * `scenarioBlock` derives for one.
+   */
+  const ALL_SCENARIO_BLOCKS = [/0(\d{3})0\1-0\1-4\1-8\1-(?:[0-9a-f]{12}|…)/gi];
 
   /**
    * Everything a value-free check may ignore, removed.
@@ -218,10 +222,21 @@ describe("the pilot artifacts are value-free", () => {
   }
 
   it("checks every pilot artifact", () => {
-    expect(PUBLIC_SURFACE.length).toBeGreaterThanOrEqual(6);
-    expect(PUBLIC_SURFACE).toContain(`${SCENARIO_DIR}/setup.sql`);
-    expect(PUBLIC_SURFACE).toContain(`${SCENARIO_DIR}/cleanup.sql`);
+    expect(PUBLIC_SURFACE.length).toBeGreaterThanOrEqual(4);
+    expect(PUBLIC_SURFACE).toContain("scripts/pilot/README.md");
+    expect(PUBLIC_SURFACE).toContain(PILOT_RUNBOOK);
   });
+
+  it("recognises any scenario's reserved identifier block, and only that shape", () => {
+    const [block] = ALL_SCENARIO_BLOCKS;
+    expect("00930093-0093-4093-8093-000000000001".replace(block, "")).toBe("");
+    expect("01100110-0110-4110-8110-…".replace(block, "")).toBe("");
+    expect("00930093-0094-4093-8093-000000000001".replace(block, "")).not.toBe("");
+  });
+
+  /** Every file in the public surface whose stripped content matches. */
+  const offending = (pattern: RegExp): string[] =>
+    PUBLIC_SURFACE.filter((file) => pattern.test(stripped(file)));
 
   it("recognises a reserved contact value, and only a reserved one", () => {
     // The carve-out is the one place this file gets more permissive, so its
@@ -244,1179 +259,39 @@ describe("the pilot artifacts are value-free", () => {
     }
   });
 
-  it.each(PUBLIC_SURFACE)("%s contains no email address", (file) => {
+  it("contains no email address", () => {
     // Placeholders are angle-bracketed tokens, which cannot match this.
-    expect(stripped(file)).not.toMatch(/[\w.%+-]+@[\w-]+\.[A-Za-z]{2,}/);
+    expect(offending(/[\w.%+-]+@[\w-]+\.[A-Za-z]{2,}/), "files with an email address").toEqual([]);
   });
 
-  it.each(PUBLIC_SURFACE)("%s contains no identifier outside the scenario block", (file) => {
-    expect(stripped(file).match(ANY_UUID) ?? []).toEqual([]);
+  it("contains no identifier outside the scenario block", () => {
+    const found = PUBLIC_SURFACE.flatMap((file) =>
+      (stripped(file).match(ANY_UUID) ?? []).map((uuid) => `${file}: ${uuid}`),
+    );
+    expect(found).toEqual([]);
   });
 
-  it.each(PUBLIC_SURFACE)("%s contains no phone number or long digit run", (file) => {
-    expect(stripped(file)).not.toMatch(/\+\d[\d\s()-]{9,}/);
-    expect(stripped(file)).not.toMatch(/\b\d{7,}\b/);
+  it("contains no phone number or long digit run", () => {
+    expect(offending(/\+\d[\d\s()-]{9,}/), "files with a phone number").toEqual([]);
+    expect(offending(/\b\d{7,}\b/), "files with a long digit run").toEqual([]);
   });
 
-  it.each(PUBLIC_SURFACE)("%s contains no key, token or connection string", (file) => {
-    const content = read(file);
-    expect(content).not.toMatch(/sb_secret_|sb_publishable_/);
-    expect(content).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}/); // a JWT
-    expect(content).not.toMatch(/-----BEGIN [A-Z ]*PRIVATE KEY-----/);
-    expect(content).not.toMatch(/postgres(ql)?:\/\//);
+  it("contains no key, token or connection string", () => {
+    const SECRET_SHAPES = [
+      /sb_secret_|sb_publishable_/,
+      /eyJ[A-Za-z0-9_-]{10,}/, // a JWT
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+      /postgres(ql)?:\/\//,
+    ];
+    const found = PUBLIC_SURFACE.flatMap((file) =>
+      SECRET_SHAPES.filter((shape) => shape.test(read(file))).map((shape) => `${file}: ${shape}`),
+    );
+    expect(found).toEqual([]);
   });
 
   it("says why, where a future author will read it", () => {
     expect(read(PILOT_MANIFEST)).toMatch(/Value-free by rule/i);
     expect(read(PILOT_RUNBOOK)).toMatch(/placeholder/i);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Matrix rows 1–5, statically — what the scripts may and may not contain
-// ---------------------------------------------------------------------------
-
-describe("the scenario scripts stay inside the conventions", () => {
-  const setup = read(`${SCENARIO_DIR}/setup.sql`);
-  const cleanup = read(`${SCENARIO_DIR}/cleanup.sql`);
-
-  /**
-   * Every pilot script in the repository, not just the worked example's.
-   *
-   * These rules were scoped to LAN-93 and were therefore asserted against one
-   * scenario while claiming to be conventions. That mattered the moment
-   * LAN-74's cleanup became the first pilot script to contain DDL at all
-   * (`create temporary table`) — the exact construct "is not a migration in
-   * disguise" exists to adjudicate, adjudicated by nothing.
-   */
-  const ALL_SCRIPTS: readonly (readonly [name: string, sql: string])[] = filesUnder("scripts/pilot")
-    .filter((file) => file.endsWith(".sql"))
-    .map((file) => [file.replace(/^scripts\/pilot\//, ""), read(file)] as const);
-
-  it("covers every pilot script in the repository", () => {
-    // A list that silently stops growing is the way this rule fails.
-    expect(ALL_SCRIPTS.length).toBeGreaterThanOrEqual(6);
-    for (const scenario of ["lan-93", "lan-76", "lan-74"]) {
-      expect(ALL_SCRIPTS.map(([name]) => name)).toContain(`${scenario}/cleanup.sql`);
-    }
-  });
-
-  it.each(ALL_SCRIPTS)("%s never writes to auth or storage", (_name, sql) => {
-    expect(sql).not.toMatch(/\binsert\s+into\s+auth\./i);
-    expect(sql).not.toMatch(/\bupdate\s+auth\./i);
-    expect(sql).not.toMatch(/\bdelete\s+from\s+auth\./i);
-    expect(sql).not.toMatch(/\b(insert\s+into|update|delete\s+from)\s+storage\./i);
-  });
-
-  /**
-   * Only the three statement classes PostgreSQL event triggers cannot observe
-   * remain as a textual pre-filter. DDL, grants, and drops are proved by the
-   * gate-lane event-trigger rehearsal instead of a home-grown SQL parser.
-   */
-  function triggerBlindStatements(sql: string): string {
-    return sql
-      .replace(/--[^\n]*/g, " ")
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/[eE]'(?:''|\\.|[^'])*'|'(?:''|[^'])*'/g, " ");
-  }
-
-  it("does not let backslashes in standard strings hide a real TRUNCATE", () => {
-    const sql = String.raw`select '\'; truncate public.people; select 'x';`;
-    expect(triggerBlindStatements(sql)).toMatch(/\btruncate\s+public\.people\b/i);
-  });
-
-  it.each(ALL_SCRIPTS)(
-    "%s contains none of the event-trigger-blind statement classes",
-    (name, sql) => {
-      const code = triggerBlindStatements(sql);
-      expect(code, `${name} truncates a table`).not.toMatch(/\btruncate\b/i);
-      expect(code, `${name} changes a role, database or tablespace`).not.toMatch(
-        /\b(create|alter|drop)\s+(role|user|group|database|tablespace)\b/i,
-      );
-      expect(code, `${name} executes COPY … PROGRAM`).not.toMatch(
-        /\bcopy\b[\s\S]{0,200}?\bprogram\b/i,
-      );
-    },
-  );
-
-  it.each([
-    ["setup.sql", setup],
-    ["cleanup.sql", cleanup],
-  ])("%s is one explicit transaction", (_name, sql) => {
-    const statements = sql
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line === "begin;" || line === "commit;");
-    expect(statements).toEqual(["begin;", "commit;"]);
-  });
-
-  it.each([
-    ["setup.sql", setup],
-    ["cleanup.sql", cleanup],
-  ])("%s is not a migration in disguise", (_name, sql) => {
-    // A pilot script never changes the schema. A schema change is a versioned
-    // migration, identified to Brian before it is authored.
-    expect(sql).not.toMatch(/\b(create|alter|drop)\s+(table|type|schema|index|policy|view)\b/i);
-    expect(sql).not.toMatch(/^\s*(grant|revoke)\b/im);
-  });
-
-  it.each([
-    ["setup.sql", setup],
-    ["cleanup.sql", cleanup],
-  ])("%s never writes to auth", (_name, sql) => {
-    expect(sql).not.toMatch(/\b(insert\s+into|update|delete\s+from)\s+auth\./i);
-  });
-
-  it("setup.sql never rewrites a row it did not create", () => {
-    expect(setup).toMatch(/on conflict \(id\) do nothing/);
-    // `do update` would silently mutate whatever was already there.
-    expect(setup).not.toMatch(/on conflict[^\n]*do update/i);
-  });
-
-  it("cleanup.sql deletes only from the scenario's own tables", () => {
-    const targets = [...cleanup.matchAll(/delete\s+from\s+([\w.]+)/gi)].map((m) => m[1]);
-
-    expect(targets).toEqual([
-      "public.events",
-      "public.season_memberships",
-      "public.people",
-      "public.seasons",
-      "public.positions",
-      "public.position_vocabularies",
-    ]);
-
-    for (const durable of [
-      "auth.users",
-      "public.operator_accounts",
-      "public.role_assignments",
-      "public.roles",
-      "public.audit_events",
-    ]) {
-      expect(targets).not.toContain(durable);
-    }
-  });
-
-  /**
-   * The exact conjuncts each delete is allowed to have.
-   *
-   * Asserting that "a UUID appears somewhere in the statement" is not a
-   * constraint: `where id = '…' or name like 'PILOT-LAN-93%'` satisfies it and
-   * deletes every row carrying the sentinel, in seasons no preflight looked at.
-   * One character is the whole distance between the narrowest possible delete
-   * and an arbitrarily wide one, so the predicate is pinned literally.
-   */
-  const EXPECTED_DELETES: readonly (readonly [table: string, conjuncts: readonly string[]])[] = [
-    ["public.events", ["id = '00930093-0093-4093-8093-000000000006'", "name like 'PILOT-LAN-93%'"]],
-    [
-      "public.season_memberships",
-      [
-        "id = '00930093-0093-4093-8093-000000000005'",
-        "person_id = '00930093-0093-4093-8093-000000000004'",
-        "season_id = '00930093-0093-4093-8093-000000000003'",
-      ],
-    ],
-    [
-      "public.people",
-      [
-        "id = '00930093-0093-4093-8093-000000000004'",
-        // The sentinel moved out of `people.known_as` and into the alias
-        // flagged as this person's display name (LAN-182). Same row in scope.
-        "exists (select 1 from public.person_aliases a where a.person_id = people.id and a.alias = 'PILOT-LAN-93')",
-      ],
-    ],
-    [
-      "public.seasons",
-      ["id = '00930093-0093-4093-8093-000000000003'", "label like 'PILOT-LAN-93%'"],
-    ],
-    [
-      "public.positions",
-      ["id = '00930093-0093-4093-8093-000000000002'", "label like 'PILOT-LAN-93%'"],
-    ],
-    [
-      "public.position_vocabularies",
-      ["id = '00930093-0093-4093-8093-000000000001'", "code = 'pilot-lan-93'"],
-    ],
-  ];
-
-  /**
-   * Splits a WHERE clause on its TOP-LEVEL `and`s, ignoring any inside
-   * parentheses.
-   *
-   * It used to split on every `and` in the string. Nothing carried one inside a
-   * subquery, so nothing noticed — until LAN-182 moved a scenario's person
-   * sentinel from `people.known_as` into a correlated read of
-   * `person_aliases`, whose own `where` has an `and` in it. A naive split cut
-   * that predicate into fragments, and the pinning below compared fragments to
-   * whole conjuncts.
-   *
-   * Strictly a parsing fix, and it cannot loosen the pin: depth-aware splitting
-   * yields fewer and larger conjuncts, and every one of them must still appear
-   * in `EXPECTED_DELETES` verbatim.
-   */
-  function topLevelConjuncts(where: string): string[] {
-    const parts: string[] = [];
-    let depth = 0;
-    let current = "";
-    let index = 0;
-
-    while (index < where.length) {
-      const character = where[index];
-      if (character === "(") depth += 1;
-      if (character === ")") depth -= 1;
-
-      const boundary = /^\s+and\s+/i.exec(where.slice(index));
-      if (depth === 0 && boundary) {
-        parts.push(current);
-        current = "";
-        index += boundary[0].length;
-        continue;
-      }
-
-      current += character;
-      index += 1;
-    }
-    parts.push(current);
-
-    return parts.map((part) => part.trim()).filter(Boolean);
-  }
-
-  /** `delete from X where a and b` -> { table: "X", conjuncts: ["a", "b"] }. */
-  function parseDeletes(sql: string): { table: string; where: string; conjuncts: string[] }[] {
-    return sql
-      .replace(/--[^\n]*/g, "")
-      .split(";")
-      .filter((statement) => /\bdelete\s+from\b/i.test(statement))
-      .map((statement) => {
-        const parsed = /\bdelete\s+from\s+([\w.]+)\s+where\s+([\s\S]+)$/i.exec(
-          statement.replace(/\s+/g, " ").trim(),
-        );
-        if (!parsed) throw new Error(`A delete with no where clause: ${statement.trim()}`);
-        return {
-          table: parsed[1],
-          where: parsed[2].trim(),
-          conjuncts: topLevelConjuncts(parsed[2]),
-        };
-      });
-  }
-
-  it("every delete in cleanup.sql conjoins its identifier with the sentinel", () => {
-    const parsed = parseDeletes(cleanup);
-
-    expect(parsed.map((statement) => statement.table)).toEqual(
-      EXPECTED_DELETES.map(([table]) => table),
-    );
-
-    for (const [index, [table, conjuncts]] of EXPECTED_DELETES.entries()) {
-      const statement = parsed[index];
-
-      // No disjunction, anywhere. An `or` between the identifier and the
-      // sentinel turns "this row" into "every row carrying the sentinel".
-      expect(statement.where, `${table}: the where clause must not disjoin`).not.toMatch(/\bor\b/i);
-
-      // And the conjuncts are exactly these — so dropping the sentinel half,
-      // or adding a condition, is a failure rather than a silent widening.
-      expect(statement.conjuncts, `${table}: unexpected delete predicate`).toEqual([...conjuncts]);
-      expect(statement.conjuncts.length).toBeGreaterThanOrEqual(2);
-    }
-  });
-
-  /**
-   * The second legitimate ownership shape, pinned scenario by scenario.
-   *
-   * A scenario whose rows are created by the **application** — a human pressing
-   * Save in the deployed product — has no deterministic key to delete by,
-   * because PostgreSQL generates it at insert time. LAN-76 is the first such
-   * scenario, and the owner's locked handoff on that issue directs exactly this
-   * shape: an assertion-only setup, and a cleanup keyed on the sentinel.
-   *
-   * It is pinned here the same way `EXPECTED_DELETES` pins the worked example —
-   * the table, and the exact conjuncts, written out — rather than described by
-   * a rule the assertion then tries to recognise. The first draft of this test
-   * did the latter, requiring only "the sentinel plus one further conjunct",
-   * and independent review demonstrated two ways through it: LAN-76's status
-   * restriction could be replaced with `created_at is not null` and the test
-   * stayed green, and a new scenario could delete from `public.people` by
-   * sentinel and `id is not null`. A predicate cannot be told from a *narrowing*
-   * predicate by pattern-matching, so the predicate itself is the contract.
-   *
-   * Adding a scenario here is therefore a deliberate line in a diff, naming the
-   * table it may delete from and every condition it may delete by. That is the
-   * point: relaxing the runbook's ownership marker is Brian's decision, and
-   * this list is where each such decision is recorded.
-   */
-  const SENTINEL_ONLY_DELETES: Readonly<
-    Record<string, readonly (readonly [table: string, conjuncts: readonly string[]])[]>
-  > = {
-    // LAN-74's returner intake. Its setup script writes eight rows with
-    // deterministic identifiers; these five statements remove what the
-    // APPLICATION writes — the returner a tester enters through the form, and
-    // the membership they create by selecting an existing candidate. Neither
-    // has an identifier any script can know.
-    //
-    // The sentinel is matched against the display alias OR `family_name`
-    // because two kinds of row carry it: setup.sql writes an alias (person
-    // …0001 is deliberately first-name-only and has no surname to use), and the
-    // intake form puts it in `family_name`, which is the field it has. Pinned by
-    // value here, so widening it to a third home is a line in a diff.
-    //
-    // It read `people.known_as` until LAN-182 struck that column and moved the
-    // name a person is shown under into `person_aliases`. Same rows in scope,
-    // read from where the fact now lives.
-    "lan-74": [
-      [
-        "public.season_membership_status_events",
-        [
-          "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_74_targets))",
-          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))))",
-        ],
-      ],
-      [
-        "public.season_memberships",
-        [
-          "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
-        ],
-      ],
-      [
-        "public.contact_points",
-        [
-          "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
-        ],
-      ],
-      [
-        "public.person_aliases",
-        [
-          "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
-          // A third conjunct since LAN-182, and it NARROWS: the display alias
-          // is now what carries the sentinel identifying its person, so this
-          // sweep must leave it for the `people` delete below to pair against.
-          // It goes with the person, by the cascade on `person_id`.
-          "not is_display_name",
-        ],
-      ],
-      [
-        "public.people",
-        [
-          "id in (select person_id from pilot_lan_74_targets)",
-          "'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))",
-        ],
-      ],
-    ],
-    "lan-76": [["public.events", ["name like '%PILOT-LAN-76%'", "status = 'draft'"]]],
-    // LAN-75's roster and activation scenario. Its setup script writes nine
-    // rows with deterministic identifiers, and these six statements remove the
-    // rows that have no identifier any script can know: the returner a tester
-    // enters through the form, everything hanging off a sentinel-carrying
-    // person, and the onboarding items the APPLICATION generates from this
-    // scenario's item types.
-    //
-    // The `onboarding_items` entry is the one that is not keyed on a person,
-    // and it is deliberate. `onboarding_item_types` belongs to a season, so
-    // while the scenario is installed every membership the application confirms
-    // receives its three items — including memberships that are not scenario
-    // data. Those rows are pilot rows wherever they landed, so the delete is
-    // keyed on the item TYPE: the scenario's own three identifiers, conjoined
-    // with the sentinel on the type's label. The memberships they hung off are
-    // untouched, which `tests/pilot-scenario-lan-75.test.ts` proves with a
-    // whole-database digest.
-    //
-    // The sentinel is matched against the display alias OR `family_name` for the
-    // same reason as LAN-74: setup.sql writes an alias, and the intake form
-    // puts it in `family_name`, which is the only name field it has. Written as
-    // an `in (…)` rather than a disjunction so the predicate cannot widen.
-    "lan-75": [
-      [
-        "public.onboarding_items",
-        [
-          "item_type_id in (select id from public.onboarding_item_types where id in ('00750075-0075-4075-8075-000000000001', '00750075-0075-4075-8075-000000000002', '00750075-0075-4075-8075-000000000003'))",
-          "item_type_id in (select id from public.onboarding_item_types where label like '%PILOT-LAN-75%')",
-        ],
-      ],
-      // The second onboarding-items delete: every OTHER item on a membership
-      // this scenario is about to remove entirely. `generateOnboardingItems`
-      // inserts one row per item type configured on the season, not just this
-      // scenario's three, so a returner created through the interface carries
-      // the club's items too — and without this the membership delete aborts on
-      // `onboarding_items_membership_season`. Scoped to the target memberships,
-      // so it cannot reach an item belonging to anybody not already being
-      // removed whole.
-      [
-        "public.onboarding_items",
-        [
-          "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_75_targets))",
-          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))))",
-        ],
-      ],
-      [
-        "public.season_membership_status_events",
-        [
-          "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_75_targets))",
-          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))))",
-        ],
-      ],
-      [
-        "public.season_memberships",
-        [
-          "person_id in (select person_id from pilot_lan_75_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
-        ],
-      ],
-      [
-        "public.contact_points",
-        [
-          "person_id in (select person_id from pilot_lan_75_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
-        ],
-      ],
-      [
-        "public.person_aliases",
-        [
-          "person_id in (select person_id from pilot_lan_75_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
-          // Narrowing, exactly as in LAN-74: the display alias carries the
-          // sentinel that identifies its person since LAN-182, so it survives
-          // this sweep and leaves with the person by cascade.
-          "not is_display_name",
-        ],
-      ],
-      [
-        "public.people",
-        [
-          "id in (select person_id from pilot_lan_75_targets)",
-          "'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))",
-        ],
-      ],
-    ],
-    // LAN-77's approval transaction. Its setup script writes twenty-two rows
-    // with deterministic identifiers, and cleanup removes every one of those by
-    // id. These seven statements remove what the APPLICATION writes when Brian
-    // approves the scenario event — the resolved audience, one invitation per
-    // invitee, their notification jobs, any delivery result or response those
-    // later acquire, and the approval's own audit rows. None of them has an
-    // identifier any script can know, because PostgreSQL generates it inside
-    // the approval transaction.
-    //
-    // Every statement is pinned to the same two conjuncts: the scenario's two
-    // deterministic event ids, and the scenario's sentinel in `events.name`.
-    // Neither alone would be enough — the id block alone would delete a real
-    // event that happened to collide, and the sentinel alone would delete any
-    // event somebody named after this scenario — so a row survives unless its
-    // event satisfies both.
-    /**
-     * LAN-78's delivery surface. Its setup script writes twenty-two rows with
-     * deterministic identifiers, and cleanup removes every one of those by id.
-     * These six remove what the APPLICATION writes while the scenario is in
-     * use — the RSVP access token a retry mints, the further delivery attempts
-     * and results it produces, the callbacks Meta sends, and the audit rows
-     * both write. None of them has an identifier any script can know.
-     *
-     * Every statement is pinned to the same two conjuncts: the scenario's
-     * deterministic event identifier, and the scenario's sentinel in
-     * `events.name`. Neither alone would be enough.
-     */
-    "lan-78": [
-      [
-        "public.delivery_callbacks",
-        [
-          "delivery_attempt_id in (select id from public.delivery_attempts where notification_job_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050')))",
-          "delivery_attempt_id in (select id from public.delivery_attempts where notification_job_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%')))",
-        ],
-      ],
-      [
-        "public.delivery_results",
-        [
-          "notification_job_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))",
-          "notification_job_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
-        ],
-      ],
-      [
-        "public.delivery_attempts",
-        [
-          "notification_job_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))",
-          "notification_job_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
-        ],
-      ],
-      [
-        "public.rsvp_access_tokens",
-        [
-          "invitation_id in (select id from public.invitations where event_id in ('00780078-0078-4078-8078-000000000050'))",
-          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
-        ],
-      ],
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'notification_jobs'",
-          "entity_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))",
-          "entity_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
-        ],
-      ],
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'invitations'",
-          "entity_id in (select id from public.invitations where event_id in ('00780078-0078-4078-8078-000000000050'))",
-          "entity_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
-        ],
-      ],
-    ],
-    /**
-     * LAN-79's player RSVP. Its setup script writes twenty-three rows with
-     * deterministic identifiers, and cleanup removes every one of those by
-     * `id = '…'` — no relaxation is needed for them.
-     *
-     * These three remove what the APPLICATION writes while the scenario is in
-     * use: the RSVP responses a tester gives through the page, the audit rows
-     * those responses write, and any notification job the response path
-     * cancelled. None has an identifier any script can know, because PostgreSQL
-     * generates it inside the response transaction.
-     *
-     * Every statement is pinned to the same two conjuncts: the scenario's three
-     * deterministic event identifiers, and the scenario's sentinel in
-     * `events.name`. The audit delete carries a third, `entity_table`, because
-     * `entity_id` is polymorphic and a colliding identifier in another table
-     * would otherwise be in scope.
-     *
-     * Unlike LAN-78, this scenario's cleanup deliberately DOES remove RSVP
-     * responses. There they would be real history a scenario had no business
-     * acquiring; here the response is the thing under test, given by a tester
-     * to a synthetic invitation of a synthetic person.
-     */
-    "lan-79": [
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'invitations'",
-          "entity_id in (select id from public.invitations where event_id in ('00790079-0079-4079-8079-000000000021', '00790079-0079-4079-8079-000000000022', '00790079-0079-4079-8079-000000000023'))",
-          "entity_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-79%'))",
-        ],
-      ],
-      [
-        "public.rsvp_responses",
-        [
-          "invitation_id in (select id from public.invitations where event_id in ('00790079-0079-4079-8079-000000000021', '00790079-0079-4079-8079-000000000022', '00790079-0079-4079-8079-000000000023'))",
-          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-79%'))",
-        ],
-      ],
-      [
-        "public.notification_jobs",
-        [
-          "invitation_id in (select id from public.invitations where event_id in ('00790079-0079-4079-8079-000000000021', '00790079-0079-4079-8079-000000000022', '00790079-0079-4079-8079-000000000023'))",
-          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-79%'))",
-        ],
-      ],
-    ],
-    // LAN-80's occurrence assertion and attendance. Its setup script writes
-    // twenty rows with deterministic identifiers; these five statements remove
-    // what the APPLICATION writes when the matrix is worked through — the
-    // attendance itself, the audit rows the assertion and every attendance
-    // press produce, and the person a walk-up who is not on the roster brings
-    // into existence, together with any contact point typed for them.
-    //
-    // The `people` and `contact_points` entries are keyed on a temporary table
-    // built at the top of cleanup.sql from the attendance rows themselves,
-    // because attendance is the only thing that connects a typed-in walk-up to
-    // this scenario and it is deleted below them. The sentinel is matched
-    // against `given_name` OR the display alias: setup.sql writes an alias, and
-    // the walk-up form splits the typed name on its first space, which puts it
-    // in `given_name`. Written as an `in (…)` rather than a disjunction so the
-    // predicate cannot widen, and `coalesce` because a person may hold no
-    // display alias at all and
-    // `upper(btrim(null))` would make the whole comparison unknown.
-    //
-    // A walk-up person WITHOUT the sentinel is not deleted by any of this: the
-    // cleanup's preflight aborts on one, because it might be a real member.
-    "lan-80": [
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'attendance_records'",
-          "entity_id in (select id from public.attendance_records where event_id in ('00800080-0080-4080-8080-000000000021', '00800080-0080-4080-8080-000000000022'))",
-          "entity_id in (select id from public.attendance_records where event_id in (select id from public.events where name like '%PILOT-LAN-80%'))",
-        ],
-      ],
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'events'",
-          "entity_id in ('00800080-0080-4080-8080-000000000021', '00800080-0080-4080-8080-000000000022')",
-          "entity_id in (select id from public.events where name like '%PILOT-LAN-80%')",
-        ],
-      ],
-      [
-        "public.attendance_records",
-        [
-          "event_id in ('00800080-0080-4080-8080-000000000021', '00800080-0080-4080-8080-000000000022')",
-          "event_id in (select id from public.events where name like '%PILOT-LAN-80%')",
-        ],
-      ],
-      [
-        "public.contact_points",
-        [
-          "person_id in (select person_id from pilot_lan_80_walk_ups)",
-          "person_id in (select id from public.people where 'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))))",
-        ],
-      ],
-      [
-        "public.people",
-        [
-          "id in (select person_id from pilot_lan_80_walk_ups)",
-          "'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), ''))))",
-        ],
-      ],
-    ],
-    /**
-     * LAN-81's Monday report. Its setup script writes thirty rows with
-     * deterministic identifiers, and cleanup removes every one of those by
-     * `id = '…'` — no relaxation is needed for them.
-     *
-     * These three remove what the APPLICATION writes while the scenario is in
-     * use: the immutable snapshots a tester generates by pressing **Generate
-     * report**, the audit rows those generations write, and the audit rows the
-     * scenario's own events collected. None has an identifier any script can
-     * know, because PostgreSQL generates it inside the generating transaction.
-     *
-     * The two report-shaped statements are qualified on the open season and on
-     * the sentinel inside the report's own **stored content**, which is a
-     * marker nothing else puts there: every section of a report for that week
-     * names this scenario's events and people, and `setup.sql` refuses to
-     * install unless the reporting window contains no event but its own. The
-     * cleanup additionally aborts if it meets a report in that date range whose
-     * content does not carry the sentinel — a real snapshot is never guessed at.
-     *
-     * This is the only scenario permitted to delete from `public.weekly_reports`
-     * at all. Invariant M5 makes a published report immutable and nothing in the
-     * application can remove one; a synthetic rehearsal week is scenario data
-     * the runbook requires to be removable, and no statement here changes a
-     * report rather than removing it whole.
-     */
-    "lan-81": [
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'weekly_reports'",
-          "entity_id in (select id from public.weekly_reports where content::text like '%PILOT-LAN-81%')",
-        ],
-      ],
-      [
-        "public.weekly_reports",
-        [
-          "season_id in (select id from public.seasons where status in ('open', 'active'))",
-          "content::text like '%PILOT-LAN-81%'",
-        ],
-      ],
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'events'",
-          "entity_id in ('00810081-0081-4081-8081-000000000021', '00810081-0081-4081-8081-000000000022', '00810081-0081-4081-8081-000000000023')",
-          "entity_id in (select id from public.events where name like '%PILOT-LAN-81%')",
-        ],
-      ],
-    ],
-    // LAN-110's coach attendance recorder. The same four application-created
-    // tables LAN-80 has — the coach's board writes exactly what the operator's
-    // board writes — plus the recruitment prospect a walk-on now creates.
-    //
-    // What is NOT in this list is the point of reading it: this scenario grants
-    // two coaching seats and **deletes neither**. The runbook's "Preserves the
-    // foundation" rule forbids deleting from `role_assignments`, so cleanup
-    // end-dates them, and the two people who hold them stay as durable
-    // identities. An earlier version of this PR deleted both and widened the
-    // parser below to allow it; independent review caught that, and the parser
-    // is back to refusing any `delete` against this table outright.
-    "lan-110": [
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'attendance_records'",
-          "entity_id in (select id from public.attendance_records where event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032'))",
-          "entity_id in (select id from public.attendance_records where event_id in (select id from public.events where name like '%PILOT-LAN-110%'))",
-        ],
-      ],
-      [
-        "public.audit_events",
-        [
-          "entity_table = 'events'",
-          "entity_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')",
-          "entity_id in (select id from public.events where name like '%PILOT-LAN-110%')",
-        ],
-      ],
-      [
-        "public.attendance_records",
-        [
-          "event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')",
-          "event_id in (select id from public.events where name like '%PILOT-LAN-110%')",
-        ],
-      ],
-      [
-        "public.contact_points",
-        [
-          "person_id in (select person_id from pilot_lan_110_walk_ups)",
-          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))))",
-        ],
-      ],
-      // The prospect a walk-on now creates. `person_id` is `on delete restrict`,
-      // so this is not optional tidying — without it the person delete fails.
-      [
-        "public.recruitment_prospects",
-        [
-          "person_id in (select person_id from pilot_lan_110_walk_ups)",
-          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))))",
-        ],
-      ],
-      [
-        "public.people",
-        [
-          "id in (select person_id from pilot_lan_110_walk_ups)",
-          "'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), ''))))",
-        ],
-      ],
-    ],
-    "lan-77": [
-      [
-        "public.delivery_results",
-        [
-          "notification_job_id in (select id from public.notification_jobs where event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051'))",
-          "notification_job_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-77%'))",
-        ],
-      ],
-      [
-        "public.notification_jobs",
-        [
-          "event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051')",
-          "event_id in (select id from public.events where name like '%PILOT-LAN-77%')",
-        ],
-      ],
-      [
-        "public.question_responses",
-        [
-          "invitation_id in (select id from public.invitations where event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051'))",
-          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-77%'))",
-        ],
-      ],
-      [
-        "public.rsvp_responses",
-        [
-          "invitation_id in (select id from public.invitations where event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051'))",
-          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-77%'))",
-        ],
-      ],
-      [
-        "public.invitations",
-        [
-          "event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051')",
-          "event_id in (select id from public.events where name like '%PILOT-LAN-77%')",
-        ],
-      ],
-      [
-        "public.event_audience_members",
-        [
-          "event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051')",
-          "event_id in (select id from public.events where name like '%PILOT-LAN-77%')",
-        ],
-      ],
-      [
-        "public.audit_events",
-        [
-          "entity_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051')",
-          "entity_id in (select id from public.events where name like '%PILOT-LAN-77%')",
-        ],
-      ],
-    ],
-  };
-
-  /** The heading a scenario must carry to use the shape at all. */
-  const SENTINEL_ONLY_HEADING = "## Ownership marker: sentinel only";
-
-  it("holds every pilot scenario to that shape, not just this one", () => {
-    // Written generically because the runbook says this scenario is meant to be
-    // copied: a future `scripts/pilot/<issue>/cleanup.sql` inherits the rule.
-    const cleanups = filesUnder("scripts/pilot").filter((file) => file.endsWith("cleanup.sql"));
-    expect(cleanups.length).toBeGreaterThanOrEqual(1);
-
-    for (const file of cleanups) {
-      const scenario = path.basename(path.dirname(file));
-      const sentinel = new RegExp(`PILOT-${scenario}`, "i");
-      const pinned = SENTINEL_ONLY_DELETES[scenario];
-      const usedPins = new Set<string>();
-
-      for (const statement of parseDeletes(read(file))) {
-        expect(statement.where, `${file}: ${statement.table}`).not.toMatch(/\bor\b/i);
-        expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(2);
-
-        const keyed = statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part));
-
-        if (!keyed) {
-          // Two independent permissions, and both are required. The list above
-          // says which table and which conditions; the scenario's own README
-          // says it knows it is using the shape. Either one alone would be a
-          // way in — the list without the heading hides the relaxation from
-          // whoever reads the scenario, and the heading without the list is the
-          // pattern-match that review got through twice.
-          expect(
-            pinned,
-            `${file}: ${statement.table} is not keyed on a deterministic id, and ${scenario} ` +
-              `has no entry in SENTINEL_ONLY_DELETES. Adding one is an owner decision.`,
-          ).toBeDefined();
-          expect(
-            read(`scripts/pilot/${scenario}/README.md`),
-            `scripts/pilot/${scenario}/README.md does not declare the sentinel-only shape`,
-          ).toContain(SENTINEL_ONLY_HEADING);
-
-          // Every pinned predicate for this table, not just the first.
-          //
-          // A scenario may legitimately need two deletes against one table with
-          // different predicates — LAN-75 removes onboarding items twice, once
-          // by item type (which reaches memberships that are not scenario data)
-          // and once by target membership (which reaches items of types that
-          // are not the scenario's). `find` matched only the first entry, so
-          // the second statement could never be pinned at all.
-          //
-          // This is not a relaxation: the statement must still equal one of the
-          // pinned predicate sets **exactly**, and `usedPins` below requires
-          // every pinned entry to be matched by a real statement, so an unused
-          // entry cannot sit here quietly permitting something.
-          const candidates = (pinned ?? []).filter(([table]) => table === statement.table);
-          expect(
-            candidates.length,
-            `${file}: ${statement.table} is not a table ${scenario} may delete from`,
-          ).toBeGreaterThan(0);
-
-          const matchIndex = candidates.findIndex(
-            ([, conjuncts]) =>
-              conjuncts.length === statement.conjuncts.length &&
-              conjuncts.every((part, at) => part === statement.conjuncts[at]),
-          );
-          expect(
-            matchIndex,
-            `${file}: ${statement.table}: unexpected delete predicate\n` +
-              `  got:      ${JSON.stringify(statement.conjuncts, null, 2)}\n` +
-              `  pinned:   ${JSON.stringify(
-                candidates.map(([, c]) => c),
-                null,
-                2,
-              )}`,
-          ).toBeGreaterThanOrEqual(0);
-          usedPins.add(`${statement.table}#${matchIndex}`);
-
-          // And the pinned predicate itself still has to prove ownership, so a
-          // future edit to the list cannot quietly drop the sentinel half.
-          expect(
-            statement.conjuncts.filter((part) => sentinel.test(part)).length,
-            `${file}: ${statement.table} must be qualified by the ${scenario} sentinel`,
-          ).toBe(1);
-          continue;
-        }
-
-        // … and the rest prove ownership, by the sentinel or by the scenario's
-        // own parent identifiers.
-        const ownership = statement.conjuncts.filter((part) => !/^id = /i.test(part));
-        expect(
-          ownership.every((part) => sentinel.test(part) || /'[0-9a-f-]{36}'/i.test(part)),
-          `${file}: ${statement.table} has a conjunct that proves nothing`,
-        ).toBe(true);
-      }
-
-      // Every pinned predicate must be used by a real statement. Without this,
-      // allowing more than one entry per table would let a stale or speculative
-      // predicate sit in the list permitting a delete nothing performs — which
-      // is exactly the "a stale entry is worse than none" failure the next test
-      // guards against at scenario granularity, one level finer.
-      for (const [index, [table]] of (pinned ?? []).entries()) {
-        const key = `${table}#${(pinned ?? [])
-          .filter(([each]) => each === table)
-          .findIndex((entry) => entry === (pinned ?? [])[index])}`;
-        expect(
-          usedPins.has(key),
-          `${scenario}: the pinned ${table} predicate at index ${index} matches no delete in ${file}`,
-        ).toBe(true);
-      }
-    }
-  });
-
-  it("pins no scenario that does not exist, and none that is keyed anyway", () => {
-    // A stale entry is worse than none: it would sit here permitting a
-    // sentinel-only delete for a scenario that has since been rewritten, or
-    // removed, and nothing would say so.
-    for (const scenario of Object.keys(SENTINEL_ONLY_DELETES)) {
-      const cleanup = `scripts/pilot/${scenario}/cleanup.sql`;
-      expect(filesUnder("scripts/pilot"), `${scenario} is pinned but has no cleanup`).toContain(
-        cleanup,
-      );
-      expect(read(`scripts/pilot/${scenario}/README.md`)).toContain(SENTINEL_ONLY_HEADING);
-
-      const unkeyed = parseDeletes(read(cleanup)).filter(
-        (statement) => !statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part)),
-      );
-      expect(
-        unkeyed.length,
-        `${scenario} is pinned for the sentinel-only shape but every delete is keyed`,
-      ).toBeGreaterThanOrEqual(1);
-    }
-  });
-
-  /**
-   * A parsed preflight: its guard blocks, and any raise outside all of them.
-   *
-   * The rules below are stated as what a guard MUST be, never as a list of
-   * things it must not be. A blacklist is how `raise notice` walked past the
-   * previous version of this assertion — `raise warning` was forbidden and
-   * every other level was not, and downgrading one word turned a refusal into a
-   * message nobody reads while the whole suite stayed green.
-   */
-  interface GuardBlock {
-    condition: string;
-    body: string;
-    raises: { level: string; line: string }[];
-    hasNestedIf: boolean;
-  }
-
-  const RAISE_LEVELS = ["exception", "warning", "notice", "info", "log", "debug"];
-
-  function parsePreflight(sql: string): { blocks: GuardBlock[]; looseRaises: string[] } {
-    const preflight = /do \$preflight\$([\s\S]*?)\$preflight\$;/.exec(sql);
-    if (!preflight) throw new Error("no do $preflight$ … $preflight$; block");
-
-    const lines = preflight[1]
-      .replace(/--[^\n]*/g, "")
-      .split("\n")
-      .map((line) => line.trim());
-
-    const blocks: GuardBlock[] = [];
-    const looseRaises: string[] = [];
-    const open: {
-      condition: string[];
-      body: string[];
-      raises: GuardBlock["raises"];
-      nested: boolean;
-    }[] = [];
-
-    for (const line of lines) {
-      if (/^if\b/.test(line)) {
-        for (const enclosing of open) enclosing.nested = true;
-        open.push({ condition: [line], body: [line], raises: [], nested: false });
-        continue;
-      }
-
-      if (/^raise\b/i.test(line)) {
-        const level = /^raise\s+([a-z]+)/i.exec(line)?.[1]?.toLowerCase() ?? "";
-        if (open.length === 0) looseRaises.push(line);
-        else open[open.length - 1].raises.push({ level, line });
-      }
-
-      for (const enclosing of open) enclosing.body.push(line);
-      // The condition runs until `then`, which may be several lines below `if`.
-      const innermost = open[open.length - 1];
-      if (innermost && !innermost.condition.join(" ").includes(" then")) {
-        if (innermost.condition[innermost.condition.length - 1] !== line) {
-          innermost.condition.push(line);
-        }
-      }
-
-      if (/^end if;$/.test(line)) {
-        const finished = open.pop();
-        if (!finished) throw new Error("an 'end if;' with no matching 'if'");
-        blocks.push({
-          condition: finished.condition.join(" "),
-          body: finished.body.join(" "),
-          raises: finished.raises,
-          hasNestedIf: finished.nested,
-        });
-      }
-    }
-
-    if (open.length > 0) throw new Error("an 'if' with no matching 'end if;'");
-    return { blocks, looseRaises };
-  }
-
-  /**
-   * Every preflight in the repository, and the smallest number of guard blocks
-   * it is allowed to shrink to.
-   *
-   * Enumerated rather than hard-coded to the worked example: the runbook says a
-   * scenario is meant to be copied, and a copy whose preflight was gutted would
-   * otherwise be checked by nothing. The minimum is per file because these
-   * scripts are not the same size — LAN-93 creates six rows and guards each of
-   * them; LAN-76 writes nothing and guards the state of the database it is
-   * about to be tested against. Lowering one of these numbers is the change a
-   * reviewer has to see.
-   */
-  const PREFLIGHTS = [
-    ["lan-93/setup.sql", setup, 10] as const,
-    ["lan-93/cleanup.sql", cleanup, 17] as const,
-    ["lan-76/setup.sql", read("scripts/pilot/lan-76/setup.sql"), 5] as const,
-    ["lan-76/cleanup.sql", read("scripts/pilot/lan-76/cleanup.sql"), 6] as const,
-    ["lan-74/setup.sql", read("scripts/pilot/lan-74/setup.sql"), 10] as const,
-    ["lan-74/cleanup.sql", read("scripts/pilot/lan-74/cleanup.sql"), 14] as const,
-    ["lan-75/setup.sql", read("scripts/pilot/lan-75/setup.sql"), 8] as const,
-    ["lan-75/cleanup.sql", read("scripts/pilot/lan-75/cleanup.sql"), 12] as const,
-    ["lan-77/setup.sql", read("scripts/pilot/lan-77/setup.sql"), 5] as const,
-    ["lan-77/cleanup.sql", read("scripts/pilot/lan-77/cleanup.sql"), 5] as const,
-    ["lan-78/setup.sql", read("scripts/pilot/lan-78/setup.sql"), 6] as const,
-    // Higher than any other cleanup, and it should be: this scenario's rows
-    // hang off memberships, an event and a set of jobs, so there are more
-    // foreign keys PostgreSQL would follow into history than anywhere else.
-    ["lan-78/cleanup.sql", read("scripts/pilot/lan-78/cleanup.sql"), 13] as const,
-    // Four prerequisite guards and two that refuse a half-filled token block —
-    // this is the only scenario whose setup needs a secret pasted into it, and
-    // a placeholder reaching the database would fail on a constraint name
-    // instead of on an instruction.
-    ["lan-79/setup.sql", read("scripts/pilot/lan-79/setup.sql"), 6] as const,
-    ["lan-79/cleanup.sql", read("scripts/pilot/lan-79/cleanup.sql"), 6] as const,
-    ["lan-80/setup.sql", read("scripts/pilot/lan-80/setup.sql"), 6] as const,
-    // One more than the others, and it is the one that matters most: a walk-up
-    // this scenario cannot prove is synthetic stops the script rather than
-    // being deleted on a guess.
-    ["lan-80/cleanup.sql", read("scripts/pilot/lan-80/cleanup.sql"), 6] as const,
-    // Seven, and two of them are this scenario's alone: the reporting window has
-    // to contain no event but its own, and no report may already be filed for
-    // the date. Both exist because cleanup identifies the generated snapshots by
-    // the sentinel inside their stored content, which is unambiguous only while
-    // the week belongs entirely to the scenario.
-    ["lan-81/setup.sql", read("scripts/pilot/lan-81/setup.sql"), 7] as const,
-    // One, and it is the one that matters: a weekly report filed in this
-    // scenario's date range whose content carries no sentinel stops the script
-    // rather than being deleted on a guess. It might be real leadership history.
-    ["lan-81/cleanup.sql", read("scripts/pilot/lan-81/cleanup.sql"), 1] as const,
-    // Seven, and the two extra are what makes this scenario different from
-    // LAN-80's: it grants access, so its setup refuses a database whose role
-    // catalogue does not have the seat it is about to grant, and refuses one
-    // where that seat is not season-scoped.
-    ["lan-110/setup.sql", read("scripts/pilot/lan-110/setup.sql"), 7] as const,
-    // One more than LAN-80's, for the two guards that protect access rather
-    // than data — a role assignment this scenario did not write, and a login
-    // still pointing at one of its people — against one event rather than two.
-    // Both are decisions to unwind deliberately, and neither is a row a cleanup
-    // may delete quietly.
-    ["lan-110/cleanup.sql", read("scripts/pilot/lan-110/cleanup.sql"), 7] as const,
-    // The consolidated verification, and the only file here that installs and
-    // removes nothing. One guard, and it is the whole point of the file rather
-    // than a preflight before a write: a scenario row that survived every
-    // cleanup. It briefly had two more — an empty `operator_accounts` and a
-    // dangling one — and both were removed as unsound rather than weakened: a
-    // count taken after a cleanup cannot tell "never provisioned" from
-    // "destroyed", and the second was a restatement of a foreign key. The
-    // foundation is reported for a human to compare against the manifest, and
-    // is protected by the rules above forbidding any cleanup from touching it.
-    ["lan-82/verify-clean.sql", read("scripts/pilot/lan-82/verify-clean.sql"), 1] as const,
-  ];
-
-  it("checks the preflight of every scenario in the repository", () => {
-    const scenarios = new Set(
-      filesUnder("scripts/pilot")
-        .filter((file) => file.endsWith(".sql"))
-        .map((file) => file.replace(/^scripts\/pilot\//, "")),
-    );
-
-    expect(new Set(PREFLIGHTS.map(([name]) => name))).toEqual(scenarios);
-  });
-
-  it.each(PREFLIGHTS)("%s carries a preflight of guard blocks, parsed", (_name, sql, minimum) => {
-    const { blocks } = parsePreflight(sql);
-    // A parser that found nothing must not be able to pass everything below.
-    expect(blocks.length).toBeGreaterThanOrEqual(minimum);
-  });
-
-  it.each(PREFLIGHTS)("every guard in %s refuses — no other outcome exists", (name, sql) => {
-    const { blocks, looseRaises } = parsePreflight(sql);
-
-    for (const block of blocks) {
-      // A guard that raises nothing is a guard that lets the run continue,
-      // whether it was gutted, commented out, or never finished.
-      expect(
-        block.raises.length + (block.hasNestedIf ? 1 : 0),
-        `${name}: this guard raises nothing — ${block.condition.slice(0, 90)}`,
-      ).toBeGreaterThanOrEqual(1);
-
-      for (const raise of block.raises) {
-        // Positive requirement, not a blacklist: the level must BE exception.
-        expect(
-          raise.level,
-          `${name}: a preflight guard must raise exception, not ${raise.level || "an unnamed level"} — ${raise.line.slice(0, 90)}`,
-        ).toBe("exception");
-      }
-
-      // An innermost guard is exactly one refusal and nothing else.
-      if (!block.hasNestedIf) {
-        expect(block.raises.length, `${name}: ${block.condition.slice(0, 90)}`).toBe(1);
-      }
-    }
-
-    // The only raise permitted outside a guard is the single "preflight passed"
-    // notice, which reports rather than decides.
-    expect(looseRaises.length).toBeLessThanOrEqual(1);
-    for (const line of looseRaises) {
-      expect(line.toLowerCase()).toMatch(/^raise notice /);
-      expect(line).toMatch(/preflight passed/);
-    }
-  });
-
-  it.each(PREFLIGHTS)("every raise in %s names its level explicitly", (name, sql) => {
-    const { blocks, looseRaises } = parsePreflight(sql);
-    const everyRaise = [
-      ...blocks.flatMap((block) => block.raises.map((r) => r.line)),
-      ...looseRaises,
-    ];
-
-    expect(everyRaise.length).toBeGreaterThan(0);
-    for (const line of everyRaise) {
-      // `raise 'text'` defaults to EXCEPTION, which is correct but invisible.
-      // Requiring the word makes every later reading of this file unambiguous.
-      const level = /^raise\s+([a-z]+)/i.exec(line)?.[1]?.toLowerCase();
-      expect(RAISE_LEVELS, `${name}: ${line.slice(0, 90)}`).toContain(level);
-    }
-  });
-
-  it.each(PREFLIGHTS)("%s raises nowhere except inside its preflight", (name, sql) => {
-    // Otherwise a second `do $ … $;` block could carry guards the parser
-    // above never looks at, and a weak one there would be invisible to every
-    // structural rule in this file.
-    const inFile = (sql.replace(/--[^\n]*/g, "").match(/^\s*raise\b/gim) ?? []).length;
-    const { blocks, looseRaises } = parsePreflight(sql);
-    const inPreflight =
-      blocks.reduce((total, block) => total + block.raises.length, 0) + looseRaises.length;
-
-    expect(inPreflight, `${name}: a raise exists outside the preflight block`).toBe(inFile);
-    expect(sql.match(/do \$/g)?.length ?? 0, `${name}: exactly one anonymous block`).toBe(1);
-  });
-
-  it("cleanup.sql guards every foreign key PostgreSQL would follow unasked", () => {
-    // The live-schema half of this — that these seven are ALL of them — is
-    // `tests/pilot-scenario-lan-93.test.ts`, which reads pg_constraint and
-    // requires a behavioural test per key. This half is structural: each guard
-    // must be a real `if … then raise exception … end if;` block that queries
-    // the table. A comment mentioning the table satisfies neither.
-    const { blocks } = parsePreflight(cleanup);
-
-    for (const table of [
-      "public.person_aliases",
-      "public.contact_points",
-      "public.event_questions",
-      "public.event_audience_members",
-      "public.onboarding_item_types",
-      "staging.legacy_roster_rows",
-      "staging.legacy_event_rows",
-    ]) {
-      const guard = blocks.find(
-        (block) =>
-          new RegExp(`from \\s*${table.replace(".", "\\.")}\\b`).test(block.condition) &&
-          block.raises.some((raise) => raise.level === "exception"),
-      );
-
-      expect(
-        guard,
-        `cleanup.sql has no guard block querying ${table} and raising an exception`,
-      ).toBeDefined();
-    }
-  });
-
-  it("the scenario has a README carrying its verification query", () => {
-    const readme = read(`${SCENARIO_DIR}/README.md`);
-    expect(readme).toMatch(/```sql/);
-    expect(readme).toMatch(/00930093-0093-4093-8093-000000000001/);
   });
 });
 
@@ -1431,28 +306,30 @@ describe("the pull-request template", () => {
     expect(template).toMatch(/##\s+Production handoff/);
   });
 
-  it.each([
-    "Supabase schema migration",
-    "Compatibility and deployment order",
-    "Pilot setup required",
-    "Pilot cleanup required",
-    "Other Brian action",
-    "Verification after Brian acts",
-  ])("requires the line: %s", (line) => {
-    expect(template).toContain(line);
+  it("requires every Production handoff line", () => {
+    const missing = [
+      "Supabase schema migration",
+      "Compatibility and deployment order",
+      "Pilot setup required",
+      "Pilot cleanup required",
+      "Other Brian action",
+      "Verification after Brian acts",
+    ].filter((line) => !template.includes(line));
+    expect(missing, "Production handoff lines missing from the template").toEqual([]);
   });
 
-  it.each([
-    "need pilot data",
-    "Artifacts supplied",
-    "Data created",
-    "Data preserved",
-    "Retention recommendation",
-    "Application rollback",
-    "Schema forward-fix and restore",
-    "External or human-only steps",
-  ])("requires the superset field: %s", (field) => {
-    expect(template).toContain(field);
+  it("requires every superset field", () => {
+    const missing = [
+      "need pilot data",
+      "Artifacts supplied",
+      "Data created",
+      "Data preserved",
+      "Retention recommendation",
+      "Application rollback",
+      "Schema forward-fix and restore",
+      "External or human-only steps",
+    ].filter((field) => !template.includes(field));
+    expect(missing, "superset fields missing from the template").toEqual([]);
   });
 
   it("asks how the change was verified, and points at the runbooks", () => {
@@ -1851,11 +728,11 @@ describe("the pilot runbook represents elevated access truthfully", () => {
    * in hosted and mentions the table zero times today — it is scanned so that
    * the first grant written into it is constrained on the day it appears rather
    * than the day somebody remembers. Everything under `scripts/pilot/` is
-   * scanned too, README and SQL alike: `cleanup.sql` already touches
-   * `role_assignments` (reads only, today) and was previously outside the scan
-   * entirely, which the issue calls out. Enumerating the directory rather than
-   * the files means a future `scripts/pilot/<issue>/` is scanned the moment it
-   * is added, with nobody having to remember this list exists.
+   * scanned too, README and SQL alike: the retired LAN-93 `cleanup.sql` touched
+   * `role_assignments` and was once outside the scan entirely, which the issue
+   * called out. Enumerating the directory rather than the files means a future
+   * `scripts/pilot/<issue>/` is scanned the moment it is added, with nobody
+   * having to remember this list exists.
    *
    * What stays out, said plainly: `supabase/migrations/` and `src/`. Those are
    * code, not a hand-executed procedure, and the grants they contain — none
@@ -1870,8 +747,7 @@ describe("the pilot runbook represents elevated access truthfully", () => {
   it("scans every hand-executed pilot document, and finds writes in them", () => {
     expect(GRANT_SCAN).toContain(PILOT_RUNBOOK);
     expect(GRANT_SCAN).toContain(PILOT_MANIFEST);
-    expect(GRANT_SCAN).toContain("scripts/pilot/lan-93/README.md");
-    expect(GRANT_SCAN).toContain("scripts/pilot/lan-93/cleanup.sql");
+    expect(GRANT_SCAN).toContain("scripts/pilot/README.md");
 
     const writes = GRANT_SCAN.flatMap((file) => findWrites(normaliseSql(read(file))));
 
@@ -2109,15 +985,21 @@ describe("the pilot runbook represents elevated access truthfully", () => {
 describe("the pilot-data manifest", () => {
   const manifest = read(PILOT_MANIFEST);
 
-  it("deletes a retired scenario's executable suite in the same change", () => {
+  it("deletes a retired scenario's executable suite and scripts in the same change", () => {
     const retired = manifest.split("## Retired scenarios")[1] ?? "";
-    const issues = new Set([...retired.matchAll(/\bLAN-(\d+)\b/g)].map((match) => match[1]));
-    for (const issue of issues) {
-      expect(
-        filesUnder("tests"),
-        `LAN-${issue} is retired but its pilot scenario suite still runs`,
-      ).not.toContain(`tests/pilot-scenario-lan-${issue}.test.ts`);
-    }
+    const issues = [...new Set([...retired.matchAll(/\bLAN-(\d+)\b/g)].map((match) => match[1]))];
+    // The eleven slice scenarios, at least; a pass over an empty section is not a pass.
+    expect(issues.length).toBeGreaterThanOrEqual(11);
+
+    const tests = new Set(filesUnder("tests"));
+    const pilot = filesUnder("scripts/pilot");
+    const lingering = issues.flatMap((issue) => [
+      ...(tests.has(`tests/pilot-scenario-lan-${issue}.test.ts`)
+        ? [`tests/pilot-scenario-lan-${issue}.test.ts`]
+        : []),
+      ...pilot.filter((file) => file.startsWith(`scripts/pilot/lan-${issue}/`)),
+    ]);
+    expect(lingering, "retired scenarios whose suite or scripts remain").toEqual([]);
   });
 
   it("records the durable identities and the active scenarios separately", () => {
@@ -2140,10 +1022,10 @@ describe("the pilot-data manifest", () => {
     expect(manifest).toContain("<effective-to>");
   });
 
-  it("records the worked example and that it has not been applied to hosted", () => {
-    expect(manifest).toContain("LAN-93");
-    expect(manifest).toContain("scripts/pilot/lan-93/");
-    expect(manifest).toMatch(/\*\*No\.\*\* It is a worked example/);
+  it("records the retired worked example, and that it was never applied to hosted", () => {
+    const retired = manifest.split("## Retired scenarios")[1] ?? "";
+    expect(retired).toMatch(/\|\s*`LAN-93`\s*\|\s*`scripts\/pilot\/lan-93\/`\s*\|\s*\*\*No\*\*/);
+    expect(retired).toMatch(/None was ever applied to\s+hosted/);
   });
 });
 
@@ -2171,5 +1053,8 @@ describe("the correct runbook is discoverable", () => {
     expect(adr).toMatch(/\*\*Status:\*\* Accepted/);
     expect(adr).toMatch(/## Alternatives considered/);
     expect(adr).toMatch(/## Consequences/);
+    // The retirement is recorded, and the procedure is kept for future scenarios.
+    expect(adr).toMatch(/## Amendment, 2026-09-26 — the LAN-74 … LAN-110 scenarios are retired/);
+    expect(adr).toMatch(/remain the procedure\s+for any future scenario/);
   });
 });

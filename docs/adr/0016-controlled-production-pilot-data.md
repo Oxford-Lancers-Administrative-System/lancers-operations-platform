@@ -138,3 +138,27 @@ database there is. Fewer deletions is the safer posture.
   closed.
 - When LAN-83, LAN-84 and LAN-86 land, this ADR is revisited: staging changes
   where scenarios are exercised, and real data changes what may exist at all.
+
+## Amendment, 2026-09-26 — the LAN-74 … LAN-110 scenarios are retired (LAN-436)
+
+The eleven scenarios this ADR produced — `scripts/pilot/lan-74`, `lan-75`,
+`lan-76`, `lan-77`, `lan-78`, `lan-79`, `lan-80`, `lan-81`, `lan-82`, `lan-93`
+and `lan-110` — are retired, by Brian's decision of 26 September 2026. Their
+SQL and their `tests/pilot-scenario-lan-*.test.ts` suites are deleted in the
+same change; the last commit that carries them is `5bcb5ea0`.
+
+None was ever applied to hosted: the manifest recorded every one as the
+approved design, awaiting execution. They had since become maintenance only,
+edited to keep pace with the schema and never run. Hosted moved on without them:
+
+- the LAN-221 showcase loader replaced them as the way to put a synthetic
+  dataset in front of testers;
+- production has run on the real reference-data baseline since the 14 September
+  2026 cutover (LAN-350); and
+- LAN-397 removes the remaining test records from production.
+
+What does **not** change: decisions 1 to 6 above, and
+[`docs/pilot-data-runbook.md`](../pilot-data-runbook.md), remain the procedure
+for any future scenario. A new scenario still ships `scripts/pilot/<issue-id>/`
+with its setup, cleanup, README and its own local test proving the safety
+properties, and it is registered in the manifest before it is run.

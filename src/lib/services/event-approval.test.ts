@@ -736,10 +736,7 @@ describe("a successful approval", () => {
 
     // The exact shape, asserted rather than left implicit. Invariant M1 wants a
     // key derived from facts that do not change, and this is the derivation:
-    // `event:<event>:invitation:<capacity>:<participant>`. The LAN-77 pilot
-    // scenario plants a colliding key in this format to make rollback
-    // observable by hand, and `tests/pilot-scenario-lan-77.test.ts` asserts the
-    // same shape from the other side, so a change here fails in both places.
+    // `event:<event>:invitation:<capacity>:<participant>`.
     //
     // A reminder's key carries the rung as well, because the rung is also a
     // fact that does not change — reminder two is not reminder three — and

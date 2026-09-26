@@ -133,7 +133,7 @@ describe("the service layer's local guard agrees with the scripts' guard", () =>
 describe("the approved hosted target is still unreachable from local tooling", () => {
   // The single most valuable assertion in this file. The application gained the
   // ability to open one hosted database; `npm run db:seed`, `npm run db:reset`,
-  // the schema tests and the pilot-scenario tests did not.
+  // and the schema tests did not.
   it("is refused by the seeding and schema-test guard", () => {
     expect(() => resolveLocalDatabaseUrl(APPROVED_HOSTED)).toThrow(
       /non-local database host|hosted Supabase/i,

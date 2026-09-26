@@ -51,7 +51,7 @@
  * It is a **local review** convenience and nothing else. It creates no pilot
  * data, references no pilot script, and has no hosted counterpart: on hosted,
  * a coaching seat is granted by Brian through the supported administrative
- * path, and `scripts/pilot/lan-110/README.md` says exactly how.
+ * path described in `docs/pilot-data-runbook.md`.
  */
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
