@@ -3,7 +3,7 @@
  * The Follow-ups queue -- W5. LAN-173-r1-F1.
  *
  * Against the real local database with a **mocked auth floor**, the same
- * shape `event-import.test.ts` uses: `requireGeneralOperator` is the one
+ * shape `event-import.test.ts` uses: `requireGrant` (LAN-431) is the one
  * dependency this module has that is not a database read, so it is the one
  * thing mocked here. Everything else -- the `nonresponse_queue` join, the
  * chase-position derivation, the fallback-suffix exclusion -- runs against a
@@ -20,13 +20,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/auth/guards", () => ({ requireGeneralOperator: vi.fn() }));
+vi.mock("@/lib/auth/guards", () => ({ requireGrant: vi.fn() }));
 
 import crypto from "node:crypto";
 import type { Client } from "pg";
 
 import { closePool, isServiceError, NotPermitted } from "@/lib/db";
-import { requireGeneralOperator } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 import { ESCALATED_TO_PRESIDENT, ESCALATION_NOT_DELIVERED } from "./chase-position";
@@ -44,6 +44,7 @@ import {
   seededIdentityCreatedAt,
 } from "../../../tests/helpers/service-layer";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 const MARKER = "LAN173FollowUpsSuite";
 
@@ -87,7 +88,7 @@ function acceptsEverything() {
   });
 }
 
-const requireOperator = vi.mocked(requireGeneralOperator);
+const requireOperator = vi.mocked(requireGrant);
 
 function operator(): ResolvedOperator {
   return {
@@ -365,10 +366,10 @@ function personRow(events: Awaited<ReturnType<typeof readFollowUpsQueue>>, perso
 }
 
 describe("who may read the Follow-ups queue", () => {
-  it("admits a general operator", async () => {
+  it("admits a seat with any template at View", async () => {
     await fixture();
     await expect(readFollowUpsQueue()).resolves.not.toThrow();
-    expect(requireOperator).toHaveBeenCalledTimes(1);
+    expect(requireOperator).toHaveBeenCalledWith({ anyOf: "template", minimum: "view" });
   });
 
   it("refuses whoever the auth floor refuses, and reads nothing", async () => {
@@ -376,6 +377,49 @@ describe("who may read the Follow-ups queue", () => {
       new NotPermitted("Coaching seats do not reach this list.", { rule: "general_operator_only" }),
     );
     await expect(readFollowUpsQueue()).rejects.toSatisfy((error) => isServiceError(error));
+  });
+});
+
+describe("the queue holds only granted templates' rows — LAN-431", () => {
+  async function practiceTemplateId(): Promise<string> {
+    const result = await observer.query<{ id: string }>(
+      `select tpl.id from public.event_templates tpl
+        where tpl.event_type = 'practice' order by lower(tpl.name) limit 1`,
+    );
+    return result.rows[0].id;
+  }
+
+  function seatWith(templates: Record<string, "view" | "manage">): ResolvedOperator {
+    return { ...operator(), roleCodes: ["social_secretary"], grants: { ...NO_GRANTS, templates } };
+  }
+
+  it("leaves out every row of a template the seat holds at None", async () => {
+    await fixture();
+    const other = "00000000-0000-4000-8000-00000000000f";
+    requireOperator.mockResolvedValue(seatWith({ [other]: "manage" }));
+
+    const events = await readFollowUpsQueue();
+
+    expect(personRow(events, "Invitee")).toBeUndefined();
+  });
+
+  it("shows the row under View, and offers no chase on it", async () => {
+    await fixture();
+    requireOperator.mockResolvedValue(seatWith({ [await practiceTemplateId()]: "view" }));
+
+    const row = personRow(await readFollowUpsQueue(), "Invitee");
+
+    expect(row).toBeDefined();
+    expect(row?.mayChase).toBe(false);
+  });
+
+  it("offers the chase under Manage", async () => {
+    await fixture();
+    requireOperator.mockResolvedValue(seatWith({ [await practiceTemplateId()]: "manage" }));
+
+    const row = personRow(await readFollowUpsQueue(), "Invitee");
+
+    expect(row?.mayChase).toBe(true);
   });
 });
 

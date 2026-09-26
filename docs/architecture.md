@@ -335,6 +335,28 @@ any template at View; the Messaging schedule with any template at Manage. Report
 is drawn for everyone as before and refuses on its page; the rest of
 Administration is unchanged.
 
+**Events within granted templates — LAN-431 (W4).** An event of a template the
+seat holds at None does not exist for it: `listEventsForOperator` reads only
+templates at View or above (the season total too), and every
+`/operate/events/[id]` page and action reads the event's template from the
+database (`src/lib/services/events/template-of.ts`, guarded through
+`./access.ts`) rather than from anything posted. View opens the event with its
+audience, answers, reasons, attendance and the Event info link, which shares
+and sends nothing. Manage adds create, edit, delete, approving and releasing
+invitations, amend, cancel, re-notify, the delivery page and its repairs, the
+roster form, recording an answer, removing an attendance record, the Follow-ups
+chase (per row) and the template's own messaging schedule. Create event appears
+with Manage on any template and offers only those; a create, or a draft moved
+to another template, also needs Manage on the template posted. `/operate/events`
+opens with a template at View or an attendance capability, and a seat seeing no
+template gets the attendance list only; the attendance route keeps
+`attendance_recording` and lists every event. What stays on the three old
+capabilities: the templates pages and actions, bulk import and export
+(`event_calendar_management`, which also draws _Edit templates_ and the import
+choice in _Create event_), and on the Messaging schedule page the recruitment
+cycle, the onboarding chase and the safety section (`delivery_administration`),
+none of which belongs to a template. The public calendar feed is unchanged.
+
 **Two capabilities are narrower than every other, and deliberately exclude the
 IT Officer.** `person_erasure` and `operator_guide` are the only two exceptions
 to the 15 August 2026 rule that the administrative seat holds every capability
@@ -365,7 +387,8 @@ It was first withheld from that seat on the erasure reasoning; Brian reversed
 it after the first production deploy, when the seat that diagnoses a runaway
 from the Messaging safety section could read the state but not stop it.
 
-The Messaging schedule page itself stays on `delivery_administration`, so the IT
+The Messaging schedule page opens with Manage on any template (LAN-431), and its
+safety section is read by `delivery_administration`, so the IT
 Officer can still _read_ the safety state — seeing that messaging is paused is
 how somebody diagnoses a deployment — and each control refuses them
 individually, which is the ordinary arrangement for a surface whose actions are

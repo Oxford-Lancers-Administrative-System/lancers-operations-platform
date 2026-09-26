@@ -209,6 +209,23 @@ describe("who may open the Follow-ups queue", () => {
     expect(readFollowUpsQueue).not.toHaveBeenCalled();
   });
 
+  it("offers the chase on a managed template's rows and not on a viewed one's — LAN-431", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readFollowUpsQueue).mockResolvedValue([
+      HAWKS,
+      { ...PRACTICE, people: PRACTICE.people.map((person) => ({ ...person, mayChase: false })) },
+    ]);
+
+    await renderPage();
+
+    const rows = screen.getAllByTestId("follow-ups-row");
+    const rufus = rows.find((row) => row.textContent?.includes("Rufus"))!;
+    const gideon = rows.find((row) => row.textContent?.includes("Gideon Thornbury"))!;
+    expect(within(rufus).queryByRole("button", { name: "Chase" })).toBeNull();
+    expect(within(rufus).queryByRole("checkbox")).toBeNull();
+    expect(within(gideon).getByRole("button", { name: "Chase" })).not.toBeNull();
+  });
+
   it("admits a seat with View on one template — LAN-431", async () => {
     signedInWithViewOnly();
     const { container } = await renderPage();

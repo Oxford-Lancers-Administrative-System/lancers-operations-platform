@@ -79,6 +79,7 @@ import {
 import MessagingSchedulePage from "./page";
 import { updateOneMessagingScheduleAction } from "./actions";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 function administrator(seat = "president"): ResolvedOperator {
   return {
@@ -342,6 +343,46 @@ describe("who may open the messaging schedule", () => {
     signedIn(null);
 
     await expect(MessagingSchedulePage()).rejects.toThrow(/^REDIRECT:\/login\?redirectTo=/);
+  });
+});
+
+describe("a seat managing some templates — LAN-431", () => {
+  function socialSecretary(templates: Record<string, "view" | "manage">): ResolvedOperator {
+    return {
+      ...administrator("social_secretary"),
+      grants: { ...NO_GRANTS, templates },
+    };
+  }
+
+  it("lists only the schedules of the templates the seat manages", async () => {
+    signedIn(socialSecretary({ [TEMPLATE_IDS.social]: "manage", [TEMPLATE_IDS.game]: "view" }));
+
+    render(await MessagingSchedulePage());
+
+    const rendered = screen.getAllByTestId("schedule-row");
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0].textContent).toContain(TEMPLATE_NAMES.social);
+  });
+
+  it("leaves out the sections that belong to no template, and the safety controls", async () => {
+    signedIn(socialSecretary({ [TEMPLATE_IDS.social]: "manage" }));
+
+    render(await MessagingSchedulePage());
+
+    expect(screen.queryByTestId("recruitment-cycle-section")).toBeNull();
+    expect(screen.queryByTestId("onboarding-section")).toBeNull();
+    expect(listRecruitmentCycleSteps).not.toHaveBeenCalled();
+    expect(readOnboardingChaseSettings).not.toHaveBeenCalled();
+    expect(readMessagingSafetyStatus).not.toHaveBeenCalled();
+  });
+
+  it("refuses a seat that only views templates", async () => {
+    signedIn(socialSecretary({ [TEMPLATE_IDS.social]: "view" }));
+
+    const { container } = render(await MessagingSchedulePage());
+
+    expect(container.textContent).toContain("You do not have access to this action");
+    expect(listMessagingSchedulesWithPreview).not.toHaveBeenCalled();
   });
 });
 

@@ -120,6 +120,7 @@ import {
 import { ONBOARDING_CHASE_FIELDS } from "./onboarding-chase-validation";
 import { SCHEDULE_FIELDS } from "./validation";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 const CHALK = "chalk";
 
@@ -280,6 +281,50 @@ describe("without delivery_administration", () => {
       updateOneMessagingScheduleAction(EMPTY_ADMIN_ACTION_STATE, rowForm(CHALK)),
     ).rejects.toMatchObject({ kind: "not_permitted" });
     expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("a seat managing one template — LAN-431", () => {
+  function socialSecretary(): ResolvedOperator {
+    return {
+      ...actor(["social_secretary"]),
+      grants: { ...NO_GRANTS, templates: { [TEMPLATE_IDS.social]: "manage" } },
+    };
+  }
+
+  it("saves that template's schedule", async () => {
+    givenSession({ state: "active", operator: socialSecretary() });
+    vi.mocked(readMessagingScheduleIn).mockResolvedValue(scheduleRow("social", BASE_CHANGE));
+
+    const state = await updateOneMessagingScheduleAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      rowForm("social", { escalationHours: 6 }),
+    );
+
+    expect(state.refusal).toBeNull();
+    expect(state.notice).toBe(scheduleSavedNotice("Social"));
+    expect(updateMessagingScheduleIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a forged save of another template's schedule, and writes nothing", async () => {
+    givenSession({ state: "active", operator: socialSecretary() });
+
+    await expect(
+      updateOneMessagingScheduleAction(EMPTY_ADMIN_ACTION_STATE, rowForm(CHALK)),
+    ).rejects.toMatchObject({ kind: "not_permitted" });
+    expect(readMessagingScheduleIn).not.toHaveBeenCalled();
+    expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
+  });
+
+  it("is still refused the recruitment cycle, which is no template's", async () => {
+    givenSession({ state: "active", operator: socialSecretary() });
+
+    await expect(
+      updateRecruitmentCycleStepsAction(
+        EMPTY_ADMIN_ACTION_STATE,
+        cycleForm(["welcome", "details_reminder"]),
+      ),
+    ).rejects.toMatchObject({ kind: "not_permitted" });
   });
 });
 

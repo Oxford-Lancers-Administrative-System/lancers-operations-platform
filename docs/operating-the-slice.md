@@ -162,7 +162,11 @@ sidebar follows: Roster, People and Missing data with any roster category at
 View; Recruitment with any recruiting category at View; Events with any template
 at View or an attendance capability; Follow-ups with any template at View; the
 Messaging schedule with any template at Manage. Report and the rest of
-Administration are unchanged. Until the roster package (LAN-432) lands, the
+Administration are unchanged. Events of a template at None appear nowhere — not
+on the list, the calendar, Follow-ups or by typed URL; View shows everything in
+the event, including the Event info link; Manage adds every create, edit,
+delete, send, approve, delivery and chase control and that template's messaging
+schedule (LAN-431). Attendance recording is unchanged for every seat. Until the roster package (LAN-432) lands, the
 roster, people and recruit pages open only to a seat holding every roster and
 recruiting line at its maximum.
 
