@@ -46,6 +46,7 @@ import {
 } from "./actions";
 import { NotPermitted } from "@/lib/db";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { setLightsOutClockForTesting } from "@/lib/services/messaging-schedule/lights-out";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const PROSPECT_ID = "44444444-4444-4444-8444-444444444444";
@@ -222,5 +223,34 @@ describe("every recruit record action returns its refusal", () => {
     const state = await recordConsentAction({ prospectId: PROSPECT_ID, note: "In person" });
 
     expect(state).toEqual({ error: "You may not do that." });
+  });
+});
+
+// LAN-433: a recruitment ask queued overnight is held by lights-out.
+describe("sendRecruitmentQuestionnaireAction names a lights-out hold", () => {
+  it("flags a deferral during lights-out, and not in the daytime", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    vi.mocked(sendRecruitmentQuestionnaire).mockResolvedValue({
+      created: ["welcome"],
+      reason: null,
+      delivery: "deferred",
+    });
+
+    const day = await sendRecruitmentQuestionnaireAction({
+      prospectId: PROSPECT_ID,
+      track: "personal",
+    });
+    expect(day.lightsOut).toBe(false);
+
+    setLightsOutClockForTesting(() => new Date("2026-10-01T22:30:00Z")); // 23:30 BST
+    try {
+      const night = await sendRecruitmentQuestionnaireAction({
+        prospectId: PROSPECT_ID,
+        track: "personal",
+      });
+      expect(night.lightsOut).toBe(true);
+    } finally {
+      setLightsOutClockForTesting(() => new Date("2026-06-15T11:00:00Z"));
+    }
   });
 });

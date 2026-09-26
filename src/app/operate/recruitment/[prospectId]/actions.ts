@@ -10,6 +10,7 @@ import {
   stopRecruitMessages,
 } from "@/lib/services/recruitment-prospect";
 import type { ConsentWithdrawalReason } from "@/lib/services/messaging-consent";
+import { lightsOutWaitingUntil } from "@/lib/services/messaging-schedule/lights-out";
 import type { RecruitmentQuestionnaireTrack } from "@/lib/services/recruitment-prospect";
 import type { RecruitmentActionState } from "../action-state";
 
@@ -54,6 +55,8 @@ export async function sendRecruitmentQuestionnaireAction(params: {
     delivery?: "accepted" | "refused" | "skipped" | "deferred";
     /** LAN-394. When the guard expects to let it through, where that is knowable. */
     waitingUntil?: Date | null;
+    /** LAN-433. Deferred by lights-out rather than the allowance. */
+    lightsOut?: boolean;
     reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
   }
 > {
@@ -72,6 +75,8 @@ export async function sendRecruitmentQuestionnaireAction(params: {
       reason: result.reason,
       delivery: result.delivery,
       waitingUntil: result.waitingUntil ?? null,
+      // A recruitment ask is never exempt, so overnight the hold is lights-out.
+      lightsOut: lightsOutWaitingUntil(result.delivery ?? "") !== null,
     };
   } catch (error) {
     return { ...stateFor(error), created: [], reason: null };

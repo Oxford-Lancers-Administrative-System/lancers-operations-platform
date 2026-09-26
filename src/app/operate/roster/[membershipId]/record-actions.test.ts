@@ -82,6 +82,8 @@ import {
   recordSetStatusAction,
 } from "./record-actions";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
+import { setLightsOutClockForTesting } from "@/lib/services/messaging-schedule/lights-out";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
@@ -529,5 +531,26 @@ describe("a seat holding Kit at view (LAN-423 fix round 3, H2)", () => {
       "You do not have access to this action. This needs access your seat does not hold.",
     );
     expect(commitKitItemValues).not.toHaveBeenCalled();
+  });
+});
+
+// LAN-433: an onboarding ask queued overnight is held by lights-out.
+describe("recordSendOnboardingQuestionnaireAction names a lights-out hold", () => {
+  it("returns the 07:00 wording as the reason", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    vi.mocked(sendOnboardingNudges).mockResolvedValue([
+      { personId: "p", membershipId: MEMBERSHIP_ID, outcome: "deferred" },
+    ]);
+    setLightsOutClockForTesting(() => new Date("2026-10-01T22:30:00Z")); // 23:30 BST
+    try {
+      const state = await recordSendOnboardingQuestionnaireAction({ membershipId: MEMBERSHIP_ID });
+      expect(state).toEqual({
+        error: null,
+        outcome: "deferred",
+        reason: `${WAITING_LIGHTS_OUT_LABEL}.`,
+      });
+    } finally {
+      setLightsOutClockForTesting(() => new Date("2026-06-15T11:00:00Z"));
+    }
   });
 });

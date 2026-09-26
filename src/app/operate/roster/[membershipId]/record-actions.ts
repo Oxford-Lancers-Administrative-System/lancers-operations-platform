@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError, withTransaction } from "@/lib/db";
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
+import { lightsOutWaitingUntil } from "@/lib/services/messaging-schedule/lights-out";
 import { readOnboardingSendStatusIn } from "@/lib/services/onboarding-chase";
 import {
   resolveOnboardingItem,
@@ -342,6 +344,10 @@ export async function recordSendOnboardingQuestionnaireAction(params: {
   // LAN-394: a deferral has no stored delivery failure to read back, because
   // nothing was attempted. Reading `last_error` for one would show the previous
   // attempt's reason beside a message that is merely waiting.
+  // LAN-433: an onboarding ask is never exempt, so overnight the hold is lights-out.
+  if (outcome === "deferred" && lightsOutWaitingUntil(outcome)) {
+    reason = `${WAITING_LIGHTS_OUT_LABEL}.`;
+  }
   if (outcome !== "accepted" && outcome !== "deferred") {
     const status = await withTransaction((tx) =>
       readOnboardingSendStatusIn(tx, params.membershipId),

@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { isServiceError } from "@/lib/db";
-import { retryDelivery, revokeAndReissue } from "@/lib/services/delivery";
+import { heldForLightsOut, retryDelivery, revokeAndReissue } from "@/lib/services/delivery";
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
+import { lightsOutWaitingUntil } from "@/lib/services/messaging-schedule/lights-out";
 import { requireInvitationsGrant, requireNotificationJobGrant } from "@/lib/services/events";
 import type { EventTransitionState } from "../../form-state";
 
@@ -43,10 +45,14 @@ export async function retryDeliveryAction(
   // was superseded, and the invitation is queued. Saying "the provider did not
   // accept this" about it would be false, and would invite a second press that
   // achieves nothing.
+  // LAN-433: overnight the reason is lights-out, not the allowance. A retried
+  // job can be one of the exempt kinds, so ask about this job, not the clock.
   if (outcome === "deferred") {
     return {
       error: null,
-      notice: "Queued — waiting for the sending allowance. Nothing was sent yet.",
+      notice: (await heldForLightsOut(jobId))
+        ? `${WAITING_LIGHTS_OUT_LABEL}. Nothing was sent yet.`
+        : "Queued — waiting for the sending allowance. Nothing was sent yet.",
     };
   }
 
@@ -81,12 +87,14 @@ export async function revokeAndReissueAction(
   // LAN-394. Revocation is an explicit security act and it has happened: the
   // old link is dead either way. What changes is the truth about the
   // replacement — waiting, not refused — and the operator is told both halves.
+  // LAN-433: an invitation is never exempt, so overnight the hold is lights-out.
   if (outcome === "deferred") {
     return {
       error: null,
-      notice:
-        "The previous link has been withdrawn. The replacement is queued — waiting for the " +
-        "sending allowance.",
+      notice: lightsOutWaitingUntil(outcome)
+        ? `The previous link has been withdrawn. ${WAITING_LIGHTS_OUT_LABEL}.`
+        : "The previous link has been withdrawn. The replacement is queued — waiting for the " +
+          "sending allowance.",
     };
   }
 

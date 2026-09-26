@@ -531,7 +531,10 @@ event and onboarding nudges, the recruitment and onboarding messages, the
 onboarding chase, a retry whose backoff lands overnight, an operator's
 **Retry**, and both escalations to the office. Held means queued: nothing is
 dropped, marked sent or spent against the attempt ceiling, and an operator
-action overnight reads **Queued**.
+action overnight reads **Queued — sends at 07:00** — on **Retry**, **Reissue**,
+the recruitment and onboarding **Send** buttons, the Missing-data nudge and the
+Follow-ups chase alike — rather than the sending-allowance wording, which stays
+for a daytime hold.
 
 Exactly three kinds go at any hour, because an operator pressed Send on them
 and the news cannot wait: a **cancellation notice**, a **change notice** and a

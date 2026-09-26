@@ -36,13 +36,20 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/services/delivery", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/delivery")>();
-  return { ...actual, retryDelivery: vi.fn(), revokeAndReissue: vi.fn() };
+  return {
+    ...actual,
+    retryDelivery: vi.fn(),
+    revokeAndReissue: vi.fn(),
+    heldForLightsOut: vi.fn(),
+  };
 });
 
 import { revalidatePath } from "next/cache";
 import { InvalidTransition, NotPermitted, type ServiceError } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
-import { retryDelivery, revokeAndReissue } from "@/lib/services/delivery";
+import { heldForLightsOut, retryDelivery, revokeAndReissue } from "@/lib/services/delivery";
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
+import { setLightsOutClockForTesting } from "@/lib/services/messaging-schedule/lights-out";
 import { retryDeliveryAction, revokeAndReissueAction } from "./actions";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
 
@@ -258,5 +265,43 @@ describe("revokeAndReissueAction", () => {
     // LAN-77 froze the audience at approval, and repair cannot widen it.
     const [, invitationId] = vi.mocked(revokeAndReissue).mock.calls[0];
     expect(invitationId).toBe(INVITATION);
+  });
+});
+
+// LAN-433: a queued repair says why — lights-out overnight, the allowance otherwise.
+describe("a deferred repair names its hold", () => {
+  it("Retry held by lights-out says it sends at 07:00", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(retryDelivery).mockResolvedValue("deferred");
+    vi.mocked(heldForLightsOut).mockResolvedValue(true);
+
+    const state = await retryDeliveryAction({ error: null }, retryForm());
+
+    expect(state.notice).toBe(`${WAITING_LIGHTS_OUT_LABEL}. Nothing was sent yet.`);
+    expect(heldForLightsOut).toHaveBeenCalledWith(JOB);
+  });
+
+  it("Retry held by the allowance keeps the allowance wording", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(retryDelivery).mockResolvedValue("deferred");
+    vi.mocked(heldForLightsOut).mockResolvedValue(false);
+
+    const state = await retryDeliveryAction({ error: null }, retryForm());
+
+    expect(state.notice).toBe("Queued — waiting for the sending allowance. Nothing was sent yet.");
+  });
+
+  it("Reissue held overnight says it sends at 07:00", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(revokeAndReissue).mockResolvedValue("deferred");
+    setLightsOutClockForTesting(() => new Date("2026-10-01T22:30:00Z")); // 23:30 BST
+    try {
+      const state = await revokeAndReissueAction({ error: null }, reissueForm());
+      expect(state.notice).toBe(
+        `The previous link has been withdrawn. ${WAITING_LIGHTS_OUT_LABEL}.`,
+      );
+    } finally {
+      setLightsOutClockForTesting(() => new Date("2026-06-15T11:00:00Z"));
+    }
   });
 });
