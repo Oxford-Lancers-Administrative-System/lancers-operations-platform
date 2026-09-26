@@ -132,6 +132,11 @@ export default function RecruitmentBoardView({
     () => new Map(events.map((event) => [event.eventId, event])),
     [events],
   );
+  /** An event band's template colour key (LAN-423 round 6); `null` for Person and Recruitment. */
+  const eventColourOf = (band: Band): string | null => {
+    const eventId = eventIdOfBand(band);
+    return eventId === null ? null : (eventByBand.get(eventId)?.colourKey ?? null);
+  };
   /**
    * Which groups are folded away — LAN-404. The band is the control, the
    * folded group keeps one narrow cell with its name written down it, and the
@@ -454,7 +459,7 @@ export default function RecruitmentBoardView({
                     }}
                   />
                   {groupRuns(drawn).map((run) => {
-                    const colours = bandColour(run.band, bandColours);
+                    const colours = bandColour(run.band, bandColours, eventColourOf(run.band));
                     const folded = collapsedBands.has(run.band);
                     return (
                       <TableCell
@@ -546,7 +551,11 @@ export default function RecruitmentBoardView({
                   </TableCell>
 
                   {drawn.map((column) => {
-                    const colours = bandColour(column.band, bandColours);
+                    const colours = bandColour(
+                      column.band,
+                      bandColours,
+                      eventColourOf(column.band),
+                    );
                     const filtered = (filters[column.key] ?? "") !== "";
                     if (column.placeholder) {
                       // The roster board's own answer to a folded-away group:
@@ -727,6 +736,7 @@ export default function RecruitmentBoardView({
                           column={column}
                           bandEnd={bandBoundaries.has(column.key)}
                           seasonLabel={season.label}
+                          eventColourKey={eventColourOf(column.band)}
                         />
                       ))}
                     </TableRow>

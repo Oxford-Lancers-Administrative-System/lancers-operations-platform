@@ -123,8 +123,8 @@ describe("REQ-authority / REQ-core-four — coach-role exclusion, the walk's own
  */
 describe("which groups are folded away, remembered on the account", () => {
   const EVENTS = [
-    { eventId: "event-1", name: "Taster session", date: "12 Oct" },
-    { eventId: "event-2", name: "Freshers' fair", date: "05 Oct" },
+    { eventId: "event-1", name: "Taster session", date: "12 Oct", colourKey: "teal" },
+    { eventId: "event-2", name: "Freshers' fair", date: "05 Oct", colourKey: "lancer_gold" },
   ];
 
   function givenPopulatedBoard(): void {

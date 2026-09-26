@@ -1,6 +1,7 @@
 import type { RecruitmentBoardRow, RecruitmentEventColumn } from "@/lib/services/recruitment-board";
 import {
   BAND_COLOURS as CLUB_BANDS,
+  bandColoursForSwatch,
   type Band as ClubBand,
   type BandColours,
 } from "@/components/band-colours";
@@ -21,8 +22,9 @@ type BandKind = "person" | "recruitment" | "events";
 /**
  * Where each kind of band takes its colour from. Person is the roster's Person
  * group, in the colour the club chose for it (LAN-430, `roster_group_colours`);
- * Recruitment keeps its code colour; the Events band reuses the Season band's
- * own blue, `W1`'s own reasoning.
+ * Recruitment keeps its code colour; an event band wears its event's template
+ * colour (LAN-423 round 6, Brian), falling back to the Season band's blue only
+ * for an event with no template.
  */
 const CLUB_BAND_OF_KIND: Readonly<Record<BandKind, ClubBand>> = Object.freeze({
   person: "person",
@@ -40,15 +42,19 @@ function bandKind(band: Band): BandKind {
 }
 
 /**
- * The colours for a band value — `person`/`recruitment`'s own, or the one
- * shared events blue. `colours` is the board's `useBandColours()`; without it
- * the seeded colours stand.
+ * The colours for a band value — `person`/`recruitment`'s own, or, for an
+ * event band, the swatch of `eventColourKey` (the event's template colour,
+ * `TEMPLATE_COLOUR_PALETTE`). `colours` is the board's `useBandColours()`;
+ * without it the seeded colours stand.
  */
 export function bandColour(
   band: Band,
   colours: Readonly<Record<ClubBand, BandColours>> = CLUB_BANDS,
+  eventColourKey: string | null = null,
 ): BandColours {
-  return colours[CLUB_BAND_OF_KIND[bandKind(band)]];
+  const kind = bandKind(band);
+  if (kind === "events" && eventColourKey !== null) return bandColoursForSwatch(eventColourKey);
+  return colours[CLUB_BAND_OF_KIND[kind]];
 }
 
 /** The event id encoded in an events-band value, or `null` for `person`/`recruitment`. */

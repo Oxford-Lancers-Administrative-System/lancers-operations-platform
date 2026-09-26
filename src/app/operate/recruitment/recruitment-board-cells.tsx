@@ -71,14 +71,17 @@ export function RecruitCell({
   column,
   bandEnd,
   seasonLabel,
+  eventColourKey = null,
 }: {
   row: RecruitmentBoardRow;
   column: ColumnDef;
   /** Whether this column is the last in its band's run — see `bandBoundaryKeys`. */
   bandEnd: boolean;
   seasonLabel: string;
+  /** An event column's template colour key — see `bandColour`. */
+  eventColourKey?: string | null;
 }) {
-  const colours = bandColour(column.band, useBandColours());
+  const colours = bandColour(column.band, useBandColours(), eventColourKey);
   const shell = {
     bgcolor: colours.tint,
     minWidth: column.width,

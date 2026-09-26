@@ -23,6 +23,8 @@ export interface RecruitmentEventColumn {
   readonly eventId: string;
   readonly name: string;
   readonly date: string | null;
+  /** The event's template colour, a `TEMPLATE_COLOUR_PALETTE` key — the calendar's own lookup. */
+  readonly colourKey: string | null;
 }
 
 interface RecruitmentEventCell {
@@ -188,10 +190,12 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
         group by nj.person_id, nj.idempotency_key`,
         [personIds],
       ),
-      tx.query<{ event_id: string; name: string; date: string | null }>(
-        `select distinct e.id as event_id, e.name, to_char(e.scheduled_on, 'YYYY-MM-DD') as date
+      tx.query<{ event_id: string; name: string; date: string | null; colour_key: string | null }>(
+        `select distinct e.id as event_id, e.name, to_char(e.scheduled_on, 'YYYY-MM-DD') as date,
+                tpl.colour_key
          from public.events e
          join public.invitations i on i.event_id = e.id
+         left join public.event_templates tpl on tpl.id = e.template_id
         where e.season_id = $1::uuid and e.event_type = 'recruitment' and i.capacity = 'recruit'
         order by date nulls last, name`,
         [season.id],
@@ -247,6 +251,7 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
     eventId: row.event_id,
     name: row.name,
     date: row.date,
+    colourKey: row.colour_key,
   }));
   const invitationsByPerson = new Map<string, typeof invitationRows.rows>();
   for (const row of invitationRows.rows) {
