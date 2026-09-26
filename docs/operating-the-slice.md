@@ -228,6 +228,20 @@ with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
 **Add recruit** and **QR code** only with "May add recruits"; their pages and
 actions refuse without it.
 
+**The sign-up code page (LAN-428, Brian 2026-09-26).** Recruitment → **QR
+code** opens with three numbers for the live code: **Visits** (times
+`/join/<code>` was served for it; page loads, link previews included),
+**Partial** (records the partial save created through it since it was minted,
+completed or not) and **Completed** (finished sign-ups on it, less the club's
+twelve test sign-ups; the stored count is unchanged). With no live code there
+are no numbers. On the public form a partial record now starts only once first
+name, last name and a confirmed mobile are all typed; everything after that is
+as LAN-425 built it. A recruit who agreed to WhatsApp messages out loud is
+recorded from their record's **Record consent** (LAN-371): the required **How
+consent was given** note says it was verbal, and the consent row keeps who
+recorded it and when, audited to that operator. It never grants anything on its
+own.
+
 The heading reads `Roster` and beneath it `Season 2026-27 · 42 players · 20
 columns`.
 

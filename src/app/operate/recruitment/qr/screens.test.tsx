@@ -33,7 +33,7 @@ describe("no live code yet", () => {
         seasonLabel="2026-27"
         joinUrl={null}
         cardImageSrc={null}
-        signInCount={0}
+        figures={null}
         mintedAt={null}
       />,
     );
@@ -52,7 +52,7 @@ describe("a live code", () => {
         seasonLabel="2026-27"
         joinUrl={JOIN_URL}
         cardImageSrc="/join/LANCERS26/opengraph-image.png"
-        signInCount={4}
+        figures={{ visits: 31, partial: 9, completed: 4 }}
         mintedAt={MINTED_AT}
       />,
     );
@@ -67,15 +67,50 @@ describe("a live code", () => {
     expect(screen.queryByRole("button", { name: /mint/i })).toBeNull();
   });
 
-  it("keeps the code, COPY LINK, the sign-in count and the minted caption", () => {
+  it("keeps the code, COPY LINK and the minted caption", () => {
     renderLive();
 
     expect(screen.getByTestId("recruitment-qr-image")).toBeTruthy();
     expect(screen.getByText(JOIN_URL)).toBeTruthy();
     expect(screen.getByTestId("recruitment-qr-copy").textContent).toBe("COPY LINK");
     expect(screen.getByTestId("recruitment-qr-download").textContent).toBe("DOWNLOAD");
-    expect(screen.getByText("4")).toBeTruthy();
-    expect(screen.getByText("sign-ins this season")).toBeTruthy();
     expect(screen.getByText(/^Minted /)).toBeTruthy();
+  });
+
+  /** LAN-428, item 4: three numbers at the top, in the page's own Metric. */
+  it("shows Visits, Partial and Completed at the top, in that order", () => {
+    renderLive();
+
+    const figures = screen.getByTestId("recruitment-qr-figures");
+    expect(screen.getByTestId("recruitment-qr-visits").textContent).toBe("31Visits");
+    expect(screen.getByTestId("recruitment-qr-partial").textContent).toBe("9Partial");
+    expect(screen.getByTestId("recruitment-qr-completed").textContent).toBe("4Completed");
+    expect([...figures.children].map((child) => child.getAttribute("data-testid"))).toEqual([
+      "recruitment-qr-visits",
+      "recruitment-qr-partial",
+      "recruitment-qr-completed",
+    ]);
+    // Above the code, not below it.
+    expect(
+      figures.compareDocumentPosition(screen.getByTestId("recruitment-qr-image")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByText("sign-ins this season")).toBeNull();
+  });
+});
+
+describe("no live code, no numbers", () => {
+  it("shows no figures when nothing is live", () => {
+    render(
+      <QrCodeView
+        seasonLabel="2026-27"
+        joinUrl={null}
+        cardImageSrc={null}
+        figures={null}
+        mintedAt={null}
+      />,
+    );
+
+    expect(screen.queryByTestId("recruitment-qr-figures")).toBeNull();
   });
 });

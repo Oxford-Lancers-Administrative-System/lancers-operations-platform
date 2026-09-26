@@ -54,6 +54,9 @@ export interface DuplicateCheckResult {
   readonly found: boolean;
 }
 
+/** LAN-428. Digits a mobile needs before a partial is started — `PLAUSIBLE_MOBILE_MIN_DIGITS` in `recruitment-signup.ts`. */
+export const PARTIAL_START_MOBILE_MIN_DIGITS = 7;
+
 /** LAN-425. What the partial save's first write returned. `retry` says whether the page should try again on the next pause: not after a name-and-mobile match, which the real Save handles. */
 export interface PartialSaveStart {
   /** Opaque, held in memory for this page load only; never a person id (LAN-208). */
@@ -179,13 +182,21 @@ export default function SignupForm({
   flushRef.current = flushPartial;
   const partialEnabled = mode === "anonymous" && Boolean(startPartial) && Boolean(patchPartial);
   const bothNamesPresent = values.givenName.trim() !== "" && values.familyName.trim() !== "";
+  // LAN-428: the first write waits for a confirmed mobile of at least seven
+  // digits as well as both names — the server's own floor, which refuses it
+  // otherwise. Later patches do not wait for it.
+  const startable =
+    bothNamesPresent &&
+    !mobileUnconfirmed &&
+    values.mobile.replace(/\D/g, "").length >= PARTIAL_START_MOBILE_MIN_DIGITS;
   useEffect(() => {
     if (!partialEnabled || step !== "form" || !bothNamesPresent) return;
+    if (!partialToken.current && !startable) return;
     const handle = setTimeout(() => void flushRef.current(), PARTIAL_SAVE_DELAY_MS);
     return () => clearTimeout(handle);
     // `values` is the trigger: any change restarts the pause, and so does the
     // confirm box agreeing, which changes what the next write may carry.
-  }, [values, step, partialEnabled, bothNamesPresent, mobileUnconfirmed]);
+  }, [values, step, partialEnabled, bothNamesPresent, mobileUnconfirmed, startable]);
   unconfirmedRef.current = mobileUnconfirmed;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

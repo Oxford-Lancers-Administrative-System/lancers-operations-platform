@@ -5,7 +5,7 @@ import { PublicShell } from "@/components/public-shell";
 import { CLUB_NAME, JOIN_DESCRIPTION, JOIN_TITLE } from "@/lib/brand";
 import { withTransaction } from "@/lib/db";
 import { resolveRecruitmentGroupLink } from "@/lib/services/recruitment-config";
-import { resolveRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
+import { recordRecruitmentSignupVisitIn } from "@/lib/services/recruitment-signup-codes";
 
 import {
   checkForExistingQrRecruit,
@@ -51,7 +51,8 @@ interface PageProps {
 
 export default async function JoinPage({ params }: PageProps) {
   const { code } = await params;
-  const resolved = await withTransaction((tx) => resolveRecruitmentSignupCodeIn(tx, code));
+  // LAN-428: resolving a live code counts one visit, in the same statement.
+  const resolved = await withTransaction((tx) => recordRecruitmentSignupVisitIn(tx, code));
   if (resolved.state !== "valid") notFound();
 
   const groupLink = resolveRecruitmentGroupLink();

@@ -42,6 +42,7 @@ import {
 } from "./recruitment-signup";
 import { mintRecruitmentSignupCodeIn } from "./recruitment-signup-codes";
 import { resolvePersonTokenIn } from "./player-answer-tokens";
+import { recordRecruitConsentIn } from "./recruitment-prospect";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN202SignupSuite";
@@ -844,20 +845,47 @@ describe("readSignupPrefillIn", () => {
  */
 describe("the partial save (LAN-425)", () => {
   function partial(overrides: Partial<SignupSubmission> = {}) {
+    // LAN-428: a mobile is part of the minimum, so every fixture carries one.
     const { consent: _consent, ...rest } = baseSubmission({
-      mobile: null,
+      mobile: uniquePhone(),
       collegeEmail: null,
       ...overrides,
     });
     return rest;
   }
 
-  it("needs both names and nothing else", async () => {
+  it("needs first name, last name and a mobile, and nothing else — LAN-428", async () => {
+    const people = async () =>
+      (
+        await observer.query<{ count: string }>(
+          `select count(*)::text as count from public.people where given_name = $1`,
+          [MARKER],
+        )
+      ).rows[0].count;
+    const before = await people();
+
     await withTransaction(async (tx) => {
       await expect(
         startPartialQrSignupIn(tx, { seasonId, submission: partial({ familyName: " " }) }),
       ).rejects.toMatchObject({ rule: SIGNUP_REQUIRES_LAST_NAME_RULE });
     });
+    await withTransaction(async (tx) => {
+      await expect(
+        startPartialQrSignupIn(tx, { seasonId, submission: partial({ mobile: null }) }),
+      ).rejects.toMatchObject({ rule: SIGNUP_REQUIRES_MOBILE_RULE });
+    });
+    await withTransaction(async (tx) => {
+      await expect(
+        startPartialQrSignupIn(tx, { seasonId, submission: partial({ mobile: "  " }) }),
+      ).rejects.toMatchObject({ rule: SIGNUP_REQUIRES_MOBILE_RULE });
+    });
+    await withTransaction(async (tx) => {
+      await expect(
+        startPartialQrSignupIn(tx, { seasonId, submission: partial({ mobile: "0770" }) }),
+      ).rejects.toMatchObject({ rule: SIGNUP_INVALID_MOBILE_RULE });
+    });
+    expect(await people()).toBe(before);
+
     const started = await withTransaction((tx) =>
       startPartialQrSignupIn(tx, { seasonId, submission: partial() }),
     );
@@ -1115,9 +1143,11 @@ describe("the partial save (LAN-425)", () => {
        values ($1::uuid, 'phone', $2, true, 'test fixture')`,
       [existing.rows[0].id, mobile],
     );
-    // The names alone start the partial (nothing to probe yet).
+    // Started on a different mobile (LAN-428: a partial needs one), then
+    // corrected to the one somebody else with this name already has.
+    const ownMobile = uniquePhone();
     const started = await withTransaction((tx) =>
-      startPartialQrSignupIn(tx, { seasonId, submission: partial() }),
+      startPartialQrSignupIn(tx, { seasonId, submission: partial({ mobile: ownMobile }) }),
     );
     const personId = started!.personId;
 
@@ -1130,7 +1160,8 @@ describe("the partial save (LAN-425)", () => {
     );
     expect(result.matchedExisting).toBe(true);
     const prefill = await withTransaction((tx) => readSignupPrefillIn(tx, personId));
-    expect(prefill.mobile).toBeNull();
+    expect(prefill.mobile).not.toBe(mobile);
+    expect(prefill.mobile).toBe(ownMobile);
     expect(prefill.college).toBe("Oriel");
 
     // The visitor confirms the existing record: the partial is voided, its cycle stood down, its token revoked.
@@ -1224,5 +1255,97 @@ describe("the partial save (LAN-425)", () => {
       "interest_reminder",
       "welcome",
     ]);
+  });
+});
+
+describe("verbal consent on a partial recruit — LAN-428, item 2", () => {
+  /**
+   * The journey Brian asked to be traced: a partial from the fair has no
+   * consent row (an unticked box is not consent). An operator on the recruit's
+   * record uses LAN-371's **Record consent**, whose required note is "How
+   * consent was given", and writes that it was verbal. The row then carries
+   * who (the operator), when, and how; the audit row names the operator and
+   * the reason and never the recruit's contact details.
+   */
+  it("records the grant with who, when and how, and audits it to the operator", async () => {
+    const operator = await observer.query<{ id: string }>(
+      "select id from public.people where created_at = $1::timestamptz order by id limit 1",
+      [await seededIdentityCreatedAt(observer)],
+    );
+    const operatorPersonId = operator.rows[0].id;
+    const { consent: _consent, ...submission } = baseSubmission({
+      mobile: uniquePhone(),
+      collegeEmail: null,
+    });
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission }),
+    );
+    const personId = started!.personId;
+    const before = await observer.query(
+      "select 1 from public.season_messaging_consents where person_id = $1::uuid",
+      [personId],
+    );
+    expect(before.rows).toHaveLength(0);
+
+    const note = "Given verbally at the Said Business School fair stand.";
+    const granted = await withTransaction((tx) =>
+      recordRecruitConsentIn(tx, operatorPersonId, started!.prospectId, note),
+    );
+
+    expect(granted).toMatchObject({
+      personId,
+      seasonId,
+      state: "granted",
+      source: "operator_recorded",
+      recordedByPersonId: operatorPersonId,
+      reason: note,
+    });
+    expect(Date.parse(granted.changedAt)).toBeGreaterThan(Date.now() - 60_000);
+
+    const audit = await observer.query<{
+      actor_person_id: string;
+      action: string;
+      reason: string;
+      to_state: string;
+      context: Record<string, unknown>;
+    }>(
+      `select actor_person_id, action, reason, to_state, context from public.audit_events
+        where entity_table = 'season_messaging_consents' and entity_id = $1::uuid`,
+      [personId],
+    );
+    expect(audit.rows).toEqual([
+      {
+        actor_person_id: operatorPersonId,
+        action: "messaging_consent.recorded_by_operator",
+        reason: note,
+        to_state: "granted",
+        context: { seasonId },
+      },
+    ]);
+  });
+
+  it("refuses a grant with no note of how it was given", async () => {
+    const operator = await observer.query<{ id: string }>(
+      "select id from public.people where created_at = $1::timestamptz order by id limit 1",
+      [await seededIdentityCreatedAt(observer)],
+    );
+    const { consent: _consent, ...submission } = baseSubmission({
+      mobile: uniquePhone(),
+      collegeEmail: null,
+    });
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission }),
+    );
+
+    await expect(
+      withTransaction((tx) =>
+        recordRecruitConsentIn(tx, operator.rows[0].id, started!.prospectId, "  "),
+      ),
+    ).rejects.toMatchObject({ rule: "season_messaging_consent_change_requires_a_reason" });
+    const after = await observer.query(
+      "select 1 from public.season_messaging_consents where person_id = $1::uuid",
+      [started!.personId],
+    );
+    expect(after.rows).toHaveLength(0);
   });
 });

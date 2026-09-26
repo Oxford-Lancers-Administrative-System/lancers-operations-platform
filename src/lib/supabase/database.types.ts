@@ -4007,6 +4007,7 @@ export type Database = {
           minted_by_person_id: string | null
           season_id: string
           sign_in_count: number
+          visit_count: number
         }
         Insert: {
           code: string
@@ -4019,6 +4020,7 @@ export type Database = {
           minted_by_person_id?: string | null
           season_id: string
           sign_in_count?: number
+          visit_count?: number
         }
         Update: {
           code?: string
@@ -4031,6 +4033,7 @@ export type Database = {
           minted_by_person_id?: string | null
           season_id?: string
           sign_in_count?: number
+          visit_count?: number
         }
         Relationships: [
           {

@@ -743,7 +743,33 @@ async function setProspectSourceIn(
 }
 
 /**
- * The first partial write: both names present, nothing on file yet. Returns
+ * LAN-428, item 1 (Brian, 2026-09-26, after the Saïd fair): a partial is
+ * created only once there is a mobile to reach, as well as both names. A
+ * name alone is a record nobody can follow up. Present and plausibly whole
+ * (the probe's own digit floor), not necessarily well formed: LAN-425's rule
+ * stands that a malformed mobile is kept raw, with no normalised number, for
+ * an operator to fix.
+ */
+export const PARTIAL_START_MOBILE_MESSAGE = "A mobile number is required.";
+
+function requireStartMobile(submission: PartialSignupSubmission): string {
+  const mobile = trimmedOrNull(submission.mobile);
+  if (!mobile) {
+    throw new ConstraintViolated(PARTIAL_START_MOBILE_MESSAGE, {
+      rule: SIGNUP_REQUIRES_MOBILE_RULE,
+    });
+  }
+  if (mobile.replace(/\D/g, "").length < PLAUSIBLE_MOBILE_MIN_DIGITS) {
+    throw new ConstraintViolated(PARTIAL_START_MOBILE_MESSAGE, {
+      rule: SIGNUP_INVALID_MOBILE_RULE,
+    });
+  }
+  return mobile;
+}
+
+/**
+ * The first partial write: first name, last name and a mobile present
+ * (LAN-428), nothing on file yet. Returns
  * `null` and writes nothing when the name-and-mobile probe already matches
  * somebody — silently attaching typed data to a stranger's record would be a
  * leak, and the real Save still asks "have you signed up before?" as today.
@@ -753,13 +779,11 @@ export async function startPartialQrSignupIn(
   params: { seasonId: string; submission: PartialSignupSubmission; now?: Date },
 ): Promise<PartialSignupStart | null> {
   const { givenName, familyName } = requireBothNames(params.submission);
+  const mobile = requireStartMobile(params.submission);
   const now = params.now ?? new Date();
 
-  const mobile = trimmedOrNull(params.submission.mobile);
-  if (mobile && mobile.replace(/\D/g, "").length >= PLAUSIBLE_MOBILE_MIN_DIGITS) {
-    const match = await findPersonMatchingGivenNameAndPhoneIn(tx, givenName, mobile);
-    if (match) return null;
-  }
+  const match = await findPersonMatchingGivenNameAndPhoneIn(tx, givenName, mobile);
+  if (match) return null;
 
   const personId = await insertPersonIn(tx, givenName, familyName);
   await applyPartialFieldsIn(tx, personId, givenName, params.submission);
