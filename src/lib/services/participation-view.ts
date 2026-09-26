@@ -259,6 +259,11 @@ export const ATTENDANCE_FILTERS = Object.freeze([
   "not_recorded",
 ] as const);
 
+/** LAN-440: the capacity a row reads as — a committee-only invitee reads as Player. */
+function shownCapacity(capacity: string): string {
+  return capacity === "committee" ? "player" : capacity;
+}
+
 function sortValue(person: ParticipationPerson, column: string): string | number {
   switch (column) {
     case "capacity":
@@ -313,8 +318,7 @@ function matchesCapacity(person: ParticipationPerson, capacity: string): boolean
   if (capacity === "") return true;
   if (capacity === "walk_up") return person.isWalkUp;
   // LAN-440: the filter matches the capacity shown, so Player includes committee.
-  const shown = person.capacity === "committee" ? "player" : person.capacity;
-  return !person.isWalkUp && shown === capacity;
+  return !person.isWalkUp && shownCapacity(person.capacity) === capacity;
 }
 
 function matchesDelivery(person: ParticipationPerson, delivery: string): boolean {
@@ -495,7 +499,8 @@ export function readParticipationFilters(
 
   return {
     search: one(PARTICIPATION_PARAMS.search),
-    capacity,
+    // LAN-442: an old `?as=committee` link shows the Player rows it now reads as.
+    capacity: shownCapacity(capacity),
     answer: (ANSWER_FILTERS as readonly string[]).includes(answer) ? answer : "",
     attendance: (ATTENDANCE_FILTERS as readonly string[]).includes(attendance) ? attendance : "",
     delivery:

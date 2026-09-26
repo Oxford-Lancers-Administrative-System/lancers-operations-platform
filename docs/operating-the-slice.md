@@ -824,7 +824,8 @@ capacity nobody was invited under shows no block at all, so a practice with no
 recruits shows Players and Coaches only. **A committee-only invitee is counted
 under Players** (LAN-440, Brian, 2026-09-26), and the participation table's
 **As** column reads them as Player, and its **As** filter offers Recruit,
-Player and Coach, with Player matching them too; the stored capacity, the audience builder,
+Player and Coach, with Player matching them too (an old `?as=committee` link
+opens on Player); the stored capacity, the audience builder,
 the invitation and Distribution still say committee. Each block reads:
 
 | Line  | What it says                                                                       |

@@ -659,6 +659,13 @@ describe("readParticipationFilters", () => {
     expect(filters.direction).toBe("");
   });
 
+  // LAN-442 (W-5). An old link still filters to what its rows now read as.
+  it("reads a stale ?as=committee as Player", () => {
+    const filters = readParticipationFilters({ as: "committee" }, [], "operator");
+    expect(filters.capacity).toBe("player");
+    expect(names(applyParticipationView(ROSTER, filters, []))).toContain("Fen Marchbanks");
+  });
+
   it("takes the first of a repeated parameter", () => {
     expect(readParticipationFilters({ q: ["one", "two"] }, [], "operator").search).toBe("one");
   });
