@@ -12,10 +12,10 @@ export async function generateRosterFormAction(
   playerCount: number,
   coachCount: number,
 ): Promise<GenerateRosterFormState> {
-  // LAN-431: Manage on this event's template.
-  const operator = await requireEventGrant(eventId, "manage");
-
   try {
+    // LAN-431: Manage on this event's template. Inside the try (LAN-423): a
+    // refusal is the button's own error, never a crashed page.
+    const operator = await requireEventGrant(eventId, "manage");
     await recordRosterFormGenerated({
       actorPersonId: operator.personId,
       eventId,

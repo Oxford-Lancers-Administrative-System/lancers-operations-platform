@@ -40,7 +40,7 @@ vi.mock("@/lib/services/delivery", async (importOriginal) => {
 });
 
 import { revalidatePath } from "next/cache";
-import { InvalidTransition, isServiceError } from "@/lib/db";
+import { InvalidTransition, NotPermitted, type ServiceError } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { retryDelivery, revokeAndReissue } from "@/lib/services/delivery";
 import { retryDeliveryAction, revokeAndReissueAction } from "./actions";
@@ -81,14 +81,23 @@ function reissueForm(reason = "Sent to the wrong number"): FormData {
   return form;
 }
 
-async function refusalFrom(run: () => Promise<unknown>) {
-  try {
-    await run();
-  } catch (error) {
-    if (isServiceError(error)) return error;
-    throw error;
-  }
-  throw new Error("Expected a refusal, and the action returned normally.");
+/** The guard's refusal sentence for a seat without the grant. */
+const GRANT_REFUSAL =
+  "You do not have access to this action. This needs access your seat does not hold.";
+
+/**
+ * The refusal an action handed back as its own state — LAN-423 fix round 4,
+ * J1 — read back as the refusal it is. A throw fails this helper: a thrown
+ * refusal is what rendered "This page couldn't load" when a grant was lowered
+ * under an open page.
+ */
+async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceError> {
+  const returned = (await attempt()) as { error?: unknown; formError?: unknown } | null;
+  const message = typeof returned?.formError === "string" ? returned.formError : returned?.error;
+  expect(message).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+  return new NotPermitted(message as string);
 }
 
 beforeEach(() => {
@@ -114,7 +123,7 @@ describe("retryDeliveryAction", () => {
     const refusal = await refusalFrom(() => retryDeliveryAction({ error: null }, retryForm()));
 
     expect(refusal.kind).toBe("not_permitted");
-    expect(refusal.rule).toMatch(/^grant:.*>=manage$/);
+    expect(refusal.message).toBe(GRANT_REFUSAL);
     expect(retryDelivery).not.toHaveBeenCalled();
   });
 
@@ -150,15 +159,15 @@ describe("retryDeliveryAction", () => {
     expect(state.error).toContain("already been attempted");
   });
 
-  it("rethrows an authorization refusal instead of rendering it beside a button", async () => {
+  // LAN-423 fix round 4, J1: a refusal from below is the page's own Notice,
+  // never a throw that rendered "This page couldn't load".
+  it("hands an authorization refusal from the service back as the page's state", async () => {
     signedInAs(["secretary"]);
-    const { NotPermitted } = await import("@/lib/db");
     vi.mocked(retryDelivery).mockRejectedValue(new NotPermitted("nope"));
 
-    // A refusal shown as red text beside a control reads as "fix your input and
-    // try again", which hides an authorization event inside a validation one.
-    const refusal = await refusalFrom(() => retryDeliveryAction({ error: null }, retryForm()));
-    expect(refusal.kind).toBe("not_permitted");
+    const state = await retryDeliveryAction({ error: null }, retryForm());
+
+    expect(state).toEqual({ error: "nope" });
   });
 });
 
@@ -224,7 +233,7 @@ describe("revokeAndReissueAction", () => {
     const refusal = await refusalFrom(() => revokeAndReissueAction({ error: null }, reissueForm()));
 
     expect(refusal.kind).toBe("not_permitted");
-    expect(refusal.rule).toMatch(/^grant:.*>=manage$/);
+    expect(refusal.message).toBe(GRANT_REFUSAL);
     expect(revokeAndReissue).not.toHaveBeenCalled();
   });
 

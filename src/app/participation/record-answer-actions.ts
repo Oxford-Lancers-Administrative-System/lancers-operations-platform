@@ -21,10 +21,9 @@ function text(formData: FormData, field: string): string {
   return typeof value === "string" ? value : "";
 }
 
-/** A refusal is rethrown; everything else becomes a sentence for the dialog. */
+/** Every service failure, a refusal included (LAN-423), becomes a sentence for the dialog; a bug still throws. */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
 }
 

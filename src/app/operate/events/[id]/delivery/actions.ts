@@ -15,9 +15,9 @@ function text(formData: FormData, field: string): string {
   return typeof value === "string" ? value : "";
 }
 
+/** Every service failure, a refusal included (LAN-423), as the page's message; a bug still throws. */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
 }
 
@@ -28,10 +28,9 @@ export async function retryDeliveryAction(
 ): Promise<EventTransitionState> {
   const eventId = text(formData, "eventId");
   const jobId = text(formData, "jobId");
-  const operator = await requireNotificationJobGrant(jobId, "manage");
-
   let outcome: Awaited<ReturnType<typeof retryDelivery>>;
   try {
+    const operator = await requireNotificationJobGrant(jobId, "manage");
     outcome = await retryDelivery(operator.personId, jobId);
   } catch (error) {
     return { error: messageFor(error) };
@@ -67,11 +66,11 @@ export async function revokeAndReissueAction(
 ): Promise<EventTransitionState> {
   const eventId = text(formData, "eventId");
   const invitationId = text(formData, "invitationId");
-  const operator = await requireInvitationsGrant([invitationId], "manage");
   const reason = text(formData, "reason");
 
   let outcome: Awaited<ReturnType<typeof revokeAndReissue>>;
   try {
+    const operator = await requireInvitationsGrant([invitationId], "manage");
     outcome = await revokeAndReissue(operator.personId, invitationId, reason);
   } catch (error) {
     return { error: messageFor(error) };

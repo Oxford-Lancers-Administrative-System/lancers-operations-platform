@@ -43,7 +43,7 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { isServiceError, type ServiceError } from "@/lib/db";
+import { NotPermitted, type ServiceError } from "@/lib/db";
 import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
 import { recordOperatorAnswerAction } from "./record-answer-actions";
 import { EMPTY_RECORD_ANSWER_STATE } from "./record-answer-state";
@@ -90,14 +90,23 @@ function answerForm(overrides: Record<string, string> = {}): FormData {
   return form;
 }
 
+/** The guard's refusal sentence for a seat without the grant. */
+const GRANT_REFUSAL =
+  "You do not have access to this action. This needs access your seat does not hold.";
+
+/**
+ * The refusal an action handed back as its own state — LAN-423 fix round 4,
+ * J1 — read back as the refusal it is. A throw fails this helper: a thrown
+ * refusal is what rendered "This page couldn't load" when a grant was lowered
+ * under an open page.
+ */
 async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceError> {
-  try {
-    await attempt();
-  } catch (error) {
-    if (isServiceError(error)) return error;
-    throw error;
-  }
-  throw new Error("Expected the action to refuse this, but it returned normally.");
+  const returned = (await attempt()) as { error?: unknown; formError?: unknown } | null;
+  const message = typeof returned?.formError === "string" ? returned.formError : returned?.error;
+  expect(message).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+  return new NotPermitted(message as string);
 }
 
 beforeEach(() => {
@@ -128,8 +137,6 @@ describe("recordOperatorAnswerAction refuses a caller with no operator profile",
 
 // LAN-431: the template `./template-of` is mocked to, and the rule a refusal carries.
 const TEMPLATE_ID = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
-/** A seat with no template at Manage is refused before the event is read (`grant:any(template)`). */
-const MANAGE_RULE = /^grant:.*>=manage$/;
 
 function signedInWithTemplate(level: "view" | "manage"): ResolvedOperator {
   const operator = {
@@ -149,7 +156,7 @@ describe("recordOperatorAnswerAction excludes the narrow attendance-recording co
     );
 
     expect(error.kind).toBe("not_permitted");
-    expect(error.rule).toMatch(MANAGE_RULE);
+    expect(error.message).toBe(GRANT_REFUSAL);
     expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 
@@ -161,7 +168,7 @@ describe("recordOperatorAnswerAction excludes the narrow attendance-recording co
     );
 
     expect(error.kind).toBe("not_permitted");
-    expect(error.rule).toMatch(MANAGE_RULE);
+    expect(error.message).toBe(GRANT_REFUSAL);
     expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 
@@ -208,7 +215,7 @@ describe("recordOperatorAnswerAction requires Manage on the event's template —
       recordOperatorAnswerAction(EMPTY_RECORD_ANSWER_STATE, answerForm()),
     );
 
-    expect(error.rule).toMatch(MANAGE_RULE);
+    expect(error.message).toBe(GRANT_REFUSAL);
     expect(recordOperatorRsvpResponse).not.toHaveBeenCalled();
   });
 

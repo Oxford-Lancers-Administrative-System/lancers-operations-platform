@@ -52,7 +52,6 @@ import {
   InvalidTransition,
   NotFound,
   NotPermitted,
-  isServiceError,
   type ServiceError,
 } from "@/lib/db";
 import {
@@ -111,14 +110,23 @@ function walkUpForm(overrides: Record<string, string> = {}): FormData {
   return form;
 }
 
+/** The guard's refusal sentence for a seat without the grant. */
+const GRANT_REFUSAL =
+  "You do not have access to this action. This needs access your seat does not hold.";
+
+/**
+ * The refusal an action handed back as its own state — LAN-423 fix round 4,
+ * J1 — read back as the refusal it is. A throw fails this helper: a thrown
+ * refusal is what rendered "This page couldn't load" when a grant was lowered
+ * under an open page.
+ */
 async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceError> {
-  try {
-    await attempt();
-  } catch (error) {
-    if (isServiceError(error)) return error;
-    throw error;
-  }
-  throw new Error("Expected the action to refuse this, but it returned.");
+  const returned = (await attempt()) as { error?: unknown; formError?: unknown } | null;
+  const message = typeof returned?.formError === "string" ? returned.formError : returned?.error;
+  expect(message).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+  return new NotPermitted(message as string);
 }
 
 const committed = {
@@ -256,7 +264,7 @@ describe("who may record attendance", () => {
       // The guard was `event_occurrence_assertion` until LAN-151 retired that
       // capability, then `event_calendar_management`. LAN-431 made it Manage on
       // the event's template, which no coaching seat holds by default.
-      expect(refusal.rule).toMatch(/^grant:.*>=manage$/);
+      expect(refusal.message).toBe(GRANT_REFUSAL);
       expect(recordAttendance).toHaveBeenCalled();
       expect(recordWalkUpAttendance).toHaveBeenCalled();
       expect(removeAttendance).not.toHaveBeenCalled();
@@ -386,7 +394,8 @@ describe("recordAttendanceAction", () => {
     expect(state.error).toContain("not on this event's list");
   });
 
-  it("rethrows a refusal rather than rendering it beside the buttons", async () => {
+  // LAN-423 fix round 4, J1: the refusal is the row's own answer, never a throw.
+  it("hands a refusal from the service back as the row's state", async () => {
     vi.mocked(recordAttendance).mockRejectedValue(
       new NotPermitted("You do not have access to this action.", { rule: "capability:x" }),
     );

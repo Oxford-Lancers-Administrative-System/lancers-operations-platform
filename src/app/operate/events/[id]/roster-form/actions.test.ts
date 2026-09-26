@@ -37,7 +37,7 @@ vi.mock("@/lib/services/roster-form", async (importOriginal) => {
   return { ...actual, recordRosterFormGenerated: vi.fn() };
 });
 
-import { InvalidTransition, isServiceError } from "@/lib/db";
+import { InvalidTransition, NotPermitted, type ServiceError } from "@/lib/db";
 import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { recordRosterFormGenerated } from "@/lib/services/roster-form";
@@ -65,14 +65,23 @@ function signedInAs(roleCodes: string[]): ResolvedOperator {
   return operator;
 }
 
-async function refusalFrom(run: () => Promise<unknown>) {
-  try {
-    await run();
-  } catch (error) {
-    if (isServiceError(error)) return error;
-    throw error;
-  }
-  throw new Error("Expected a refusal, and the action returned normally.");
+/** The guard's refusal sentence for a seat without the grant. */
+const GRANT_REFUSAL =
+  "You do not have access to this action. This needs access your seat does not hold.";
+
+/**
+ * The refusal an action handed back as its own state — LAN-423 fix round 4,
+ * J1 — read back as the refusal it is. A throw fails this helper: a thrown
+ * refusal is what rendered "This page couldn't load" when a grant was lowered
+ * under an open page.
+ */
+async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceError> {
+  const returned = (await attempt()) as { error?: unknown; formError?: unknown } | null;
+  const message = typeof returned?.formError === "string" ? returned.formError : returned?.error;
+  expect(message).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+  return new NotPermitted(message as string);
 }
 
 beforeEach(() => {
@@ -106,7 +115,7 @@ describe("generateRosterFormAction — event_calendar_management, and nothing lo
     const refusal = await refusalFrom(() => generateRosterFormAction(EVENT, "blue", 22, 3));
 
     expect(refusal.kind).toBe("not_permitted");
-    expect(refusal.rule).toMatch(/^grant:.*>=manage$/);
+    expect(refusal.message).toBe(GRANT_REFUSAL);
     expect(recordRosterFormGenerated).not.toHaveBeenCalled();
   });
 

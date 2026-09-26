@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireCapability } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import {
   createEventTemplate,
@@ -62,10 +63,26 @@ function readQuestions(formData: FormData): RawEventQuestion[] {
   }));
 }
 
+/** Every service failure, a refusal included (LAN-423), as the form's message; a bug still throws. */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
+}
+
+/**
+ * A guard's refusal as the open editor's own error, every entry handed back
+ * (LAN-423) — never a crashed page.
+ */
+function refusedEditor(formData: FormData, error: unknown): TemplateFormState {
+  return {
+    phase: "editing",
+    issues: [],
+    questionIssues: [],
+    error: messageFor(error),
+    values: readTemplate(formData),
+    questions: readQuestions(formData),
+    plan: null,
+  };
 }
 
 /** The two checked values, once the form has been believed. */
@@ -108,7 +125,11 @@ export async function previewEventTemplateAction(
   _previous: TemplateFormState,
   formData: FormData,
 ): Promise<TemplateFormState> {
-  await requireCapability("event_calendar_management");
+  try {
+    await requireCapability("event_calendar_management");
+  } catch (error) {
+    return refusedEditor(formData, error);
+  }
   const templateId = text(formData, "templateId");
 
   const outcome = checked(formData);
@@ -145,7 +166,12 @@ export async function saveEventTemplateAction(
   _previous: TemplateFormState,
   formData: FormData,
 ): Promise<TemplateFormState> {
-  const operator = await requireCapability("event_calendar_management");
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireCapability("event_calendar_management");
+  } catch (error) {
+    return refusedEditor(formData, error);
+  }
   const templateId = text(formData, "templateId");
 
   const outcome = checked(formData);
@@ -182,7 +208,12 @@ export async function createEventTemplateAction(
   _previous: TemplateFormState,
   formData: FormData,
 ): Promise<TemplateFormState> {
-  const operator = await requireCapability("event_calendar_management");
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireCapability("event_calendar_management");
+  } catch (error) {
+    return refusedEditor(formData, error);
+  }
 
   const outcome = checked(formData);
   if (!outcome.ok) return outcome.state;
@@ -216,10 +247,10 @@ export async function deleteEventTemplateAction(
   _previous: TemplateFormState,
   formData: FormData,
 ): Promise<TemplateFormState> {
-  const operator = await requireCapability("event_calendar_management");
   const templateId = text(formData, "templateId");
 
   try {
+    const operator = await requireCapability("event_calendar_management");
     await deleteEventTemplate(operator.personId, templateId);
   } catch (error) {
     return {
