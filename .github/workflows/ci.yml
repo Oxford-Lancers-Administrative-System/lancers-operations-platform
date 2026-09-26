@@ -90,6 +90,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
+      # Both entries always report, so one failure never hides the other.
+      fail-fast: false
       matrix:
         suite: [database, gate]
 
