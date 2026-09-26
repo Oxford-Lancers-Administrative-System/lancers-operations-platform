@@ -35,7 +35,7 @@ vi.mock("@/lib/services/membership", async (importOriginal) => {
   };
 });
 
-import { ConstraintViolated, isServiceError } from "@/lib/db";
+import { ConstraintViolated } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
@@ -116,6 +116,16 @@ beforeEach(() => {
   givenAccess({ state: "active", operator: actor() });
 });
 
+/**
+ * A refusal handed back as the action's own state — LAN-423 fix round 4, J1.
+ * Never a throw: a throw is what rendered "This page couldn't load".
+ */
+function expectRefused(state: { error: string | null }): void {
+  expect(state.error).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 describe("the status-change boundary", () => {
@@ -144,9 +154,9 @@ describe("the status-change boundary", () => {
       const failure = await setMembershipStatusAction({
         membershipId: MEMBERSHIP_ID,
         status: "active",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(setMembershipStatus).not.toHaveBeenCalled();
     });
   }
@@ -157,9 +167,9 @@ describe("the status-change boundary", () => {
     const failure = await setMembershipStatusAction({
       membershipId: MEMBERSHIP_ID,
       status: "active",
-    }).catch((error: unknown) => error);
+    });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectRefused(failure);
     expect(setMembershipStatus).not.toHaveBeenCalled();
   });
 
@@ -170,9 +180,9 @@ describe("the status-change boundary", () => {
       const failure = await setMembershipStatusAction({
         membershipId: MEMBERSHIP_ID,
         status: "active",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(setMembershipStatus).not.toHaveBeenCalled();
     });
   }
@@ -205,9 +215,9 @@ describe("the status-change boundary", () => {
     const failure = await setMembershipStatusAction({
       membershipId: MEMBERSHIP_ID,
       status: "archived",
-    }).catch((error: unknown) => error);
+    });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectRefused(failure);
     expect(setMembershipStatus).not.toHaveBeenCalled();
   });
 });
@@ -258,9 +268,9 @@ describe("resolving an onboarding item", () => {
       const failure = await resolveOnboardingItemAction(
         EMPTY_MEMBERSHIP_ACTION_STATE,
         form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status, reason: "" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
 
@@ -270,9 +280,9 @@ describe("resolving an onboarding item", () => {
       const failure = await resolveOnboardingItemAction(
         EMPTY_MEMBERSHIP_ACTION_STATE,
         form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status, reason: "" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -284,9 +294,9 @@ describe("resolving an onboarding item", () => {
       const failure = await resolveOnboardingItemAction(
         EMPTY_MEMBERSHIP_ACTION_STATE,
         form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status: "complete" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -298,9 +308,9 @@ describe("resolving an onboarding item", () => {
       const failure = await resolveOnboardingItemAction(
         EMPTY_MEMBERSHIP_ACTION_STATE,
         form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status: "complete" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -325,16 +335,22 @@ describe("how a failure comes back", () => {
   });
 
   /**
-   * A refusal rendered as red text beside a control reads as "try again",
-   * which is the wrong instruction and hides an authorization event inside a
-   * validation failure. It is rethrown so the error boundary sees it.
+   * LAN-423 fix round 4, J1: Membership lowered to View under an open page.
+   * The refusal is the control's own answer, beside the stored status — never
+   * a throw that crashed the page.
    */
-  it("never flattens an authorization refusal into form state", async () => {
+  it("hands an authorization refusal back as state, not a throw", async () => {
     givenAccess({ state: "active", operator: actor(["kit_manager"]) });
 
-    await expect(
-      setMembershipStatusAction({ membershipId: MEMBERSHIP_ID, status: "active" }),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    const state = await setMembershipStatusAction({
+      membershipId: MEMBERSHIP_ID,
+      status: "active",
+    });
+
+    expect(state).toEqual({
+      error: "You do not have access to this action. This needs access your seat does not hold.",
+    });
+    expect(setMembershipStatus).not.toHaveBeenCalled();
   });
 
   it("lets a fault through as itself rather than as a form message", async () => {

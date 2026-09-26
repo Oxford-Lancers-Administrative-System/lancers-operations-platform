@@ -21,9 +21,9 @@ function refresh(prospectId: string): void {
   revalidatePath("/operate/people/[personId]", "page");
 }
 
+/** A `NotPermitted` comes back as state like any service error (LAN-423); a bug still throws. */
 function stateFor(error: unknown): RecruitmentActionState {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return { error: error.message };
 }
 
@@ -31,9 +31,9 @@ export async function addRecruitmentNoteAction(params: {
   prospectId: string;
   note: string;
 }): Promise<RecruitmentActionState> {
-  // LAN-432: Recruit details at edit.
-  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
+    // LAN-432: Recruit details at edit.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     await addRecruitmentProspectNote(operator.personId, params.prospectId, params.note);
   } catch (error) {
     return stateFor(error);
@@ -57,9 +57,9 @@ export async function sendRecruitmentQuestionnaireAction(params: {
     reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
   }
 > {
-  // LAN-432: Recruit details at edit.
-  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
+    // LAN-432: Recruit details at edit.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     const result = await sendRecruitmentQuestionnaire(
       operator.personId,
       params.prospectId,
@@ -90,9 +90,9 @@ export async function stopMessagesAction(params: {
   listedReason: ConsentWithdrawalReason;
   note: string;
 }): Promise<RecruitmentActionState> {
-  // LAN-432: Recruit details at edit.
-  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
+    // LAN-432: Recruit details at edit.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     await stopRecruitMessages(operator.personId, params.prospectId, {
       listedReason: params.listedReason,
       note: params.note,
@@ -109,9 +109,9 @@ export async function recordConsentAction(params: {
   prospectId: string;
   note: string;
 }): Promise<RecruitmentActionState> {
-  // LAN-432: Recruit details at edit.
-  const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
   try {
+    // LAN-432: Recruit details at edit.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     await recordRecruitConsent(operator.personId, params.prospectId, params.note);
   } catch (error) {
     return stateFor(error);

@@ -20,9 +20,9 @@ function text(formData: FormData, field: string): string {
   return typeof value === "string" ? value : "";
 }
 
+/** A `NotPermitted` comes back as state like any service error (LAN-423); a bug still throws. */
 function stateFor(error: unknown): MembershipActionState {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return { error: error.message };
 }
 
@@ -36,10 +36,9 @@ export async function setMembershipStatusAction(params: {
   membershipId: string;
   status: MembershipStatus;
 }): Promise<MembershipActionState> {
-  // LAN-429: Membership edit — the status ladder is the Membership category.
-  const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
-
   try {
+    // LAN-429: Membership edit — the status ladder is the Membership category.
+    const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
     await setMembershipStatus({
       actorPersonId: operator.personId,
       membershipId: params.membershipId,
@@ -58,11 +57,11 @@ export async function resolveOnboardingItemAction(
   _previous: MembershipActionState,
   formData: FormData,
 ): Promise<MembershipActionState> {
-  // LAN-432: Onboarding at edit.
-  const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
   const membershipId = text(formData, "membershipId");
 
   try {
+    // LAN-432: Onboarding at edit.
+    const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
     await resolveOnboardingItem({
       actorPersonId: operator.personId,
       membershipId,
