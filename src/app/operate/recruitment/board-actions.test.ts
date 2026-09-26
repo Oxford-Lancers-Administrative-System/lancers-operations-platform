@@ -39,7 +39,7 @@ vi.mock("@/lib/services/recruitment-prospect", async (importOriginal) => {
   };
 });
 
-import { isServiceError } from "@/lib/db";
+import type { RecruitmentActionState } from "./action-state";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
@@ -98,6 +98,16 @@ beforeEach(() => {
   givenAccess({ state: "active", operator: actor() });
 });
 
+/**
+ * LAN-423 fix round 4, J1: a refused flip comes back as the card's own state —
+ * the refusal beside the stored status — never a throw that crashed the board.
+ */
+function expectFlipRefused(state: RecruitmentActionState): void {
+  expect(state.error).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+}
+
 describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
   for (const role of FLIP_ROLES) {
     it(`lets the ${role} flip a recruit to joined`, async () => {
@@ -114,11 +124,9 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
     it(`refuses the ${role}, and never reaches the service`, async () => {
       givenAccess({ state: "active", operator: actor([role]) });
 
-      const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }).catch(
-        (error: unknown) => error,
-      );
+      const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectFlipRefused(failure);
       expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
     });
   }
@@ -133,22 +141,18 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
   it("refuses an IT Officer-only operator, who holds every other capability in the app but not this one", async () => {
     givenAccess({ state: "active", operator: actor(["it_officer"]) });
 
-    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }).catch(
-      (error: unknown) => error,
-    );
+    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectFlipRefused(failure);
     expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
   });
 
   it("refuses an operator holding no seat at all", async () => {
     givenAccess({ state: "active", operator: actor([]) });
 
-    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }).catch(
-      (error: unknown) => error,
-    );
+    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectFlipRefused(failure);
     expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
   });
 
@@ -156,11 +160,9 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
     it(`refuses a ${state} caller`, async () => {
       givenAccess({ state } as OperatorAccess);
 
-      const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }).catch(
-        (error: unknown) => error,
-      );
+      const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectFlipRefused(failure);
       expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
     });
   }

@@ -50,8 +50,9 @@ export async function setRecruitmentStatusAction(params: {
 export async function flipRecruitmentProspectAction(params: {
   prospectId: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireRole([...FLIP_ROLE_CODES], { rule: FLIP_ROLE_RULE });
   try {
+    // Inside the try (LAN-423): a refusal is the card's answer, never a crashed board.
+    const operator = await requireRole([...FLIP_ROLE_CODES], { rule: FLIP_ROLE_RULE });
     await flipRecruitmentProspectToJoined(operator.personId, params.prospectId);
   } catch (error) {
     return stateFor(error);
