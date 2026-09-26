@@ -34,14 +34,17 @@ export interface PhoneSort {
  * Where the boards draw cards rather than the table — below `md`, held
  * upright. LAN-427: a phone turned on its side gets the table.
  */
-const PHONE_CARDS_MEDIA = "(max-width: 899.95px) and (orientation: portrait)";
+/** MUI's `md` breakpoint; `down("md")` stops 0.05px short of it. */
+const MD_PX = 900;
+const BELOW_MD = `(max-width: ${MD_PX - 0.05}px)`;
+const PHONE_CARDS_MEDIA = `${BELOW_MD} and (orientation: portrait)`;
 
 /**
  * LAN-427: an `sx` key for a phone on its side — below `md`, landscape — where
  * the boards draw the desktop table instead of cards. Rotating back upright
  * falls out of the query and the cards return.
  */
-export const PHONE_LANDSCAPE = "@media (max-width: 899.95px) and (orientation: landscape)";
+export const PHONE_LANDSCAPE = `@media ${BELOW_MD} and (orientation: landscape)`;
 
 /**
  * LAN-427: the table's own scroll box on a phone on its side — nearly the
