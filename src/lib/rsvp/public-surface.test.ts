@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * The public RSVP surface's two protections — LAN-79.
  *
