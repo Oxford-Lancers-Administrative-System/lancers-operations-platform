@@ -15,7 +15,7 @@
  * (breakpoints are not evaluated), so this queries inside the phone card's
  * own test id rather than asserting on the whole document.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 vi.mock("./board-actions", () => ({
