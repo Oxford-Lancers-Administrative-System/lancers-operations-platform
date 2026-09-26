@@ -11,6 +11,7 @@ import {
 } from "../operator-invitations";
 import { personDisplayNameSql } from "../sql-text";
 import { ADMINISTRATION_CAPABILITY, requireCycle, requireOperator, requireRole } from "./shared";
+import { readRecordedEmailIn } from "./seat-account";
 
 /**
  * Role detail — {@link readRoleHolders} answers who holds one seat, in one
@@ -180,4 +181,26 @@ function toHolder(row: HolderRow): RoleHolder {
     operatorState: state,
     accessDeactivated: state === "deactivated",
   };
+}
+
+/**
+ * LAN-434. The recorded email of each seat holder who has no operator account,
+ * for the holder line's Send invitation: whether it needs a Login email field,
+ * and which address it will use. The same derivation the invitation uses
+ * (`readRecordedEmailIn`), so the address shown is the address sent to.
+ */
+export async function readSeatHolderEmails(
+  operator: ResolvedOperator | null,
+  personIds: readonly string[],
+): Promise<ReadonlyMap<string, string | null>> {
+  assertCapability(requireOperator(operator), ADMINISTRATION_CAPABILITY);
+  if (personIds.length === 0) return new Map();
+
+  return withTransaction(async (tx) => {
+    const emails = new Map<string, string | null>();
+    for (const personId of new Set(personIds)) {
+      emails.set(personId, await readRecordedEmailIn(tx, personId));
+    }
+    return emails;
+  });
 }

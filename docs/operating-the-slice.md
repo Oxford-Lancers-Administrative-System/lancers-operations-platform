@@ -183,6 +183,22 @@ schedule (LAN-431). Attendance recording is unchanged for every seat: the
 Attendance line governs only the player record's Attendance section, and the
 roster board has no attendance columns.
 
+**A seat holder is always an operator (LAN-434, Brian 2026-09-26).** On a
+seat's page (Administration → Roles → a seat, which a person record's **Assign a
+role** also opens), **Assign role** and **Replace role** say which account case
+applies once a person is chosen, before the submit. **Operator account: Created
+with this role** with **Invitation to** the person's recorded email, or a
+required **Login email** field when they have none — the application never
+invents an address. An existing account reads its state (Active, Invitation
+pending, Deactivated) with **Unchanged**, or **Stays deactivated**; it is not
+touched. The submit writes the assignment and the pending account together and
+then sends the invitation, as **Invite operator** does; both are audited to the
+seating operator, and a failed send leaves the seat and the account with
+**Delivery failed** and a Resend on the operator's record. A holder seated
+before this change reads **No operator account** on the Current holder line
+with **Send invitation**, which opens the account and sends the invitation the
+same way. Invite operator and the Operators page are unchanged.
+
 **Working the roster and recruits within the grants (LAN-432).** The roster
 board, a player's record, People, a person's record and Missing data open for
 any seat that reaches Roster; the recruitment board and a prospect's record for

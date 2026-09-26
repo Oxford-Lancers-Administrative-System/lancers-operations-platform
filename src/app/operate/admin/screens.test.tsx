@@ -60,6 +60,11 @@ vi.mock("./roles/[roleId]/access-actions", () => ({
   planGrantEverythingAction: vi.fn(),
   grantEverythingAction: vi.fn(),
 }));
+// LAN-434: the role page reads each account-less holder's recorded email.
+vi.mock("@/lib/services/operator-administration", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/operator-administration")>()),
+  readSeatHolderEmails: vi.fn(async () => new Map()),
+}));
 vi.mock("./permissions", () => ({
   permittedAccountActions: vi.fn(),
   permittedRoleActions: vi.fn(),
@@ -86,6 +91,7 @@ vi.mock("./actions", () => {
     resendInvitationAction: vi.fn(state),
     restoreOperatorAction: vi.fn(state),
     searchCandidatesAction: vi.fn(state),
+    sendSeatInvitationAction: vi.fn(state),
     startEmailRehomeAction: vi.fn(state),
   };
 });
@@ -130,6 +136,7 @@ import RoleRecordPage from "./roles/[roleId]/page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
 import { SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
 import { readSeatAccess } from "@/lib/services/access-grants";
+import { readSeatHolderEmails } from "@/lib/services/operator-administration";
 
 /** The seat codes the catalogue fixture uses, by id — for the Access section's read. */
 const SEAT_CODES: Record<string, string> = {
@@ -2114,5 +2121,215 @@ describe("what a candidate row says it matched on — LAN-309", () => {
 
     expect(row).not.toHaveTextContent("Sign-in address matches");
     expect(row).toHaveTextContent("No operator account");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-434 — a seat holder is always an operator
+// ---------------------------------------------------------------------------
+
+describe("LAN-434 — the panels say which account case applies", () => {
+  function candidate(overrides: Partial<CandidateChoice> = {}): CandidateChoice {
+    return {
+      personId: "dddddddd-1111-4111-8111-111111111111",
+      name: "Marek Halloway",
+      knownAs: null,
+      email: "marek@lan434.example",
+      phone: null,
+      matchedOn: [{ field: "family name", value: "Halloway" }],
+      operatorState: null,
+      operatorAccountId: null,
+      ...overrides,
+    };
+  }
+
+  async function choose(panelName: "Assign role" | "Replace role", found: CandidateChoice) {
+    vi.mocked(searchCandidatesAction).mockResolvedValue({
+      ...EMPTY_ADMIN_ACTION_STATE,
+      candidates: [found],
+    });
+    vi.mocked(readRoleCatalogue).mockResolvedValue(
+      catalogue({
+        groups: [
+          {
+            code: "club_committee",
+            label: "Club Committee",
+            roles: [
+              catalogueRole({
+                id: "role-kit-manager",
+                code: "kit_manager",
+                label: "Kit Manager",
+                admitsMultipleHolders: true,
+                holders: [holder({ displayName: "Tobias Wren" })],
+              }),
+            ],
+          },
+        ],
+      }),
+    );
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+    fireEvent.click(screen.getByRole("button", { name: panelName }));
+    const panel = screen.getByTestId(
+      panelName === "Assign role" ? "assign-panel" : "replace-panel",
+    );
+    fireEvent.submit(panel.querySelectorAll("form")[0]);
+    fireEvent.click(await within(panel).findByRole("radio"));
+    return panel;
+  }
+
+  it.each(["Assign role", "Replace role"] as const)(
+    "%s: no account and a recorded email — the account is created and the address named",
+    async (panelName) => {
+      const panel = await choose(panelName, candidate());
+
+      const state = within(panel).getByTestId("seat-account-case");
+      expect(state).toHaveAttribute("data-case", "create");
+      expect(state).toHaveTextContent("Operator account");
+      expect(state).toHaveTextContent("Created with this role");
+      expect(state).toHaveTextContent("Invitation to");
+      expect(state).toHaveTextContent("marek@lan434.example");
+      expect(within(panel).queryByLabelText(/Login email/)).toBeNull();
+    },
+  );
+
+  it.each(["Assign role", "Replace role"] as const)(
+    "%s: no account and no recorded email — the form requires a Login email",
+    async (panelName) => {
+      const panel = await choose(panelName, candidate({ email: null }));
+
+      const state = within(panel).getByTestId("seat-account-case");
+      expect(state).toHaveAttribute("data-case", "create-needs-email");
+      const field = within(panel).getByLabelText(/Login email/) as HTMLInputElement;
+      expect(field).toBeRequired();
+      expect(field.name).toBe("loginEmail");
+      expect(field.closest("form")).toBe(panel.querySelectorAll("form")[1]);
+    },
+  );
+
+  it("an active account is left as it is", async () => {
+    const panel = await choose(
+      "Assign role",
+      candidate({
+        operatorState: "Active",
+        operatorAccountId: "eeeeeeee-1111-4111-8111-111111111111",
+      }),
+    );
+
+    const state = within(panel).getByTestId("seat-account-case");
+    expect(state).toHaveAttribute("data-case", "existing");
+    expect(state).toHaveTextContent("Active");
+    expect(state).toHaveTextContent("Unchanged");
+    expect(within(panel).queryByLabelText(/Login email/)).toBeNull();
+  });
+
+  it("a pending account is left as it is", async () => {
+    const panel = await choose(
+      "Assign role",
+      candidate({
+        operatorState: "Invitation pending",
+        operatorAccountId: "eeeeeeee-1111-4111-8111-111111111111",
+      }),
+    );
+
+    expect(within(panel).getByTestId("seat-account-case")).toHaveTextContent("Invitation pending");
+  });
+
+  it("a deactivated account stays deactivated", async () => {
+    const panel = await choose(
+      "Replace role",
+      candidate({
+        operatorState: "Deactivated",
+        operatorAccountId: "eeeeeeee-1111-4111-8111-111111111111",
+      }),
+    );
+
+    const state = within(panel).getByTestId("seat-account-case");
+    expect(state).toHaveAttribute("data-case", "deactivated");
+    expect(state).toHaveTextContent("Stays deactivated");
+  });
+});
+
+describe("LAN-434 — Send invitation on a holder line with no operator account", () => {
+  const HOLDER_ID = "ffffffff-1111-4111-8111-111111111111";
+
+  function withAccountlessHolder() {
+    vi.mocked(readRoleCatalogue).mockResolvedValue(
+      catalogue({
+        groups: [
+          {
+            code: "coaching_staff",
+            label: "Coaching Staff",
+            roles: [
+              catalogueRole({
+                id: "role-head-coach",
+                code: "head_coach",
+                label: "Head Coach",
+                scope: "season",
+                holders: [
+                  holder({
+                    personId: HOLDER_ID,
+                    displayName: "Marek Halloway",
+                    operatorAccountId: null,
+                    operatorState: null,
+                  }),
+                ],
+              }),
+            ],
+          },
+        ],
+      }),
+    );
+  }
+
+  it("offers Send invitation, to the recorded email", async () => {
+    withAccountlessHolder();
+    vi.mocked(readSeatHolderEmails).mockResolvedValue(
+      new Map([[HOLDER_ID, "marek@lan434.example"]]),
+    );
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+    const line = screen.getByTestId("holder");
+    expect(line).toHaveTextContent("No operator account");
+    fireEvent.click(within(line).getByTestId("holder-send-invitation"));
+
+    const panel = within(line).getByTestId("holder-send-invitation-panel");
+    expect(panel).toHaveTextContent("Invitation to");
+    expect(panel).toHaveTextContent("marek@lan434.example");
+    expect(within(panel).queryByLabelText(/Login email/)).toBeNull();
+    expect((panel.querySelector('input[name="personId"]') as HTMLInputElement).value).toBe(
+      HOLDER_ID,
+    );
+  });
+
+  it("asks for a Login email when the holder has none recorded", async () => {
+    withAccountlessHolder();
+    vi.mocked(readSeatHolderEmails).mockResolvedValue(new Map([[HOLDER_ID, null]]));
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+    fireEvent.click(screen.getByTestId("holder-send-invitation"));
+
+    expect(screen.getByLabelText(/Login email/)).toBeRequired();
+  });
+
+  it("is not offered to an actor who may not assign the seat", async () => {
+    withAccountlessHolder();
+    vi.mocked(permittedRoleActions).mockResolvedValue({
+      assign: false,
+      replace: false,
+      end: false,
+    });
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+
+    expect(screen.getByTestId("holder")).toHaveTextContent("No operator account");
+    expect(screen.queryByTestId("holder-send-invitation")).toBeNull();
+    expect(readSeatHolderEmails).not.toHaveBeenCalled();
+  });
+
+  it("is not offered on a holder who already has an account", async () => {
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+
+    expect(screen.queryByTestId("holder-send-invitation")).toBeNull();
   });
 });

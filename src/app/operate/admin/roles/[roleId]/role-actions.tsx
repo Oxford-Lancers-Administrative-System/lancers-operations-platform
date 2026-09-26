@@ -15,13 +15,20 @@ import { Field, DateField } from "@/components/field";
 import { dateFromScheduledOn } from "@/app/operate/events/date-time-controls";
 import Typography from "@mui/material/Typography";
 import { formatClubDay } from "@/lib/club-time";
+import { Fact } from "@/components/fact";
+import { usableRecordedEmail } from "../../seat-email";
+import { operatorAccountState } from "@/lib/services/operator-account-state";
 import {
   assignRoleAction,
   endRoleAction,
   replaceRoleHolderAction,
   searchCandidatesAction,
 } from "../../actions";
-import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../../action-state";
+import {
+  EMPTY_ADMIN_ACTION_STATE,
+  type AdminActionState,
+  type CandidateChoice,
+} from "../../action-state";
 import { candidateCaption } from "../../candidate-caption";
 import {
   Outcome as AdminOutcome,
@@ -208,6 +215,8 @@ function PersonPanel({
     .map((value) => value.trim())
     .filter((value) => value !== "");
   const searchedFor = typed.length > 0 ? typed.join(" ") : "those details";
+  const chosenCandidate =
+    search.candidates?.find((candidate) => candidate.personId === chosen) ?? null;
 
   return (
     <Box data-testid={testId}>
@@ -285,6 +294,9 @@ function PersonPanel({
           <Stack spacing={2}>
             {children}
             <input type="hidden" name={personField} value={chosen} />
+            {chosenCandidate ? (
+              <SeatAccountCase key={chosenCandidate.personId} candidate={chosenCandidate} />
+            ) : null}
             {successorOf && successorOf.length > 0 ? (
               <input
                 type="hidden"
@@ -346,6 +358,45 @@ function PersonPanel({
         <AdminOutcome state={result} showing={slot.showing} />
       </Section>
     </Box>
+  );
+}
+
+const DEACTIVATED_LABEL = operatorAccountState("deactivated").label;
+
+/**
+ * Which account case this submit is — LAN-434. A seat holder is always an
+ * operator: no account means one is created with the role and the invitation
+ * sent, to the recorded email or to a Login email this form requires; an
+ * existing account, whatever its state, is left as it is.
+ */
+export function SeatAccountCase({ candidate }: { candidate: CandidateChoice }) {
+  if (candidate.operatorAccountId !== null) {
+    const deactivated = candidate.operatorState === DEACTIVATED_LABEL;
+    return (
+      <Box data-testid="seat-account-case" data-case={deactivated ? "deactivated" : "existing"}>
+        <Fact
+          label="Operator account"
+          value={candidate.operatorState ?? "Existing"}
+          note={deactivated ? "Stays deactivated" : "Unchanged"}
+        />
+      </Box>
+    );
+  }
+
+  const recorded = usableRecordedEmail(candidate.email);
+  return (
+    <Stack
+      spacing={2}
+      data-testid="seat-account-case"
+      data-case={recorded ? "create" : "create-needs-email"}
+    >
+      <Fact label="Operator account" value="Created with this role" />
+      {recorded ? (
+        <Fact label="Invitation to" value={recorded} />
+      ) : (
+        <Field name="loginEmail" type="email" label="Login email" required />
+      )}
+    </Stack>
   );
 }
 

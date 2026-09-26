@@ -18,6 +18,7 @@ import {
   assignRole,
   deactivateOperatorAccess,
   endRoleAssignment,
+  inviteSeatHolder,
   replaceRoleHolder,
   restoreOperatorAccess,
   startOperatorEmailRehome,
@@ -336,16 +337,21 @@ export async function assignRoleAction(
   if ("refusal" in operator) return operator;
   const roleId = text(formData, "roleId");
 
+  const callbacks = await callbackUrls();
+
   try {
-    await assignRole({
+    const result = await assignRole({
       operator,
       personId: text(formData, "personId"),
       roleCode: text(formData, "roleCode"),
       effectiveFrom: optional(formData, "effectiveFrom"),
       reason: optional(formData, "reason"),
+      // LAN-434: used only when the person has no operator account.
+      loginEmail: optional(formData, "loginEmail") ?? null,
+      callbackUrl: callbacks.invitation,
     });
     refreshRoles(roleId);
-    return done("The role is assigned.");
+    return done(seatNotice("The role is assigned.", result.invitation));
   } catch (error) {
     return failure(error);
   }
@@ -387,17 +393,64 @@ export async function replaceRoleHolderAction(
   if ("refusal" in operator) return operator;
   const roleId = text(formData, "roleId");
 
+  const callbacks = await callbackUrls();
+
   try {
-    await replaceRoleHolder({
+    const result = await replaceRoleHolder({
       operator,
       roleAssignmentId: text(formData, "roleAssignmentId"),
       successorPersonId: text(formData, "successorPersonId"),
       effectiveFrom: optional(formData, "effectiveFrom"),
       reason: text(formData, "reason"),
+      loginEmail: optional(formData, "loginEmail") ?? null,
+      callbackUrl: callbacks.invitation,
     });
     refreshRoles(roleId);
-    return done("The role has changed hands. Both assignments stay in the club's history.");
+    return done(
+      seatNotice(
+        "The role has changed hands. Both assignments stay in the club's history.",
+        result.invitation,
+      ),
+    );
   } catch (error) {
     return failure(error);
   }
+}
+
+/** LAN-434: Send invitation, from a seat's holder line, for a holder with no operator account. */
+export async function sendSeatInvitationAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const operator = await administrator();
+  if ("refusal" in operator) return operator;
+  const roleId = text(formData, "roleId");
+  const callbacks = await callbackUrls();
+
+  try {
+    const result = await inviteSeatHolder({
+      operator,
+      personId: text(formData, "personId"),
+      loginEmail: optional(formData, "loginEmail") ?? null,
+      callbackUrl: callbacks.invitation,
+    });
+    refreshRoles(roleId);
+    refreshOperator(result.operatorAccountId);
+    return done(deliveryNotice(`Invitation sent to ${result.loginEmail}.`, result));
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** A seat change's notice, plus the invitation it sent when it opened an account (LAN-434). */
+function seatNotice(
+  changed: string,
+  invitation: {
+    loginEmail: string;
+    delivered: boolean;
+    deliveryFailureReason: string | null;
+  } | null,
+): string {
+  if (invitation === null) return changed;
+  return `${changed} ${deliveryNotice(`Invitation sent to ${invitation.loginEmail}.`, invitation)}`;
 }
