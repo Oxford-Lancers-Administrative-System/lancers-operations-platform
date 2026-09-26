@@ -186,6 +186,16 @@ export function isFutureEvent(event: { scheduledOn: string | null }, today: stri
   return event.scheduledOn !== null && event.scheduledOn >= today;
 }
 
+// LAN-422: whether an amendment touches a future event — future before the edit or after it, since
+// moving an event out of the past strands people too. The one rule the form and the service both decide by.
+export function amendmentIsFuture(
+  before: { scheduledOn: string | null },
+  after: { scheduledOn: string | null },
+  today: string,
+): boolean {
+  return isFutureEvent(before, today) || isFutureEvent(after, today);
+}
+
 // OD-1/Q6: recomputes where the RSVP chase threshold lands (public.event_type_settings, D75/D77/LAN-151); Mission 4 does the actual chasing.
 export function chaseThresholdOn(
   scheduledOn: string | null,

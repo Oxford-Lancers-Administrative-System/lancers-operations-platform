@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  amendmentIsFuture,
   cancellationDefaultNotify,
   cancellationSilenceNeedsConfirmation,
   chaseThresholdOn,
@@ -193,6 +194,38 @@ describe("isFutureEvent", () => {
 
   it("answers rather than throwing for an event with no date", () => {
     expect(isFutureEvent({ scheduledOn: null }, "2026-11-11")).toBe(false);
+  });
+});
+
+// LAN-422: the amend form and amendApprovedEvent both decide by this one rule, so they agree.
+describe("amendmentIsFuture", () => {
+  const today = "2026-11-11";
+  const past = { scheduledOn: "2026-10-01" };
+  const future = { scheduledOn: "2026-12-01" };
+
+  it("counts a past event moved into the future as future", () => {
+    expect(amendmentIsFuture(past, future, today)).toBe(true);
+  });
+
+  it("counts a future event moved into the past as future", () => {
+    expect(amendmentIsFuture(future, past, today)).toBe(true);
+  });
+
+  it("counts a future event moved within the future as future", () => {
+    expect(amendmentIsFuture(future, { scheduledOn: "2026-12-08" }, today)).toBe(true);
+  });
+
+  it("counts a past event moved within the past as past", () => {
+    expect(amendmentIsFuture(past, { scheduledOn: "2026-09-01" }, today)).toBe(false);
+  });
+
+  it("asks for silence on a material past-to-future move", () => {
+    const changes = diffAmendment(
+      { ...BASE, scheduledOn: past.scheduledOn },
+      { ...BASE, scheduledOn: future.scheduledOn },
+    );
+    const isFuture = amendmentIsFuture(past, future, today);
+    expect(silenceNeedsConfirmation(changes, { isFuture })).toBe(true);
   });
 });
 

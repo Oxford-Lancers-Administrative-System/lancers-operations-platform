@@ -9,9 +9,9 @@ import { lockEventIn, readEventIn, type EventDetail } from "../events";
 import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "../messaging-schedule";
 import { scheduleEventLadderIn } from "../messaging-scheduler";
 import {
+  amendmentIsFuture,
   chaseThresholdOn,
   diffAmendment,
-  isFutureEvent,
   mergeAmendment,
   silenceNeedsConfirmation,
   type AmendableEvent,
@@ -122,10 +122,8 @@ export async function amendApprovedEvent(
       throw new ConstraintViolated(NOTHING_CHANGED_MESSAGE, { rule: NOTHING_CHANGED_RULE });
     }
 
-    // future in either arrangement — moving an event out of the past strands people too
-    const today = todayInClubZone();
-    const isFuture =
-      isFutureEvent(before, today) || isFutureEvent({ scheduledOn: applied.scheduledOn }, today);
+    // LAN-422: the same rule the amend form decides the confirmation by
+    const isFuture = amendmentIsFuture(before, applied, todayInClubZone());
 
     if (!options.notify && silenceNeedsConfirmation(changes, { isFuture })) {
       if (options.silenceConfirmed !== true) {

@@ -1087,7 +1087,11 @@ questions together, and one press saves both; the separate Edit questions
 button is gone and `/operate/events/<id>/edit` forwards there. What each half
 does is unchanged — a detail change goes through the amendment path and its
 notify decision, a question change sends nothing for a wording fix and voids
-and re-asks a changed question. Adding a recipient after
+and re-asks a changed question. Since LAN-422 the page judges "future" as the
+save does — on the date before or after the edit — so moving a past event into
+the future starts the notify tick on, and turning it off asks for the same
+confirmation the save requires; a confirmed silent save queues no notices.
+Adding a recipient after
 approval, which is unavailable by design; retry and reissue act only on an
 invitation that already exists and cannot change the approved audience, and an
 amendment does not change it either.

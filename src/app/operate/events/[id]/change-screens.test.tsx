@@ -196,6 +196,7 @@ function context(overrides: Partial<AmendmentContext> = {}): AmendmentContext {
     chaseThresholdDays: 2,
     chaseThresholdOn: "2099-11-09",
     isFuture: true,
+    today: "2026-09-26",
     lastAmendment: null,
     ...overrides,
   };
@@ -514,7 +515,9 @@ describe("where the one tick starts", () => {
   });
 
   it("is off on a past event even when the venue moved, and explains nothing", async () => {
-    vi.mocked(readAmendmentContext).mockResolvedValue(context({ isFuture: false }));
+    vi.mocked(readAmendmentContext).mockResolvedValue(
+      context({ isFuture: false, event: detail({ scheduledOn: "2026-09-01" }) }),
+    );
 
     await reviewAfterChanging("Venue", "University Parks");
 
@@ -525,6 +528,24 @@ describe("where the one tick starts", () => {
     // guarded, so there is nothing to warn about and the line is absent
     // entirely rather than present and empty.
     expect(screen.queryByTestId("notify-default")).toBeNull();
+  });
+
+  // LAN-422: judged on the date after the edit, exactly as the service judges it.
+  it("asks before silencing a past event moved into the future, and posts the confirmation", async () => {
+    vi.mocked(readAmendmentContext).mockResolvedValue(
+      context({ isFuture: false, event: detail({ scheduledOn: "2026-09-01" }) }),
+    );
+
+    await reviewAfterChanging("Date", "2099-12-25");
+    expect(within(screen.getByTestId("notify-tick")).getByRole("switch")).toBeChecked();
+
+    fireEvent.click(within(screen.getByTestId("notify-tick")).getByRole("switch"));
+    await screen.findByTestId("section-amend-silence-step");
+    fireEvent.click(screen.getByTestId("silence-accept"));
+
+    await waitFor(() => expect(screen.getByTestId("silence-confirmed")).toHaveValue("true"));
+    const form = screen.getByTestId("amend-form") as HTMLFormElement;
+    expect(submissionOf(form).notify).toBeUndefined();
   });
 
   it("warns that silencing will ask, on the one screen where it will", async () => {
