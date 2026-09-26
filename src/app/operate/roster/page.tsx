@@ -43,7 +43,12 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
   const search = first(params.q);
   const sortKeyRaw = first(params.sort);
   const sortKey =
-    sortKeyRaw !== "" && (sortKeyRaw === "displayName" || columnKeys.has(sortKeyRaw))
+    sortKeyRaw !== "" &&
+    (sortKeyRaw === "displayName" ||
+      // LAN-426: the phone board's name sorts, which are not columns.
+      sortKeyRaw === "firstName" ||
+      sortKeyRaw === "lastName" ||
+      columnKeys.has(sortKeyRaw))
       ? sortKeyRaw
       : "displayName";
   const sortDirection = first(params.dir) === "desc" ? "desc" : "asc";

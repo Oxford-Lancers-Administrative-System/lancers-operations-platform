@@ -394,6 +394,11 @@ export function eventColumns(events: readonly RecruitmentEventColumn[]): readonl
 
 export function rawValue(row: RecruitmentBoardRow, key: string): string | number | boolean | null {
   switch (key) {
+    // LAN-426: the phone board's name sorts. A person with no family name sorts by their given name.
+    case "firstName":
+      return row.givenName;
+    case "lastName":
+      return row.familyName ?? row.givenName;
     case "college":
       return row.college;
     case "matriculation":

@@ -35,6 +35,11 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
     return held[0] ?? null;
   }
   switch (key) {
+    // LAN-426: the phone board's name sorts. A person with no family name sorts by their given name.
+    case "firstName":
+      return row.givenName;
+    case "lastName":
+      return row.familyName ?? row.givenName;
     case "college":
       return row.college;
     case "matriculation":

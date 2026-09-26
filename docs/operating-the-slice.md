@@ -286,6 +286,16 @@ Onboarding → Active
 Two rows, not one: intake and activation are still two distinct events, but
 neither carries a reason any more.
 
+**On a phone, the Roster and Recruits boards sort from one select** (LAN-426).
+Where the boards draw cards, a **Sort** select beside **Filters** offers First
+name, Last name and Status, each A–Z or Z–A; Status sorts alphabetically by its
+label, with no ladder of its own, and is offered only where the Status column is
+shown. The choice writes the same `sort` / `dir` the desktop headings do, so it
+applies to the whole filtered set and a reload keeps it; it is also remembered
+per board in the browser, so returning to the board from the menu restores it.
+The remembered value is read only where the cards are drawn, so the desktop
+table's default order is unchanged.
+
 ---
 
 ## 5. Put the practice on the calendar

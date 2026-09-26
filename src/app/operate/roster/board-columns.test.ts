@@ -40,6 +40,8 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     membershipId: "m1",
     personId: "p1",
     displayName: "Avery Fielding",
+    givenName: "Avery",
+    familyName: "Fielding",
     aliases: [],
     status: "active",
     entry: "returning",
@@ -164,7 +166,8 @@ describe("visibleColumns / redactRow — the grant-driven mechanism (LAN-432)", 
     const redacted = redactRow(row(), visible, grants);
 
     expect(Object.keys(redacted).sort()).toEqual(
-      ["aliases", "displayName", "membershipId", "personId"].sort(),
+      // LAN-426: the name's two halves are the name, not a column.
+      ["aliases", "displayName", "familyName", "givenName", "membershipId", "personId"].sort(),
     );
     // The restricted and season facts are absent, not merely unset.
     expect("status" in redacted).toBe(false);

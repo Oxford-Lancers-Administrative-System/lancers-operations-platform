@@ -856,6 +856,9 @@ export function redactRow(
     membershipId: row.membershipId,
     personId: row.personId,
     displayName: row.displayName,
+    // LAN-426: the name's two halves travel with it, for the phone board's name sorts.
+    givenName: row.givenName,
+    familyName: row.familyName,
     aliases: person ? row.aliases : [],
   };
   if (person && mayViewRoster(grants, "contact_emergency")) {

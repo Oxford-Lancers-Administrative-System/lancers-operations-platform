@@ -47,6 +47,8 @@ function row(overrides: Partial<RecruitmentBoardRow> = {}): RecruitmentBoardRow 
     prospectId: "prospect-1",
     personId: "person-1",
     displayName: "Clementine Varrow",
+    givenName: "Clementine",
+    familyName: "Varrow",
     aliases: [],
     college: "Balliol",
     matriculationYear: 2026,
@@ -363,5 +365,99 @@ describe("Personal sent follows Person information, as the record does — LAN-4
       container.querySelector('[data-testid="recruitment-filter-personal-sent"]'),
     ).not.toBeNull();
     expect(within(container).getAllByText("Personal sent").length).toBeGreaterThan(0);
+  });
+});
+
+/** LAN-426 — the phone board's sort, as on the roster. */
+describe("LAN-426 — the phone board's sort", () => {
+  const RECRUITS = [
+    row({
+      prospectId: "p-zed",
+      displayName: "Zed Adams",
+      givenName: "Zed",
+      familyName: "Adams",
+      status: "joined",
+    }),
+    row({
+      prospectId: "p-amy",
+      displayName: "Amy Young",
+      givenName: "Amy",
+      familyName: "Young",
+      status: "committed",
+    }),
+    row({
+      prospectId: "p-mia",
+      displayName: "Mia Brown",
+      givenName: "Mia",
+      familyName: "Brown",
+      status: "identified",
+    }),
+  ];
+
+  function cardOrder(): string[] {
+    return [...document.querySelectorAll('[data-testid^="recruitment-card-p-"]')]
+      .map((card) => card.getAttribute("data-testid") ?? "")
+      .filter((id) => /^recruitment-card-p-[a-z]+$/.test(id))
+      .map((id) => id.replace("recruitment-card-", ""));
+  }
+
+  function phoneViewport(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  }
+
+  async function choose(label: string) {
+    fireEvent.mouseDown(within(screen.getByTestId("phone-sort")).getByRole("combobox"));
+    fireEvent.click(await screen.findByRole("option", { name: label }));
+  }
+
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/operate/recruitment");
+    window.localStorage.clear();
+    phoneViewport(true);
+  });
+
+  it("sorts the cards by first name, last name and status, either way", async () => {
+    renderBoard(RECRUITS);
+
+    await choose("First name A–Z");
+    expect(cardOrder()).toEqual(["p-amy", "p-mia", "p-zed"]);
+    await choose("Last name Z–A");
+    expect(cardOrder()).toEqual(["p-amy", "p-mia", "p-zed"]);
+    await choose("Last name A–Z");
+    expect(cardOrder()).toEqual(["p-zed", "p-mia", "p-amy"]);
+    // Committed, Identified, Joined — the alphabet, not the recruitment ladder.
+    await choose("Status A–Z");
+    expect(cardOrder()).toEqual(["p-amy", "p-mia", "p-zed"]);
+    expect(window.localStorage.getItem("lancers:board-phone-sort:recruitment")).toBe("status:asc");
+    expect(window.location.search).toContain("sort=status");
+  });
+
+  it("restores the remembered sort on a phone when the URL carries none", () => {
+    window.localStorage.setItem("lancers:board-phone-sort:recruitment", "lastName:asc");
+    renderBoard(RECRUITS);
+
+    expect(cardOrder()).toEqual(["p-zed", "p-mia", "p-amy"]);
+  });
+
+  it("keeps the ladder order where the table is drawn", () => {
+    phoneViewport(false);
+    window.localStorage.setItem("lancers:board-phone-sort:recruitment", "lastName:asc");
+    renderBoard(RECRUITS);
+
+    // Identified, Committed, Joined — the default W1 ladder order, unchanged.
+    expect(cardOrder()).toEqual(["p-mia", "p-amy", "p-zed"]);
   });
 });

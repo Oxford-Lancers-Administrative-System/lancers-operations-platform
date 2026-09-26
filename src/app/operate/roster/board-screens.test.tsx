@@ -109,6 +109,8 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     membershipId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
     personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     displayName: "Avery Fielding",
+    givenName: "Avery",
+    familyName: "Fielding",
     aliases: [],
     status: "active",
     entry: "returning",
@@ -1101,5 +1103,155 @@ describe("a season with no onboarding item types configured", () => {
     render(await RosterPage(pageProps()));
 
     expect(screen.queryByTestId("roster-no-onboarding-item-types")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * LAN-426 — the phone board's sort. Below `md` the board is cards, which have
+ * no headings to press, so one select offers first name, last name and status,
+ * each either way. It writes the same `sort` / `dir` the headings do, and is
+ * remembered per board in `localStorage` for a return with no sort in the URL.
+ */
+describe("LAN-426 — the phone board's sort", () => {
+  const PEOPLE = [
+    row({
+      membershipId: "m-zed",
+      displayName: "Zed Adams",
+      givenName: "Zed",
+      familyName: "Adams",
+      status: "active",
+    }),
+    row({
+      membershipId: "m-amy",
+      displayName: "Amy Young",
+      givenName: "Amy",
+      familyName: "Young",
+      status: "inactive",
+    }),
+    row({
+      membershipId: "m-mia",
+      displayName: "Mia Brown",
+      givenName: "Mia",
+      familyName: "Brown",
+      status: "onboarding",
+    }),
+  ];
+
+  function cardNames(): string[] {
+    return screen
+      .getAllByTestId("roster-card")
+      .map((card) => PEOPLE.find((person) => card.textContent?.includes(person.displayName)))
+      .map((person) => person?.displayName ?? "?");
+  }
+
+  function phoneViewport(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  }
+
+  async function choose(label: string) {
+    fireEvent.mouseDown(within(screen.getByTestId("phone-sort")).getByRole("combobox"));
+    fireEvent.click(await screen.findByRole("option", { name: label }));
+  }
+
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+    window.history.replaceState(null, "", "/operate/roster");
+    window.localStorage.clear();
+    phoneViewport(true);
+  });
+
+  it("offers first name, last name and status, each ascending and descending", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    fireEvent.mouseDown(within(screen.getByTestId("phone-sort")).getByRole("combobox"));
+    const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+    expect(options).toEqual([
+      "First name A–Z",
+      "First name Z–A",
+      "Last name A–Z",
+      "Last name Z–A",
+      "Status A–Z",
+      "Status Z–A",
+    ]);
+  });
+
+  it("sorts the cards by last name, and by first name the other way", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    await choose("Last name A–Z");
+    expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
+
+    await choose("First name Z–A");
+    expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
+
+    await choose("First name A–Z");
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+  });
+
+  it("sorts status alphabetically, with no ladder of its own", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    await choose("Status A–Z");
+    // Active, Inactive, Onboarding — the alphabet, not the membership ladder.
+    expect(cardNames()).toEqual(["Zed Adams", "Amy Young", "Mia Brown"]);
+    await choose("Status Z–A");
+    expect(cardNames()).toEqual(["Mia Brown", "Amy Young", "Zed Adams"]);
+  });
+
+  it("composes with the search, and puts the choice in the URL and in storage", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps({ q: "m" })));
+
+    // "m" matches Amy and Mia (and Adams); the sort applies to what is left.
+    await choose("Last name Z–A");
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+    expect(window.location.search).toContain("sort=lastName");
+    expect(window.location.search).toContain("dir=desc");
+    expect(window.location.search).toContain("q=m");
+    expect(window.localStorage.getItem("lancers:board-phone-sort:roster")).toBe("lastName:desc");
+  });
+
+  it("restores the remembered sort on a return with no sort in the URL", async () => {
+    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+    expect(window.location.search).toContain("sort=lastName");
+  });
+
+  it("leaves the desktop table's default order alone", async () => {
+    phoneViewport(false);
+    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"].sort());
+    expect(window.location.search).not.toContain("sort=lastName");
+  });
+
+  it("lets a sort in the URL win over the remembered one", async () => {
+    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    window.history.replaceState(null, "", "/operate/roster?sort=firstName&dir=asc");
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps({ sort: "firstName", dir: "asc" })));
+
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
   });
 });

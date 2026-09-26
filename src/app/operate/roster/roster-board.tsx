@@ -17,6 +17,12 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { Notice } from "@/components/notice";
 import { PinnedSelect } from "@/components/pinned-select";
+import {
+  PhoneSortSelect,
+  rememberPhoneSort,
+  useRememberedPhoneSort,
+  type PhoneSort,
+} from "../board-phone-sort";
 import { SAVING } from "@/components/record-field";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
@@ -277,6 +283,24 @@ export default function RosterBoard({
       syncUrl({ search: searchBox, filters, sortKey: key, sortDirection: direction });
     },
     [filters, searchBox, sortDirection, sortKey, syncUrl],
+  );
+  /** LAN-426: the phone board's sort — an exact key and direction, not a heading's toggle. */
+  const statusSortable = columns.some((column) => column.key === "status");
+  const applyPhoneSort = useCallback(
+    (next: PhoneSort) => {
+      setSortKey(next.key);
+      setSortDirection(next.direction);
+      syncUrl({ search: searchBox, filters, sortKey: next.key, sortDirection: next.direction });
+    },
+    [filters, searchBox, syncUrl],
+  );
+  useRememberedPhoneSort("roster", statusSortable, applyPhoneSort);
+  const choosePhoneSort = useCallback(
+    (next: PhoneSort) => {
+      applyPhoneSort(next);
+      rememberPhoneSort("roster", next);
+    },
+    [applyPhoneSort],
   );
   const setSearch = useCallback(
     (value: string) => {
@@ -778,11 +802,19 @@ export default function RosterBoard({
       </TableContainer>
 
       <Box sx={{ display: { xs: "block", md: "none" } }}>
-        {anyPinnedFilter ? (
-          <Button variant="outlined" onClick={() => setPhoneFilters(true)} sx={{ mb: 2 }}>
-            Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
-          </Button>
-        ) : null}
+        <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: "center", flexWrap: "wrap" }}>
+          {anyPinnedFilter ? (
+            <Button variant="outlined" onClick={() => setPhoneFilters(true)}>
+              Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
+            </Button>
+          ) : null}
+          <PhoneSortSelect
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            statusAvailable={statusSortable}
+            onChange={choosePhoneSort}
+          />
+        </Stack>
         <Stack spacing={2}>
           {visible.map((row) => (
             <PlayerCard key={row.membershipId} row={row} />

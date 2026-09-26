@@ -61,6 +61,12 @@ import {
   type BoardSort,
 } from "./board-data";
 import { filterChipLabel, labelForKey, RecruitCard, RecruitCell } from "./recruitment-board-cells";
+import {
+  PhoneSortSelect,
+  rememberPhoneSort,
+  useRememberedPhoneSort,
+  type PhoneSort,
+} from "../board-phone-sort";
 import { saveRecruitmentCollapsedGroupsAction } from "./group-preference-actions";
 
 /** The roster board's own debounce: folding three groups away is three clicks in about a second, and only the last state is worth storing. */
@@ -219,6 +225,17 @@ export default function RecruitmentBoardView({
   function updateSearch(value: string) {
     setSearch(value);
     syncUrl(value, filters, sort);
+  }
+
+  /** LAN-426: the phone board's sort — an exact key and direction, not a heading's toggle. */
+  function applyPhoneSort(next: PhoneSort) {
+    setSort(next);
+    syncUrl(search, filters, next);
+  }
+  useRememberedPhoneSort("recruitment", detailsShown, applyPhoneSort);
+  function choosePhoneSort(next: PhoneSort) {
+    applyPhoneSort(next);
+    rememberPhoneSort("recruitment", next);
   }
 
   function sortBy(key: string) {
@@ -415,13 +432,28 @@ export default function RecruitmentBoardView({
         <>
           <Stack spacing={2} sx={{ mb: 2 }}>
             <Box sx={{ display: { xs: "none", md: "block" } }}>{pinned}</Box>
-            {personShown || detailsShown || eventsShown ? (
-              <Box sx={{ display: { xs: "block", md: "none" } }}>
-                <Button variant="outlined" onClick={() => setPhoneFilters(true)} sx={{ mb: 1 }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                display: { xs: "flex", md: "none" },
+                mb: 1,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              {personShown || detailsShown || eventsShown ? (
+                <Button variant="outlined" onClick={() => setPhoneFilters(true)}>
                   Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
                 </Button>
-              </Box>
-            ) : null}
+              ) : null}
+              <PhoneSortSelect
+                sortKey={sort?.key ?? null}
+                sortDirection={sort?.direction ?? "asc"}
+                statusAvailable={detailsShown}
+                onChange={choosePhoneSort}
+              />
+            </Stack>
             {chips}
           </Stack>
 
