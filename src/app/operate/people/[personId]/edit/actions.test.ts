@@ -214,6 +214,39 @@ describe("filling and correcting", () => {
     expect(superseded?.rawValue).toBe("+44 7700 900412");
   });
 
+  // LAN-423 K3: the form posts the normalised number; the record may hold it as typed.
+  it("saves an unchanged mobile held in national form without asking for a reason", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("National") });
+    await insertContact(personId, { kind: "phone", rawValue: "07700 900169" });
+    const data = await formFrom(personId, {
+      mobile: "+447700900169",
+      degreeField: "LAN423 Unchanged Mobile",
+    });
+
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toThrow(RedirectSignal);
+    const after = await readPersonRecord(personId);
+    expect(after.degreeField).toBe("LAN423 Unchanged Mobile");
+    const phones = after.contacts.filter((c) => c.kind === "phone");
+    expect(phones).toHaveLength(1);
+    expect(phones[0].rawValue).toBe("07700 900169");
+  });
+
+  it("still asks for a reason to change a mobile held in national form to another number", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("NationalChange") });
+    await insertContact(personId, { kind: "phone", rawValue: "07700 900169" });
+    const data = await formFrom(personId, { mobile: "+447700900170" });
+
+    const refused = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+
+    expect(refused.formError).toMatch(/needs a reason/);
+    const after = await readPersonRecord(personId);
+    expect(after.contacts.filter((c) => c.kind === "phone").map((c) => c.rawValue)).toEqual([
+      "07700 900169",
+    ]);
+  });
+
   it("refuses a malformed number and a malformed email, per field, naming the rule", async () => {
     signedInAs();
     const personId = await insertPerson({ givenName: unique("Hollis") });

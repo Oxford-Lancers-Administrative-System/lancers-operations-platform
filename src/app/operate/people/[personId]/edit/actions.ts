@@ -77,7 +77,7 @@ export async function submitPersonEdit(
     return expectedVersion;
   }
 
-  const mobileChanged = values.mobile.trim() !== (currentMobile(current)?.rawValue ?? "");
+  const mobileChanged = !sameMobile(values.mobile, currentMobile(current)?.rawValue ?? "");
   if (mobileChanged && values.mobile.trim() !== "") {
     const validation = validatePhoneNumber(values.mobile);
     if (!validation.valid) errors.mobile = validation.message;
@@ -364,6 +364,18 @@ function currentMobile(record: PersonRecord) {
     record.contacts.find((c) => c.kind === "phone" && c.validUntil === null && c.isPreferred) ??
     null
   );
+}
+
+/**
+ * Whether the posted mobile is the number on record — LAN-423 K3. The form
+ * posts the normalised number and the record may hold it as typed, so both
+ * go through the normalisation the write itself applies.
+ */
+function sameMobile(posted: string, recorded: string): boolean {
+  if (posted.trim() === recorded.trim()) return true;
+  const postedNumber = validatePhoneNumber(posted);
+  const recordedNumber = validatePhoneNumber(recorded);
+  return postedNumber.valid && recordedNumber.valid && postedNumber.e164 === recordedNumber.e164;
 }
 
 function currentEmail(record: PersonRecord, scope: "personal" | "college") {
