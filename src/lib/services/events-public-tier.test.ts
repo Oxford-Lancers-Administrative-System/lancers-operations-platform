@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The two guards LAN-153's tier boundary actually stands on — R153-B1, R153-B2.
  *

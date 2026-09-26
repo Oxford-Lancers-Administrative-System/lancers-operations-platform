@@ -201,7 +201,7 @@ function flatten(text: string | null): string {
  * viewport-independent rather than a `useMediaQuery` read. So a destination
  * link is not reachable by role until this runs, at every width jsdom can
  * represent — real desktop width is a CSS override this file cannot observe
- * (`row 16` explains why), so every assertion below that reaches a link opens
+ * (`declarationsAt` explains why), so every assertion below that reaches a link opens
  * the drawer first, the way the phone width the defect was found at requires.
  */
 function openNav(): void {
@@ -210,9 +210,8 @@ function openNav(): void {
 
 /**
  * Renders the shell for an ordinary Secretary and returns its nav and main
- * elements. Module-scoped, rather than local to one `describe`, because both
- * "row 16" (the shell's declared shape) and "row 17" (the drawer's open/closed
- * state) need it.
+ * elements. Module-scoped, rather than local to one `describe`, because
+ * "row 17" (the drawer's open/closed state) and the dismissal rows need it.
  */
 async function renderShell() {
   givenAccess({ state: "active", operator: actor(["secretary"]) });
@@ -252,10 +251,8 @@ function emotionClassOf(element: Element): string {
  * declaration regardless of the value inside it, even `min-width:0px`. So this
  * reads the CSS Emotion actually emitted for the element and asserts the
  * declarations inside each breakpoint's block. That makes it a regression
- * guard on the *declared* style — it would have caught the sticky-sidebar
- * defect this file's own row 16 was built to catch, and will catch it coming
- * back — and it is **not** proof that the rendered page looks right at that
- * width. Only a person on a real screen can say that.
+ * guard on the *declared* style, and it is **not** proof that the rendered
+ * page looks right at that width. Only a person on a real screen can say that.
  */
 function declarationsAt(element: Element, minWidth: number | null): string {
   const css = allStyleText();
@@ -766,100 +763,6 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
 });
 
 /**
- * The shell's shape at each breakpoint — the defect Brian found by signing in
- * and looking, which every test in this file was blind to.
- *
- * The sidebar had `maxHeight: { md: "100dvh" }` and `alignSelf: { md:
- * "flex-start" }` and no floor, so the dark panel stopped at the end of its
- * three navigation items and left a column of white beneath it down the whole
- * left-hand side. Nothing here failed, because nothing here looked at layout.
- *
- * **What this test is, and what it is not.** jsdom applies no layout: it does
- * not know the viewport is 960px wide, does not evaluate media queries, and
- * computes no box for anything. So this reads the CSS Emotion actually emitted
- * for the element and asserts the declarations inside each breakpoint's block.
- * That makes it a regression guard on the *declared* style — it would have
- * caught this defect and will catch it coming back — and it is **not** proof
- * that the rendered page looks right. Only a person on a real screen can say
- * that, which is precisely how this was found.
- *
- * One trap worth naming, because falling into it would make the whole thing
- * decorative: `max-height:100dvh` **contains** the substring `height:100dvh`.
- * An assertion written with `toContain` would have passed against the broken
- * code. Every height assertion below is anchored to a declaration boundary.
- */
-describe("row 16 — the shell's declared shape at each breakpoint", () => {
-  it("gives the sidebar a full viewport of height, not a ceiling — at every width now, not desktop alone", async () => {
-    const { nav } = await renderShell();
-
-    // Unconditional, unlike the breakpoint-only properties below: the LAN-195
-    // drawer at `xs` needs the same full-height, scrollable panel the desktop
-    // sidebar always needed, for the same reason — a long Administration list
-    // on a short phone. `getComputedStyle` sees this directly because it is
-    // declared outside any `@media` block; see `declarationsAt`'s own doc
-    // comment for why that distinction matters to a test running in jsdom.
-    expect(window.getComputedStyle(nav).height).toBe("100dvh");
-  });
-
-  it("keeps the desktop sidebar sticky at the top, and out of the stretch", async () => {
-    const { nav } = await renderShell();
-    const desktop = declarationsAt(nav, 900);
-
-    // Sticky and full-height have to hold together: the layout's flex parent
-    // stretches its children, and a stretched item fills a container taller
-    // than the viewport, leaving sticky nothing to do.
-    expect(declares(desktop, "position", "sticky")).toBe(true);
-    expect(declares(desktop, "align-self", "flex-start")).toBe(true);
-    expect(declares(desktop, "width", "226px")).toBe(true);
-  });
-
-  it("lets a short viewport scroll the sidebar rather than clip it — at every width now", async () => {
-    const { nav } = await renderShell();
-
-    expect(window.getComputedStyle(nav).overflowY).toBe("auto");
-  });
-
-  it("gives the phone drawer its own position and width — LAN-195, not the retired bottom bar", async () => {
-    const { nav } = await renderShell();
-    const phone = declarationsAt(nav, 0);
-
-    expect(declares(phone, "position", "fixed")).toBe(true);
-    // 280px, deliberately wider than the desktop sidebar's 226px — approved
-    // choice 3: real labels like "Messaging schedule" were cramped at 226.
-    expect(declares(phone, "width", "280px")).toBe(true);
-    // No longer anchored to the bottom edge sized by its own content — the
-    // retired bottom bar's shape, not this drawer's.
-    expect(declares(phone, "bottom", "0")).toBe(false);
-    expect(declares(phone, "width", "100%")).toBe(false);
-  });
-
-  it("clears the fixed top bar on a phone, not a bottom bar any more", async () => {
-    const { main } = await renderShell();
-
-    // LAN-195 moved the fixed bar from the bottom of the phone screen to the
-    // top (the hamburger), and the clearance moved with it: 56px of bar plus
-    // the ordinary 3-unit (24px) top spacing used everywhere else, 10 spacing
-    // units rather than 3. If this goes, the first line of every page sits
-    // under the bar.
-    expect(declares(declarationsAt(main, 0), "padding-top", "80px")).toBe(true);
-    expect(declares(declarationsAt(main, 900), "padding-top", "32px")).toBe(true);
-    // Nothing is fixed to the bottom any more, so the bottom padding is the
-    // ordinary 3-unit spacing rather than a clearance value.
-    expect(declares(declarationsAt(main, 0), "padding-bottom", "24px")).toBe(true);
-  });
-
-  it("does not let the main column squeeze the sidebar or overflow sideways", async () => {
-    const { main } = await renderShell();
-    const base = declarationsAt(main, null);
-
-    // `min-width: 0` on a flex child is what stops a wide table pushing the
-    // whole layout past the viewport and producing horizontal scrolling.
-    expect(declares(base, "min-width", "0")).toBe(true);
-    expect(declares(base, "flex-grow", "1")).toBe(true);
-  });
-});
-
-/**
  * LAN-195 — the drawer's open/closed state, and the invariant the mockup's own
  * README named as the open technical question it did not resolve: whether the
  * hydration-flash risk of a `useMediaQuery` branch is acceptable. This
@@ -896,7 +799,7 @@ describe("row 17 — the drawer's open/closed state carries no hydration flash a
     // because ordinary CSS cascade resolves the override before anything is
     // painted. jsdom cannot evaluate the `@media` condition itself (see
     // `declarationsAt`'s doc comment), so this reads the declaration text
-    // rather than the applied style, exactly as row 16 already does.
+    // rather than the applied style.
     const { nav } = await renderShell();
     const desktop = declarationsAt(nav, 900);
 

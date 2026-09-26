@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The destructive local scripts name their database, or they do not run.
  *

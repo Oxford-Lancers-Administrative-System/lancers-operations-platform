@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { RosterBoardRow } from "@/lib/services/roster-board";

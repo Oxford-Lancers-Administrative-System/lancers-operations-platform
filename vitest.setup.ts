@@ -1,7 +1,18 @@
 import "@testing-library/jest-dom/vitest";
 
+import { configure } from "@testing-library/dom";
 import { afterAll } from "vitest";
 import pg from "pg";
+
+/**
+ * Role queries skip the accessibility-tree walk that decides whether each
+ * candidate is hidden (LAN-436). That walk calls `getComputedStyle` up every
+ * ancestor of every candidate, and it was the largest single cost in the
+ * screen tests. A test that means "and it is visible" says so with
+ * `toBeVisible()`, as these tests already do; pass `{ hidden: false }` to a
+ * query where the hidden-ness of the match is itself the point.
+ */
+configure({ defaultHidden: true });
 
 /**
  * The guard that keeps the parallel test project away from the one local

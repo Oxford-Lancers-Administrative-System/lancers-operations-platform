@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * LAN-211's own acceptance criteria, as tests.
  *

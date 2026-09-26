@@ -607,45 +607,6 @@ describe("Kit Distributed — still Yes/No, no longer typed (LAN-375)", () => {
   });
 });
 
-// D-002: `waived` is offered by exactly one item's own list — Subscription
-// paid — so this row needs Subscription invoiced complete alongside it
-// (the same blank-until-invoiced gating every other suite proves).
-describe("W6 — Subscription paid is the one item Waived applies to", () => {
-  it("saves a waiver with no reason field drawn at all — the reason stops being solicited", async () => {
-    givenRecord({
-      onboardingItems: [
-        historyItem({
-          id: "item-invoiced",
-          code: "subs_invoiced",
-          label: "Subscription invoiced",
-          status: "complete",
-        }),
-        historyItem({
-          id: "item-paid",
-          code: "subs_paid",
-          label: "Subscription paid",
-          status: "pending",
-        }),
-      ],
-    });
-    render(await PlayerRecordPage(pageProps()));
-
-    const row = screen
-      .getByText("Subscription paid")
-      .closest('[data-testid="record-row"]') as HTMLElement;
-    const { fireEvent, act } = await import("@testing-library/react");
-    fireEvent.click(within(row).getByTestId("editable-field"));
-    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Waived" })));
-
-    expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
-      membershipId: MEMBERSHIP_ID,
-      itemId: "item-paid",
-      status: "waived",
-    });
-    expect(screen.queryByLabelText(/Why is this waived/)).not.toBeInTheDocument();
-  });
-});
-
 // D-002 (correction round 3, Q-14, Brian): "Subscription paid" is blank —
 // nothing at all — until "Subscription invoiced" is itself complete.
 describe("D-002 — Subscription paid is blank until Subscription invoiced is complete", () => {

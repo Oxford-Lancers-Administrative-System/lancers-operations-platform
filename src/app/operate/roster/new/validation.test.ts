@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The intake form's shape checks. LAN-74, matrix row 10; LAN-215 (`W2`)
  * amended the required set; LAN-215's B-007 tightened phone.

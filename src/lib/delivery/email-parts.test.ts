@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Every kind's rendered email, pinned — LAN-398.
  *

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * What a row of the club's CSV means — LAN-155, matrix rows P1 to P20.
  *

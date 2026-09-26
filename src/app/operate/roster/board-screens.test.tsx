@@ -15,7 +15,7 @@
  * cards are both in this DOM. The wide-versus-condensed boundary is proved by
  * the browser preflight at a measured 1280 and 375, not here.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 const routerPush = vi.fn();
@@ -159,6 +159,10 @@ function givenBoard(overrides: Partial<RosterBoardData> = {}): void {
     ...overrides,
   } as RosterBoardData);
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("REQ-authority — four-role only, for the grid and every column on it", () => {
   it("refuses a coach — LAN-110's narrow-recorder boundary, which fires ahead of any capability check — before the board is ever read", async () => {
@@ -984,6 +988,7 @@ describe("which groups are folded away, remembered on the account", () => {
   it("folds Availability on its own, and remembers it apart from Membership", async () => {
     givenBoard();
     render(await RosterPage(pageProps()));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 
     const board = screen.getByTestId("roster-board");
     // It arrives open: it is the fact read most often after the membership
@@ -1002,8 +1007,9 @@ describe("which groups are folded away, remembered on the account", () => {
     expect(within(board).queryByTestId("band-collapsed-label-membership")).not.toBeInTheDocument();
     expect(within(board).getByText("BPS")).toBeInTheDocument();
 
+    // The 600ms debounce, on a fake clock rather than a real wait.
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 900));
+      vi.advanceTimersByTime(900);
     });
     expect([...vi.mocked(saveCollapsedGroupsAction).mock.calls[0][0]]).toContain("availability");
   });
@@ -1011,6 +1017,7 @@ describe("which groups are folded away, remembered on the account", () => {
   it("writes the whole set back once the toggling has settled", async () => {
     givenBoard();
     render(await RosterPage(pageProps()));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 
     const board = screen.getByTestId("roster-board");
     // Nothing is written for simply arriving: what the board arrived holding is
@@ -1022,8 +1029,9 @@ describe("which groups are folded away, remembered on the account", () => {
       fireEvent.click(within(board).getByTestId("band-toggle-coaching"));
     });
     // Debounced: two clicks in a moment are one write, of where they ended up.
+    // The 600ms debounce, on a fake clock rather than a real wait.
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 900));
+      vi.advanceTimersByTime(900);
     });
 
     expect(saveCollapsedGroupsAction).toHaveBeenCalledTimes(1);

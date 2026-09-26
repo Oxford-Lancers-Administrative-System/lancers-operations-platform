@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The two messaging safety controls, as Server Actions — LAN-394.
  *

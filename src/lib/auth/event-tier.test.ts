@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The three access tiers — LAN-153, `REQ-three-tiers`.
  *

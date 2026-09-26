@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The nudge page's one write — LAN-343.
  *

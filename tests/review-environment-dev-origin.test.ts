@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The review URL and the dev server have to agree about the host — LAN-151,
  * finding VG-002.

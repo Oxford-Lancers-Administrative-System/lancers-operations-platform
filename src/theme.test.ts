@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import theme, { CLUB, SEMANTIC } from "./theme";
 import { TEMPLATE_COLOUR_PALETTE } from "./lib/services/event-template-input";

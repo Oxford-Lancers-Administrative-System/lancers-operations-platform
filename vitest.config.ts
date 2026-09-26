@@ -16,8 +16,8 @@ loadEnv({ path: path.resolve(import.meta.dirname, ".env.local"), quiet: true });
  * sessions against the same rows. Three separate failures came out of that, each
  * found by accident at the cost of a CI rerun (LAN-139):
  *
- * - `tests/pilot-scenario-lan-76.test.ts` wraps every test in
- *   `repeatable read` and rolls back. PostgreSQL is *specified* to abort such a
+ * - A suite that wraps every test in `repeatable read` and rolls back (the
+ *   since-retired LAN-76 pilot scenario did). PostgreSQL is *specified* to abort such a
  *   transaction with SQLSTATE `40001` the moment a concurrent session commits to
  *   a row it read. That is not bad luck; it is the isolation level's contract.
  * - Suites that commit fixtures into shared catalogue tables are exactly such a
@@ -120,17 +120,6 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/link-test-operator.test.ts",
   "tests/operator-capability-catalogue.test.ts",
   "tests/person-merge-reference-catalogue.test.ts",
-  "tests/pilot-scenario-lan-110.test.ts",
-  "tests/pilot-scenario-lan-74.test.ts",
-  "tests/pilot-scenario-lan-75.test.ts",
-  "tests/pilot-scenario-lan-76.test.ts",
-  "tests/pilot-scenario-lan-77.test.ts",
-  "tests/pilot-scenario-lan-78.test.ts",
-  "tests/pilot-scenario-lan-79.test.ts",
-  "tests/pilot-scenario-lan-80.test.ts",
-  "tests/pilot-scenario-lan-81.test.ts",
-  "tests/pilot-scenario-lan-82.test.ts",
-  "tests/pilot-scenario-lan-93.test.ts",
   "tests/player-record-payload.test.tsx",
   "tests/printed-access.test.ts",
   "tests/production-baseline-contract.test.ts",
@@ -144,12 +133,10 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/schema-event-audience.test.ts",
   "tests/schema-events-target-state.test.ts",
   "tests/schema-invariants.test.ts",
-  "tests/schema-legacy-vocabulary-mapping.test.ts",
   "tests/schema-onboarding-substrate.test.ts",
   "tests/schema-operator-accounts.test.ts",
   "tests/schema-recruitment.test.ts",
   "tests/schema-restricted-fields.test.ts",
-  "tests/schema-roster-vocabulary.test.ts",
   "tests/schema-rsvp-delivery.test.ts",
   "tests/schema-security.test.ts",
   "tests/seed-onboarding-chase.test.ts",
@@ -169,18 +156,6 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
  * suites are deliberately absent even when they are database-backed.
  */
 export const GATE_SUITES: readonly string[] = [
-  "tests/local-supabase-coordinator.test.ts",
-  "tests/pilot-scenario-lan-110.test.ts",
-  "tests/pilot-scenario-lan-74.test.ts",
-  "tests/pilot-scenario-lan-75.test.ts",
-  "tests/pilot-scenario-lan-76.test.ts",
-  "tests/pilot-scenario-lan-77.test.ts",
-  "tests/pilot-scenario-lan-78.test.ts",
-  "tests/pilot-scenario-lan-79.test.ts",
-  "tests/pilot-scenario-lan-80.test.ts",
-  "tests/pilot-scenario-lan-81.test.ts",
-  "tests/pilot-scenario-lan-82.test.ts",
-  "tests/pilot-scenario-lan-93.test.ts",
   "tests/printed-access.test.ts",
   "tests/production-baseline-contract.test.ts",
   "tests/production-bootstrap-database.test.ts",
@@ -188,12 +163,49 @@ export const GATE_SUITES: readonly string[] = [
   "tests/synthetic-seed-messiness.test.ts",
 ];
 
+/**
+ * Tests of the agent tooling — the mission and intake control planes, the
+ * local-stack coordinator, telemetry and the visual-review environment — and
+ * nothing else (LAN-436).
+ *
+ * No product code path runs through them, so they are not part of `npm run
+ * test` or the required pull-request check. They run in the `tooling` project:
+ * `npm run test:tooling` locally, and CI's separate, non-required tooling job
+ * whenever a change touches what they read (`scripts/`, `.claude/`,
+ * `.github/`, `missions/`, `supabase/`, the tests themselves, `package.json`
+ * or this file).
+ *
+ * The security fences that live beside them stay in `unit` on purpose:
+ * `local-only-guard-source`, `local-db-explicit-target`,
+ * `prod-inspect-contract`, `create-test-user-guard`, `merge-rule`,
+ * `merge-governance` and `agent-harness`. None of these reach the database.
+ */
+export const TOOLING_SUITES: readonly string[] = [
+  "tests/finish-mission.test.ts",
+  "tests/intake-decision-coverage.test.ts",
+  "tests/intake-hub.test.ts",
+  "tests/intake-state.test.ts",
+  "tests/intake-subject-coverage.test.ts",
+  "tests/intake-write-safety.test.ts",
+  "tests/local-review-account.test.ts",
+  "tests/local-supabase-coordinator.test.ts",
+  "tests/mission-cli.test.ts",
+  "tests/mission-intake-dry-run.test.ts",
+  "tests/mission-merge-proof.test.ts",
+  "tests/mission-rehearsals.test.ts",
+  "tests/mission-review-runtime.test.ts",
+  "tests/mission-state.test.ts",
+  "tests/telemetry-harvest.test.ts",
+  "tests/visual-environment.test.ts",
+  "tests/visual-review-readiness.test.ts",
+];
+
 const HOT_DATABASE_SUITES = DATABASE_TEST_SUITES.filter((suite) => !GATE_SUITES.includes(suite));
 
 const ALL_TEST_FILES = ["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"];
 
 /**
- * Shared between both projects.
+ * Shared between every project.
  *
  * Inline projects do not inherit the root Vite configuration, so the alias and
  * the environment are spread into each one rather than declared once above.
@@ -224,9 +236,15 @@ export default defineConfig({
           ...shared.test,
           name: "unit",
           include: [...ALL_TEST_FILES],
-          // Everything Vitest excludes by default, plus every database suite —
-          // those belong to the project below and must not also run here.
-          exclude: [...configDefaults.exclude, ...DATABASE_TEST_SUITES, ...GATE_SUITES],
+          // Everything Vitest excludes by default, plus every database, gate and
+          // tooling suite — those belong to the projects below and must not also
+          // run here.
+          exclude: [
+            ...configDefaults.exclude,
+            ...DATABASE_TEST_SUITES,
+            ...GATE_SUITES,
+            ...TOOLING_SUITES,
+          ],
         },
       },
       {
@@ -262,8 +280,16 @@ export default defineConfig({
           poolOptions: { forks: { singleFork: true } },
           env: {
             LANCERS_TEST_PROJECT: "database",
-            PILOT_GUARD_CHECK: "1",
           },
+        },
+      },
+      {
+        ...shared,
+        test: {
+          ...shared.test,
+          name: "tooling",
+          include: [...TOOLING_SUITES],
+          // No database: the parallel project's guard applies here too.
         },
       },
     ],

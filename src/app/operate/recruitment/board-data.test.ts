@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";

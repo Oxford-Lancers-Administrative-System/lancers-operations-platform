@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Questionnaire B's one write — LAN-206, moved to its own route by LAN-343.
  *

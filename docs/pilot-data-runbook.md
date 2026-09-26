@@ -125,8 +125,11 @@ work it out on the day; guessing wrong the other way costs a file nobody runs.
 ## Script conventions
 
 The directory is `scripts/pilot/<issue-id>/`, lower-case, e.g.
-`scripts/pilot/lan-93/`. [`scripts/pilot/lan-93/`](../scripts/pilot/lan-93/) is
-the worked example, and it is meant to be copied.
+`scripts/pilot/lan-93/`. No scenario is checked in today: the eleven written for
+the slice were retired on 26 September 2026 without ever being applied to hosted
+(ADR 0016's amendment, LAN-436). `scripts/pilot/lan-93/` at commit `5bcb5ea0`
+remains the worked example to copy — `git show 5bcb5ea0:scripts/pilot/lan-93/setup.sql`
+and its siblings.
 
 Every scenario satisfies all of the following. They are not stylistic.
 
@@ -177,13 +180,13 @@ is **not** reserved, and is refused. (Described rather than written out: this
 file is itself scanned, and a routable example address in it is exactly what the
 scan exists to catch.)
 
-LAN-74 is the first scenario to need this — its duplicate check matches on
+LAN-74 (retired) was the first scenario to need this — its duplicate check matches on
 contact points, so a scenario without them cannot exercise half the feature.
 
 #### The second shape: rows the application creates
 
 Some scenarios have no deterministic key to delete by, because the rows are not
-created by their setup script. LAN-76 is the first: its feature test is a human
+created by their setup script. LAN-76 (retired) was the first: its feature test is a human
 signing in to the deployed application and creating events through it, so
 PostgreSQL generates the identifier at insert time, and a setup script that
 manufactured the rows instead would prove the application works against data a
@@ -212,13 +215,14 @@ column plus a status restriction proves the row was made for the test and bounds
 the blast radius, without ever proving who created it. It is the narrowest
 honest predicate available when the identifier is not the script's to choose.
 
-Three conditions, all required, and all machine-checked by
-[`tests/pilot-data-contract.test.ts`](../tests/pilot-data-contract.test.ts):
+Three conditions, all required, and all machine-checked by the scenario's own
+local test (the retired scenarios pinned them in `tests/pilot-data-contract.test.ts`
+at commit `5bcb5ea0`; a new scenario restores that check alongside itself):
 
 1. the scenario's `README.md` declares the shape under the exact heading
    `## Ownership marker: sentinel only`, so a reader of the scenario sees it;
 2. the scenario, the table it may delete from, and the **exact** conjuncts of
-   its `where` clause are pinned in that test's `SENTINEL_ONLY_DELETES` list, so
+   its `where` clause are pinned in a `SENTINEL_ONLY_DELETES` list, so
    adding or loosening one is a line in a diff rather than a pattern an
    assertion might or might not recognise;
 3. the sentinel is still one of those conjuncts.
@@ -267,8 +271,8 @@ Supabase, that:
       way;
 - [ ] the durable pilot foundation is byte-identical afterwards.
 
-[`tests/pilot-scenario-lan-93.test.ts`](../tests/pilot-scenario-lan-93.test.ts)
-is that test for the worked example. Copy its shape.
+`tests/pilot-scenario-lan-93.test.ts` at commit `5bcb5ea0` is that test for the
+worked example. Copy its shape; it was retired with its scenario.
 
 Running the scripts against the disposable local stack **is** how they are
 verified, and is not in tension with the rule below: verification is a test
@@ -510,9 +514,8 @@ Do not re-run it hopefully; fix the `select` above first.
 > Not recognised, and therefore not constrained: an `update` that grants or
 > re-opens access, including one that clears `effective_to`; an unqualified
 > `role_assignments`; a quoted `"public"."role_assignments"`; an insert routed
-> through a CTE or a view. The scan reads **this file only** —
-> `scripts/pilot/lan-93/cleanup.sql` also writes to `role_assignments` and is
-> not read by it.
+> through a CTE or a view. The scan reads **this file only** — a scenario's
+> `cleanup.sql` that writes to `role_assignments` is not read by it.
 >
 > This note cannot spell that opener out contiguously, because the check scans
 > the raw file and would parse the example as a grant. That is the boundary,

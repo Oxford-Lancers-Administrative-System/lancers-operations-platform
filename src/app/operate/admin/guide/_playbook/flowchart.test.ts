@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The committed flowcharts are the specs — LAN-399.
  *
@@ -47,40 +48,61 @@ describe("every page has a drawing, and every drawing has a page", () => {
 });
 
 describe("the drawings are legible", () => {
-  it.each(entries)("%s puts no two boxes on one grid cell", (_slug, diagram) => {
-    const cells = diagram.nodes.map((node) => `${node.col}:${node.row}`);
-    expect(new Set(cells).size).toBe(cells.length);
+  // One test per property across every diagram; each failure names the diagram.
+  it("puts no two boxes on one grid cell", () => {
+    const crowded = entries
+      .filter(([, diagram]) => {
+        const cells = diagram.nodes.map((node) => `${node.col}:${node.row}`);
+        return new Set(cells).size !== cells.length;
+      })
+      .map(([slug]) => slug);
+    expect(crowded).toEqual([]);
   });
 
-  it.each(entries)("%s draws every arrow between boxes that exist", (_slug, diagram) => {
-    const ids = new Set(diagram.nodes.map((node) => node.id));
-    for (const edge of diagram.edges) {
-      expect(ids.has(edge.from), `${edge.from} -> ${edge.to}`).toBe(true);
-      expect(ids.has(edge.to), `${edge.from} -> ${edge.to}`).toBe(true);
-    }
+  it("draws every arrow between boxes that exist", () => {
+    const dangling = entries.flatMap(([slug, diagram]) => {
+      const ids = new Set(diagram.nodes.map((node) => node.id));
+      return diagram.edges
+        .filter((edge) => !ids.has(edge.from) || !ids.has(edge.to))
+        .map((edge) => `${slug}: ${edge.from} -> ${edge.to}`);
+    });
+    expect(dangling).toEqual([]);
   });
 
-  it.each(entries)("%s leaves no box unreachable and no box a dead end by accident", (_s, d) => {
+  it("leaves no box unreachable and no box a dead end by accident", () => {
     // Every box is on at least one arrow. A box nothing points at and nothing
     // leaves is a drawing mistake, not a flow.
-    const touched = new Set(d.edges.flatMap((edge) => [edge.from, edge.to]));
-    for (const node of d.nodes) expect(touched.has(node.id), node.id).toBe(true);
+    const isolated = entries.flatMap(([slug, diagram]) => {
+      const touched = new Set(diagram.edges.flatMap((edge) => [edge.from, edge.to]));
+      return diagram.nodes
+        .filter((node) => !touched.has(node.id))
+        .map((node) => `${slug}: ${node.id}`);
+    });
+    expect(isolated).toEqual([]);
   });
 
-  it.each(entries)("%s names its own title", (_slug, diagram) => {
-    expect(diagram.title.length).toBeGreaterThan(10);
-    expect(renderFlowchart(diagram)).toContain(`<title id="diagram-title">${diagram.title}`);
+  it("names its own title", () => {
+    const untitled = entries
+      .filter(
+        ([, diagram]) =>
+          diagram.title.length <= 10 ||
+          !renderFlowchart(diagram).includes(`<title id="diagram-title">${diagram.title}`),
+      )
+      .map(([slug]) => slug);
+    expect(untitled).toEqual([]);
   });
 
-  it.each(entries)("%s carries exactly one legend, with all six shapes", (_slug, diagram) => {
-    const svg = renderFlowchart(diagram);
-    for (const entry of SHAPE_LEGEND) {
-      expect(svg.split(`>${entry.meaning}<`).length, entry.meaning).toBe(2);
-    }
+  it("carries exactly one legend, with all six shapes", () => {
+    const wrong = entries.flatMap(([slug, diagram]) => {
+      const svg = renderFlowchart(diagram);
+      return SHAPE_LEGEND.filter((entry) => svg.split(`>${entry.meaning}<`).length !== 2).map(
+        (entry) => `${slug}: ${entry.meaning}`,
+      );
+    });
+    expect(wrong).toEqual([]);
   });
 
-  it.each(entries)("%s uses the club's own tokens and invents no colour", (_slug, diagram) => {
-    const svg = renderFlowchart(diagram);
+  it("uses the club's own tokens and invents no colour", () => {
     const allowed = new Set<string>([
       ...Object.values(CLUB),
       "#E3EBF8",
@@ -88,9 +110,12 @@ describe("the drawings are legible", () => {
       "#ECEAE6",
       "#5A5754",
     ]);
-    for (const hex of svg.match(/#[0-9A-Fa-f]{6}/g) ?? []) {
-      expect(allowed.has(hex), hex).toBe(true);
-    }
+    const invented = entries.flatMap(([slug, diagram]) =>
+      (renderFlowchart(diagram).match(/#[0-9A-Fa-f]{6}/g) ?? [])
+        .filter((hex) => !allowed.has(hex))
+        .map((hex) => `${slug}: ${hex}`),
+    );
+    expect(invented).toEqual([]);
   });
 });
 

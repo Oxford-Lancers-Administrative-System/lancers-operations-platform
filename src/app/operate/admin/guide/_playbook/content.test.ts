@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The playbook's words — LAN-399.
  *
@@ -116,44 +117,49 @@ describe("the playbook covers the eight workflows Brian named", () => {
 });
 
 describe("every page carries all four bands", () => {
-  it.each(PLAYBOOK_PAGES.map((page): [string, PlaybookPage] => [page.slug, page]))(
-    "%s",
-    (_slug, page) => {
-      expect(page.name.length).toBeGreaterThan(3);
-      expect(page.summary.length).toBeGreaterThan(20);
+  // One test per property across all eight pages; each failure names the page.
+  it("fills every band", () => {
+    const thin = PLAYBOOK_PAGES.flatMap((page: PlaybookPage) =>
+      [
+        page.name.length > 3 ? null : "name",
+        page.summary.length > 20 ? null : "summary",
+        /^\/guide\/[a-z-]+\.svg$/.test(page.flowchart.src) ? null : "flowchart src",
+        page.flowchart.alt.length > 30 ? null : "flowchart alt",
+        // A drawing described in one line is a caption, not a description.
+        page.flowchart.description.length >= 3 ? null : "flowchart description",
+        page.steps.length >= 6 ? null : "steps",
+        page.rules.length >= 5 ? null : "rules",
+        page.whereToLook.length >= 2 ? null : "where to look",
+      ]
+        .filter((band) => band !== null)
+        .map((band) => `${page.slug}: ${band}`),
+    );
+    expect(thin).toEqual([]);
+  });
 
-      expect(page.flowchart.src).toMatch(/^\/guide\/[a-z-]+\.svg$/);
-      expect(page.flowchart.alt.length).toBeGreaterThan(30);
-      // A drawing described in one line is a caption, not a description.
-      expect(page.flowchart.description.length).toBeGreaterThanOrEqual(3);
+  it("says what the app does between the operator's steps", () => {
+    // The requirement's own words: "what the app does between steps".
+    // A page of nothing but operator actions is a menu, not a flow.
+    const menus = PLAYBOOK_PAGES.filter(
+      (page) => page.steps.filter((step) => step.then).length < page.steps.length - 1,
+    ).map((page) => page.slug);
+    expect(menus).toEqual([]);
+  });
 
-      expect(page.steps.length).toBeGreaterThanOrEqual(6);
-      expect(page.rules.length).toBeGreaterThanOrEqual(5);
-      expect(page.whereToLook.length).toBeGreaterThanOrEqual(2);
-    },
-  );
-
-  it.each(PLAYBOOK_PAGES.map((page): [string, PlaybookPage] => [page.slug, page]))(
-    "%s says what the app does between the operator's steps",
-    (_slug, page) => {
-      // The requirement's own words: "what the app does between steps".
-      // A page of nothing but operator actions is a menu, not a flow.
-      const automatic = page.steps.filter((step) => step.then).length;
-      expect(automatic).toBeGreaterThanOrEqual(page.steps.length - 1);
-    },
-  );
-
-  it.each(PLAYBOOK_PAGES.map((page): [string, PlaybookPage] => [page.slug, page]))(
-    "%s labels every rule",
-    (_slug, page) => {
-      for (const rule of page.rules) {
-        expect(rule.label.length, rule.label).toBeGreaterThan(3);
-        // A "short labelled fact", not a paragraph.
-        expect(rule.label.length, rule.label).toBeLessThan(60);
-        expect(runsToText(rule.fact).length, rule.label).toBeGreaterThan(20);
-      }
-    },
-  );
+  it("labels every rule", () => {
+    const badLabels = PLAYBOOK_PAGES.flatMap((page) =>
+      page.rules
+        .filter(
+          (rule) =>
+            rule.label.length <= 3 ||
+            // A "short labelled fact", not a paragraph.
+            rule.label.length >= 60 ||
+            runsToText(rule.fact).length <= 20,
+        )
+        .map((rule) => `${page.slug}: ${rule.label}`),
+    );
+    expect(badLabels).toEqual([]);
+  });
 });
 
 describe("every quoted claim is true of the application", () => {
@@ -168,8 +174,9 @@ describe("every quoted claim is true of the application", () => {
     ),
   );
 
-  it.each(rows)("%s", (_name, _page, text) => {
-    expect(APPLICATION_SOURCE).toContain(text);
+  it("finds every quoted claim in the application source", () => {
+    const untrue = rows.filter(([, , text]) => !APPLICATION_SOURCE.includes(text));
+    expect(untrue.map(([name]) => name)).toEqual([]);
   });
 
   it("checks a real number of them, so a refactor cannot empty the list", () => {
@@ -189,9 +196,9 @@ describe("every Where to look link goes somewhere", () => {
     page.whereToLook.map((lookup) => [`${page.slug} → ${lookup.href}`, lookup.href] as const),
   );
 
-  it.each(links)("%s", (_name, href) => {
-    expect(href.startsWith("/")).toBe(true);
-    expect(routeExists(href)).toBe(true);
+  it("resolves every link to a route", () => {
+    const broken = links.filter(([, href]) => !href.startsWith("/") || !routeExists(href));
+    expect(broken.map(([name]) => name)).toEqual([]);
   });
 
   it("recognises a route that does not exist", () => {
