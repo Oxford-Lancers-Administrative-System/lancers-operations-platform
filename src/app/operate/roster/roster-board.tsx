@@ -18,6 +18,8 @@ import Typography from "@mui/material/Typography";
 import { Notice } from "@/components/notice";
 import { PinnedSelect } from "@/components/pinned-select";
 import {
+  LANDSCAPE_TABLE_HEIGHT,
+  PHONE_LANDSCAPE,
   PhoneSortSelect,
   rememberPhoneSort,
   useRememberedPhoneSort,
@@ -686,6 +688,8 @@ export default function RosterBoard({
         sx={{
           display: { xs: "none", md: "block" },
           maxHeight: "calc(100dvh - 300px)",
+          // LAN-427: a phone on its side gets this table, scrolled sideways by touch.
+          [PHONE_LANDSCAPE]: { display: "block", maxHeight: LANDSCAPE_TABLE_HEIGHT },
           overflow: "auto",
           // LAN-395: keep the vertical scrollbar off the last folded-up band.
           // See `BOARD_SCROLLBAR_GUTTER_PX` for why it takes both rules. The
@@ -801,7 +805,11 @@ export default function RosterBoard({
         </Table>
       </TableContainer>
 
-      <Box sx={{ display: { xs: "block", md: "none" } }}>
+      {/* LAN-427: a phone on its side has the table, its headings and the pinned filters above instead. */}
+      <Box
+        sx={{ display: { xs: "block", md: "none" }, [PHONE_LANDSCAPE]: { display: "none" } }}
+        data-testid="roster-phone-cards"
+      >
         <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: "center", flexWrap: "wrap" }}>
           {anyPinnedFilter ? (
             <Button variant="outlined" onClick={() => setPhoneFilters(true)}>

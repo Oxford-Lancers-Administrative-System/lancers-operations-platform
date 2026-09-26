@@ -30,8 +30,26 @@ export interface PhoneSort {
   direction: "asc" | "desc";
 }
 
-/** Where the boards draw cards rather than the table — below `md`. */
-const PHONE_CARDS_MEDIA = "(max-width: 899.95px)";
+/**
+ * Where the boards draw cards rather than the table — below `md`, held
+ * upright. LAN-427: a phone turned on its side gets the table.
+ */
+const PHONE_CARDS_MEDIA = "(max-width: 899.95px) and (orientation: portrait)";
+
+/**
+ * LAN-427: an `sx` key for a phone on its side — below `md`, landscape — where
+ * the boards draw the desktop table instead of cards. Rotating back upright
+ * falls out of the query and the cards return.
+ */
+export const PHONE_LANDSCAPE = "@media (max-width: 899.95px) and (orientation: landscape)";
+
+/**
+ * LAN-427: the table's own scroll box on a phone on its side — nearly the
+ * whole short screen, so the sticky headings stay in view while a swipe
+ * scrolls the rows and the columns, and the page scroll brings the box itself
+ * fully into view.
+ */
+export const LANDSCAPE_TABLE_HEIGHT = "calc(100dvh - 16px)";
 
 const KEY_LABELS: Readonly<Record<PhoneSortKey, string>> = Object.freeze({
   firstName: "First name",

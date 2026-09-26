@@ -62,6 +62,8 @@ import {
 } from "./board-data";
 import { filterChipLabel, labelForKey, RecruitCard, RecruitCell } from "./recruitment-board-cells";
 import {
+  LANDSCAPE_TABLE_HEIGHT,
+  PHONE_LANDSCAPE,
   PhoneSortSelect,
   rememberPhoneSort,
   useRememberedPhoneSort,
@@ -464,6 +466,8 @@ export default function RecruitmentBoardView({
             sx={{
               display: { xs: "none", md: "block" },
               maxHeight: "calc(100dvh - 320px)",
+              // LAN-427: a phone on its side gets this table, scrolled sideways by touch.
+              [PHONE_LANDSCAPE]: { display: "block", maxHeight: LANDSCAPE_TABLE_HEIGHT },
               overflow: "auto",
               // LAN-395, the same two rules the roster board carries: this is
               // the roster board's scroll container, so the bar lands on this
@@ -783,7 +787,10 @@ export default function RecruitmentBoardView({
               card carries the same status control the table's cell does, with
               the same interrupt and the same confirm. Editing is not desktop
               work; recruitment is run from a phone. */}
-          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+          <Stack
+            spacing={1.5}
+            sx={{ display: { xs: "flex", md: "none" }, [PHONE_LANDSCAPE]: { display: "none" } }}
+          >
             {visibleRows.length === 0 ? (
               <Typography color="text.secondary" data-testid="recruitment-filter-empty-phone">
                 No recruits match the current search and filters.

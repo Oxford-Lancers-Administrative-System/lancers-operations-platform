@@ -296,6 +296,16 @@ per board in the browser, so returning to the board from the menu restores it.
 The remembered value is read only where the cards are drawn, so the desktop
 table's default order is unchanged.
 
+**A phone on its side gets the table** (LAN-427). Below `md` the boards draw
+cards only while the phone is upright; turned to landscape (about 844×390) they
+draw the desktop table, scrolled sideways by touch inside its own box with the
+Player or Recruit column pinned, and every heading's sort, funnel filter and
+editable cell works as on a desktop. Rotating back upright restores the cards.
+Tablets and desktops are unchanged: a tablet upright is below `md` and portrait,
+so cards; on its side it is at or above `md`, so the table as before. On the
+Roster in landscape the pinned search and filters stay above the table, stacked,
+so the table starts below them.
+
 ---
 
 ## 5. Put the practice on the calendar

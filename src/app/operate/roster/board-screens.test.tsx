@@ -1255,3 +1255,62 @@ describe("LAN-426 — the phone board's sort", () => {
     expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
   });
 });
+
+/**
+ * LAN-427 — a phone on its side gets the desktop table; upright keeps the
+ * cards. jsdom evaluates no media query, so what is proved here is that the
+ * rule is written (the table shown, the cards hidden, below `md` in landscape)
+ * and that the phone sort's restore reads only the upright cards. The
+ * rendering itself is walked in a real browser at 844×390 and 390×844.
+ */
+describe("LAN-427 — the table on a phone held sideways", () => {
+  const LANDSCAPE = "@media (max-width: 899.95px) and (orientation: landscape)";
+
+  function styleText(): string {
+    return [...document.querySelectorAll("style")].map((node) => node.textContent).join("\n");
+  }
+
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+    window.history.replaceState(null, "", "/operate/roster");
+    window.localStorage.clear();
+  });
+
+  it("shows the table and hides the cards below md in landscape", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const css = styleText().replace(/\s+/g, " ");
+    const landscapeRules = css
+      .split(LANDSCAPE.replace(/\s+/g, " "))
+      .slice(1)
+      .map((chunk) => chunk.slice(0, chunk.indexOf("}}") + 2));
+    expect(landscapeRules.some((rule) => /display:\s?block/.test(rule))).toBe(true);
+    expect(landscapeRules.some((rule) => /display:\s?none/.test(rule))).toBe(true);
+    expect(screen.getByTestId("roster-board")).toBeInTheDocument();
+    expect(screen.getByTestId("roster-phone-cards")).toBeInTheDocument();
+  });
+
+  it("does not restore the phone sort when the phone is on its side", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        // A phone held sideways: narrow, landscape.
+        matches: !query.includes("portrait"),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    expect(window.location.search).not.toContain("sort=lastName");
+  });
+});
