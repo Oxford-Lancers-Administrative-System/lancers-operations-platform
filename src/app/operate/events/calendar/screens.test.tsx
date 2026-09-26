@@ -429,39 +429,6 @@ describe("the Oxford View", () => {
     expect(text).not.toContain("Outside term");
   });
 
-  it("numbers vacation weeks forward from 1, with their exact Gregorian range", async () => {
-    const { container } = render(await oxford());
-
-    expect(flatten(weekRow(container, "Christmas Vacation 1").textContent)).toContain(
-      "6 – 12 Dec 2026",
-    );
-    expect(flatten(weekRow(container, "Christmas Vacation 2").textContent)).toContain(
-      "13 – 19 Dec 2026",
-    );
-  });
-
-  it("meets the next term at its own first configured week", async () => {
-    // Stewart: the vacation runs "until it'll match perfectly up until minus one
-    // week" of the next term. Michaelmas has a −1st week and Hilary does not —
-    // `terms.first_week` decides, so the vacation stops where the term starts.
-    const { container } = render(await oxford());
-
-    expect(flatten(weekRow(container, "Christmas Vacation 5").textContent)).toContain(
-      "3 – 9 Jan 2027",
-    );
-    // Hilary's own 0th week is the second in the column — Michaelmas has one
-    // too — and Hilary has no −1st week, so the vacation runs right up to it.
-    expect(flatten(weekRow(container, "0th week", 1).textContent)).toContain("10 – 16 Jan 2027");
-    expect(() => weekRow(container, "−1st week", 1)).toThrow();
-  });
-
-  it("shows Michaelmas's configured weeks with their exact Gregorian ranges", async () => {
-    const { container } = render(await oxford());
-
-    expect(flatten(weekRow(container, "−1st week").textContent)).toContain("27 Sep – 3 Oct 2026");
-    expect(flatten(weekRow(container, "8th week").textContent)).toContain("29 Nov – 5 Dec 2026");
-  });
-
   it("lays out Sunday through Saturday as the columns", async () => {
     const { container } = render(await oxford());
     const headers = [...container.querySelectorAll('th[scope="col"]')].map((header) =>

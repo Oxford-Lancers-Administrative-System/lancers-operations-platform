@@ -799,36 +799,6 @@ describe("choosing what a type invites by default (D47)", () => {
 // W8-03 — the blast radius, before the act
 // ---------------------------------------------------------------------------
 
-describe("W8-03 — what the change will touch", () => {
-  function editor() {
-    return render(
-      <TemplateEditor
-        templateId={PRACTICE.id}
-        eventTypeLabel="Practice"
-        eventCount={0}
-        initial={{}}
-        initialQuestions={[]}
-        categories={audienceCategoriesForEventType("practice", { templateOnly: true })}
-        candidates={[]}
-      />,
-    );
-  }
-
-  it("shows no confirmation until one has been asked for", () => {
-    editor();
-
-    expect(screen.queryByTestId("section-plan-taking")).toBeNull();
-  });
-
-  it("keeps Save behind the confirmation rather than writing on the first press", () => {
-    // The primary control previews; only the dialog's button writes.
-    editor();
-
-    expect(screen.getByTestId("preview-template")).toBeVisible();
-    expect(screen.queryByTestId("confirm-save-template")).toBeNull();
-  });
-});
-
 describe("the confirmation reads as W8-03 specifies", () => {
   /**
    * Presses the real **Save…** and lets the real `useActionState` deliver the

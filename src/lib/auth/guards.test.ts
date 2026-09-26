@@ -332,9 +332,12 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
   });
 
   it.each(CAPABILITY_KEYS)("refuses %s to an unlinked account", async (key) => {
+    // Also an ordinary player: a player is not an operator at all, and has no
+    // `operator_accounts` row.
     givenSession({ state: "unlinked" });
 
     const refusal = await refusalFrom(() => requireCapability(key));
+    expect(refusal.kind).toBe("not_permitted");
     expect(refusal.rule).toBe("operator_required");
   });
 
@@ -344,17 +347,6 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
     const refusal = await refusalFrom(() => requireCapability(key));
     expect(refusal.rule).toBe("operator_required");
   });
-
-  it.each(CAPABILITY_KEYS)(
-    "refuses %s to an ordinary player with no operator link",
-    async (key) => {
-      // A player is not an operator at all: no `operator_accounts` row.
-      givenSession({ state: "unlinked" });
-
-      const refusal = await refusalFrom(() => requireCapability(key));
-      expect(refusal.kind).toBe("not_permitted");
-    },
-  );
 });
 
 describe("row 10 — an attendance recorder receives nothing else", () => {

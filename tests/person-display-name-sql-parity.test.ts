@@ -101,13 +101,15 @@ describe("the scripts name a person the way the application does", () => {
       expect(scripts.length).toBeGreaterThan(10);
     });
 
-    it.each(scripts.map((path) => relative(root, path)))("%s", (path) => {
-      const source = read(path);
-      const composesAName = INLINE_CASE.test(source) || SELECTS_THE_ALIAS.test(source);
-      if (!composesAName) return;
-      expect(source, `${path} composes a person's name in SQL of its own`).toContain(
-        "person-display-name-sql.mjs",
-      );
+    it("finds no script composing a person's name in SQL of its own", () => {
+      const copies = scripts
+        .map((path) => relative(root, path))
+        .filter((path) => {
+          const source = read(path);
+          const composesAName = INLINE_CASE.test(source) || SELECTS_THE_ALIAS.test(source);
+          return composesAName && !source.includes("person-display-name-sql.mjs");
+        });
+      expect(copies, "scripts composing a person's name in SQL of their own").toEqual([]);
     });
   });
 });

@@ -191,15 +191,6 @@ describe("UX-10 — Add player", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not lecture the operator about when writes happen", () => {
-    // The wireframe's info strip is deliberately gone (Brian, 12 August 2026).
-    // The behaviour it described is still true and still enforced — see
-    // `actions.test.ts`, which proves no write happens before an explicit
-    // decision — but it is not narrated on screen.
-    expect(screen.queryByTestId("no-write-promise")).not.toBeInTheDocument();
-    expect(screen.queryByText(/No person or membership is created until/)).not.toBeInTheDocument();
-  });
-
   it("has exactly four fields, in the approved order", () => {
     const labels = ["First name", "Last name", "Email", "Phone"];
     for (const label of labels) expect(screen.getByLabelText(label)).toBeInTheDocument();

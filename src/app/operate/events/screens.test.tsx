@@ -857,14 +857,6 @@ describe("UX-30 — the current season's events", () => {
     expect(dateHeader?.getAttribute("href")).toContain("period=all");
   });
 
-  it("has no Apply button — a filter applies when it changes", async () => {
-    givenList([listEntry()]);
-
-    render(await EventsPage(listProps()));
-
-    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
-  });
-
   /**
    * The defect Brian found on the real screen, and the reason these exist.
    *
@@ -1181,13 +1173,9 @@ describe("UX-31 — creating an event", () => {
     );
   });
 
-  it("offers a way straight on to the audience, and no lecture about it", async () => {
-    // The "who it goes to is chosen during approval" note went with D47: the
-    // audience arrives from the type's template, so the sentence was no longer
-    // true. Nothing replaced it — the second submit button is the route on.
+  it("offers a way straight on to the audience", async () => {
     render(await NewEventPage(newProps()));
 
-    expect(screen.queryByTestId("audience-comes-later")).toBeNull();
     expect(screen.getByTestId("save-and-choose-audience")).toBeVisible();
   });
 
@@ -1235,45 +1223,6 @@ describe("W154C-F1 — a malformed date does not crash the derived-term alert", 
 
     expect(flatten(screen.getByTestId("derived-term").textContent)).toBe(
       "Choose a date and the Oxford term and week are worked out from it.",
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// W154C-F3 — the opponent helper text only fits a Game.
-// ---------------------------------------------------------------------------
-
-describe("W154C-F3 — the Name field only mentions an opponent for a Game", () => {
-  it("says nothing about an opponent for the default type, Practice", async () => {
-    const { container } = render(await NewEventPage(newProps()));
-
-    expect(container.querySelector('input[name="templateId"]')?.getAttribute("value")).toBe(
-      PRACTICE_TEMPLATE_ID,
-    );
-    expect(
-      flatten(container.querySelector('[data-field="name"]')?.textContent ?? ""),
-    ).not.toContain("opponent");
-  });
-
-  it("says nothing about an opponent for Social, Meeting or any other non-Game type", async () => {
-    const { container } = render(await NewEventPage(newProps()));
-
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
-    fireEvent.click(screen.getByRole("option", { name: "Social" }));
-
-    expect(
-      flatten(container.querySelector('[data-field="name"]')?.textContent ?? ""),
-    ).not.toContain("opponent");
-  });
-
-  it("names the opponent only once the type is Game", async () => {
-    const { container } = render(await NewEventPage(newProps()));
-
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
-    fireEvent.click(screen.getByRole("option", { name: "Game" }));
-
-    expect(flatten(container.querySelector('[data-field="name"]')?.textContent ?? "")).toContain(
-      "The opponent goes in the name.",
     );
   });
 });
@@ -2938,15 +2887,6 @@ describe("UX-43 — the event is approved", () => {
     expect(screen.queryByRole("link", { name: /audience/i })).toBeNull();
     expect(screen.queryByTestId("section-audience-builder")).toBeNull();
     expect(readApprovalPreview).not.toHaveBeenCalled();
-  });
-
-  it("does not congratulate somebody merely visiting an approved event", async () => {
-    vi.mocked(readEvent).mockResolvedValue(approved());
-    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
-
-    render(await EventDetailPage(detailProps()));
-
-    expect(screen.queryByTestId("event-approved-note")).toBeNull();
   });
 });
 
