@@ -195,7 +195,7 @@ export default function FollowUpsBoard({
       {/* LAN-394. Queued, not refused, and named the same way. */}
       {result && result.waiting.length > 0 ? (
         <Notice severity="info" testId="chase-waiting">
-          {chaseWaitingNotice(result.waiting.length)}
+          {chaseWaitingNotice(result.waiting)}
           <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
             {result.waiting.map((entry) => (
               <li key={entry.invitationId}>{nameOf(entry.invitationId) ?? entry.invitationId}</li>

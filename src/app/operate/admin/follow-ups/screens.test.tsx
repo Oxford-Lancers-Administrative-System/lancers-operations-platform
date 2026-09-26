@@ -695,6 +695,32 @@ describe("chasing several people from the queue — LAN-322", () => {
     );
   });
 
+  // LAN-442 (W-3). Overnight the reason is lights-out, and the notice says so.
+  it.each([
+    ["Queued — sends at 07:00", "1 chase is queued — sends at 07:00:"],
+    [
+      "Queued — waiting for the sending allowance",
+      "1 chase is queued — waiting for the sending allowance:",
+    ],
+  ])("says why a queued chase is waiting (%s)", async (reason, notice) => {
+    vi.mocked(chaseSelectedAction).mockResolvedValue({
+      error: null,
+      accepted: 0,
+      refusals: [],
+      waiting: [{ invitationId: "invitation-1", reason }],
+      notOutstandingInvitationIds: [],
+    });
+    await renderPage();
+    fireEvent.click(
+      screen.getAllByLabelText(
+        "Select Gideon Thornbury for vs Harewell Hawks, Sunday, 13 September 2026",
+      )[0],
+    );
+    fireEvent.click(screen.getByTestId("chase-selected"));
+
+    await waitFor(() => expect(screen.getByTestId("chase-waiting").textContent).toContain(notice));
+  });
+
   it("names the people it could not chase, rather than only counting them", async () => {
     vi.mocked(chaseSelectedAction).mockResolvedValue({
       error: null,

@@ -1,5 +1,7 @@
 // The Follow-ups queue's own words — W5. Dates use the shared formatters (`docs/ux/standards.md` rule 3).
 
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
+
 export const PAGE_HEADING = "Follow-ups";
 
 export function subheading(people: number, events: number): string {
@@ -66,10 +68,15 @@ export function chaseProblemNotice(refused: number): string {
  * sentence from `chaseProblemNotice`: nothing could not be chased, and sending
  * an operator to look at a record would waste their time.
  */
-export function chaseWaitingNotice(waiting: number): string {
-  return waiting === 1
-    ? "1 chase is queued — waiting for the sending allowance:"
-    : `${waiting} chases are queued — waiting for the sending allowance:`;
+export function chaseWaitingNotice(waiting: readonly { readonly reason: string }[]): string {
+  // LAN-442 (W-3). Overnight the service says lights-out is what holds them,
+  // and the notice says so in the other surfaces' words.
+  const why = waiting.every((entry) => entry.reason === WAITING_LIGHTS_OUT_LABEL)
+    ? "sends at 07:00"
+    : "waiting for the sending allowance";
+  return waiting.length === 1
+    ? `1 chase is queued — ${why}:`
+    : `${waiting.length} chases are queued — ${why}:`;
 }
 
 export const CHASE_NOBODY_SELECTED = "Select at least one person to chase.";
