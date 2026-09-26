@@ -140,13 +140,24 @@ and every template at Manage, and every other seat holds None. The left sidebar
 shows **Roster**, **Events** and **Report**. Bottom left it says who you are
 signed in as and "Authorized operator".
 
-**Who sees what (LAN-429).** Access is edited on a seat's page
+**Who sees what (LAN-429, LAN-430).** Access is edited on a seat's page
 (Administration → Roles → a seat) by the President, General Manager and IT
-Officer, whose own access is fixed. Each seat holds None / View / Edit on eleven
-roster categories and on Person information and Recruit details, None / View on
-Event details, None / View / Manage on each event template, and No / Yes on
-"may add to the roster" and "may add recruits". An operator holding several
-seats holds the highest level any of them grants, from their next request. The
+Officer, whose own access is fixed. The page's **Access** section, under
+Current holder, lists four groups — Roster, Recruiting, Event templates and
+Adding people — one line each: None / View / Edit on eleven roster categories
+and on Person information and Recruit details, None / View on Event details,
+None / View / Manage on each event template, and No / Yes on "May add to the
+roster" and "May add recruits". A press saves at once; the Notice reads the
+change back and the seat's **History** gains an "Access changed" entry. **Copy
+access from another seat** (choose the seat, read every line that would
+change, confirm) and **Grant everything** each write one History entry listing
+every changed line. On the three fixed seats every line prints its value with
+no control. At 375px each group folds to its summary. A template added later
+arrives at Manage for the fixed seats and None for every other. An operator
+holding several seats holds the highest level any of them grants, from their
+next request. The ten roster group colours are edited from **Edit categories**,
+beside Add players on the roster, by the same three seats; the board, the
+player and prospect records and the recruitment board draw from them. The
 sidebar follows: Roster, People and Missing data with any roster category at
 View; Recruitment with any recruiting category at View; Events with any template
 at View or an attendance capability; Follow-ups with any template at View; the

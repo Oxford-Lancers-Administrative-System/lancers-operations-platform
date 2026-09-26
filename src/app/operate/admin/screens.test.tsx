@@ -51,6 +51,15 @@ vi.mock("@/lib/services/administration-audit", () => ({
   readOperatorAuditHistory: vi.fn(),
   readHolderHistory: vi.fn(),
 }));
+// LAN-430: the seat page's Access section reads the seat's own lines.
+vi.mock("@/lib/services/access-grants", () => ({ readSeatAccess: vi.fn() }));
+vi.mock("./roles/[roleId]/access-actions", () => ({
+  setAccessGrantAction: vi.fn(),
+  planCopyAccessAction: vi.fn(),
+  copyAccessAction: vi.fn(),
+  planGrantEverythingAction: vi.fn(),
+  grantEverythingAction: vi.fn(),
+}));
 vi.mock("./permissions", () => ({
   permittedAccountActions: vi.fn(),
   permittedRoleActions: vi.fn(),
@@ -119,6 +128,34 @@ import InviteOperatorPage from "./operators/new/page";
 import RolesPage from "./roles/page";
 import RoleRecordPage from "./roles/[roleId]/page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
+import { readSeatAccess } from "@/lib/services/access-grants";
+
+/** The seat codes the catalogue fixture uses, by id — for the Access section's read. */
+const SEAT_CODES: Record<string, string> = {
+  "role-1": "president",
+  "role-gm": "general_manager",
+  "role-kit-manager": "kit_manager",
+  "role-head-coach": "head_coach",
+};
+
+function seatAccess(roleId: string) {
+  const code = SEAT_CODES[roleId] ?? "kit_manager";
+  return {
+    seat: {
+      id: roleId,
+      code,
+      name: code,
+      isFixed: ["president", "general_manager", "it_officer"].includes(code),
+    },
+    grants: seededGrantsFor([code]),
+    templates: SEEDED_TEMPLATE_IDS.map((id, index) => ({
+      id,
+      name: `Template ${index + 1}`,
+      colourKey: "blue",
+    })),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -301,6 +338,7 @@ beforeEach(() => {
   vi.mocked(readPlayerMembership).mockResolvedValue(null);
   vi.mocked(readOperatorAuditHistory).mockResolvedValue([]);
   vi.mocked(readHolderHistory).mockResolvedValue([]);
+  vi.mocked(readSeatAccess).mockImplementation(async (_operator, roleId) => seatAccess(roleId));
   vi.mocked(permittedAccountActions).mockResolvedValue({
     resend: true,
     correct: true,
@@ -1041,12 +1079,14 @@ describe("the Roles page", () => {
 });
 
 describe("one role's record", () => {
-  it("presents the current holder, the permissions and the holder history", async () => {
+  it("presents the current holder, the access and the history", async () => {
     render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
 
     expect(screen.getByRole("heading", { name: "Current holder" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Permissions" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Holder history" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Access" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "History" })).toBeVisible();
+    // LAN-430: the Permissions list is gone from the seat page (W1-03).
+    expect(screen.queryByRole("heading", { name: "Permissions" })).toBeNull();
   });
 
   it("keeps a deactivated holder as the holder, and says so", async () => {
@@ -1390,30 +1430,88 @@ describe("one role's record", () => {
   });
 
   /**
-   * LAN-141 finding 10, on the page.
-   *
-   * `permissionsLine` is identical for the two strongest seats in the club,
-   * because they hold the same nine grants. The panel is only able to tell them
-   * apart if the *limits* reach it, and nothing rendered them.
+   * LAN-430, W1-04/W1-05. A fixed seat prints every value with no control, and
+   * offers neither mass edit; an ordinary seat offers every line as the
+   * recorder's toggle group, None / View / Edit, and both mass edits.
    */
-  it("tells the General Manager's Permissions panel apart from the President's", async () => {
+  it("prints a fixed seat's access as values, with no control", async () => {
     render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
-    const president = screen.getByTestId("limits").textContent;
-    cleanup();
 
-    render(await RoleRecordPage(pageProps({ roleId: "role-gm" })));
-    const generalManager = screen.getByTestId("limits").textContent;
-
-    expect(president).toBeTruthy();
-    expect(generalManager).toBeTruthy();
-    expect(president).not.toBe(generalManager);
-    expect(president).toContain("General Manager");
+    const access = screen.getByTestId("section-access");
+    expect(within(access).getByTestId("access-fixed")).toHaveTextContent("Central rule");
+    expect(within(access).queryAllByRole("button", { name: /^(None|View|Edit|Manage)$/ })).toEqual(
+      [],
+    );
+    expect(within(access).getByTestId("access-line-kit-value")).toHaveTextContent("Edit");
+    expect(within(access).getByTestId("access-line-add_recruits-value")).toHaveTextContent("Yes");
+    expect(within(access).queryByTestId("access-copy")).toBeNull();
+    expect(within(access).queryByTestId("access-grant-everything")).toBeNull();
   });
 
-  it("says nothing about limits on a seat that administers nothing", async () => {
+  it("offers an ordinary seat every line, at its stored level", async () => {
     render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
 
-    expect(screen.queryByTestId("limits")).toBeNull();
+    const access = screen.getByTestId("section-access");
+    expect(within(access).getByTestId("access-copy")).toBeVisible();
+    expect(within(access).getByTestId("access-grant-everything")).toBeVisible();
+    // Eleven roster lines, three recruiting, one per template, two switches.
+    const lines = access.querySelectorAll("[data-level]");
+    expect(lines).toHaveLength(11 + 3 + SEEDED_TEMPLATE_IDS.length + 2);
+    const kit = within(access).getByTestId("access-line-kit");
+    expect(within(kit).getByRole("button", { name: "None" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(access).getByTestId("access-line-recruit_events")).not.toHaveTextContent("Edit");
+    expect(
+      within(within(access).getByTestId("access-line-add_to_roster")).getByRole("button", {
+        name: "No",
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("says what an access change changed, in the seat's History", async () => {
+    vi.mocked(readHolderHistory).mockResolvedValue([
+      historyEntry({
+        action: "administration.access.changed",
+        family: "access",
+        label: "Access changed",
+        target: { personId: null, operatorAccountId: null, name: null },
+        role: { id: "role-kit-manager", code: "kit_manager", assignmentId: null },
+        fromState: "none",
+        toState: "edit",
+        detail: { subjectKind: "roster_category", subjectKey: "kit", templateId: null },
+      }),
+      historyEntry({
+        id: "event-2",
+        action: "administration.access.copied",
+        family: "access",
+        label: "Access copied from another seat",
+        target: { personId: null, operatorAccountId: null, name: null },
+        role: { id: "role-kit-manager", code: "kit_manager", assignmentId: null },
+        detail: {
+          sourceRoleCode: "vice_president",
+          changes: [
+            { subjectKind: "switch", subjectKey: "add_recruits", from: "none", to: "yes" },
+            { subjectKind: "roster_category", subjectKey: "person", from: "none", to: "edit" },
+          ],
+        },
+      }),
+    ]);
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+
+    const [changed, copied] = screen.getAllByTestId("history-entry");
+    expect(changed).toHaveTextContent("Access changed");
+    expect(within(changed).getByTestId("history-entry-change")).toHaveTextContent(
+      "Kit: None \u2192 Edit",
+    );
+    expect(copied).toHaveTextContent("Access copied from Vice-President");
+    expect(
+      within(within(copied).getByTestId("history-entry-changes"))
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Person: None \u2192 Edit", "May add recruits: No \u2192 Yes"]);
   });
 
   /**

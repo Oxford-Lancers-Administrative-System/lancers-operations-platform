@@ -2,7 +2,15 @@ import {
   describeLeadershipLimits,
   describeRoleCapabilities,
   NO_CAPABILITY_SUMMARY,
+  roleLabel,
 } from "@/lib/auth/capabilities";
+import {
+  subjectOfRow,
+  type AccessSwitch,
+  type GrantSubject,
+  type RecruitingCategory,
+  type RosterCategory,
+} from "@/lib/auth/grants";
 import { CLUB_TIME_ZONE, formatClubDay, UNREADABLE_DATE } from "@/lib/club-time";
 import {
   operatorAccountState,
@@ -286,4 +294,213 @@ export function describePeriod(assignment: {
 /** The stored membership status, in the club's words (LAN-90 § 4). */
 export function membershipStatusLabel(status: string): string {
   return labelFor(MEMBERSHIP_STATUS_LABELS, status);
+}
+
+// ---------------------------------------------------------------------------
+// Access — LAN-430, W1 of mission M-GRANULAR-ROLES-AND-PERMISSIONS (LAN-423)
+// ---------------------------------------------------------------------------
+
+/** The Roster group's eleven lines, in the seat page's order (W1-03): the board's ten groups, then Contact & emergency. */
+export const ACCESS_ROSTER_LINES: readonly { key: RosterCategory; label: string }[] = Object.freeze(
+  [
+    { key: "person", label: "Person" },
+    { key: "onboarding", label: "Onboarding" },
+    { key: "membership", label: "Membership" },
+    { key: "availability", label: "Availability" },
+    { key: "coaching", label: "Coaching assignments" },
+    { key: "offensive", label: "Offensive assignments" },
+    { key: "defensive", label: "Defensive assignments" },
+    { key: "special_teams", label: "Special teams assignments" },
+    { key: "warmup", label: "Warmup assignments" },
+    { key: "kit", label: "Kit" },
+    { key: "contact_emergency", label: "Contact & emergency" },
+  ],
+);
+
+/** The Recruiting group's three lines. */
+export const ACCESS_RECRUITING_LINES: readonly { key: RecruitingCategory; label: string }[] =
+  Object.freeze([
+    { key: "recruit_person", label: "Person information" },
+    { key: "recruit_details", label: "Recruit details" },
+    { key: "recruit_events", label: "Event details" },
+  ]);
+
+/** The two switches. */
+export const ACCESS_SWITCH_LINES: readonly { key: AccessSwitch; label: string }[] = Object.freeze([
+  { key: "add_to_roster", label: "May add to the roster" },
+  { key: "add_recruits", label: "May add recruits" },
+]);
+
+/** The four group headings, in page order. */
+export const ACCESS_GROUP_LABELS = Object.freeze({
+  roster: "Roster",
+  recruiting: "Recruiting",
+  template: "Event templates",
+  switch: "Adding people",
+});
+
+const LEVEL_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  none: "None",
+  view: "View",
+  edit: "Edit",
+  manage: "Manage",
+  yes: "Yes",
+});
+
+/** A level as the seat page prints it: a switch's `none` is "No". */
+export function accessLevelLabel(subject: GrantSubject, level: string): string {
+  if (subject.kind === "switch") return level === "yes" ? "Yes" : "No";
+  return LEVEL_LABELS[level] ?? level;
+}
+
+/** A line's own name. A template line is the template's name; `templateName` is `null` for a template since deleted. */
+function accessLineLabel(subject: GrantSubject, templateName: string | null = null): string {
+  switch (subject.kind) {
+    case "roster":
+      return ACCESS_ROSTER_LINES.find((line) => line.key === subject.key)?.label ?? subject.key;
+    case "recruiting":
+      return ACCESS_RECRUITING_LINES.find((line) => line.key === subject.key)?.label ?? subject.key;
+    case "switch":
+      return ACCESS_SWITCH_LINES.find((line) => line.key === subject.key)?.label ?? subject.key;
+    case "template":
+      return templateName ?? "A deleted template";
+  }
+}
+
+/** One changed line, as a History entry and a confirmation list print it: "Kit: None → Edit", "Chalk (template): None → Manage". */
+export function describeAccessChange(
+  change: { subject: GrantSubject; from: string; to: string },
+  templateName: string | null = null,
+): string {
+  const label = accessLineLabel(change.subject, templateName);
+  const name = change.subject.kind === "template" ? `${label} (template)` : label;
+  return `${name}: ${accessLevelLabel(change.subject, change.from)} → ${accessLevelLabel(change.subject, change.to)}`;
+}
+
+/** The outcome Notice after one press: "Kit changed from None to Edit." */
+export function accessChangedNotice(
+  change: { subject: GrantSubject; from: string; to: string },
+  templateName: string | null = null,
+): string {
+  return `${accessLineLabel(change.subject, templateName)} changed from ${accessLevelLabel(change.subject, change.from)} to ${accessLevelLabel(change.subject, change.to)}.`;
+}
+
+function grantsChangedCount(count: number): string {
+  return `${count} ${count === 1 ? "grant" : "grants"} changed.`;
+}
+
+/** The outcome Notice after Copy access: "Access copied from Vice-President. 23 grants changed." */
+export function accessCopiedNotice(sourceLabel: string, count: number): string {
+  return `Access copied from ${sourceLabel}. ${grantsChangedCount(count)}`;
+}
+
+/** The outcome Notice after Grant everything. */
+export function everythingGrantedNotice(count: number): string {
+  return `Everything granted. ${grantsChangedCount(count)}`;
+}
+
+/** Where a line sits on the seat page: roster, recruiting, templates (alphabetical), switches. For sorting a list of changes the way the page reads. */
+export function accessLineRank(subject: GrantSubject, templateName: string | null = null): string {
+  const pad = (index: number) => String(index).padStart(2, "0");
+  switch (subject.kind) {
+    case "roster":
+      return `0${pad(ACCESS_ROSTER_LINES.findIndex((line) => line.key === subject.key))}`;
+    case "recruiting":
+      return `1${pad(ACCESS_RECRUITING_LINES.findIndex((line) => line.key === subject.key))}`;
+    case "template":
+      return `2${(templateName ?? "").toLowerCase()}`;
+    case "switch":
+      return `3${pad(ACCESS_SWITCH_LINES.findIndex((line) => line.key === subject.key))}`;
+  }
+}
+
+/** A group's summary when it is folded at 375 (W1-05): "Edit all", "Edit 2 · View 1", "None"; the switches "1 of 2". */
+export function accessGroupSummary(
+  lines: readonly { subject: GrantSubject; level: string }[],
+): string {
+  if (lines.length === 0) return "None";
+  if (lines[0].subject.kind === "switch") {
+    return `${lines.filter((line) => line.level === "yes").length} of ${lines.length}`;
+  }
+  const held = lines.filter((line) => line.level !== "none");
+  if (held.length === 0) return "None";
+  if (held.length === lines.length && held.every((line) => line.level === held[0].level)) {
+    return `${accessLevelLabel(held[0].subject, held[0].level)} all`;
+  }
+  return ["manage", "edit", "view"]
+    .map((level) => ({ level, count: held.filter((line) => line.level === level).length }))
+    .filter((entry) => entry.count > 0)
+    .map((entry) => `${LEVEL_LABELS[entry.level]} ${entry.count}`)
+    .join(" · ");
+}
+
+/** A change as an access audit row stores it (`src/lib/services/access-grants.ts`, `describeChange`). */
+interface StoredAccessChange {
+  readonly subjectKind?: unknown;
+  readonly subjectKey?: unknown;
+  readonly templateId?: unknown;
+  readonly templateName?: unknown;
+  readonly from?: unknown;
+  readonly to?: unknown;
+}
+
+function storedChangeLine(stored: StoredAccessChange): { rank: string; line: string } | null {
+  const subject = subjectOfRow({
+    subject_kind: typeof stored.subjectKind === "string" ? stored.subjectKind : "",
+    subject_key: typeof stored.subjectKey === "string" ? stored.subjectKey : null,
+    template_id: typeof stored.templateId === "string" ? stored.templateId : null,
+    level: "none",
+  });
+  if (subject === null) return null;
+  const templateName = typeof stored.templateName === "string" ? stored.templateName : null;
+  return {
+    rank: accessLineRank(subject, templateName),
+    line: describeAccessChange(
+      {
+        subject,
+        from: typeof stored.from === "string" ? stored.from : "none",
+        to: typeof stored.to === "string" ? stored.to : "none",
+      },
+      templateName,
+    ),
+  };
+}
+
+/**
+ * What an access History entry says changed — one line for a single press,
+ * one line per changed grant for a copy or Grant everything, in the page's
+ * order. Empty for any other entry.
+ */
+export function accessHistoryLines(entry: {
+  readonly family: string;
+  readonly action: string;
+  readonly fromState: string | null;
+  readonly toState: string | null;
+  readonly detail: Record<string, unknown>;
+}): string[] {
+  if (entry.family !== "access") return [];
+  const stored: StoredAccessChange[] =
+    entry.action === "administration.access.changed"
+      ? [{ ...entry.detail, from: entry.fromState, to: entry.toState }]
+      : Array.isArray(entry.detail.changes)
+        ? (entry.detail.changes as StoredAccessChange[])
+        : [];
+  return stored
+    .map(storedChangeLine)
+    .filter((line): line is { rank: string; line: string } => line !== null)
+    .sort((left, right) => left.rank.localeCompare(right.rank))
+    .map((line) => line.line);
+}
+
+/** An access History entry's title: a copy names its source seat (W1-08); the rest keep their label. */
+export function accessHistoryTitle(entry: {
+  readonly action: string;
+  readonly label: string;
+  readonly detail: Record<string, unknown>;
+}): string {
+  if (entry.action === "administration.access.copied") {
+    const source = entry.detail.sourceRoleCode;
+    if (typeof source === "string") return `Access copied from ${roleLabel(source)}`;
+  }
+  return entry.label;
 }

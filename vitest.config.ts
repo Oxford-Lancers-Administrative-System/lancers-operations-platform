@@ -43,6 +43,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/app/api/webhooks/whatsapp/route.test.ts",
   "src/app/join/[code]/actions.test.ts",
   "src/app/operate/admin/permissions.test.ts",
+  "src/app/operate/admin/roles/[roleId]/access-actions.test.ts",
   "src/app/operate/people/[personId]/edit/actions.test.ts",
   "src/app/operate/people/[personId]/merge/actions.test.ts",
   "src/app/signup/[token]/actions.test.ts",
