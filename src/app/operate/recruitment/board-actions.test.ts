@@ -13,7 +13,7 @@
  * allowed to click, exactly the position a POST from an attacker (or a
  * fifth-role operator who found the button) is in.
  *
- * `person_record_authority` is deliberately the wrong gate for the flip: it
+ * the old person-record capability is deliberately the wrong gate for the flip: it
  * admits `it_officer` (LAN-124's standing administrative exception), which
  * is correct for `setRecruitmentStatusAction` and every other surface in
  * this package but not for the mission's one irreversible action —
@@ -39,7 +39,7 @@ vi.mock("@/lib/services/recruitment-prospect", async (importOriginal) => {
   };
 });
 
-import { isServiceError } from "@/lib/db";
+import type { RecruitmentActionState } from "./action-state";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
@@ -50,6 +50,7 @@ import {
   updateRecruitmentProspectStatus,
 } from "@/lib/services/recruitment-prospect";
 import { flipRecruitmentProspectAction, setRecruitmentStatusAction } from "./board-actions";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const PROSPECT_ID = "44444444-4444-4444-8444-444444444444";
@@ -63,7 +64,7 @@ const FLIP_ROLES = ["president", "vice_president", "secretary", "general_manager
  * administrative seat is the *correct* holder (LAN-124); here it is
  * F-LAN204-001's own regression: an `it_officer`-only operator could reach
  * `flipRecruitmentProspectAction` before this correction, because it opened
- * with `person_record_authority` rather than a core-four-only check.
+ * with the old person-record capability rather than a core-four-only check.
  */
 const OTHER_ROLES = [
   "it_officer",
@@ -83,6 +84,7 @@ function actor(roleCodes: string[] = ["president"]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }
@@ -95,6 +97,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   givenAccess({ state: "active", operator: actor() });
 });
+
+/**
+ * LAN-423 fix round 4, J1: a refused flip comes back as the card's own state —
+ * the refusal beside the stored status — never a throw that crashed the board.
+ */
+function expectFlipRefused(state: RecruitmentActionState): void {
+  expect(state.error).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+}
 
 describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
   for (const role of FLIP_ROLES) {
@@ -112,11 +124,9 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
     it(`refuses the ${role}, and never reaches the service`, async () => {
       givenAccess({ state: "active", operator: actor([role]) });
 
-      const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }).catch(
-        (error: unknown) => error,
-      );
+      const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectFlipRefused(failure);
       expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
     });
   }
@@ -131,22 +141,18 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
   it("refuses an IT Officer-only operator, who holds every other capability in the app but not this one", async () => {
     givenAccess({ state: "active", operator: actor(["it_officer"]) });
 
-    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }).catch(
-      (error: unknown) => error,
-    );
+    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectFlipRefused(failure);
     expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
   });
 
   it("refuses an operator holding no seat at all", async () => {
     givenAccess({ state: "active", operator: actor([]) });
 
-    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }).catch(
-      (error: unknown) => error,
-    );
+    const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectFlipRefused(failure);
     expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
   });
 
@@ -154,17 +160,15 @@ describe("flipRecruitmentProspectAction — the core-four-only gate", () => {
     it(`refuses a ${state} caller`, async () => {
       givenAccess({ state } as OperatorAccess);
 
-      const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID }).catch(
-        (error: unknown) => error,
-      );
+      const failure = await flipRecruitmentProspectAction({ prospectId: PROSPECT_ID });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectFlipRefused(failure);
       expect(flipRecruitmentProspectToJoined).not.toHaveBeenCalled();
     });
   }
 });
 
-describe("setRecruitmentStatusAction — the person_record_authority gate, unchanged by this correction", () => {
+describe("setRecruitmentStatusAction — the Recruit details gate (LAN-432; the old person-record capability before it)", () => {
   it("lets an IT Officer change a status — the administrative seat is correct here (LAN-124)", async () => {
     givenAccess({ state: "active", operator: actor(["it_officer"]) });
 
@@ -182,15 +186,57 @@ describe("setRecruitmentStatusAction — the person_record_authority gate, uncha
     );
   });
 
-  it("refuses a coaching seat", async () => {
+  it("refuses a coaching seat, returning the refusal as the cell's state", async () => {
     givenAccess({ state: "active", operator: actor(["head_coach"]) });
 
-    const failure = await setRecruitmentStatusAction({
+    const state = await setRecruitmentStatusAction({
       prospectId: PROSPECT_ID,
       toStatus: "declined",
-    }).catch((error: unknown) => error);
+    });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expect(state).toEqual({
+      error: "You do not have access to this action. This needs access your seat does not hold.",
+    });
     expect(updateRecruitmentProspectStatus).not.toHaveBeenCalled();
   });
+
+  // LAN-423 fix round 3, H4: the walk's case — Recruit details lowered to
+  // View under a live board. The refusal comes back, it does not throw.
+  it("refuses a seat holding Recruit details at view without throwing", async () => {
+    const officer = actor(["it_officer"]);
+    givenAccess({
+      state: "active",
+      operator: {
+        ...officer,
+        grants: {
+          ...officer.grants,
+          recruiting: { ...officer.grants.recruiting, recruit_details: "view" },
+        },
+      },
+    });
+
+    const state = await setRecruitmentStatusAction({
+      prospectId: PROSPECT_ID,
+      toStatus: "engaged",
+    });
+
+    expect(state).toEqual({
+      error: "You do not have access to this action. This needs access your seat does not hold.",
+    });
+    expect(updateRecruitmentProspectStatus).not.toHaveBeenCalled();
+  });
+
+  for (const state of ["unlinked", "inactive", "no_session"] as const) {
+    it(`returns the refusal to a ${state} caller`, async () => {
+      givenAccess({ state } as OperatorAccess);
+
+      const result = await setRecruitmentStatusAction({
+        prospectId: PROSPECT_ID,
+        toStatus: "engaged",
+      });
+
+      expect(result.error).toMatch(/^This action needs an active Lancers operator profile\./);
+      expect(updateRecruitmentProspectStatus).not.toHaveBeenCalled();
+    });
+  }
 });

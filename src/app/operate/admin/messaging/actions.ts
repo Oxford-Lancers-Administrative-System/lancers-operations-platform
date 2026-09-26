@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireCapability, requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
+import { requireTemplateGrant } from "@/lib/services/events";
 import { isServiceError, withTransaction } from "@/lib/db";
 import {
   readMessagingScheduleIn,
@@ -30,6 +32,15 @@ import {
 } from "./presentation";
 import { readOneScheduleChange, scheduleChanged } from "./validation";
 
+/**
+ * A guard's refusal as the row's own state, in `refusal` like a refusal from
+ * the service (LAN-423) — never thrown to the framework. A bug still throws.
+ */
+function refused(error: unknown): AdminActionState {
+  if (!isServiceError(error)) throw error;
+  return { ...EMPTY_ADMIN_ACTION_STATE, refusal: error.message };
+}
+
 // Saving one template's messaging schedule — W7, LAN-171, rekeyed by
 // LAN-265. One action per row, not the whole page (OWNER-LAN171-04, Brian).
 // Written only if it actually changed — an audit row otherwise misreports
@@ -38,7 +49,11 @@ export async function updateOneMessagingScheduleAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability("delivery_administration");
+  try {
+    await requireGrant({ anyOf: "template", minimum: "manage" });
+  } catch (error) {
+    return refused(error);
+  }
 
   const templateId = formData.get("templateId");
   if (typeof templateId !== "string" || templateId.trim() === "") {
@@ -46,6 +61,14 @@ export async function updateOneMessagingScheduleAction(
       ...EMPTY_ADMIN_ACTION_STATE,
       error: "This submission did not say which template it was for, so nothing was saved.",
     };
+  }
+
+  // LAN-431: a template's messaging schedule is Manage on that template.
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireTemplateGrant(templateId, "manage");
+  } catch (error) {
+    return refused(error);
   }
 
   // LAN-265: read before checked, so a refusal names the template in the
@@ -99,7 +122,12 @@ export async function updateRecruitmentCycleStepsAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability("delivery_administration");
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireCapability("delivery_administration");
+  } catch (error) {
+    return refused(error);
+  }
 
   const stepsField = formData.get("steps");
   if (typeof stepsField !== "string" || stepsField.trim() === "") {
@@ -159,7 +187,12 @@ export async function updateOnboardingChaseSettingsAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
-  const operator = await requireCapability("delivery_administration");
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireCapability("delivery_administration");
+  } catch (error) {
+    return refused(error);
+  }
 
   const validated = readOnboardingChaseChange(formData);
   if (!validated.ok) {

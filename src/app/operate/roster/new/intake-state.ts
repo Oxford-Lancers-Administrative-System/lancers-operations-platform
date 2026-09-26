@@ -1,4 +1,4 @@
-import type { PersonCandidate } from "@/lib/services/roster";
+import type { SeatPersonCandidate } from "@/lib/services/person-candidate-access";
 import { EMPTY_VALUES, type IntakeFieldErrors, type IntakeFormValues } from "./validation";
 
 // The state the returner intake form is driven by. A module of its own — a
@@ -13,13 +13,13 @@ export type IntakeState =
   | {
       step: "candidates";
       values: IntakeFormValues;
-      candidates: PersonCandidate[];
+      candidates: SeatPersonCandidate[];
       formError?: string;
     }
   | {
       step: "membership_refused";
       values: IntakeFormValues;
-      candidates: PersonCandidate[];
+      candidates: SeatPersonCandidate[];
       refusal: {
         message: string;
         personName: string;

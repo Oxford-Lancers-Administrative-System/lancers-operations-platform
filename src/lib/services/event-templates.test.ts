@@ -32,7 +32,12 @@ import type { Client } from "pg";
 
 import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
-import { createEventDraft, readEvent, readEventQuestions, type EventDraftInput } from "./events";
+import {
+  createEventDraft,
+  readEventUnchecked,
+  readEventQuestions,
+  type EventDraftInput,
+} from "./events";
 import {
   createEventTemplate,
   DEFAULT_CHASE_THRESHOLD_DAYS,
@@ -437,7 +442,7 @@ describe("the templates the schema ships with (D12, D40, as LAN-265 reopened the
       );
       expect(plan.renamedFrom).toBe(TEMPLATE_NAME.chalk);
 
-      const reread = await readEvent(event.id);
+      const reread = await readEventUnchecked(event.id);
       expect(reread.templateName).toBe(renamed);
       expect(reread.eventType).toBe("chalk");
     } finally {

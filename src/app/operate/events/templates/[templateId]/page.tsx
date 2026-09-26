@@ -15,6 +15,7 @@ import {
 } from "@/lib/services/event-templates";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { RawEventTemplate } from "@/lib/services/event-template-input";
+import { redactAudienceCandidates } from "@/lib/services/event-audience-access";
 import { gateShellPage } from "../../../gate";
 import TemplateEditor from "../template-editor";
 
@@ -36,7 +37,13 @@ export default async function EventTemplatePage({
   try {
     template = await readEventTemplate(templateId);
     eventCount = await countEventsFromTemplate(templateId);
-    candidates = (await readTemplateAudienceCatalogue(template.eventType)).candidates;
+    // LAN-423: counted from the groups; the per-person detail follows the seat's grants.
+    candidates = redactAudienceCandidates(
+      (await readTemplateAudienceCatalogue(template.eventType)).candidates,
+      gate.operator.grants,
+      template.eventType,
+      template.audienceGroups,
+    );
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (

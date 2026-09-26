@@ -57,6 +57,7 @@ import {
 import { formatCsv } from "./csv";
 import { createEventDraft, updateEventDraft, type EventDraftInput } from "./events";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 /** Unique to this file. Two suites sharing one marker delete each other's rows. */
 const NAME_MARKER = "LAN155ImportSuite";
@@ -75,6 +76,7 @@ function operator(): ResolvedOperator {
     personId: actorPersonId,
     displayName: "Import Suite Operator",
     roleCodes: ["secretary"],
+    grants: seededGrantsFor(["secretary"]),
     isActive: true,
   };
 }

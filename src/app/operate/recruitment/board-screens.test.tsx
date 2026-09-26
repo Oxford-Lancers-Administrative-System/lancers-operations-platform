@@ -46,6 +46,7 @@ import { listRecruitmentBoard } from "@/lib/services/recruitment-board";
 import { readOperatorPreferences } from "@/lib/services/operator-preferences";
 import { saveRecruitmentCollapsedGroupsAction } from "./group-preference-actions";
 import RecruitmentBoardPage from "./page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function operatorAccess(roleCodes: string[]): OperatorAccess {
   return {
@@ -55,6 +56,7 @@ function operatorAccess(roleCodes: string[]): OperatorAccess {
       personId: "22222222-2222-4222-8222-222222222222",
       displayName: "Rowan Ashdown",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };
@@ -125,8 +127,8 @@ describe("REQ-authority / REQ-core-four — coach-role exclusion, the walk's own
  */
 describe("which groups are folded away, remembered on the account", () => {
   const EVENTS = [
-    { eventId: "event-1", name: "Taster session", date: "12 Oct" },
-    { eventId: "event-2", name: "Freshers' fair", date: "05 Oct" },
+    { eventId: "event-1", name: "Taster session", date: "12 Oct", colourKey: "teal" },
+    { eventId: "event-2", name: "Freshers' fair", date: "05 Oct", colourKey: "lancer_gold" },
   ];
 
   function givenPopulatedBoard(): void {

@@ -6,6 +6,7 @@ import { isServiceError } from "@/lib/db";
 import {
   EDIT_REFUSAL_MESSAGE,
   joinQuestionChoices,
+  onlyGrantedTemplateRecord,
   readEvent,
   readEventQuestions,
   type EventDetail,
@@ -15,7 +16,7 @@ import {
 } from "@/lib/services/events";
 import { listTermWindows } from "@/lib/services/seasons";
 import { readEventFormDefaults, type EventTypeFormDefaults } from "@/lib/services/event-templates";
-import { gateShellPage } from "../../../gate";
+import { gateEventPage } from "../../event-gate";
 import EventForm from "../../event-form";
 
 /**
@@ -32,10 +33,10 @@ import EventForm from "../../event-form";
  * anything.
  */
 export default async function EditEventPage({ params }: PageProps<"/operate/events/[id]/edit">) {
-  const gate = await gateShellPage("/operate/events", "event_calendar_management");
-  if ("screen" in gate) return gate.screen;
-
   const { id } = await params;
+  // LAN-431: Manage on this event's template.
+  const gate = await gateEventPage("/operate/events", id, "manage");
+  if ("screen" in gate) return gate.screen;
 
   let event: EventDetail;
   let terms: TermWindow[];
@@ -108,7 +109,8 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
         mode="edit"
         eventId={event.id}
         terms={terms}
-        templates={templates}
+        // LAN-431: a draft moves only to another template this seat manages.
+        templates={onlyGrantedTemplateRecord(gate.operator.grants, templates, "manage")}
         initial={initial}
         initialQuestions={initialQuestions}
         cancelHref={`/operate/events/${event.id}`}

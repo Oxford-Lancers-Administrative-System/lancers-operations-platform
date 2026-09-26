@@ -15,6 +15,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CAPABILITIES,
+  FIXED_ACCESS_SEATS,
+  isFixedAccessSeat,
+  SEEDED_FULL_ACCESS_SEATS,
+  seededGrantsFor,
   CAPABILITY_KEYS,
   capabilityRequirement,
   capabilityRoleCodes,
@@ -37,6 +41,7 @@ import {
   ROLE_LABELS,
   type CapabilityKey,
 } from "./capabilities";
+import { mergeGrantRows, NO_GRANTS } from "./grants";
 
 /**
  * The three coaching seats Brian decided on 12 August 2026 — the ones that held
@@ -372,7 +377,7 @@ describe("LAN-80 — attendance recording is the calendar roles plus the coachin
     for (const code of FIXED_COACHES) {
       expect(roleCodesPermit([code], "attendance_recorder"), code).toBe(true);
       expect(roleCodesPermit([code], "attendance_recording"), code).toBe(true);
-      expect(isNarrowAttendanceRecorder([code]), code).toBe(true);
+      expect(isNarrowAttendanceRecorder([code], NO_GRANTS), code).toBe(true);
     }
   });
 });
@@ -731,6 +736,9 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
 
 describe("row 8 — the map is the single source of truth, and is not editable at runtime", () => {
   it("names every privileged action the slice can refuse", () => {
+    // LAN-429 (LAN-423): twelve. the old person-record capability is removed — the
+    // person record answers to the roster and recruiting grants now
+    // (`./grants.ts`) — and nothing else was added.
     expect([...CAPABILITY_KEYS].sort()).toEqual(
       [
         "attendance_recorder",
@@ -743,11 +751,11 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "messaging_safety_authority",
         "operator_guide",
         "person_erasure",
-        "person_record_authority",
         "role_management",
         "roster_bulk_import",
       ].sort(),
     );
+    expect(CAPABILITY_KEYS).toHaveLength(12);
   });
 
   it("records provenance for every grant", () => {
@@ -866,13 +874,13 @@ describe("row 6 — a requirement sentence names the action's need, never the ac
 describe("LAN-110 — who receives the narrow coach surface", () => {
   it("classifies each coaching seat on its own", () => {
     for (const code of COACHES) {
-      expect(isNarrowAttendanceRecorder([code]), code).toBe(true);
+      expect(isNarrowAttendanceRecorder([code], NO_GRANTS), code).toBe(true);
     }
   });
 
   it("classifies a coach who holds several coaching seats", () => {
-    expect(isNarrowAttendanceRecorder(COACHES)).toBe(true);
-    expect(isNarrowAttendanceRecorder(["head_coach", "offence_coach"])).toBe(true);
+    expect(isNarrowAttendanceRecorder(COACHES, NO_GRANTS)).toBe(true);
+    expect(isNarrowAttendanceRecorder(["head_coach", "offence_coach"], NO_GRANTS)).toBe(true);
   });
 
   it("does not narrow an operator who also holds a non-coaching capability", () => {
@@ -880,7 +888,7 @@ describe("LAN-110 — who receives the narrow coach surface", () => {
     // coaches keeps the operator's board. § 3 describes what a coach receives;
     // it is not a rule for taking away authority a recorded decision granted.
     for (const code of ["president", "vice_president", "secretary", "general_manager"]) {
-      expect(isNarrowAttendanceRecorder(["head_coach", code]), code).toBe(false);
+      expect(isNarrowAttendanceRecorder(["head_coach", code], NO_GRANTS), code).toBe(false);
     }
   });
 
@@ -889,14 +897,14 @@ describe("LAN-110 — who receives the narrow coach surface", () => {
     // granted — they keep the ordinary shell and are refused action by action.
     // Narrowing them would hand the coach's surface to somebody holding no
     // coaching seat, which is the one direction this must never fail in.
-    expect(isNarrowAttendanceRecorder([])).toBe(false);
+    expect(isNarrowAttendanceRecorder([], NO_GRANTS)).toBe(false);
     // `media_secretary` rather than `it_officer`, which since LAN-124 holds
     // every capability — it would still be refused narrowing, but for the
     // opposite reason, and this case is about holding nothing.
-    expect(isNarrowAttendanceRecorder(["media_secretary", "kit_manager", "social_secretary"])).toBe(
-      false,
-    );
-    expect(isNarrowAttendanceRecorder(["treasurer"])).toBe(false);
+    expect(
+      isNarrowAttendanceRecorder(["media_secretary", "kit_manager", "social_secretary"], NO_GRANTS),
+    ).toBe(false);
+    expect(isNarrowAttendanceRecorder(["treasurer"], NO_GRANTS)).toBe(false);
   });
 
   it("holds exactly the two attendance capabilities, and no other", () => {
@@ -912,7 +920,10 @@ describe("LAN-110 — who receives the narrow coach surface", () => {
     for (const key of CAPABILITY_KEYS) {
       if (NARROW_RECORDER_CAPABILITIES.includes(key)) continue;
       for (const code of capabilityRoleCodes(key)) {
-        expect(isNarrowAttendanceRecorder([code, "head_coach"]), `${key} / ${code}`).toBe(false);
+        expect(
+          isNarrowAttendanceRecorder([code, "head_coach"], NO_GRANTS),
+          `${key} / ${code}`,
+        ).toBe(false);
       }
     }
   });
@@ -928,7 +939,7 @@ describe("LAN-110 — who receives the narrow coach surface", () => {
       ["it_officer"],
       COACHES,
     ]) {
-      if (!isNarrowAttendanceRecorder(codes)) continue;
+      if (!isNarrowAttendanceRecorder(codes, NO_GRANTS)) continue;
       expect(roleCodesPermit(codes, "attendance_recorder"), codes.join()).toBe(true);
       expect(roleCodesPermit(codes, "attendance_recording"), codes.join()).toBe(true);
     }
@@ -1019,6 +1030,29 @@ describe("LAN-129 — Administration's permission copy is derived, not duplicate
     expect(summary).toContain(CAPABILITIES.event_approval.action);
     expect(summary).toContain(CAPABILITIES.leadership_report.action);
     expect(summary).not.toContain(CAPABILITIES.role_management.action);
+  });
+
+  it("words the three retained event capabilities by what they now gate — LAN-423", () => {
+    // Per-event work follows the template grant since LAN-431; these three
+    // keep template administration, import and export, and messaging safety.
+    expect(CAPABILITIES.event_calendar_management.action).toBe(
+      "administer event templates, and import or export events",
+    );
+    expect(CAPABILITIES.event_approval.action).toBe(
+      "no remaining action; events are approved under Manage on their template",
+    );
+    expect(CAPABILITIES.delivery_administration.action).toBe(
+      "read messaging safety and edit the club-wide messaging settings — the recruitment cycle and the onboarding chase",
+    );
+    for (const key of [
+      "event_calendar_management",
+      "event_approval",
+      "delivery_administration",
+    ] as const) {
+      expect(CAPABILITIES[key].action, key).not.toMatch(
+        /event draft|release its invitations|inspect delivery|retry a failed invitation/,
+      );
+    }
   });
 
   it("produces only sentences that exist in the capability map", () => {
@@ -1245,9 +1279,9 @@ describe("LAN-129 — the ten fixed coaching seats", () => {
 
   it("classifies all ten as narrow recorders, singly and together", () => {
     for (const code of FIXED_COACHING_ROLE_CODES) {
-      expect(isNarrowAttendanceRecorder([code]), code).toBe(true);
+      expect(isNarrowAttendanceRecorder([code], NO_GRANTS), code).toBe(true);
     }
-    expect(isNarrowAttendanceRecorder([...FIXED_COACHING_ROLE_CODES])).toBe(true);
+    expect(isNarrowAttendanceRecorder([...FIXED_COACHING_ROLE_CODES], NO_GRANTS)).toBe(true);
   });
 
   it("does not narrow one of the seven who also holds an officer seat", () => {
@@ -1255,7 +1289,7 @@ describe("LAN-129 — the ten fixed coaching seats", () => {
     // § 3 describes what a coach receives, and is not a rule for stripping
     // authority a recorded decision granted to somebody who also coaches.
     for (const code of COACHES_ADDED_BY_THE_CATALOGUE) {
-      expect(isNarrowAttendanceRecorder([code, "secretary"]), code).toBe(false);
+      expect(isNarrowAttendanceRecorder([code, "secretary"], NO_GRANTS), code).toBe(false);
     }
   });
 
@@ -1272,5 +1306,56 @@ describe("HEAD_COACH_ROLE_CODE — LAN-267", () => {
     // and nobody would notice until a match official did.
     expect(FIXED_COACHING_ROLE_CODES[0]).toBe(HEAD_COACH_ROLE_CODE);
     expect(FIXED_COACHING_ROLE_CODES).toContain(HEAD_COACH_ROLE_CODE);
+  });
+});
+
+describe("LAN-429 — the access floor and the coach's exit from the attendance shell", () => {
+  it("fixes the President, General Manager and IT Officer, and nobody else", () => {
+    expect([...FIXED_ACCESS_SEATS].sort()).toEqual(["general_manager", "it_officer", "president"]);
+    expect(isFixedAccessSeat("president")).toBe(true);
+    expect(isFixedAccessSeat("vice_president")).toBe(false);
+    expect(isFixedAccessSeat("secretary")).toBe(false);
+    expect(isFixedAccessSeat("kit_manager")).toBe(false);
+  });
+
+  it("seeds the fixed three plus the Vice-President and Secretary at full access", () => {
+    expect([...SEEDED_FULL_ACCESS_SEATS].sort()).toEqual(
+      ["general_manager", "it_officer", "president", "secretary", "vice_president"].sort(),
+    );
+    expect(seededGrantsFor(["secretary"], ["t1"]).templates).toEqual({ t1: "manage" });
+    expect(seededGrantsFor(["secretary"]).roster.contact_emergency).toBe("edit");
+    expect(seededGrantsFor(["treasurer"])).toBe(NO_GRANTS);
+    expect(seededGrantsFor(["head_coach"])).toBe(NO_GRANTS);
+  });
+
+  it("takes a coach out of the attendance shell the moment one grant is set", () => {
+    const oneGrant = mergeGrantRows([
+      {
+        subject_kind: "roster_category",
+        subject_key: "availability",
+        template_id: null,
+        level: "view",
+      },
+    ]);
+    const oneTemplate = mergeGrantRows([
+      { subject_kind: "event_template", subject_key: null, template_id: "t1", level: "view" },
+    ]);
+    const oneSwitch = mergeGrantRows([
+      { subject_kind: "switch", subject_key: "add_recruits", template_id: null, level: "yes" },
+    ]);
+    for (const code of FIXED_COACHING_ROLE_CODES) {
+      expect(isNarrowAttendanceRecorder([code], NO_GRANTS), code).toBe(true);
+      expect(isNarrowAttendanceRecorder([code], oneGrant), code).toBe(false);
+      expect(isNarrowAttendanceRecorder([code], oneTemplate), code).toBe(false);
+      expect(isNarrowAttendanceRecorder([code], oneSwitch), code).toBe(false);
+    }
+  });
+
+  it("treats a line stored at none as no grant at all", () => {
+    const allNone = mergeGrantRows([
+      { subject_kind: "roster_category", subject_key: "kit", template_id: null, level: "none" },
+      { subject_kind: "event_template", subject_key: null, template_id: "t1", level: "none" },
+    ]);
+    expect(isNarrowAttendanceRecorder(["head_coach"], allNone)).toBe(true);
   });
 });

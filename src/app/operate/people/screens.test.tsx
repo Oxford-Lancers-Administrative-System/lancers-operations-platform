@@ -27,6 +27,7 @@ vi.mock("@/lib/services/people-directory", () => ({
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { listPeople } from "@/lib/services/people-directory";
 import PeoplePage from "./page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function signedInAs(roleCodes: string[]): void {
   const access: OperatorAccess = {
@@ -36,6 +37,7 @@ function signedInAs(roleCodes: string[]): void {
       personId: "11111111-1111-4111-8111-111111111111",
       displayName: "Morgan Pike",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };
@@ -51,7 +53,7 @@ const SEASON = { id: "season-1", label: "2026-27", status: "active", startsOn: n
 describe("an operator outside the four offices", () => {
   it("is refused, with no person data anywhere in the payload", async () => {
     // The Treasurer: a seated operator, holding no coaching seat and no
-    // `person_record_authority` — the capability refusal itself, not the
+    // the old person-record capability — the capability refusal itself, not the
     // separate narrow-attendance-recorder path a coach would take.
     signedInAs(["treasurer"]);
     vi.mocked(listPeople).mockResolvedValue({

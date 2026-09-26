@@ -41,7 +41,6 @@ vi.mock("@/lib/services/roster-board", () => ({
 }));
 vi.mock("@/lib/services/messaging-scheduler", () => ({ sendOnboardingNudges: vi.fn() }));
 
-import { isServiceError } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
@@ -82,12 +81,13 @@ import {
   recordSendOnboardingQuestionnaireAction,
   recordSetStatusAction,
 } from "./record-actions";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
 const ITEM_ID = "55555555-5555-4555-8555-555555555555";
 
-/** `person_record_authority`'s role list — see `../actions.test.ts`'s own comment for the Treasurer/it_officer exclusions. */
+/** the old person-record capability's role list — see `../actions.test.ts`'s own comment for the Treasurer/it_officer exclusions. */
 const FOUR_ROLE = ["president", "vice_president", "secretary", "general_manager"];
 
 const OTHER_ROLES = [
@@ -105,8 +105,22 @@ function actor(roleCodes: string[] = ["president"]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
+}
+
+/**
+ * LAN-423 fix round 3, H2: a refused commit comes back as the action's own
+ * state — the cell prints it and keeps the stored value — never as a throw
+ * (which the board rendered as an HTTP 500 and a silent revert).
+ */
+function expectRefused(state: unknown) {
+  expect(state).toMatchObject({
+    error: expect.stringMatching(
+      /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+    ),
+  });
 }
 
 function givenAccess(access: OperatorAccess) {
@@ -157,9 +171,9 @@ describe("recordResolveOnboardingItemAction", () => {
         membershipId: MEMBERSHIP_ID,
         itemId: ITEM_ID,
         status,
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
 
@@ -170,9 +184,9 @@ describe("recordResolveOnboardingItemAction", () => {
         membershipId: MEMBERSHIP_ID,
         itemId: ITEM_ID,
         status,
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -185,9 +199,9 @@ describe("recordResolveOnboardingItemAction", () => {
         membershipId: MEMBERSHIP_ID,
         itemId: ITEM_ID,
         status: "complete",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -200,16 +214,16 @@ describe("recordResolveOnboardingItemAction", () => {
         membershipId: MEMBERSHIP_ID,
         itemId: ITEM_ID,
         status: "complete",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
 });
 
 /**
- * Every other record-page action's own `person_record_authority` gate —
+ * Every other record-page action's own the old person-record capability gate —
  * advisory F2, PR 204 correction round. `recordResolveOnboardingItemAction`
  * above already carried this proof; deleting `requireCapability(...)` from
  * `recordCommitWarmupSmallGroupAction` left this file's (and the board's own
@@ -462,9 +476,9 @@ describe("every other record action's authorization gate", () => {
         it(`refuses the ${role}, and never reaches the service`, async () => {
           givenAccess({ state: "active", operator: actor([role]) });
 
-          const failure = await call().catch((error: unknown) => error);
+          const failure = await call();
 
-          expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+          expectRefused(failure);
           expect(service).not.toHaveBeenCalled();
         });
       }
@@ -472,9 +486,9 @@ describe("every other record action's authorization gate", () => {
       it("refuses an operator holding no seat at all", async () => {
         givenAccess({ state: "active", operator: actor([]) });
 
-        const failure = await call().catch((error: unknown) => error);
+        const failure = await call();
 
-        expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+        expectRefused(failure);
         expect(service).not.toHaveBeenCalled();
       });
 
@@ -482,12 +496,38 @@ describe("every other record action's authorization gate", () => {
         it(`is refused to a ${state} caller`, async () => {
           givenAccess({ state } as OperatorAccess);
 
-          const failure = await call().catch((error: unknown) => error);
+          const failure = await call();
 
-          expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+          expectRefused(failure);
           expect(service).not.toHaveBeenCalled();
         });
       }
     });
   }
+});
+
+describe("a seat holding Kit at view (LAN-423 fix round 3, H2)", () => {
+  it("gets the refusal back as state and never reaches the service", async () => {
+    const president = actor(["president"]);
+    givenAccess({
+      state: "active",
+      operator: {
+        ...president,
+        grants: { ...president.grants, roster: { ...president.grants.roster, kit: "view" } },
+      },
+    });
+
+    const state = await recordCommitKitItemAction({
+      membershipId: MEMBERSHIP_ID,
+      seasonId: SEASON_ID,
+      item: "helmet",
+      value: "Large",
+    });
+
+    expectRefused(state);
+    expect(state.error).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    expect(commitKitItemValues).not.toHaveBeenCalled();
+  });
 });

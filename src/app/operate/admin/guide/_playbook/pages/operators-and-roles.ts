@@ -122,12 +122,16 @@ export const OPERATORS_AND_ROLES_PAGE: PlaybookPage = {
     },
     {
       operator: [
-        "Read the ",
-        screen("Permissions"),
-        " panel on a role to see what that seat carries, and the table below for all of them at once.",
+        "Open the role and set the seat's ",
+        screen("Access"),
+        ": None, View or Edit on each roster and recruiting category, None, View or Manage on each event template, and Yes or No on adding players and adding recruits. ",
+        control("Copy access from another seat"),
+        " and ",
+        control("Grant everything"),
+        " fill it in one step.",
       ],
       then: [
-        "That copy is generated from the same list the application enforces from, so it moves when a grant moves.",
+        "Events and the roster are granted per seat there. The table below is the fixed actions only, generated from the same list the application enforces from.",
       ],
     },
   ],

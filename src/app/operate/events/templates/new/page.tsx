@@ -9,6 +9,7 @@ import {
   DEFAULT_TEMPLATE_COLOUR_KEY,
   type RawEventTemplate,
 } from "@/lib/services/event-template-input";
+import { redactAudienceCandidates } from "@/lib/services/event-audience-access";
 import { gateShellPage } from "../../../gate";
 import TemplateEditor from "../template-editor";
 import { NEW_TEMPLATE_HEADLINE } from "../presentation";
@@ -33,7 +34,12 @@ export default async function NewEventTemplatePage() {
   };
 
   // LAN-414 round 2: the picker counts against today's roster here too.
-  const { candidates } = await readTemplateAudienceCatalogue(DEFAULT_TEMPLATE_CLASS);
+  // LAN-423: counted from the groups; the per-person detail follows the seat's grants.
+  const candidates = redactAudienceCandidates(
+    (await readTemplateAudienceCatalogue(DEFAULT_TEMPLATE_CLASS)).candidates,
+    gate.operator.grants,
+    DEFAULT_TEMPLATE_CLASS,
+  );
 
   return (
     <Stack spacing={3}>

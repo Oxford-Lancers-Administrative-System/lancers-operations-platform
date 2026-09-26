@@ -35,7 +35,7 @@ vi.mock("@/lib/services/membership", async (importOriginal) => {
   };
 });
 
-import { ConstraintViolated, isServiceError } from "@/lib/db";
+import { ConstraintViolated } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
@@ -44,13 +44,14 @@ import {
 import { resolveOnboardingItem, setMembershipStatus } from "@/lib/services/membership";
 import { resolveOnboardingItemAction, setMembershipStatusAction } from "./actions";
 import { EMPTY_MEMBERSHIP_ACTION_STATE } from "./action-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const MEMBERSHIP_ID = "44444444-4444-4444-8444-444444444444";
 const ITEM_ID = "55555555-5555-4555-8555-555555555555";
 
 /**
- * `person_record_authority`'s role list — `REQ-authority`'s "four-role only,
+ * the old person-record capability's role list — `REQ-authority`'s "four-role only,
  * for the grid and every column on it", the board's own boundary and (since
  * RVW-186-001) this action's too.
  *
@@ -69,14 +70,14 @@ const ACTIVATION_ROLES = ["president", "vice_president", "secretary", "general_m
  * club's administrative seat, so it holds this and every other capability.
  *
  * `treasurer` holds `membership_activation` — the capability this action used
- * to be gated on — but not `person_record_authority`, the one it needs now.
+ * to be gated on — but not the old person-record capability, the one it needs now.
  * Until RVW-186-001 that gap was academic: a legal-transition table let a
  * Treasurer reach only three narrow, legal destinations. Removing that table
  * (`Q-12`) did not touch who may change a status; it just meant
  * `membership_activation` alone no longer bounded anything, so the Treasurer's
  * three narrow reaches became every status including `departed` and
  * `archived`. This entry is that regression test: a role holding
- * `membership_activation` but not `person_record_authority` must be refused.
+ * `membership_activation` but not the old person-record capability must be refused.
  */
 const OTHER_ROLES = [
   "treasurer",
@@ -95,6 +96,7 @@ function actor(roleCodes: string[] = ["president"]): ResolvedOperator {
     personId: OPERATOR_PERSON_ID,
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }
@@ -113,6 +115,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   givenAccess({ state: "active", operator: actor() });
 });
+
+/**
+ * A refusal handed back as the action's own state — LAN-423 fix round 4, J1.
+ * Never a throw: a throw is what rendered "This page couldn't load".
+ */
+function expectRefused(state: { error: string | null }): void {
+  expect(state.error).toMatch(
+    /^(You do not have access to this action\.|This action needs an active Lancers operator profile\.)/,
+  );
+}
 
 // ---------------------------------------------------------------------------
 
@@ -142,9 +154,9 @@ describe("the status-change boundary", () => {
       const failure = await setMembershipStatusAction({
         membershipId: MEMBERSHIP_ID,
         status: "active",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(setMembershipStatus).not.toHaveBeenCalled();
     });
   }
@@ -155,9 +167,9 @@ describe("the status-change boundary", () => {
     const failure = await setMembershipStatusAction({
       membershipId: MEMBERSHIP_ID,
       status: "active",
-    }).catch((error: unknown) => error);
+    });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectRefused(failure);
     expect(setMembershipStatus).not.toHaveBeenCalled();
   });
 
@@ -168,9 +180,9 @@ describe("the status-change boundary", () => {
       const failure = await setMembershipStatusAction({
         membershipId: MEMBERSHIP_ID,
         status: "active",
-      }).catch((error: unknown) => error);
+      });
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(setMembershipStatus).not.toHaveBeenCalled();
     });
   }
@@ -203,9 +215,9 @@ describe("the status-change boundary", () => {
     const failure = await setMembershipStatusAction({
       membershipId: MEMBERSHIP_ID,
       status: "archived",
-    }).catch((error: unknown) => error);
+    });
 
-    expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+    expectRefused(failure);
     expect(setMembershipStatus).not.toHaveBeenCalled();
   });
 });
@@ -215,7 +227,7 @@ describe("the status-change boundary", () => {
 describe("resolving an onboarding item", () => {
   /**
    * LAN-214 correction round 2, `F-NEW-001`. Four-role only — the same
-   * `person_record_authority` gate `setMembershipStatusAction` uses, above.
+   * the old person-record capability gate `setMembershipStatusAction` uses, above.
    * Until this correction the gate was `requireGeneralOperator()`, on the
    * reading that marking the kit sorted is ordinary roster work; `OD7-four-
    * role-only` (Brian, 2026-09-02) and `REQ-reason-free-waive` supersede
@@ -256,9 +268,9 @@ describe("resolving an onboarding item", () => {
       const failure = await resolveOnboardingItemAction(
         EMPTY_MEMBERSHIP_ACTION_STATE,
         form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status, reason: "" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
 
@@ -268,9 +280,9 @@ describe("resolving an onboarding item", () => {
       const failure = await resolveOnboardingItemAction(
         EMPTY_MEMBERSHIP_ACTION_STATE,
         form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status, reason: "" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -282,9 +294,9 @@ describe("resolving an onboarding item", () => {
       const failure = await resolveOnboardingItemAction(
         EMPTY_MEMBERSHIP_ACTION_STATE,
         form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status: "complete" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -296,9 +308,9 @@ describe("resolving an onboarding item", () => {
       const failure = await resolveOnboardingItemAction(
         EMPTY_MEMBERSHIP_ACTION_STATE,
         form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status: "complete" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expectRefused(failure);
       expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
   }
@@ -323,16 +335,22 @@ describe("how a failure comes back", () => {
   });
 
   /**
-   * A refusal rendered as red text beside a control reads as "try again",
-   * which is the wrong instruction and hides an authorization event inside a
-   * validation failure. It is rethrown so the error boundary sees it.
+   * LAN-423 fix round 4, J1: Membership lowered to View under an open page.
+   * The refusal is the control's own answer, beside the stored status — never
+   * a throw that crashed the page.
    */
-  it("never flattens an authorization refusal into form state", async () => {
+  it("hands an authorization refusal back as state, not a throw", async () => {
     givenAccess({ state: "active", operator: actor(["kit_manager"]) });
 
-    await expect(
-      setMembershipStatusAction({ membershipId: MEMBERSHIP_ID, status: "active" }),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    const state = await setMembershipStatusAction({
+      membershipId: MEMBERSHIP_ID,
+      status: "active",
+    });
+
+    expect(state).toEqual({
+      error: "You do not have access to this action. This needs access your seat does not hold.",
+    });
+    expect(setMembershipStatus).not.toHaveBeenCalled();
   });
 
   it("lets a fault through as itself rather than as a form message", async () => {

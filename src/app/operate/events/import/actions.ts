@@ -19,10 +19,9 @@ function text(formData: FormData, field: string): string {
   return typeof value === "string" ? value : "";
 }
 
-/** Turns a service failure into readable text; rethrows `NotPermitted` untouched so a refusal isn't rendered as a fixable error. */
+/** Turns a service failure, a refusal included (LAN-423), into readable text; a bug still throws. */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
 }
 
@@ -30,7 +29,12 @@ export async function importEventsAction(
   previous: ImportScreenState,
   formData: FormData,
 ): Promise<ImportScreenState> {
-  await requireCapability("event_calendar_management");
+  try {
+    await requireCapability("event_calendar_management");
+  } catch (error) {
+    // LAN-423: the refusal is the screen's error; the proposal stays on screen.
+    return { ...previous, error: messageFor(error), applied: null };
+  }
 
   const intent = text(formData, "intent");
   if (intent === "cancel") return EMPTY_IMPORT_STATE;

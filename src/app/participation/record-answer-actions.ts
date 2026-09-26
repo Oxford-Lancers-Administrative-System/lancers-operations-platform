@@ -2,16 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireGeneralOperator } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
+import { requireEventGrant } from "@/lib/services/events";
 import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
 
 import type { RecordAnswerState } from "./record-answer-state";
 
 /**
- * Records what an operator was told in person — W3, LAN-170. Floor is
- * `requireGeneralOperator()`, matching `readOperatorParticipation` — "which
- * operator roles may record" is still open for Brian. `RecordAnswerControl`
+ * Records what an operator was told in person — W3, LAN-170. LAN-431: Manage
+ * on the event's template; under View the control is absent. `RecordAnswerControl`
  * is rendered only against a row with no answer at all, but that is the
  * surface's courtesy, not the boundary: `recordOperatorRsvpResponse`
  * re-resolves the invitation inside its own transaction.
@@ -22,10 +21,9 @@ function text(formData: FormData, field: string): string {
   return typeof value === "string" ? value : "";
 }
 
-/** A refusal is rethrown; everything else becomes a sentence for the dialog. */
+/** Every service failure, a refusal included (LAN-423), becomes a sentence for the dialog; a bug still throws. */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
 }
 
@@ -45,8 +43,13 @@ export async function recordOperatorAnswerAction(
   _previous: RecordAnswerState,
   formData: FormData,
 ): Promise<RecordAnswerState> {
-  const operator = await requireGeneralOperator();
   const eventId = text(formData, "eventId");
+  let operator: Awaited<ReturnType<typeof requireEventGrant>>;
+  try {
+    operator = await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return { error: messageFor(error), success: false };
+  }
   const invitationId = text(formData, "invitationId");
   const response = text(formData, "response");
 

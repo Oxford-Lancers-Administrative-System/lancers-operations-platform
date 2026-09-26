@@ -361,50 +361,63 @@ export function MessagingPlanDisclosure({
 /**
  * "1 user has an error." — W1's pre-approval WhatsApp check, D8. Count
  * first, name only on request (`docs/ux/standards.md` refusal rules). No
- * manual-send control here — W6 owns recovery.
+ * manual-send control here — W6 owns recovery. LAN-423: `unreachable` is
+ * empty for a seat without Contact & emergency, which sees the count alone.
  */
 export function WhatsAppErrorsAlert({
+  count,
+  unreachable,
+}: {
+  count: number;
+  unreachable: readonly UnreachableAudienceMember[];
+}) {
+  if (count === 0) return null;
+
+  return (
+    <Stack spacing={1} data-testid="whatsapp-errors">
+      <Notice severity="error">{describeWhatsAppErrorCount(count)}</Notice>
+      {unreachable.length === 0 ? null : <WhatsAppErrorNames unreachable={unreachable} />}
+    </Stack>
+  );
+}
+
+function WhatsAppErrorNames({
   unreachable,
 }: {
   unreachable: readonly UnreachableAudienceMember[];
 }) {
-  if (unreachable.length === 0) return null;
-
   return (
-    <Stack spacing={1} data-testid="whatsapp-errors">
-      <Notice severity="error">{describeWhatsAppErrorCount(unreachable.length)}</Notice>
-      <Section title={whatsAppErrorDisclosureLabel(unreachable.length)} collapsible>
-        <Stack component="ul" spacing={0} sx={{ listStyle: "none", p: 0, m: 0 }}>
-          {unreachable.map(({ member }) => (
-            <Box
-              component="li"
-              key={member.id}
-              data-testid="whatsapp-error-row"
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 1,
-                py: 1,
-                borderBottom: 1,
-                borderColor: "divider",
-              }}
-            >
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {member.displayName}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {WHATSAPP_ERROR_DETAIL}
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="error.main">
-                Error
+    <Section title={whatsAppErrorDisclosureLabel(unreachable.length)} collapsible>
+      <Stack component="ul" spacing={0} sx={{ listStyle: "none", p: 0, m: 0 }}>
+        {unreachable.map(({ member }) => (
+          <Box
+            component="li"
+            key={member.id}
+            data-testid="whatsapp-error-row"
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 1,
+              py: 1,
+              borderBottom: 1,
+              borderColor: "divider",
+            }}
+          >
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {member.displayName}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {WHATSAPP_ERROR_DETAIL}
               </Typography>
             </Box>
-          ))}
-        </Stack>
-      </Section>
-    </Stack>
+            <Typography variant="caption" color="error.main">
+              Error
+            </Typography>
+          </Box>
+        ))}
+      </Stack>
+    </Section>
   );
 }

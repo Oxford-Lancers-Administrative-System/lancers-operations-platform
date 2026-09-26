@@ -36,6 +36,7 @@ import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operato
 import { ADMINISTRATION_GUIDE, GUIDE_SUBTITLE, GUIDE_TITLE } from "./content";
 import GuideFaq from "./guide-faq";
 import AdministrationGuidePage from "./page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const resolve = vi.mocked(resolveOperatorAccess);
 
@@ -45,6 +46,7 @@ function operator(roleCodes: string[]): ResolvedOperator {
     personId: "00000000-0000-4000-8000-000000000002",
     displayName: "Test Operator",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }

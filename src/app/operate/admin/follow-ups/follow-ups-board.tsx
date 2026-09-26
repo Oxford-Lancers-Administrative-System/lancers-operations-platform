@@ -45,7 +45,9 @@ export default function FollowUpsBoard({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ChaseActionResult | null>(null);
 
-  const chaseableIds = rows.filter((row) => row.chaseable).map((row) => row.invitationId);
+  const chaseableIds = rows
+    .filter((row) => row.chaseable && row.mayChase)
+    .map((row) => row.invitationId);
   const selectedIds = chaseableIds.filter((id) => selected.has(id));
 
   function toggle(invitationId: string) {

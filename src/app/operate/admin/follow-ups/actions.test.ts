@@ -14,17 +14,29 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/services/messaging-scheduler", () => ({ sendEventChases: vi.fn() }));
 
 import { revalidatePath } from "next/cache";
-import { ConstraintViolated, isServiceError } from "@/lib/db";
+import { ConstraintViolated } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { sendEventChases } from "@/lib/services/messaging-scheduler";
 import { chaseSelectedAction } from "./actions";
 import { CHASE_REFUSAL_UNRECORDED, NOT_CHASEABLE } from "./presentation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 const REACHABLE = "00810081-0081-4081-8081-000000000001";
 const UNREACHABLE = "00810081-0081-4081-8081-000000000002";
@@ -44,6 +56,7 @@ function signedInAs(roleCodes: string[]): ResolvedOperator {
     personId: "00000000-0000-4000-8000-000000000002",
     displayName: "Morgan Pike",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator });
@@ -64,9 +77,40 @@ describe("who may chase from the queue", () => {
 
   it.each(REFUSED)("refuses %s, and sends nothing", async (role) => {
     signedInAs([role]);
-    await expect(chaseSelectedAction([REACHABLE])).rejects.toSatisfy(
-      (error: unknown) => isServiceError(error) && error.kind === "not_permitted",
+    // LAN-423 fix round 4, J1: the refusal is the notice's error, never a throw.
+    const result = await chaseSelectedAction([REACHABLE]);
+    expect(result.error).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
     );
+    expect(result.accepted).toBe(0);
+    expect(sendEventChases).not.toHaveBeenCalled();
+  });
+
+  // LAN-431. `./template-of` is mocked (top of file): every invitation's event
+  // belongs to this one template.
+  const TEMPLATE = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+
+  function seatWith(templates: Record<string, "view" | "manage">) {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: { ...signedInAs(["social_secretary"]), grants: { ...NO_GRANTS, templates } },
+    });
+  }
+
+  it("admits a seat with Manage on the rows' template — LAN-431", async () => {
+    seatWith({ [TEMPLATE]: "manage" });
+    await expect(chaseSelectedAction([REACHABLE])).resolves.toBeTruthy();
+    expect(sendEventChases).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a forged chase from a seat that only views the rows' template — LAN-431", async () => {
+    seatWith({ [TEMPLATE]: "view", "00000000-0000-4000-8000-0000000000aa": "manage" });
+    // LAN-423 fix round 4, J1: the refusal is the notice's error, never a throw.
+    const result = await chaseSelectedAction([REACHABLE]);
+    expect(result.error).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    expect(result.accepted).toBe(0);
     expect(sendEventChases).not.toHaveBeenCalled();
   });
 });

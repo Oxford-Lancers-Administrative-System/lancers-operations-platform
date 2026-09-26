@@ -40,12 +40,18 @@ class RedirectSignal extends Error {
   }
 }
 
-import { Conflict, isServiceError } from "@/lib/db";
+import { Conflict } from "@/lib/db";
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { enterReturningPlayer, findPersonCandidates } from "@/lib/services/roster";
 import { submitReturnerIntake } from "./actions";
 import { INITIAL_INTAKE_STATE } from "./intake-state";
 import { GIVEN_NAME_REQUIRED, EMAIL_SHAPE } from "./validation";
+import { mergeGrantRows, NO_GRANTS, type OperatorGrants } from "@/lib/auth/grants";
+
+/** LAN-432: the May add to the roster switch, and nothing else. */
+const MAY_ADD_TO_ROSTER: OperatorGrants = mergeGrantRows([
+  { subject_kind: "switch", subject_key: "add_to_roster", template_id: null, level: "yes" },
+]);
 
 const OPERATOR_PERSON_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -53,8 +59,11 @@ function signedInAs(state: OperatorAccess): void {
   vi.mocked(resolveOperatorAccess).mockResolvedValue(state);
 }
 
-/** Defaults to an operator holding no club role — intake needs none. */
-function activeOperator(roleCodes: string[] = []): OperatorAccess {
+/** Defaults to an operator holding no club role and the May add to the roster switch — intake needs nothing else. */
+function activeOperator(
+  roleCodes: string[] = [],
+  grants: OperatorGrants = MAY_ADD_TO_ROSTER,
+): OperatorAccess {
   return {
     state: "active",
     operator: {
@@ -62,6 +71,7 @@ function activeOperator(roleCodes: string[] = []): OperatorAccess {
       personId: OPERATOR_PERSON_ID,
       displayName: "Morgan Pike",
       roleCodes,
+      grants,
       isActive: true,
     },
   };
@@ -98,13 +108,16 @@ describe("who may call it", () => {
     it(`refuses ${label}, and reads nothing`, async () => {
       signedInAs(access);
 
-      const thrown = await submitReturnerIntake(
+      // LAN-423: the refusal is the form's own state, never a throw.
+      const state = await submitReturnerIntake(
         INITIAL_INTAKE_STATE,
         form({ ...VALID_DETAILS, intent: "check" }),
-      ).catch((error: unknown) => error);
+      );
 
-      expect(isServiceError(thrown)).toBe(true);
-      expect(thrown).toMatchObject({ kind: "not_permitted" });
+      expect(state).toMatchObject({
+        step: "details",
+        formError: expect.stringMatching(/^This action needs an active Lancers operator profile\./),
+      });
 
       // The refusal happened before any club data was touched.
       expect(findPersonCandidates).not.toHaveBeenCalled();
@@ -115,12 +128,11 @@ describe("who may call it", () => {
       signedInAs(access);
 
       for (const intent of ["confirm_new", "use_existing"]) {
-        await expect(
-          submitReturnerIntake(
-            INITIAL_INTAKE_STATE,
-            form({ ...VALID_DETAILS, intent, personId: "irrelevant" }),
-          ),
-        ).rejects.toMatchObject({ kind: "not_permitted" });
+        const state = await submitReturnerIntake(
+          INITIAL_INTAKE_STATE,
+          form({ ...VALID_DETAILS, intent, personId: "irrelevant" }),
+        );
+        expect(state).toMatchObject({ step: "details", formError: expect.any(String) });
       }
 
       expect(enterReturningPlayer).not.toHaveBeenCalled();
@@ -130,19 +142,59 @@ describe("who may call it", () => {
   it("names no role and leaks no account detail in the refusal", async () => {
     signedInAs({ state: "unlinked" });
 
-    const thrown = (await submitReturnerIntake(
+    const state = await submitReturnerIntake(
       INITIAL_INTAKE_STATE,
       form({ ...VALID_DETAILS, intent: "check" }),
-    ).catch((error: unknown) => error)) as Error;
+    );
 
-    expect(thrown.message).not.toMatch(/president|secretary|coach|role code/i);
+    expect("formError" in state && state.formError).toBeTruthy();
+    expect("formError" in state ? state.formError : "").not.toMatch(
+      /president|secretary|coach|role code/i,
+    );
   });
 
-  it("admits a linked, active operator holding no club role at all", async () => {
-    // Returner intake is an ordinary operator action: `slice-ux.md` § 8's first
-    // row, LAN-73's capability map does not name it, and LAN-74 asks only for
-    // "an authenticated operator". Adding a role requirement here would be a
-    // policy decision this issue is not allowed to take.
+  it("refuses a seat without the May add to the roster switch, and reads nothing (LAN-432)", async () => {
+    signedInAs(activeOperator([], NO_GRANTS));
+
+    const state = await submitReturnerIntake(
+      INITIAL_INTAKE_STATE,
+      form({ ...VALID_DETAILS, intent: "check" }),
+    );
+
+    expect(state).toEqual({
+      step: "details",
+      values: expect.objectContaining({ givenName: VALID_DETAILS.givenName }),
+      errors: {},
+      formError:
+        "You do not have access to this action. This needs access your seat does not hold.",
+    });
+    expect(findPersonCandidates).not.toHaveBeenCalled();
+  });
+
+  // LAN-423 fix round 3, H3: the switch turned off under an open form. Each
+  // press comes back as the details step with the refusal and every entry.
+  for (const intent of ["check", "confirm_new", "use_existing", "back_to_candidates"]) {
+    it(`returns the refusal with the form intact when ${intent} is pressed after the switch is off`, async () => {
+      signedInAs(activeOperator([], NO_GRANTS));
+
+      const state = await submitReturnerIntake(
+        INITIAL_INTAKE_STATE,
+        form({ ...VALID_DETAILS, intent, personId: "irrelevant" }),
+      );
+
+      expect(state.step).toBe("details");
+      expect("formError" in state && state.formError).toBe(
+        "You do not have access to this action. This needs access your seat does not hold.",
+      );
+      expect(state.values.givenName).toBe(VALID_DETAILS.givenName);
+      expect(state.values.familyName).toBe(VALID_DETAILS.familyName);
+      expect(findPersonCandidates).not.toHaveBeenCalled();
+      expect(enterReturningPlayer).not.toHaveBeenCalled();
+    });
+  }
+
+  it("admits a seat holding the May add to the roster switch and no club role at all", async () => {
+    // LAN-432: adding to the roster is the seat page's switch, not a role.
     signedInAs(activeOperator([]));
 
     const state = await submitReturnerIntake(
@@ -421,5 +473,78 @@ describe("the write, and how it ends", () => {
     expect(state.step).toBe("candidates");
     const message = (state as { formError?: string }).formError ?? "";
     expect(message).not.toMatch(/ECONNREFUSED|127\.0\.0\.1|password|hunter2/);
+  });
+});
+
+// LAN-423 fix round 3, H1: the duplicate check's payload, narrowed on the
+// server to the seat's own grants.
+describe("the duplicate check's matches, as a seat holding the switch receives them", () => {
+  beforeEach(() => {
+    vi.mocked(findPersonCandidates).mockResolvedValue([
+      {
+        personId: "44444444-4444-4444-8444-444444444444",
+        givenName: "Corwin",
+        familyName: "Vellacott",
+        displayAlias: null,
+        email: "corwin.vellacott@ashridge.ox.ac.example",
+        phone: "07700 900999",
+        currentMembership: {
+          id: "55555555-5555-4555-8555-555555555555",
+          status: "active",
+          seasonLabel: "2026-27",
+        },
+        matchedOn: ["phone"],
+      },
+    ]);
+  });
+
+  const check = () =>
+    submitReturnerIntake(INITIAL_INTAKE_STATE, form({ ...VALID_DETAILS, intent: "check" }));
+
+  it("carries the name and the match reason, and no email, phone or status, with everything else None", async () => {
+    signedInAs(activeOperator([], MAY_ADD_TO_ROSTER));
+
+    const state = await check();
+    if (state.step !== "candidates") throw new Error(`expected candidates, got ${state.step}`);
+    const payload = JSON.stringify(state.candidates);
+
+    expect(state.candidates[0]).toMatchObject({
+      givenName: "Corwin",
+      familyName: "Vellacott",
+      matchedOn: ["phone"],
+      email: null,
+      phone: null,
+      currentMembership: { status: "", seasonLabel: "2026-27" },
+      withheld: { contact: true, membershipStatus: true },
+    });
+    expect(payload).not.toContain("corwin.vellacott");
+    expect(payload).not.toContain("900999");
+    expect(payload).not.toContain("active");
+  });
+
+  it("carries the email and phone with Contact & emergency at View", async () => {
+    signedInAs(
+      activeOperator(
+        [],
+        mergeGrantRows([
+          { subject_kind: "switch", subject_key: "add_to_roster", template_id: null, level: "yes" },
+          {
+            subject_kind: "roster_category",
+            subject_key: "contact_emergency",
+            template_id: null,
+            level: "view",
+          },
+        ]),
+      ),
+    );
+
+    const state = await check();
+    if (state.step !== "candidates") throw new Error(`expected candidates, got ${state.step}`);
+
+    expect(state.candidates[0]).toMatchObject({
+      email: "corwin.vellacott@ashridge.ox.ac.example",
+      phone: "07700 900999",
+      withheld: { contact: false, membershipStatus: true },
+    });
   });
 });

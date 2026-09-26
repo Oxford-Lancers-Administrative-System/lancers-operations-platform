@@ -41,7 +41,12 @@ import {
   UNKNOWN_SELECTION_RULE,
   type AudienceCatalogue,
 } from "./event-audience";
-import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
+import {
+  createEventDraft,
+  readEventUnchecked,
+  updateEventDraft,
+  type EventDraftInput,
+} from "./events";
 import {
   readMessagingScheduleIn,
   resolveMessagingPlanIn,
@@ -489,7 +494,7 @@ describe("an empty audience is refused by the service layer", () => {
     // approved event with no audience rows at all, which is why the sentence
     // above is the only thing standing between an approver and a silent
     // no-recipient approval.
-    const after = await readEvent(event.id);
+    const after = await readEventUnchecked(event.id);
     expect(after.status).toBe("draft");
     expect(await countsFor(event.id)).toEqual({
       audience: 0,
@@ -525,7 +530,7 @@ describe("an empty audience is refused by the service layer", () => {
 
     const error = await caught(() => approveEvent(actorPersonId, event.id));
     expect(error.rule).toBe(EMPTY_AUDIENCE_RULE);
-    expect((await readEvent(event.id)).status).toBe("draft");
+    expect((await readEventUnchecked(event.id)).status).toBe("draft");
   });
 
   it("refuses to change the audience once the event is approved", async () => {
@@ -551,7 +556,7 @@ describe("an empty audience is refused by the service layer", () => {
 
     const audience = await readEventAudience(event.id);
     expect(audience).toHaveLength(3);
-    expect((await readEvent(event.id)).venue).toBe("A different pitch");
+    expect((await readEventUnchecked(event.id)).venue).toBe("A different pitch");
   });
 });
 
@@ -573,7 +578,7 @@ describe("F-C1 — approval refuses an event with no start time", () => {
     // this whole test fails, not merely the assertion below.
     expect(error.message).toMatch(/start time/);
 
-    const after = await readEvent(event.id);
+    const after = await readEventUnchecked(event.id);
     expect(after.status).toBe("draft");
     expect(await countsFor(event.id)).toEqual({
       audience: 2,
@@ -592,7 +597,7 @@ describe("F-C1 — approval refuses an event with no start time", () => {
     const keys = await keysFor(event, "player", 1);
 
     await approve(event.id, keys);
-    expect((await readEvent(event.id)).status).toBe("approved");
+    expect((await readEventUnchecked(event.id)).status).toBe("approved");
   });
 
   it("still refuses an event with no date at all, unaffected by the new check", async () => {
@@ -1264,7 +1269,7 @@ describe("a failure inside the transaction leaves the event untouched", () => {
     const error = await caught(() => approve(event.id, keys));
     expect(error.kind).toBe("conflict");
 
-    const after = await readEvent(event.id);
+    const after = await readEventUnchecked(event.id);
     expect(after.status).toBe("draft");
 
     const counts = await countsFor(event.id);
@@ -1463,7 +1468,7 @@ describe("a stale or forged selection", () => {
     expect(error.kind).toBe("constraint_violated");
     expect(error.message).toMatch(/no longer selectable/);
 
-    expect((await readEvent(event.id)).status).toBe("draft");
+    expect((await readEventUnchecked(event.id)).status).toBe("draft");
   });
 
   it("refuses rather than silently shrinking the confirmed list", async () => {
@@ -1940,7 +1945,7 @@ describe("a concurrent audience change cannot undermine an approval in flight", 
 
     // The event is untouched, which is the whole point: nothing was approved,
     // and nobody was invited to something nobody confirmed.
-    expect((await readEvent(event.id)).status).toBe("draft");
+    expect((await readEventUnchecked(event.id)).status).toBe("draft");
     expect(await countsFor(event.id)).toMatchObject({ invitations: 0, jobs: 0 });
   });
 });
@@ -2650,7 +2655,7 @@ describe("LAN-341 — a recruit who leaves recruitment between confirmation and 
     const error = await caught(() => approveEvent(actorPersonId, event.id));
     expect(error.rule).toBe(EMPTY_AUDIENCE_RULE);
     expect(error.message).toBe(EMPTY_AUDIENCE_MESSAGE);
-    expect((await readEvent(event.id)).status).toBe("draft");
+    expect((await readEventUnchecked(event.id)).status).toBe("draft");
   });
 
   /**

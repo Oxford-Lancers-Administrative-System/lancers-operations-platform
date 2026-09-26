@@ -28,6 +28,7 @@ import { pauseMessagingIn, resumeMessagingIn } from "@/lib/services/messaging-sa
 import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
 import { pauseMessagingAction, resumeMessagingAction } from "./safety-actions";
 import { REASON_REQUIRED, SAFETY_ACTION_FAILED } from "./safety-presentation";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function form(fields: Record<string, string>): FormData {
   const data = new FormData();
@@ -44,6 +45,7 @@ beforeEach(() => {
     personId: "33333333-3333-4333-8333-333333333333",
     displayName: "Rowan Ashfield",
     roleCodes: ["president"],
+    grants: seededGrantsFor(["president"]),
     isActive: true,
   });
   vi.mocked(withTransaction).mockImplementation(async (fn) => fn({ query: vi.fn() } as never));
@@ -154,5 +156,24 @@ describe("the messaging safety controls", () => {
 
     expect(state.refusal).toContain("President");
     expect(state.error).toBeNull();
+  });
+});
+
+// LAN-423 fix round 4, J1: the capability taken away while the page is open.
+// The guard's refusal is the control's own state, never a throw that rendered
+// "This page couldn't load", and nothing is attempted.
+describe("the messaging safety guard's own refusal", () => {
+  const GUARD_REFUSAL = "You do not have access to this action.";
+
+  it.each([
+    ["pauseMessagingAction", pauseMessagingAction, pauseMessagingIn],
+    ["resumeMessagingAction", resumeMessagingAction, resumeMessagingIn],
+  ] as const)("%s returns it as state", async (_name, action, service) => {
+    vi.mocked(requireCapability).mockRejectedValueOnce(new NotPermitted(GUARD_REFUSAL));
+
+    const state = await action(EMPTY_ADMIN_ACTION_STATE, form({ ...SCOPE, reason: "Wrong list" }));
+
+    expect(state).toEqual({ ...EMPTY_ADMIN_ACTION_STATE, refusal: GUARD_REFUSAL });
+    expect(service).not.toHaveBeenCalled();
   });
 });

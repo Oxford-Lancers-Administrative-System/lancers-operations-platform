@@ -12,10 +12,20 @@
  * the browser, and an assertion on `container.textContent` is the closest a
  * test gets to reading the screen.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -175,6 +185,10 @@ import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
 import EditEventPage from "./[id]/edit/page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
+import { eventTemplateIdOf } from "@/lib/services/events/template-of";
+import { GRANT_REQUIREMENT } from "@/lib/auth/access";
 
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -219,13 +233,22 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }
 
-/** An operator with no calendar role. The Treasurer is deliberately one. */
+/** LAN-431: a seat with View on every seeded template and Manage on none. */
 function reader(): ResolvedOperator {
-  return operator(["treasurer"]);
+  return {
+    ...operator(["treasurer"]),
+    grants: {
+      ...NO_GRANTS,
+      templates: Object.fromEntries(
+        Object.values(SEEDED_TEMPLATE_IDS).map((id) => [id, "view" as const]),
+      ),
+    },
+  };
 }
 
 function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
@@ -1615,10 +1638,7 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
     // Everybody else reads the structural rule, which is on the page for every
     // pre-approval event regardless of role. LAN-76's criterion — a draft states
     // plainly that nothing has gone out — holds for both readers.
-    vi.mocked(resolveOperatorAccess).mockResolvedValue({
-      state: "active",
-      operator: operator(["treasurer"]),
-    });
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: reader() });
     render(await EventDetailPage(detailProps()));
     expect(screen.getByTestId("distribution-fact")).toHaveTextContent("Nothing distributed");
     expect(screen.queryByRole("link", { name: "Choose audience and approve" })).toBeNull();
@@ -1785,12 +1805,12 @@ describe("LAN-419 — an approved event's edit URL forwards to the one edit page
 // Brian's clarification — who the calendar is managed by
 // ---------------------------------------------------------------------------
 
-describe("an operator without a calendar role reads the calendar and changes nothing", () => {
+describe("a seat with View and no Manage reads the calendar and changes nothing — LAN-431", () => {
   beforeEach(() => {
     vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: reader() });
   });
 
-  it("still sees the club's events — Events is an ordinary operator surface", async () => {
+  it("still sees the events of the templates it views", async () => {
     givenList([listEntry()]);
 
     const { container } = render(await EventsPage(listProps()));
@@ -1833,9 +1853,8 @@ describe("an operator without a calendar role reads the calendar and changes not
     expect(flatten(container.textContent)).toContain("Wednesday practice");
     expect(screen.queryByRole("link", { name: "Edit draft" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Abandon draft" })).toBeNull();
-    expect(flatten(screen.getByTestId("read-only-note").textContent)).toContain(
-      "President, Vice-President, Secretary and General Manager",
-    );
+    // Absent, not explained: no sentence names who may.
+    expect(screen.queryByTestId("read-only-note")).toBeNull();
   });
 
   it("is refused the editor outright, and told what it needs", async () => {
@@ -1844,7 +1863,7 @@ describe("an operator without a calendar role reads the calendar and changes not
     render(await EditEventPage(editProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
-    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toContain("President");
+    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toBe(GRANT_REQUIREMENT);
     expect(readEvent).not.toHaveBeenCalled();
   });
 
@@ -1852,9 +1871,7 @@ describe("an operator without a calendar role reads the calendar and changes not
     render(await NewEventPage(newProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
-    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toContain(
-      "General Manager",
-    );
+    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toBe(GRANT_REQUIREMENT);
   });
 
   it("is never told which roles it holds", async () => {
@@ -4194,5 +4211,159 @@ describe("LAN-339 — the Recruitment event notice", () => {
     );
 
     await expect(EditEventPage(editProps())).rejects.toThrow(/^REDIRECT:.*\/amend$/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-431 — events within granted templates (W4)
+// ---------------------------------------------------------------------------
+
+describe("events within granted templates — LAN-431", () => {
+  /** A seat holding exactly these template grants and nothing else. */
+  function seatWith(
+    templates: Record<string, "view" | "manage">,
+    roleCodes = ["social_secretary"],
+  ) {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: { ...operator(roleCodes), grants: { ...NO_GRANTS, templates } },
+    });
+  }
+
+  /** Edit event, Cancel event, Delivery and Duplicate on an approved event, by where they go. */
+  const MANAGE_HREFS = [
+    `/operate/events/${EVENT_ID}/amend`,
+    `/operate/events/${EVENT_ID}/cancel`,
+    `/operate/events/${EVENT_ID}/delivery`,
+    `/operate/events/new?from=${EVENT_ID}`,
+  ];
+
+  function eventOfTemplate(templateId: string) {
+    vi.mocked(eventTemplateIdOf).mockImplementation(async () => templateId);
+  }
+
+  afterEach(() => {
+    vi.mocked(eventTemplateIdOf).mockImplementation(async () => PRACTICE_TEMPLATE_ID);
+  });
+
+  it("W4-01: the Social Secretary's Type filter lists Social alone", async () => {
+    seatWith({ [SEEDED_TEMPLATE_IDS.social]: "manage" });
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+
+    expect(
+      within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["All types", "Social"]);
+  });
+
+  it("W4-01: offers Create event as the form alone, and no Edit templates", async () => {
+    seatWith({ [SEEDED_TEMPLATE_IDS.social]: "manage" });
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+
+    const create = screen.getByTestId("create-event");
+    expect(create.getAttribute("href")).toBe("/operate/events/new");
+    expect(screen.queryByTestId("create-import")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Edit templates" })).toBeNull();
+  });
+
+  it("offers the create form only the templates the seat manages", async () => {
+    seatWith({ [SEEDED_TEMPLATE_IDS.social]: "manage", [SEEDED_TEMPLATE_IDS.game]: "view" });
+
+    render(await NewEventPage(newProps()));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+
+    expect(
+      within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual([SEEDED_TEMPLATE_NAMES.social]);
+  });
+
+  it("refuses the create form to a seat that manages no template", async () => {
+    seatWith({ [SEEDED_TEMPLATE_IDS.game]: "view" });
+
+    render(await NewEventPage(newProps()));
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+  });
+
+  it("refuses an event of a None template by typed URL, and reads nothing of it", async () => {
+    seatWith({ [SEEDED_TEMPLATE_IDS.social]: "manage" });
+    eventOfTemplate(SEEDED_TEMPLATE_IDS.game);
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+    expect(readEvent).not.toHaveBeenCalled();
+  });
+
+  it("refuses the editor of a template the seat only views", async () => {
+    seatWith({ [SEEDED_TEMPLATE_IDS.game]: "view" });
+    eventOfTemplate(SEEDED_TEMPLATE_IDS.game);
+
+    render(await EditEventPage(editProps()));
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+    expect(readEvent).not.toHaveBeenCalled();
+  });
+
+  it("W4-05: under View, shows the event and the Event info link, and no manage control", async () => {
+    seatWith({ [SEEDED_TEMPLATE_IDS.game]: "view" });
+    eventOfTemplate(SEEDED_TEMPLATE_IDS.game);
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", audienceCount: 3, invitationCount: 3 }),
+    );
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    expect(flatten(container.textContent)).toContain("Wednesday practice");
+    expect(screen.getByTestId("share-link-button")).toBeVisible();
+    for (const href of MANAGE_HREFS) {
+      expect(container.querySelector(`a[href="${href}"]`), href).toBeNull();
+    }
+    expect(container.querySelector(`a[href="/operate/events/${EVENT_ID}/roster-form"]`)).toBeNull();
+    expect(screen.queryByTestId("read-only-note")).toBeNull();
+  });
+
+  it("W4-02: under Manage, offers every manage control on the same event", async () => {
+    seatWith({ [SEEDED_TEMPLATE_IDS.social]: "manage" });
+    eventOfTemplate(SEEDED_TEMPLATE_IDS.social);
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", audienceCount: 3, invitationCount: 3 }),
+    );
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    for (const href of MANAGE_HREFS) {
+      expect(container.querySelector(`a[href="${href}"]`), href).not.toBeNull();
+    }
+    expect(screen.getByTestId("share-link-button")).toBeVisible();
+  });
+
+  it("gives a seat seeing no template, but recording attendance, the attendance list alone", async () => {
+    // A head coach with one roster grant is no longer a narrow recorder, and
+    // before LAN-431 that made them a general operator of every event.
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: {
+        ...operator(["head_coach"]),
+        grants: { ...NO_GRANTS, roster: { ...NO_GRANTS.roster, kit: "view" } },
+      },
+    });
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+
+    expect(screen.getByTestId("coach-eligible-events")).toBeVisible();
+    expect(listEventsForOperator).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("create-event")).toBeNull();
   });
 });

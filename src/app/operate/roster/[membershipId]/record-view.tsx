@@ -19,7 +19,8 @@ import type { PersonRecord } from "@/lib/services/person-record";
 // The queue's own wording for the chase, imported rather than reproduced —
 // LAN-266 requirement 2 asks for "the same words the queue already uses".
 import { formatChaseNext } from "@/app/operate/people/missing/chase-presentation";
-import type { OnboardingItemDisplay, PlayerRecordData } from "@/lib/services/player-record";
+import type { OnboardingItemDisplay } from "@/lib/services/player-record";
+import { FULL_RECORD_ACCESS, type VisiblePlayerRecord } from "@/lib/services/player-record-access";
 import type { BpsValue, FormalwearItemKey, Kit, PositionColumn } from "@/lib/services/roster-board";
 import { parseKitCellKey, parseSpecialTeamsCellKey } from "@/lib/services/roster-board/vocabulary";
 
@@ -89,7 +90,8 @@ export default function PlayerRecordView({
   unsavedContacts = [],
   initialCollapsedGroups,
 }: {
-  record: PlayerRecordData;
+  /** Narrowed to the viewer's grants on the server (LAN-432): a `none` category's keys are absent. */
+  record: VisiblePlayerRecord;
   /** Redacted for the viewer's role — `REQ-authority`. May be missing keys a category did not grant. */
   person: Partial<PersonRecord>;
   justCreated: boolean;
@@ -137,8 +139,15 @@ export default function PlayerRecordView({
     [collapsedGroups],
   );
 
-  const closed = record.status === "departed" || record.status === "archived";
-  const resolvedCount = record.onboardingItems.filter((item) =>
+  // LAN-432: each section follows its own category. `none` is a locked head
+  // with no body (and nothing of it was sent); `view` is text; `edit` as before.
+  const access = record.access ?? FULL_RECORD_ACCESS;
+  const lockedOf = (category: keyof typeof access) => access[category] === "none";
+  const viewOnlyOf = (category: keyof typeof access) => access[category] === "view";
+  const closed = record.closed ?? (record.status === "departed" || record.status === "archived");
+  const onboardingItems = record.onboardingItems ?? [];
+  const outstandingRequired = record.outstandingRequired ?? [];
+  const resolvedCount = onboardingItems.filter((item) =>
     ["complete", "waived", "not_applicable"].includes(item.status),
   ).length;
   const bluesTotal =
@@ -151,6 +160,7 @@ export default function PlayerRecordView({
           .join(" · ")
       : "None";
 
+  const send = record.send;
   const personalEmail = currentContact(person.contacts, "email", "personal");
   const mobile = currentContact(person.contacts, "phone", null);
 
@@ -335,10 +345,68 @@ export default function PlayerRecordView({
     );
   }
 
+  const membershipStatus = record.status;
+  const metrics = [
+    membershipStatus !== undefined ? (
+      <Metric
+        key="membership"
+        value={
+          <StatusChip
+            domain="membership"
+            status={membershipStatus}
+            label={labelFor(MEMBERSHIP_STATUS_LABELS, membershipStatus)}
+          />
+        }
+        label="Membership"
+      />
+    ) : null,
+    record.onboardingItems !== undefined ? (
+      <Metric
+        key="onboarding"
+        value={
+          onboardingItems.length === 0
+            ? "No items configured"
+            : `${resolvedCount} of ${onboardingItems.length}`
+        }
+        label="Onboarding items resolved"
+      />
+    ) : null,
+    record.entry !== undefined ? (
+      <Metric key="entry" value={labelFor(ENTRY_LABELS, record.entry)} label="Entry" />
+    ) : null,
+    record.isConstitutionalMember !== undefined ? (
+      <Metric key="blues" value={bluesTotal} label="Blues total · all seasons" />
+    ) : null,
+    record.isConstitutionalMember !== undefined ? (
+      <Metric
+        key="constitutional"
+        value={record.isConstitutionalMember ? "Yes" : "No"}
+        label="Constitutional member · derived"
+      />
+    ) : null,
+    person.missingRequiredFields && person.missingRequiredFields.length > 0 ? (
+      <Metric
+        key="missing"
+        value={
+          <Typography
+            variant="body2"
+            color="warning.main"
+            data-testid="missing-flag"
+          >{`${person.missingRequiredFields.length} missing`}</Typography>
+        }
+        label="Missing required data"
+      />
+    ) : null,
+  ].filter((metric) => metric !== null);
+
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }}>
       <PageHeader
-        title={justCreated ? "Returning player added" : (person.displayName ?? record.membershipId)}
+        title={
+          justCreated
+            ? "Returning player added"
+            : (person.displayName ?? record.displayName ?? record.membershipId)
+        }
         back={{ href: "/operate/roster", label: "Back to roster" }}
         subtitle={
           justCreated ? (
@@ -349,7 +417,11 @@ export default function PlayerRecordView({
                 : `Person and ${record.seasonLabel} membership were created together.`}
             </span>
           ) : (
-            <span data-testid="membership-subtitle">{`${record.seasonLabel} membership · ${labelFor(ENTRY_LABELS, record.entry)} · ${labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}`}</span>
+            <span data-testid="membership-subtitle">
+              {record.status !== undefined && record.entry !== undefined
+                ? `${record.seasonLabel} membership · ${labelFor(ENTRY_LABELS, record.entry)} · ${labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}`
+                : `${record.seasonLabel} membership`}
+            </span>
           )
         }
       />
@@ -367,188 +439,207 @@ export default function PlayerRecordView({
           </Button>
         </Notice>
       ) : null}
-      <MetricRow columns={3}>
-        <Metric
-          value={
-            <StatusChip
-              domain="membership"
-              status={record.status}
-              label={labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}
-            />
-          }
-          label="Membership"
-        />
-        <Metric
-          value={
-            record.onboardingItems.length === 0
-              ? "No items configured"
-              : `${resolvedCount} of ${record.onboardingItems.length}`
-          }
-          label="Onboarding items resolved"
-        />
-        <Metric value={labelFor(ENTRY_LABELS, record.entry)} label="Entry" />
-        <Metric value={bluesTotal} label="Blues total · all seasons" />
-        <Metric
-          value={record.isConstitutionalMember ? "Yes" : "No"}
-          label="Constitutional member · derived"
-        />
-        {person.missingRequiredFields && person.missingRequiredFields.length > 0 ? (
-          <Metric
-            value={
-              <Typography
-                variant="body2"
-                color="warning.main"
-                data-testid="missing-flag"
-              >{`${person.missingRequiredFields.length} missing`}</Typography>
-            }
-            label="Missing required data"
-          />
-        ) : null}
-      </MetricRow>
+      {/* LAN-432: a tile built from a \`none\` category is absent. Membership,
+          Entry, Blues and constitutional membership are Membership's;
+          onboarding items are Onboarding's; Missing is Person's, as on the board. */}
+      {metrics.length > 0 ? <MetricRow columns={3}>{metrics}</MetricRow> : null}
 
-      <Section
-        variant="banded"
-        band="person"
-        title="Person"
-        testId="person"
-        collapsible
-        defaultOpen={!collapsedGroups.has("person")}
-        onToggleOpen={(open) => toggleGroup("person", open)}
-        action={
-          <Button
-            href={`/operate/people/${record.personId}`}
-            sx={{ p: 0, minHeight: 0, textTransform: "none", color: "inherit", fontWeight: 700 }}
-            data-testid="open-person-record"
-          >
-            Open the person record →
-          </Button>
-        }
-      >
-        <RecordField label="Name" value={person.displayName ?? null} />
-        {/* LAN-306: the formal name above, the alias here, never one inside the other. */}
-        <RecordField label="Known as" value={person.knownAs ?? null} />
-        <RecordField label="Aliases" value={joinAliases(person.aliases)} />
-        <RecordField label="Mobile phone" value={mobile} />
-        <RecordField label="Personal email" value={personalEmail} />
-        <RecordField label="College" value={person.college ?? null} />
-        <RecordField
-          label="Matriculation year"
-          value={person.matriculationYear != null ? String(person.matriculationYear) : null}
-        />
-        <RecordField
-          label="Expected graduation"
-          value={
-            person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
-          }
-        />
-        <RecordField label="Degree field" value={person.degreeField ?? null} />
-        <RecordField
-          label="Date of birth"
-          value={person.dateOfBirth ? formatDay(person.dateOfBirth) : null}
-        />
-        <RecordField
-          label="Emergency contact"
-          value={formatEmergencyContact(person.emergencyContact)}
-        />
-        <RecordField
-          label="Under 18"
-          value={
-            person.isUnder18 === null || person.isUnder18 === undefined
-              ? null
-              : person.isUnder18
-                ? "Yes"
-                : "No"
-          }
-          note="Derived from date of birth"
-        />
-      </Section>
-
-      <Section
-        variant="banded"
-        band="onboarding"
-        title="Onboarding"
-        testId="onboarding"
-        collapsible
-        defaultOpen={!collapsedGroups.has("onboarding")}
-        onToggleOpen={(open) => toggleGroup("onboarding", open)}
-      >
-        {record.onboardingItems.length === 0 ? (
-          <Typography color="text.secondary" sx={{ py: 2 }} data-testid="onboarding-empty">
-            This season has no onboarding items configured, so this membership has none.
-          </Typography>
-        ) : (
-          record.onboardingItems.map((item) => (
-            <OnboardingRow
-              key={item.id}
-              item={item}
-              editing={editing === `item:${item.id}`}
-              readOnly={closed}
-              blank={
-                item.code === SUBS_PAID_ITEM_CODE &&
-                record.onboardingItems.find((each) => each.code === SUBS_INVOICED_ITEM_CODE)
-                  ?.status !== "complete"
-              }
-              error={fieldError?.key === `item:${item.id}` ? fieldError.message : null}
-              onOpen={() => setEditing(`item:${item.id}`)}
-              onClose={() => setEditing(null)}
-              onResolve={(status) => resolveOnboardingItem(item, status)}
-            />
-          ))
-        )}
-        {record.outstandingRequired.length > 0 ? (
-          <Notice severity="info" testId="outstanding-note">
-            {/* W3, Q-19: names the outstanding item(s) as a value — same count sentence, no second explanatory sentence. */}
-            {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding: ${record.outstandingRequired.map((item) => item.label).join(", ")}.`}
-          </Notice>
-        ) : null}
-
-        {/* LAN-266: same control as the recruit record, same position/style. */}
-        <Box sx={{ py: 1.5 }} data-testid="onboarding-send">
-          <SendOnboardingQuestionnaireButton
-            membershipId={record.membershipId}
-            displayName={person.displayName ?? "This player"}
-            everSent={record.send.lastAsk !== null}
-            canSend={record.send.withheldReason === null && !closed}
-            withheldReason={closed ? CLOSED_MEMBERSHIP_REASON : record.send.withheldReason}
-            blocked={!record.send.onboarding || closed}
-          />
-          {sendStatusLines({
-            lastAsk: record.send.lastAsk
-              ? {
-                  requestedAt: record.send.lastAsk.requestedAt.toISOString(),
-                  delivery: record.send.lastAsk.delivery,
-                  reason: record.send.lastAsk.reason,
-                }
-              : null,
-            chaseLine: formatChaseNext(record.send.next, record.send.hasReachableNumber),
-            chaseIsScheduled: record.send.next.kind === "scheduled",
-            deliveredCount: record.send.deliveredCount,
-            chaseCount: record.send.chaseCount,
-          }).map((line, index) => (
-            <Typography
-              key={line}
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: "block", mt: index === 0 ? 1 : 0.25 }}
-              data-testid={`onboarding-send-caption-${index}`}
+      {lockedOf("person") ? (
+        <Section variant="banded" band="person" title="Person" testId="person" locked />
+      ) : (
+        <Section
+          variant="banded"
+          band="person"
+          title="Person"
+          testId="person"
+          collapsible
+          defaultOpen={!collapsedGroups.has("person")}
+          onToggleOpen={(open) => toggleGroup("person", open)}
+          action={
+            <Button
+              href={`/operate/people/${record.personId}`}
+              sx={{ p: 0, minHeight: 0, textTransform: "none", color: "inherit", fontWeight: 700 }}
+              data-testid="open-person-record"
             >
-              {line}
-            </Typography>
-          ))}
-        </Box>
-      </Section>
+              Open the person record →
+            </Button>
+          }
+        >
+          <RecordField label="Name" value={person.displayName ?? null} />
+          {/* LAN-306: the formal name above, the alias here, never one inside the other. */}
+          <RecordField label="Known as" value={person.knownAs ?? null} />
+          <RecordField label="Aliases" value={joinAliases(person.aliases)} />
+          <RecordField label="College" value={person.college ?? null} />
+          <RecordField
+            label="Matriculation year"
+            value={person.matriculationYear != null ? String(person.matriculationYear) : null}
+          />
+          <RecordField
+            label="Expected graduation"
+            value={
+              person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
+            }
+          />
+          <RecordField label="Degree field" value={person.degreeField ?? null} />
+          <RecordField
+            label="Date of birth"
+            value={person.dateOfBirth ? formatDay(person.dateOfBirth) : null}
+          />
+          <RecordField
+            label="Under 18"
+            value={
+              person.isUnder18 === null || person.isUnder18 === undefined
+                ? null
+                : person.isUnder18
+                  ? "Yes"
+                  : "No"
+            }
+            note="Derived from date of birth"
+          />
+        </Section>
+      )}
 
-      <Section
-        variant="banded"
-        band="onboarding"
-        title="Activity"
-        testId="activity"
-        collapsible
-        defaultOpen={!collapsedGroups.has("activity")}
-        onToggleOpen={(open) => toggleGroup("activity", open)}
-      >
-        <ActivityLog sections={record.activityLog} />
-      </Section>
+      {/* LAN-432 — Contact & emergency, split out of Person into its own
+          section directly after it, on Person's colour (W3). */}
+      {lockedOf("contact_emergency") ? (
+        <Section
+          variant="banded"
+          band="person"
+          title="Contact & emergency"
+          testId="contact-emergency"
+          locked
+        />
+      ) : (
+        <Section
+          variant="banded"
+          band="person"
+          title="Contact & emergency"
+          testId="contact-emergency"
+          collapsible
+          defaultOpen={!collapsedGroups.has("contactEmergency")}
+          onToggleOpen={(open) => toggleGroup("contactEmergency", open)}
+        >
+          <RecordField label="Mobile phone" value={mobile} />
+          <RecordField label="Personal email" value={personalEmail} />
+          <RecordField
+            label="Emergency contact"
+            value={formatEmergencyContact(person.emergencyContact)}
+          />
+        </Section>
+      )}
+
+      {lockedOf("onboarding") ? (
+        <>
+          <Section
+            variant="banded"
+            band="onboarding"
+            title="Onboarding"
+            testId="onboarding"
+            locked
+          />
+          <Section
+            variant="banded"
+            band="onboarding"
+            title="Onboarding activity"
+            testId="activity"
+            locked
+          />
+        </>
+      ) : (
+        <>
+          <Section
+            variant="banded"
+            band="onboarding"
+            title="Onboarding"
+            testId="onboarding"
+            collapsible
+            defaultOpen={!collapsedGroups.has("onboarding")}
+            onToggleOpen={(open) => toggleGroup("onboarding", open)}
+          >
+            {onboardingItems.length === 0 ? (
+              <Typography color="text.secondary" sx={{ py: 2 }} data-testid="onboarding-empty">
+                This season has no onboarding items configured, so this membership has none.
+              </Typography>
+            ) : (
+              onboardingItems.map((item) => (
+                <OnboardingRow
+                  key={item.id}
+                  item={item}
+                  editing={editing === `item:${item.id}`}
+                  readOnly={closed || viewOnlyOf("onboarding")}
+                  blank={
+                    item.code === SUBS_PAID_ITEM_CODE &&
+                    onboardingItems.find((each) => each.code === SUBS_INVOICED_ITEM_CODE)
+                      ?.status !== "complete"
+                  }
+                  error={fieldError?.key === `item:${item.id}` ? fieldError.message : null}
+                  onOpen={() => setEditing(`item:${item.id}`)}
+                  onClose={() => setEditing(null)}
+                  onResolve={(status) => resolveOnboardingItem(item, status)}
+                />
+              ))
+            )}
+            {outstandingRequired.length > 0 ? (
+              <Notice severity="info" testId="outstanding-note">
+                {/* W3, Q-19: names the outstanding item(s) as a value — same count sentence, no second explanatory sentence. */}
+                {`${outstandingRequired.length === 1 ? "One required item is" : `${outstandingRequired.length} required items are`} still outstanding: ${outstandingRequired.map((item) => item.label).join(", ")}.`}
+              </Notice>
+            ) : null}
+
+            {/* LAN-266: same control as the recruit record, same position/style.
+            LAN-432: the send is an Onboarding write; under view only its lines show. */}
+            {send ? (
+              <Box sx={{ py: 1.5 }} data-testid="onboarding-send">
+                {viewOnlyOf("onboarding") ? null : (
+                  <SendOnboardingQuestionnaireButton
+                    membershipId={record.membershipId}
+                    displayName={person.displayName ?? record.displayName ?? "This player"}
+                    everSent={send.lastAsk !== null}
+                    canSend={send.withheldReason === null && !closed}
+                    withheldReason={closed ? CLOSED_MEMBERSHIP_REASON : send.withheldReason}
+                    blocked={!send.onboarding || closed}
+                  />
+                )}
+                {sendStatusLines({
+                  lastAsk: send.lastAsk
+                    ? {
+                        requestedAt: send.lastAsk.requestedAt.toISOString(),
+                        delivery: send.lastAsk.delivery,
+                        reason: send.lastAsk.reason,
+                      }
+                    : null,
+                  chaseLine: formatChaseNext(send.next, send.hasReachableNumber),
+                  chaseIsScheduled: send.next.kind === "scheduled",
+                  deliveredCount: send.deliveredCount,
+                  chaseCount: send.chaseCount,
+                }).map((line, index) => (
+                  <Typography
+                    key={line}
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mt: index === 0 ? 1 : 0.25 }}
+                    data-testid={`onboarding-send-caption-${index}`}
+                  >
+                    {line}
+                  </Typography>
+                ))}
+              </Box>
+            ) : null}
+          </Section>
+
+          <Section
+            variant="banded"
+            band="onboarding"
+            title="Onboarding activity"
+            testId="activity"
+            collapsible
+            defaultOpen={!collapsedGroups.has("activity")}
+            onToggleOpen={(open) => toggleGroup("activity", open)}
+          >
+            <ActivityLog sections={record.activityLog ?? []} />
+          </Section>
+        </>
+      )}
 
       <SeasonFactsSection
         record={record}
@@ -561,50 +652,77 @@ export default function PlayerRecordView({
         commitSeasonField={commitSeasonField}
         collapsedGroups={collapsedGroups}
         onToggleGroup={toggleGroup}
+        access={access}
       />
 
-      <Section
-        variant="banded"
-        band="attendance"
-        title="Attendance"
-        testId="attendance"
-        collapsible
-        defaultOpen={!collapsedGroups.has("attendance")}
-        onToggleOpen={(open) => toggleGroup("attendance", open)}
-      >
-        <AttendanceSection events={record.attendance} />
-      </Section>
+      {lockedOf("attendance") ? (
+        <Section variant="banded" band="attendance" title="Attendance" testId="attendance" locked />
+      ) : (
+        <Section
+          variant="banded"
+          band="attendance"
+          title="Attendance"
+          testId="attendance"
+          collapsible
+          defaultOpen={!collapsedGroups.has("attendance")}
+          onToggleOpen={(open) => toggleGroup("attendance", open)}
+        >
+          <AttendanceSection events={record.attendance ?? []} />
+        </Section>
+      )}
 
-      <Section
-        variant="banded"
-        band="history"
-        title="Their other seasons"
-        testId="other-seasons"
-        collapsible
-        defaultOpen={!collapsedGroups.has("otherSeasons")}
-        onToggleOpen={(open) => toggleGroup("otherSeasons", open)}
-      >
-        <OtherSeasons seasons={record.otherSeasons} />
-      </Section>
-
-      <Section
-        collapsible
-        defaultOpen={!collapsedGroups.has("statusHistory")}
-        onToggleOpen={(open) => toggleGroup("statusHistory", open)}
-        title="Status history"
-        testId="status-history"
-        action={
-          <Button
-            href={`/operate/people/${record.personId}?history=expanded`}
-            sx={{ p: 0, minHeight: 0, textTransform: "none", color: "inherit", fontWeight: 700 }}
-            data-testid="open-person-history"
+      {/* LAN-432: Their other seasons and Status history read as Membership. */}
+      {lockedOf("membership") ? (
+        <>
+          <Section
+            variant="banded"
+            band="history"
+            title="Their other seasons"
+            testId="other-seasons"
+            locked
+          />
+          <Section title="Status history" testId="status-history" locked />
+        </>
+      ) : (
+        <>
+          <Section
+            variant="banded"
+            band="history"
+            title="Their other seasons"
+            testId="other-seasons"
+            collapsible
+            defaultOpen={!collapsedGroups.has("otherSeasons")}
+            onToggleOpen={(open) => toggleGroup("otherSeasons", open)}
           >
-            Everything that changed about this person →
-          </Button>
-        }
-      >
-        <StatusHistory history={record.statusHistory} />
-      </Section>
+            <OtherSeasons seasons={record.otherSeasons ?? []} />
+          </Section>
+
+          <Section
+            collapsible
+            defaultOpen={!collapsedGroups.has("statusHistory")}
+            onToggleOpen={(open) => toggleGroup("statusHistory", open)}
+            title="Status history"
+            testId="status-history"
+            action={
+              <Button
+                href={`/operate/people/${record.personId}?history=expanded`}
+                sx={{
+                  p: 0,
+                  minHeight: 0,
+                  textTransform: "none",
+                  color: "inherit",
+                  fontWeight: 700,
+                }}
+                data-testid="open-person-history"
+              >
+                Everything that changed about this person →
+              </Button>
+            }
+          >
+            <StatusHistory history={record.statusHistory ?? []} />
+          </Section>
+        </>
+      )}
     </Stack>
   );
 }

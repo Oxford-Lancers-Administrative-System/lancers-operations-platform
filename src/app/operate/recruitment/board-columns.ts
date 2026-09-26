@@ -1,6 +1,12 @@
 import type { RecruitmentBoardRow, RecruitmentEventColumn } from "@/lib/services/recruitment-board";
-import { BAND_COLOURS as CLUB_BANDS } from "@/components/section";
+import {
+  BAND_COLOURS as CLUB_BANDS,
+  bandColoursForSwatch,
+  type Band as ClubBand,
+  type BandColours,
+} from "@/components/band-colours";
 import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitment-vocabulary";
+import type { CategoryLevel, RecruitingCategory } from "@/lib/auth/grants";
 
 /**
  * The recruit board's column model — `W1`, LAN-204. Modelled on
@@ -13,15 +19,18 @@ import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitme
 export type Band = "person" | "recruitment" | `events:${string}`;
 type BandKind = "person" | "recruitment" | "events";
 
-const BAND_COLOURS: Readonly<
-  Record<"person" | "recruitment", { header: string; tint: string; solid: string }>
-> = Object.freeze({
-  person: CLUB_BANDS.person,
-  recruitment: CLUB_BANDS.recruitment,
+/**
+ * Where each kind of band takes its colour from. Person is the roster's Person
+ * group, in the colour the club chose for it (LAN-430, `roster_group_colours`);
+ * Recruitment keeps its code colour; an event band wears its event's template
+ * colour (LAN-423 round 6, Brian), falling back to the Season band's blue only
+ * for an event with no template.
+ */
+const CLUB_BAND_OF_KIND: Readonly<Record<BandKind, ClubBand>> = Object.freeze({
+  person: "person",
+  recruitment: "recruitment",
+  events: "season",
 });
-
-/** The Events band reuses the Season band's own blue, `W1`'s own reasoning. */
-const EVENTS_BAND_COLOUR = CLUB_BANDS.season;
 
 export const BAND_ROW_HEIGHT = 28;
 export const BAND_LABEL_INSET_PX = 16;
@@ -32,10 +41,20 @@ function bandKind(band: Band): BandKind {
   return band.startsWith("events:") ? "events" : (band as BandKind);
 }
 
-/** The colours for a band value — `person`/`recruitment`'s own, or the one shared events blue. */
-export function bandColour(band: Band): { header: string; tint: string; solid: string } {
+/**
+ * The colours for a band value — `person`/`recruitment`'s own, or, for an
+ * event band, the swatch of `eventColourKey` (the event's template colour,
+ * `TEMPLATE_COLOUR_PALETTE`). `colours` is the board's `useBandColours()`;
+ * without it the seeded colours stand.
+ */
+export function bandColour(
+  band: Band,
+  colours: Readonly<Record<ClubBand, BandColours>> = CLUB_BANDS,
+  eventColourKey: string | null = null,
+): BandColours {
   const kind = bandKind(band);
-  return kind === "events" ? EVENTS_BAND_COLOUR : BAND_COLOURS[kind];
+  if (kind === "events" && eventColourKey !== null) return bandColoursForSwatch(eventColourKey);
+  return colours[CLUB_BAND_OF_KIND[kind]];
 }
 
 /** The event id encoded in an events-band value, or `null` for `person`/`recruitment`. */
@@ -53,8 +72,52 @@ export interface ColumnDef {
   readonly width: number;
   readonly sortable: boolean;
   readonly filterable: boolean;
+  /**
+   * The recruiting category this column belongs to (LAN-432): the recruit's
+   * person columns are Person information, the Recruitment columns Recruit
+   * details, every event band Event details.
+   */
+  readonly category: RecruitingCategory;
+  /** Set by {@link visibleRecruitmentColumns} for a category held at `view`: text, no control, caption "view". */
+  readonly viewOnly?: true;
   /** Not a column: the one narrow cell a folded-away group leaves behind — LAN-404, the roster board's own idiom. */
   readonly placeholder?: true;
+}
+
+/** A band's recruiting category. */
+function categoryOfRecruitmentBand(band: Band): RecruitingCategory {
+  const kind = bandKind(band);
+  return kind === "person"
+    ? "recruit_person"
+    : kind === "recruitment"
+      ? "recruit_details"
+      : "recruit_events";
+}
+
+/** A seat's level on each recruiting category, as the board reads it. */
+export type RecruitingAccess = Readonly<Record<RecruitingCategory, CategoryLevel>>;
+
+/** Every recruiting category at its maximum — the board drawn without a seat (a test fixture). */
+export const FULL_RECRUITING_ACCESS: RecruitingAccess = Object.freeze({
+  recruit_person: "edit",
+  recruit_details: "edit",
+  recruit_events: "view",
+});
+
+/**
+ * The columns this seat may see — LAN-432, the roster board's own pattern: a
+ * `none` category's columns are dropped, a `view` category's (and Event
+ * details, which is never more than `view`) come back `viewOnly`.
+ */
+export function visibleRecruitmentColumns(
+  columns: readonly ColumnDef[],
+  access: RecruitingAccess,
+): readonly ColumnDef[] {
+  return columns
+    .filter((column) => access[column.category] !== "none")
+    .map((column) =>
+      access[column.category] === "edit" ? column : { ...column, viewOnly: true as const },
+    );
 }
 
 /**
@@ -90,6 +153,7 @@ function collapsedPlaceholder(band: Band): ColumnDef {
     width: 28,
     sortable: false,
     filterable: false,
+    category: categoryOfRecruitmentBand(band),
     placeholder: true as const,
   });
 }
@@ -111,7 +175,7 @@ export function displayColumns(
 }
 
 /** `W1`'s own column table. Person band first, then Recruitment — do not invent a column. */
-export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze([
+const RECRUITMENT_COLUMN_TABLE: readonly Omit<ColumnDef, "category">[] = [
   // ---------------------------------------------------------------- Person --
   {
     key: "college",
@@ -268,7 +332,25 @@ export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze([
     sortable: true,
     filterable: false,
   },
-]);
+];
+
+/**
+ * Columns whose recruiting category is not their band's. Personal sent is the
+ * personal questionnaire's send state, which the record keeps under Person
+ * information (LAN-423), so board and record agree.
+ */
+const COLUMN_CATEGORY_OVERRIDES: Readonly<Partial<Record<string, RecruitingCategory>>> =
+  Object.freeze({ personalSent: "recruit_person" });
+
+/** The Person and Recruitment columns, each carrying its recruiting category (LAN-432). */
+export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze(
+  RECRUITMENT_COLUMN_TABLE.map((column) =>
+    Object.freeze({
+      ...column,
+      category: COLUMN_CATEGORY_OVERRIDES[column.key] ?? categoryOfRecruitmentBand(column.band),
+    }),
+  ),
+);
 
 export const STATUS_FILTER_OPTIONS = Object.freeze(Object.keys(PROSPECT_STATUS_LABELS));
 export const CONSENT_FILTER_OPTIONS = Object.freeze(Object.keys(CONSENT_LABELS));
@@ -294,6 +376,7 @@ export function eventColumns(events: readonly RecruitmentEventColumn[]): readonl
         width: 90,
         sortable: true,
         filterable: false,
+        category: "recruit_events" as const,
       },
       {
         key: eventColumnKey(event.eventId, "attendance"),
@@ -303,6 +386,7 @@ export function eventColumns(events: readonly RecruitmentEventColumn[]): readonl
         width: 108,
         sortable: true,
         filterable: false,
+        category: "recruit_events" as const,
       },
     ];
   });

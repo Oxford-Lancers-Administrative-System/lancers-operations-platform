@@ -34,6 +34,7 @@ vi.mock("../login/actions", () => ({ signOut: vi.fn() }));
 import { resolveOperator } from "@/lib/auth/operator";
 import { createClient } from "@/lib/supabase/server";
 import DashboardPage from "./page";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function givenSignedInAs(email: string | null) {
   vi.mocked(createClient).mockResolvedValue({
@@ -60,6 +61,7 @@ describe("/dashboard", () => {
       personId: "person-id",
       displayName: "Caspian Hallowfield",
       roleCodes: ["it_officer", "media_secretary", "secretary"],
+      grants: seededGrantsFor(["it_officer", "media_secretary", "secretary"]),
       isActive: true,
     });
 
@@ -132,6 +134,7 @@ describe("/dashboard", () => {
       personId: "person-id",
       displayName: "Unroled Person",
       roleCodes: [],
+      grants: seededGrantsFor([]),
       isActive: true,
     });
 

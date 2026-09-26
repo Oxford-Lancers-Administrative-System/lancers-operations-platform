@@ -55,6 +55,8 @@ import { readCandidateIdentitiesIn } from "@/lib/services/recruitment-candidate-
 import { finishRecruitmentAddIn, refuseIfAlreadyAMemberIn } from "@/lib/services/recruitment-add";
 import { submitAddRecruit } from "./actions";
 import { INITIAL_ADD_RECRUIT_STATE } from "./create-state";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { mergeGrantRows, NO_GRANTS } from "@/lib/auth/grants";
 
 const OPERATOR_PERSON_ID = "11111111-1111-4111-8111-111111111111";
 const SEASON_ID = "22222222-2222-4222-8222-222222222222";
@@ -71,6 +73,7 @@ function fourRoleOperator(): OperatorAccess {
       personId: OPERATOR_PERSON_ID,
       displayName: "Caspian Hallowfield",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     },
   };
@@ -117,15 +120,55 @@ describe("who may call it", () => {
         personId: "33333333-3333-4333-8333-333333333333",
         displayName: "Nobody Special",
         roleCodes: ["head_coach"],
+        grants: seededGrantsFor(["head_coach"]),
         isActive: true,
       },
     });
 
-    await expect(
-      submitAddRecruit(INITIAL_ADD_RECRUIT_STATE, form({ intent: "check" })),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    // LAN-423: the refusal is the form's own state, never a throw.
+    const state = await submitAddRecruit(INITIAL_ADD_RECRUIT_STATE, form({ intent: "check" }));
+
+    expect(state.formError).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    expect(state.candidates).toBeNull();
     expect(findPersonDuplicates).not.toHaveBeenCalled();
   });
+
+  // LAN-423 fix round 3, H3: the switch turned off under an open form.
+  for (const intent of ["check", "create", "link"]) {
+    it(`returns the refusal with the entries intact when ${intent} is pressed after the switch is off`, async () => {
+      signedInAs({
+        state: "active",
+        operator: {
+          authUserId: "00000000-1111-4111-8111-111111111112",
+          personId: "33333333-3333-4333-8333-333333333333",
+          displayName: "Nobody Special",
+          roleCodes: [],
+          grants: NO_GRANTS,
+          isActive: true,
+        },
+      });
+
+      const state = await submitAddRecruit(
+        INITIAL_ADD_RECRUIT_STATE,
+        form({
+          intent,
+          givenName: "Marguerite",
+          familyName: "Ashdown",
+          ...(intent === "link" ? { linkPersonId: "44444444-4444-4444-8444-444444444444" } : {}),
+        }),
+      );
+
+      expect(state.formError).toBe(
+        "You do not have access to this action. This needs access your seat does not hold.",
+      );
+      expect(state.values.givenName).toBe("Marguerite");
+      expect(state.values.familyName).toBe("Ashdown");
+      expect(findPersonDuplicates).not.toHaveBeenCalled();
+      expect(createPerson).not.toHaveBeenCalled();
+    });
+  }
 });
 
 describe("required fields", () => {
@@ -373,5 +416,110 @@ describe("creating a new recruit", () => {
 
     expect(result.exactMatch?.personId).toBe("88888888-8888-4888-8888-888888888888");
     expect(result.formError).toBeUndefined();
+  });
+});
+
+// LAN-423 fix round 3, H1: the duplicate check's payload, narrowed on the
+// server to the seat's own grants.
+describe("the duplicate check's matches, as a seat holding the switch receives them", () => {
+  const SWITCH = {
+    subject_kind: "switch",
+    subject_key: "add_recruits",
+    template_id: null,
+    level: "yes",
+  } as const;
+
+  function seatWith(rows: Parameters<typeof mergeGrantRows>[0]): OperatorAccess {
+    return {
+      state: "active",
+      operator: {
+        authUserId: "00000000-1111-4111-8111-111111111113",
+        personId: OPERATOR_PERSON_ID,
+        displayName: "Switch Holder",
+        roleCodes: [],
+        grants: mergeGrantRows(rows),
+        isActive: true,
+      },
+    };
+  }
+
+  beforeEach(() => {
+    vi.mocked(findPersonDuplicates).mockResolvedValue([
+      {
+        personId: "44444444-4444-4444-8444-444444444444",
+        givenName: "Corwin",
+        familyName: "Vellacott",
+        displayAlias: null,
+        displayName: "Corwin Vellacott",
+        currentEmails: ["corwin.vellacott@ashridge.ox.ac.example"],
+        currentPhones: ["+447700900999"],
+        matchedOn: ["phone"],
+      },
+    ]);
+    vi.mocked(readCandidateIdentitiesIn).mockResolvedValue(
+      new Map([
+        [
+          "44444444-4444-4444-8444-444444444444",
+          { kind: "player", membershipStatus: "active", seasonLabel: "2026-27" },
+        ],
+      ]),
+    );
+  });
+
+  const check = () =>
+    submitAddRecruit(
+      INITIAL_ADD_RECRUIT_STATE,
+      form({
+        intent: "check",
+        givenName: "Walker",
+        familyName: "Vellacott",
+        mobile: "+447700900999",
+      }),
+    );
+
+  it("carries the name and the match reason, and no email, phone or status, with everything else None", async () => {
+    signedInAs(seatWith([SWITCH]));
+
+    const state = await check();
+    const payload = JSON.stringify(state.candidates);
+
+    expect(state.candidates?.[0]).toMatchObject({
+      displayName: "Corwin Vellacott",
+      matchedOn: ["phone"],
+      currentEmails: [],
+      currentPhones: [],
+      identity: { kind: "player", membershipStatus: "" },
+    });
+    expect(payload).not.toContain("corwin.vellacott");
+    expect(payload).not.toContain("900999");
+    expect(payload).not.toContain("active");
+  });
+
+  it("carries the email and phone with Person information at View, and the status with Membership at View", async () => {
+    signedInAs(
+      seatWith([
+        SWITCH,
+        {
+          subject_kind: "recruiting_category",
+          subject_key: "recruit_person",
+          template_id: null,
+          level: "view",
+        },
+        {
+          subject_kind: "roster_category",
+          subject_key: "membership",
+          template_id: null,
+          level: "view",
+        },
+      ]),
+    );
+
+    const state = await check();
+
+    expect(state.candidates?.[0]).toMatchObject({
+      currentEmails: ["corwin.vellacott@ashridge.ox.ac.example"],
+      currentPhones: ["+447700900999"],
+      identity: { kind: "player", membershipStatus: "active" },
+    });
   });
 });

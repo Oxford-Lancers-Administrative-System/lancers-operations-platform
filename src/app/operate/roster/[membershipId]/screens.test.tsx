@@ -87,6 +87,7 @@ import {
 import { COULD_NOT_SAVE } from "../board-action-state";
 import PlayerRecordPage from "./page";
 import { STATUSES, STATUS_OPTION_LABELS } from "../board-columns";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 function operatorAccess(roleCodes: string[]): OperatorAccess {
   return {
@@ -96,6 +97,7 @@ function operatorAccess(roleCodes: string[]): OperatorAccess {
       personId: "22222222-2222-4222-8222-222222222222",
       displayName: "Morgan Pike",
       roleCodes,
+      grants: seededGrantsFor(roleCodes),
       isActive: true,
     },
   };
@@ -1932,6 +1934,10 @@ describe("which groups are folded away, remembered on the account", () => {
     // most often after the membership facts, and arrives open.
     expect(screen.getByTestId("section-availability")).toHaveAttribute("open");
     expect(screen.getByTestId("section-activity")).not.toHaveAttribute("open");
+    // Round 6, M3 (Brian): the onboarding log is titled for what it is.
+    expect(
+      within(screen.getByTestId("section-activity")).getByText("Onboarding activity"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("section-attendance")).not.toHaveAttribute("open");
     expect(screen.getByTestId("section-other-seasons")).not.toHaveAttribute("open");
     expect(screen.getByTestId("section-status-history")).not.toHaveAttribute("open");

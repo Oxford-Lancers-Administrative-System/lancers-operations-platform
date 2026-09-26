@@ -114,10 +114,75 @@ Sign in with the local review account. Its address is
 repository.
 
 **Expected.** You land on **/operate/roster** — the season's squad as a
-twenty-column board (LAN-186), open only to the President, Vice-President,
-Secretary, General Manager and IT Officer. The left sidebar shows **Roster**,
-**Events** and **Report**. Bottom left it says who you are signed in as and
-"Authorized operator".
+twenty-column board (LAN-186). Who reaches it is a seat's access grants since
+LAN-429: on a freshly seeded database the President, Vice-President, Secretary,
+General Manager and IT Officer hold every roster and recruiting line at Edit
+and every template at Manage, and every other seat holds None. The left sidebar
+lists only what the signed-in account's seats reach — it is drawn from the same
+grants and capabilities every page gates on (see "Who sees what" below), so it
+never offers a page that then refuses. Bottom left it says who you are signed
+in as and "Authorized operator".
+
+**Who sees what (LAN-429, LAN-430).** Access is edited on a seat's page
+(Administration → Roles → a seat) by the President, General Manager and IT
+Officer, whose own access is fixed. The page's **Access** section, under
+Current holder, lists four groups — Roster, Recruiting, Event templates and
+Adding people — one line each: None / View / Edit on eleven roster categories
+and on Person information and Recruit details, None / View on Attendance (the
+Roster group's last line) and on Event details,
+None / View / Manage on each event template, and No / Yes on "May add to the
+roster" and "May add recruits". A press saves at once; the Notice reads the
+change back and the seat's **History** gains an "Access changed" entry. **Copy
+access from another seat** (choose the seat, read every line that would
+change, confirm) and **Grant everything** each write one History entry listing
+every changed line. On the three fixed seats every line prints its value with
+no control. At 375px each group folds to its summary. A template added later
+arrives at Manage for the fixed seats and None for every other. An operator
+holding several seats holds the highest level any of them grants, from their
+next request. The ten roster group colours are edited from **Edit categories**,
+beside Add players on the roster, by the same three seats; the board, the
+player and prospect records and the recruitment board draw from them. The
+sidebar follows: Roster, People and Missing data with any roster category at
+View; Recruitment with any recruiting category at View; Events with any template
+at View or an attendance capability; Follow-ups with any template at View; the
+Messaging schedule with any template at Manage. Report appears only for the
+seats that hold the report (the core four and the IT Officer), never as a grant
+line; the rest of Administration is unchanged. Events of a template at None appear nowhere — not
+on the list, the calendar, Follow-ups or by typed URL; View shows everything in
+the event, including the Event info link; Manage adds every create, edit,
+delete, send, approve, delivery and chase control and that template's messaging
+schedule (LAN-431). Attendance recording is unchanged for every seat: the
+Attendance line governs only the player record's Attendance section, and the
+roster board has no attendance columns.
+
+**Working the roster and recruits within the grants (LAN-432).** The roster
+board, a player's record, People, a person's record and Missing data open for
+any seat that reaches Roster; the recruitment board and a prospect's record for
+any seat that reaches Recruitment. On the board a group at None has no columns,
+no filters and no card chips; at View its values are text and its column
+caption reads "view"; at Edit it is as before. With None on Person a row is the
+name alone. With None on Contact & emergency the Contactable indicator carries
+no number and the 375 card has no Call. On a record every section stays in its
+place: a section at None is its head with a lock, cannot be opened, and nothing
+of it is sent to the browser. The player record's sections read Person, Contact
+& emergency (Mobile phone, Personal email, Emergency contact — its own section
+after Person), Onboarding (and Onboarding activity), Membership, Availability, the five
+assignment groups and Kit; Their other seasons and Status history read as
+Membership; Attendance reads as its own Attendance line (None / View), which
+governs only that section — recording attendance on an event is unchanged. On People and a person's record, Who
+they are, Restricted, Where they stand, Messaging and What changed read as
+Person, How to reach them (and the emergency contact) as Contact & emergency,
+Their seasons as Membership; Correct this record needs Edit on Person or
+Contact & emergency and edits only those; Add a person needs Edit on Person;
+Merge needs every roster and recruiting line at its maximum. On a prospect's
+record Personal questionnaire, How to reach them, Who they are, Restricted,
+Where they stand and Their seasons read as Person information; Recruitment,
+Notes, What changed and Status history as Recruit details; Recruitment events
+as Event details. The record header's status is text, not a pill. Every write
+re-checks its own category at Edit on the server. **Add players** appears only
+with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
+**Add recruit** and **QR code** only with "May add recruits"; their pages and
+actions refuse without it.
 
 The heading reads `Roster` and beneath it `Season 2026-27 · 42 players · 20
 columns`.
@@ -763,6 +828,11 @@ Attendance recording is the only operator surface open to a coaching assignment.
 This action requires a club role that carries general operator access.
 Authorization is enforced by the service action independently of whether a
 navigation item was visible."
+
+A coach whose seat has been given any access grant (LAN-429) is no longer a
+narrow recorder: they get the ordinary shell with the destinations their grants
+open, and attendance recording is unchanged. With no grant they see exactly the
+above.
 
 An ordinary player's account, and a coach whose seat has ended, reach neither the
 read nor the write; `tests/slice-walkthrough.test.ts` and

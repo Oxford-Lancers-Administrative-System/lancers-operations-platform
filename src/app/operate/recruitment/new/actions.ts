@@ -2,9 +2,12 @@
 
 import { redirect } from "next/navigation";
 
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError, withTransaction } from "@/lib/db";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
+import type { OperatorGrants } from "@/lib/auth/grants";
+import { redactRecruitCandidates } from "@/lib/services/person-candidate-access";
 import { createPerson } from "@/lib/services/person-create";
 import { readCandidateIdentitiesIn } from "@/lib/services/recruitment-candidate-identity";
 import {
@@ -20,6 +23,7 @@ import {
   type AddRecruitFieldErrors,
   type AddRecruitState,
 } from "./create-state";
+import { ADD_RECRUITS } from "@/lib/auth/roster-access";
 
 /**
  * `/operate/recruitment/new`'s one server action — `W6`, LAN-206. Same
@@ -30,9 +34,18 @@ export async function submitAddRecruit(
   previous: AddRecruitState,
   formData: FormData,
 ): Promise<AddRecruitState> {
-  const operator = await requireCapability("person_record_authority");
-
   const values = readAddRecruitValues(formData);
+
+  // LAN-432: the May add recruits switch. LAN-423: a seat whose switch was
+  // turned off under an open form gets the refusal on the details, entries
+  // intact — not a crashed page.
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireGrant(ADD_RECRUITS);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { values, errors: {}, candidates: null, exactMatch: null, formError: error.message };
+  }
   const linkPersonId = formData.get("linkPersonId");
   const intent =
     typeof linkPersonId === "string" && linkPersonId !== "" ? "link" : formData.get("intent");
@@ -49,6 +62,7 @@ export async function submitAddRecruit(
     }
     try {
       const candidates = await withIdentities(
+        operator.grants,
         await findPersonDuplicates({
           givenName: values.givenName,
           familyName: values.familyName,
@@ -185,6 +199,7 @@ export async function submitAddRecruit(
         const candidates =
           previous.candidates ??
           (await withIdentities(
+            operator.grants,
             await findPersonDuplicates({
               givenName: values.givenName,
               familyName: values.familyName,
@@ -221,11 +236,13 @@ export async function submitAddRecruit(
   return { ...previous, formError: GENERIC_FAILURE };
 }
 
+/** The matches with who each one is, narrowed to the seat's own grants before they leave the server (LAN-423). */
 async function withIdentities(
+  grants: OperatorGrants,
   candidates: Awaited<ReturnType<typeof findPersonDuplicates>>,
 ): Promise<AddRecruitCandidate[]> {
   if (candidates.length === 0) return [];
-  return withTransaction(async (tx) => {
+  const identified = await withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
     const identities = await readCandidateIdentitiesIn(
       tx,
@@ -237,6 +254,7 @@ async function withIdentities(
       identity: identities.get(candidate.personId) ?? { kind: "none" as const },
     }));
   });
+  return redactRecruitCandidates(identified, grants);
 }
 
 function requiredErrors(values: {

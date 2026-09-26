@@ -26,7 +26,7 @@ vi.mock("server-only", () => ({}));
 
 import pg, { type Client } from "pg";
 
-import { capabilityRoleCodes } from "@/lib/auth/capabilities";
+import { capabilityRoleCodes, seededGrantsFor } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool, isServiceError, resolveDatabaseUrl, withTransaction } from "@/lib/db";
 import { recordAudit } from "./audit";
@@ -92,6 +92,7 @@ function administrator(): ResolvedOperator {
     personId: actorPersonId,
     displayName: "Administrator",
     roleCodes: [...capabilityRoleCodes(ADMINISTRATION_HISTORY_CAPABILITY)],
+    grants: seededGrantsFor([...capabilityRoleCodes(ADMINISTRATION_HISTORY_CAPABILITY)]),
     isActive: true,
   };
 }
@@ -103,6 +104,7 @@ function coach(): ResolvedOperator {
     personId: actorPersonId,
     displayName: "Coach",
     roleCodes: ["head_coach"],
+    grants: seededGrantsFor(["head_coach"]),
     isActive: true,
   };
 }

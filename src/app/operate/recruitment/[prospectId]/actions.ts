@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   addRecruitmentProspectNote,
@@ -21,9 +21,9 @@ function refresh(prospectId: string): void {
   revalidatePath("/operate/people/[personId]", "page");
 }
 
+/** A `NotPermitted` comes back as state like any service error (LAN-423); a bug still throws. */
 function stateFor(error: unknown): RecruitmentActionState {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return { error: error.message };
 }
 
@@ -31,8 +31,9 @@ export async function addRecruitmentNoteAction(params: {
   prospectId: string;
   note: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: Recruit details at edit.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     await addRecruitmentProspectNote(operator.personId, params.prospectId, params.note);
   } catch (error) {
     return stateFor(error);
@@ -56,8 +57,9 @@ export async function sendRecruitmentQuestionnaireAction(params: {
     reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
   }
 > {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: Recruit details at edit.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     const result = await sendRecruitmentQuestionnaire(
       operator.personId,
       params.prospectId,
@@ -80,7 +82,7 @@ export async function sendRecruitmentQuestionnaireAction(params: {
  * **Stop messages** — LAN-371, Brian 2026-09-16. Withdraws this season's
  * consent for this recruit, with a required reason, and cancels everything
  * still queued for them rather than leaving each send to be refused one at a
- * time. `person_record_authority` is the same capability that edits the
+ * time. Recruit details at `edit` (LAN-432) is the same grant that edits the
  * recruit, which is what the issue asks for.
  */
 export async function stopMessagesAction(params: {
@@ -88,8 +90,9 @@ export async function stopMessagesAction(params: {
   listedReason: ConsentWithdrawalReason;
   note: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: Recruit details at edit.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     await stopRecruitMessages(operator.personId, params.prospectId, {
       listedReason: params.listedReason,
       note: params.note,
@@ -106,8 +109,9 @@ export async function recordConsentAction(params: {
   prospectId: string;
   note: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireCapability("person_record_authority");
   try {
+    // LAN-432: Recruit details at edit.
+    const operator = await requireGrant({ kind: "recruiting", key: "recruit_details" }, "edit");
     await recordRecruitConsent(operator.personId, params.prospectId, params.note);
   } catch (error) {
     return stateFor(error);

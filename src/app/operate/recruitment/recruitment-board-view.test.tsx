@@ -30,6 +30,7 @@ vi.mock("./group-preference-actions", () => ({
 import { flipRecruitmentProspectAction, setRecruitmentStatusAction } from "./board-actions";
 import { BOARD_SCROLLBAR_GUTTER_PX } from "../roster/board-columns";
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
+import { templateColourFor } from "@/lib/services/event-template-input";
 import type { Season } from "@/lib/services/seasons";
 import RecruitmentBoardView from "./recruitment-board-view";
 
@@ -172,7 +173,12 @@ describe("the phone card", () => {
 });
 
 describe("the per-event RSVP and Attendance columns — sortable (Brian, 2026-09-02)", () => {
-  const EVENT = { eventId: "event-1", name: "Taster session", date: "2026-05-10" };
+  const EVENT = {
+    eventId: "event-1",
+    name: "Taster session",
+    date: "2026-05-10",
+    colourKey: "teal",
+  };
 
   function eventRows() {
     // Same status and first-contact date, so the *default* order (before any
@@ -214,6 +220,17 @@ describe("the per-event RSVP and Attendance columns — sortable (Brian, 2026-09
       .getAllByTestId(/^recruitment-row-/)
       .map((el) => el.getAttribute("data-testid")?.replace("recruitment-row-", "") ?? "");
   }
+
+  it("draws the event's band head in its template colour, apart from Recruitment's", () => {
+    renderWithEvent(eventRows());
+    const head = (band: string) => screen.getByTestId(`band-toggle-${band}`).closest("th");
+    expect(head("events:event-1")).toHaveStyle({
+      backgroundColor: templateColourFor("teal").accent,
+    });
+    expect(head("recruitment")).not.toHaveStyle({
+      backgroundColor: templateColourFor("teal").accent,
+    });
+  });
 
   it("sorts by RSVP on click, exactly as the person/recruitment columns already sort", () => {
     renderWithEvent(eventRows());
@@ -310,5 +327,41 @@ describe("the board's scrollbar gutter — LAN-395", () => {
     expect(window.getComputedStyle(table).getPropertyValue("scrollbar-gutter")).toBe("stable");
     expect(window.getComputedStyle(table).paddingRight).toBe(`${BOARD_SCROLLBAR_GUTTER_PX}px`);
     expect(window.getComputedStyle(table).overflow).toBe("auto");
+  });
+});
+
+describe("Personal sent follows Person information, as the record does — LAN-423", () => {
+  function renderWith(access: {
+    recruit_person: "none" | "view" | "edit";
+    recruit_details: "none" | "view" | "edit";
+  }) {
+    return render(
+      <RecruitmentBoardView
+        operatorPersonId="operator-1"
+        season={SEASON}
+        rows={[row()]}
+        events={[]}
+        totalInSeason={1}
+        initialSearch=""
+        initialFilters={{}}
+        initialSortKey={null}
+        initialSortDirection="asc"
+        access={{ ...access, recruit_events: "none" }}
+      />,
+    );
+  }
+
+  it("is not shown to a Recruit-details-only seat, as column or filter", () => {
+    const { container } = renderWith({ recruit_person: "none", recruit_details: "view" });
+    expect(container.querySelector('[data-testid="recruitment-filter-personal-sent"]')).toBeNull();
+    expect(within(container).queryAllByText("Personal sent")).toEqual([]);
+  });
+
+  it("is shown to a Person-information seat without Recruit details", () => {
+    const { container } = renderWith({ recruit_person: "view", recruit_details: "none" });
+    expect(
+      container.querySelector('[data-testid="recruitment-filter-personal-sent"]'),
+    ).not.toBeNull();
+    expect(within(container).getAllByText("Personal sent").length).toBeGreaterThan(0);
   });
 });

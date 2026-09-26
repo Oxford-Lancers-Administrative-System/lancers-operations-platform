@@ -26,6 +26,8 @@ import {
   NO_CHANGE_RULE,
   prepareAdministrationEvent,
   ROLE_RELATED_ADMINISTRATION_ACTIONS,
+  ACCESS_ADMINISTRATION_ACTIONS,
+  HOLDER_HISTORY_ACTIONS,
   type AdministrationEventRecord,
 } from "./administration-events";
 
@@ -94,7 +96,7 @@ describe("row 1 — the vocabulary is a closed set", () => {
     }
   });
 
-  it("covers all four families the requirement names, and no fifth", () => {
+  it("covers the four families the requirement names, and LAN-429's access family, and no other", () => {
     const families = new Set(ADMINISTRATION_ACTIONS.map((a) => ADMINISTRATION_EVENTS[a].family));
     expect([...families].sort()).toEqual([...ADMINISTRATION_EVENT_FAMILIES].sort());
   });
@@ -522,5 +524,75 @@ describe("the envelope's own shape", () => {
       );
       expect(prepared.envelope.version).toBe(ADMINISTRATION_ENVELOPE_VERSION);
     }
+  });
+});
+
+/**
+ * LAN-429 — the access family. A seat's grants are about the seat: the event
+ * names the role and no Person and no assignment, and is filed against the
+ * role's own row so the seat's History finds it.
+ */
+describe("LAN-429 — access events", () => {
+  function accessChange(
+    overrides: Partial<AdministrationEventRecord> = {},
+  ): AdministrationEventRecord {
+    return {
+      action: "administration.access.changed",
+      actorPersonId: ACTOR,
+      authority: AUTHORITY,
+      role: { id: ROLE, code: "kit_manager" },
+      operatingYear: OPERATING_YEAR,
+      fromState: "none",
+      toState: "edit",
+      detail: { subjectKind: "roster_category", subjectKey: "kit" },
+      ...overrides,
+    };
+  }
+
+  it("files an access event against the seat, with no target and no assignment", () => {
+    const prepared = prepareAdministrationEvent(accessChange());
+    expect(prepared.entityTable).toBe("public.roles");
+    expect(prepared.entityId).toBe(ROLE);
+    expect(prepared.envelope.roleId).toBe(ROLE);
+    expect(prepared.envelope.targetPersonId).toBeNull();
+    expect(prepared.envelope.roleAssignmentId).toBeNull();
+  });
+
+  it("requires the seat, and refuses a Person or an assignment on it", () => {
+    expect(refusalOf(accessChange({ role: null })).rule).toBe("administration_role_required");
+    expect(
+      refusalOf(accessChange({ target: { personId: TARGET, operatorAccountId: ACCOUNT } })).rule,
+    ).toBe("administration_target_not_permitted");
+    expect(
+      refusalOf(accessChange({ role: { id: ROLE, code: "kit_manager", assignmentId: ASSIGNMENT } }))
+        .rule,
+    ).toBe("administration_assignment_not_permitted");
+  });
+
+  it("refuses a no-op change, and takes a copy or grant-everything with no states", () => {
+    expect(refusalOf(accessChange({ fromState: "view", toState: "view" })).rule).toBe(
+      NO_CHANGE_RULE,
+    );
+    for (const action of [
+      "administration.access.copied",
+      "administration.access.granted_all",
+    ] as const) {
+      const prepared = prepareAdministrationEvent(
+        accessChange({ action, fromState: null, toState: null, detail: { changes: [] } }),
+      );
+      expect(prepared.definition.family).toBe("access");
+    }
+  });
+
+  it("puts the access actions in the seat's History, beside its assignments", () => {
+    expect([...ACCESS_ADMINISTRATION_ACTIONS]).toEqual([
+      "administration.access.changed",
+      "administration.access.copied",
+      "administration.access.granted_all",
+    ]);
+    expect([...HOLDER_HISTORY_ACTIONS]).toEqual([
+      ...ROLE_RELATED_ADMINISTRATION_ACTIONS,
+      ...ACCESS_ADMINISTRATION_ACTIONS,
+    ]);
   });
 });

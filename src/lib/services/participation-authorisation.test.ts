@@ -5,10 +5,13 @@
  *
  * These assert the guard is asked **before** anything is read, so the refusal
  * does not depend on a page having hidden a control or a route having been
- * gated. The guard module is mocked and made to refuse; if the service reached
- * the database anyway, `vitest.setup.ts` would fail the file for opening a
+ * gated. The guard is mocked and made to refuse; if the service reached the
+ * database anyway, `vitest.setup.ts` would fail the file for opening a
  * connection outside the database project — which is itself part of the
  * assertion.
+ *
+ * LAN-431: the guard is View on the event's own template, for the table and
+ * for the Event info link alike (W4-05 — it shares, it sends nothing).
  *
  * The data these functions return is proved against the real database in
  * `./participation.test.ts`.
@@ -16,32 +19,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/auth/guards", () => ({
-  requireGeneralOperator: vi.fn(),
-  requireCapability: vi.fn(),
-}));
+vi.mock("./events/access", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./events/access")>();
+  return { ...actual, requireEventGrant: vi.fn() };
+});
 
 import { NotPermitted } from "@/lib/db";
-import { requireCapability, requireGeneralOperator } from "@/lib/auth/guards";
+import { requireEventGrant } from "./events/access";
 import { issueEventClubLink, readEventClubLink, readOperatorParticipation } from "./participation";
 
-const generalOperator = vi.mocked(requireGeneralOperator);
-const capability = vi.mocked(requireCapability);
+const eventGrant = vi.mocked(requireEventGrant);
 
 const REFUSAL = new NotPermitted("You do not have access to this action.", {
-  rule: "capability:event_calendar_management",
+  rule: "grant:template.t>=view",
 });
 
 beforeEach(() => {
-  generalOperator.mockReset();
-  capability.mockReset();
+  eventGrant.mockReset();
 });
 
 describe("reading the operator tier", () => {
-  it("asks for a general operator, and reads nothing when refused", async () => {
-    generalOperator.mockRejectedValue(REFUSAL);
+  it("asks for View on the event's template, and reads nothing when refused", async () => {
+    eventGrant.mockRejectedValue(REFUSAL);
     await expect(readOperatorParticipation("event-1")).rejects.toBe(REFUSAL);
-    expect(generalOperator).toHaveBeenCalledTimes(1);
+    expect(eventGrant).toHaveBeenCalledWith("event-1", "view");
   });
 
   it("takes no actor argument, so a caller cannot say who they are", () => {
@@ -53,18 +54,18 @@ describe("reading the operator tier", () => {
 });
 
 describe("issuing and reading the club link", () => {
-  it("asks for `event_calendar_management` before creating anything", async () => {
-    capability.mockRejectedValue(REFUSAL);
+  it("asks for View on the event's template before creating anything", async () => {
+    eventGrant.mockRejectedValue(REFUSAL);
     await expect(issueEventClubLink("event-1")).rejects.toBe(REFUSAL);
-    expect(capability).toHaveBeenCalledWith("event_calendar_management");
+    expect(eventGrant).toHaveBeenCalledWith("event-1", "view");
   });
 
-  it("asks for the same capability to read the live link", async () => {
+  it("asks for the same to read the live link", async () => {
     // Reading is not a lesser act here: the value being read is the link
     // itself, and anyone holding it holds the tier.
-    capability.mockRejectedValue(REFUSAL);
+    eventGrant.mockRejectedValue(REFUSAL);
     await expect(readEventClubLink("event-1")).rejects.toBe(REFUSAL);
-    expect(capability).toHaveBeenCalledWith("event_calendar_management");
+    expect(eventGrant).toHaveBeenCalledWith("event-1", "view");
   });
 
   it("never resolves the operator from anything but the session", () => {

@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import {
   MERGE_CONTACT_KIND_LABELS,
@@ -13,11 +14,20 @@ import {
   type MergeFieldChoices,
 } from "@/lib/services/person-merge";
 import { GENERIC_FAILURE, INITIAL_MERGE_STATE, type MergeState } from "./merge-state";
+import { WHOLE_RECORD_AUTHORITY } from "@/lib/auth/roster-access";
 
 // The merge page's one server action — W4, LAN-185. survivor/loserPersonId
 // swap by navigating (?with=), not by anything this action decides.
 export async function submitMerge(_previous: MergeState, formData: FormData): Promise<MergeState> {
-  const operator = await requireCapability("person_record_authority");
+  // LAN-432: a merge rewrites a whole person, so it asks for the whole record.
+  // LAN-423: a refusal is the form's own error, never a crashed page.
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireGrant(WHOLE_RECORD_AUTHORITY);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { formError: error.message };
+  }
 
   const survivorPersonId = String(formData.get("survivorPersonId") ?? "");
   const loserPersonId = String(formData.get("loserPersonId") ?? "");

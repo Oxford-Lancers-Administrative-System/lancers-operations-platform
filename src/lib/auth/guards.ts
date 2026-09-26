@@ -8,6 +8,14 @@ import {
   roleCodesPermit,
   type CapabilityKey,
 } from "./capabilities";
+import { accessRuleKey, describeAccessRule, holdsAccess, type AccessRule } from "./access";
+import {
+  grantAtLeast,
+  type GrantLevel,
+  type GrantRule,
+  type GrantSubject,
+  type LevelFor,
+} from "./grants";
 import { resolveOperatorAccess, type OperatorAccess, type ResolvedOperator } from "./operator";
 
 /**
@@ -188,7 +196,7 @@ export function assertGeneralOperator(operator: ResolvedOperator | null): Resolv
     throw new NotPermitted(OPERATOR_REQUIRED_MESSAGE, { rule: OPERATOR_REQUIRED_RULE });
   }
 
-  if (isNarrowAttendanceRecorder(operator.roleCodes)) {
+  if (isNarrowAttendanceRecorder(operator.roleCodes, operator.grants)) {
     throw new NotPermitted(GENERAL_OPERATOR_MESSAGE, { rule: GENERAL_OPERATOR_RULE });
   }
 
@@ -252,4 +260,106 @@ export function operatorHasCapability(
   key: CapabilityKey,
 ): boolean {
   return operator ? roleCodesPermit(operator.roleCodes, key) : false;
+}
+
+// ---------------------------------------------------------------------------
+// Grants — LAN-429
+// ---------------------------------------------------------------------------
+
+/**
+ * The same check as {@link assertCapability}, for a grant: throws
+ * `NotPermitted` unless the operator holds `subject` at `minimum` or above.
+ * Takes either one line and its minimum, or a whole {@link GrantRule}.
+ */
+export function assertGrant<S extends GrantSubject>(
+  operator: ResolvedOperator | null,
+  subject: S,
+  minimum: LevelFor<S>,
+): ResolvedOperator;
+export function assertGrant(operator: ResolvedOperator | null, rule: GrantRule): ResolvedOperator;
+export function assertGrant(
+  operator: ResolvedOperator | null,
+  subjectOrRule: GrantSubject | GrantRule,
+  minimum?: GrantLevel,
+): ResolvedOperator {
+  return assertAccess(operator, toGrantRule(subjectOrRule, minimum));
+}
+
+/**
+ * Require the verified operator to hold a grant — the `requireCapability` of
+ * grants, and the call every enforcement package makes at the top of a server
+ * action:
+ *
+ * ```ts
+ * const operator = await requireGrant({ kind: "roster", key: "kit" }, "edit");
+ * const operator = await requireGrant({ kind: "template", templateId }, "manage");
+ * const operator = await requireGrant({ kind: "switch", key: "add_recruits" }, "yes");
+ * const operator = await requireGrant({ anyOf: "template", minimum: "manage" });
+ * ```
+ *
+ * Refuses with `NotPermitted` — `operator_required` when there is no active
+ * operator, otherwise a `grant:…` rule naming what was missing.
+ */
+export async function requireGrant<S extends GrantSubject>(
+  subject: S,
+  minimum: LevelFor<S>,
+): Promise<ResolvedOperator>;
+export async function requireGrant(rule: GrantRule): Promise<ResolvedOperator>;
+export async function requireGrant(
+  subjectOrRule: GrantSubject | GrantRule,
+  minimum?: GrantLevel,
+): Promise<ResolvedOperator> {
+  const access = await resolveOperatorAccess();
+  return assertAccess(
+    access.state === "active" ? access.operator : null,
+    toGrantRule(subjectOrRule, minimum),
+  );
+}
+
+/**
+ * Any {@link AccessRule} — a capability, a grant rule, or `{ either: [...] }`
+ * of them — asserted against one operator. `gateShellPage` and the two grant
+ * guards above all reduce to this.
+ */
+export function assertAccess(
+  operator: ResolvedOperator | null,
+  rule: AccessRule,
+): ResolvedOperator {
+  if (!operator) {
+    throw new NotPermitted(OPERATOR_REQUIRED_MESSAGE, { rule: OPERATOR_REQUIRED_RULE });
+  }
+  if (typeof rule === "string") return assertCapability(operator, rule);
+  if (!holdsAccess(operator, rule)) {
+    throw new NotPermitted(`${REFUSAL_HEADLINE} ${describeAccessRule(rule)}`, {
+      rule: accessRuleKey(rule),
+    });
+  }
+  return operator;
+}
+
+/**
+ * Does this operator hold the grant? For deciding what to *render* — the
+ * action behind a control still calls `requireGrant`.
+ */
+export function operatorHoldsGrant<S extends GrantSubject>(
+  operator: ResolvedOperator | null,
+  subject: S,
+  minimum: LevelFor<S>,
+): boolean {
+  return operator ? grantAtLeast(operator.grants, subject, minimum) : false;
+}
+
+/** Does this operator satisfy the rule? For rendering; see {@link operatorHoldsGrant}. */
+export function operatorHoldsAccess(operator: ResolvedOperator | null, rule: AccessRule): boolean {
+  return holdsAccess(operator, rule);
+}
+
+function toGrantRule(subjectOrRule: GrantSubject | GrantRule, minimum?: GrantLevel): GrantRule {
+  if ("kind" in subjectOrRule) {
+    if (minimum === undefined) {
+      throw new Error("requireGrant(subject, minimum) needs a minimum level.");
+    }
+    return { subject: subjectOrRule, minimum };
+  }
+  return subjectOrRule;
 }

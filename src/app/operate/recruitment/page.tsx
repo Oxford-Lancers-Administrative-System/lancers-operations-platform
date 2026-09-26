@@ -4,13 +4,19 @@ import { listRecruitmentBoard } from "@/lib/services/recruitment-board";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
 import RecruitmentBoardView from "./recruitment-board-view";
+import { operatorHoldsAccess } from "@/lib/auth/guards";
+import { ADD_RECRUITS, RECRUITING_REACH } from "@/lib/auth/roster-access";
+import { recruitingAccessFor, redactRecruitmentRow } from "@/lib/services/recruitment-board-access";
+import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
 
 // `/operate/recruitment` — `W1`, LAN-204, modelled on ../roster/page.tsx
-// (LAN-186). Gated on `person_record_authority` (`REQ-authority`).
+// (LAN-186). Open to any recruiting category at `view`, the sidebar's own
+// rule; each column then follows its category and a `none` category's
+// fields never leave this server (LAN-432).
 export default async function RecruitmentBoardPage({
   searchParams,
 }: PageProps<"/operate/recruitment">) {
-  const gate = await gateShellPage("/operate/recruitment", "person_record_authority");
+  const gate = await gateShellPage("/operate/recruitment", RECRUITING_REACH);
   if ("screen" in gate) return gate.screen;
   const { operator } = gate;
 
@@ -41,14 +47,20 @@ export default async function RecruitmentBoardPage({
   }
 
   const preferences = await readOperatorPreferences(operator.personId);
+  const access = recruitingAccessFor(operator.grants);
+  const rows = data.rows.map((row) =>
+    redactRecruitmentRow(row, access),
+  ) as unknown as readonly RecruitmentBoardRow[];
 
   return (
     <RecruitmentBoardView
       operatorPersonId={operator.personId}
       initialCollapsedGroups={preferences.recruitmentCollapsedGroups}
       season={data.season}
-      rows={data.rows}
-      events={data.events}
+      rows={rows}
+      events={access.recruit_events === "none" ? [] : data.events}
+      access={access}
+      mayAddRecruits={operatorHoldsAccess(operator, ADD_RECRUITS)}
       totalInSeason={data.totalInSeason}
       initialSearch={first(params.q)}
       initialFilters={filters}

@@ -34,6 +34,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
+// LAN-431: every per-event guard asks which template the event belongs to.
+// One seeded template stands in for the database, so a seeded full-access seat
+// holds Manage on it and every other seat holds nothing.
+vi.mock("@/lib/services/events/template-of", () => ({
+  eventTemplateIdOf: vi.fn(async () => "7e34a764-7ed1-535e-8cef-73e00a62eafc"),
+  invitationTemplateIdsOf: vi.fn(async () => ["7e34a764-7ed1-535e-8cef-73e00a62eafc"]),
+  notificationJobTemplateOf: vi.fn(async () => ({
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  })),
+}));
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -131,13 +141,13 @@ vi.mock("@/lib/services/attendance", async (importOriginal) => {
   };
 });
 
-import { isServiceError, type ServiceError } from "@/lib/db";
+import { isServiceError, NotPermitted, type ServiceError } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { FIXED_COACHING_ROLE_CODES } from "@/lib/auth/capabilities";
+import { FIXED_COACHING_ROLE_CODES, seededGrantsFor } from "@/lib/auth/capabilities";
 import {
   resolveOnboardingItemAction,
   setMembershipStatusAction,
@@ -163,6 +173,7 @@ function actor(roleCodes: string[]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Casey North",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }
@@ -204,6 +215,9 @@ function form(): FormData {
  *
  * An action that returns normally is the failure this file exists to catch: it
  * means the coach was admitted and the action decided to report something else.
+ * The one exception is a form that hands its refusal back as its own error so
+ * the page keeps the entries (LAN-423): the returned sentence must be the
+ * refusal's own headline, and is read back as the refusal it is.
  */
 async function refusalFrom(call: () => Promise<unknown>): Promise<ServiceError> {
   let returned: unknown;
@@ -213,10 +227,21 @@ async function refusalFrom(call: () => Promise<unknown>): Promise<ServiceError> 
     if (isServiceError(error)) return error;
     throw error;
   }
+  const handedBack = formRefusalOf(returned);
+  if (handedBack !== null) return new NotPermitted(handedBack);
   throw new Error(
     `the action returned ${JSON.stringify(returned)} instead of refusing a coaching assignment`,
   );
 }
+
+function formRefusalOf(returned: unknown): string | null {
+  if (typeof returned !== "object" || returned === null) return null;
+  const { error, formError } = returned as { error?: unknown; formError?: unknown };
+  const message = typeof formError === "string" ? formError : error;
+  return typeof message === "string" && message.startsWith(REFUSAL_HEADLINE) ? message : null;
+}
+
+const REFUSAL_HEADLINE = "You do not have access to this action.";
 
 /** Every privileged action a coach must not reach, by the name it is refused under. */
 const FORBIDDEN: ReadonlyArray<{ name: string; call: () => Promise<unknown> }> = [

@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { sendOnboardingNudges } from "@/lib/services/messaging-scheduler";
 
 // The queue's own nudge — LAN-218, `W8`, `M3`, `T11-batch-nudge`. Unlimited,
-// outside the automated cap; gated on `person_record_authority`, the real
-// boundary (the page's own gate is a courtesy).
+// outside the automated cap; gated on Onboarding at edit (LAN-432), the same
+// grant as the record's own send — the real boundary (the page's own gate is
+// a courtesy).
 export interface NudgeActionResult {
   readonly error: string | null;
   readonly notice: string | null;
@@ -41,14 +42,14 @@ function nudgeProblemNotice(refused: number, total: number): string {
 export async function nudgeSelectedAction(
   membershipIds: readonly string[],
 ): Promise<NudgeActionResult> {
-  const operator = await requireCapability("person_record_authority");
-
   const ids = Array.from(new Set(membershipIds.filter((id) => id.trim() !== "")));
   if (ids.length === 0) {
     return { error: "Select at least one person to nudge.", notice: null };
   }
 
   try {
+    // Inside the try (LAN-423): a refusal is the notice's error, never a crashed page.
+    const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
     const results = await sendOnboardingNudges(operator.personId, ids);
     const accepted = results.filter((result) => result.outcome === "accepted").length;
     const deferred = results.filter((result) => result.outcome === "deferred").length;

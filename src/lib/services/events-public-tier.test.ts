@@ -70,6 +70,8 @@ import {
   PARTICIPATION_TABLES,
   readPublicEvent,
 } from "./events";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { NO_GRANTS } from "@/lib/auth/grants";
 
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -132,6 +134,7 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
     roleCodes,
+    grants: seededGrantsFor(roleCodes),
     isActive: true,
   };
 }
@@ -288,5 +291,42 @@ describe("the elevated projection is reached only through the operator guard", (
 
       await expect(listEventsForOperator()).resolves.toBeTruthy();
     }
+  });
+
+  it("reads only the templates the operator holds at View or above — LAN-431", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: {
+        ...operator(["social_secretary"]),
+        grants: { ...NO_GRANTS, templates: { social: "manage", game: "view", chalk: "none" } },
+      },
+    });
+
+    await listEventsForOperator();
+
+    const list = recorded.find(
+      (entry) =>
+        entry.sql.includes("from public.events e") && !entry.sql.includes("count(*)::text"),
+    );
+    const total = recorded.find((entry) => entry.sql.includes("count(*)::text as count"));
+    expect(list?.sql).toContain("e.template_id::text = any($7::text[])");
+    expect([...(list?.params[6] as string[])].sort()).toEqual(["game", "social"]);
+    // The season's total is the operator's total, so "no events yet" is theirs too.
+    expect([...(total?.params[1] as string[])].sort()).toEqual(["game", "social"]);
+  });
+
+  it("reads nothing of any template for a seat holding none", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+
+    await listEventsForOperator();
+
+    const list = recorded.find(
+      (entry) =>
+        entry.sql.includes("from public.events e") && !entry.sql.includes("count(*)::text"),
+    );
+    expect(list?.params[6]).toEqual([]);
   });
 });

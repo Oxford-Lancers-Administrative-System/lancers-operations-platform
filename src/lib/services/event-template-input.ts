@@ -34,21 +34,105 @@ export interface TemplateColourSwatch {
   readonly label: string; // the word the picker prints beside the swatch
   readonly accent: string; // the saturated edge, strong enough to read at 3px against the tint
   readonly tint: string; // the tile's background, light enough for text.primary to sit on
+  // LAN-429 (W2): the text a band head prints on `accent` — charcoal on Lancer Gold and Orange,
+  // white elsewhere. Every pair is AA (src/theme.test.ts).
+  readonly bandText: string;
 }
 
+// The two band text colours — the theme's own (src/theme-tokens.ts), restated as values so this
+// module stays free of the client theme.
+const WHITE = "#FFFFFF";
+const CHARCOAL = "#211D1C";
+
+// LAN-429 (W2, Brian's round 4, 2026-09-25): key `blue` is Oxford Blue, the brand navy — the key
+// is kept, so every template on it (Practice) re-tones without a migration — and Lancer Gold is
+// added. Thirteen swatches; every other one unchanged.
 export const TEMPLATE_COLOUR_PALETTE: readonly TemplateColourSwatch[] = Object.freeze([
-  Object.freeze({ key: "blue", label: "Blue", accent: "#1565c0", tint: "#e8f1fb" }),
-  Object.freeze({ key: "teal", label: "Teal", accent: "#00796b", tint: "#e2f1ef" }),
-  Object.freeze({ key: "purple", label: "Purple", accent: "#4527a0", tint: "#ece7f7" }),
-  Object.freeze({ key: "red", label: "Red", accent: "#c62828", tint: "#fbe9e9" }),
-  Object.freeze({ key: "orange", label: "Orange", accent: "#ef6c00", tint: "#fdf0e2" }),
-  Object.freeze({ key: "green", label: "Green", accent: "#2e7d32", tint: "#e8f3e9" }),
-  Object.freeze({ key: "slate", label: "Slate", accent: "#455a64", tint: "#eceff1" }),
-  Object.freeze({ key: "indigo", label: "Indigo", accent: "#283593", tint: "#e8eaf6" }),
-  Object.freeze({ key: "pink", label: "Pink", accent: "#ad1457", tint: "#fce4ec" }),
-  Object.freeze({ key: "brown", label: "Brown", accent: "#4e342e", tint: "#efebe9" }),
-  Object.freeze({ key: "cyan", label: "Cyan", accent: "#00838f", tint: "#e0f7fa" }),
-  Object.freeze({ key: "lime", label: "Lime", accent: "#827717", tint: "#f9fbe7" }),
+  Object.freeze({
+    key: "blue",
+    label: "Oxford Blue",
+    accent: "#002147",
+    tint: "#e6e9ee",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "teal",
+    label: "Teal",
+    accent: "#00796b",
+    tint: "#e2f1ef",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "purple",
+    label: "Purple",
+    accent: "#4527a0",
+    tint: "#ece7f7",
+    bandText: WHITE,
+  }),
+  Object.freeze({ key: "red", label: "Red", accent: "#c62828", tint: "#fbe9e9", bandText: WHITE }),
+  Object.freeze({
+    key: "orange",
+    label: "Orange",
+    accent: "#ef6c00",
+    tint: "#fdf0e2",
+    bandText: CHARCOAL,
+  }),
+  Object.freeze({
+    key: "green",
+    label: "Green",
+    accent: "#2e7d32",
+    tint: "#e8f3e9",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "slate",
+    label: "Slate",
+    accent: "#455a64",
+    tint: "#eceff1",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "indigo",
+    label: "Indigo",
+    accent: "#283593",
+    tint: "#e8eaf6",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "pink",
+    label: "Pink",
+    accent: "#ad1457",
+    tint: "#fce4ec",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "brown",
+    label: "Brown",
+    accent: "#4e342e",
+    tint: "#efebe9",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "cyan",
+    label: "Cyan",
+    accent: "#00838f",
+    tint: "#e0f7fa",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "lime",
+    label: "Lime",
+    accent: "#827717",
+    tint: "#f9fbe7",
+    bandText: WHITE,
+  }),
+  Object.freeze({
+    key: "lancer_gold",
+    label: "Lancer Gold",
+    accent: "#C09723",
+    tint: "#f9f3e3",
+    bandText: CHARCOAL,
+  }),
 ]);
 
 export const TEMPLATE_COLOUR_KEYS: readonly string[] = Object.freeze(

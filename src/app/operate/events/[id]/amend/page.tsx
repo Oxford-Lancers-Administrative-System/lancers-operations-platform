@@ -9,11 +9,11 @@ import {
   type AmendmentContext,
 } from "@/lib/services/event-amendment";
 import { readAddableAudience } from "@/lib/services/event-audience-amendment";
+import { redactAudienceCandidates } from "@/lib/services/event-audience-access";
 import type { RawEventDraft, TermWindow } from "@/lib/services/event-input";
 import { joinQuestionChoices, readEventQuestions } from "@/lib/services/events";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
-import { operatorHasCapability } from "@/lib/auth/guards";
-import { gateShellPage } from "../../../gate";
+import { gateEventPage } from "../../event-gate";
 import { formatDetailWhen, labelFor, STATUS_LABELS } from "../../presentation";
 import { AMEND_HEADLINE_PREFIX } from "../change-presentation";
 import AmendForm from "./amend-form";
@@ -27,10 +27,10 @@ import { AddToAudience } from "./add-to-audience";
  * (`docs/ux/standards.md` rule 6); the service refuses regardless.
  */
 export default async function AmendEventPage({ params }: PageProps<"/operate/events/[id]/amend">) {
-  const gate = await gateShellPage("/operate/events", "event_approval");
-  if ("screen" in gate) return gate.screen;
-
   const { id } = await params;
+  // LAN-431: Manage on this event's template.
+  const gate = await gateEventPage("/operate/events", id, "manage");
+  if ("screen" in gate) return gate.screen;
 
   let context: AmendmentContext;
   let terms: TermWindow[];
@@ -77,13 +77,11 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
   }));
 
   /**
-   * LAN-419 — editing the questions is `event_calendar_management`'s decision
-   * and amending is `event_approval`'s. The two carry the same role list today
-   * and `capabilities.ts` says plainly that they stay two decisions that
-   * merely agree, so this page asks for both rather than assuming they will go
-   * on agreeing. The action asks again; this only decides what is drawn.
+   * LAN-419 — editing the questions and amending the details are one save.
+   * LAN-431 made them one decision too: Manage on the event's template, which
+   * the gate above already required. The action asks again.
    */
-  const mayEditQuestions = operatorHasCapability(gate.operator, "event_calendar_management");
+  const mayEditQuestions = gate.level === "manage";
 
   const initial: RawEventDraft = {
     name: event.name,
@@ -142,7 +140,11 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
       {context.isFuture ? (
         <AddToAudience
           eventId={event.id}
-          candidates={addable.candidates}
+          candidates={redactAudienceCandidates(
+            addable.candidates,
+            gate.operator.grants,
+            event.eventType,
+          )}
           counts={addable.counts}
           alreadyOnEvent={addable.alreadyOnEvent}
         />

@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireCapability, requireGrant } from "@/lib/auth/guards";
+import { ADD_TO_ROSTER } from "@/lib/auth/roster-access";
 import { isServiceError } from "@/lib/db";
 import { MAX_IMPORT_BYTES } from "@/lib/services/roster-csv";
 import {
@@ -24,9 +25,9 @@ function text(formData: FormData, field: string): string {
   return typeof value === "string" ? value : "";
 }
 
+/** A `NotPermitted` is a message like any service error (LAN-423); a bug still throws. */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
 }
 
@@ -58,7 +59,14 @@ export async function importRosterAction(
   previous: ImportScreenState,
   formData: FormData,
 ): Promise<ImportScreenState> {
-  await requireCapability("roster_bulk_import");
+  try {
+    await requireCapability("roster_bulk_import");
+    // LAN-432: bulk import is adding to the roster, so it needs the switch too.
+    await requireGrant(ADD_TO_ROSTER);
+  } catch (error) {
+    // LAN-423: the refusal is the screen's error; the proposal stays on screen.
+    return { ...previous, error: messageFor(error), applied: null };
+  }
 
   const intent = text(formData, "intent");
   if (intent === "cancel") return EMPTY_IMPORT_STATE;

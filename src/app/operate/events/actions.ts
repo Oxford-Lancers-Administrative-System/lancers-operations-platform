@@ -2,11 +2,15 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import {
+  ANY_TEMPLATE_MANAGE,
   createEventDraft,
   deleteEventDraft,
+  requireEventGrant,
+  requireTemplateGrant,
   updateEventDraft,
   validateEventDraft,
   validateEventQuestions,
@@ -17,9 +21,22 @@ import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventQuestionInput, RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
 
-// The event workflow's server actions — LAN-76, LAN-77. Every action opens
-// with requireCapability() against the verified session; NotPermitted is
-// rethrown, not a form message. No ownership term.
+// The event workflow's server actions — LAN-76, LAN-77. Every action requires
+// Manage on the event's template (LAN-431) against the verified session: the
+// template read from the stored event, and for a create or a change of
+// template, the template posted as well. No ownership term. A refusal is the
+// form's own error, never a throw (LAN-423): a seat whose Manage was lowered
+// under an open page gets the refusal in the page's Notice, entries intact,
+// rather than "This page couldn't load".
+
+/** Manage on this event's template; a missing event or a refusal is a message for the form. */
+async function managerOf(eventId: string): Promise<ResolvedOperator | { error: string }> {
+  try {
+    return await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+}
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
@@ -42,10 +59,14 @@ function readDraft(formData: FormData): RawEventDraft {
   };
 }
 
-/** Turns a service failure into a readable message; rethrows a refusal or anything not a `ServiceError`. */
+/**
+ * A form's message for any service failure, a refusal included — LAN-423. A
+ * save refused because Manage was lowered under an open form comes back as the
+ * form's own error, shown in its Notice with every entry intact, rather than a
+ * crashed page. Anything that is not a `ServiceError` still throws.
+ */
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return error.message;
 }
 
@@ -84,9 +105,23 @@ export async function createEventDraftAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const operator = await requireCapability("event_calendar_management");
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
+
+  // LAN-423: a refusal is the open form's own error, with its entries.
+  const refused = (error: unknown): EventFormState => ({
+    issues: [],
+    questionIssues: [],
+    error: messageFor(error),
+    values: raw,
+    questions: rawQuestions,
+  });
+
+  try {
+    await requireGrant(ANY_TEMPLATE_MANAGE);
+  } catch (error) {
+    return refused(error);
+  }
 
   const validation = validateEventDraft(raw);
   const questions = validateEventQuestions(rawQuestions ?? []);
@@ -102,6 +137,8 @@ export async function createEventDraftAction(
 
   let eventId: string;
   try {
+    // Only a template this seat manages; a forged one is refused, not saved.
+    const operator = await requireTemplateGrant(validation.value.templateId, "manage");
     const event = await createEventDraft(
       operator.personId,
       validation.value,
@@ -110,13 +147,7 @@ export async function createEventDraftAction(
     );
     eventId = event.id;
   } catch (error) {
-    return {
-      issues: [],
-      questionIssues: [],
-      error: messageFor(error),
-      values: raw,
-      questions: rawQuestions,
-    };
+    return refused(error);
   }
 
   revalidatePath("/operate/events");
@@ -127,10 +158,25 @@ export async function updateEventDraftAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
   const raw = readDraft(formData);
   const rawQuestions = readQuestions(formData);
+
+  // LAN-423: every failure from here on, a refusal included, is the form's
+  // own error, and the operator's entries come back with it.
+  const refused = (error: unknown): EventFormState => ({
+    issues: [],
+    questionIssues: [],
+    error: messageFor(error),
+    values: raw,
+    questions: rawQuestions,
+  });
+
+  try {
+    await requireEventGrant(eventId, "manage");
+  } catch (error) {
+    return refused(error);
+  }
 
   const validation = validateEventDraft(raw);
   const questions = validateEventQuestions(rawQuestions ?? []);
@@ -145,6 +191,8 @@ export async function updateEventDraftAction(
   }
 
   try {
+    // A draft may move to another template only one this seat also manages.
+    const operator = await requireTemplateGrant(validation.value.templateId, "manage");
     await updateEventDraft(
       operator.personId,
       eventId,
@@ -152,13 +200,7 @@ export async function updateEventDraftAction(
       rawQuestions === null ? undefined : (questions.value as EventQuestionInput[]),
     );
   } catch (error) {
-    return {
-      issues: [],
-      questionIssues: [],
-      error: messageFor(error),
-      values: raw,
-      questions: rawQuestions,
-    };
+    return refused(error);
   }
 
   revalidatePath("/operate/events");
@@ -171,8 +213,9 @@ export async function deleteEventDraftAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return operator;
 
   try {
     await deleteEventDraft(operator.personId, eventId);
@@ -190,8 +233,9 @@ export async function approveEventAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_approval");
   const eventId = text(formData, "eventId");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return operator;
 
   try {
     await approveEvent(operator.personId, eventId);
@@ -218,8 +262,9 @@ export async function saveEventAudienceAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_approval");
   const eventId = text(formData, "eventId");
+  const operator = await managerOf(eventId);
+  if ("error" in operator) return operator;
   const keys = formData
     .getAll("audienceKey")
     .filter((key): key is string => typeof key === "string");

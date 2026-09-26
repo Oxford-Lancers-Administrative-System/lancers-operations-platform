@@ -10,11 +10,11 @@ import {
   type Kit,
   type RosterFormData,
 } from "@/lib/services/roster-form";
-import { gateShellPage } from "../../../gate";
+import { gateEventPage } from "../../event-gate";
 import { RosterFormScreen } from "./roster-form-screen";
 import { BACK_LABEL, GENERIC_UNAVAILABLE, HEADING } from "./presentation";
 
-/** `/operate/events/[id]/roster-form` — LAN-267. Gated on `event_calendar_management`, recorded in the capability map. */
+/** `/operate/events/[id]/roster-form` — LAN-267. Gated on Manage on the event's template (LAN-431). */
 export const dynamic = "force-dynamic";
 
 function kitFrom(value: string | string[] | undefined): Kit {
@@ -27,7 +27,7 @@ export default async function RosterFormPage({
 }: PageProps<"/operate/events/[id]/roster-form">) {
   const { id } = await params;
   const query = await searchParams;
-  const gate = await gateShellPage(`/operate/events/${id}`, "event_calendar_management");
+  const gate = await gateEventPage(`/operate/events/${id}`, id, "manage");
   if ("screen" in gate) return gate.screen;
 
   const kit = kitFrom(query.kit);

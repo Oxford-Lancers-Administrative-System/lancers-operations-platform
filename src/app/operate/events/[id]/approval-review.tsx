@@ -130,7 +130,8 @@ export function ApprovalReview({
   deadline: { label: string; clamped: boolean } | null;
   /** LAN-171. `null` only while `deadline` is — an event with no date yet. */
   plan: MessagingPlan | null;
-  unreachable: readonly UnreachableAudienceMember[];
+  /** LAN-423: `named` is empty for a seat without Contact & emergency; `count` is always true. */
+  unreachable: { count: number; named: readonly UnreachableAudienceMember[] };
 }) {
   // LAN-341, F2. Two different facts, and the screen said one of them twice.
   // A player who went inactive since the audience was confirmed is still
@@ -238,7 +239,7 @@ export function ApprovalReview({
         </Box>
 
         {/* D8, W1: a missing/unusable WhatsApp route is named before approval — beside the facts, ahead of the named list, per the approved mockup. */}
-        <WhatsAppErrorsAlert unreachable={unreachable} />
+        <WhatsAppErrorsAlert count={unreachable.count} unreachable={unreachable.named} />
 
         <AudienceList audience={audience} heading="By name" testId="resolved-audience" />
 

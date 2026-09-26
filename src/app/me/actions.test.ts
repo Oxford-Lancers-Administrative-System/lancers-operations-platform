@@ -31,12 +31,14 @@ import { resolveOperator } from "@/lib/auth/operator";
 import { readCurrentSeasonIn } from "@/lib/services/seasons";
 import { issuePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import { openMyPage } from "./actions";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 const OPERATOR = {
   authUserId: "00000000-0000-4000-8000-000000000001",
   personId: "00000000-0000-4000-8000-000000000002",
   displayName: "Rowan Ashworth",
   roleCodes: [],
+  grants: seededGrantsFor([]),
   isActive: true,
 };
 

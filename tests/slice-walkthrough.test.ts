@@ -91,6 +91,7 @@ import {
   CAPABILITY_KEYS,
   isNarrowAttendanceRecorder,
   type CapabilityKey,
+  seededGrantsFor,
 } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import type { EnvironmentSource } from "@/lib/delivery/config";
@@ -454,6 +455,7 @@ async function signInAndResolve(email: string): Promise<ResolvedOperator> {
     personId: row.person_id,
     displayName: row.display_name,
     roleCodes: row.role_codes ?? [],
+    grants: seededGrantsFor(row.role_codes ?? []),
     isActive: true,
   };
 }
@@ -1346,7 +1348,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     expect(formerCoach.roleCodes).toEqual([]);
 
     // The coach's whole authority is the attendance surface.
-    expect(isNarrowAttendanceRecorder(coach.roleCodes)).toBe(true);
+    expect(isNarrowAttendanceRecorder(coach.roleCodes, coach.grants)).toBe(true);
     expect(() => assertCapability(coach, "attendance_recorder")).not.toThrow();
     expect(() => assertCapability(coach, "attendance_recording")).not.toThrow();
   }, 60_000);

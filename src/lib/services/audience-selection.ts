@@ -51,6 +51,14 @@ export interface AudienceCandidate {
    * disengaged, voided and joined never reach the catalogue at all.
    */
   recruitStatus?: string | null;
+  /**
+   * LAN-423. Every group token this candidate falls into, worked out on the
+   * server before the facts behind it were withheld from a seat that may not
+   * read them (`event-audience-access.ts`). Present, it is the whole answer
+   * {@link groupSelectionKeys} gives for this candidate; absent, the facts
+   * above are read directly.
+   */
+  groups?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -714,27 +722,33 @@ export function groupSelectionKeys(
   candidates: readonly AudienceCandidate[],
   groupKey: string,
 ): string[] {
+  return candidates
+    .filter((candidate) =>
+      candidate.groups !== undefined
+        ? candidate.groups.includes(groupKey)
+        : candidateInGroup(candidate, groupKey),
+    )
+    .map((candidate) => candidate.key);
+}
+
+/** Whether one candidate's own facts put it in one group — the rule behind {@link groupSelectionKeys}. */
+export function candidateInGroup(candidate: AudienceCandidate, groupKey: string): boolean {
   const parsed = parseAudienceGroupToken(groupKey);
-  if (parsed === null) return [];
+  if (parsed === null) return false;
 
   if (parsed.category !== "general") {
     const value = parsed.value;
-    if (value === null) return [];
-    return candidates
-      .filter((candidate) => matchesSubGroup(parsed.category, value, candidate))
-      .map((candidate) => candidate.key);
+    if (value === null) return false;
+    return matchesSubGroup(parsed.category, value, candidate);
   }
 
   const group = AUDIENCE_GROUPS.find((candidate) => candidate.key === parsed.audienceGroup);
-  if (!group) return [];
-  return candidates
-    .filter(
-      (candidate) =>
-        group.capacities.includes(candidate.capacity) &&
-        (!group.requiresBps || candidate.isBps) &&
-        matchesOnboarding(group, candidate),
-    )
-    .map((candidate) => candidate.key);
+  if (!group) return false;
+  return (
+    group.capacities.includes(candidate.capacity) &&
+    (!group.requiresBps || candidate.isBps === true) &&
+    matchesOnboarding(group, candidate)
+  );
 }
 
 /**

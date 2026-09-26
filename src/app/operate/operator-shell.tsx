@@ -21,7 +21,7 @@ export default function OperatorShell({
 }) {
   // LAN-110: the coach shell's caption is resolved server-side, from the
   // verified session — ShellNav is handed the answer, never the roles.
-  const isCoachShell = isNarrowAttendanceRecorder(operator.roleCodes);
+  const isCoachShell = isNarrowAttendanceRecorder(operator.roleCodes, operator.grants);
   const roleCaption = isCoachShell
     ? describeHeldCoachingSeats(operator.roleCodes)
     : OPERATOR_CAPTION;
@@ -37,9 +37,9 @@ export default function OperatorShell({
     >
       <ShellNav
         operatorName={operator.displayName}
-        destinations={destinationsFor(operator.roleCodes)}
+        destinations={destinationsFor(operator)}
         // LAN-133: resolved server-side, same rule as the coach shell above.
-        administration={administrationDestinationsFor(operator.roleCodes)}
+        administration={administrationDestinationsFor(operator)}
         sectionLabel={isCoachShell ? COACH_SECTION : OPERATOR_SECTION}
         roleCaption={roleCaption}
         accountAction={

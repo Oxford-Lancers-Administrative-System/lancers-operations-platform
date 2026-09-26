@@ -34,6 +34,7 @@ import {
   withPlayersParam,
   withScopeParam,
 } from "./missing-query";
+import { mayEditRoster, mayViewRoster, ROSTER_REACH } from "@/lib/auth/roster-access";
 
 /**
  * `W7-01` … `W7-05`, `W7-07` — the missing-data queue. LAN-184,
@@ -43,8 +44,16 @@ import {
 export default async function MissingDataPage({
   searchParams,
 }: PageProps<"/operate/people/missing">) {
-  const gate = await gateShellPage("/operate/people/missing", "person_record_authority");
+  // LAN-432: Missing data follows the roster's grants, like People. The
+  // missing facts, status and chase are Person's; with None on Person a row
+  // is the name alone. Correct needs Person or Contact & emergency at edit;
+  // the nudge is an Onboarding write.
+  const gate = await gateShellPage("/operate/people/missing", ROSTER_REACH);
   if ("screen" in gate) return gate.screen;
+  const grants = gate.operator.grants;
+  const personOpen = mayViewRoster(grants, "person");
+  const mayCorrect = mayEditRoster(grants, "person") || mayEditRoster(grants, "contact_emergency");
+  const mayNudge = mayEditRoster(grants, "onboarding");
 
   const params = await searchParams;
   const search = first(params.q);
@@ -116,7 +125,24 @@ export default async function MissingDataPage({
   const reachabilityRank = (entry: (typeof entries)[number]) => (entry.hasMobile ? 1 : 0);
   entries = [...entries].sort((a, b) => reachabilityRank(a) - reachabilityRank(b));
 
-  const rows: QueueRowView[] = entries.map((entry) => {
+  const rows: QueueRowView[] = entries.map((entry): QueueRowView => {
+    if (!personOpen) {
+      return {
+        personId: entry.personId,
+        membershipId: null,
+        displayName: entry.displayName,
+        statusLabel: null,
+        statusCode: null,
+        clubRoleSummary: null,
+        missingFieldLabels: [],
+        correctHref: mayCorrect ? `/operate/people/${entry.personId}/edit?from=missing` : null,
+        personHref: `/operate/people/${entry.personId}`,
+        lastContactLabel: null,
+        nextLabel: null,
+        nextNeedsAHuman: false,
+        nudgeable: false,
+      };
+    }
     const info = entry.membershipId ? chaseInfo.get(entry.membershipId) : undefined;
     const isOnboarding = entry.status === "onboarding";
     const next = isOnboarding && info ? info.next : null;
@@ -129,12 +155,12 @@ export default async function MissingDataPage({
       statusCode: entry.status,
       clubRoleSummary: entry.clubRoleSummary,
       missingFieldLabels: entry.missingRequiredFields.map((field) => REQUIRED_FIELD_LABELS[field]),
-      correctHref: `/operate/people/${entry.personId}/edit?from=missing`,
+      correctHref: mayCorrect ? `/operate/people/${entry.personId}/edit?from=missing` : null,
       personHref: `/operate/people/${entry.personId}`,
       lastContactLabel: isOnboarding ? formatLastContact(info?.lastContact ?? null) : null,
       nextLabel: next ? formatChaseNext(next, hasReachableNumber) : null,
       nextNeedsAHuman: next ? chaseNeedsAHuman(next) : false,
-      nudgeable: next ? isNudgeable(next, hasReachableNumber) : false,
+      nudgeable: mayNudge && next ? isNudgeable(next, hasReachableNumber) : false,
     };
   });
 

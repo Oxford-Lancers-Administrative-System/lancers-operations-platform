@@ -33,6 +33,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolveOperator, resolveOperatorAccess } from "./operator";
 import { requireCapability } from "./guards";
+import { seededGrantsFor } from "@/lib/auth/capabilities";
 
 type Row = Record<string, unknown>;
 type Tables = Record<string, Row[]>;
@@ -244,9 +245,57 @@ function linkedOperatorTables(overrides: Partial<Tables> = {}): Tables {
       { id: "role-secretary", code: "secretary" },
       { id: "role-treasurer", code: "treasurer" },
       { id: "role-president", code: "president" },
+      { id: "role-kit-manager", code: "kit_manager" },
+    ],
+    // LAN-429. The Secretary at the seed's full access, the Treasurer and Kit
+    // Manager at a few partial lines each, so a union is observable.
+    role_access_grants: [
+      ...grantRowsFor("role-secretary", seededGrantsFor(["secretary"])),
+      grantRow("role-treasurer", "roster_category", "kit", null, "view"),
+      grantRow("role-treasurer", "roster_category", "person", null, "none"),
+      grantRow("role-treasurer", "event_template", null, "template-social", "view"),
+      grantRow("role-kit-manager", "roster_category", "kit", null, "edit"),
+      grantRow("role-kit-manager", "roster_category", "person", null, "view"),
+      grantRow("role-kit-manager", "event_template", null, "template-social", "none"),
+      grantRow("role-kit-manager", "event_template", null, "template-game", "manage"),
+      grantRow("role-kit-manager", "switch", "add_to_roster", null, "yes"),
     ],
     ...overrides,
   };
+}
+
+function grantRow(
+  roleId: string,
+  subjectKind: string,
+  subjectKey: string | null,
+  templateId: string | null,
+  level: string,
+): Row {
+  return {
+    role_id: roleId,
+    subject_kind: subjectKind,
+    subject_key: subjectKey,
+    template_id: templateId,
+    level,
+  };
+}
+
+/** Every line of a snapshot as stored rows for one seat. */
+function grantRowsFor(roleId: string, grants: ReturnType<typeof seededGrantsFor>): Row[] {
+  return [
+    ...Object.entries(grants.roster).map(([key, level]) =>
+      grantRow(roleId, "roster_category", key, null, level),
+    ),
+    ...Object.entries(grants.recruiting).map(([key, level]) =>
+      grantRow(roleId, "recruiting_category", key, null, level),
+    ),
+    ...Object.entries(grants.templates).map(([id, level]) =>
+      grantRow(roleId, "event_template", null, id, level),
+    ),
+    ...Object.entries(grants.switches).map(([key, level]) =>
+      grantRow(roleId, "switch", key, null, level),
+    ),
+  ];
 }
 
 beforeEach(() => {
@@ -481,6 +530,7 @@ describe("resolveOperator — the unresolved causes stay indistinguishable", () 
     expect(Object.keys(resolved ?? {}).sort()).toEqual([
       "authUserId",
       "displayName",
+      "grants",
       "isActive",
       "personId",
       "roleCodes",
@@ -498,6 +548,7 @@ describe("resolveOperator — resolved operator", () => {
       personId: PERSON_ID,
       displayName: "Rowan Ashdown",
       roleCodes: ["secretary"],
+      grants: seededGrantsFor(["secretary"]),
       isActive: true,
     });
   });
@@ -534,6 +585,66 @@ describe("resolveOperator — resolved operator", () => {
     const resolved = await resolveOperator();
 
     expect(resolved?.roleCodes).toEqual(["secretary", "treasurer"]);
+  });
+
+  it("carries the union-maximum of every current seat's grants — LAN-429", async () => {
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(
+      linkedOperatorTables({
+        role_assignments: [
+          {
+            person_id: PERSON_ID,
+            role_id: "role-treasurer",
+            effective_from: LONG_STARTED,
+            effective_to: null,
+          },
+          {
+            person_id: PERSON_ID,
+            role_id: "role-kit-manager",
+            effective_from: LONG_STARTED,
+            effective_to: null,
+          },
+        ],
+      }),
+    );
+
+    const resolved = await resolveOperator();
+
+    expect(resolved?.roleCodes).toEqual(["kit_manager", "treasurer"]);
+    // kit: view (Treasurer) and edit (Kit Manager) → edit.
+    expect(resolved?.grants.roster.kit).toBe("edit");
+    // person: none and view → view.
+    expect(resolved?.grants.roster.person).toBe("view");
+    // A line neither seat has a row for reads none.
+    expect(resolved?.grants.roster.contact_emergency).toBe("none");
+    // Templates: social view (Treasurer) over none; game manage (Kit Manager).
+    expect(resolved?.grants.templates).toEqual({
+      "template-social": "view",
+      "template-game": "manage",
+    });
+    expect(resolved?.grants.switches).toEqual({ add_to_roster: "yes", add_recruits: "none" });
+  });
+
+  it("ignores the grants of a seat whose assignment has ended — LAN-429", async () => {
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(
+      linkedOperatorTables({
+        role_assignments: [
+          {
+            person_id: PERSON_ID,
+            role_id: "role-kit-manager",
+            effective_from: "2000-01-01",
+            effective_to: "2001-01-01",
+          },
+        ],
+      }),
+    );
+
+    const resolved = await resolveOperator();
+
+    expect(resolved?.roleCodes).toEqual([]);
+    expect(resolved?.grants.roster.kit).toBe("none");
+    expect(resolved?.grants.templates).toEqual({});
   });
 
   it("returns an empty role list — not null, not an error — for an unroled operator", async () => {

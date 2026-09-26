@@ -1,14 +1,12 @@
 import { notFound } from "next/navigation";
 import Box from "@mui/material/Box";
 import { Section } from "@/components/section";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import { readHolderHistory } from "@/lib/services/administration-audit";
+import { readSeatAccess, type SeatAccess } from "@/lib/services/access-grants";
 import { earliestEndFor } from "@/lib/services/operator-administration";
 import {
   readRoleCatalogue,
@@ -20,7 +18,8 @@ import { gateShellPage } from "../../../gate";
 import AdminPageHeading from "../../page-heading";
 import AdministrationHistory from "../../history";
 import { permittedRoleActions } from "../../permissions";
-import { limitsLine, NO_CYCLE, permissionsSummary } from "../../presentation";
+import { NO_CYCLE } from "../../presentation";
+import AccessSection from "./access-section";
 import CurrentHolderPanel from "./current-holder-panel";
 import RoleActions from "./role-actions";
 
@@ -34,10 +33,15 @@ export default async function RoleRecordPage({
 
   let found: { role: CatalogueRole; group: CatalogueGroup; cycleLabel: string } | null = null;
   let history: Awaited<ReturnType<typeof readHolderHistory>> = [];
+  let access: SeatAccess | null = null;
+  const sources: { id: string; label: string }[] = [];
 
   try {
     const catalogue = await readRoleCatalogue(gate.operator);
     for (const group of catalogue.groups) {
+      for (const candidate of group.roles) {
+        if (candidate.id !== roleId) sources.push({ id: candidate.id, label: candidate.label });
+      }
       const role = group.roles.find((candidate) => candidate.id === roleId);
       if (role) {
         found = {
@@ -48,16 +52,18 @@ export default async function RoleRecordPage({
               ? (catalogue.committeeYear?.label ?? NO_CYCLE.committee_year)
               : (catalogue.season?.label ?? NO_CYCLE.season),
         };
-        break;
       }
     }
-    if (found) history = await readHolderHistory(gate.operator, found.role.id);
+    if (found) {
+      history = await readHolderHistory(gate.operator, found.role.id);
+      access = await readSeatAccess(gate.operator, found.role.id);
+    }
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <UnavailableScreen title="Role" message={error.message} testId="role-unavailable" />;
   }
 
-  if (!found) notFound();
+  if (!found || !access) notFound();
 
   const { role, group, cycleLabel } = found;
   const permitted = await permittedRoleActions(
@@ -65,8 +71,6 @@ export default async function RoleRecordPage({
     role.code,
     role.holders[0]?.personId ?? null,
   );
-  const permissions = permissionsSummary(role.code);
-  const limits = limitsLine(role.code);
   const today = todayInClubZone();
 
   return (
@@ -81,28 +85,14 @@ export default async function RoleRecordPage({
         <CurrentHolderPanel role={role} cycleLabel={cycleLabel} />
       </Section>
 
-      <Section title="Permissions">
-        {permissions.empty ? (
-          <Typography variant="body2" color="text.secondary" data-testid="permissions">
-            {permissions.items[0]}
-          </Typography>
-        ) : (
-          <Box data-testid="permissions">
-            <List dense disablePadding>
-              {permissions.items.map((item) => (
-                <ListItem key={item}>
-                  <ListItemText primary={`Can ${item}.`} />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        )}
-        {limits ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} data-testid="limits">
-            {limits}
-          </Typography>
-        ) : null}
-      </Section>
+      <AccessSection
+        roleId={role.id}
+        seatLabel={role.label}
+        fixed={access.seat.isFixed}
+        grants={access.grants}
+        templates={access.templates}
+        sources={sources}
+      />
 
       <Section title="Role actions">
         <RoleActions
@@ -130,7 +120,7 @@ export default async function RoleRecordPage({
           sx={{ alignItems: { sm: "baseline" }, justifyContent: "space-between", mb: 1.5 }}
         >
           <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-            Holder history
+            History
           </Typography>
           <Typography variant="caption" color="text.secondary">
             This year and past years

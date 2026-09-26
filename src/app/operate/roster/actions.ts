@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   resolveOnboardingItem,
@@ -11,17 +11,18 @@ import {
 } from "@/lib/services/membership";
 import type { MembershipActionState } from "./action-state";
 
-// The membership workflow's server actions — LAN-75, LAN-186 (Q-12). Both
-// guard on `person_record_authority` (`REQ-authority`).
+// The membership workflow's server actions — LAN-75, LAN-186 (Q-12). The
+// status change guards on Membership at `edit` (LAN-429); the onboarding item
+// on Onboarding at `edit` (LAN-432).
 
 function text(formData: FormData, field: string): string {
   const value = formData.get(field);
   return typeof value === "string" ? value : "";
 }
 
+/** A `NotPermitted` comes back as state like any service error (LAN-423); a bug still throws. */
 function stateFor(error: unknown): MembershipActionState {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
   return { error: error.message };
 }
 
@@ -35,9 +36,9 @@ export async function setMembershipStatusAction(params: {
   membershipId: string;
   status: MembershipStatus;
 }): Promise<MembershipActionState> {
-  const operator = await requireCapability("person_record_authority");
-
   try {
+    // LAN-429: Membership edit — the status ladder is the Membership category.
+    const operator = await requireGrant({ kind: "roster", key: "membership" }, "edit");
     await setMembershipStatus({
       actorPersonId: operator.personId,
       membershipId: params.membershipId,
@@ -56,10 +57,11 @@ export async function resolveOnboardingItemAction(
   _previous: MembershipActionState,
   formData: FormData,
 ): Promise<MembershipActionState> {
-  const operator = await requireCapability("person_record_authority");
   const membershipId = text(formData, "membershipId");
 
   try {
+    // LAN-432: Onboarding at edit.
+    const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
     await resolveOnboardingItem({
       actorPersonId: operator.personId,
       membershipId,
