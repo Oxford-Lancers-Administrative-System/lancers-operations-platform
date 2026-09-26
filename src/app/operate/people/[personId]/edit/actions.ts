@@ -40,7 +40,14 @@ export async function submitPersonEdit(
   formData: FormData,
 ): Promise<EditState> {
   // LAN-432: Person or Contact & emergency at edit; each field then needs its own.
-  const operator = requirePersonEditor(await requireGrant({ anyOf: "roster", minimum: "edit" }));
+  // LAN-423: a refusal is the form's own error, never a crashed page.
+  let operator: ResolvedOperator;
+  try {
+    operator = requirePersonEditor(await requireGrant({ anyOf: "roster", minimum: "edit" }));
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { errors: {}, formError: error.message };
+  }
   const personId = String(formData.get("personId") ?? "");
   const submitted = readEditFormValues(formData);
   const expectedVersion = submitted.expectedVersion === "" ? null : submitted.expectedVersion;
@@ -51,7 +58,15 @@ export async function submitPersonEdit(
   } catch (error) {
     return { errors: {}, formError: safeMessage(error) };
   }
-  const values = withinGrantedCategories(operator, submitted, formData, current);
+  // LAN-423: a half lowered to View under the open form is refused as the
+  // form's own error, not a crashed page.
+  let values: EditFormValues;
+  try {
+    values = withinGrantedCategories(operator, submitted, formData, current);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { errors: {}, formError: error.message };
+  }
 
   const errors: EditFieldErrors = {};
   let versionChecked = false;

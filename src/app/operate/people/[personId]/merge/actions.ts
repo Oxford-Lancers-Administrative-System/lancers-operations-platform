@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { requireGrant } from "@/lib/auth/guards";
+import type { ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import {
   MERGE_CONTACT_KIND_LABELS,
@@ -19,7 +20,14 @@ import { WHOLE_RECORD_AUTHORITY } from "@/lib/auth/roster-access";
 // swap by navigating (?with=), not by anything this action decides.
 export async function submitMerge(_previous: MergeState, formData: FormData): Promise<MergeState> {
   // LAN-432: a merge rewrites a whole person, so it asks for the whole record.
-  const operator = await requireGrant(WHOLE_RECORD_AUTHORITY);
+  // LAN-423: a refusal is the form's own error, never a crashed page.
+  let operator: ResolvedOperator;
+  try {
+    operator = await requireGrant(WHOLE_RECORD_AUTHORITY);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { formError: error.message };
+  }
 
   const survivorPersonId = String(formData.get("survivorPersonId") ?? "");
   const loserPersonId = String(formData.get("loserPersonId") ?? "");

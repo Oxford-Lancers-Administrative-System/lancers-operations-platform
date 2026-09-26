@@ -42,14 +42,14 @@ function nudgeProblemNotice(refused: number, total: number): string {
 export async function nudgeSelectedAction(
   membershipIds: readonly string[],
 ): Promise<NudgeActionResult> {
-  const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
-
   const ids = Array.from(new Set(membershipIds.filter((id) => id.trim() !== "")));
   if (ids.length === 0) {
     return { error: "Select at least one person to nudge.", notice: null };
   }
 
   try {
+    // Inside the try (LAN-423): a refusal is the notice's error, never a crashed page.
+    const operator = await requireGrant({ kind: "roster", key: "onboarding" }, "edit");
     const results = await sendOnboardingNudges(operator.personId, ids);
     const accepted = results.filter((result) => result.outcome === "accepted").length;
     const deferred = results.filter((result) => result.outcome === "deferred").length;

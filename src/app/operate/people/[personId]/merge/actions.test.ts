@@ -95,20 +95,23 @@ describe("who may call it", () => {
   // `.rejects.toThrow()` alone cannot tell a refusal from a completed merge —
   // the reviewer proved this by widening the old person-record capability by one
   // role and watching this test stay green while the merge actually
-  // completed. Assert the specific `NotPermitted` error (a `RedirectSignal`
-  // would fail `toMatchObject`), and confirm the loser was never touched, the
+  // completed. Assert the specific refusal, handed back as the form's own
+  // error since LAN-423 (a `RedirectSignal` would reject instead), and
+  // confirm the loser was never touched, the
   // same stronger pattern `the reason gate` below already uses. Widening
   // the old person-record capability must turn this test red.
   it("refuses an operator outside the four offices, and never touches the loser", async () => {
     signedInAs(["treasurer"]);
     const survivorId = await insertPerson({ givenName: unique("Survivor") });
     const loserId = await insertPerson({ givenName: unique("Loser") });
-    await expect(
-      submitMerge(
-        INITIAL_MERGE_STATE,
-        form({ survivorPersonId: survivorId, loserPersonId: loserId, reason: "Same person" }),
-      ),
-    ).rejects.toMatchObject({ kind: "not_permitted" });
+    const state = await submitMerge(
+      INITIAL_MERGE_STATE,
+      form({ survivorPersonId: survivorId, loserPersonId: loserId, reason: "Same person" }),
+    );
+    expect(state).toEqual({
+      formError:
+        "You do not have access to this action. This needs access your seat does not hold.",
+    });
 
     const loserRow = await observer.query<{ merged_into_person_id: string | null }>(
       `select merged_into_person_id from public.people where id = $1::uuid`,

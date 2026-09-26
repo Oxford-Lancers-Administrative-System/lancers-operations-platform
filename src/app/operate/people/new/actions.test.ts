@@ -78,13 +78,18 @@ describe("who may call it", () => {
       },
     });
 
-    await expect(
-      submitCreatePerson(
-        INITIAL_CREATE_STATE,
-        form({ intent: "check", givenName: "A", familyName: "B" }),
-      ),
-    ).rejects.toThrow();
+    // LAN-423 fix round 4, J1: the refusal is the form's own error, with the
+    // entries handed back — never a throw that crashed the page.
+    const state = await submitCreatePerson(
+      INITIAL_CREATE_STATE,
+      form({ intent: "check", givenName: "A", familyName: "B" }),
+    );
 
+    expect(state.formError).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
+    expect(state.values.givenName).toBe("A");
+    expect(state.values.familyName).toBe("B");
     expect(createPerson).not.toHaveBeenCalled();
     expect(findPersonDuplicates).not.toHaveBeenCalled();
   });

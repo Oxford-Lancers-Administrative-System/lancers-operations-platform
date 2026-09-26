@@ -161,7 +161,15 @@ describe("who may call it", () => {
     });
     const data = new FormData();
     data.set("personId", "00000000-0000-4000-8000-000000000000");
-    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toThrow();
+
+    // LAN-423 fix round 4, J1: the form's own error, never a crashed page.
+    const state = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+
+    expect(state).toEqual({
+      errors: {},
+      formError:
+        "You do not have access to this action. This needs access your seat does not hold.",
+    });
   });
 });
 
@@ -422,9 +430,12 @@ describe("each field needs its own category at edit — LAN-432", () => {
     const data = await formFrom(personId, { givenName: unique("Forged") });
     signedInWith({ person: "view", contact_emergency: "view" });
 
-    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toMatchObject({
-      kind: "not_permitted",
-    });
+    // LAN-423 fix round 4, J1: returned as the form's own error.
+    const state = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+
+    expect(state.formError).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
     const after = await readPersonRecord(personId);
     expect(after.givenName).not.toContain("Forged");
   });
@@ -435,10 +446,13 @@ describe("each field needs its own category at edit — LAN-432", () => {
     const data = await formFrom(personId, { mobile: "+447700900302" });
     signedInWith({ person: "edit", contact_emergency: "view" });
 
-    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toMatchObject({
-      kind: "not_permitted",
-      rule: "grant:roster.contact_emergency>=edit",
-    });
+    // LAN-423 fix round 4, J1: Contact & emergency lowered to View under the
+    // open form is the form's own error, not a crashed page.
+    const state = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+
+    expect(state.formError).toBe(
+      "You do not have access to this action. This needs access your seat does not hold.",
+    );
     const after = await readPersonRecord(personId);
     expect(after.contacts.find((c) => c.validUntil === null)?.rawValue).toBe("+447700900301");
   });
@@ -475,7 +489,14 @@ describe("each field needs its own category at edit — LAN-432", () => {
     const right = await outcomeOf("+447700900304");
     const wrong = await outcomeOf("+447700900399");
     expect(right).toEqual(wrong);
-    expect(right).toMatchObject({ kind: "not_permitted" });
+    // LAN-423 fix round 4, J1: the refusal is handed back as the form's error.
+    expect(right).toEqual({
+      resolved: {
+        errors: {},
+        formError:
+          "You do not have access to this action. This needs access your seat does not hold.",
+      },
+    });
     const after = await readPersonRecord(personId);
     expect(after.degreeField).toBeNull();
   });
