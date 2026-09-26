@@ -73,7 +73,7 @@ export default async function RecruitmentRecordPage({
    * Person information's (Their seasons too), and What changed is Recruit
    * details'; none of them is read for a seat holding its category at `none`.
    */
-  const [roles, seasons, fullHistory, currentSeason]: [
+  const [roles, seasons, history, currentSeason]: [
     readonly PersonRoleAssignment[],
     readonly PersonSeasonRecord[],
     readonly PersonHistoryEntry[],
@@ -81,14 +81,14 @@ export default async function RecruitmentRecordPage({
   ] = await Promise.all([
     personOpen ? listPersonRoleAssignments(record.personId) : Promise.resolve([]),
     personOpen ? listPersonSeasons(record.personId) : Promise.resolve([]),
-    access.recruit_details !== "none" ? readPersonHistory(record.personId) : Promise.resolve([]),
+    // LAN-423: without Person information, What changed is Recruit details'
+    // rows alone; a person field, alias, contact point or membership row
+    // carries its raw value and never leaves the service.
+    access.recruit_details !== "none"
+      ? readPersonHistory(record.personId, personOpen ? {} : { only: "recruit_details" })
+      : Promise.resolve([]),
     readCurrentSeason().catch(() => null),
   ]);
-
-  // A change to a contact point or the emergency contact carries the value
-  // itself; on a recruit it is Person information's, as the People page keeps
-  // it to Contact & emergency.
-  const history = personOpen ? fullHistory : fullHistory.filter((entry) => !entry.contactFact);
 
   const alumniLabel = person.isPastMember
     ? "Alumnus"

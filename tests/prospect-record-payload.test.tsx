@@ -36,12 +36,16 @@ import { resolveOperatorAccess } from "@/lib/auth/operator";
 import { mergeGrantRows, type GrantRow, type OperatorGrants } from "@/lib/auth/grants";
 import { resolveOpenSeason } from "@/lib/services/roster";
 import { supersedeContactPoint } from "@/lib/services/person-write/contact";
+import { updatePersonField } from "@/lib/services/person-write";
 import RecruitmentRecordPage from "@/app/operate/recruitment/[prospectId]/page";
 import { openObserver, seededActorPersonId } from "./helpers/service-layer";
 
 const MARKER = "LAN423ProspectPayload";
 const OLD_MOBILE = "+447700900555";
 const NEW_MOBILE = "+447700900556";
+const DATE_OF_BIRTH = "2003-07-14";
+const STUDENT_NUMBER = "LAN423SN918273";
+const RECRUIT_NOTE_REASON = "LAN423RecruitDetailsRow";
 
 let observer: Client;
 let actorPersonId: string;
@@ -103,6 +107,25 @@ beforeAll(async () => {
     rawValue: NEW_MOBILE,
     reason: "test fixture correction",
   });
+  // Fix round 2, G1: person fields carry their raw value in the audit row.
+  await updatePersonField({
+    actorPersonId,
+    personId,
+    field: "date_of_birth",
+    value: DATE_OF_BIRTH,
+  });
+  await updatePersonField({
+    actorPersonId,
+    personId,
+    field: "student_number",
+    value: STUDENT_NUMBER,
+  });
+  // A Recruit details row, as the self-sign-up writes it, which that seat keeps.
+  await observer.query(
+    `insert into public.audit_events (action, entity_table, entity_id, actor_person_id, reason)
+     values ('recruitment_prospect_self_completed', 'people', $1::uuid, $2::uuid, $3)`,
+    [personId, actorPersonId, RECRUIT_NOTE_REASON],
+  );
 });
 
 afterAll(async () => {
@@ -126,6 +149,7 @@ afterAll(async () => {
 });
 
 const CONTACT_STRINGS = [OLD_MOBILE, NEW_MOBILE, "7700900555", "7700900556"];
+const PERSON_STRINGS = [DATE_OF_BIRTH, STUDENT_NUMBER, "Person date of birth updated"];
 
 describe("the prospect record's What changed — contact values follow Person information", () => {
   it("hands a Recruit-details-only seat no contact value in the props or the HTML", async () => {
@@ -143,5 +167,25 @@ describe("the prospect record's What changed — contact values follow Person in
     const payload = JSON.stringify((await renderPage()).props);
     expect(payload).toContain(NEW_MOBILE);
     expect(payload).toContain('"contactFact":true');
+  });
+});
+
+describe("the prospect record's What changed — person fields follow Person information", () => {
+  it("hands a Recruit-details-only seat only Recruit details rows", async () => {
+    signInAs(recruiting({ recruit_details: "view" }));
+    const element = await renderPage();
+    const payload = JSON.stringify(element.props);
+    for (const value of PERSON_STRINGS) expect(payload, value).not.toContain(value);
+    expect(payload).toContain(RECRUIT_NOTE_REASON);
+    const html = renderToStaticMarkup(element);
+    for (const value of PERSON_STRINGS) expect(html, value).not.toContain(value);
+  });
+
+  it("keeps every row for a seat holding Person information at View", async () => {
+    signInAs(recruiting({ recruit_person: "view", recruit_details: "view" }));
+    const payload = JSON.stringify((await renderPage()).props);
+    expect(payload).toContain(DATE_OF_BIRTH);
+    expect(payload).toContain(STUDENT_NUMBER);
+    expect(payload).toContain(RECRUIT_NOTE_REASON);
   });
 });
