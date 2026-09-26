@@ -469,6 +469,20 @@ an escalation to whoever currently holds the President's seat, twelve hours
 after the response deadline. There are **no quiet hours** — an early-morning
 event produces early-morning messages and nothing delays them.
 
+### What the onboarding chase counts
+
+The automated onboarding chase asks a player only while **their own
+questionnaire** has something left — the same test that decides whether their
+link reads **There is nothing left to fill in** (LAN-437). That is their
+details, emergency contact and consent, the Code of Conduct and photo release
+until complete, and BUCS Play and Hudl until the player claims them. The five
+items the club completes — kit, subs invoiced, subs paid, comms groups and photo
+— never trigger a chase; they keep the player on **Missing data** exactly as
+before. The same test runs again when a declared chase is dispatched, so a
+player who finishes in between is not sent it, and a player who finished after
+their last chase is not counted in the office's "chases have run out" message.
+An operator's **Nudge** is not re-checked; it is the operator's own decision.
+
 ### Nothing advances unless something sweeps
 
 The ladder is driven by `POST /api/scheduler/messaging`, authenticated by

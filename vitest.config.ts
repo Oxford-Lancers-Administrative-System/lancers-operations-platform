@@ -73,6 +73,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/onboarding-agreements.test.ts",
   "src/lib/services/onboarding-ask.test.ts",
   "src/lib/services/onboarding-chase-dispatch.test.ts",
+  "src/lib/services/onboarding-chase-player-outstanding.test.ts",
   "src/lib/services/onboarding-chase.test.ts",
   "src/lib/services/onboarding-welcome-dispatch.test.ts",
   "src/lib/services/onboarding-welcome.test.ts",

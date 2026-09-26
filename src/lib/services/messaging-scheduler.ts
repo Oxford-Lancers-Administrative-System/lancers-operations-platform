@@ -57,6 +57,7 @@ import {
 } from "./onboarding-chase";
 import { recordOnboardingActivityIn } from "./onboarding-activity-log";
 import { issuePersonTokenIn } from "./player-answer-tokens";
+import { readPlayerHasOutstandingIn } from "./player-questionnaire/read";
 import { issueRecruitmentInterestTokenIn } from "./recruitment-interest-tokens";
 import {
   readRecruitmentCycleCompletionIn,
@@ -2309,6 +2310,8 @@ async function raiseDueOnboardingChaseEscalations(): Promise<{
 
     for (const candidate of candidates) {
       if (candidate.deliveredCount < settings.chaseCount) continue;
+      // LAN-437: a player who has since finished is not one the chase ran out on.
+      if (!candidate.hasOutstanding) continue;
       const marker = await tx.query<{ id: string }>(
         `insert into public.notification_jobs
            (idempotency_key, job_type, status, person_id, template_variables)
@@ -2616,6 +2619,8 @@ const ONBOARDING_CHASE_NOT_CONSENTED_REASON =
   "This person has not granted messaging consent for this season, so no chase can be sent.";
 const ONBOARDING_CHASE_UNDER_18_REASON =
   "This person is flagged under 18, so no message may be sent to them by any path.";
+const ONBOARDING_CHASE_NOTHING_OUTSTANDING_REASON =
+  "This player has nothing left to fill in, so no chase is sent.";
 
 /** `onboardingChaseIdempotencyKey`/`onboardingNudgeIdempotencyKey`'s own shape, parsed back into the membership either carries. */
 function parseOnboardingChaseOrNudgeKey(idempotencyKey: string): string | null {
@@ -2765,6 +2770,23 @@ export async function dispatchOnboardingChaseJob(
         tx,
         jobId,
         ONBOARDING_CHASE_NOT_CONSENTED_REASON,
+        await claiming.take(),
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    // LAN-437: an automated chase declared before the player finished is dropped here, on the same
+    // predicate the sweep declared it on. An operator's nudge is their own decision and still goes.
+    if (
+      job.idempotency_key.startsWith(ONBOARDING_CHASE_KEY_PREFIX) &&
+      (await readPlayerHasOutstandingIn(tx, job.person_id, seasonId)) !== true
+    ) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        ONBOARDING_CHASE_NOTHING_OUTSTANDING_REASON,
         await claiming.take(),
         context.channel,
         context.provider.name,
