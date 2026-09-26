@@ -593,21 +593,22 @@ describe("the club-link page", () => {
 
     expect(container.textContent).toContain("Practice — hilary week 5");
 
-    // Two players (one yes, one no) and one committee member (yes). One value
-    // line per block, and a bar of three segments with no band on it — the
-    // same component the operator's page renders (rule 7).
+    // Two players (one yes, one no) and one committee member (yes), who
+    // LAN-440 counts as a player. One value line per block, and a bar of three
+    // segments with no band on it — the same component the operator's page
+    // renders (rule 7).
     const players = screen.getByTestId("response-progress-player");
-    expect(within(players).getByTestId("response-counts").textContent).toBe("1 yes · 1 no / 2");
+    expect(within(players).getByTestId("response-counts").textContent).toBe("2 yes · 1 no / 3");
     expect(within(players).getByText("Said yes · Said no / Invited")).toBeVisible();
     const playerBar = within(players).getByTestId("response-bar");
-    expect(playerBar.getAttribute("data-yes")).toBe("1");
+    expect(playerBar.getAttribute("data-yes")).toBe("2");
     expect(playerBar.getAttribute("data-no")).toBe("1");
     // Everybody answered, so there is no pale gap left between the two.
     expect(playerBar.getAttribute("data-unanswered")).toBe("0");
     expect(playerBar.getAttribute("data-band")).toBeNull();
 
-    const committee = screen.getByTestId("response-progress-committee");
-    expect(within(committee).getByTestId("response-counts").textContent).toBe("1 yes · 0 no / 1");
+    // LAN-440: the card set is Recruits, Players, Coaches — never Committee.
+    expect(screen.queryByTestId("response-progress-committee")).toBeNull();
 
     // Nobody was invited as a coach or a recruit, so neither block is there.
     expect(screen.queryByTestId("response-progress-coach")).toBeNull();

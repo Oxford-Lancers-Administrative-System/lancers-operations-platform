@@ -792,13 +792,16 @@ Back in the operator's browser, open the event.
 
 **Expected, at the top of the page: response progress by capacity** (LAN-420,
 Stewart's "OPS EVENTS UPDATES" of 2026-09-22, change 2). One block per capacity
-present in the audience, in the order **Recruits, Players, Coaches,
-Committee** — a capacity nobody was invited under shows no block at all, so a
-practice with no recruits shows Players and Coaches only. Each block reads:
+present in the audience, in the order **Recruits, Players, Coaches** — a
+capacity nobody was invited under shows no block at all, so a practice with no
+recruits shows Players and Coaches only. **A committee-only invitee is counted
+under Players** (LAN-440, Brian, 2026-09-26), and the participation table's
+**As** column reads them as Player; the stored capacity, the audience builder,
+the invitation and Distribution still say committee. Each block reads:
 
 | Line  | What it says                                                                       |
 | ----- | ---------------------------------------------------------------------------------- |
-| Name  | Recruits, Players, Coaches or Committee                                            |
+| Name  | Recruits, Players or Coaches                                                       |
 | Value | `16 yes · 6 no / 39`, labelled **Said yes · Said no / Invited**                    |
 | Bar   | Three segments: yes, the unanswered remainder, no — widths proportional to invited |
 

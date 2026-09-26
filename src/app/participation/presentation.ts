@@ -49,7 +49,9 @@ export const WALK_UP_LABEL = "Walk-up";
 
 export function capacityLabel(person: ParticipationPerson): string {
   if (person.isWalkUp) return WALK_UP_LABEL;
-  return CAPACITY_LABELS[person.capacity] ?? person.capacity;
+  // LAN-440 (Brian, 2026-09-26): a committee-only invitee reads as a player. Display only.
+  const shown = person.capacity === "committee" ? "player" : person.capacity;
+  return CAPACITY_LABELS[shown] ?? shown;
 }
 
 export const ANSWER_YES = "Yes";

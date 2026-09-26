@@ -50,20 +50,26 @@ const COUNTING_PRECEDENCE: readonly ResponseCapacity[] = Object.freeze([
   "committee",
 ]);
 
-/** The order the blocks are shown in — Stewart's own order, which is not the counting order. */
-const DISPLAY_ORDER: readonly ResponseCapacity[] = Object.freeze([
-  "recruit",
-  "player",
-  "coach",
-  "committee",
-]);
+/** The capacities a block is shown for — LAN-440: committee folds into Players, display only. */
+type DisplayCapacity = Exclude<ResponseCapacity, "committee">;
 
-const RESPONSE_CAPACITY_LABELS: Readonly<Record<ResponseCapacity, string>> = Object.freeze({
+/** The order the blocks are shown in — Stewart's own order, which is not the counting order. */
+const DISPLAY_ORDER: readonly DisplayCapacity[] = Object.freeze(["recruit", "player", "coach"]);
+
+const RESPONSE_CAPACITY_LABELS: Readonly<Record<DisplayCapacity, string>> = Object.freeze({
   recruit: "Recruits",
   player: "Players",
   coach: "Coaches",
-  committee: "Committee",
 });
+
+/**
+ * LAN-440 (Brian, 2026-09-26): a committee-only invitee is tallied as a
+ * player. Display only — the stored capacity, the audience builder, the
+ * invitation and Distribution all still say committee.
+ */
+function displayCapacityOf(capacity: ResponseCapacity): DisplayCapacity {
+  return capacity === "committee" ? "player" : capacity;
+}
 
 /**
  * **There is no band, and no gate.** Stewart asked for "red to orange to green
@@ -77,7 +83,7 @@ const RESPONSE_CAPACITY_LABELS: Readonly<Record<ResponseCapacity, string>> = Obj
  * the widths say it.
  */
 export interface ResponseProgressBlock {
-  readonly capacity: ResponseCapacity;
+  readonly capacity: DisplayCapacity;
   readonly label: string;
   /** How many invitations this capacity holds. The denominator, and never a roster count. */
   readonly invited: number;
@@ -128,11 +134,12 @@ function countingCapacityOf(row: ResponseProgressRow): ResponseCapacity | null {
 export function responseProgressByCapacity(
   rows: readonly ResponseProgressRow[],
 ): ResponseProgressBlock[] {
-  const tally = new Map<ResponseCapacity, { invited: number; yes: number; no: number }>();
+  const tally = new Map<DisplayCapacity, { invited: number; yes: number; no: number }>();
 
   for (const row of rows) {
-    const capacity = countingCapacityOf(row);
-    if (capacity === null) continue;
+    const counted = countingCapacityOf(row);
+    if (counted === null) continue;
+    const capacity = displayCapacityOf(counted);
     const held = tally.get(capacity) ?? { invited: 0, yes: 0, no: 0 };
     held.invited += 1;
     if (row.answer === "yes") held.yes += 1;

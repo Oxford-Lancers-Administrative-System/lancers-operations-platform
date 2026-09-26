@@ -3228,6 +3228,44 @@ describe("the participation table on the event page", () => {
       expect(recruitBar.getAttribute("data-no")).toBe("0");
     });
 
+    // LAN-440 (Brian, 2026-09-26): committee-only invitees are tallied as Players.
+    it("folds committee invitees into Players, and never shows a Committee card", async () => {
+      vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+      vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+      vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+      vi.mocked(readOperatorParticipation).mockResolvedValue({
+        ...MIXED,
+        people: [
+          ...MIXED.people,
+          {
+            ...PARTICIPATION.people[0],
+            key: "committee:0",
+            capacity: "committee",
+            answer: "yes" as "yes" | "no" | null,
+          },
+          {
+            ...PARTICIPATION.people[0],
+            key: "committee:1",
+            capacity: "committee",
+            answer: "no" as "yes" | "no" | null,
+          },
+        ],
+      });
+      const { container } = render(await EventDetailPage(detailProps()));
+
+      expect(
+        [...container.querySelectorAll('[data-testid^="response-progress-"]')].map((node) =>
+          node.getAttribute("data-testid"),
+        ),
+      ).toEqual([
+        "response-progress-recruit",
+        "response-progress-player",
+        "response-progress-coach",
+      ]);
+      const players = within(screen.getByTestId("response-progress-player"));
+      expect(players.getByTestId("response-counts").textContent).toBe("4 yes · 1 no / 7");
+    });
+
     it("shows no block at all before approval, when nobody is invited", async () => {
       vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
       vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);

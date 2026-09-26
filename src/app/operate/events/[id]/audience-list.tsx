@@ -129,7 +129,11 @@ export function AudienceList({
                 </Typography>
               )}
               <Typography variant="caption" color="text.secondary">
-                {labelFor(CAPACITY_LABELS, member.capacity)}
+                {/* LAN-440: a committee-only invitee reads as a player. Display only. */}
+                {labelFor(
+                  CAPACITY_LABELS,
+                  member.capacity === "committee" ? "player" : member.capacity,
+                )}
               </Typography>
             </Stack>
           </Box>
