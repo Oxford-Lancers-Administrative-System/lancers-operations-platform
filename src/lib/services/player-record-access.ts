@@ -108,7 +108,7 @@ const SEASON_FACT_CATEGORY: Readonly<Record<keyof SeasonFacts, RosterCategory>> 
 });
 
 /** The seat's level on every roster category. */
-export function recordAccessFor(grants: OperatorGrants): RecordAccess {
+function recordAccessFor(grants: OperatorGrants): RecordAccess {
   return Object.freeze(
     Object.fromEntries(
       ROSTER_CATEGORIES.map((category) => [category, rosterLevel(grants, category)]),

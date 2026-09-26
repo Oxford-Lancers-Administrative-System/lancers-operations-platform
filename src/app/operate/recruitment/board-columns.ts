@@ -79,7 +79,7 @@ export interface ColumnDef {
 }
 
 /** A band's recruiting category. */
-export function categoryOfRecruitmentBand(band: Band): RecruitingCategory {
+function categoryOfRecruitmentBand(band: Band): RecruitingCategory {
   const kind = bandKind(band);
   return kind === "person"
     ? "recruit_person"
