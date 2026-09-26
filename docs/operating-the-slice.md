@@ -230,7 +230,8 @@ actions refuse without it.
 
 **The sign-up code page (LAN-428, Brian 2026-09-26).** Recruitment → **QR
 code** opens with three numbers for the live code: **Visits** (times
-`/join/<code>` was served for it; page loads, link previews included),
+`/join/<code>` was opened with a `GET`; a `HEAD` or a request labelled as a
+prefetch or preview is not counted, but an unfurler's plain `GET` is),
 **Partial** (records the partial save created through it since it was minted,
 completed or not) and **Completed** (finished sign-ups on it, less the club's
 twelve test sign-ups; the stored count is unchanged). With no live code there

@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
 import { assertSessionCookieFitsOneCookie, SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookies";
@@ -9,6 +9,7 @@ import {
   RESET_PASSWORD_PATH,
 } from "@/lib/auth/recovery";
 import { ANSWER_GATE_COOKIE, ANSWER_GATE_MAX_AGE_SECONDS } from "@/lib/rsvp/answer-gate";
+import { isSignupDoorVisit, SIGNUP_DOOR_PREFIX, SIGNUP_VISIT_HEADER } from "@/lib/signup-visit";
 
 /**
  * Next.js 16 renamed the `middleware` convention to `proxy`. This runs before
@@ -178,7 +179,23 @@ function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
-export async function proxy(request: NextRequest) {
+/**
+ * LAN-442 (W-4). The sign-up door counts a visit only when this says so, and a
+ * client never gets to say so itself: the header is overwritten on every
+ * bodiless request under `/join`. A request with a body is never a visit and
+ * is left as it arrived rather than re-built around its stream.
+ */
+function withSignupVisitFlag(request: NextRequest): NextRequest {
+  if (!matchesPrefix(request.nextUrl.pathname, [SIGNUP_DOOR_PREFIX])) return request;
+  if (request.method !== "GET" && request.method !== "HEAD") return request;
+  const headers = new Headers(request.headers);
+  headers.delete(SIGNUP_VISIT_HEADER);
+  if (isSignupDoorVisit(request.method, request.headers)) headers.set(SIGNUP_VISIT_HEADER, "1");
+  return new NextRequest(request, { headers });
+}
+
+export async function proxy(incoming: NextRequest) {
+  const request = withSignupVisitFlag(incoming);
   const path = request.nextUrl.pathname;
   // LAN-236. Public policy documents need neither a session nor database access.
   // Match only these documents; protected routes keep the existing checks.
