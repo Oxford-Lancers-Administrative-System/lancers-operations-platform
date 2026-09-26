@@ -181,13 +181,11 @@ function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
 
 /**
  * LAN-442 (W-4). The sign-up door counts a visit only when this says so, and a
- * client never gets to say so itself: the header is overwritten on every
- * bodiless request under `/join`. A request with a body is never a visit and
- * is left as it arrived rather than re-built around its stream.
+ * client never gets to say so itself: the header is stripped from every request
+ * under `/join`, whatever its method, and set again only on a document GET.
  */
 function withSignupVisitFlag(request: NextRequest): NextRequest {
   if (!matchesPrefix(request.nextUrl.pathname, [SIGNUP_DOOR_PREFIX])) return request;
-  if (request.method !== "GET" && request.method !== "HEAD") return request;
   const headers = new Headers(request.headers);
   headers.delete(SIGNUP_VISIT_HEADER);
   if (isSignupDoorVisit(request.method, request.headers)) headers.set(SIGNUP_VISIT_HEADER, "1");

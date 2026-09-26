@@ -746,12 +746,17 @@ describe("F-A3 — the signed-in entry point /me is protected", () => {
 describe("the sign-up door's visit flag", () => {
   const FORWARDED = `x-middleware-request-${SIGNUP_VISIT_HEADER}`;
 
-  async function flagFor(init: { method?: string; headers?: Record<string, string> }) {
+  async function flagFor(init: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  }) {
     givenSignedIn(false);
     const response = await proxy(
       new NextRequest(new URL("/join/fair-code", ORIGIN), {
         method: init.method,
         headers: init.headers,
+        body: init.body,
       }),
     );
     return response.headers.get(FORWARDED);
@@ -775,5 +780,19 @@ describe("the sign-up door's visit flag", () => {
 
   it("overwrites a flag the client sent itself", async () => {
     expect(await flagFor({ method: "HEAD", headers: { [SIGNUP_VISIT_HEADER]: "1" } })).toBeNull();
+  });
+
+  it("strips a flag the client forged on a POST", async () => {
+    expect(
+      await flagFor({
+        method: "POST",
+        headers: { [SIGNUP_VISIT_HEADER]: "1", "content-type": "application/json" },
+        body: "{}",
+      }),
+    ).toBeNull();
+  });
+
+  it("strips a flag the client forged on a bodiless POST", async () => {
+    expect(await flagFor({ method: "POST", headers: { [SIGNUP_VISIT_HEADER]: "1" } })).toBeNull();
   });
 });
