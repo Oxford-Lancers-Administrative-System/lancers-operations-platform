@@ -29,7 +29,7 @@ import {
   listCurrentSeasonEvents,
   listPublicSeasonEvents,
   PUBLIC_EVENT_SORT_COLUMNS,
-  readEvent,
+  readEventUnchecked,
   readPublicEvent,
   updateEventDraft,
   validateEventDraft,
@@ -1027,7 +1027,7 @@ describe("the list, the single-event read and the database agree about the count
     const entry = list.events.find((event) => event.id === eventId);
     expect(entry, "the seeded event is missing from its own season's list").toBeDefined();
 
-    const detail = await readEvent(eventId);
+    const detail = await readEventUnchecked(eventId);
     const expected = await countsFromSql(eventId);
 
     // Not zeroes dressed up as agreement: this event has a real audience, real
@@ -1089,7 +1089,7 @@ describe("the list, the single-event read and the database agree about the count
       registerSaved: false,
     };
     expect(countsOf(entry!)).toEqual(empty);
-    expect(countsOf(await readEvent(event.id))).toEqual(empty);
+    expect(countsOf(await readEventUnchecked(event.id))).toEqual(empty);
     expect(await countsFromSql(event.id)).toEqual(empty);
   });
 });
@@ -1127,7 +1127,7 @@ describe("there is no submission step, and nothing can create one", () => {
     const event = await createEventDraft(actorPersonId, draft());
     await forceStatus(event.id, "cancelled");
 
-    const read = await readEvent(event.id);
+    const read = await readEventUnchecked(event.id);
     expect(read.status).toBe("cancelled");
     expect(read.invitationCount).toBe(0);
   });
@@ -1649,7 +1649,7 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
   });
 
   it("refuses an event id that is not an identifier at all", async () => {
-    const error = await refusalFrom(() => readEvent("not-a-uuid"));
+    const error = await refusalFrom(() => readEventUnchecked("not-a-uuid"));
 
     expect(error.kind).toBe("not_found");
   });
@@ -1796,7 +1796,7 @@ describe("the public tier reads a narrower event", () => {
     const online = operatorList.events.find((event) => event.deliveryMode === "online");
     expect(online, "the seeded season has no online event").toBeDefined();
 
-    const operatorDetail = await readEvent(online!.id);
+    const operatorDetail = await readEventUnchecked(online!.id);
     expect(operatorDetail.joiningUrl).toBeTruthy();
 
     const publicDetail = await readPublicEvent(online!.id);
@@ -1830,7 +1830,7 @@ describe("the public tier reads a narrower event", () => {
     const eventId = inserted.rows[0].id;
 
     expect((await readPublicEvent(eventId)).joiningUrl).toBeNull();
-    expect((await readEvent(eventId)).joiningUrl).toBeNull();
+    expect((await readEventUnchecked(eventId)).joiningUrl).toBeNull();
   });
 
   it("carries no joining link for an in-person event", async () => {
@@ -1869,7 +1869,7 @@ describe("the public tier reads a narrower event", () => {
     const elsewhere = inserted.rows[0].id;
 
     // The operator's read resolves an event by id alone; the public one does not.
-    await expect(readEvent(elsewhere)).resolves.toBeTruthy();
+    await expect(readEventUnchecked(elsewhere)).resolves.toBeTruthy();
     const error = await refusalFrom(() => readPublicEvent(elsewhere));
     expect(error.kind).toBe("not_found");
 

@@ -12,6 +12,7 @@ import { readEventQuestionsIn, type EventQuestion } from "../event-questions";
 import { SHOWED_PRESENCES } from "../attendance-vocabulary";
 import { requireEventOperatorTier } from "@/lib/auth/event-tier";
 import { templatesAtLeast } from "@/lib/auth/grants";
+import { requireEventGrant } from "./access";
 import { readCurrentSeasonIn, type Season } from "../seasons";
 import { safeUri } from "../safe-uri";
 import { escapeLikePattern, personDisplayNameSql } from "../sql-text";
@@ -258,8 +259,22 @@ export async function readEventQuestions(eventId: string): Promise<EventQuestion
   return withTransaction(async (tx) => readEventQuestionsIn(tx, eventId));
 }
 
-/** One event, with everything the detail screen states as fact. */
+/**
+ * One event, with everything the detail screen states as fact — for the
+ * current operator only if they hold View on its template (LAN-423: the
+ * service is the boundary, not the page's gate). `NotPermitted` otherwise;
+ * `NotFound` for no such event.
+ */
 export async function readEvent(eventId: string): Promise<EventDetail> {
+  await requireEventGrant(eventId, "view");
+  return readEventUnchecked(eventId);
+}
+
+/**
+ * The same read with no operator — for services, scripts and tests that run
+ * without a session. Nothing under `src/app/` imports it.
+ */
+export async function readEventUnchecked(eventId: string): Promise<EventDetail> {
   return withTransaction(async (tx) => readEventIn(tx, eventId));
 }
 

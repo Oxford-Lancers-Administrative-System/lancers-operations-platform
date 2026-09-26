@@ -32,6 +32,7 @@ export {
   PARTICIPATION_TABLES,
   readEvent,
   readEventIn,
+  readEventUnchecked,
   readEventQuestions,
 } from "./read";
 export type { EventList } from "./read";
