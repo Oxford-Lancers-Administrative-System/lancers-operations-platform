@@ -1291,6 +1291,26 @@ describe("LAN-427 — the table on a phone held sideways", () => {
     expect(screen.getByTestId("roster-phone-cards")).toBeInTheDocument();
   });
 
+  it("gives the phone on its side one bar, not the stacked search and filters", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    // The bar sits outside the upright cards, so a phone on its side still has it.
+    const bar = screen.getByTestId("phone-sort");
+    expect(screen.getByTestId("roster-phone-cards")).not.toContainElement(bar);
+    // And the pinned search's wrapper carries a landscape rule hiding it.
+    const search = screen.getByLabelText("Search name or alias");
+    const wrapper = search.closest(".MuiBox-root");
+    expect(wrapper).not.toBeNull();
+    const css = styleText().replace(/\s+/g, " ");
+    const hidden = [...wrapper!.classList].some((name) =>
+      new RegExp(
+        `${LANDSCAPE.replace(/[()]/g, "\\$&")}\\s?\\{\\s?\\.${name}\\s?\\{\\s?display:\\s?none`,
+      ).test(css),
+    );
+    expect(hidden).toBe(true);
+  });
+
   it("does not restore the phone sort when the phone is on its side", async () => {
     Object.defineProperty(window, "matchMedia", {
       configurable: true,

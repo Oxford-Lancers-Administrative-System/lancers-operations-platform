@@ -669,6 +669,34 @@ export default function RosterBoard({
     );
   }
 
+  const phoneBar = (
+    // LAN-427: one bar below md, upright or on its side; -1 keeps the upright gap to the cards at 2.
+    <Stack
+      direction="row"
+      spacing={1}
+      sx={{ display: { xs: "flex", md: "none" }, mb: -1, alignItems: "center", flexWrap: "wrap" }}
+    >
+      {/* On its side the search is in the sheet too, so the button shows even with no pinned filter. */}
+      <Button
+        variant="outlined"
+        onClick={() => setPhoneFilters(true)}
+        sx={
+          anyPinnedFilter
+            ? undefined
+            : { display: "none", [PHONE_LANDSCAPE]: { display: "inline-flex" } }
+        }
+      >
+        Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
+      </Button>
+      <PhoneSortSelect
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        statusAvailable={statusSortable}
+        onChange={choosePhoneSort}
+      />
+    </Stack>
+  );
+
   return (
     <Stack spacing={3}>
       <RosterHeading
@@ -679,8 +707,10 @@ export default function RosterBoard({
         addPlayers={addPlayers}
       />
       {noItemTypes}
-      {pinned}
+      {/* LAN-427: a phone on its side gets the Recruits board's one-row bar below, so the table starts on the first screen. */}
+      <Box sx={{ [PHONE_LANDSCAPE]: { display: "none" } }}>{pinned}</Box>
       {chips}
+      {phoneBar}
 
       <TableContainer
         component={Paper}
@@ -805,24 +835,11 @@ export default function RosterBoard({
         </Table>
       </TableContainer>
 
-      {/* LAN-427: a phone on its side has the table, its headings and the pinned filters above instead. */}
+      {/* LAN-427: a phone on its side has the table, its headings and the one-row bar above instead. */}
       <Box
         sx={{ display: { xs: "block", md: "none" }, [PHONE_LANDSCAPE]: { display: "none" } }}
         data-testid="roster-phone-cards"
       >
-        <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: "center", flexWrap: "wrap" }}>
-          {anyPinnedFilter ? (
-            <Button variant="outlined" onClick={() => setPhoneFilters(true)}>
-              Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
-            </Button>
-          ) : null}
-          <PhoneSortSelect
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            statusAvailable={statusSortable}
-            onChange={choosePhoneSort}
-          />
-        </Stack>
         <Stack spacing={2}>
           {visible.map((row) => (
             <PlayerCard key={row.membershipId} row={row} />

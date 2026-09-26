@@ -302,9 +302,10 @@ draw the desktop table, scrolled sideways by touch inside its own box with the
 Player or Recruit column pinned, and every heading's sort, funnel filter and
 editable cell works as on a desktop. Rotating back upright restores the cards.
 Tablets and desktops are unchanged: a tablet upright is below `md` and portrait,
-so cards; on its side it is at or above `md`, so the table as before. On the
-Roster in landscape the pinned search and filters stay above the table, stacked,
-so the table starts below them.
+so cards; on its side it is at or above `md`, so the table as before. In
+landscape both boards put one row above the table — **Filters**, which opens the
+search and filters in a bottom sheet, and the phone sort — so the table starts
+on the first screen.
 
 ---
 
