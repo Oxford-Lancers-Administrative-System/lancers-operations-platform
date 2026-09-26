@@ -489,6 +489,15 @@ describe("the filter bar", () => {
     }
   });
 
+  it("LAN-440: offers the capacities a row can read as, never Committee", () => {
+    render(<ParticipationFilterBar basePath="/e/token" filters={filters()} showDelivery={false} />);
+    const options = Array.from(
+      screen.getByTestId("filter-capacity").querySelectorAll("option"),
+      (option) => option.textContent,
+    );
+    expect(options).toEqual(["All", "Recruit", "Player", "Coach", "Walk-up"]);
+  });
+
   it("R157C-B2: does not scroll to the top when the search box changes", async () => {
     // The search box goes through the shared `push` callback rather than
     // `apply`, and the two were fixed at different call sites — this proves

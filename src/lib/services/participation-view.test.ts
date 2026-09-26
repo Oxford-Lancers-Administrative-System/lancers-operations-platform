@@ -348,11 +348,16 @@ describe("applyParticipationView filters", () => {
   });
 
   it("filters to only players, and to only walk-ups", () => {
+    // LAN-440: Player matches what the row reads, so the committee invitee is in it.
     expect(names(applyParticipationView(ROSTER, withFilters({ capacity: "player" }), []))).toEqual([
       "Alaric Brindlewood",
       "Bar Sedgewick",
       "Cassian Wolvercote",
+      "Fen Marchbanks",
     ]);
+    expect(
+      names(applyParticipationView(ROSTER, withFilters({ capacity: "committee" }), [])),
+    ).toEqual([]);
     expect(names(applyParticipationView(ROSTER, withFilters({ capacity: "walk_up" }), []))).toEqual(
       ["Wilfrid Danecroft"],
     );

@@ -29,6 +29,9 @@ export { formatTermAndWeek } from "../operate/events/presentation";
 /** `invitation_capacity`, in the club's words — re-exported, not a second copy (same defect shape as `formatTermAndWeek` above). */
 export { CAPACITY_LABELS };
 
+/** LAN-440: the capacities the filter offers — the ones a row can read as, committee folded into Player. */
+export const FILTER_CAPACITIES: readonly string[] = Object.freeze(["recruit", "player", "coach"]);
+
 // The table
 
 export const TABLE_HEADINGS = Object.freeze({

@@ -312,7 +312,9 @@ function matchesAttendance(person: ParticipationPerson, attendance: string): boo
 function matchesCapacity(person: ParticipationPerson, capacity: string): boolean {
   if (capacity === "") return true;
   if (capacity === "walk_up") return person.isWalkUp;
-  return !person.isWalkUp && person.capacity === capacity;
+  // LAN-440: the filter matches the capacity shown, so Player includes committee.
+  const shown = person.capacity === "committee" ? "player" : person.capacity;
+  return !person.isWalkUp && shown === capacity;
 }
 
 function matchesDelivery(person: ParticipationPerson, delivery: string): boolean {
