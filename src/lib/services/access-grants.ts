@@ -51,7 +51,7 @@ const FIXED_SEAT_MESSAGE =
 const ACCESS_CAPABILITY = "role_management" as const;
 
 /** One seat, as the access writes and the seat page name it. */
-export interface AccessSeat {
+interface AccessSeat {
   readonly id: string;
   readonly code: string;
   readonly name: string;
@@ -60,7 +60,7 @@ export interface AccessSeat {
 }
 
 /** A template as an access line names it. */
-export interface AccessTemplate {
+interface AccessTemplate {
   readonly id: string;
   readonly name: string;
   readonly colourKey: string;

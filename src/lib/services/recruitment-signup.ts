@@ -63,7 +63,7 @@ export const SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE =
   "recruitment_signup_invalid_expected_graduation_year";
 /** LAN-425 walk, finding 4: the pair is refused in words on both doors, never left to the check constraint. */
 export const SIGNUP_YEARS_OUT_OF_ORDER_RULE = "recruitment_signup_years_out_of_order";
-export const SIGNUP_YEARS_OUT_OF_ORDER_MESSAGE =
+const SIGNUP_YEARS_OUT_OF_ORDER_MESSAGE =
   "Expected graduation cannot be before the matriculation year.";
 /** LAN-425 walk, finding 2: a partial is open only until its sign-up is complete. */
 export const PARTIAL_NOT_OPEN_RULE = "recruitment_partial_not_open";
