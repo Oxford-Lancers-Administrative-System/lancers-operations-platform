@@ -2332,4 +2332,23 @@ describe("LAN-434 — Send invitation on a holder line with no operator account"
 
     expect(screen.queryByTestId("holder-send-invitation")).toBeNull();
   });
+
+  // Brian, 2026-09-28: "That's not how we do buttons."
+  it("is the app's standard outlined button, as is its panel's Cancel", async () => {
+    withAccountlessHolder();
+    vi.mocked(readSeatHolderEmails).mockResolvedValue(
+      new Map([[HOLDER_ID, "marek@lan434.example"]]),
+    );
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+    const button = screen.getByTestId("holder-send-invitation");
+    expect(button).toHaveClass("MuiButton-outlined");
+    expect(button).not.toHaveClass("MuiButton-text");
+    // The same variant as the Access card's Copy access from another seat.
+    expect(screen.getByTestId("access-copy")).toHaveClass("MuiButton-outlined");
+
+    fireEvent.click(button);
+    const panel = screen.getByTestId("holder-send-invitation-panel");
+    expect(within(panel).getByRole("button", { name: "Cancel" })).toHaveClass("MuiButton-outlined");
+  });
 });

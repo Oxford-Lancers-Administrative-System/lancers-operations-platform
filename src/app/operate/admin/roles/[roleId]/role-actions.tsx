@@ -232,7 +232,7 @@ function PersonPanel({
             </Stack>
             <Field name="email" type="email" label="Email" {...term("email")} />
             <Box>
-              <Button type="submit" disabled={searching} sx={{ minHeight: 44 }}>
+              <Button type="submit" variant="outlined" disabled={searching} sx={{ minHeight: 44 }}>
                 Search
               </Button>
             </Box>

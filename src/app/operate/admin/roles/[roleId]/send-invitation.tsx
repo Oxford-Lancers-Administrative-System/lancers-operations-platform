@@ -56,9 +56,12 @@ function SendInvitationForm({
   if (!open && !state.notice) {
     return (
       <Box sx={{ mt: 1 }}>
+        {/* Brian, 2026-09-28: the app's standard outlined button, the Access
+            card's "Copy access from another seat" variant — never a bare text one. */}
         <Button
+          variant="outlined"
           onClick={() => setOpen(true)}
-          sx={{ minHeight: 44 }}
+          sx={{ minHeight: 36 }}
           data-testid="holder-send-invitation"
         >
           Send invitation
@@ -83,7 +86,7 @@ function SendInvitationForm({
               <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
                 Send invitation
               </Button>
-              <Button onClick={() => setOpen(false)} sx={{ minHeight: 44 }}>
+              <Button variant="outlined" onClick={() => setOpen(false)} sx={{ minHeight: 44 }}>
                 Cancel
               </Button>
             </Stack>
