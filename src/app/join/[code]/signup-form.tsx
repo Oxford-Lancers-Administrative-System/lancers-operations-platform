@@ -140,10 +140,12 @@ export default function SignupForm({
   const partialDirty = useRef(false);
   const latest = useRef(values);
   latest.current = values;
-  // A mobile the visitor has not yet confirmed in the second box is not sent
-  // with a partial: the welcome must never go to an unconfirmed number
-  // (LAN-425 walk, finding 5). Save is gated on the confirmation anyway.
-  const unconfirmedRef = useRef(false);
+  // LAN-428, Brian's decision 2026-09-28: the partial carries the first mobile
+  // box as typed, confirmed or not — "the back end captures it as soon as I get
+  // one number". This overrides LAN-425's rule (walk finding 5) that withheld an
+  // unconfirmed mobile from a partial. Save still needs the confirmation, and
+  // the completed record takes the confirmed value. A partial still has no
+  // consent row, so the welcome is the only thing that can go to it.
 
   function flushPartial(): Promise<void> {
     if (!startPartial || !patchPartial || partialStopped.current) return Promise.resolve();
@@ -152,7 +154,7 @@ export default function SignupForm({
       return partialInFlight.current;
     }
     const run = (async () => {
-      const snapshot = unconfirmedRef.current ? { ...latest.current, mobile: "" } : latest.current;
+      const snapshot = latest.current;
       try {
         if (partialToken.current) {
           await patchPartial(partialToken.current, snapshot);
@@ -182,22 +184,19 @@ export default function SignupForm({
   flushRef.current = flushPartial;
   const partialEnabled = mode === "anonymous" && Boolean(startPartial) && Boolean(patchPartial);
   const bothNamesPresent = values.givenName.trim() !== "" && values.familyName.trim() !== "";
-  // LAN-428: the first write waits for a confirmed mobile of at least seven
+  // LAN-428: the first write waits for a first mobile box of at least seven
   // digits as well as both names — the server's own floor, which refuses it
-  // otherwise. Later patches do not wait for it.
+  // otherwise. The confirmation box is not consulted (Brian, 2026-09-28).
+  // Later patches do not wait for it.
   const startable =
-    bothNamesPresent &&
-    !mobileUnconfirmed &&
-    values.mobile.replace(/\D/g, "").length >= PARTIAL_START_MOBILE_MIN_DIGITS;
+    bothNamesPresent && values.mobile.replace(/\D/g, "").length >= PARTIAL_START_MOBILE_MIN_DIGITS;
   useEffect(() => {
     if (!partialEnabled || step !== "form" || !bothNamesPresent) return;
     if (!partialToken.current && !startable) return;
     const handle = setTimeout(() => void flushRef.current(), PARTIAL_SAVE_DELAY_MS);
     return () => clearTimeout(handle);
-    // `values` is the trigger: any change restarts the pause, and so does the
-    // confirm box agreeing, which changes what the next write may carry.
-  }, [values, step, partialEnabled, bothNamesPresent, mobileUnconfirmed, startable]);
-  unconfirmedRef.current = mobileUnconfirmed;
+    // `values` is the trigger: any change restarts the pause.
+  }, [values, step, partialEnabled, bothNamesPresent, startable]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

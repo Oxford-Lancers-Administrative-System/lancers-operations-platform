@@ -201,22 +201,74 @@ describe("the partial save (LAN-425)", () => {
     expect(submit.mock.calls[0][0]).toMatchObject({ partialToken: "tok-425", consent: true });
   });
 
-  it("an unconfirmed mobile starts nothing; a confirmed one starts the partial", async () => {
+  // LAN-428, Brian 2026-09-28: "The back end captures it as soon as I get one
+  // number." This overrides LAN-425's withholding of an unconfirmed mobile.
+  it("the first mobile box starts the partial, with nothing in the confirm box", async () => {
     vi.useFakeTimers();
     const { startPartial, patchPartial } = renderAnonymous();
 
     type(/^First name/, "Ian");
     type(/^Last name/, "Rowntree");
     fireEvent.change(numberBox(), { target: { value: "07700900222" } });
-    await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS * 2));
-    // LAN-428: without a confirmed mobile there is no partial at all.
-    expect(startPartial).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
+    expect(startPartial).toHaveBeenCalledTimes(1);
+    expect(startPartial.mock.calls[0][0]).toMatchObject({
+      givenName: "Ian",
+      familyName: "Rowntree",
+      mobile: "+447700900222",
+    });
+    expect(patchPartial).not.toHaveBeenCalled();
+    // Save still waits for the confirmation.
+    expect(screen.getByRole("button", { name: "Sign me up" })).toBeDisabled();
+  });
 
-    fireEvent.change(confirmBox(), { target: { value: "07700900222" } });
+  it("a confirmation that disagrees does not hold the partial back", async () => {
+    vi.useFakeTimers();
+    const { startPartial } = renderAnonymous();
+
+    type(/^First name/, "Ian");
+    type(/^Last name/, "Rowntree");
+    fireEvent.change(numberBox(), { target: { value: "07700900222" } });
+    fireEvent.change(confirmBox(), { target: { value: "07700900333" } });
     await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
     expect(startPartial).toHaveBeenCalledTimes(1);
     expect(startPartial.mock.calls[0][0]).toMatchObject({ mobile: "+447700900222" });
-    expect(patchPartial).not.toHaveBeenCalled();
+  });
+
+  it("a retyped number is patched onto the partial", async () => {
+    vi.useFakeTimers();
+    const { startPartial, patchPartial } = renderAnonymous();
+
+    type(/^First name/, "Ian");
+    type(/^Last name/, "Rowntree");
+    fireEvent.change(numberBox(), { target: { value: "07700900222" } });
+    await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
+    expect(startPartial).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(numberBox(), { target: { value: "07700900444" } });
+    await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
+    expect(patchPartial).toHaveBeenCalledTimes(1);
+    expect(patchPartial.mock.calls[0][0]).toBe("tok-425");
+    expect(patchPartial.mock.calls[0][1]).toMatchObject({ mobile: "+447700900444" });
+  });
+
+  it("Sign me up carries the confirmed value over the number the partial started with", async () => {
+    vi.useFakeTimers();
+    const { startPartial, submit } = renderAnonymous();
+
+    fillEverythingBar();
+    fireEvent.change(numberBox(), { target: { value: "07700900222" } });
+    await act(() => vi.advanceTimersByTimeAsync(PARTIAL_SAVE_DELAY_MS));
+    expect(startPartial.mock.calls[0][0]).toMatchObject({ mobile: "+447700900222" });
+
+    confirmedMobile("07700900555");
+    fireEvent.click(screen.getByRole("button", { name: "Sign me up" }));
+    await act(() => vi.runAllTimersAsync());
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(submit.mock.calls[0][0]).toMatchObject({
+      partialToken: "tok-425",
+      mobile: "+447700900555",
+    });
   });
 
   it("a malformed mobile starts nothing — LAN-428", async () => {

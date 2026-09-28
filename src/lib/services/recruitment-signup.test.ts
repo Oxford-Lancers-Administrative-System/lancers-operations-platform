@@ -40,7 +40,10 @@ import {
   signUpWithTokenIn,
   type SignupSubmission,
 } from "./recruitment-signup";
-import { mintRecruitmentSignupCodeIn } from "./recruitment-signup-codes";
+import {
+  mintRecruitmentSignupCodeIn,
+  readRecruitmentSignupFiguresIn,
+} from "./recruitment-signup-codes";
 import { resolvePersonTokenIn } from "./player-answer-tokens";
 import { recordRecruitConsentIn } from "./recruitment-prospect";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -1347,5 +1350,56 @@ describe("verbal consent on a partial recruit — LAN-428, item 2", () => {
       [started!.personId],
     );
     expect(after.rows).toHaveLength(0);
+  });
+});
+
+/**
+ * LAN-428, Brian 2026-09-28: "The back end captures it as soon as I get one
+ * number." The form now starts the partial on the first mobile box, confirmed
+ * or not, and every later patch carries whatever is in that box; Save still
+ * needs the confirmation and carries the confirmed value. The service has
+ * never known about the confirmation box, so what is proved here is the
+ * sequence the form now drives.
+ */
+describe("the partial on the first typed mobile — LAN-428, 2026-09-28", () => {
+  it("starts on the first number, follows a retyped one, completes with the confirmed value and is counted as a Partial", async () => {
+    const code = await mintCode();
+    const first = uniquePhone();
+    const { consent: _consent, ...typed } = baseSubmission({ mobile: first, collegeEmail: null });
+
+    const started = await withTransaction((tx) =>
+      startPartialQrSignupIn(tx, { seasonId, submission: typed }),
+    );
+    expect(started).not.toBeNull();
+    const personId = started!.personId;
+    expect((await withTransaction((tx) => readSignupPrefillIn(tx, personId))).mobile).toBe(first);
+
+    // The visitor retypes the number before confirming it: the next patch follows.
+    const retyped = uniquePhone();
+    await withTransaction((tx) =>
+      patchPartialQrSignupIn(tx, { personId, seasonId, submission: { ...typed, mobile: retyped } }),
+    );
+    expect((await withTransaction((tx) => readSignupPrefillIn(tx, personId))).mobile).toBe(retyped);
+
+    // Save carries the confirmed value, and it wins.
+    const confirmed = uniquePhone();
+    await withTransaction((tx) =>
+      completePartialQrSignupIn(tx, {
+        personId,
+        seasonId,
+        code,
+        submission: baseSubmission({
+          mobile: confirmed,
+          collegeEmail: "lan428.first.mobile@balliol.ox.ac.uk",
+        }),
+      }),
+    );
+    expect((await withTransaction((tx) => readSignupPrefillIn(tx, personId))).mobile).toBe(
+      confirmed,
+    );
+
+    // The QR page's Partial figure counts it.
+    const figures = await withTransaction((tx) => readRecruitmentSignupFiguresIn(tx, seasonId));
+    expect(figures?.partial).toBe(1);
   });
 });

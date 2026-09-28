@@ -235,9 +235,15 @@ prefetch or preview is not counted, but an unfurler's plain `GET` is),
 **Partial** (records the partial save created through it since it was minted,
 completed or not) and **Completed** (finished sign-ups on it, less the club's
 twelve test sign-ups; the stored count is unchanged). With no live code there
-are no numbers. On the public form a partial record now starts only once first
-name, last name and a confirmed mobile are all typed; everything after that is
-as LAN-425 built it. A recruit who agreed to WhatsApp messages out loud is
+are no numbers. On the public form a partial record starts once first name,
+last name and the first mobile box (seven or more digits) are typed, and it
+stores that number as typed whether or not the confirm box is filled or agrees
+(Brian's decision, 2026-09-28, replacing LAN-425's rule that withheld an
+unconfirmed mobile from a partial). A retyped number is patched onto the
+partial; **Sign me up** still requires the confirmation, and on completion the
+confirmed value is the one kept. The partial still has no consent row, so the
+welcome is the only message that can go to it. Everything else is as LAN-425
+built it. A recruit who agreed to WhatsApp messages out loud is
 recorded from their record's **Record consent** (LAN-371): the required **How
 consent was given** note says it was verbal, and the consent row keeps who
 recorded it and when, audited to that operator. It never grants anything on its
