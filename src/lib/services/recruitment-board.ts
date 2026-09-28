@@ -1,3 +1,4 @@
+import { groupValuesBy } from "@/lib/group-values";
 import "server-only";
 
 import { withTransaction, type Tx } from "@/lib/db";
@@ -220,12 +221,11 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
     ]);
 
   const personById = new Map(people.rows.map((row) => [row.id, row]));
-  const aliasesByPerson = new Map<string, string[]>();
-  for (const row of aliasRows.rows) {
-    const list = aliasesByPerson.get(row.person_id) ?? [];
-    list.push(row.alias);
-    aliasesByPerson.set(row.person_id, list);
-  }
+  const aliasesByPerson = groupValuesBy(
+    aliasRows.rows,
+    (row) => row.person_id,
+    (row) => row.alias,
+  );
   const consentByPerson = new Map(
     consentRows.rows.map((row) => [
       row.person_id,
@@ -236,12 +236,11 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
       },
     ]),
   );
-  const answersByProspect = new Map<string, typeof answerRows.rows>();
-  for (const row of answerRows.rows) {
-    const list = answersByProspect.get(row.prospect_id) ?? [];
-    list.push(row);
-    answersByProspect.set(row.prospect_id, list);
-  }
+  const answersByProspect = groupValuesBy(
+    answerRows.rows,
+    (row) => row.prospect_id,
+    (row) => row,
+  );
   const sentByPerson = new Map<string, Set<string>>();
   for (const row of sentRows.rows) {
     const set = sentByPerson.get(row.person_id) ?? new Set<string>();
@@ -256,12 +255,11 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
     date: row.date,
     colourKey: row.colour_key,
   }));
-  const invitationsByPerson = new Map<string, typeof invitationRows.rows>();
-  for (const row of invitationRows.rows) {
-    const list = invitationsByPerson.get(row.person_id) ?? [];
-    list.push(row);
-    invitationsByPerson.set(row.person_id, list);
-  }
+  const invitationsByPerson = groupValuesBy(
+    invitationRows.rows,
+    (row) => row.person_id,
+    (row) => row,
+  );
 
   function answerFor(prospectId: string, code: string): string | null {
     const answer = (answersByProspect.get(prospectId) ?? []).find(

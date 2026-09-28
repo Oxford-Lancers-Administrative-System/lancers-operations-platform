@@ -1,3 +1,4 @@
+import { groupValuesBy } from "@/lib/group-values";
 import "server-only";
 
 import { withTransaction, type Tx } from "@/lib/db";
@@ -341,12 +342,11 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
 
     const personById = new Map(people.rows.map((row) => [row.id, row]));
     const hasEmergencyContact = new Set(emergencyContacts.rows.map((row) => row.person_id));
-    const aliasesByPerson = new Map<string, string[]>();
-    for (const row of aliasRows.rows) {
-      const list = aliasesByPerson.get(row.person_id) ?? [];
-      list.push(row.alias);
-      aliasesByPerson.set(row.person_id, list);
-    }
+    const aliasesByPerson = groupValuesBy(
+      aliasRows.rows,
+      (row) => row.person_id,
+      (row) => row.alias,
+    );
 
     /** One map per slot — the primary pair and the backup pair are four independent facts. */
     const positionBySlot: Record<string, Map<string, string>> = {
@@ -376,12 +376,11 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       if (name) holders[String(row.number)] = name;
     }
 
-    const coachingGroupsByMembership = new Map<string, string[]>();
-    for (const row of coachGroupRows.rows) {
-      const list = coachingGroupsByMembership.get(row.season_membership_id) ?? [];
-      list.push(row.coach_group);
-      coachingGroupsByMembership.set(row.season_membership_id, list);
-    }
+    const coachingGroupsByMembership = groupValuesBy(
+      coachGroupRows.rows,
+      (row) => row.season_membership_id,
+      (row) => row.coach_group,
+    );
     const offensiveGroupsByMembership = new Map<string, string[]>();
     const defensiveGroupsByMembership = new Map<string, string[]>();
     for (const row of positionGroupRows.rows) {

@@ -8,14 +8,16 @@
 /** The zone every wall-clock rule in the application is expressed in. */
 export const CLUB_TIME_ZONE = "Europe/London";
 
+const clubDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: CLUB_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 /** Today's date in the club's zone, as `YYYY-MM-DD`. Uses `Intl`, not `toISOString()` (UTC, an hour wrong during BST). */
 export function todayInClubZone(now: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: CLUB_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
+  const parts = clubDateFormatter.formatToParts(now);
 
   const value = (type: Intl.DateTimeFormatPartTypes): string =>
     parts.find((part) => part.type === type)?.value ?? "";
@@ -29,16 +31,18 @@ export const UNREADABLE_DATE = "Date not readable";
 /** A calendar day as a `date` column stores one. A shape, not a validity check. */
 const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+const clubDayFormatters = [{ day: "numeric" }, { month: "short" }, { year: "numeric" }].map(
+  (options) =>
+    new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" } as Intl.DateTimeFormatOptions),
+);
+
 /** The club's written form of a stored calendar date: `"21 Aug 2026"`. Read at UTC — a `date` column carries no zone. */
 export function formatClubDay(day: string): string {
   if (!CALENDAR_DAY.test(day)) return UNREADABLE_DATE;
   const instant = new Date(`${day}T00:00:00Z`);
   if (Number.isNaN(instant.getTime())) return UNREADABLE_DATE;
 
-  const part = (options: Intl.DateTimeFormatOptions): string =>
-    new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(instant);
-
-  return `${part({ day: "numeric" })} ${part({ month: "short" })} ${part({ year: "numeric" })}`;
+  return clubDayFormatters.map((formatter) => formatter.format(instant)).join(" ");
 }
 
 /** The calendar day `count` days after `day`, as `YYYY-MM-DD`, or `null`. Computes the earliest allowed `effective_to` (schema requires `effective_to > effective_from`). */

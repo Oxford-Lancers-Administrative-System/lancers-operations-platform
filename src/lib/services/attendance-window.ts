@@ -13,11 +13,13 @@ const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CLOCK_TIME = /^(\d{2}):(\d{2})(?::\d{2})?$/;
 
 // The club's zone offset at one instant, ms — looked up per-moment since it changes twice a year (BST/GMT).
+const londonOffsetFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/London",
+  timeZoneName: "longOffset",
+});
+
 function londonOffsetMs(instant: Date): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    timeZoneName: "longOffset",
-  }).formatToParts(instant);
+  const parts = londonOffsetFormatter.formatToParts(instant);
 
   const offset = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT";
   const match = /^GMT([+-])(\d{2}):(\d{2})$/.exec(offset);

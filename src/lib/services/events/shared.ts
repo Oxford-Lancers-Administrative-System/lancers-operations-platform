@@ -72,14 +72,7 @@ export const TEMPLATE_JOIN = "join public.event_templates tpl on tpl.id = e.temp
 export const TEMPLATE_COLUMNS = // colour_key public since LAN-276 R1
   "e.template_id, tpl.name as template_name, tpl.colour_key as template_colour";
 
-export function asDate(value: Date | string | null): string | null {
-  if (value === null) return null;
-  if (typeof value === "string") return value.slice(0, 10);
-  const year = value.getFullYear();
-  const month = `${value.getMonth() + 1}`.padStart(2, "0");
-  const day = `${value.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+export { asDate } from "@/lib/db/date";
 
 export function asTime(value: string | null): string | null {
   return value === null ? null : toMinutePrecision(value);

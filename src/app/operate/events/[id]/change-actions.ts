@@ -1,5 +1,7 @@
 "use server";
 
+import { text, readDraft, readQuestions } from "@/lib/services/event-form-input";
+
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { ResolvedOperator } from "@/lib/auth/operator";
@@ -11,11 +13,7 @@ import {
   updateEventQuestions,
   validateEventDraft,
 } from "@/lib/services/events";
-import {
-  eventQuestionsDiffer,
-  validateEventQuestions,
-  type RawEventQuestion,
-} from "@/lib/services/event-questions-input";
+import { eventQuestionsDiffer, validateEventQuestions } from "@/lib/services/event-questions-input";
 import {
   amendApprovedEvent,
   cancelEvent,
@@ -24,7 +22,6 @@ import {
   type AmendableEvent,
 } from "@/lib/services/event-amendment";
 import { addEventAudienceMembers } from "@/lib/services/event-audience-amendment";
-import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "../form-state";
 import type { CancelFormState } from "./change-state";
 
@@ -52,58 +49,8 @@ async function managerOf(eventId: string): Promise<ResolvedOperator | { error: s
   }
 }
 
-function text(formData: FormData, field: string): string {
-  const value = formData.get(field);
-  return typeof value === "string" ? value : "";
-}
-
 function checked(formData: FormData, field: string): boolean {
   return text(formData, field) === "on" || text(formData, field) === "true";
-}
-
-function readDraft(formData: FormData): RawEventDraft {
-  return {
-    name: text(formData, "name"),
-    templateId: text(formData, "templateId"),
-    scheduledOn: text(formData, "scheduledOn"),
-    startsAt: text(formData, "startsAt"),
-    endsAt: text(formData, "endsAt"),
-    deliveryMode: text(formData, "deliveryMode"),
-    venue: text(formData, "venue"),
-    description: text(formData, "description"),
-    requiredEquipment: text(formData, "requiredEquipment"),
-    joiningUrl: text(formData, "joiningUrl"),
-    attendance: text(formData, "attendance"),
-  };
-}
-
-/**
- * The question cards a submission carries — LAN-419, the same reading
- * `events/actions.ts` does for the draft form, because it is the same
- * `QuestionEditor` posting the same fields. `null` is "this form posted no
- * questions at all", which is not the same as "it posted none".
- */
-function readQuestions(formData: FormData): RawEventQuestion[] | null {
-  if (formData.get("questionsPresent") === null) return null;
-
-  const strings = (field: string) =>
-    formData.getAll(field).map((value) => (typeof value === "string" ? value : ""));
-
-  const ids = strings("questionId");
-  const prompts = strings("questionPrompt");
-  const answerTypes = strings("questionAnswerType");
-  const required = strings("questionRequired");
-  const choices = strings("questionChoices");
-  const fromTemplate = strings("questionFromTemplate");
-
-  return prompts.map((prompt, index) => ({
-    id: ids[index] ?? "",
-    prompt,
-    answerType: answerTypes[index] ?? "",
-    required: required[index] ?? "",
-    choices: choices[index] ?? "",
-    fromTemplate: fromTemplate[index] ?? "false",
-  }));
 }
 
 /** The event as the submitting form loaded it — LAN-244. Read defensively; a missing/unparseable field is "apply the whole submission". */

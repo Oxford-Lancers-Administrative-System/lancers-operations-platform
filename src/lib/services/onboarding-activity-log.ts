@@ -1,3 +1,4 @@
+import { groupValuesBy } from "@/lib/group-values";
 import "server-only";
 
 import { ConstraintViolated, type Tx } from "@/lib/db";
@@ -135,11 +136,10 @@ export async function readOnboardingActivityLogBySectionIn(
   membershipId: string,
 ): Promise<{ section: string; entries: OnboardingActivityEntry[] }[]> {
   const flat = await readOnboardingActivityLogIn(tx, membershipId);
-  const bySection = new Map<string, OnboardingActivityEntry[]>();
-  for (const entry of flat) {
-    const bucket = bySection.get(entry.section);
-    if (bucket) bucket.push(entry);
-    else bySection.set(entry.section, [entry]);
-  }
+  const bySection = groupValuesBy(
+    flat,
+    (entry) => entry.section,
+    (entry) => entry,
+  );
   return Array.from(bySection.entries()).map(([section, entries]) => ({ section, entries }));
 }

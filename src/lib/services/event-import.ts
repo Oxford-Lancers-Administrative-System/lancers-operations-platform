@@ -1,3 +1,4 @@
+import { asDate } from "@/lib/db/date";
 import "server-only";
 
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
@@ -334,13 +335,4 @@ async function readSeasonEventsIn(
     joiningUrl: row.joining_url,
     isMandatory: row.is_mandatory,
   }));
-}
-
-function asDate(value: Date | string | null): string | null {
-  if (value === null) return null;
-  if (typeof value === "string") return value.slice(0, 10);
-  const year = value.getFullYear();
-  const month = `${value.getMonth() + 1}`.padStart(2, "0");
-  const day = `${value.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }

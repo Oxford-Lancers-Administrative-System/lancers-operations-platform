@@ -1,5 +1,7 @@
 "use server";
 
+import { text, readDraft, readQuestions } from "@/lib/services/event-form-input";
+
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireGrant } from "@/lib/auth/guards";
@@ -17,8 +19,7 @@ import {
 } from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { dispatchEventInvitations } from "@/lib/services/delivery";
-import type { RawEventDraft } from "@/lib/services/event-input";
-import type { EventQuestionInput, RawEventQuestion } from "@/lib/services/event-questions-input";
+import type { EventQuestionInput } from "@/lib/services/event-questions-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
 
 // The event workflow's server actions — LAN-76, LAN-77. Every action requires
@@ -38,27 +39,6 @@ async function managerOf(eventId: string): Promise<ResolvedOperator | { error: s
   }
 }
 
-function text(formData: FormData, field: string): string {
-  const value = formData.get(field);
-  return typeof value === "string" ? value : "";
-}
-
-function readDraft(formData: FormData): RawEventDraft {
-  return {
-    name: text(formData, "name"),
-    templateId: text(formData, "templateId"),
-    scheduledOn: text(formData, "scheduledOn"),
-    startsAt: text(formData, "startsAt"),
-    endsAt: text(formData, "endsAt"),
-    deliveryMode: text(formData, "deliveryMode"),
-    venue: text(formData, "venue"),
-    description: text(formData, "description"),
-    requiredEquipment: text(formData, "requiredEquipment"),
-    joiningUrl: text(formData, "joiningUrl"),
-    attendance: text(formData, "attendance"),
-  };
-}
-
 /**
  * A form's message for any service failure, a refusal included — LAN-423. A
  * save refused because Manage was lowered under an open form comes back as the
@@ -68,30 +48,6 @@ function readDraft(formData: FormData): RawEventDraft {
 function messageFor(error: unknown): string {
   if (!isServiceError(error)) throw error;
   return error.message;
-}
-
-/** The questions the form posted. `null` (not empty) when the form carried no questions section at all. */
-function readQuestions(formData: FormData): RawEventQuestion[] | null {
-  if (formData.get("questionsPresent") === null) return null;
-
-  const strings = (field: string) =>
-    formData.getAll(field).map((value) => (typeof value === "string" ? value : ""));
-
-  const ids = strings("questionId");
-  const prompts = strings("questionPrompt");
-  const answerTypes = strings("questionAnswerType");
-  const required = strings("questionRequired");
-  const choices = strings("questionChoices");
-  const fromTemplate = strings("questionFromTemplate");
-
-  return prompts.map((prompt, index) => ({
-    id: ids[index] ?? "",
-    prompt,
-    answerType: answerTypes[index] ?? "",
-    required: required[index] ?? "",
-    choices: choices[index] ?? "",
-    fromTemplate: fromTemplate[index] ?? "false",
-  }));
 }
 
 /** Where a successful save lands. A whitelist, not a path, so a crafted post can't redirect elsewhere. */

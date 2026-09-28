@@ -33,14 +33,16 @@ function rungName(job: ChaseJobFact, atSentenceStart: boolean): string {
   return atSentenceStart ? word[0].toUpperCase() + word.slice(1) : word;
 }
 
+const chaseDueFormatter = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Europe/London",
+});
+
 export function formatChaseDue(at: Date): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Europe/London",
-  }).format(at);
+  return chaseDueFormatter.format(at);
 }
 
 // The rung already sent and the next one due, in one sentence — or null (W4's exceptions table).
@@ -65,12 +67,9 @@ export function chasePositionLabel(input: ChaseInput): string | null {
 
   const ladder = input.jobs
     .filter((job) => job.jobType !== "escalation")
-    .slice()
     .sort((a, b) => (a.ladderRung ?? 0) - (b.ladderRung ?? 0));
 
-  const sent = [...ladder]
-    .reverse()
-    .find((job) => job.status === "completed" || job.status === "processing");
+  const sent = ladder.findLast((job) => job.status === "completed" || job.status === "processing");
   const due = ladder.find((job) => job.status === "pending" || job.status === "ready");
 
   const sentPhrase = sent

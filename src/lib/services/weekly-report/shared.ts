@@ -176,14 +176,7 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 // Two kinds of Date reach this module: asDate reads a date column from the driver; utcDay reads a midnight-UTC instant this module built.
 
-export function asDate(value: Date | string | null): string | null {
-  if (value === null) return null;
-  if (typeof value === "string") return value.slice(0, 10);
-  const year = value.getFullYear();
-  const month = `${value.getMonth() + 1}`.padStart(2, "0");
-  const day = `${value.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+export { asDate } from "@/lib/db/date";
 
 function utcDay(value: Date): string {
   const year = value.getUTCFullYear();

@@ -1,3 +1,4 @@
+import { groupValuesBy } from "@/lib/group-values";
 import type { Tx } from "@/lib/db";
 import type { Season } from "../seasons";
 import {
@@ -193,15 +194,28 @@ export async function computeReportContent(
     back,
   );
 
-  const tally = (rows: { event_id: string }[], eventId: string) =>
-    rows.filter((row) => row.event_id === eventId).length;
-
+  const walkUpsByEvent = groupValuesBy(
+    walkUpRows.rows,
+    (row) => row.event_id,
+    (row) => row,
+  );
+  const uninvitedByEvent = groupValuesBy(
+    neverInvited.rows,
+    (row) => row.event_id,
+    (row) => row,
+  );
+  const silentByEvent = new Map(silent.rows.map((row) => [row.event_id, row.tally]));
+  // SQL groups by these same keys, so each lookup has exactly one possible tally.
+  const responsesByEvent = new Map(
+    breakdown.rows.map((row) => [`${row.event_id}:${row.response_state}`, row.tally]),
+  );
+  const presenceByEvent = new Map(
+    presence.rows.map((row) => [`${row.event_id}:${row.presence}`, row.tally]),
+  );
   const stateOf = (eventId: string, state: string) =>
-    breakdown.rows.find((row) => row.event_id === eventId && row.response_state === state)?.tally ??
-    0;
-
+    responsesByEvent.get(`${eventId}:${state}`) ?? 0;
   const presenceOf = (eventId: string, value: string) =>
-    presence.rows.find((row) => row.event_id === eventId && row.presence === value)?.tally ?? 0;
+    presenceByEvent.get(`${eventId}:${value}`) ?? 0;
 
   const lastWeek: EventOutcome[] = events.rows.map((row) => {
     const present = presenceOf(row.id, "present");
@@ -218,7 +232,7 @@ export async function computeReportContent(
       invited: row.invited,
       respondedYes: stateOf(row.id, "responded_yes"),
       respondedNo: stateOf(row.id, "responded_no"),
-      noAnswer: silent.rows.find((entry) => entry.event_id === row.id)?.tally ?? 0,
+      noAnswer: silentByEvent.get(row.id) ?? 0,
       present,
       late,
       excused: presenceOf(row.id, "excused"),
@@ -231,8 +245,8 @@ export async function computeReportContent(
           ? Math.round(((present + late) / row.invited) * 100)
           : null,
       registerTaken,
-      walkUps: tally(walkUpRows.rows, row.id),
-      neverInvited: tally(neverInvited.rows, row.id),
+      walkUps: walkUpsByEvent.get(row.id)?.length ?? 0,
+      neverInvited: uninvitedByEvent.get(row.id)?.length ?? 0,
     };
   });
 
@@ -273,9 +287,8 @@ export async function computeReportContent(
     on: asDate(row.scheduled_on),
   }));
 
-  const columnIds = new Set(columns.map((column) => column.eventId));
-  const registerTakenFor = (eventId: string) =>
-    lastWeek.find((entry) => entry.id === eventId)?.registerTaken ?? false;
+  const eventById = new Map(lastWeek.map((event) => [event.id, event]));
+  const registerTakenFor = (eventId: string) => eventById.get(eventId)?.registerTaken ?? false;
 
   // Disagreement: never answered, said no, or said yes and was not present. Excludes a yes with an untaken register.
   const disagrees = (cell: { eventId: string; rsvp: string | null; attendance: string | null }) => {
@@ -287,9 +300,9 @@ export async function computeReportContent(
     return true;
   };
 
-  const cellsByPerson = new Map<string, GridCell[]>();
+  const cellsByPerson = new Map<string, Map<string, GridCell>>();
   for (const row of said.rows) {
-    if (!row.display_name || !columnIds.has(row.event_id)) continue;
+    if (!row.display_name || !eventById.has(row.event_id)) continue;
     const reason = (row.reason ?? "").trim();
     const cell: GridCell = {
       eventId: row.event_id,
@@ -300,12 +313,12 @@ export async function computeReportContent(
     };
     cell.isDiscrepancy = disagrees(cell);
 
-    const cells = cellsByPerson.get(row.display_name) ?? [];
+    const cells = cellsByPerson.get(row.display_name) ?? new Map<string, GridCell>();
 
     // One cell per name per event, disagreement wins — display name is not a join key (LAN-294), so a merge here still matters.
-    const existing = cells.find((entry) => entry.eventId === cell.eventId);
+    const existing = cells.get(cell.eventId);
     if (!existing) {
-      cells.push(cell);
+      cells.set(cell.eventId, cell);
     } else if (cell.isDiscrepancy && !existing.isDiscrepancy) {
       Object.assign(existing, cell);
     } else if (cell.isDiscrepancy && existing.isDiscrepancy && existing.reason === null) {
@@ -318,13 +331,16 @@ export async function computeReportContent(
   const order = new Map(columns.map((column, at) => [column.eventId, at]));
 
   const rows: GridRow[] = [...cellsByPerson.entries()]
-    .map(([person, cells]) => ({
-      person,
-      cells: cells.sort(
-        (left, right) => (order.get(left.eventId) ?? 0) - (order.get(right.eventId) ?? 0),
-      ),
-      problems: cells.filter((cell) => cell.isDiscrepancy).length,
-    }))
+    .map(([person, byEvent]) => {
+      const cells = [...byEvent.values()];
+      return {
+        person,
+        cells: cells.sort(
+          (left, right) => (order.get(left.eventId) ?? 0) - (order.get(right.eventId) ?? 0),
+        ),
+        problems: cells.filter((cell) => cell.isDiscrepancy).length,
+      };
+    })
     // Only people something went wrong for.
     .filter((row) => row.problems > 0)
     .sort(
@@ -358,7 +374,7 @@ export async function computeReportContent(
   );
 
   const walkUps = walkUpRows.rows.map((row) => {
-    const event = lastWeek.find((entry) => entry.id === row.event_id);
+    const event = eventById.get(row.event_id);
     return {
       person: row.display_name ?? "Unnamed",
       event: event?.name ?? "Unknown event",
