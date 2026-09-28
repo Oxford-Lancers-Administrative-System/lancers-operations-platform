@@ -1681,6 +1681,7 @@ describe("LAN-427 — a phone on its side gets the hamburger", () => {
     const declarations = sidewaysDeclarations(bar);
     expect(declares(declarations, "display", "flex")).toBe(true);
     expect(declares(declarations, "position", "absolute")).toBe(true);
+    expect(declares(declarations, "height", "48px")).toBe(true);
   });
 
   it("turns the sidebar back into a closed drawer", async () => {
@@ -1702,7 +1703,7 @@ describe("LAN-427 — a phone on its side gets the hamburger", () => {
   it("leaves only the top bar and the phone gutter around the page", async () => {
     const { main } = await renderShell();
     const declarations = sidewaysDeclarations(main);
-    expect(declares(declarations, "padding-top", "72px")).toBe(true);
+    expect(declares(declarations, "padding-top", "64px")).toBe(true);
     expect(declares(declarations, "padding-bottom", "16px")).toBe(true);
   });
 });

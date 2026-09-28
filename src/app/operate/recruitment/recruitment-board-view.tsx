@@ -421,7 +421,11 @@ export default function RecruitmentBoardView({
           </Typography>
         </Box>
         {mayAddRecruits ? (
-          <Stack direction="row" spacing={1.5} sx={{ [SIDEWAYS_PHONE]: { flexShrink: 0 } }}>
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ [SIDEWAYS_PHONE]: { flexShrink: 0, "& .MuiButton-root": { minHeight: 36 } } }}
+          >
             <Button
               variant="outlined"
               href="/operate/recruitment/qr"
@@ -490,7 +494,11 @@ export default function RecruitmentBoardView({
                 alignItems: "center",
                 flexWrap: "wrap",
                 // LAN-427: on its side, at any width, this is the toolbar — one row.
-                [SIDEWAYS_PHONE]: { display: "flex", mb: 0 },
+                [SIDEWAYS_PHONE]: {
+                  display: "flex",
+                  mb: 0,
+                  "& .MuiButton-root": { minHeight: 40 },
+                },
               }}
               data-testid="recruitment-phone-bar"
             >

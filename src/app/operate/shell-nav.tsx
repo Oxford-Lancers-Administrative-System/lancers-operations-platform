@@ -145,7 +145,7 @@ export default function ShellNav({
           zIndex: (theme) => theme.zIndex.appBar,
           // LAN-427: a phone on its side gets the hamburger too; the bar scrolls
           // away with the page so the board has the whole short screen.
-          [SIDEWAYS_PHONE]: { display: "flex", position: "absolute" },
+          [SIDEWAYS_PHONE]: { display: "flex", position: "absolute", height: 48 },
         }}
       >
         <IconButton aria-label="Open navigation" onClick={openDrawer} sx={{ color: "inherit" }}>

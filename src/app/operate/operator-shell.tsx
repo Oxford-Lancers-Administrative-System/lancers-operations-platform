@@ -66,9 +66,9 @@ export default function OperatorShell({
           pb: { xs: 3, md: 4 },
           // LAN-195: clearance for the phone top bar (56px + ordinary 24px spacing).
           pt: { xs: 10, md: 4 },
-          // LAN-427, Brian 2026-09-28: on its side the phone top bar and the
+          // LAN-427, Brian 2026-09-28: on its side the 48px top bar and the
           // phone gutter, and nothing more — every pixel of height goes to the board.
-          [SIDEWAYS_PHONE]: { px: LAYOUT.gutterPhone, pb: LAYOUT.gutterPhone, pt: "72px" },
+          [SIDEWAYS_PHONE]: { px: LAYOUT.gutterPhone, pb: LAYOUT.gutterPhone, pt: "64px" },
         }}
       >
         <Box sx={{ maxWidth: 1200, mx: "auto" }}>{children}</Box>

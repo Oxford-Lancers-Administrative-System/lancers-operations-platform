@@ -688,7 +688,7 @@ export default function RosterBoard({
         mb: -1,
         alignItems: "center",
         flexWrap: "wrap",
-        [SIDEWAYS_PHONE]: { display: "flex", mb: 0 },
+        [SIDEWAYS_PHONE]: { display: "flex", mb: 0, "& .MuiButton-root": { minHeight: 40 } },
       }}
       data-testid="roster-phone-bar"
     >

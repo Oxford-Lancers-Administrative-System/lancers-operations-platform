@@ -60,7 +60,15 @@ export default function RosterHeading({
       <Stack
         direction="row"
         spacing={1}
-        sx={{ flexWrap: "wrap", gap: 1, [SIDEWAYS_PHONE]: { flexWrap: "nowrap", flexShrink: 0 } }}
+        sx={{
+          flexWrap: "wrap",
+          gap: 1,
+          [SIDEWAYS_PHONE]: {
+            flexWrap: "nowrap",
+            flexShrink: 0,
+            "& .MuiButton-root": { minHeight: 36 },
+          },
+        }}
       >
         {canEditCategories ? <EditCategories /> : null}
         {addPlayers}
