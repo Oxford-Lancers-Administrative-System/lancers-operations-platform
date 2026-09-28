@@ -406,7 +406,8 @@ describe("LAN-426 — the phone board's sort", () => {
       configurable: true,
       writable: true,
       value: (query: string) => ({
-        matches,
+        // A phone held upright: below md, and never the sideways (landscape) rule.
+        matches: matches && !query.includes("landscape"),
         media: query,
         onchange: null,
         addListener: () => {},
