@@ -78,6 +78,7 @@ import {
 } from "./board-columns";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
 import { GRANT_REQUIREMENT } from "@/lib/auth/access";
+import { SIDEWAYS_PHONE_QUERY } from "@/theme-tokens";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -1258,13 +1259,24 @@ describe("LAN-426 — the phone board's sort", () => {
 
 /**
  * LAN-427 — a phone on its side gets the desktop table; upright keeps the
- * cards. jsdom evaluates no media query, so what is proved here is that the
- * rule is written (the table shown, the cards hidden, below `md` in landscape)
- * and that the phone sort's restore reads only the upright cards. The
- * rendering itself is walked in a real browser at 844×390 and 390×844.
+ * cards. Brian, 2026-09-28: "on its side" is judged by height (landscape, at
+ * most 500px tall), so 956×440 is treated exactly as 844×390. jsdom evaluates
+ * no media query, so what is proved here is that the rule is written and that
+ * the phone sort's restore reads only the upright cards. The rendering itself
+ * is measured in a real browser at 956×440, 844×390 and 667×375.
  */
 describe("LAN-427 — the table on a phone held sideways", () => {
-  const LANDSCAPE = "@media (max-width: 899.95px) and (orientation: landscape)";
+  const LANDSCAPE = `@media ${SIDEWAYS_PHONE_QUERY}`;
+
+  /** The declarations written for this element's own classes under the sideways rule. */
+  function sidewaysRulesFor(element: Element): string[] {
+    const css = styleText().replace(/\s+/g, " ");
+    return css
+      .split(LANDSCAPE)
+      .slice(1)
+      .map((chunk) => chunk.slice(0, chunk.indexOf("}}") + 2))
+      .filter((block) => [...element.classList].some((name) => block.includes(`.${name}{`)));
+  }
 
   function styleText(): string {
     return [...document.querySelectorAll("style")].map((node) => node.textContent).join("\n");
@@ -1332,5 +1344,29 @@ describe("LAN-427 — the table on a phone held sideways", () => {
     render(await RosterPage(pageProps()));
 
     expect(window.location.search).not.toContain("sort=lastName");
+  });
+
+  it("gives a phone on its side a one-line heading, a one-row bar and a page-scrolled table", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    // The heading is one row: title, count and actions.
+    const heading = sidewaysRulesFor(screen.getByTestId("roster-heading")).join(" ");
+    expect(heading).toMatch(/flex-direction:\s?row/);
+    // The toolbar row shows at every sideways width, not only below md.
+    expect(sidewaysRulesFor(screen.getByTestId("roster-phone-bar")).join(" ")).toMatch(
+      /display:\s?flex/,
+    );
+    // The table has no vertical box of its own: the page scrolls as a whole.
+    const table = sidewaysRulesFor(screen.getByTestId("roster-board")).join(" ");
+    expect(table).toMatch(/display:\s?block/);
+    expect(table).toMatch(/max-height:\s?none/);
+    // And the Filters button, which carries the search, is there.
+    expect(screen.getByText(/^Filters/)).toBeInTheDocument();
+  });
+
+  it("uses the one height rule, not a width breakpoint", () => {
+    expect(SIDEWAYS_PHONE_QUERY).toBe("(orientation: landscape) and (max-height: 500px)");
+    expect(SIDEWAYS_PHONE_QUERY).not.toMatch(/width/);
   });
 });

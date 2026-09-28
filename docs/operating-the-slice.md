@@ -297,16 +297,27 @@ per board in the browser, so returning to the board from the menu restores it.
 The remembered value is read only where the cards are drawn, so the desktop
 table's default order is unchanged.
 
-**A phone on its side gets the table** (LAN-427). Below `md` the boards draw
-cards only while the phone is upright; turned to landscape (about 844×390) they
-draw the desktop table, scrolled sideways by touch inside its own box with the
-Player or Recruit column pinned, and every heading's sort, funnel filter and
-editable cell works as on a desktop. Rotating back upright restores the cards.
-Tablets and desktops are unchanged: a tablet upright is below `md` and portrait,
-so cards; on its side it is at or above `md`, so the table as before. In
-landscape both boards put one row above the table — **Filters**, which opens the
-search and filters in a bottom sheet, and the phone sort — so the table starts
-on the first screen.
+**A phone on its side gets the table** (LAN-427). "On its side" is judged by
+height, not width (Brian, 2026-09-28): landscape and at most 500px tall, which
+covers 667×375 through 956×440 — a modern phone sideways is 852–956px wide,
+above `md`, so the earlier width rule gave it the desktop page. The one rule is
+`SIDEWAYS_PHONE_QUERY` in `src/theme-tokens.ts`, used by the operate shell and
+both boards. On a phone on its side:
+
+- the shell shows the phone top bar and hamburger instead of the sidebar, with
+  only the phone gutter around the page; the top bar scrolls away with the page;
+- Roster and Recruits put their heading on one line — title, count and the page
+  actions (Edit categories / Add players; QR code / Add recruit);
+- the toolbar is one row, **Filters** and the phone sort, with the search box
+  and every filter select inside the Filters bottom sheet;
+- the desktop table follows directly, with every heading's sort, funnel filter
+  and editable cell working as on a desktop and the Player or Recruit column
+  pinned while it scrolls sideways by touch. It has no vertical scroll box of
+  its own: the page scrolls as a whole, so its column headings scroll away with
+  the page rather than sticking.
+
+Rotating back upright restores the cards. Desktops, tablets (upright, or on
+their side and taller than 500px) and phones upright are unchanged.
 
 ---
 

@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import { describeHeldCoachingSeats, isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
+import { LAYOUT, SIDEWAYS_PHONE } from "@/theme-tokens";
 import { signOut } from "../login/actions";
 import { administrationDestinationsFor, destinationsFor } from "./destinations";
 import ShellNav from "./shell-nav";
@@ -33,6 +34,8 @@ export default function OperatorShell({
         flexDirection: { xs: "column", md: "row" },
         minHeight: "100dvh",
         alignItems: "stretch",
+        // LAN-427: a phone on its side is laid out as the phone, hamburger and all.
+        [SIDEWAYS_PHONE]: { flexDirection: "column" },
       }}
     >
       <ShellNav
@@ -63,6 +66,9 @@ export default function OperatorShell({
           pb: { xs: 3, md: 4 },
           // LAN-195: clearance for the phone top bar (56px + ordinary 24px spacing).
           pt: { xs: 10, md: 4 },
+          // LAN-427, Brian 2026-09-28: on its side the phone top bar and the
+          // phone gutter, and nothing more — every pixel of height goes to the board.
+          [SIDEWAYS_PHONE]: { px: LAYOUT.gutterPhone, pb: LAYOUT.gutterPhone, pt: "72px" },
         }}
       >
         <Box sx={{ maxWidth: 1200, mx: "auto" }}>{children}</Box>

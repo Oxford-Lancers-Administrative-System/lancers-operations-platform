@@ -18,14 +18,13 @@ import Typography from "@mui/material/Typography";
 import { Notice } from "@/components/notice";
 import { PinnedSelect } from "@/components/pinned-select";
 import {
-  LANDSCAPE_TABLE_HEIGHT,
-  PHONE_LANDSCAPE,
   PhoneSortSelect,
   rememberPhoneSort,
   useRememberedPhoneSort,
   type PhoneSort,
 } from "../board-phone-sort";
 import { SAVING } from "@/components/record-field";
+import { SIDEWAYS_PHONE } from "@/theme-tokens";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
 import type { MembershipStatus, OnboardingItemStatus } from "@/lib/services/membership";
@@ -540,14 +539,24 @@ export default function RosterBoard({
     <Stack
       direction={{ xs: "column", md: "row" }}
       spacing={2}
-      sx={{ alignItems: { md: "center" }, flexWrap: "wrap", gap: 2 }}
+      sx={{
+        alignItems: { md: "center" },
+        flexWrap: "wrap",
+        gap: 2,
+        // LAN-427: on its side this is only ever the Filters sheet — one per line.
+        [SIDEWAYS_PHONE]: {
+          flexDirection: "column",
+          alignItems: "stretch",
+          "& > :not(style) ~ :not(style)": { ml: 0 },
+        },
+      }}
     >
       <TextField
         size="small"
         label="Search name or alias"
         value={searchBox}
         onChange={(event) => setSearch(event.target.value)}
-        sx={{ minWidth: { xs: "100%", md: 260 } }}
+        sx={{ minWidth: { xs: "100%", md: 260 }, [SIDEWAYS_PHONE]: { minWidth: "100%" } }}
       />
       {pinnedStatus ? (
         <PinnedSelect
@@ -670,11 +679,18 @@ export default function RosterBoard({
   }
 
   const phoneBar = (
-    // LAN-427: one bar below md, upright or on its side; -1 keeps the upright gap to the cards at 2.
+    // LAN-427: one bar below md upright, and on a phone on its side at any width; -1 keeps the upright gap to the cards at 2.
     <Stack
       direction="row"
       spacing={1}
-      sx={{ display: { xs: "flex", md: "none" }, mb: -1, alignItems: "center", flexWrap: "wrap" }}
+      sx={{
+        display: { xs: "flex", md: "none" },
+        mb: -1,
+        alignItems: "center",
+        flexWrap: "wrap",
+        [SIDEWAYS_PHONE]: { display: "flex", mb: 0 },
+      }}
+      data-testid="roster-phone-bar"
     >
       {/* On its side the search is in the sheet too, so the button shows even with no pinned filter. */}
       <Button
@@ -683,7 +699,7 @@ export default function RosterBoard({
         sx={
           anyPinnedFilter
             ? undefined
-            : { display: "none", [PHONE_LANDSCAPE]: { display: "inline-flex" } }
+            : { display: "none", [SIDEWAYS_PHONE]: { display: "inline-flex" } }
         }
       >
         Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
@@ -698,7 +714,11 @@ export default function RosterBoard({
   );
 
   return (
-    <Stack spacing={3}>
+    <Stack
+      spacing={3}
+      // LAN-427, Brian 2026-09-28: on its side the heading, the bar and the table sit tight.
+      sx={{ [SIDEWAYS_PHONE]: { "& > :not(style) ~ :not(style)": { mt: 1 } } }}
+    >
       <RosterHeading
         count={visible.length}
         columns={columns.length + 1}
@@ -707,8 +727,8 @@ export default function RosterBoard({
         addPlayers={addPlayers}
       />
       {noItemTypes}
-      {/* LAN-427: a phone on its side gets the Recruits board's one-row bar below, so the table starts on the first screen. */}
-      <Box sx={{ [PHONE_LANDSCAPE]: { display: "none" } }}>{pinned}</Box>
+      {/* LAN-427: a phone on its side gets the one-row bar below, so the table starts on the first screen. */}
+      <Box sx={{ [SIDEWAYS_PHONE]: { display: "none" } }}>{pinned}</Box>
       {chips}
       {phoneBar}
 
@@ -718,8 +738,10 @@ export default function RosterBoard({
         sx={{
           display: { xs: "none", md: "block" },
           maxHeight: "calc(100dvh - 300px)",
-          // LAN-427: a phone on its side gets this table, scrolled sideways by touch.
-          [PHONE_LANDSCAPE]: { display: "block", maxHeight: LANDSCAPE_TABLE_HEIGHT },
+          // LAN-427: a phone on its side gets this table, scrolled sideways by
+          // touch. Brian 2026-09-28: no box of its own vertically — the page
+          // scrolls as a whole, so a swipe never fights a 15px scroll box.
+          [SIDEWAYS_PHONE]: { display: "block", maxHeight: "none", overflowY: "visible" },
           overflow: "auto",
           // LAN-395: keep the vertical scrollbar off the last folded-up band.
           // See `BOARD_SCROLLBAR_GUTTER_PX` for why it takes both rules. The
@@ -837,7 +859,7 @@ export default function RosterBoard({
 
       {/* LAN-427: a phone on its side has the table, its headings and the one-row bar above instead. */}
       <Box
-        sx={{ display: { xs: "block", md: "none" }, [PHONE_LANDSCAPE]: { display: "none" } }}
+        sx={{ display: { xs: "block", md: "none" }, [SIDEWAYS_PHONE]: { display: "none" } }}
         data-testid="roster-phone-cards"
       >
         <Stack spacing={2}>

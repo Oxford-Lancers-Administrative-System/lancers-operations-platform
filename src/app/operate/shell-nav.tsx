@@ -18,7 +18,7 @@ import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import { ADMINISTRATION_SECTION, type Destination } from "@/app/operate/destinations";
 import { BrandMark } from "@/components/brand-mark";
-import { CLUB, LAYOUT } from "@/theme-tokens";
+import { CLUB, LAYOUT, SIDEWAYS_PHONE } from "@/theme-tokens";
 
 /** Sidebar secondary text: Sky Blue on Oxford Blue, 10.67 (theme.ts contrast block). */
 const SIDEBAR_MUTED = CLUB.skyBlue;
@@ -143,6 +143,9 @@ export default function ShellNav({
           px: 1,
           gap: 0.5,
           zIndex: (theme) => theme.zIndex.appBar,
+          // LAN-427: a phone on its side gets the hamburger too; the bar scrolls
+          // away with the page so the board has the whole short screen.
+          [SIDEWAYS_PHONE]: { display: "flex", position: "absolute" },
         }}
       >
         <IconButton aria-label="Open navigation" onClick={openDrawer} sx={{ color: "inherit" }}>
@@ -158,6 +161,7 @@ export default function ShellNav({
           onClick={closeDrawer}
           sx={{
             display: { xs: "block", md: "none" },
+            [SIDEWAYS_PHONE]: { display: "block" },
             position: "fixed",
             inset: 0,
             bgcolor: "rgba(0, 0, 0, 0.5)",
@@ -205,6 +209,20 @@ export default function ShellNav({
               visibility: "visible",
             },
           }),
+          // LAN-427: last, so a phone on its side (wider than `md`) gets the
+          // drawer back over the sidebar rules above.
+          (theme) => ({
+            [SIDEWAYS_PHONE]: {
+              width: LAYOUT.drawerWidth,
+              maxWidth: "85vw",
+              position: "fixed",
+              alignSelf: "auto",
+              zIndex: theme.zIndex.drawer,
+              boxShadow: open ? 8 : "none",
+              transform: open ? "translateX(0)" : "translateX(-100%)",
+              visibility: open ? "visible" : "hidden",
+            },
+          }),
         ]}
       >
         <Box
@@ -228,7 +246,12 @@ export default function ShellNav({
             aria-label="Close navigation"
             onClick={closeDrawer}
             size="small"
-            sx={{ display: { xs: "inline-flex", md: "none" }, color: "inherit", mt: 0.5 }}
+            sx={{
+              display: { xs: "inline-flex", md: "none" },
+              [SIDEWAYS_PHONE]: { display: "inline-flex" },
+              color: "inherit",
+              mt: 0.5,
+            }}
           >
             <CloseGlyph />
           </IconButton>

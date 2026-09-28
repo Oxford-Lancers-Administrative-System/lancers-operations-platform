@@ -5,6 +5,7 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
+import { SIDEWAYS_PHONE_QUERY } from "@/theme-tokens";
 
 /**
  * The phone boards' sort — LAN-426. Below `md` the Recruits and Roster boards
@@ -30,29 +31,17 @@ export interface PhoneSort {
   direction: "asc" | "desc";
 }
 
-/**
- * Where the boards draw cards rather than the table — below `md`, held
- * upright. LAN-427: a phone turned on its side gets the table.
- */
 /** MUI's `md` breakpoint; `down("md")` stops 0.05px short of it. */
 const MD_PX = 900;
 const BELOW_MD = `(max-width: ${MD_PX - 0.05}px)`;
-const PHONE_CARDS_MEDIA = `${BELOW_MD} and (orientation: portrait)`;
 
 /**
- * LAN-427: an `sx` key for a phone on its side — below `md`, landscape — where
- * the boards draw the desktop table instead of cards. Rotating back upright
- * falls out of the query and the cards return.
+ * Where the boards draw cards rather than the table: below `md`, unless the
+ * phone is on its side (`SIDEWAYS_PHONE_QUERY`, LAN-427), which gets the table.
  */
-export const PHONE_LANDSCAPE = `@media ${BELOW_MD} and (orientation: landscape)`;
-
-/**
- * LAN-427: the table's own scroll box on a phone on its side — nearly the
- * whole short screen, so the sticky headings stay in view while a swipe
- * scrolls the rows and the columns, and the page scroll brings the box itself
- * fully into view.
- */
-export const LANDSCAPE_TABLE_HEIGHT = "calc(100dvh - 16px)";
+function cardsAreDrawn(): boolean {
+  return window.matchMedia(BELOW_MD).matches && !window.matchMedia(SIDEWAYS_PHONE_QUERY).matches;
+}
 
 const KEY_LABELS: Readonly<Record<PhoneSortKey, string>> = Object.freeze({
   firstName: "First name",
@@ -105,7 +94,7 @@ export function useRememberedPhoneSort(
   useEffect(() => {
     try {
       if (new URLSearchParams(window.location.search).has("sort")) return;
-      if (!window.matchMedia(PHONE_CARDS_MEDIA).matches) return;
+      if (!cardsAreDrawn()) return;
       const stored = parsePhoneSort(
         window.localStorage.getItem(phoneSortStorageKey(board)),
         statusAvailable,
