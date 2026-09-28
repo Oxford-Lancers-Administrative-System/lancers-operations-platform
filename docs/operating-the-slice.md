@@ -306,6 +306,13 @@ both boards. On a phone on its side:
 Rotating back upright restores the cards. Desktops, tablets (upright, or on
 their side and taller than 500px) and phones upright are unchanged.
 
+Follow-ups (`/operate/admin/follow-ups`) keeps its own toolbar and scrolling
+page rather than the boards' treatment. On a phone on its side, and at any
+width below `lg` (1200px), the search box has its own full-width row and the
+Status, When and date-range filters share the row beneath it, wrapping when
+they do not fit. From `lg` up all five sit in one row; upright below `sm`
+every control has its own row.
+
 ---
 
 ## 5. Put the practice on the calendar

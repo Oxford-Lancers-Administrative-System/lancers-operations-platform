@@ -49,7 +49,14 @@ import { readFollowUpsQueue, type FollowUpEvent } from "@/lib/services/follow-up
 import { readCurrentSeason } from "@/lib/services/seasons";
 import { chaseSelectedAction } from "./actions";
 import FollowUpsPage from "./page";
-import { LAST_MESSAGE_NONE, RANGE_FROM_LABEL, RANGE_TO_LABEL, TABLE_PERSON } from "./presentation";
+import {
+  LAST_MESSAGE_NONE,
+  RANGE_FROM_LABEL,
+  RANGE_TO_LABEL,
+  SEARCH_LABEL,
+  TABLE_PERSON,
+} from "./presentation";
+import { SIDEWAYS_PHONE_QUERY } from "@/theme-tokens";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
 import { NO_GRANTS } from "@/lib/auth/grants";
 
@@ -957,5 +964,51 @@ describe("a person whose last message was never delivered", () => {
     // The Last message column is untouched, and so is the chase.
     expect(row.textContent).toContain("WhatsApp");
     expect(row.textContent).toContain("WhatsApp 1 sent · WhatsApp 2 Fri 09:00");
+  });
+});
+
+/**
+ * Brian, 2026-09-28 — at 956×440 the search shared one row with four filters
+ * and was crushed to "S…". On a phone held sideways (the round-4 rule in
+ * `theme-tokens.ts`) the search has its own full-width row above the filters.
+ * jsdom evaluates no media query; the rule is proved written here and
+ * measured in a real browser.
+ */
+describe("the toolbar on a phone held sideways", () => {
+  const SIDEWAYS = `@media ${SIDEWAYS_PHONE_QUERY}`;
+
+  function sidewaysRulesFor(element: Element): string {
+    const css = [...document.querySelectorAll("style")]
+      .map((node) => node.textContent)
+      .join("\n")
+      .replace(/\s+/g, " ");
+    return css
+      .split(SIDEWAYS)
+      .slice(1)
+      .map((chunk) => chunk.slice(0, chunk.indexOf("}}") + 2))
+      .filter((block) => [...element.classList].some((name) => block.includes(`.${name}{`)))
+      .join(" ");
+  }
+
+  it("stacks the search above the filter row, full width", async () => {
+    await renderPage();
+
+    expect(sidewaysRulesFor(screen.getByTestId("follow-ups-toolbar"))).toMatch(
+      /flex-direction:\s?column/,
+    );
+    const search = screen.getByLabelText(SEARCH_LABEL).closest(".MuiFormControl-root");
+    expect(search).not.toBeNull();
+    expect(sidewaysRulesFor(search!)).toMatch(/width:\s?100%/);
+  });
+
+  it("keeps the four filters together in their own row beneath it", async () => {
+    await renderPage();
+
+    const row = screen.getByTestId("follow-ups-filter-row");
+    expect(sidewaysRulesFor(row)).toMatch(/display:\s?flex/);
+    expect(within(row).getByTestId("follow-ups-period")).toBeInTheDocument();
+    expect(within(row).queryByLabelText(SEARCH_LABEL)).toBeNull();
+    expect(row.querySelector('[data-field="follow-ups-from"]')).not.toBeNull();
+    expect(row.querySelector('[data-field="follow-ups-to"]')).not.toBeNull();
   });
 });
