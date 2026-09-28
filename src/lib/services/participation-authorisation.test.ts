@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * REQ-three-tiers: "Authorisation is enforced in the service layer, never by
  * route visibility." LAN-157.

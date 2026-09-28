@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * `REQ-required-set`. LAN-183's acceptance criterion: "the required set
  * differs by rung, and last name is required at every one of them." Pure — no

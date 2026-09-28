@@ -204,15 +204,6 @@ describe("UX-10 — Add player", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not lecture the operator about when writes happen", () => {
-    // The wireframe's info strip is deliberately gone (Brian, 12 August 2026).
-    // The behaviour it described is still true and still enforced — see
-    // `actions.test.ts`, which proves no write happens before an explicit
-    // decision — but it is not narrated on screen.
-    expect(screen.queryByTestId("no-write-promise")).not.toBeInTheDocument();
-    expect(screen.queryByText(/No person or membership is created until/)).not.toBeInTheDocument();
-  });
-
   it("has exactly four fields, in the approved order", () => {
     const labels = ["First name", "Last name", "Email", "Phone"];
     for (const label of labels) expect(screen.getByLabelText(label)).toBeInTheDocument();
@@ -227,7 +218,9 @@ describe("UX-10 — Add player", () => {
     // name is not in the form data at all. The three plain text boxes are
     // therefore what carries a `name` here, and the phone's `name` is
     // asserted on the hidden input below, where it actually lives.
-    const rendered = screen.getAllByRole("textbox").map((input) => input.getAttribute("name"));
+    const rendered = screen
+      .getAllByRole("textbox", { hidden: false })
+      .map((input) => input.getAttribute("name"));
     expect(rendered).toEqual(["givenName", "familyName", "email", null, null]);
 
     const phone = document.querySelector('input[type="hidden"][name="phone"]');

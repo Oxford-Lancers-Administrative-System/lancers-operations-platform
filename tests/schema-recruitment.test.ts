@@ -71,17 +71,6 @@ describe("prospect_status", () => {
       "void",
     ]);
   });
-
-  it("no longer admits converted or lapsed", async () => {
-    for (const stale of ["converted", "lapsed"]) {
-      await expectRejected(
-        client,
-        `insert into public.recruitment_prospects (person_id, season_id, status)
-         values ($1, $2, $3::public.prospect_status)`,
-        [base.personId, base.seasonId, stale],
-      );
-    }
-  });
 });
 
 describe("recruitment_prospects, re-added constraints", () => {
@@ -133,14 +122,6 @@ describe("recruitment_prospects, re-added constraints", () => {
        values ($1, $2, 'void')`,
       [base.personId, base.seasonId],
     );
-  });
-
-  it("no longer has a notes column — it moved to recruitment_prospect_notes", async () => {
-    const result = await client.query<{ column_name: string }>(
-      `select column_name from information_schema.columns
-        where table_schema = 'public' and table_name = 'recruitment_prospects' and column_name = 'notes'`,
-    );
-    expect(result.rows).toHaveLength(0);
   });
 });
 

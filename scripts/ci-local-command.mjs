@@ -40,14 +40,11 @@ const scripts = {
 try {
   assertCiLocalExecution();
   if (!scripts[operation]) throw new Error("Unknown CI local-stack operation.");
+  // `test` is the database project alone (LAN-436): the unit project needs no
+  // stack, so CI runs it in its own job with `npm run test:unit`, beside this
+  // one rather than competing with it for the runner.
   const args = ["test", "test-gate"].includes(operation)
-    ? [
-        scripts[operation],
-        "run",
-        "--project",
-        operation === "test" ? "unit" : "gate",
-        ...(operation === "test" ? ["--project", "database"] : []),
-      ]
+    ? [scripts[operation], "run", "--project", operation === "test" ? "database" : "gate"]
     : [scripts[operation]];
   const result = spawnSync(process.execPath, args, { stdio: "inherit", env: process.env });
   process.exitCode = result.status ?? 1;

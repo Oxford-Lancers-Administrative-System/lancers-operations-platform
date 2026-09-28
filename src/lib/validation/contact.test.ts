@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The shared phone and email predicates — LAN-215, B-007.
  *

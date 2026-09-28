@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The question vocabulary and its rules — LAN-154, amendment W4-A1.
  *

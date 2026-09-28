@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * LAN-380 — what the roster's two editing surfaces do when the save itself
  * never lands.

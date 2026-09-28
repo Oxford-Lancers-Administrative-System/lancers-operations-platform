@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Every door into a derived audience group goes through the one chokepoint —
  * LAN-392.

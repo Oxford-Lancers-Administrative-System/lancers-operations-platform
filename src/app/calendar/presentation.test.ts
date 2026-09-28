@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * How the calendars read — LAN-114, matrix rows 1 to 3 and 17.
  *

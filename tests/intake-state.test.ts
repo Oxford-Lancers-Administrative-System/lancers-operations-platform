@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { renderResumeBanner, validateIntakeState } from "../scripts/intake/lib/state.mjs";
 

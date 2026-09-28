@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The vendor boundary — LAN-115.
  *

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * R156-B4 — `silenceConsequence` and `describeChange` printed a stored value
  * raw rather than rendered: a date read as `2026-11-11` and a delivery-mode

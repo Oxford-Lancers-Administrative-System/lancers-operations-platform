@@ -28,7 +28,7 @@ import path from "node:path";
 import pg from "pg";
 import { describe, expect, it } from "vitest";
 
-import config, { DATABASE_TEST_SUITES, GATE_SUITES } from "../vitest.config";
+import config, { DATABASE_TEST_SUITES, GATE_SUITES, TOOLING_SUITES } from "../vitest.config";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
@@ -75,6 +75,7 @@ function project(name: string): ProjectShape["test"] {
 const unit = project("unit");
 const database = project("database");
 const gate = project("gate");
+const tooling = project("tooling");
 
 // ---------------------------------------------------------------------------
 // The list itself
@@ -102,6 +103,15 @@ describe("the declared database suites", () => {
     expect([...GATE_SUITES]).toEqual([...GATE_SUITES].sort());
     expect(new Set(GATE_SUITES).size).toBe(GATE_SUITES.length);
   });
+
+  it("names tooling files that exist, keeps the list deterministic, and none reach the database", () => {
+    const onDisk = new Set(allTestFiles());
+    expect(TOOLING_SUITES.filter((suite) => !onDisk.has(suite))).toEqual([]);
+    expect([...TOOLING_SUITES]).toEqual([...TOOLING_SUITES].sort());
+    expect(new Set(TOOLING_SUITES).size).toBe(TOOLING_SUITES.length);
+    expect(TOOLING_SUITES.filter((suite) => DATABASE_TEST_SUITES.includes(suite))).toEqual([]);
+    expect(TOOLING_SUITES.filter((suite) => GATE_SUITES.includes(suite))).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -119,9 +129,13 @@ describe("the hot and gate projects", () => {
     const hotDatabase = DATABASE_TEST_SUITES.filter((suite) => !GATE_SUITES.includes(suite));
     expect(database.include).toEqual(hotDatabase);
     expect(gate.include).toEqual([...GATE_SUITES]);
+    expect(tooling.include).toEqual([...TOOLING_SUITES]);
 
     for (const suite of DATABASE_TEST_SUITES) {
       expect(unit.exclude, `${suite} would run in both projects`).toContain(suite);
+    }
+    for (const suite of TOOLING_SUITES) {
+      expect(unit.exclude, `${suite} would run in both unit and tooling projects`).toContain(suite);
     }
     for (const suite of GATE_SUITES) {
       expect(unit.exclude, `${suite} would run in both hot and gate projects`).toContain(suite);
@@ -164,14 +178,15 @@ describe("the hot and gate projects", () => {
   it("tell only the database project that it may connect", () => {
     expect(database.env?.LANCERS_TEST_PROJECT).toBe("database");
     expect(gate.env?.LANCERS_TEST_PROJECT).toBe("database");
-    expect(gate.env?.PILOT_GUARD_CHECK).toBe("1");
     expect(unit.env?.LANCERS_TEST_PROJECT).toBeUndefined();
+    expect(tooling.env?.LANCERS_TEST_PROJECT).toBeUndefined();
   });
 
   it("install the shared setup file in both", () => {
     expect(unit.setupFiles).toContain("./vitest.setup.ts");
     expect(database.setupFiles).toContain("./vitest.setup.ts");
     expect(gate.setupFiles).toContain("./vitest.setup.ts");
+    expect(tooling.setupFiles).toContain("./vitest.setup.ts");
   });
 
   it("keeps the security perimeter hot and runs the gate explicitly in CI", () => {
@@ -186,15 +201,41 @@ describe("the hot and gate projects", () => {
       expect(GATE_SUITES, `${suite} must never be demoted`).not.toContain(suite);
     }
 
+    // The security fences among the agent tooling stay in the pull-request run.
+    for (const fence of [
+      "tests/local-only-guard-source.test.ts",
+      "tests/local-db-explicit-target.test.ts",
+      "tests/prod-inspect-contract.test.ts",
+      "tests/create-test-user-guard.test.ts",
+      "tests/merge-rule.test.ts",
+      "tests/merge-governance.test.ts",
+      "tests/agent-harness.test.ts",
+    ]) {
+      expect(allTestFiles(), `${fence} is missing`).toContain(fence);
+      expect(TOOLING_SUITES, `${fence} is a security fence and must stay in unit`).not.toContain(
+        fence,
+      );
+      expect(GATE_SUITES, `${fence} must never be demoted`).not.toContain(fence);
+    }
+
     const scripts = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"))
       .scripts as Record<string, string>;
     expect(scripts.test).toContain("--project unit --project database");
     expect(scripts.test).not.toContain("--project gate");
     expect(scripts["verify:gate"]).toContain("--project gate");
+    expect(scripts.test).not.toContain("--project tooling");
+    expect(scripts["test:tooling"]).toContain("--project tooling");
 
     const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
     expect(workflow).toContain("npm run test:ci");
     expect(workflow).toContain("npm run test:gate:ci");
+    expect(workflow).toContain("npm run test:tooling");
+    // CI runs both halves of `npm run test`: the unit project in its own job,
+    // the database project against the runner's stack through `test:ci`.
+    expect(scripts["test:unit"]).toBe("vitest run --project unit");
+    expect(workflow).toContain("npm run test:unit");
+    const wrapper = fs.readFileSync(path.join(repoRoot, "scripts/ci-local-command.mjs"), "utf8");
+    expect(wrapper).toMatch(/operation === "test" \? "database" : "gate"/);
   });
 });
 

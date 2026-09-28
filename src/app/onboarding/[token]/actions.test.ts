@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The unauthenticated write surface's own re-resolution guarantee —
  * `WP-player-questionnaire`, LAN-216, correction round 1, F-001.

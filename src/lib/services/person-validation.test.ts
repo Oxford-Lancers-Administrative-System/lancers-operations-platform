@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * `DEC-w2-09` through `DEC-w2-11`, and LAN-183's acceptance criterion that
  * "every correct form of a number saves" while "malformed emails and numbers

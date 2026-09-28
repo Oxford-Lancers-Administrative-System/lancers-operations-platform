@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * F-A3, LAN-180. `openMyPage`'s own logic — the signed-in entry point's one
  * write. The service layer and the database transaction are mocked, matching

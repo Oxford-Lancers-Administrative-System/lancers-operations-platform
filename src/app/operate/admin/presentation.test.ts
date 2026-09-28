@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * How Administration says things — LAN-133.
  *

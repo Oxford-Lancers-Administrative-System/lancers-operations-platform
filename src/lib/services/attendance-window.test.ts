@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * When the register opens — D71 and D72, LAN-152.
  *

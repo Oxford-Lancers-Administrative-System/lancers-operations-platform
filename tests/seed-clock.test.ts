@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The synthetic dataset's calendar must contain today.
  *

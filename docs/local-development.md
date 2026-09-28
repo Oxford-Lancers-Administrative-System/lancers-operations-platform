@@ -97,8 +97,8 @@ non-local database, prints no key material, and is safe to run twice.
 
 Both logins share one password, held in the protected machine-local review
 account. There is no hosted counterpart to `db:link-coach`: on hosted, a coaching
-seat is granted by Brian through the supported administrative path, and
-`scripts/pilot/lan-110/README.md` says exactly how.
+seat is granted by Brian through the supported administrative path described
+in `docs/pilot-data-runbook.md`.
 
 Sign in at the assigned `/login` URL shown by `db:acquire` with the fixed local
 review account supplied directly in a visual-review handoff. You should reach
@@ -191,6 +191,8 @@ HUDL_JOIN_LINK=https://www.example.invalid/hudl-join
 | `npm run typecheck`                                                          | `next typegen` (route types) then `tsc --noEmit`  |
 | `npm run test` / `test:watch`                                                | Vitest                                            |
 | `npm run verify`                                                             | format:check → lint → typecheck → test → build    |
+| `npm run verify:gate`                                                        | The slow, serialized gate suites (`GATE_SUITES`)  |
+| `npm run test:tooling`                                                       | The agent-tooling suites (`TOOLING_SUITES`)       |
 | `npm run db:acquire -- LAN-###`                                              | Claim a fenced primary/overflow database slot     |
 | `npm run db:acquire-mission -- M-… --base-commit <sha> --migration-head <n>` | Allocate one isolated mission-owned stack         |
 | `npm run db:attach-mission -- M-… --token <token>`                           | Attach a mission worker worktree to its stack     |
@@ -374,12 +376,31 @@ record contains a password.
 
 Run `npm run verify` before opening a pull request. It is what CI runs.
 
-### Two test projects, and why your new test may be refused a database
+### What CI runs, and what each check means
 
-There is one local database, so `vitest.config.ts` splits the suite in two. The
+`.github/workflows/ci.yml` runs its jobs in parallel on every pull request:
+
+| Job         | Runs                                                                                                                                                                                                                        | Required                                               |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `static`    | format check, lint, typecheck, build — no database                                                                                                                                                                          | through `quality`                                      |
+| `unit`      | the `unit` project (`npm run test:unit`) — no database                                                                                                                                                                      | through `quality`                                      |
+| `tests`     | two runners, each building a local Supabase stack the same way (migrations from empty, RLS posture, type drift, the synthetic seed); one runs the `database` project (`npm run test:ci`), the other `gate` (`test:gate:ci`) | through `quality`                                      |
+| `quality`   | nothing itself; passes only when `static`, `unit` and `tests` all succeeded                                                                                                                                                 | **Yes** — "Format, lint, typecheck, test, build"       |
+| `container` | builds the production image and probes it                                                                                                                                                                                   | **Yes** — "Container builds and serves"                |
+| `tooling`   | `npm run test:tooling`, only when the change touches `scripts/`, `.claude/`, `.github/`, `missions/`, `supabase/`, the tooling tests or the Vitest/npm config                                                               | **No** — it is skipped on most pull requests by design |
+
+Locally, `npm run verify` covers the first three, apart from the gate suites;
+run `npm run verify:gate` too when you change a loader, a seed or a production
+procedure, and `npm run test:tooling` when you change the agent tooling.
+
+### Test projects, and why your new test may be refused a database
+
+There is one local database, so `vitest.config.ts` splits the suite. The
 files listed in `DATABASE_TEST_SUITES` run in the `database` project, **one at a
 time**; everything else runs in the `unit` project, in parallel, and is refused
-a PostgreSQL connection and a call to the local Supabase Data API.
+a PostgreSQL connection and a call to the local Supabase Data API. Two smaller
+projects sit beside them: `gate` (`GATE_SUITES`, slow and serialized) and
+`tooling` (`TOOLING_SUITES`, the agent-tooling tests, also refused a database).
 
 If a test you have just written fails with
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * What the two submissions do when they refuse — LAN-79.
  *

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * `REQ-authority`, `REQ-restricted-fields`, `Q-4`. LAN-183's acceptance
  * criterion: "a role outside the four offices reaches nothing: the restricted

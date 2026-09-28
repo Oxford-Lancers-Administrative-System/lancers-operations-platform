@@ -1,7 +1,8 @@
 # LAN-78 — UX conformance evidence
 
 Captured from the running application at PR #24's head, against the
-`scripts/pilot/lan-78` scenario. Every person, event, contact detail and
+`scripts/pilot/lan-78` scenario (retired on 2026-09-26 with the other slice
+scenarios; see `docs/pilot-data-manifest.md`). Every person, event, contact detail and
 delivery state shown is synthetic; the phone numbers behind them are in Ofcom's
 reserved `07700 900xxx` drama range and reach nobody.
 

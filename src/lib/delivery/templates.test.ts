@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The declared template registry — LAN-169.
  *

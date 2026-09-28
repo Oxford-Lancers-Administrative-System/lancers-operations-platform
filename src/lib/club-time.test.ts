@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The club's clock — LAN-114.
  *

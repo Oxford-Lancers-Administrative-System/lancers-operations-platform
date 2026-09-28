@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * LAN-396 — the approved item-and-ask inventory is one list, and stays one.
  *

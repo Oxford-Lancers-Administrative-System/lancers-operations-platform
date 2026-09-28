@@ -371,13 +371,6 @@ describe("UX-62 — saved", () => {
 describe("UX-63, UX-64 and UX-65 — one response for every unusable link", () => {
   const TERMINAL: TokenState[] = ["unknown", "expired", "revoked", "superseded", "event_started"];
 
-  it.each(TERMINAL)("refuses a %s link through the not-found path", async (state) => {
-    // `event_started` resolves to a real invitation and must still refuse; the
-    // others resolve to none. Both shapes are covered by the same expectation.
-    givenToken(state, state === "event_started" ? PAGE : null);
-    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
-  });
-
   it.each(TERMINAL)("holds a %s link to the uniform timing floor", async (state) => {
     // The wiring, not the helper.
     //

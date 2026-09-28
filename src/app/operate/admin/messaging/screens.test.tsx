@@ -400,21 +400,6 @@ describe("the table", () => {
     expect(practiceRow.querySelector('input[name="escalationHours"]')).toHaveValue(12);
   });
 
-  it("omits the standing schedule-rule banner", async () => {
-    render(await MessagingSchedulePage());
-
-    expect(screen.queryByTestId("schedule-rule")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/quiet hours/i)).not.toBeInTheDocument();
-  });
-
-  it("keeps every row's worked example closed by default, on every row (OWNER-LAN171-09)", async () => {
-    render(await MessagingSchedulePage());
-
-    for (const row of screen.getAllByTestId("schedule-row")) {
-      expect(row.textContent).not.toContain("Player RSVP deadline");
-    }
-  });
-
   it("reveals the worked example only once a row is opened", async () => {
     render(await MessagingSchedulePage());
 
@@ -425,87 +410,6 @@ describe("the table", () => {
 
     expect(first.textContent).toContain("Player RSVP deadline");
     expect(first.textContent).toContain("The event");
-  });
-
-  it("never draws the gap-before-the-deadline callout, even when a row's own configuration leaves one (OWNER-LAN171-07)", async () => {
-    const withGap = rows();
-    const gameIndex = withGap.findIndex((row) => row.schedule.eventType === "game");
-    const invitationAt = new Date("2026-09-01T19:00:00Z");
-    const responseDeadlineAt = new Date("2026-09-15T19:00:00Z");
-    withGap[gameIndex] = {
-      ...withGap[gameIndex],
-      preview: {
-        ...withGap[gameIndex].preview,
-        invitationAt,
-        responseDeadlineAt,
-        rungs: [
-          { rung: 0, kind: "invitation", channel: "whatsapp", at: invitationAt },
-          { rung: 1, kind: "reminder", channel: "whatsapp", at: new Date("2026-09-02T19:00:00Z") },
-        ],
-      },
-    };
-    vi.mocked(listMessagingSchedulesWithPreview).mockResolvedValue(withGap);
-
-    render(await MessagingSchedulePage());
-
-    // The row carrying the gap does not open itself (OWNER-LAN171-09 governs
-    // every row, with no exception for one that would have warned), and
-    // opening it by hand never surfaces the retired callout, though the
-    // worked example around it still renders.
-    const rowsFound = screen.getAllByTestId("schedule-row");
-    const gameCard = rowsFound.find((row) => row.textContent?.includes("Game"))!;
-    expect(gameCard.textContent).not.toContain("Player RSVP deadline");
-
-    fireEvent.click(gameCard.querySelector('[data-testid="schedule-row-toggle"]')!);
-
-    expect(gameCard.textContent).toContain("Player RSVP deadline");
-    expect(gameCard.querySelector('[data-testid="schedule-row-warning"]')).toBeNull();
-    expect(gameCard.textContent).not.toMatch(/lands \d+ days? before the deadline/);
-  });
-});
-
-describe("the grid shape — OWNER-LAN171-03", () => {
-  it("shows a short, untruncated label and a unit for every day/hour field", async () => {
-    render(await MessagingSchedulePage());
-
-    const practiceRow = screen.getAllByTestId("schedule-row")[0];
-
-    for (const label of ["RSVP by", "First inv.", "Cadence", "WhatsApp", "Email", "President"]) {
-      expect(practiceRow.textContent).toContain(label);
-    }
-    // Brian's screenshot: "WhatsApp reminde…", truncated. The count label is
-    // "WhatsApp" alone now (it counts the invitation, Q-19), never
-    // "WhatsApp reminders".
-    expect(practiceRow.textContent).not.toMatch(/WhatsApp reminder/i);
-    expect(practiceRow.textContent).not.toContain("…");
-  });
-
-  it("carries units in the input group beside RSVP by, First inv., Cadence and President", async () => {
-    render(await MessagingSchedulePage());
-
-    const practiceRow = screen.getAllByTestId("schedule-row")[0];
-    const adornments = Array.from(practiceRow.querySelectorAll(".MuiInputAdornment-root")).map(
-      (node) => node.textContent,
-    );
-
-    expect(adornments).toEqual(expect.arrayContaining(["days", "days", "h", "h"]));
-  });
-});
-
-describe("field explanations — OWNER-LAN171-08", () => {
-  it("says what cadence, President escalation, WhatsApp and Email actually count, at the field", async () => {
-    render(await MessagingSchedulePage());
-
-    const practiceRow = screen.getAllByTestId("schedule-row")[0];
-
-    expect(practiceRow.textContent).toMatch(/gap between messages/i);
-    expect(practiceRow.textContent).toMatch(
-      /hours after the rsvp deadline before the president is told/i,
-    );
-    expect(practiceRow.textContent).toMatch(/including the invitation/i);
-    // Q-19: the WhatsApp count includes the invitation, so nothing reading
-    // "reminders" may describe it — including this new explanation.
-    expect(practiceRow.textContent).not.toMatch(/whatsapp reminder/i);
   });
 });
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The headline numbers, counted — D62, D73 and D74, LAN-152.
  *

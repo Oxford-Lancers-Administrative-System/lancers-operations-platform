@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The roster CSV's pure shape checks. LAN-215, `WP-arrival-doors`, `W1`;
  * B-007 tightened the mobile check.

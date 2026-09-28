@@ -274,8 +274,12 @@ describe("the 2026–27 production baseline, run against local Supabase", () => 
   }, 30_000);
 
   afterAll(async () => {
-    await removeFixtureOperator();
+    // The baseline's season names its opener, so it goes before the opener
+    // does. On a stack no earlier suite has touched, the fixture operator is
+    // the one the baseline picks (LAN-436 found this by running the gate
+    // suites on a runner of their own).
     await removeBaselineRows();
+    await removeFixtureOperator();
     await restoreAmbientConflicts();
     await client?.end();
   });

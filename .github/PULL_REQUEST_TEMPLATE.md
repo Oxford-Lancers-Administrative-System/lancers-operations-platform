@@ -95,7 +95,7 @@ handoff, three times.
 <!-- docs/pilot-data-runbook.md decides whether this feature needs any. -->
 
 - **Does this change need pilot data to be tested against hosted Supabase?** Yes/No — why:
-- **Artifacts supplied:** <!-- scripts/pilot/<issue-id>/setup.sql, cleanup.sql, README.md — or None -->
+- **Artifacts supplied:** <!-- scripts/pilot/<issue-id>/setup.sql, cleanup.sql, README.md — or None. No scenario is active today: the slice's were retired on 2026-09-26 (docs/pilot-data-manifest.md § Retired scenarios) -->
 - **Data created:** <!-- which tables, how many rows, how they are identified (deterministic ids and the PILOT-<issue-id> sentinel) -->
 - **Data preserved:** <!-- durable identities, access records and audit history the cleanup deliberately does not touch -->
 - **Retention recommendation:** Retain / clean up early — why:

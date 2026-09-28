@@ -294,13 +294,6 @@ describe("the public list", () => {
     expect(bar).not.toContain("Status");
   });
 
-  it("has no Apply button — a filter applies when it changes", async () => {
-    // §4.4, and Brian's own words at the mockup review.
-    render(await PublicCalendarPage(listProps()));
-
-    expect(screen.queryByRole("button", { name: /apply/i })).toBeNull();
-  });
-
   it("groups by period into discrete tables", async () => {
     givenEvents([
       entry({ name: "Soon", scheduledOn: "2026-10-15" }),

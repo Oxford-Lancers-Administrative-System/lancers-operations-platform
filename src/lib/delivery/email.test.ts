@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * The automated email transport — LAN-169.
  *
