@@ -7,7 +7,7 @@ import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import { readHolderHistory } from "@/lib/services/administration-audit";
 import { readSeatAccess, type SeatAccess } from "@/lib/services/access-grants";
-import { earliestEndFor } from "@/lib/services/operator-administration";
+import { earliestEndFor, readSeatHolderEmails } from "@/lib/services/operator-administration";
 import {
   readRoleCatalogue,
   type CatalogueGroup,
@@ -22,6 +22,7 @@ import { NO_CYCLE } from "../../presentation";
 import AccessSection from "./access-section";
 import CurrentHolderPanel from "./current-holder-panel";
 import RoleActions from "./role-actions";
+import { usableRecordedEmail } from "../../seat-email";
 
 // One seat — LAN-133.
 export default async function RoleRecordPage({
@@ -73,6 +74,25 @@ export default async function RoleRecordPage({
   );
   const today = todayInClubZone();
 
+  // LAN-434: a holder seated before a seat always came with an account gets a
+  // Send invitation on their line, for an actor who may assign this seat.
+  const unaccounted = role.holders
+    .filter((holder) => !holder.operatorAccountId)
+    .map((holder) => holder.personId);
+  let invite: { roleId: string; emails: Record<string, string | null> } | null = null;
+  if (permitted.assign && unaccounted.length > 0) {
+    const recorded = await readSeatHolderEmails(gate.operator, unaccounted);
+    invite = {
+      roleId: role.id,
+      emails: Object.fromEntries(
+        unaccounted.map((personId) => [
+          personId,
+          usableRecordedEmail(recorded.get(personId) ?? null),
+        ]),
+      ),
+    };
+  }
+
   return (
     <Stack spacing={3}>
       <AdminPageHeading
@@ -82,7 +102,7 @@ export default async function RoleRecordPage({
       />
 
       <Section title="Current holder" testId="current-holder">
-        <CurrentHolderPanel role={role} cycleLabel={cycleLabel} />
+        <CurrentHolderPanel role={role} cycleLabel={cycleLabel} invite={invite} />
       </Section>
 
       <AccessSection

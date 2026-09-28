@@ -76,6 +76,9 @@ export function redactRecruitmentRow(
     prospectId: row.prospectId,
     personId: row.personId,
     displayName: row.displayName,
+    // LAN-426: the name's two halves travel with it, for the phone board's name sorts.
+    givenName: row.givenName,
+    familyName: row.familyName,
   };
   const copy = (fields: readonly (keyof RecruitmentBoardRow)[]) => {
     for (const field of fields) out[field] = row[field];

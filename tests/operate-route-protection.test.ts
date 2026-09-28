@@ -23,6 +23,7 @@ vi.mock("@/lib/supabase/env", () => ({
 import { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { config, proxy } from "@/proxy";
+import { SIGNUP_VISIT_HEADER } from "@/lib/signup-visit";
 
 const ORIGIN = "https://lancers.example";
 
@@ -295,7 +296,15 @@ describe("a recovery session reaches the reset page and nothing else", () => {
  * The counterweight is asserted below, in both directions.
  */
 describe("the recovery surfaces are public, and keep no trace", () => {
-  const RECOVERY = ["/forgot-password", "/reset-password", "/auth/recovery", "/auth/invitation"];
+  const RECOVERY = [
+    "/forgot-password",
+    "/reset-password",
+    "/auth/recovery",
+    "/auth/invitation",
+    // LAN-441: the POST-only exchanges behind the two email-link buttons.
+    "/auth/recovery/exchange",
+    "/auth/invitation/exchange",
+  ];
 
   it.each(RECOVERY)("%s is matched by the proxy, or none of the below would run", (path) => {
     expect(matcherRuns(path)).toBe(true);
@@ -727,5 +736,63 @@ describe("F-A3 — the signed-in entry point /me is protected", () => {
     const response = await proxy(requestFor("/media"));
 
     expect(response.headers.get("location")).toBeNull();
+  });
+});
+
+/**
+ * LAN-442 (W-4). The sign-up door's Visits counter: the page counts only what
+ * the proxy marks, and the proxy marks only a document GET.
+ */
+describe("the sign-up door's visit flag", () => {
+  const FORWARDED = `x-middleware-request-${SIGNUP_VISIT_HEADER}`;
+
+  async function flagFor(init: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  }) {
+    givenSignedIn(false);
+    const response = await proxy(
+      new NextRequest(new URL("/join/fair-code", ORIGIN), {
+        method: init.method,
+        headers: init.headers,
+        body: init.body,
+      }),
+    );
+    return response.headers.get(FORWARDED);
+  }
+
+  it("marks a plain GET as a visit", async () => {
+    expect(await flagFor({})).toBe("1");
+  });
+
+  it("does not mark a HEAD", async () => {
+    expect(await flagFor({ method: "HEAD" })).toBeNull();
+  });
+
+  it.each([
+    ["sec-purpose", "prefetch;prerender"],
+    ["purpose", "prefetch"],
+    ["x-purpose", "preview"],
+  ])("does not mark a GET labelled %s: %s", async (name, value) => {
+    expect(await flagFor({ headers: { [name]: value } })).toBeNull();
+  });
+
+  it("overwrites a flag the client sent itself", async () => {
+    expect(await flagFor({ method: "HEAD", headers: { [SIGNUP_VISIT_HEADER]: "1" } })).toBeNull();
+  });
+
+  it("strips a flag the client forged on a POST", async () => {
+    expect(
+      await flagFor({
+        method: "POST",
+        headers: { [SIGNUP_VISIT_HEADER]: "1", "content-type": "application/json" },
+        body: "{}",
+      }),
+    ).toBeNull();
+  });
+
+  it("strips a flag the client forged on a bodiless POST", async () => {
+    expect(await flagFor({ method: "POST", headers: { [SIGNUP_VISIT_HEADER]: "1" } })).toBeNull();
   });
 });

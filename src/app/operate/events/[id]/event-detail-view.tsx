@@ -426,6 +426,8 @@ export function EventDetailView({
               participation={participation}
               filters={participationFilters}
               mayRecordAnswer={mayManage}
+              groupByAnswer
+              dense
             />
           </Stack>
         ) : null}

@@ -47,6 +47,7 @@ import { readOperatorPreferences } from "@/lib/services/operator-preferences";
 import { saveRecruitmentCollapsedGroupsAction } from "./group-preference-actions";
 import RecruitmentBoardPage from "./page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { SIDEWAYS_PHONE_QUERY } from "@/theme-tokens";
 
 function operatorAccess(roleCodes: string[]): OperatorAccess {
   return {
@@ -212,5 +213,63 @@ describe("which groups are folded away, remembered on the account", () => {
     expect(within(board).getByTestId("band-collapsed-label-events:event-2")).toHaveTextContent(
       "Freshers' fair",
     );
+  });
+});
+
+/**
+ * LAN-427, Brian 2026-09-28 — a phone on its side (landscape, at most 500px
+ * tall, so 956×440 as much as 844×390) gets the Roster's treatment: one-line
+ * heading, one toolbar row with the search and filters in the sheet, and the
+ * table scrolled with the page. jsdom evaluates no media query; the rule is
+ * proved written here and measured in a real browser.
+ */
+describe("LAN-427 — the table on a phone held sideways", () => {
+  const SIDEWAYS = `@media ${SIDEWAYS_PHONE_QUERY}`;
+
+  function sidewaysRulesFor(element: Element): string {
+    const css = [...document.querySelectorAll("style")]
+      .map((node) => node.textContent)
+      .join("\n")
+      .replace(/\s+/g, " ");
+    return css
+      .split(SIDEWAYS)
+      .slice(1)
+      .map((chunk) => chunk.slice(0, chunk.indexOf("}}") + 2))
+      .filter((block) => [...element.classList].some((name) => block.includes(`.${name}{`)))
+      .join(" ");
+  }
+
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+    givenBoard({ rows: [], totalInSeason: 3 } as unknown as Partial<RecruitmentBoardData>);
+  });
+
+  it("puts the heading on one line with no padding of the board's own", async () => {
+    render(await RecruitmentBoardPage(pageProps()));
+
+    expect(sidewaysRulesFor(screen.getByTestId("recruitment-heading"))).toMatch(
+      /flex-direction:\s?row/,
+    );
+    expect(sidewaysRulesFor(screen.getByTestId("recruitment-board"))).toMatch(/padding:\s?0/);
+  });
+
+  it("shows the one-row toolbar and hides the stacked search and filters", async () => {
+    render(await RecruitmentBoardPage(pageProps()));
+
+    expect(sidewaysRulesFor(screen.getByTestId("recruitment-phone-bar"))).toMatch(
+      /display:\s?flex/,
+    );
+    const searchRow = screen.getByTestId("recruitment-search").closest(".MuiBox-root");
+    expect(searchRow).not.toBeNull();
+    expect(sidewaysRulesFor(searchRow!)).toMatch(/display:\s?none/);
+    expect(screen.getByText(/^Filters/)).toBeInTheDocument();
+  });
+
+  it("lets the page, not the table's own box, scroll vertically", async () => {
+    render(await RecruitmentBoardPage(pageProps()));
+
+    const table = sidewaysRulesFor(screen.getByTestId("recruitment-board-table"));
+    expect(table).toMatch(/display:\s?block/);
+    expect(table).toMatch(/max-height:\s?none/);
   });
 });

@@ -16,6 +16,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+import { CLUB_TIME_ZONE } from "@/lib/club-time";
 import { closePool, withTransaction } from "@/lib/db";
 import { deriveEntityIdFromNaturalKey } from "./audit";
 
@@ -76,6 +77,15 @@ const TEMPLATE: Readonly<Record<string, string>> = {
   recruitment: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
   meeting: "660cdcb7-51e3-5a19-aaa2-08c5256af288",
 };
+
+const clubHour = (at: Date): number =>
+  Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: CLUB_TIME_ZONE,
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(at),
+  );
 
 describe("the deadline", () => {
   it("counts back from the event's own start, not from a fixed clock", async () => {
@@ -508,10 +518,10 @@ describe("the configuration itself", () => {
   });
 });
 
-describe("no quiet hours", () => {
+describe("the plan is unmoved by lights-out", () => {
   it("puts an early-morning event's rungs at early-morning times, unmoved", async () => {
-    // `REQ-no-quiet-hours` is absolute, and this is where it would be violated
-    // by accident. An 07:00 session produces an 07:00 deadline and 07:00
+    // LAN-433 holds sends 22:00-07:00 at dispatch; the plan itself is never
+    // moved. An 07:00 session produces an 07:00 deadline and 07:00
     // reminders, and nothing here delays or drops a message on that basis.
     const plan = await withTransaction((tx) =>
       resolveMessagingPlanIn(
@@ -602,8 +612,11 @@ describe("the schedule page's worked example", () => {
     expect(practice).toBeDefined();
     // `resolveMessagingPlanIn`'s own arithmetic, not a second copy of it: the
     // preview's deadline is the schedule's day count before its own event start.
-    expect(practice!.preview.eventStartsAt.getUTCHours()).toBe(
-      practice!.preview.responseDeadlineAt.getUTCHours(),
+    // Compared as club wall-clock hours, not UTC: when the deadline falls on one
+    // side of a Europe/London clock change and the event on the other, the UTC
+    // hours differ by one while the wall clock is the same 20:00.
+    expect(clubHour(practice!.preview.eventStartsAt)).toBe(
+      clubHour(practice!.preview.responseDeadlineAt),
     );
     expect(practice!.preview.lateApproval).toBe(false);
     expect(practice!.preview.rungs.length).toBeGreaterThan(0);

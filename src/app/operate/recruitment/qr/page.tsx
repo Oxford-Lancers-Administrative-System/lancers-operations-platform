@@ -1,5 +1,8 @@
 import { withTransaction } from "@/lib/db";
-import { readLiveRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
+import {
+  readLiveRecruitmentSignupCodeIn,
+  readRecruitmentSignupFiguresIn,
+} from "@/lib/services/recruitment-signup-codes";
 import { readCurrentSeasonIn } from "@/lib/services/seasons";
 import { publicOrigin } from "@/app/participation/origin";
 import { gateShellPage } from "../../gate";
@@ -12,12 +15,14 @@ export default async function RecruitmentQrPage() {
   const gate = await gateShellPage("/operate/recruitment/qr", ADD_RECRUITS);
   if ("screen" in gate) return gate.screen;
 
-  const [origin, { season, code }] = await Promise.all([
+  const [origin, { season, code, figures }] = await Promise.all([
     publicOrigin(),
     withTransaction(async (tx) => {
       const currentSeason = await readCurrentSeasonIn(tx);
       const liveCode = await readLiveRecruitmentSignupCodeIn(tx, currentSeason.id);
-      return { season: currentSeason, code: liveCode };
+      // LAN-428: Visits, Partial and Completed for the live code.
+      const liveFigures = await readRecruitmentSignupFiguresIn(tx, currentSeason.id);
+      return { season: currentSeason, code: liveCode, figures: liveFigures };
     }),
   ]);
 
@@ -33,7 +38,7 @@ export default async function RecruitmentQrPage() {
       seasonLabel={season.label}
       joinUrl={joinUrl}
       cardImageSrc={cardImageSrc}
-      signInCount={code?.signInCount ?? 0}
+      figures={figures}
       mintedAt={code?.mintedAt ?? null}
     />
   );

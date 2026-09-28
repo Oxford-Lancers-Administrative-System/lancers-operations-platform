@@ -46,6 +46,9 @@ export interface RosterBoardRow {
   membershipId: string;
   personId: string;
   displayName: string;
+  /** LAN-426: the two halves of the name, for the phone board's first- and last-name sorts. */
+  givenName: string;
+  familyName: string | null;
   /** Every alias, including one that is not the display name, so search can find a player by it (LAN-186). */
   aliases: string[];
   status: MembershipStatus;
@@ -472,6 +475,8 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         membershipId: entry.membershipId,
         personId: entry.personId,
         displayName: entry.displayName,
+        givenName: entry.givenName,
+        familyName: entry.familyName,
         aliases: aliasesByPerson.get(entry.personId) ?? [],
         status: entry.status,
         entry: entry.entry,

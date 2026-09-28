@@ -78,6 +78,7 @@ import {
 } from "./board-columns";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
 import { GRANT_REQUIREMENT } from "@/lib/auth/access";
+import { SIDEWAYS_PHONE_QUERY } from "@/theme-tokens";
 
 function operator(roleCodes: string[]): ResolvedOperator {
   return {
@@ -109,6 +110,8 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     membershipId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
     personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     displayName: "Avery Fielding",
+    givenName: "Avery",
+    familyName: "Fielding",
     aliases: [],
     status: "active",
     entry: "returning",
@@ -1109,5 +1112,270 @@ describe("a season with no onboarding item types configured", () => {
     render(await RosterPage(pageProps()));
 
     expect(screen.queryByTestId("roster-no-onboarding-item-types")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * LAN-426 — the phone board's sort. Below `md` the board is cards, which have
+ * no headings to press, so one select offers first name, last name and status,
+ * each either way. It writes the same `sort` / `dir` the headings do, and is
+ * remembered per board in `localStorage` for a return with no sort in the URL.
+ */
+describe("LAN-426 — the phone board's sort", () => {
+  const PEOPLE = [
+    row({
+      membershipId: "m-zed",
+      displayName: "Zed Adams",
+      givenName: "Zed",
+      familyName: "Adams",
+      status: "active",
+    }),
+    row({
+      membershipId: "m-amy",
+      displayName: "Amy Young",
+      givenName: "Amy",
+      familyName: "Young",
+      status: "inactive",
+    }),
+    row({
+      membershipId: "m-mia",
+      displayName: "Mia Brown",
+      givenName: "Mia",
+      familyName: "Brown",
+      status: "onboarding",
+    }),
+  ];
+
+  function cardNames(): string[] {
+    return screen
+      .getAllByTestId("roster-card")
+      .map((card) => PEOPLE.find((person) => card.textContent?.includes(person.displayName)))
+      .map((person) => person?.displayName ?? "?");
+  }
+
+  function phoneViewport(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        // A phone held upright: below md, and never the sideways (landscape) rule.
+        matches: matches && !query.includes("landscape"),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  }
+
+  async function choose(label: string) {
+    fireEvent.mouseDown(within(screen.getByTestId("phone-sort")).getByRole("combobox"));
+    fireEvent.click(await screen.findByRole("option", { name: label }));
+  }
+
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+    window.history.replaceState(null, "", "/operate/roster");
+    window.localStorage.clear();
+    phoneViewport(true);
+  });
+
+  it("offers first name, last name and status, each ascending and descending", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    fireEvent.mouseDown(within(screen.getByTestId("phone-sort")).getByRole("combobox"));
+    const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+    expect(options).toEqual([
+      "First name A–Z",
+      "First name Z–A",
+      "Last name A–Z",
+      "Last name Z–A",
+      "Status A–Z",
+      "Status Z–A",
+    ]);
+  });
+
+  it("sorts the cards by last name, and by first name the other way", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    await choose("Last name A–Z");
+    expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
+
+    await choose("First name Z–A");
+    expect(cardNames()).toEqual(["Zed Adams", "Mia Brown", "Amy Young"]);
+
+    await choose("First name A–Z");
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+  });
+
+  it("sorts status alphabetically, with no ladder of its own", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    await choose("Status A–Z");
+    // Active, Inactive, Onboarding — the alphabet, not the membership ladder.
+    expect(cardNames()).toEqual(["Zed Adams", "Amy Young", "Mia Brown"]);
+    await choose("Status Z–A");
+    expect(cardNames()).toEqual(["Mia Brown", "Amy Young", "Zed Adams"]);
+  });
+
+  it("composes with the search, and puts the choice in the URL and in storage", async () => {
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps({ q: "m" })));
+
+    // "m" matches Amy and Mia (and Adams); the sort applies to what is left.
+    await choose("Last name Z–A");
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+    expect(window.location.search).toContain("sort=lastName");
+    expect(window.location.search).toContain("dir=desc");
+    expect(window.location.search).toContain("q=m");
+    expect(window.localStorage.getItem("lancers:board-phone-sort:roster")).toBe("lastName:desc");
+  });
+
+  it("restores the remembered sort on a return with no sort in the URL", async () => {
+    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+    expect(window.location.search).toContain("sort=lastName");
+  });
+
+  it("leaves the desktop table's default order alone", async () => {
+    phoneViewport(false);
+    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps()));
+
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"].sort());
+    expect(window.location.search).not.toContain("sort=lastName");
+  });
+
+  it("lets a sort in the URL win over the remembered one", async () => {
+    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    window.history.replaceState(null, "", "/operate/roster?sort=firstName&dir=asc");
+    givenBoard({ rows: PEOPLE, totalInSeason: 3 });
+    render(await RosterPage(pageProps({ sort: "firstName", dir: "asc" })));
+
+    expect(cardNames()).toEqual(["Amy Young", "Mia Brown", "Zed Adams"]);
+  });
+});
+
+/**
+ * LAN-427 — a phone on its side gets the desktop table; upright keeps the
+ * cards. Brian, 2026-09-28: "on its side" is judged by height (landscape, at
+ * most 500px tall), so 956×440 is treated exactly as 844×390. jsdom evaluates
+ * no media query, so what is proved here is that the rule is written and that
+ * the phone sort's restore reads only the upright cards. The rendering itself
+ * is measured in a real browser at 956×440, 844×390 and 667×375.
+ */
+describe("LAN-427 — the table on a phone held sideways", () => {
+  const LANDSCAPE = `@media ${SIDEWAYS_PHONE_QUERY}`;
+
+  /** The declarations written for this element's own classes under the sideways rule. */
+  function sidewaysRulesFor(element: Element): string[] {
+    const css = styleText().replace(/\s+/g, " ");
+    return css
+      .split(LANDSCAPE)
+      .slice(1)
+      .map((chunk) => chunk.slice(0, chunk.indexOf("}}") + 2))
+      .filter((block) => [...element.classList].some((name) => block.includes(`.${name}{`)));
+  }
+
+  function styleText(): string {
+    return [...document.querySelectorAll("style")].map((node) => node.textContent).join("\n");
+  }
+
+  beforeEach(() => {
+    signedInAs(["secretary"]);
+    window.history.replaceState(null, "", "/operate/roster");
+    window.localStorage.clear();
+  });
+
+  it("shows the table and hides the cards below md in landscape", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    const css = styleText().replace(/\s+/g, " ");
+    const landscapeRules = css
+      .split(LANDSCAPE.replace(/\s+/g, " "))
+      .slice(1)
+      .map((chunk) => chunk.slice(0, chunk.indexOf("}}") + 2));
+    expect(landscapeRules.some((rule) => /display:\s?block/.test(rule))).toBe(true);
+    expect(landscapeRules.some((rule) => /display:\s?none/.test(rule))).toBe(true);
+    expect(screen.getByTestId("roster-board")).toBeInTheDocument();
+    expect(screen.getByTestId("roster-phone-cards")).toBeInTheDocument();
+  });
+
+  it("gives the phone on its side one bar, not the stacked search and filters", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    // The bar sits outside the upright cards, so a phone on its side still has it.
+    const bar = screen.getByTestId("phone-sort");
+    expect(screen.getByTestId("roster-phone-cards")).not.toContainElement(bar);
+    // And the pinned search's wrapper carries a landscape rule hiding it.
+    const search = screen.getByLabelText("Search name or alias");
+    const wrapper = search.closest(".MuiBox-root");
+    expect(wrapper).not.toBeNull();
+    const css = styleText().replace(/\s+/g, " ");
+    const hidden = [...wrapper!.classList].some((name) =>
+      new RegExp(
+        `${LANDSCAPE.replace(/[()]/g, "\\$&")}\\s?\\{\\s?\\.${name}\\s?\\{\\s?display:\\s?none`,
+      ).test(css),
+    );
+    expect(hidden).toBe(true);
+  });
+
+  it("does not restore the phone sort when the phone is on its side", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        // A phone held sideways: narrow, landscape.
+        matches: !query.includes("portrait"),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+    window.localStorage.setItem("lancers:board-phone-sort:roster", "lastName:desc");
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    expect(window.location.search).not.toContain("sort=lastName");
+  });
+
+  it("gives a phone on its side a one-line heading, a one-row bar and a page-scrolled table", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    // The heading is one row: title, count and actions.
+    const heading = sidewaysRulesFor(screen.getByTestId("roster-heading")).join(" ");
+    expect(heading).toMatch(/flex-direction:\s?row/);
+    // The toolbar row shows at every sideways width, not only below md.
+    expect(sidewaysRulesFor(screen.getByTestId("roster-phone-bar")).join(" ")).toMatch(
+      /display:\s?flex/,
+    );
+    // The table has no vertical box of its own: the page scrolls as a whole.
+    const table = sidewaysRulesFor(screen.getByTestId("roster-board")).join(" ");
+    expect(table).toMatch(/display:\s?block/);
+    expect(table).toMatch(/max-height:\s?none/);
+    // And the Filters button, which carries the search, is there.
+    expect(screen.getByText(/^Filters/)).toBeInTheDocument();
+  });
+
+  it("uses the one height rule, not a width breakpoint", () => {
+    expect(SIDEWAYS_PHONE_QUERY).toBe("(orientation: landscape) and (max-height: 500px)");
+    expect(SIDEWAYS_PHONE_QUERY).not.toMatch(/width/);
   });
 });

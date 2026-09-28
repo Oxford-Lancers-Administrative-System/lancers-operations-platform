@@ -12,6 +12,7 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import { formatWhen } from "../../roster/presentation";
 import { sendRecruitmentQuestionnaireAction } from "./actions";
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
 import type { RecruitmentQuestionnaireTrack } from "@/lib/services/recruitment-prospect";
 
 const TRACK_LABEL: Record<RecruitmentQuestionnaireTrack, string> = {
@@ -59,6 +60,7 @@ export default function SendQuestionnaireButton({
     reason: string | null;
     delivery?: "accepted" | "refused" | "skipped" | "deferred";
     waitingUntil?: Date | null;
+    lightsOut?: boolean;
   } | null>(null);
 
   function confirm() {
@@ -121,7 +123,9 @@ export default function SendQuestionnaireButton({
                     // waiting on the club's sending allowance, and nothing the
                     // recruit already holds has been superseded.
                     result.delivery === "deferred"
-                    ? "Queued — waiting for the sending allowance."
+                    ? result.lightsOut
+                      ? `${WAITING_LIGHTS_OUT_LABEL}.`
+                      : "Queued — waiting for the sending allowance."
                     : result.delivery === "refused"
                       ? "Not sent — delivery could not be completed."
                       : "Not sent — delivery is already in progress or this questionnaire is no longer eligible."}

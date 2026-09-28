@@ -61,6 +61,13 @@ import {
   type BoardSort,
 } from "./board-data";
 import { filterChipLabel, labelForKey, RecruitCard, RecruitCell } from "./recruitment-board-cells";
+import { SIDEWAYS_PHONE } from "@/theme-tokens";
+import {
+  PhoneSortSelect,
+  rememberPhoneSort,
+  useRememberedPhoneSort,
+  type PhoneSort,
+} from "../board-phone-sort";
 import { saveRecruitmentCollapsedGroupsAction } from "./group-preference-actions";
 
 /** The roster board's own debounce: folding three groups away is three clicks in about a second, and only the last state is worth storing. */
@@ -221,6 +228,17 @@ export default function RecruitmentBoardView({
     syncUrl(value, filters, sort);
   }
 
+  /** LAN-426: the phone board's sort — an exact key and direction, not a heading's toggle. */
+  function applyPhoneSort(next: PhoneSort) {
+    setSort(next);
+    syncUrl(search, filters, next);
+  }
+  useRememberedPhoneSort("recruitment", detailsShown, applyPhoneSort);
+  function choosePhoneSort(next: PhoneSort) {
+    applyPhoneSort(next);
+    rememberPhoneSort("recruitment", next);
+  }
+
   function sortBy(key: string) {
     const next: BoardSort =
       sort?.key === key
@@ -243,14 +261,24 @@ export default function RecruitmentBoardView({
     <Stack
       direction={{ xs: "column", md: "row" }}
       spacing={2}
-      sx={{ alignItems: { md: "center" }, flexWrap: "wrap", gap: 2 }}
+      sx={{
+        alignItems: { md: "center" },
+        flexWrap: "wrap",
+        gap: 2,
+        // LAN-427: on its side this is only ever the Filters sheet — one per line.
+        [SIDEWAYS_PHONE]: {
+          flexDirection: "column",
+          alignItems: "stretch",
+          "& > :not(style) ~ :not(style)": { ml: 0 },
+        },
+      }}
     >
       <TextField
         size="small"
         label="Search name or alias"
         value={search}
         onChange={(event) => updateSearch(event.target.value)}
-        sx={{ minWidth: { xs: "100%", md: 240 } }}
+        sx={{ minWidth: { xs: "100%", md: 240 }, [SIDEWAYS_PHONE]: { minWidth: "100%" } }}
         data-testid="recruitment-search"
       />
       {detailsShown ? (
@@ -351,22 +379,53 @@ export default function RecruitmentBoardView({
   const empty = totalInSeason === 0;
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }} data-testid="recruitment-board">
+    <Box
+      // LAN-427, Brian 2026-09-28: on its side the shell's gutter is the only
+      // spacing, the heading is one line and the table follows the one-row bar.
+      sx={{ p: { xs: 2, md: 3 }, [SIDEWAYS_PHONE]: { p: 0 } }}
+      data-testid="recruitment-board"
+    >
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
-        sx={{ justifyContent: "space-between", alignItems: { sm: "center" }, mb: 2 }}
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { sm: "center" },
+          mb: 2,
+          [SIDEWAYS_PHONE]: { flexDirection: "row", alignItems: "center", mb: 1 },
+        }}
+        data-testid="recruitment-heading"
       >
-        <Box>
-          <Typography variant="h5" component="h1">
+        <Box
+          sx={{
+            [SIDEWAYS_PHONE]: { display: "flex", alignItems: "baseline", gap: 1.5, minWidth: 0 },
+          }}
+        >
+          <Typography variant="h5" component="h1" sx={{ [SIDEWAYS_PHONE]: { typography: "h6" } }}>
             Recruitment
           </Typography>
-          <Typography variant="body2" color="text.secondary" data-testid="season-label">
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              [SIDEWAYS_PHONE]: {
+                minWidth: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              },
+            }}
+            data-testid="season-label"
+          >
             {`${season.label} · ${visibleRows.length} ${visibleRows.length === 1 ? "recruit" : "recruits"}`}
           </Typography>
         </Box>
         {mayAddRecruits ? (
-          <Stack direction="row" spacing={1.5}>
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ [SIDEWAYS_PHONE]: { flexShrink: 0, "& .MuiButton-root": { minHeight: 36 } } }}
+          >
             <Button
               variant="outlined"
               href="/operate/recruitment/qr"
@@ -413,15 +472,55 @@ export default function RecruitmentBoardView({
         </Paper>
       ) : (
         <>
-          <Stack spacing={2} sx={{ mb: 2 }}>
-            <Box sx={{ display: { xs: "none", md: "block" } }}>{pinned}</Box>
-            {personShown || detailsShown || eventsShown ? (
-              <Box sx={{ display: { xs: "block", md: "none" } }}>
-                <Button variant="outlined" onClick={() => setPhoneFilters(true)} sx={{ mb: 1 }}>
-                  Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
-                </Button>
-              </Box>
-            ) : null}
+          <Stack
+            spacing={2}
+            sx={{
+              mb: 2,
+              // Gap rather than margins, so the hidden pinned row takes no space.
+              [SIDEWAYS_PHONE]: { mb: 1, gap: 1, "& > :not(style) ~ :not(style)": { mt: 0 } },
+            }}
+          >
+            <Box
+              sx={{ display: { xs: "none", md: "block" }, [SIDEWAYS_PHONE]: { display: "none" } }}
+            >
+              {pinned}
+            </Box>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                display: { xs: "flex", md: "none" },
+                mb: 1,
+                alignItems: "center",
+                flexWrap: "wrap",
+                // LAN-427: on its side, at any width, this is the toolbar — one row.
+                [SIDEWAYS_PHONE]: {
+                  display: "flex",
+                  mb: 0,
+                  "& .MuiButton-root": { minHeight: 40 },
+                },
+              }}
+              data-testid="recruitment-phone-bar"
+            >
+              {/* On its side the search is in the sheet too, so the button shows even with no category filter. */}
+              <Button
+                variant="outlined"
+                onClick={() => setPhoneFilters(true)}
+                sx={
+                  personShown || detailsShown || eventsShown
+                    ? undefined
+                    : { display: "none", [SIDEWAYS_PHONE]: { display: "inline-flex" } }
+                }
+              >
+                Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
+              </Button>
+              <PhoneSortSelect
+                sortKey={sort?.key ?? null}
+                sortDirection={sort?.direction ?? "asc"}
+                statusAvailable={detailsShown}
+                onChange={choosePhoneSort}
+              />
+            </Stack>
             {chips}
           </Stack>
 
@@ -432,6 +531,10 @@ export default function RecruitmentBoardView({
             sx={{
               display: { xs: "none", md: "block" },
               maxHeight: "calc(100dvh - 320px)",
+              // LAN-427: a phone on its side gets this table, scrolled sideways by
+              // touch. Brian 2026-09-28: no box of its own vertically — the page
+              // scrolls as a whole, so a swipe never fights a 15px scroll box.
+              [SIDEWAYS_PHONE]: { display: "block", maxHeight: "none", overflowY: "visible" },
               overflow: "auto",
               // LAN-395, the same two rules the roster board carries: this is
               // the roster board's scroll container, so the bar lands on this
@@ -751,7 +854,10 @@ export default function RecruitmentBoardView({
               card carries the same status control the table's cell does, with
               the same interrupt and the same confirm. Editing is not desktop
               work; recruitment is run from a phone. */}
-          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+          <Stack
+            spacing={1.5}
+            sx={{ display: { xs: "flex", md: "none" }, [SIDEWAYS_PHONE]: { display: "none" } }}
+          >
             {visibleRows.length === 0 ? (
               <Typography color="text.secondary" data-testid="recruitment-filter-empty-phone">
                 No recruits match the current search and filters.

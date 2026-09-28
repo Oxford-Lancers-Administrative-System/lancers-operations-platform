@@ -122,9 +122,10 @@ The player row of § 3 is unchanged: RSVP is still a scoped journey at
 `/rsvp/[token]` and still never exposes peer responses. The public calendar names
 nobody at all.
 
-`/auth/recovery` exists as well and is deliberately not in this table: it is not
-a screen. It is the internal one-time exchange the emailed link enters through,
-and it renders nothing — it verifies the token, writes the session and redirects
+`/auth/recovery` and `/auth/invitation` are not in this table. Since LAN-441
+each renders one button in the sign-in frame — **Reset your password** or **Set
+up your account** — and exchanges nothing on opening; the button posts to its
+`/exchange` route, which verifies the token, writes the session and redirects
 to `/reset-password` with the token stripped from the address bar.
 
 ### LAN-125 amendment — 15 August 2026

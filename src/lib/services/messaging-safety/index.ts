@@ -51,7 +51,12 @@ export {
 
 export * from "./policy";
 
-export { waitingLabelFor, WAITING_ALLOWANCE_LABEL, type SafetyReasonCode } from "./reasons";
+export {
+  waitingLabelFor,
+  WAITING_ALLOWANCE_LABEL,
+  WAITING_LIGHTS_OUT_LABEL,
+  type SafetyReasonCode,
+} from "./reasons";
 
 export {
   GLOBAL_SCOPE_KEY,

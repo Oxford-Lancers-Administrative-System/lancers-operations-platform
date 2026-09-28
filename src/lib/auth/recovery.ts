@@ -55,10 +55,10 @@ export const FORGOT_PASSWORD_PATH = "/forgot-password";
 export const RESET_PASSWORD_PATH = "/reset-password";
 
 /**
- * The internal route the emailed link enters through. It exists because a
- * Server Component cannot write cookies and `verifyOtp` must, so the exchange
- * happens in a Route Handler which then redirects to `RESET_PASSWORD_PATH`
- * with the token stripped from the address bar.
+ * The page the emailed link enters through. Since LAN-441 it exchanges
+ * nothing: a GET renders one button, because an email security scanner that
+ * pre-opens links would otherwise spend the one-time token before the person
+ * clicks. The button posts to `RECOVERY_EXCHANGE_PATH`.
  *
  * This exact path, on each origin the application answers on, is what
  * `supabase/config.toml` allow-lists locally and what Brian allow-lists in the
@@ -66,6 +66,17 @@ export const RESET_PASSWORD_PATH = "/reset-password";
  * two agree.
  */
 export const RECOVERY_CALLBACK_PATH = "/auth/recovery";
+
+/**
+ * The Route Handler that performs the exchange — LAN-441. POST only. It exists
+ * because a Server Component cannot write cookies and `verifyOtp` must, so the
+ * exchange happens here and then redirects to `RESET_PASSWORD_PATH`. It is
+ * under `RECOVERY_CALLBACK_PATH`, so `src/proxy.ts` gives it the same headers.
+ */
+export const RECOVERY_EXCHANGE_PATH = `${RECOVERY_CALLBACK_PATH}/exchange`;
+
+/** The button on `RECOVERY_CALLBACK_PATH`, in `/forgot-password`'s own words. */
+export const RECOVERY_CONFIRM_LABEL = "Reset your password";
 
 /** `type` on the emailed link. Anything else is refused without a round trip. */
 export const RECOVERY_LINK_TYPE = "recovery";

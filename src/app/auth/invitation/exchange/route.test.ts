@@ -41,7 +41,8 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { NextRequest } from "next/server";
-import { GET } from "./route";
+import * as route from "./route";
+import { POST } from "./route";
 
 const TOKEN = "9d1273d925d7a6064170239fe8e5eaa45af11aee3ce0b9181039c19b";
 
@@ -51,8 +52,17 @@ const PUBLIC_ORIGIN = "https://lancers.example.org";
 /** What the container sees. `.github/workflows/deploy.yml` binds 8080. */
 const CONTAINER_ORIGIN = "http://0.0.0.0:8080";
 
+/**
+ * The button's POST — LAN-441. `query` is written as the fields the page's
+ * hidden inputs carry, in query-string form for readability, and sent as an
+ * `application/x-www-form-urlencoded` body; nothing is in the request URL.
+ */
 function requestFor(query: string, origin: string = CONTAINER_ORIGIN): NextRequest {
-  return new NextRequest(new URL(`/auth/invitation${query}`, origin));
+  return new NextRequest(new URL("/auth/invitation/exchange", origin), {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(query.replace(/^\?/, "")).toString(),
+  });
 }
 
 function locationOf(response: Response): string {
@@ -72,7 +82,7 @@ afterEach(() => {
 
 describe("a well-formed invitation link is exchanged", () => {
   it("presents the token to Supabase as an invite token, and nothing else", async () => {
-    await GET(requestFor(`?token_hash=${TOKEN}&type=invite`));
+    await POST(requestFor(`?token_hash=${TOKEN}&type=invite`));
 
     expect(verifyOtp).toHaveBeenCalledExactlyOnceWith({
       type: "invite",
@@ -81,7 +91,7 @@ describe("a well-formed invitation link is exchanged", () => {
   });
 
   it("lands on the password screen with the token gone from the URL", async () => {
-    const response = await GET(requestFor(`?token_hash=${TOKEN}&type=invite`));
+    const response = await POST(requestFor(`?token_hash=${TOKEN}&type=invite`));
     const location = new URL(locationOf(response));
 
     expect(response.status).toBe(303);
@@ -91,7 +101,7 @@ describe("a well-formed invitation link is exchanged", () => {
   });
 
   it("is not cached, not attributed and not indexed", async () => {
-    const response = await GET(requestFor(`?token_hash=${TOKEN}&type=invite`));
+    const response = await POST(requestFor(`?token_hash=${TOKEN}&type=invite`));
 
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
@@ -103,7 +113,7 @@ describe("the redirect goes to the host the operator is on, not the container's 
   it("sends a proxied request to the configured application origin", async () => {
     // The defect, as an assertion. Removing the fix from `route.ts` fails
     // exactly here, with `http://0.0.0.0:8080/reset-password`.
-    const response = await GET(requestFor(`?token_hash=${TOKEN}&type=invite`));
+    const response = await POST(requestFor(`?token_hash=${TOKEN}&type=invite`));
 
     expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/reset-password`);
     expect(locationOf(response)).not.toContain("0.0.0.0");
@@ -113,7 +123,7 @@ describe("the redirect goes to the host the operator is on, not the container's 
     // A `Host` header is whatever the caller wrote, and `APP_BASE_URL` outranks
     // it. This is the property the fix must not have traded away for a working
     // redirect.
-    const response = await GET(
+    const response = await POST(
       requestFor(`?token_hash=${TOKEN}&type=invite`, "https://evil.example"),
     );
 
@@ -123,7 +133,7 @@ describe("the redirect goes to the host the operator is on, not the container's 
   it("works on a developer machine with nothing configured", async () => {
     vi.stubEnv("APP_BASE_URL", "");
 
-    const response = await GET(
+    const response = await POST(
       requestFor(`?token_hash=${TOKEN}&type=invite`, "http://localhost:3010"),
     );
 
@@ -137,7 +147,7 @@ describe("the redirect goes to the host the operator is on, not the container's 
     // it against the URL it actually asked for.
     vi.stubEnv("APP_BASE_URL", "");
 
-    const response = await GET(
+    const response = await POST(
       requestFor(`?token_hash=${TOKEN}&type=invite`, "https://evil.example"),
     );
 
@@ -160,7 +170,7 @@ describe("anything else is refused before the auth server is contacted", () => {
     ["an upper-case token", `?token_hash=${TOKEN.toUpperCase()}&type=invite`],
     ["an injected token", "?token_hash=abc'+or+'1'%3D'1&type=invite"],
   ])("%s never reaches Supabase, and lands on the invitation screen", async (_name, query) => {
-    const response = await GET(requestFor(query));
+    const response = await POST(requestFor(query));
 
     expect(verifyOtp).not.toHaveBeenCalled();
     expect(response.status).toBe(303);
@@ -197,7 +207,7 @@ describe("an invitation that cannot be exchanged — LAN-311", () => {
     async (_n, answer) => {
       verifyOtp.mockResolvedValue(answer);
 
-      const response = await GET(requestFor(`?token_hash=${TOKEN}&type=invite`));
+      const response = await POST(requestFor(`?token_hash=${TOKEN}&type=invite`));
       const location = new URL(locationOf(response));
 
       expect(response.status).toBe(303);
@@ -213,7 +223,7 @@ describe("an invitation that cannot be exchanged — LAN-311", () => {
   it("keeps the token out of the failure redirect too", async () => {
     verifyOtp.mockResolvedValue({ data: { session: null }, error: { message: "expired" } });
 
-    const response = await GET(requestFor(`?token_hash=${TOKEN}&type=invite`));
+    const response = await POST(requestFor(`?token_hash=${TOKEN}&type=invite`));
 
     for (const [, value] of response.headers) expect(value).not.toContain(TOKEN);
   });
@@ -222,7 +232,7 @@ describe("an invitation that cannot be exchanged — LAN-311", () => {
     vi.stubEnv("APP_BASE_URL", "");
     verifyOtp.mockResolvedValue({ data: { session: null }, error: { message: "expired" } });
 
-    const response = await GET(
+    const response = await POST(
       requestFor(`?token_hash=${TOKEN}&type=invite`, "https://evil.example"),
     );
 
@@ -234,9 +244,40 @@ describe("an invitation that cannot be exchanged — LAN-311", () => {
 describe("the response keeps no trace of the token", () => {
   it("puts the token in no header at all, on any origin", async () => {
     for (const origin of [CONTAINER_ORIGIN, "http://localhost:3010", "https://evil.example"]) {
-      const response = await GET(requestFor(`?token_hash=${TOKEN}&type=invite`, origin));
+      const response = await POST(requestFor(`?token_hash=${TOKEN}&type=invite`, origin));
 
       for (const [, value] of response.headers) expect(value).not.toContain(TOKEN);
     }
+  });
+});
+
+describe("the exchange is the button's POST and nothing else — LAN-441", () => {
+  it("exports no GET, so a link scanner's pre-open cannot reach verifyOtp", () => {
+    expect("GET" in route).toBe(false);
+  });
+
+  it("ignores a token in the request URL; only the form body counts", async () => {
+    const response = await POST(
+      new NextRequest(
+        new URL(`/auth/invitation/exchange?token_hash=${TOKEN}&type=invite`, CONTAINER_ORIGIN),
+        { method: "POST" },
+      ),
+    );
+
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/invitation-link`);
+  });
+
+  it("treats a body that is not a form as no token at all", async () => {
+    const response = await POST(
+      new NextRequest(new URL("/auth/invitation/exchange", CONTAINER_ORIGIN), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token_hash: TOKEN, type: "invite" }),
+      }),
+    );
+
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/invitation-link`);
   });
 });

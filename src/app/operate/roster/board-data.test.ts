@@ -22,6 +22,8 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     membershipId: "m1",
     personId: "p1",
     displayName: "Avery Fielding",
+    givenName: "Avery",
+    familyName: "Fielding",
     aliases: [],
     status: "active",
     entry: "returning",

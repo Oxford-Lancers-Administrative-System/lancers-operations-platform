@@ -25,6 +25,7 @@ import {
   FILTER_ALL,
   FILTER_ANSWER_LABEL,
   FILTER_ATTENDANCE_LABEL,
+  FILTER_CAPACITIES,
   FILTER_CAPACITY_LABEL,
   FILTER_DELIVERY_LABEL,
   FILTER_SEARCH_LABEL,
@@ -147,7 +148,7 @@ export function ParticipationFilterBar({
         value={filters.capacity}
         minWidth={140}
         options={[
-          ...Object.entries(CAPACITY_LABELS).map(([value, label]) => ({ value, label })),
+          ...FILTER_CAPACITIES.map((value) => ({ value, label: CAPACITY_LABELS[value] })),
           { value: "walk_up", label: WALK_UP_LABEL },
         ]}
         onPick={(value) => apply({ [PARTICIPATION_PARAMS.capacity]: value })}

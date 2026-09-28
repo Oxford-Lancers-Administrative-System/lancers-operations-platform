@@ -7,6 +7,7 @@ import { StatusChip } from "@/components/status-chip";
 import { operatorAccountState } from "@/lib/services/operator-account-state";
 import type { CatalogueRole } from "@/lib/services/administration-directory";
 import { describePeriod, NOT_ASSIGNED } from "../../presentation";
+import SendInvitation from "./send-invitation";
 
 /**
  * Current holder panel for one role seat — LAN-133.
@@ -16,9 +17,19 @@ import { describePeriod, NOT_ASSIGNED } from "../../presentation";
 export default function CurrentHolderPanel({
   role,
   cycleLabel,
+  invite = null,
 }: {
   role: CatalogueRole;
   cycleLabel: string;
+  /**
+   * LAN-434: offered on a holder line with no operator account when the actor
+   * may assign this seat. Each holder's usable recorded email, or `null` when
+   * the form must ask for a Login email.
+   */
+  invite?: {
+    readonly roleId: string;
+    readonly emails: Readonly<Record<string, string | null>>;
+  } | null;
 }) {
   return (
     <>
@@ -66,6 +77,13 @@ export default function CurrentHolderPanel({
               <Typography variant="body2" color="text.secondary">
                 {describePeriod(holder)}
               </Typography>
+              {!holder.operatorAccountId && invite ? (
+                <SendInvitation
+                  roleId={invite.roleId}
+                  personId={holder.personId}
+                  recordedEmail={invite.emails[holder.personId] ?? null}
+                />
+              ) : null}
               {holder.accessDeactivated ? (
                 <Typography variant="body2" color="text.secondary" data-testid="holder-deactivated">
                   Their operator access is deactivated. They still hold this role — the seat is not

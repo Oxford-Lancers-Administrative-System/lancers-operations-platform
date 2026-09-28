@@ -38,6 +38,7 @@ import {
 } from "@/app/operate/people/[personId]/identity-contact-sections";
 import { RestrictedSection } from "@/app/operate/people/[personId]/academic-restricted-sections";
 import StatusSection from "@/app/operate/people/[personId]/status-section";
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
 import RecruitmentRecordView from "./record-view";
 import { RECORD_CONSENT, STOP_MESSAGES } from "./consent-control";
 import {
@@ -785,6 +786,28 @@ describe("LAN-237 — the manual send reports the dispatch outcome", () => {
       expect(screen.queryByTestId("recruitment-send-personal-no-op")).toBeNull();
     },
   );
+});
+
+// LAN-433: a deferral held by lights-out says when it goes, not the allowance.
+describe("the manual send names its hold", () => {
+  it.each([
+    [true, `${WAITING_LIGHTS_OUT_LABEL}.`],
+    [false, "Queued — waiting for the sending allowance."],
+  ] as const)("lightsOut %s reads %s", async (lightsOut, message) => {
+    vi.mocked(sendRecruitmentQuestionnaireAction).mockResolvedValueOnce({
+      error: null,
+      created: ["welcome"],
+      reason: null,
+      delivery: "deferred",
+      lightsOut,
+    });
+    render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+    fireEvent.click(screen.getByTestId("recruitment-send-personal"));
+    fireEvent.click(screen.getByTestId("recruitment-send-personal-confirm"));
+    expect(await screen.findByTestId("recruitment-send-personal-delivery")).toHaveTextContent(
+      message,
+    );
+  });
 });
 
 /**

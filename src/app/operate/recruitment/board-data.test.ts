@@ -9,6 +9,8 @@ function row(overrides: Partial<RecruitmentBoardRow>): RecruitmentBoardRow {
     prospectId: "p1",
     personId: "person1",
     displayName: "Rosalind Penhaligon",
+    givenName: "Rosalind",
+    familyName: "Penhaligon",
     aliases: [],
     college: null,
     matriculationYear: null,

@@ -18,6 +18,7 @@ export {
 } from "./shared";
 
 export * from "./assign";
+export * from "./seat-account";
 export * from "./end";
 export * from "./replace";
 export * from "./access";

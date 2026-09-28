@@ -10,10 +10,12 @@ import {
   STORED_MISMATCH_CLASSES,
 } from "./discrepancy-vocabulary";
 import {
+  answerGroupOf,
   applyParticipationView,
   DELIVERY_FILTERS,
   discrepancyFor,
   EMPTY_FILTERS,
+  groupByAnswer,
   isParticipationSort,
   participationSortHref,
   participationSortState,
@@ -270,6 +272,49 @@ function withFilters(patch: Partial<ParticipationFilters>): ParticipationFilters
   return { ...EMPTY_FILTERS, ...patch };
 }
 
+// LAN-439 — the event page's audience reads Yes, then No, then No response.
+describe("groupByAnswer", () => {
+  const people = [
+    person({ displayName: "Ada None", answer: null }),
+    person({ displayName: "Bea No", answer: "no" }),
+    person({ displayName: "Cy Yes", answer: "yes" }),
+    person({ displayName: "Dot Walkup", isWalkUp: true, answer: null }),
+    person({ displayName: "Eve Yes", answer: "yes" }),
+    person({ displayName: "Fay No", answer: "no" }),
+  ];
+
+  it("orders yes, then no, then no response, keeping the sort inside each group", () => {
+    expect(names(groupByAnswer(applyParticipationView(people, EMPTY_FILTERS, [])))).toEqual([
+      "Cy Yes",
+      "Eve Yes",
+      "Bea No",
+      "Fay No",
+      "Ada None",
+      "Dot Walkup",
+    ]);
+  });
+
+  it("keeps a descending name sort inside each group", () => {
+    const sorted = applyParticipationView(
+      people,
+      withFilters({ sort: "name", direction: "desc" }),
+      [],
+    );
+    expect(names(groupByAnswer(sorted))).toEqual([
+      "Eve Yes",
+      "Cy Yes",
+      "Fay No",
+      "Bea No",
+      "Dot Walkup",
+      "Ada None",
+    ]);
+  });
+
+  it("puts somebody never asked with no response", () => {
+    expect(answerGroupOf({ answer: null })).toBe("none");
+  });
+});
+
 describe("applyParticipationView filters", () => {
   it("returns everybody with no filters, sorted by name", () => {
     expect(names(applyParticipationView(ROSTER, EMPTY_FILTERS, []))).toEqual([
@@ -303,11 +348,16 @@ describe("applyParticipationView filters", () => {
   });
 
   it("filters to only players, and to only walk-ups", () => {
+    // LAN-440: Player matches what the row reads, so the committee invitee is in it.
     expect(names(applyParticipationView(ROSTER, withFilters({ capacity: "player" }), []))).toEqual([
       "Alaric Brindlewood",
       "Bar Sedgewick",
       "Cassian Wolvercote",
+      "Fen Marchbanks",
     ]);
+    expect(
+      names(applyParticipationView(ROSTER, withFilters({ capacity: "committee" }), [])),
+    ).toEqual([]);
     expect(names(applyParticipationView(ROSTER, withFilters({ capacity: "walk_up" }), []))).toEqual(
       ["Wilfrid Danecroft"],
     );
@@ -368,14 +418,6 @@ describe("applyParticipationView sorting", () => {
    * below is a row order only that column produces.
    */
   const EXPECTED_ORDER: Readonly<Record<string, string[]>> = {
-    // Committee, then the three players, then the walk-up sentinel last.
-    capacity: [
-      "Fen Marchbanks",
-      "Alaric Brindlewood",
-      "Bar Sedgewick",
-      "Cassian Wolvercote",
-      "Wilfrid Danecroft",
-    ],
     // `no` before `yes` before the two with no answer; ties by name.
     answer: [
       "Bar Sedgewick",
@@ -420,6 +462,27 @@ describe("applyParticipationView sorting", () => {
       // five above evidence that the column was read.
       expect(order, column).not.toEqual(names(applyParticipationView(ROSTER, EMPTY_FILTERS, [])));
     }
+  });
+
+  // LAN-442 (R-correction-1). By the capacity shown: committee-stored Fen
+  // reads as Player and sorts inside the players (ties by name), after the
+  // coach; the walk-up sentinel last. Capacity is out of the table above
+  // because on ROSTER alone this order is the name order.
+  it("sorts the As column by the capacity each row shows", () => {
+    const withCoach = [
+      ...ROSTER,
+      operatorPerson({ displayName: "Zeno Pellingham", capacity: "coach" }),
+    ];
+    expect(names(applyParticipationView(withCoach, withFilters({ sort: "capacity" }), []))).toEqual(
+      [
+        "Zeno Pellingham",
+        "Alaric Brindlewood",
+        "Bar Sedgewick",
+        "Cassian Wolvercote",
+        "Fen Marchbanks",
+        "Wilfrid Danecroft",
+      ],
+    );
   });
 
   /**
@@ -607,6 +670,13 @@ describe("readParticipationFilters", () => {
     expect(filters.attendance).toBe("");
     expect(filters.sort).toBe("");
     expect(filters.direction).toBe("");
+  });
+
+  // LAN-442 (W-5). An old link still filters to what its rows now read as.
+  it("reads a stale ?as=committee as Player", () => {
+    const filters = readParticipationFilters({ as: "committee" }, [], "operator");
+    expect(filters.capacity).toBe("player");
+    expect(names(applyParticipationView(ROSTER, filters, []))).toContain("Fen Marchbanks");
   });
 
   it("takes the first of a repeated parameter", () => {

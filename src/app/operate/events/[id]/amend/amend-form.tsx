@@ -21,6 +21,7 @@ import {
   type TermWindow,
 } from "@/lib/services/event-input";
 import {
+  amendmentIsFuture,
   defaultNotify,
   diffAmendment,
   silenceNeedsConfirmation,
@@ -89,7 +90,8 @@ export default function AmendForm({
   terms,
   audience,
   unsentMessages,
-  isFuture,
+  isFuture: storedIsFuture,
+  today,
   initialQuestions,
   eventTypeLabel,
   eventType,
@@ -104,7 +106,10 @@ export default function AmendForm({
   terms: readonly TermWindow[];
   audience: AmendAudience;
   unsentMessages: number;
+  /** Whether the stored event is still ahead — what the form opens on. */
   isFuture: boolean;
+  /** LAN-422: the club day, so an edited date is judged exactly as the service judges it. */
+  today: string;
   /** LAN-419 — the questions as stored, which this page now edits too. */
   initialQuestions: readonly RawEventQuestion[];
   /** The template's name, for the question editor's own labels. */
@@ -131,6 +136,8 @@ export default function AmendForm({
   const [acknowledged, setAcknowledged] = useState<unknown>(null);
   const [changes, setChanges] = useState<readonly AmendmentChange[]>([]);
   const [notify, setNotify] = useState(false);
+  // LAN-422: future before or after the edit, recomputed at review from the typed date.
+  const [isFuture, setIsFuture] = useState(storedIsFuture);
   const [silenceConfirmed, setSilenceConfirmed] = useState(false);
   const [localIssues, setLocalIssues] = useState<readonly FieldIssue[]>([]);
   const [nothingChanged, setNothingChanged] = useState(false);
@@ -266,9 +273,12 @@ export default function AmendForm({
       return;
     }
 
+    // LAN-422: judged on the date after the edit too — the service's own rule.
+    const future = amendmentIsFuture(before, validation.value, today);
+    setIsFuture(future);
     setChanges(next);
     // D55, as W5 reframed it: the defaults decide where the one tick starts.
-    setNotify(defaultNotify(next, { isFuture }));
+    setNotify(defaultNotify(next, { isFuture: future }));
     setSilenceConfirmed(false);
     setStep("review");
   }

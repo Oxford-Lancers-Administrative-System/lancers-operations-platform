@@ -20,7 +20,7 @@ import {
   PLAN_DISPATCHES_IMMEDIATELY,
   PLAN_FROZEN_AT_APPROVAL,
   PLAN_LATE_APPROVAL,
-  PLAN_NO_QUIET_HOURS,
+  PLAN_LIGHTS_OUT,
   PLAN_RECOVERY_NOTE,
   WHATSAPP_ERROR_DETAIL,
   whatsAppErrorDisclosureLabel,
@@ -298,7 +298,7 @@ export function MessagingPlanDisclosure({
     >
       <Stack spacing={2}>
         <Typography variant="body2" color="text.secondary">
-          {`${approved ? PLAN_FROZEN_AT_APPROVAL : PLAN_COMMITS_ON_APPROVAL} ${PLAN_NO_QUIET_HOURS}`}
+          {`${approved ? PLAN_FROZEN_AT_APPROVAL : PLAN_COMMITS_ON_APPROVAL} ${PLAN_LIGHTS_OUT}`}
         </Typography>
         {display.lateApproval ? (
           <Notice severity="warning" testId="plan-late-approval">

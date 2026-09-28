@@ -35,7 +35,8 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import { NextRequest } from "next/server";
-import { GET } from "./route";
+import * as route from "./route";
+import { POST } from "./route";
 
 const TOKEN = "9d1273d925d7a6064170239fe8e5eaa45af11aee3ce0b9181039c19b";
 
@@ -45,8 +46,17 @@ const PUBLIC_ORIGIN = "https://lancers.example.org";
 /** What the container sees. `.github/workflows/deploy.yml` binds 8080. */
 const CONTAINER_ORIGIN = "http://0.0.0.0:8080";
 
+/**
+ * The button's POST — LAN-441. `query` is written as the fields the page's
+ * hidden inputs carry, in query-string form for readability, and sent as an
+ * `application/x-www-form-urlencoded` body; nothing is in the request URL.
+ */
 function requestFor(query: string, origin: string = CONTAINER_ORIGIN): NextRequest {
-  return new NextRequest(new URL(`/auth/recovery${query}`, origin));
+  return new NextRequest(new URL("/auth/recovery/exchange", origin), {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(query.replace(/^\?/, "")).toString(),
+  });
 }
 
 function locationOf(response: Response): string {
@@ -66,7 +76,7 @@ afterEach(() => {
 
 describe("a well-formed recovery link is exchanged", () => {
   it("presents the token to Supabase as a recovery token, and nothing else", async () => {
-    await GET(requestFor(`?token_hash=${TOKEN}&type=recovery`));
+    await POST(requestFor(`?token_hash=${TOKEN}&type=recovery`));
 
     expect(verifyOtp).toHaveBeenCalledExactlyOnceWith({
       type: "recovery",
@@ -75,7 +85,7 @@ describe("a well-formed recovery link is exchanged", () => {
   });
 
   it("lands on the reset page with the token gone from the URL", async () => {
-    const response = await GET(requestFor(`?token_hash=${TOKEN}&type=recovery`));
+    const response = await POST(requestFor(`?token_hash=${TOKEN}&type=recovery`));
     const location = new URL(locationOf(response));
 
     expect(response.status).toBe(303);
@@ -89,7 +99,7 @@ describe("the redirect goes to the host the person is on, not the container's ow
   it("sends a proxied request to the configured application origin", async () => {
     // The defect, as an assertion. Removing the fix from `route.ts` fails
     // exactly here, with `http://0.0.0.0:8080/reset-password`.
-    const response = await GET(requestFor(`?token_hash=${TOKEN}&type=recovery`));
+    const response = await POST(requestFor(`?token_hash=${TOKEN}&type=recovery`));
 
     expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/reset-password`);
     expect(locationOf(response)).not.toContain("0.0.0.0");
@@ -99,7 +109,7 @@ describe("the redirect goes to the host the person is on, not the container's ow
     // A `Host` header is whatever the caller wrote, and `APP_BASE_URL` outranks
     // it. This is the property the fix must not have traded away for a working
     // redirect.
-    const response = await GET(
+    const response = await POST(
       requestFor(`?token_hash=${TOKEN}&type=recovery`, "https://evil.example"),
     );
 
@@ -109,7 +119,7 @@ describe("the redirect goes to the host the person is on, not the container's ow
   it("works on a developer machine with nothing configured", async () => {
     vi.stubEnv("APP_BASE_URL", "");
 
-    const response = await GET(
+    const response = await POST(
       requestFor(`?token_hash=${TOKEN}&type=recovery`, "http://localhost:3010"),
     );
 
@@ -123,7 +133,7 @@ describe("the redirect goes to the host the person is on, not the container's ow
     // against the URL it actually asked for.
     vi.stubEnv("APP_BASE_URL", "");
 
-    const response = await GET(
+    const response = await POST(
       requestFor(`?token_hash=${TOKEN}&type=recovery`, "https://evil.example"),
     );
 
@@ -145,7 +155,7 @@ describe("anything else is refused before the auth server is contacted", () => {
     ["an upper-case token", `?token_hash=${TOKEN.toUpperCase()}&type=recovery`],
     ["an injected token", "?token_hash=abc'+or+'1'%3D'1&type=recovery"],
   ])("refuses %s", async (_why, query) => {
-    const response = await GET(requestFor(query));
+    const response = await POST(requestFor(query));
 
     expect(verifyOtp).not.toHaveBeenCalled();
     expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/reset-password`);
@@ -162,7 +172,7 @@ describe("a rejected exchange is indistinguishable from a successful one, here",
       error: { message: "Email link is invalid or has expired" },
     });
 
-    const response = await GET(requestFor(`?token_hash=${TOKEN}&type=recovery`));
+    const response = await POST(requestFor(`?token_hash=${TOKEN}&type=recovery`));
     const location = new URL(locationOf(response));
 
     expect(location.origin).toBe(PUBLIC_ORIGIN);
@@ -181,16 +191,47 @@ describe("the response keeps no trace and invites none", () => {
     // `Referrer-Policy` is the one that matters most: the token is in *this*
     // request's URL, so without it the address of the next outbound request
     // would carry the token to a third party's access log.
-    const response = await GET(requestFor(`?token_hash=${TOKEN}&type=recovery`));
+    const response = await POST(requestFor(`?token_hash=${TOKEN}&type=recovery`));
 
     expect(response.headers.get(header)).toMatch(expected);
   });
 
   it("puts the token in no header at all, on any origin", async () => {
     for (const origin of [CONTAINER_ORIGIN, "http://localhost:3010", "https://evil.example"]) {
-      const response = await GET(requestFor(`?token_hash=${TOKEN}&type=recovery`, origin));
+      const response = await POST(requestFor(`?token_hash=${TOKEN}&type=recovery`, origin));
 
       for (const [, value] of response.headers) expect(value).not.toContain(TOKEN);
     }
+  });
+});
+
+describe("the exchange is the button's POST and nothing else — LAN-441", () => {
+  it("exports no GET, so a link scanner's pre-open cannot reach verifyOtp", () => {
+    expect("GET" in route).toBe(false);
+  });
+
+  it("ignores a token in the request URL; only the form body counts", async () => {
+    const response = await POST(
+      new NextRequest(
+        new URL(`/auth/recovery/exchange?token_hash=${TOKEN}&type=recovery`, CONTAINER_ORIGIN),
+        { method: "POST" },
+      ),
+    );
+
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/reset-password`);
+  });
+
+  it("treats a body that is not a form as no token at all", async () => {
+    const response = await POST(
+      new NextRequest(new URL("/auth/recovery/exchange", CONTAINER_ORIGIN), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token_hash: TOKEN, type: "recovery" }),
+      }),
+    );
+
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(locationOf(response)).toBe(`${PUBLIC_ORIGIN}/reset-password`);
   });
 });

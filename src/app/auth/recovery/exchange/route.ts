@@ -8,12 +8,21 @@ import {
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * The one-time exchange the recovery email lands on — LAN-125, LAN-141.
+ * The one-time exchange behind the recovery email's button — LAN-125, LAN-141,
+ * LAN-441.
+ *
+ * ## POST only, since LAN-441
+ *
+ * The emailed link lands on `/auth/recovery`, a page that renders one button
+ * and exchanges nothing; this handler is that button's form target. An email
+ * security scanner that pre-opens links would otherwise spend the one-time
+ * token before the person clicks. A GET here is answered 405 by Next, because
+ * no `GET` is exported.
  *
  * ## Why this route exists at all
  *
  * `verifyOtp` writes the session cookies, and a Server Component cannot write
- * cookies. So the emailed link enters here, a Route Handler, which performs the
+ * cookies. So the button posts here, a Route Handler, which performs the
  * exchange and then redirects to `/reset-password` — with the token gone from
  * the address bar, out of the browser's history entry for the page that shows a
  * password field, and out of any `Referer` a later request might carry.
@@ -42,9 +51,12 @@ import { createClient } from "@/lib/supabase/server";
  * `tests/auth-recovery-flow.test.ts` — but there is no reason to hand a
  * hostile query string to the auth server to find out.
  */
-export async function GET(request: NextRequest) {
-  const tokenHash = request.nextUrl.searchParams.get("token_hash");
-  const type = request.nextUrl.searchParams.get("type");
+export async function POST(request: NextRequest) {
+  // The form body, never the query string. A body that is not a form — or no
+  // body at all — reads as no token and gets the generic invalid-link screen.
+  const form = await request.formData().catch(() => null);
+  const tokenHash = stringOrNull(form?.get("token_hash"));
+  const type = stringOrNull(form?.get("type"));
 
   if (type === RECOVERY_LINK_TYPE && isPlausibleRecoveryTokenHash(tokenHash)) {
     const supabase = await createClient();
@@ -79,11 +91,15 @@ export async function GET(request: NextRequest) {
 
   // The redirect itself must not be cached or attributed. `src/proxy.ts` sets
   // the same three on every recovery path; a Route Handler's own response is
-  // the one place worth being explicit, because this is the response that still
-  // has the token in its request URL.
+  // the one place worth being explicit, because this is the response to the
+  // request that carries the token.
   response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   response.headers.set("Referrer-Policy", "no-referrer");
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
 
   return response;
+}
+
+function stringOrNull(value: FormDataEntryValue | null | undefined): string | null {
+  return typeof value === "string" ? value : null;
 }

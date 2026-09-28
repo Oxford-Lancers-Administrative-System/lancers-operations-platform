@@ -51,8 +51,22 @@ import {
   resolveRecoveryOrigin,
 } from "./recovery";
 
-/** The internal route the emailed invitation link enters through. */
+/**
+ * The page the emailed invitation link enters through. A GET renders one
+ * button and exchanges nothing — LAN-441: an email security scanner that
+ * pre-opens links spent invitation tokens before the invitee clicked.
+ */
 export const INVITATION_CALLBACK_PATH = "/auth/invitation";
+
+/**
+ * The Route Handler that exchanges the invitation token — LAN-441. POST only,
+ * reached by the button on `INVITATION_CALLBACK_PATH` and under it, so
+ * `src/proxy.ts` gives it the same headers.
+ */
+export const INVITATION_EXCHANGE_PATH = `${INVITATION_CALLBACK_PATH}/exchange`;
+
+/** The button on `INVITATION_CALLBACK_PATH`. */
+export const INVITATION_CONFIRM_LABEL = "Set up your account";
 
 /** `type` on the emailed link. Anything else is refused without a round trip. */
 export const INVITATION_LINK_TYPE = "invite";

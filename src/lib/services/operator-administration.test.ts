@@ -53,7 +53,7 @@ import { readHolderHistory, readOperatorAuditHistory } from "./administration-au
 import {
   ALREADY_ENDED_RULE,
   ALREADY_HOLDS_ROLE_RULE,
-  assignRole,
+  assignRole as assignRoleService,
   BACKDATING_REASON_RULE,
   deactivateOperatorAccess,
   DEACTIVATION_REASON_RULE,
@@ -69,14 +69,24 @@ import {
   REHOME_NOT_AVAILABLE_RULE,
   REHOME_REASON_RULE,
   REHOME_SAME_ADDRESS_RULE,
-  replaceRoleHolder,
+  replaceRoleHolder as replaceRoleHolderService,
   restoreOperatorAccess,
   startOperatorEmailRehome,
   UNKNOWN_ROLE_RULE,
   verifyOperatorEmailRehome,
+  ALREADY_HAS_ACCOUNT_RULE,
+  inviteSeatHolder,
+  NO_SEAT_HELD_RULE,
+  SEAT_LOGIN_EMAIL_REQUIRED_RULE,
+  type AssignRoleParams,
   type OperatorEmailRecoveryPort,
+  type ReplaceRoleHolderParams,
 } from "./operator-administration";
-import { supabaseOperatorIdentity } from "./operator-identity";
+import {
+  InvitationDeliveryFailure,
+  supabaseOperatorIdentity,
+  type OperatorIdentityPort,
+} from "./operator-identity";
 import {
   insertRoleAssignmentIn,
   readAdministrationSubject,
@@ -217,6 +227,58 @@ async function giveOperatorAccount(
   );
 
   return { id: result.rows[0].id, authUserId, email };
+}
+
+/** Where a seat's invitation link points — LAN-434. The real invitation callback. */
+const SEAT_CALLBACK = "http://localhost:3000/auth/invitation";
+
+/** Every invitation a seat change sent, in order — LAN-434. Never delivered. */
+const seatSends: { email: string; redirectTo: string }[] = [];
+
+/**
+ * The Auth port a seat change uses — LAN-434. Real logins (the address is
+ * unique against `auth.users` too, and cleanup deletes them), a recorded send
+ * that can be made to fail.
+ */
+function seatPort(options: { fail?: boolean } = {}): OperatorIdentityPort {
+  const real = supabaseOperatorIdentity();
+  return {
+    async createLogin(email) {
+      const created = await real.createLogin(email);
+      authUsers.add(created.authUserId);
+      return created;
+    },
+    async sendInvitation(email, redirectTo) {
+      seatSends.push({ email, redirectTo });
+      if (options.fail) throw new InvitationDeliveryFailure("The mail transport refused it.");
+    },
+    changeLoginEmail: (authUserId, email) => real.changeLoginEmail(authUserId, email),
+    deleteLogin: (authUserId) => real.deleteLogin(authUserId),
+  };
+}
+
+/**
+ * Since LAN-434 a seat holder is always an operator, so assigning to a person
+ * with no account opens one. Every older test here seats people with no
+ * account and no recorded email; this supplies the Login email and the Auth
+ * port those submits now need, and leaves every other argument to the test.
+ */
+function assignRole(params: AssignRoleParams) {
+  return assignRoleService({
+    callbackUrl: SEAT_CALLBACK,
+    identity: seatPort(),
+    loginEmail: uniqueAddress("seat"),
+    ...params,
+  });
+}
+
+function replaceRoleHolder(params: ReplaceRoleHolderParams) {
+  return replaceRoleHolderService({
+    callbackUrl: SEAT_CALLBACK,
+    identity: seatPort(),
+    loginEmail: uniqueAddress("seat"),
+    ...params,
+  });
 }
 
 function futureDate(days: number): string {
@@ -529,7 +591,11 @@ describe("A — assigning a role", () => {
     expect(row?.committee_year_id).toBe(activeCommitteeYearId);
     expect(row?.season_id).toBeNull();
     expect(row?.effective_to).toBeNull();
-    expect(await auditActions(personId)).toEqual(["administration.role.assigned"]);
+    // LAN-434: they had no operator account, so the same submit opened one.
+    expect(await auditActions(personId)).toEqual([
+      "administration.operator.invited",
+      "administration.role.assigned",
+    ]);
   });
 
   /**
@@ -574,7 +640,10 @@ describe("A — assigning a role", () => {
       });
 
       expect(result.effectiveFrom).toBe(today);
-      expect(await auditActions(personId)).toEqual(["administration.role.assigned"]);
+      expect(await auditActions(personId)).toEqual([
+        "administration.operator.invited",
+        "administration.role.assigned",
+      ]);
 
       // Nothing was declared for them, because there was no season to declare
       // anything in — and nothing was refused either.
@@ -1164,7 +1233,8 @@ describe("A/B — the guard, on every write", () => {
       const source = operatorAdministrationSource();
       const callSites = source.split("readAdministrationSubject(tx").slice(1);
 
-      expect(callSites.length, "every write here reads the target's seats").toBe(8);
+      // Nine since LAN-434: Send invitation on a holder line (`seat-account.ts`).
+      expect(callSites.length, "every write here reads the target's seats").toBe(9);
       for (const site of callSites) {
         expect(site.slice(0, 200)).toMatch(/includeScheduled:\s*true/);
       }
@@ -1576,6 +1646,9 @@ describe("C — replacing the holder of a role", () => {
   it("writes two correlated events and no third one", async () => {
     const outgoing = await insertPerson("replace-events-outgoing");
     const successor = await insertPerson("replace-events-successor");
+    // An operator already, so this is the handover alone; LAN-434's third
+    // event, for a successor with no account, is asserted under "L".
+    await giveOperatorAccount(successor);
     const assignmentId = await giveRole(outgoing, "social_secretary", { from: pastDate(5) });
 
     const result = await replaceRoleHolder({
@@ -2474,3 +2547,317 @@ async function roleId(code: string): Promise<string> {
   );
   return result.rows[0].id;
 }
+
+// ---------------------------------------------------------------------------
+// L — a seat holder is always an operator (LAN-434)
+// ---------------------------------------------------------------------------
+
+describe("L — a seat holder is always an operator (LAN-434)", () => {
+  async function accountsOf(personId: string) {
+    const result = await observer.query<{
+      id: string;
+      login_email: string;
+      is_active: boolean;
+      activated_at: Date | null;
+      invitation_delivery_failed_at: Date | null;
+    }>(
+      `select id, login_email, is_active, activated_at, invitation_delivery_failed_at
+         from public.operator_accounts where person_id = $1`,
+      [personId],
+    );
+    return result.rows;
+  }
+
+  async function giveRecordedEmail(personId: string, email: string): Promise<void> {
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1, 'email', $2, true, 'fixture')`,
+      [personId, email],
+    );
+  }
+
+  async function administrationEvents(personId: string) {
+    const result = await observer.query<{
+      action: string;
+      actor_person_id: string;
+      correlation_id: string | null;
+    }>(
+      `select action, actor_person_id,
+              context -> 'administration' ->> 'correlationId' as correlation_id
+         from public.audit_events
+        where context -> 'administration' ->> 'targetPersonId' = $1
+        order by action`,
+      [personId],
+    );
+    return result.rows;
+  }
+
+  it("assigning a person with no account creates the pending account and sends the invitation", async () => {
+    const personId = await insertPerson("seat-assign-new");
+    const email = uniqueAddress("seat-assign-new");
+    await giveRecordedEmail(personId, email);
+    const before = seatSends.length;
+
+    const result = await assignRoleService({
+      operator: administrator(),
+      personId,
+      roleCode: "kit_manager",
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+
+    const [account] = await accountsOf(personId);
+    expect(account.login_email).toBe(email);
+    expect(account.is_active).toBe(true);
+    expect(account.activated_at).toBeNull();
+    expect(result.invitation).toMatchObject({
+      operatorAccountId: account.id,
+      loginEmail: email,
+      delivered: true,
+    });
+    expect(seatSends.slice(before)).toEqual([{ email, redirectTo: SEAT_CALLBACK }]);
+
+    // Both audited, attributed to the seating operator, one correlation.
+    const events = await administrationEvents(personId);
+    expect(events.map((event) => event.action)).toEqual([
+      "administration.operator.invited",
+      "administration.role.assigned",
+    ]);
+    expect(new Set(events.map((event) => event.actor_person_id))).toEqual(new Set([actorPersonId]));
+    expect(events[0].correlation_id).not.toBeNull();
+    expect(events[0].correlation_id).toBe(events[1].correlation_id);
+  });
+
+  it("uses the recorded email, never a different one the form sent", async () => {
+    const personId = await insertPerson("seat-assign-recorded");
+    const recorded = uniqueAddress("seat-recorded");
+    await giveRecordedEmail(personId, recorded);
+
+    await assignRoleService({
+      operator: administrator(),
+      personId,
+      roleCode: "kit_manager",
+      loginEmail: uniqueAddress("seat-typed"),
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+
+    expect((await accountsOf(personId))[0].login_email).toBe(recorded);
+  });
+
+  it("refuses, naming the field, when there is no recorded email and none was given", async () => {
+    const personId = await insertPerson("seat-assign-no-email");
+    const created: string[] = [];
+    const port = seatPort();
+    const watched: OperatorIdentityPort = {
+      ...port,
+      async createLogin(email) {
+        created.push(email);
+        return port.createLogin(email);
+      },
+    };
+
+    const failure = assignRoleService({
+      operator: administrator(),
+      personId,
+      roleCode: "kit_manager",
+      callbackUrl: SEAT_CALLBACK,
+      identity: watched,
+    });
+
+    expect(await refusalOf(failure)).toMatchObject({ rule: SEAT_LOGIN_EMAIL_REQUIRED_RULE });
+    expect(
+      await messageOf(
+        assignRoleService({
+          operator: administrator(),
+          personId,
+          roleCode: "kit_manager",
+          callbackUrl: SEAT_CALLBACK,
+          identity: watched,
+        }),
+      ),
+    ).toContain("Login email");
+    expect(created).toEqual([]);
+    expect(await accountsOf(personId)).toEqual([]);
+    const seats = await observer.query(
+      "select 1 from public.role_assignments where person_id = $1",
+      [personId],
+    );
+    expect(seats.rowCount).toBe(0);
+  });
+
+  it("creates no account for a person who already has one, and sends nothing", async () => {
+    const personId = await insertPerson("seat-assign-existing");
+    await giveOperatorAccount(personId);
+    const before = seatSends.length;
+
+    const result = await assignRoleService({
+      operator: administrator(),
+      personId,
+      roleCode: "kit_manager",
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+
+    expect(result.invitation).toBeNull();
+    expect(await accountsOf(personId)).toHaveLength(1);
+    expect(seatSends.length).toBe(before);
+    expect(await auditActions(personId)).toEqual(["administration.role.assigned"]);
+  });
+
+  it("leaves a deactivated account deactivated", async () => {
+    const personId = await insertPerson("seat-assign-deactivated");
+    const account = await giveOperatorAccount(personId, { active: false });
+
+    const result = await assignRoleService({
+      operator: administrator(),
+      personId,
+      roleCode: "kit_manager",
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+
+    expect(result.invitation).toBeNull();
+    const rows = await accountsOf(personId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(account.id);
+    expect(rows[0].is_active).toBe(false);
+  });
+
+  it("keeps the seat and the account when the send fails, as Invite operator does", async () => {
+    const personId = await insertPerson("seat-assign-send-fails");
+
+    const result = await assignRoleService({
+      operator: administrator(),
+      personId,
+      roleCode: "kit_manager",
+      loginEmail: uniqueAddress("seat-fails"),
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort({ fail: true }),
+    });
+
+    expect(result.invitation?.delivered).toBe(false);
+    expect((await assignmentRow(result.roleAssignmentId))?.effective_to).toBeNull();
+    expect((await accountsOf(personId))[0].invitation_delivery_failed_at).not.toBeNull();
+    expect(await auditActions(personId)).toContain(
+      "administration.operator.invitation_delivery_failed",
+    );
+  });
+
+  it("replacing with a successor who has no account opens theirs in the same handover", async () => {
+    const outgoing = await insertPerson("seat-replace-outgoing");
+    const successor = await insertPerson("seat-replace-successor");
+    const email = uniqueAddress("seat-replace");
+    await giveRecordedEmail(successor, email);
+    const assignmentId = await giveRole(outgoing, "social_secretary", { from: pastDate(5) });
+
+    const result = await replaceRoleHolderService({
+      operator: administrator(),
+      roleAssignmentId: assignmentId,
+      successorPersonId: successor,
+      reason: "Handing the social secretary over.",
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+
+    expect(result.invitation?.loginEmail).toBe(email);
+    expect((await accountsOf(successor))[0].login_email).toBe(email);
+    expect((await assignmentRow(assignmentId))?.effective_to).toBe(today);
+
+    const events = await observer.query<{ action: string }>(
+      `select action from public.audit_events
+        where context -> 'administration' ->> 'correlationId' = $1 order by action`,
+      [result.correlationId],
+    );
+    expect(events.rows.map((row) => row.action)).toEqual([
+      "administration.operator.invited",
+      "administration.role.assigned",
+      "administration.role.ended",
+    ]);
+  });
+
+  it("replacing with a successor who has an account creates none", async () => {
+    const outgoing = await insertPerson("seat-replace-outgoing-2");
+    const successor = await insertPerson("seat-replace-successor-2");
+    await giveOperatorAccount(successor);
+    const assignmentId = await giveRole(outgoing, "social_secretary", { from: pastDate(5) });
+
+    const result = await replaceRoleHolderService({
+      operator: administrator(),
+      roleAssignmentId: assignmentId,
+      successorPersonId: successor,
+      reason: "Handing the social secretary over.",
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+
+    expect(result.invitation).toBeNull();
+    expect(await accountsOf(successor)).toHaveLength(1);
+  });
+
+  it("Send invitation opens the account of a holder seated without one, once", async () => {
+    const personId = await insertPerson("seat-holder-invite");
+    await giveRole(personId, "offence_coach");
+    const email = uniqueAddress("seat-holder");
+
+    const outcome = await inviteSeatHolder({
+      operator: administrator(),
+      personId,
+      loginEmail: email,
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+
+    expect(outcome).toMatchObject({ loginEmail: email, delivered: true });
+    expect((await accountsOf(personId))[0].id).toBe(outcome.operatorAccountId);
+    const events = await administrationEvents(personId);
+    expect(events.map((event) => event.action)).toEqual(["administration.operator.invited"]);
+    expect(events[0].actor_person_id).toBe(actorPersonId);
+
+    expect(
+      await refusalOf(
+        inviteSeatHolder({
+          operator: administrator(),
+          personId,
+          loginEmail: uniqueAddress("seat-holder-again"),
+          callbackUrl: SEAT_CALLBACK,
+          identity: seatPort(),
+        }),
+      ),
+    ).toMatchObject({ rule: ALREADY_HAS_ACCOUNT_RULE });
+  });
+
+  it("Send invitation refuses a person who holds no seat", async () => {
+    const personId = await insertPerson("seat-holder-none");
+
+    expect(
+      await refusalOf(
+        inviteSeatHolder({
+          operator: administrator(),
+          personId,
+          loginEmail: uniqueAddress("seat-none"),
+          callbackUrl: SEAT_CALLBACK,
+          identity: seatPort(),
+        }),
+      ),
+    ).toMatchObject({ rule: NO_SEAT_HELD_RULE });
+    expect(await accountsOf(personId)).toEqual([]);
+  });
+
+  it("Send invitation is refused to a seat that holds no administration capability", async () => {
+    const personId = await insertPerson("seat-holder-refused");
+    await giveRole(personId, "offence_coach");
+
+    expect(
+      await refusalOf(
+        inviteSeatHolder({
+          operator: secretary(),
+          personId,
+          loginEmail: uniqueAddress("seat-refused"),
+          callbackUrl: SEAT_CALLBACK,
+          identity: seatPort(),
+        }),
+      ),
+    ).toMatchObject({ kind: "not_permitted" });
+  });
+});

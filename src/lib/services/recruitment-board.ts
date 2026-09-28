@@ -36,6 +36,9 @@ export interface RecruitmentBoardRow {
   readonly prospectId: string;
   readonly personId: string;
   readonly displayName: string;
+  /** LAN-426: the two halves of the name, for the phone board's first- and last-name sorts. */
+  readonly givenName: string;
+  readonly familyName: string | null;
   readonly aliases: readonly string[];
 
   // Person — read-only here; corrected on the person record.
@@ -291,6 +294,8 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
       prospectId: prospect.prospect_id,
       personId: prospect.person_id,
       displayName,
+      givenName: prospect.given_name,
+      familyName: prospect.family_name,
       aliases: aliasesByPerson.get(prospect.person_id) ?? [],
       college: person?.college ?? null,
       matriculationYear: person?.matriculation_year ?? null,

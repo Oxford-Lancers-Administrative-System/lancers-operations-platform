@@ -4,6 +4,8 @@ import { configure } from "@testing-library/dom";
 import { afterAll } from "vitest";
 import pg from "pg";
 
+import { setLightsOutClockForTesting } from "./src/lib/services/messaging-schedule/lights-out";
+
 /**
  * Role queries skip the accessibility-tree walk that decides whether each
  * candidate is hidden (LAN-436). That walk calls `getComputedStyle` up every
@@ -125,3 +127,11 @@ if (!isDatabaseProject) {
     globalThis.fetch = originalFetch;
   });
 }
+
+/**
+ * LAN-433. Lights-out holds automated messages from 22:00 to 07:00 club time,
+ * and every suite that dispatches a message would otherwise pass or fail by
+ * the hour CI happened to run it. The lights-out clock is pinned to midday
+ * here; the suites that test the window set their own instants.
+ */
+setLightsOutClockForTesting(() => new Date("2026-06-15T11:00:00Z"));

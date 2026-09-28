@@ -128,6 +128,7 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
         audience={context.audience}
         unsentMessages={context.unsentMessages}
         isFuture={context.isFuture}
+        today={context.today}
         initialQuestions={initialQuestions}
         eventTypeLabel={event.templateName}
         eventType={event.eventType}

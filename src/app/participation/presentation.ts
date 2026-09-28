@@ -29,6 +29,9 @@ export { formatTermAndWeek } from "../operate/events/presentation";
 /** `invitation_capacity`, in the club's words — re-exported, not a second copy (same defect shape as `formatTermAndWeek` above). */
 export { CAPACITY_LABELS };
 
+/** LAN-440: the capacities the filter offers — the ones a row can read as, committee folded into Player. */
+export const FILTER_CAPACITIES: readonly string[] = Object.freeze(["recruit", "player", "coach"]);
+
 // The table
 
 export const TABLE_HEADINGS = Object.freeze({
@@ -49,7 +52,9 @@ export const WALK_UP_LABEL = "Walk-up";
 
 export function capacityLabel(person: ParticipationPerson): string {
   if (person.isWalkUp) return WALK_UP_LABEL;
-  return CAPACITY_LABELS[person.capacity] ?? person.capacity;
+  // LAN-440 (Brian, 2026-09-26): a committee-only invitee reads as a player. Display only.
+  const shown = person.capacity === "committee" ? "player" : person.capacity;
+  return CAPACITY_LABELS[shown] ?? shown;
 }
 
 export const ANSWER_YES = "Yes";

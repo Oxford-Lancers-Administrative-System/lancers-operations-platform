@@ -139,8 +139,11 @@ Brian, 2026-09-25, after the Freshers' Fair: people typed a name and a number,
 walked off, and nothing was recorded. The QR door now saves what it has.
 
 Nothing on the screen changes. Sign me up is gated exactly as above, and the
-visitor is never told a partial was saved. Underneath, once first name and last
-name are both present, the page creates the record; every later change is
+visitor is never told a partial was saved. Underneath, once first name, last
+name and a confirmed mobile of at least seven digits are all present (LAN-428,
+Brian 2026-09-26, after the Saïd fair — a name alone is nobody to follow up;
+before LAN-428 the two names were enough), the page creates the record; every
+later change is
 patched after a five-second pause with everything typed so far, one write in
 flight at a time, so a slow patch cannot overwrite a faster later one and a
 dropped one is healed by the next. Latest wins, raw as typed: a malformed

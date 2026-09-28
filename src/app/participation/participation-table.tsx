@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import { StatusChip } from "@/components/status-chip";
 import { Section } from "@/components/section";
-import { Fact, FactGrid } from "@/components/fact";
+import { Fact, FactGrid, NotRecorded } from "@/components/fact";
 import { EmptyState } from "@/components/empty-state";
 import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
 import { SortableHeader, TableFrame } from "@/components/sortable-header";
@@ -12,10 +12,13 @@ import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
+import type { ReactNode } from "react";
 
 import type { AttendancePresence } from "@/lib/services/attendance-vocabulary";
 import {
+  answerGroupOf,
   applyParticipationView,
+  groupByAnswer as groupedByAnswer,
   participationSortHref,
   participationSortState,
   type EventFactsBase,
@@ -259,6 +262,28 @@ function SortableHeading({
   );
 }
 
+/**
+ * One label and its value, side by side — LAN-439's phone row. The label sits
+ * directly before the value (R157C-B5), in the caption size, so several facts
+ * share a line and wrap only when the phone runs out of width.
+ */
+function InlineFact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Box
+      sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}
+      data-testid="fact"
+      data-label={label}
+    >
+      <Typography component="dt" variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Box component="dd" sx={{ m: 0, minWidth: 0 }}>
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
 function questionAnswer(person: ParticipationPerson, question: ParticipationQuestion): string {
   return person.answers[question.id] ?? NOTHING;
 }
@@ -268,6 +293,8 @@ export function ParticipationTable({
   participation,
   filters,
   mayRecordAnswer = true,
+  groupByAnswer = false,
+  dense = false,
 }: {
   /** Where the sort links point — `/operate/events/<id>` or `/e/<token>`. */
   basePath: string;
@@ -275,11 +302,16 @@ export function ParticipationTable({
   filters: ParticipationFilters;
   /** LAN-431: Manage on the event's template. Under View the Answer cell reads as the answer. */
   mayRecordAnswer?: boolean;
+  /** LAN-439: the event page reads Yes, then No, then No response, at every width. */
+  groupByAnswer?: boolean;
+  /** LAN-439: compact phone rows — every fact kept, several to a line. */
+  dense?: boolean;
 }) {
   const operator = participation.tier === "operator";
   const recording = operator && mayRecordAnswer;
   const { questions } = participation;
-  const people = applyParticipationView(participation.people, filters, questions);
+  const sorted = applyParticipationView(participation.people, filters, questions);
+  const people = groupByAnswer ? groupedByAnswer(sorted) : sorted;
   const total = participation.people.length;
   // `EventFactsBase`: LAN-170's recording dialog needs the event's identity (OWNER-LAN170-09), otherwise unread here.
   const event = participation.event;
@@ -297,10 +329,16 @@ export function ParticipationTable({
           <EmptyState title={NO_MATCHING_PEOPLE} testId="participation-no-matches" />
         ) : (
           <>
-            <RowCardList>
+            <RowCardList dense={dense}>
               {people.map((person) => (
-                <Box key={person.key} data-testid="participation-card" data-person={person.key}>
+                <Box
+                  key={person.key}
+                  data-testid="participation-card"
+                  data-person={person.key}
+                  data-answer-group={answerGroupOf(person)}
+                >
                   <RowCard
+                    dense={dense}
                     title={
                       <>
                         {person.displayName}
@@ -309,46 +347,109 @@ export function ParticipationTable({
                     }
                     trailing={capacityLabel(person)}
                     sublines={[
-                      <FactGrid key="facts">
-                        <Fact
-                          label={TABLE_HEADINGS.answer}
-                          value={
+                      dense ? (
+                        <Box
+                          key="facts"
+                          component="dl"
+                          sx={{
+                            m: 0,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            columnGap: 1.5,
+                            rowGap: 0.25,
+                          }}
+                        >
+                          <InlineFact label={TABLE_HEADINGS.answer}>
                             <AnswerCell
                               operator={recording}
                               event={event}
                               person={person}
                               questions={questions}
                             />
-                          }
-                        />
-                        <Fact
-                          label={TABLE_HEADINGS.attendance}
-                          value={<AttendanceChip presence={person.presence} />}
-                        />
-                        {operator ? (
-                          <Fact
-                            label={TABLE_HEADINGS.delivery}
-                            value={
+                          </InlineFact>
+                          <InlineFact label={TABLE_HEADINGS.attendance}>
+                            <AttendanceChip presence={person.presence} />
+                          </InlineFact>
+                          {operator ? (
+                            <InlineFact label={TABLE_HEADINGS.delivery}>
                               <DeliveryCell
                                 person={person as OperatorParticipationPerson}
                                 isWalkUp={person.isWalkUp}
                               />
+                            </InlineFact>
+                          ) : null}
+                          <InlineFact label={TABLE_HEADINGS.invited}>
+                            <Typography variant="body2" component="span">
+                              {formatWhen(person.invitedAt)}
+                            </Typography>
+                          </InlineFact>
+                          {person.reason ? (
+                            <InlineFact label={TABLE_HEADINGS.reason}>
+                              <Typography variant="body2" component="span">
+                                {person.reason}
+                              </Typography>
+                            </InlineFact>
+                          ) : null}
+                          {questions.map((question) => (
+                            <Box key={question.id} data-question={question.id} sx={{ minWidth: 0 }}>
+                              <InlineFact label={question.prompt}>
+                                {person.answers[question.id] ? (
+                                  <Typography variant="body2" component="span">
+                                    {person.answers[question.id]}
+                                  </Typography>
+                                ) : (
+                                  <NotRecorded />
+                                )}
+                              </InlineFact>
+                            </Box>
+                          ))}
+                        </Box>
+                      ) : (
+                        <FactGrid key="facts">
+                          <Fact
+                            label={TABLE_HEADINGS.answer}
+                            value={
+                              <AnswerCell
+                                operator={recording}
+                                event={event}
+                                person={person}
+                                questions={questions}
+                              />
                             }
                           />
-                        ) : null}
-                        <Fact label={TABLE_HEADINGS.invited} value={formatWhen(person.invitedAt)} />
-                        {person.reason ? (
-                          <Fact label={TABLE_HEADINGS.reason} value={person.reason} />
-                        ) : null}
-                        {questions.map((question) => (
-                          <Box key={question.id} data-question={question.id}>
+                          <Fact
+                            label={TABLE_HEADINGS.attendance}
+                            value={<AttendanceChip presence={person.presence} />}
+                          />
+                          {operator ? (
                             <Fact
-                              label={question.prompt}
-                              value={person.answers[question.id] ?? null}
+                              label={TABLE_HEADINGS.delivery}
+                              value={
+                                <DeliveryCell
+                                  person={person as OperatorParticipationPerson}
+                                  isWalkUp={person.isWalkUp}
+                                />
+                              }
                             />
-                          </Box>
-                        ))}
-                      </FactGrid>,
+                          ) : null}
+                          <Fact
+                            label={TABLE_HEADINGS.invited}
+                            value={formatWhen(person.invitedAt)}
+                          />
+                          {person.reason ? (
+                            <Fact label={TABLE_HEADINGS.reason} value={person.reason} />
+                          ) : null}
+                          {questions.map((question) => (
+                            <Box key={question.id} data-question={question.id}>
+                              <Fact
+                                label={question.prompt}
+                                value={person.answers[question.id] ?? null}
+                              />
+                            </Box>
+                          ))}
+                        </FactGrid>
+                      ),
                     ]}
                   />
                 </Box>
@@ -422,6 +523,7 @@ export function ParticipationTable({
                         key={person.key}
                         data-testid="participation-row"
                         data-person={person.key}
+                        data-answer-group={answerGroupOf(person)}
                       >
                         <TableCell>
                           <Typography variant="body2" component="span" sx={{ fontWeight: 700 }}>

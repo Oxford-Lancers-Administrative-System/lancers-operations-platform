@@ -291,7 +291,8 @@ export function describePlanStepCount(steps: number): string {
 
 export const PLAN_COMMITS_ON_APPROVAL = "Approval commits this plan.";
 export const PLAN_FROZEN_AT_APPROVAL = "Frozen at approval.";
-export const PLAN_NO_QUIET_HOURS = "No quiet-hours adjustment.";
+/** LAN-433. The plan's times are unmoved; lights-out holds the send itself. */
+export const PLAN_LIGHTS_OUT = "Automated sends wait 22:00–07:00.";
 export const PLAN_RECOVERY_NOTE =
   "Failed sends retry automatically. Remaining errors appear in Delivery.";
 

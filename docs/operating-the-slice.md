@@ -123,6 +123,15 @@ grants and capabilities every page gates on (see "Who sees what" below), so it
 never offers a page that then refuses. Bottom left it says who you are signed
 in as and "Authorized operator".
 
+**Emailed links wait for a press (LAN-441).** An invitation or password-reset
+email's link opens a page with one button — **Set up your account** or **Reset
+your password** — and spends nothing on opening, so an email security scanner
+that pre-opens links leaves it usable. The press exchanges the one-time token
+and lands on **Choose a new password**. An expired, spent, wrong-type or
+malformed invitation lands on **This invitation link cannot be used**; a reset
+link in the same state on **This reset link cannot be used**. Nothing in the
+address says why.
+
 **Who sees what (LAN-429, LAN-430).** Access is edited on a seat's page
 (Administration → Roles → a seat) by the President, General Manager and IT
 Officer, whose own access is fixed. The page's **Access** section, under
@@ -155,6 +164,22 @@ schedule (LAN-431). Attendance recording is unchanged for every seat: the
 Attendance line governs only the player record's Attendance section, and the
 roster board has no attendance columns.
 
+**A seat holder is always an operator (LAN-434, Brian 2026-09-26).** On a
+seat's page (Administration → Roles → a seat, which a person record's **Assign a
+role** also opens), **Assign role** and **Replace role** say which account case
+applies once a person is chosen, before the submit. **Operator account: Created
+with this role** with **Invitation to** the person's recorded email, or a
+required **Login email** field when they have none — the application never
+invents an address. An existing account reads its state (Active, Invitation
+pending, Deactivated) with **Unchanged**, or **Stays deactivated**; it is not
+touched. The submit writes the assignment and the pending account together and
+then sends the invitation, as **Invite operator** does; both are audited to the
+seating operator, and a failed send leaves the seat and the account with
+**Delivery failed** and a Resend on the operator's record. A holder seated
+before this change reads **No operator account** on the Current holder line
+with **Send invitation**, which opens the account and sends the invitation the
+same way. Invite operator and the Operators page are unchanged.
+
 **Working the roster and recruits within the grants (LAN-432).** The roster
 board, a player's record, People, a person's record and Missing data open for
 any seat that reaches Roster; the recruitment board and a prospect's record for
@@ -183,6 +208,27 @@ re-checks its own category at Edit on the server. **Add players** appears only
 with "May add to the roster" (Bulk import also keeps `roster_bulk_import`);
 **Add recruit** and **QR code** only with "May add recruits"; their pages and
 actions refuse without it.
+
+**The sign-up code page (LAN-428, Brian 2026-09-26).** Recruitment → **QR
+code** opens with three numbers for the live code: **Visits** (times
+`/join/<code>` was opened with a `GET`; a `HEAD` or a request labelled as a
+prefetch or preview is not counted, but an unfurler's plain `GET` is),
+**Partial** (records the partial save created through it since it was minted,
+completed or not) and **Completed** (finished sign-ups on it, less the club's
+twelve test sign-ups; the stored count is unchanged). With no live code there
+are no numbers. On the public form a partial record starts once first name,
+last name and the first mobile box (seven or more digits) are typed, and it
+stores that number as typed whether or not the confirm box is filled or agrees
+(Brian's decision, 2026-09-28, replacing LAN-425's rule that withheld an
+unconfirmed mobile from a partial). A retyped number is patched onto the
+partial; **Sign me up** still requires the confirmation, and on completion the
+confirmed value is the one kept. The partial still has no consent row, so the
+welcome is the only message that can go to it. Everything else is as LAN-425
+built it. A recruit who agreed to WhatsApp messages out loud is
+recorded from their record's **Record consent** (LAN-371): the required **How
+consent was given** note says it was verbal, and the consent row keeps who
+recorded it and when, audited to that operator. It never grants anything on its
+own.
 
 The heading reads `Roster` and beneath it `Season 2026-27 · 42 players · 20
 columns`.
@@ -227,6 +273,45 @@ Onboarding → Active
 
 Two rows, not one: intake and activation are still two distinct events, but
 neither carries a reason any more.
+
+**On a phone, the Roster and Recruits boards sort from one select** (LAN-426).
+Where the boards draw cards, a **Sort** select beside **Filters** offers First
+name, Last name and Status, each A–Z or Z–A; Status sorts alphabetically by its
+label, with no ladder of its own, and is offered only where the Status column is
+shown. The choice writes the same `sort` / `dir` the desktop headings do, so it
+applies to the whole filtered set and a reload keeps it; it is also remembered
+per board in the browser, so returning to the board from the menu restores it.
+The remembered value is read only where the cards are drawn, so the desktop
+table's default order is unchanged.
+
+**A phone on its side gets the table** (LAN-427). "On its side" is judged by
+height, not width (Brian, 2026-09-28): landscape and at most 500px tall, which
+covers 667×375 through 956×440 — a modern phone sideways is 852–956px wide,
+above `md`, so the earlier width rule gave it the desktop page. The one rule is
+`SIDEWAYS_PHONE_QUERY` in `src/theme-tokens.ts`, used by the operate shell and
+both boards. On a phone on its side:
+
+- the shell shows the phone top bar and hamburger instead of the sidebar, with
+  only the phone gutter around the page; the top bar scrolls away with the page;
+- Roster and Recruits put their heading on one line — title, count and the page
+  actions (Edit categories / Add players; QR code / Add recruit);
+- the toolbar is one row, **Filters** and the phone sort, with the search box
+  and every filter select inside the Filters bottom sheet;
+- the desktop table follows directly, with every heading's sort, funnel filter
+  and editable cell working as on a desktop and the Player or Recruit column
+  pinned while it scrolls sideways by touch. It has no vertical scroll box of
+  its own: the page scrolls as a whole, so its column headings scroll away with
+  the page rather than sticking.
+
+Rotating back upright restores the cards. Desktops, tablets (upright, or on
+their side and taller than 500px) and phones upright are unchanged.
+
+Follow-ups (`/operate/admin/follow-ups`) keeps its own toolbar and scrolling
+page rather than the boards' treatment. On a phone on its side, and at any
+width below `lg` (1200px), the search box has its own full-width row and the
+Status, When and date-range filters share the row beneath it, wrapping when
+they do not fit. From `lg` up all five sit in one row; upright below `sm`
+every control has its own row.
 
 ---
 
@@ -438,8 +523,57 @@ is five days for a practice and ten for a game. So:
 Reminders then count **forward** from the invitation on a 24-hour cadence, in a
 fixed order that is not configurable: WhatsApp, WhatsApp again, email, and then
 an escalation to whoever currently holds the President's seat, twelve hours
-after the response deadline. There are **no quiet hours** — an early-morning
-event produces early-morning messages and nothing delays them.
+after the response deadline.
+
+### Lights-out, 22:00 to 07:00
+
+Nothing automated is sent from **22:00 to 07:00**, club time (Europe/London,
+whatever the recipient's own zone), on every night including the two
+clock-change nights (LAN-433, Brian 2026-09-26: "It's just not good form with
+students"). The plan's times do not move — the panel still shows the rung's real
+moment, and says **Automated sends wait 22:00–07:00.** — but a message whose
+moment falls in the window is held until 07:00. That covers everything: an
+invitation that would otherwise go the moment an event is approved, reminders,
+event and onboarding nudges, the recruitment and onboarding messages, the
+onboarding chase, a retry whose backoff lands overnight, an operator's
+**Retry**, and both escalations to the office. Held means queued: nothing is
+dropped, marked sent or spent against the attempt ceiling, and an operator
+action overnight reads **Queued — sends at 07:00** — on **Retry**, **Reissue**,
+the recruitment and onboarding **Send** buttons, the Missing-data nudge and the
+Follow-ups chase alike — rather than the sending-allowance wording, which stays
+for a daytime hold. A **Retry** on a failed delivery that is held, overnight or by
+the sending allowance in the day, puts the delivery back to **Queued**, so the
+first sweep once it is allowed sends it (LAN-442).
+
+Exactly three kinds go at any hour, because an operator pressed Send on them
+and the news cannot wait: a **cancellation notice**, a **change notice** and a
+**question change**.
+
+At 07:00 the held messages go through the ordinary sweep, under the ordinary
+pacing — a large overnight pile drains over the following ticks rather than
+arriving at once — and every dispatch-time check runs first. A reminder whose
+invitee answered in the night is withdrawn rather than sent, an onboarding chase
+for a player who finished in the night is dropped, and a rung for an event that
+has since started or been cancelled is not sent. The queue-age warning counts a
+held message from 07:00, not from its rung.
+
+To see it locally, run the ticker after 22:00 against an approved event whose
+invitation is due: nothing reaches the sink, and the invitation's job stays
+`pending` until the first tick at or after 07:00.
+
+### What the onboarding chase counts
+
+The automated onboarding chase asks a player only while **their own
+questionnaire** has something left — the same test that decides whether their
+link reads **There is nothing left to fill in** (LAN-437). That is their
+details, emergency contact and consent, the Code of Conduct and photo release
+until complete, and BUCS Play and Hudl until the player claims them. The five
+items the club completes — kit, subs invoiced, subs paid, comms groups and photo
+— never trigger a chase; they keep the player on **Missing data** exactly as
+before. The same test runs again when a declared chase is dispatched, so a
+player who finishes in between is not sent it, and a player who finished after
+their last chase is not counted in the office's "chases have run out" message.
+An operator's **Nudge** is not re-checked; it is the operator's own decision.
 
 ### Nothing advances unless something sweeps
 
@@ -690,13 +824,18 @@ Back in the operator's browser, open the event.
 
 **Expected, at the top of the page: response progress by capacity** (LAN-420,
 Stewart's "OPS EVENTS UPDATES" of 2026-09-22, change 2). One block per capacity
-present in the audience, in the order **Recruits, Players, Coaches,
-Committee** — a capacity nobody was invited under shows no block at all, so a
-practice with no recruits shows Players and Coaches only. Each block reads:
+present in the audience, in the order **Recruits, Players, Coaches** — a
+capacity nobody was invited under shows no block at all, so a practice with no
+recruits shows Players and Coaches only. **A committee-only invitee is counted
+under Players** (LAN-440, Brian, 2026-09-26), and the participation table's
+**As** column reads them as Player, and its **As** filter offers Recruit,
+Player and Coach, with Player matching them too (an old `?as=committee` link
+opens on Player), and sorting by **As** puts them among the players; the stored capacity, the audience builder,
+the invitation and Distribution still say committee. Each block reads:
 
 | Line  | What it says                                                                       |
 | ----- | ---------------------------------------------------------------------------------- |
-| Name  | Recruits, Players, Coaches or Committee                                            |
+| Name  | Recruits, Players or Coaches                                                       |
 | Value | `16 yes · 6 no / 39`, labelled **Said yes · Said no / Invited**                    |
 | Bar   | Three segments: yes, the unanswered remainder, no — widths proportional to invited |
 
@@ -722,6 +861,15 @@ the link was sent to are reading the same numbers.
 
 **Invited and Said yes are no longer tiles of their own**, because each block
 says both and their totals are the whole event's.
+
+**The audience is grouped Yes, then No, then No response** (LAN-439, client
+QA, 2026-09-26), in the desktop table and the phone rows alike. The chosen sort
+column still orders the people inside each group, and a walk-up sits with No
+response. On a phone each person is one compact row: the name and capacity on
+the first line, then Answer, Attendance, Delivery, Invitation sent, any reason
+and every question answer as labelled pairs sharing lines — every fact the
+desktop row carries, several to a line. The public **Event info link** page
+keeps its own order and card layout.
 
 **There is no Showed tile on this page at all** (Brian's visual review,
 2026-09-22): "Remove the Showed / Invited card entirely. The register panel
@@ -985,7 +1133,11 @@ questions together, and one press saves both; the separate Edit questions
 button is gone and `/operate/events/<id>/edit` forwards there. What each half
 does is unchanged — a detail change goes through the amendment path and its
 notify decision, a question change sends nothing for a wording fix and voids
-and re-asks a changed question. Adding a recipient after
+and re-asks a changed question. Since LAN-422 the page judges "future" as the
+save does — on the date before or after the edit — so moving a past event into
+the future starts the notify tick on, and turning it off asks for the same
+confirmation the save requires; a confirmed silent save queues no notices.
+Adding a recipient after
 approval, which is unavailable by design; retry and reissue act only on an
 invitation that already exists and cannot change the approved audience, and an
 amendment does not change it either.

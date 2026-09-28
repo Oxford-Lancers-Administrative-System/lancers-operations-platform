@@ -44,3 +44,18 @@ export const LAYOUT = Object.freeze({
   drawerWidth: 280,
   touchTarget: 44,
 });
+
+/**
+ * A phone on its side — LAN-427, redefined by Brian on 2026-09-28. Judged by
+ * height, not width: sideways, a modern phone is 852–956px wide, above `md`,
+ * so a width rule handed an iPhone 16 Pro Max (956×440) the desktop page and
+ * left it one row of table. Landscape and at most 500px tall covers 667×375
+ * through 956×440; a tablet on its side is taller and keeps its layout.
+ *
+ * The one definition, used by the operate shell (hamburger in place of the
+ * sidebar) and both boards (one-line heading, one toolbar row, the table).
+ */
+export const SIDEWAYS_PHONE_QUERY = "(orientation: landscape) and (max-height: 500px)";
+
+/** {@link SIDEWAYS_PHONE_QUERY} as an `sx` key. */
+export const SIDEWAYS_PHONE = `@media ${SIDEWAYS_PHONE_QUERY}`;

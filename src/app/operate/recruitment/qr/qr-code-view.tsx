@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import { Metric } from "@/components/metric";
+import { Metric, MetricRow } from "@/components/metric";
+import type { RecruitmentSignupFigures } from "@/lib/services/recruitment-signup-codes";
 import { PageHeader } from "@/components/page-header";
 import { Surface } from "@/components/surface";
 import { Notice } from "@/components/notice";
@@ -33,14 +34,15 @@ export default function QrCodeView({
   seasonLabel,
   joinUrl,
   cardImageSrc,
-  signInCount,
+  figures,
   mintedAt,
 }: {
   seasonLabel: string;
   joinUrl: string | null;
   /** The generated sign-up card for this code — LAN-279. Null when no code is live. */
   cardImageSrc: string | null;
-  signInCount: number;
+  /** LAN-428: Visits, Partial and Completed for the live code; null when none is live. */
+  figures: RecruitmentSignupFigures | null;
   mintedAt: string | null;
 }) {
   const [pending, startTransition] = useTransition();
@@ -82,6 +84,16 @@ export default function QrCodeView({
         subtitle={seasonLabel}
         back={{ href: "/operate/recruitment", label: "Back to recruitment" }}
       />
+
+      {figures ? (
+        <Box sx={{ mb: 2 }}>
+          <MetricRow columns={3} testId="recruitment-qr-figures">
+            <Metric value={figures.visits} label="Visits" testId="recruitment-qr-visits" />
+            <Metric value={figures.partial} label="Partial" testId="recruitment-qr-partial" />
+            <Metric value={figures.completed} label="Completed" testId="recruitment-qr-completed" />
+          </MetricRow>
+        </Box>
+      ) : null}
 
       <Surface>
         {svgDataUri ? (
@@ -133,12 +145,6 @@ export default function QrCodeView({
                 {copied ? "COPIED" : "COPY LINK"}
               </Button>
             </Stack>
-            <Box>
-              <Metric
-                value={signInCount}
-                label={`sign-in${signInCount === 1 ? "" : "s"} this season`}
-              />
-            </Box>
           </>
         ) : (
           <>

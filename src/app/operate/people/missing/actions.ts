@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireGrant } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { sendOnboardingNudges } from "@/lib/services/messaging-scheduler";
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
+import { lightsOutWaitingUntil } from "@/lib/services/messaging-schedule/lights-out";
 
 // The queue's own nudge — LAN-218, `W8`, `M3`, `T11-batch-nudge`. Unlimited,
 // outside the automated cap; gated on Onboarding at edit (LAN-432), the same
@@ -22,7 +24,11 @@ function nudgeSentNotice(accepted: number): string {
 // will go out when the club's sending allowance allows. It is neither a
 // success to report as "Nudged" nor a problem to send somebody to a record
 // about, so it gets its own sentence.
+// LAN-433: a nudge is never exempt, so overnight the hold is lights-out.
 function nudgeWaitingNotice(deferred: number): string {
+  if (lightsOutWaitingUntil("deferred")) {
+    return `${deferred === 1 ? "1 nudge" : `${deferred} nudges`}: ${WAITING_LIGHTS_OUT_LABEL}.`;
+  }
   return deferred === 1
     ? "1 nudge is queued — waiting for the sending allowance."
     : `${deferred} nudges are queued — waiting for the sending allowance.`;

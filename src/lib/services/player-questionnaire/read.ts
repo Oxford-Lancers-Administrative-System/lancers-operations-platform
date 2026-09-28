@@ -184,16 +184,80 @@ export async function readQuestionnaireViewIn(
 
   const needsConsentStep = ask.hasGrantedConsent === false;
   const missingRequiredFields = ask.missingRequiredFields;
-  const detailsComplete =
-    missingRequiredFields.length === 0 &&
-    emergencyContactIsComplete(emergencyContact) &&
-    !needsConsentStep;
 
   const [itemStatus, trustClaimed, lastAnsweredAt] = await Promise.all([
     readDisplayedItemStatusesIn(tx, ask.membershipId),
     readTrustClaimedIn(tx, ask.membershipId),
     readLastAnsweredAtIn(tx, ask.membershipId),
   ]);
+
+  const outstanding = computePlayerOutstanding({
+    missingRequiredFields,
+    emergencyContact,
+    needsConsentStep,
+    itemStatus,
+    agreements,
+    trustClaimed,
+  });
+  const { detailsComplete, sections, nextStep } = outstanding;
+  const nothingOutstanding = sections.length === 0;
+
+  return {
+    personId,
+    seasonId,
+    seasonLabel,
+    membershipId: ask.membershipId,
+    person,
+    emergencyContact,
+    consent,
+    needsConsentStep,
+    missingRequiredFields,
+    detailsComplete,
+    openDisputedFields,
+    fieldSuppliedBy,
+    agreements,
+    agreementVersions,
+    lastPhotoReleaseForm,
+    documentAgreed: outstanding.documentAgreed,
+    itemStatus,
+    nothingOutstanding,
+    outstandingSections: sections,
+    nextStep,
+    lastAnsweredAt,
+  };
+}
+
+/** Everything `computePlayerOutstanding` decides from — the questionnaire's own facts, nothing operator-owned. */
+export interface PlayerOutstandingInput {
+  missingRequiredFields: readonly RequiredField[];
+  emergencyContact: EmergencyContactFacts | null;
+  needsConsentStep: boolean;
+  itemStatus: QuestionnaireView["itemStatus"];
+  /** Only presence matters: the fallback for a membership with no configured item (F2). */
+  agreements: Record<OnboardingAgreementType, unknown>;
+  trustClaimed: Record<(typeof TRUST_ITEM_CODES)[number], boolean>;
+}
+
+export interface PlayerOutstanding {
+  detailsComplete: boolean;
+  documentAgreed: Record<OnboardingAgreementType, boolean>;
+  sections: OutstandingSection[];
+  nextStep: QuestionnaireStep;
+}
+
+/**
+ * The one definition of what a player still has to do (LAN-437): the questionnaire page renders it
+ * and the onboarding chase is gated on it. The five operator-owned items (kit, subs invoiced, subs
+ * paid, comms groups, photo) are not in it, and the trust items count as done once claimed.
+ */
+export function computePlayerOutstanding(input: PlayerOutstandingInput): PlayerOutstanding {
+  const { missingRequiredFields, emergencyContact, needsConsentStep, itemStatus, agreements } =
+    input;
+  const trustClaimed = input.trustClaimed;
+  const detailsComplete =
+    missingRequiredFields.length === 0 &&
+    emergencyContactIsComplete(emergencyContact) &&
+    !needsConsentStep;
 
   // LAN-240: the item is the authority whenever there is one; the agreement row is the fallback
   // only when there is not (needed for a membership with no configured item — F2).
@@ -262,8 +326,6 @@ export async function readQuestionnaireViewIn(
     });
   }
 
-  const nothingOutstanding = sections.length === 0;
-
   let nextStep: QuestionnaireStep = "done";
   if (!detailsComplete) nextStep = "details";
   else if (!codeOfConductDone) nextStep = "code_of_conduct";
@@ -272,28 +334,38 @@ export async function readQuestionnaireViewIn(
   else if (!hudlDone) nextStep = "hudl";
 
   return {
-    personId,
-    seasonId,
-    seasonLabel,
-    membershipId: ask.membershipId,
-    person,
-    emergencyContact,
-    consent,
-    needsConsentStep,
-    missingRequiredFields,
     detailsComplete,
-    openDisputedFields,
-    fieldSuppliedBy,
-    agreements,
-    agreementVersions,
-    lastPhotoReleaseForm,
     documentAgreed: { code_of_conduct: codeOfConductDone, photo_release: photoReleaseDone },
-    itemStatus,
-    nothingOutstanding,
-    outstandingSections: sections,
+    sections,
     nextStep,
-    lastAnsweredAt,
   };
+}
+
+/**
+ * Whether the player has anything left on their own questionnaire — the onboarding chase's gate
+ * (LAN-437), read from the same facts `readQuestionnaireViewIn` uses. `null` for no membership.
+ */
+export async function readPlayerHasOutstandingIn(
+  tx: Tx,
+  personId: string,
+  seasonId: string,
+): Promise<boolean | null> {
+  const ask = await readCompiledOutstandingAskIn(tx, personId, seasonId);
+  if (!ask) return null;
+  // Sequential (LAN-301): one transaction client.
+  const emergencyContact = await readEmergencyContactFactsIn(tx, personId);
+  const agreements = await readAgreementsByTypeIn(tx, personId, seasonId);
+  const itemStatus = await readDisplayedItemStatusesIn(tx, ask.membershipId);
+  const trustClaimed = await readTrustClaimedIn(tx, ask.membershipId);
+  const outstanding = computePlayerOutstanding({
+    missingRequiredFields: ask.missingRequiredFields,
+    emergencyContact,
+    needsConsentStep: ask.hasGrantedConsent === false,
+    itemStatus,
+    agreements,
+    trustClaimed,
+  });
+  return outstanding.sections.length > 0;
 }
 
 export async function readQuestionnaireView(

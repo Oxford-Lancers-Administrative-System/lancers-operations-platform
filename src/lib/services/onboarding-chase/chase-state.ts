@@ -4,8 +4,8 @@ import { type Tx } from "@/lib/db";
 import { selectMobileNumber } from "@/lib/delivery/phone";
 import { MAX_ATTEMPTS } from "../delivery";
 import { hasGrantedSeasonMessagingConsentIn } from "../messaging-consent";
-import { readCompiledOutstandingAskIn } from "../onboarding-ask";
 import { DEFAULT_CALLING_CODE } from "../person-validation";
+import { readPlayerHasOutstandingIn } from "../player-questionnaire/read";
 import { readOnboardingChaseSettingsIn, type OnboardingChaseSettings } from "./settings";
 
 // The chase's own state — LAN-218, `W8`/`W9`. No migration: every fact below is derived from
@@ -267,11 +267,11 @@ async function buildCandidatesIn(
 
   const candidates: OnboardingChaseCandidate[] = [];
   for (const row of memberships) {
-    const ask = await readCompiledOutstandingAskIn(tx, row.person_id, row.season_id);
+    // LAN-437: the player's own questionnaire, never the operator-owned items.
+    const hasOutstanding =
+      (await readPlayerHasOutstandingIn(tx, row.person_id, row.season_id)) === true;
     const hasConsent = await hasGrantedSeasonMessagingConsentIn(tx, row.person_id, row.season_id);
     const isUnder18 = await isPersonUnder18In(tx, row.person_id);
-    const hasOutstanding =
-      ask !== null && (ask.missingRequiredFields.length > 0 || ask.outstandingItems.length > 0);
     const hasReachableNumber = reachable.has(row.person_id);
     const p = progress.get(row.id) ?? NO_PROGRESS;
 

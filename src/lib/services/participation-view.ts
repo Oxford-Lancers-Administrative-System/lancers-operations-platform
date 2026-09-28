@@ -259,10 +259,16 @@ export const ATTENDANCE_FILTERS = Object.freeze([
   "not_recorded",
 ] as const);
 
+/** LAN-440: the capacity a row reads as — a committee-only invitee reads as Player. */
+function shownCapacity(capacity: string): string {
+  return capacity === "committee" ? "player" : capacity;
+}
+
 function sortValue(person: ParticipationPerson, column: string): string | number {
   switch (column) {
     case "capacity":
-      return person.isWalkUp ? "￿walk-up" : person.capacity;
+      // LAN-442: by the capacity shown, so committee sits with the players it reads as.
+      return person.isWalkUp ? "￿walk-up" : shownCapacity(person.capacity);
     case "invited":
       // Walk-ups/un-issued sort last, not first.
       return person.invitedAt ?? "￿";
@@ -312,7 +318,8 @@ function matchesAttendance(person: ParticipationPerson, attendance: string): boo
 function matchesCapacity(person: ParticipationPerson, capacity: string): boolean {
   if (capacity === "") return true;
   if (capacity === "walk_up") return person.isWalkUp;
-  return !person.isWalkUp && person.capacity === capacity;
+  // LAN-440: the filter matches the capacity shown, so Player includes committee.
+  return !person.isWalkUp && shownCapacity(person.capacity) === capacity;
 }
 
 function matchesDelivery(person: ParticipationPerson, delivery: string): boolean {
@@ -416,6 +423,27 @@ export function applyParticipationView<T extends ParticipationPerson>(
   );
 }
 
+/** LAN-439: the audience's three answer groups, in the order the event page shows them. */
+export type AnswerGroup = "yes" | "no" | "none";
+
+const ANSWER_GROUP_ORDER: readonly AnswerGroup[] = Object.freeze(["yes", "no", "none"]);
+
+export function answerGroupOf(person: Pick<ParticipationPerson, "answer">): AnswerGroup {
+  return person.answer ?? "none";
+}
+
+/**
+ * LAN-439 (client QA, 2026-09-26): the event page's audience reads Yes, then
+ * No, then No response, on every width. A stable partition over an already
+ * sorted list, so the chosen column still orders the people inside each group.
+ * A walk-up was never asked, so they sit with No response.
+ */
+export function groupByAnswer<T extends ParticipationPerson>(people: readonly T[]): readonly T[] {
+  return ANSWER_GROUP_ORDER.flatMap((group) =>
+    people.filter((person) => answerGroupOf(person) === group),
+  );
+}
+
 /** The href a column heading points at; every other filter is carried, so sorting never drops a filter. */
 export function participationSortHref(
   basePath: string,
@@ -472,7 +500,8 @@ export function readParticipationFilters(
 
   return {
     search: one(PARTICIPATION_PARAMS.search),
-    capacity,
+    // LAN-442: an old `?as=committee` link shows the Player rows it now reads as.
+    capacity: shownCapacity(capacity),
     answer: (ANSWER_FILTERS as readonly string[]).includes(answer) ? answer : "",
     attendance: (ATTENDANCE_FILTERS as readonly string[]).includes(attendance) ? attendance : "",
     delivery:

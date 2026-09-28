@@ -334,7 +334,14 @@ describe("the partial save (LAN-425)", () => {
 
   it("start, patch, Save: one person, one prospect, consent only at the end", async () => {
     const code = await mintCode();
-    const start = await startPartialQrSignup(code, values({ mobile: "", collegeEmail: "" }));
+    // LAN-428: names alone create nothing; the mobile is the third field.
+    expect(await startPartialQrSignup(code, values({ mobile: "", collegeEmail: "" }))).toEqual({
+      token: null,
+      retry: true,
+    });
+    expect(await peopleCalled(MARKER)).toBe(0);
+
+    const start = await startPartialQrSignup(code, values({ collegeEmail: "" }));
     expect(start.token).toBeTruthy();
     expect(start.retry).toBe(false);
     expect(await peopleCalled(MARKER)).toBe(1);
@@ -384,8 +391,13 @@ describe("the partial save (LAN-425)", () => {
       [existing.rows[0].id, mobile],
     );
     const code = await mintCode();
-    // Names first, then the mobile: the partial exists before the probe can run.
-    const start = await startPartialQrSignup(code, values({ mobile: "", collegeEmail: "" }));
+    // A partial started on one mobile, then corrected to the existing person's:
+    // since LAN-428 a partial needs a mobile to exist, so the match can only
+    // arrive by a later patch.
+    const start = await startPartialQrSignup(
+      code,
+      values({ mobile: "07700900556", collegeEmail: "" }),
+    );
     expect(start.token).toBeTruthy();
     await patchPartialQrSignup(code, start.token!, values({ mobile, collegeEmail: "" }));
 

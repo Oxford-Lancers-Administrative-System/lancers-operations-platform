@@ -16,6 +16,8 @@ import { resolveOperatorAccess } from "@/lib/auth/operator";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
 import { NotPermitted } from "@/lib/db";
 import { sendOnboardingNudges } from "@/lib/services/messaging-scheduler";
+import { WAITING_LIGHTS_OUT_LABEL } from "@/lib/services/messaging-safety/reasons";
+import { setLightsOutClockForTesting } from "@/lib/services/messaging-schedule/lights-out";
 import { nudgeSelectedAction } from "./actions";
 
 const MEMBERSHIP_ID = "55555555-5555-4555-8555-555555555555";
@@ -62,5 +64,35 @@ describe("nudgeSelectedAction", () => {
     const result = await nudgeSelectedAction([MEMBERSHIP_ID]);
 
     expect(result).toEqual({ error: "You may not do that.", notice: null });
+  });
+});
+
+// LAN-433: a nudge queued overnight is held by lights-out, not the allowance.
+describe("a deferred nudge names its hold", () => {
+  function deferredNudge() {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: president("edit"),
+    });
+    vi.mocked(sendOnboardingNudges).mockResolvedValue([
+      { personId: "p", membershipId: MEMBERSHIP_ID, outcome: "deferred" },
+    ]);
+  }
+
+  it("says it sends at 07:00 during lights-out", async () => {
+    deferredNudge();
+    setLightsOutClockForTesting(() => new Date("2026-10-01T22:30:00Z")); // 23:30 BST
+    try {
+      const result = await nudgeSelectedAction([MEMBERSHIP_ID]);
+      expect(result).toEqual({ error: null, notice: `1 nudge: ${WAITING_LIGHTS_OUT_LABEL}.` });
+    } finally {
+      setLightsOutClockForTesting(() => new Date("2026-06-15T11:00:00Z"));
+    }
+  });
+
+  it("keeps the allowance wording in the daytime", async () => {
+    deferredNudge();
+    const result = await nudgeSelectedAction([MEMBERSHIP_ID]);
+    expect(result.notice).toBe("1 nudge is queued — waiting for the sending allowance.");
   });
 });

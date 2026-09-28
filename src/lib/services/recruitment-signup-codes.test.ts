@@ -13,11 +13,16 @@ import type { Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
 import {
+  COMPLETED_SIGNUPS_TEST_OFFSET,
   mintRecruitmentSignupCodeIn,
+  PARTIAL_DOOR,
+  readRecruitmentSignupFiguresIn,
   recordRecruitmentSignupCodeUseIn,
+  recordRecruitmentSignupVisitIn,
   resolveRecruitmentSignupCode,
   resolveRecruitmentSignupCodeIn,
 } from "./recruitment-signup-codes";
+import { PARTIAL_SOURCE } from "./recruitment-signup";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN202SignupCodeSuite";
@@ -131,5 +136,108 @@ describe("recordRecruitmentSignupCodeUseIn", () => {
     await withTransaction(async (tx) => {
       await expect(recordRecruitmentSignupCodeUseIn(tx, "never-minted")).resolves.toBeUndefined();
     });
+  });
+});
+
+describe("LAN-428 — Visits, Partial and Completed", () => {
+  afterEach(async () => {
+    await observer.query(
+      `delete from public.audit_events
+        where action = 'person_created' and context ->> 'season_id' = any($1::text[])`,
+      [[seasonId, otherSeasonId]],
+    );
+  });
+
+  async function partialAudit(season: string, door: string = PARTIAL_DOOR) {
+    await observer.query(
+      `insert into public.audit_events (actor_label, action, entity_table, entity_id, context)
+       values ('recruit: QR sign-up form (partial, before Save)', 'person_created', 'people',
+               gen_random_uuid(), jsonb_build_object('door', $2::text, 'season_id', $1::text))`,
+      [season, door],
+    );
+  }
+
+  it("names the partial door exactly as the sign-up service writes it", () => {
+    expect(PARTIAL_DOOR).toBe(PARTIAL_SOURCE);
+  });
+
+  it("counts a visit on a live code, in the statement that resolves it", async () => {
+    const minted = await withTransaction((tx) => mintRecruitmentSignupCodeIn(tx, seasonId));
+    const resolved = await withTransaction(async (tx) => {
+      await recordRecruitmentSignupVisitIn(tx, minted.code);
+      return recordRecruitmentSignupVisitIn(tx, minted.code);
+    });
+
+    expect(resolved).toEqual({ state: "valid", seasonId });
+    const row = await observer.query<{ visit_count: number; sign_in_count: number }>(
+      `select visit_count, sign_in_count from public.recruitment_signup_codes where code = $1`,
+      [minted.code],
+    );
+    expect(row.rows[0]).toEqual({ visit_count: 2, sign_in_count: 0 });
+  });
+
+  it("counts nothing for an unknown or deactivated code, and resolves it as unknown", async () => {
+    const first = await withTransaction((tx) => mintRecruitmentSignupCodeIn(tx, seasonId));
+    await withTransaction((tx) => mintRecruitmentSignupCodeIn(tx, seasonId));
+
+    expect(await withTransaction((tx) => recordRecruitmentSignupVisitIn(tx, first.code))).toEqual({
+      state: "unknown",
+      seasonId: null,
+    });
+    expect(
+      await withTransaction((tx) => recordRecruitmentSignupVisitIn(tx, "never-minted")),
+    ).toEqual({ state: "unknown", seasonId: null });
+    const row = await observer.query<{ visit_count: number }>(
+      `select visit_count from public.recruitment_signup_codes where code = $1`,
+      [first.code],
+    );
+    expect(row.rows[0].visit_count).toBe(0);
+  });
+
+  it("reads the three numbers, Completed less the test sign-ups, stored count unchanged", async () => {
+    expect(COMPLETED_SIGNUPS_TEST_OFFSET).toBe(12);
+    const minted = await withTransaction((tx) => mintRecruitmentSignupCodeIn(tx, seasonId));
+    await withTransaction(async (tx) => {
+      for (let i = 0; i < 3; i += 1) await recordRecruitmentSignupVisitIn(tx, minted.code);
+      for (let i = 0; i < 15; i += 1) await recordRecruitmentSignupCodeUseIn(tx, minted.code);
+    });
+    await partialAudit(seasonId);
+    await partialAudit(seasonId);
+    // Neither of these is a partial on this season's code.
+    await partialAudit(otherSeasonId);
+    await partialAudit(seasonId, "qr_self_entry");
+
+    const figures = await withTransaction((tx) => readRecruitmentSignupFiguresIn(tx, seasonId));
+
+    expect(figures).toEqual({ visits: 3, partial: 2, completed: 3 });
+    const stored = await observer.query<{ sign_in_count: number }>(
+      `select sign_in_count from public.recruitment_signup_codes where code = $1`,
+      [minted.code],
+    );
+    expect(stored.rows[0].sign_in_count).toBe(15);
+  });
+
+  it("never shows Completed below zero", async () => {
+    const minted = await withTransaction((tx) => mintRecruitmentSignupCodeIn(tx, seasonId));
+    await withTransaction((tx) => recordRecruitmentSignupCodeUseIn(tx, minted.code));
+
+    const figures = await withTransaction((tx) => readRecruitmentSignupFiguresIn(tx, seasonId));
+
+    expect(figures?.completed).toBe(0);
+  });
+
+  it("counts only partials since the live code was minted", async () => {
+    await partialAudit(seasonId);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await withTransaction((tx) => mintRecruitmentSignupCodeIn(tx, seasonId));
+    await partialAudit(seasonId);
+
+    const figures = await withTransaction((tx) => readRecruitmentSignupFiguresIn(tx, seasonId));
+
+    expect(figures?.partial).toBe(1);
+  });
+
+  it("has no numbers when the season has no live code", async () => {
+    expect(await withTransaction((tx) => readRecruitmentSignupFiguresIn(tx, seasonId))).toBeNull();
   });
 });

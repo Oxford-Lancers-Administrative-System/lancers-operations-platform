@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/public-shell";
 
 import { CLUB_NAME, JOIN_DESCRIPTION, JOIN_TITLE } from "@/lib/brand";
 import { withTransaction } from "@/lib/db";
 import { resolveRecruitmentGroupLink } from "@/lib/services/recruitment-config";
-import { resolveRecruitmentSignupCodeIn } from "@/lib/services/recruitment-signup-codes";
+import {
+  recordRecruitmentSignupVisitIn,
+  resolveRecruitmentSignupCodeIn,
+} from "@/lib/services/recruitment-signup-codes";
+import { SIGNUP_VISIT_HEADER } from "@/lib/signup-visit";
 
 import {
   checkForExistingQrRecruit,
@@ -51,7 +56,12 @@ interface PageProps {
 
 export default async function JoinPage({ params }: PageProps) {
   const { code } = await params;
-  const resolved = await withTransaction((tx) => resolveRecruitmentSignupCodeIn(tx, code));
+  // LAN-428: resolving a live code counts one visit, in the same statement —
+  // only for a request the proxy marked as a real page open (LAN-442, W-4).
+  const visit = (await headers()).get(SIGNUP_VISIT_HEADER) === "1";
+  const resolved = await withTransaction((tx) =>
+    visit ? recordRecruitmentSignupVisitIn(tx, code) : resolveRecruitmentSignupCodeIn(tx, code),
+  );
   if (resolved.state !== "valid") notFound();
 
   const groupLink = resolveRecruitmentGroupLink();

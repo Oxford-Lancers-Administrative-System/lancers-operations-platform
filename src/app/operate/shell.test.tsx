@@ -100,6 +100,7 @@ import RosterPage from "./roster/page";
 import EventsPage from "./events/page";
 import ReportPage from "./report/page";
 import { seededGrantsFor } from "@/lib/auth/capabilities";
+import { SIDEWAYS_PHONE_QUERY } from "@/theme-tokens";
 import { fullGrants, mergeGrantRows, SEEDED_TEMPLATE_IDS } from "@/lib/auth/grants";
 
 /** The approved unlinked copy — UX-03, `slice-ux.md` § 8. */
@@ -1557,5 +1558,55 @@ describe("LAN-429 — gateShellPage with a grant requirement", () => {
       "People",
       "Missing data",
     ]);
+  });
+});
+
+/**
+ * LAN-427, Brian 2026-09-28 — "below a certain size the screen should get the
+ * hamburger". A phone on its side is judged by height (`SIDEWAYS_PHONE_QUERY`),
+ * so a 956×440 phone, wider than `md`, gets the phone navigation too: the top
+ * bar with the hamburger, the nav as a closed drawer, and only the phone gutter
+ * around the page. Declared style only, as row 16 explains.
+ */
+describe("LAN-427 — a phone on its side gets the hamburger", () => {
+  function sidewaysDeclarations(element: Element): string {
+    const cls = emotionClassOf(element);
+    const media = `@media ${SIDEWAYS_PHONE_QUERY}`.replace(/[()]/g, "\\$&");
+    const pattern = new RegExp(`${media}\\s?\\{\\s?\\.${cls}\\{([^}]*)\\}`, "g");
+    const blocks = [...allStyleText().matchAll(pattern)].map((match) => match[1]);
+    if (blocks.length === 0) throw new Error(`no sideways rule found for .${cls}`);
+    return blocks.join(";");
+  }
+
+  it("shows the top bar with the hamburger, scrolling away with the page", async () => {
+    await renderShell();
+    const bar = screen.getByRole("button", { name: "Open navigation" }).parentElement!;
+    const declarations = sidewaysDeclarations(bar);
+    expect(declares(declarations, "display", "flex")).toBe(true);
+    expect(declares(declarations, "position", "absolute")).toBe(true);
+    expect(declares(declarations, "height", "48px")).toBe(true);
+  });
+
+  it("turns the sidebar back into a closed drawer", async () => {
+    const { nav } = await renderShell();
+    const declarations = sidewaysDeclarations(nav);
+    expect(declares(declarations, "position", "fixed")).toBe(true);
+    expect(declares(declarations, "transform", "translateX\\(-100%\\)")).toBe(true);
+    expect(declares(declarations, "visibility", "hidden")).toBe(true);
+  });
+
+  it("opens the drawer from the hamburger", async () => {
+    const { nav } = await renderShell();
+    openNav();
+    const declarations = sidewaysDeclarations(nav);
+    expect(declares(declarations, "transform", "translateX\\(0\\)")).toBe(true);
+    expect(declares(declarations, "visibility", "visible")).toBe(true);
+  });
+
+  it("leaves only the top bar and the phone gutter around the page", async () => {
+    const { main } = await renderShell();
+    const declarations = sidewaysDeclarations(main);
+    expect(declares(declarations, "padding-top", "64px")).toBe(true);
+    expect(declares(declarations, "padding-bottom", "16px")).toBe(true);
   });
 });

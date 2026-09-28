@@ -24,7 +24,12 @@
  * `messaging_safety_scopes` refers to it.
  *
  * **`$1` is the attempt ceiling** (`MAX_ATTEMPTS`). A caller supplies it.
+ *
+ * LAN-433 adds lights-out through {@link lightsOutAdmitsSql}, which every reader
+ * appends with its own parameter. Its one import is the pure lights-out module.
  */
+import { LIGHTS_OUT_EXEMPT_JOB_TYPES } from "./messaging-schedule/lights-out";
+
 export const DUE_JOB_PREDICATE = `held_at is null
           -- LAN-394. Two cheap exclusions, before the limit rather than after
           -- it, and they are what stops a blocked recipient filling every page.
@@ -169,3 +174,28 @@ export const DUE_JOB_PREDICATE = `held_at is null
             (status in ('pending', 'ready') and coalesce(scheduled_for, created_at) <= now())
             or (status = 'failed' and next_attempt_at is not null and next_attempt_at <= now())
           )`;
+
+const EXEMPT_JOB_TYPES_SQL = LIGHTS_OUT_EXEMPT_JOB_TYPES.map((type) => `'${type}'`).join(", ");
+
+/**
+ * LAN-433. Lights-out's share of "due", for every reader of
+ * {@link DUE_JOB_PREDICATE}: while the window is on, only the three exempt
+ * notices are due. `param` is the caller's own boolean placeholder, bound to
+ * `isLightsOut(lightsOutNow())` — decided in the application, not by the
+ * database's clock, so a test can pin the hour.
+ */
+export function lightsOutAdmitsSql(param: string): string {
+  return `(not ${param}::boolean or job_type::text in (${EXEMPT_JOB_TYPES_SQL}))`;
+}
+
+/**
+ * LAN-433. The moment a due job became sendable, for the queue-age warning: a
+ * held job counts from the last 07:00 release rather than from its rung, so the
+ * morning's released pile is not reported as a nine-hour backlog. `param` is
+ * bound to `lastLightsOutReleaseAt(lightsOutNow())`.
+ */
+export function sendableSinceSql(param: string): string {
+  const due = "coalesce(next_attempt_at, scheduled_for, created_at)";
+  return `case when job_type::text in (${EXEMPT_JOB_TYPES_SQL}) then ${due}
+               else greatest(${due}, ${param}::timestamptz) end`;
+}

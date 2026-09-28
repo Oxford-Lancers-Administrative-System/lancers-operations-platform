@@ -666,6 +666,32 @@ describe("silencing a change that moved a future date, time or venue", () => {
     expect((await readEventUnchecked(fixture.eventId)).venue).toBe("University Parks");
   });
 
+  // LAN-422: the amend form now asks for exactly this, so the save it posts must go through.
+  it("asks when a past event moves into the future, and saves silently once confirmed", async () => {
+    const fixture = await approvedEvent({ scheduledOn: pastDay() });
+
+    const failure = await serviceFailure(() =>
+      amendApprovedEvent(actorPersonId, fixture.eventId, draft({ scheduledOn: futureDay() }), {
+        notify: false,
+      }),
+    );
+    expect(failure.rule).toBe(SILENCE_NEEDS_CONFIRMATION_RULE);
+
+    const outcome = await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      draft({ scheduledOn: futureDay() }),
+      { notify: false, silenceConfirmed: true },
+    );
+
+    expect(outcome.notified).toBe(false);
+    expect(outcome.noticesOwed).toBe(0);
+    const notices = (await jobsFor(fixture.eventId)).filter(
+      (job) => job.job_type === "schedule_change_notice",
+    );
+    expect(notices).toHaveLength(0);
+  });
+
   it("asks nothing for a corrected description on a future event", async () => {
     const fixture = await approvedEvent();
 

@@ -51,10 +51,12 @@ export interface AmendmentContext {
   chaseThresholdDays: number; // D75, D77
   chaseThresholdOn: string | null; // where the chase lands against the event's current date
   isFuture: boolean;
+  today: string; // LAN-422: the club day the form judges an edited date against
   lastAmendment: EventChangeEntry | null; // W5-04's recovery path
 }
 
 export async function readAmendmentContext(eventId: string): Promise<AmendmentContext> {
+  const today = todayInClubZone();
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
     const audience = await readNotifyAudienceIn(tx, eventId);
@@ -77,7 +79,8 @@ export async function readAmendmentContext(eventId: string): Promise<AmendmentCo
       unsentMessages: Number(unsent.rows[0].count),
       chaseThresholdDays: days,
       chaseThresholdOn: chaseThresholdOn(event.scheduledOn, days),
-      isFuture: isFutureEvent(event, todayInClubZone()),
+      isFuture: isFutureEvent(event, today),
+      today,
       lastAmendment: history.find((entry) => entry.kind === "amended") ?? null,
     };
   });
