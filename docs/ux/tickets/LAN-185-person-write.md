@@ -47,7 +47,12 @@ are defined in [`../slice-ux.md`](../slice-ux.md) and
 - `/operate/people/[personId]/edit`: one edit surface, sectioned as the record
   reads (who they are, how to reach them, academic, restricted — with the
   emergency contact grouped as its own labelled subject inside restricted,
-  the way the record itself reads it as one `Fact`, per `B2`). Aliases add,
+  the way the record itself reads it as one `Fact`, per `B2`). Since LAN-462
+  (Brian, 2026-10-02) the sections are Personal information (names, aliases,
+  mobile, personal email), Student information (college email, college,
+  matriculation year, expected graduation, degree field, student number, BAFA
+  registration number — present for every person, closed unless the record
+  shows it) and Restricted. Aliases add,
   remove and flag-as-display-name. Contact values supersede (dated history,
   one preferred value per kind and scope); every other field overwrites, its
   previous value surviving in the audit trail. A reason is required to change

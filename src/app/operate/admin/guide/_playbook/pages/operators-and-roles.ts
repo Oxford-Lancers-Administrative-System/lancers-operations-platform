@@ -25,6 +25,7 @@ export const OPERATORS_AND_ROLES_PAGE: PlaybookPage = {
     description: [
       [
         "An operator is invited by name, email and at least one role. The invitation cannot be sent without a role.",
+        " The email lands on their person record classified: an Oxford address as college email, any other as personal email. A person seated with no email on record gets the login email the same way.",
       ],
       [
         "An invitation that does not arrive reads ",

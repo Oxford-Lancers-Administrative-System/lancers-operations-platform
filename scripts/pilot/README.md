@@ -48,7 +48,9 @@ away again.
 | Durable foundation preserved | Cleanup never touches `auth.users`, `operator_accounts`, `role_assignments` or `audit_events` |
 | Verifiable                   | A final verification `select` that a human can read, repeated in the scenario README          |
 
-No scenario is checked in today. The eleven written for the slice were retired
+No scenario is checked in today. `lan-462/` is a one-off correction rather
+than a scenario — it classifies existing emails by rule and creates nothing —
+and its README says how it differs. The eleven written for the slice were retired
 on 26 September 2026 without ever being applied to hosted (ADR 0016's
 amendment, LAN-436). `lan-93/` at commit `5bcb5ea0` is the worked example to
 copy: `git show 5bcb5ea0:scripts/pilot/lan-93/setup.sql` and its siblings.

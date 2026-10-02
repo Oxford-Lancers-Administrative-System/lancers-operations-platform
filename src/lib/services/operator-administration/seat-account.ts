@@ -11,6 +11,7 @@ import {
   withTransaction,
 } from "@/lib/db";
 import { recordAdministrationEvent } from "../administration-audit";
+import { recordLoginEmailIfNoneIn } from "../person-email-classification";
 import type { AdministrationOperatingYear } from "../administration-events";
 import { supabaseOperatorIdentity, type OperatorIdentityPort } from "../operator-identity";
 import { deliverInvitation, markDeliveryFailed } from "../operator-invitations/delivery";
@@ -63,6 +64,8 @@ import {
  */
 
 const SEAT_LOGIN_EMAIL_FIELD = "Login email";
+/** The provenance a login email copied onto the person carries (LAN-462). */
+const SEAT_EMAIL_SOURCE = "operator account";
 export const SEAT_LOGIN_EMAIL_REQUIRED_RULE = "administration_seat_login_email_required";
 const SEAT_LOGIN_EMAIL_REQUIRED_MESSAGE =
   `${SEAT_LOGIN_EMAIL_FIELD} is required. This person has no email address on record, and ` +
@@ -170,6 +173,13 @@ export async function openSeatAccountIn(
     authUserId: input.authUserId,
     personId: input.personId,
     email: input.email,
+  });
+  // LAN-462: a person seated with no email on record gets the login address
+  // too, classified, so what the app sends them goes to an address on record.
+  await recordLoginEmailIfNoneIn(tx, {
+    personId: input.personId,
+    address: input.email,
+    source: SEAT_EMAIL_SOURCE,
   });
 
   await recordAdministrationEvent(tx, {

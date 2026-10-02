@@ -2645,6 +2645,46 @@ describe("L — a seat holder is always an operator (LAN-434)", () => {
     expect((await accountsOf(personId))[0].login_email).toBe(recorded);
   });
 
+  it("copies a typed login email onto a person with none, classified (LAN-462)", async () => {
+    const emailsOf = async (personId: string) =>
+      (
+        await observer.query<{ scope: string | null; raw_value: string; is_preferred: boolean }>(
+          `select scope::text as scope, raw_value, is_preferred from public.contact_points
+            where person_id = $1 and kind = 'email'`,
+          [personId],
+        )
+      ).rows;
+
+    const personal = await insertPerson("seat-copy-personal");
+    const typed = uniqueAddress("seat-copy-personal");
+    await assignRoleService({
+      operator: administrator(),
+      personId: personal,
+      roleCode: "kit_manager",
+      loginEmail: typed,
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+    expect(await emailsOf(personal)).toEqual([
+      { scope: "personal", raw_value: typed.toLowerCase(), is_preferred: true },
+    ]);
+
+    // An Oxford address is a college email, for a coach who is not a student too.
+    const college = await insertPerson("seat-copy-college");
+    const oxford = `lan462-seat-${Math.random().toString(36).slice(2, 10)}@college.ox.ac.uk`;
+    await assignRoleService({
+      operator: administrator(),
+      personId: college,
+      roleCode: "kit_manager",
+      loginEmail: oxford,
+      callbackUrl: SEAT_CALLBACK,
+      identity: seatPort(),
+    });
+    expect(await emailsOf(college)).toEqual([
+      { scope: "college", raw_value: oxford, is_preferred: true },
+    ]);
+  });
+
   it("refuses, naming the field, when there is no recorded email and none was given", async () => {
     const personId = await insertPerson("seat-assign-no-email");
     const created: string[] = [];

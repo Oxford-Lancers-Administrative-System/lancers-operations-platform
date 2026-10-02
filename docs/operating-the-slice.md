@@ -180,6 +180,18 @@ before this change reads **No operator account** on the Current holder line
 with **Send invitation**, which opens the account and sends the invitation the
 same way. Invite operator and the Operators page are unchanged.
 
+**The email an operator is created with is classified (LAN-462, Brian
+2026-10-02).** Invite operator stores the address on a new person as **College
+email** when the Oxford rule accepts it (it ends in ox.ac.uk, or .edu) — for a
+coach who is not a student too — and as **Personal email** otherwise, never as
+"Email · not classified". Seating a person (or inviting an existing one) who has
+no email on record copies the login email onto them the same way; a person who
+already has an email is left as they are. If the person already has a preferred
+email of that kind, that one stays preferred and the new address is kept as a
+second one. Emails stored unclassified before this are corrected once by the
+owner-run script in the LAN-462 pilot directory. Anything the application sends
+an operator by email goes to the address on record, whichever kind it is.
+
 **Working the roster and recruits within the grants (LAN-432).** The roster
 board, a player's record, People, a person's record and Missing data open for
 any seat that reaches Roster; the recruitment board and a prospect's record for
@@ -194,10 +206,17 @@ of it is sent to the browser. The player record's sections read Person, Contact
 after Person), Onboarding (and Onboarding activity), Membership, Availability, the five
 assignment groups and Kit; Their other seasons and Status history read as
 Membership; Attendance reads as its own Attendance line (None / View), which
-governs only that section — recording attendance on an event is unchanged. On People and a person's record, Who
-they are, Restricted, Where they stand, Messaging and What changed read as
-Person, How to reach them (and the emergency contact) as Contact & emergency,
-Their seasons as Membership; Correct this record needs Edit on Person or
+governs only that section — recording attendance on an event is unchanged. On People and a person's record
+(LAN-462: **Personal information**, then **Student information**, then
+Restricted), the names, the student facts, Restricted, Where they stand,
+Messaging and What changed read as Person; the mobile, both emails and the
+emergency contact as Contact & emergency, each row drawn only where its line
+allows; Their seasons as Membership. Student information shows for anyone who
+has ever been a player or a recruit, or once any student fact (college email,
+college, matriculation year, expected graduation, degree field, student number,
+BAFA registration number) is recorded; on Correct this record it is present for
+every person, closed for anyone else, so a non-playing coach's BAFA number can
+still be entered. The missing-data rules are unchanged; Correct this record needs Edit on Person or
 Contact & emergency and edits only those; Add a person needs Edit on Person;
 Merge needs every roster and recruiting line at its maximum. On a prospect's
 record Personal questionnaire, How to reach them, Who they are, Restricted,

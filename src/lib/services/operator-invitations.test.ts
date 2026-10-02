@@ -443,14 +443,54 @@ describe("row 1, 2 — create-or-link, and the minimal Person", () => {
     const email = uniqueAddress("contacts");
     const result = await inviteSomebody({ email });
 
-    const contacts = await observer.query<{ kind: string; raw_value: string; preferred: boolean }>(
-      "select kind::text as kind, raw_value, is_preferred as preferred from public.contact_points where person_id = $1 order by kind",
+    const contacts = await observer.query<{
+      kind: string;
+      scope: string | null;
+      raw_value: string;
+      preferred: boolean;
+    }>(
+      "select kind::text as kind, scope::text as scope, raw_value, is_preferred as preferred from public.contact_points where person_id = $1 order by kind",
       [result.personId],
     );
+    // LAN-462: the email is always classified — a non-Oxford address is personal.
     expect(contacts.rows).toEqual([
-      { kind: "email", raw_value: email, preferred: true },
-      { kind: "phone", raw_value: "07700 900131", preferred: true },
+      { kind: "email", scope: "personal", raw_value: email, preferred: true },
+      { kind: "phone", scope: null, raw_value: "07700 900131", preferred: true },
     ]);
+  });
+
+  it("records an Oxford address as the new Person's college email (LAN-462)", async () => {
+    const tag = Math.random().toString(36).slice(2, 10);
+    const email = `lan462-${tag}@college.ox.ac.uk`;
+    const result = await inviteSomebody({ email, tag });
+
+    const contacts = await observer.query<{ scope: string | null; preferred: boolean }>(
+      `select scope::text as scope, is_preferred as preferred from public.contact_points
+        where person_id = $1 and kind = 'email'`,
+      [result.personId],
+    );
+    expect(contacts.rows).toEqual([{ scope: "college", preferred: true }]);
+  });
+
+  it("gives an existing Person with no email the login address, classified (LAN-462)", async () => {
+    const personId = await insertPerson("no-email-yet");
+    const email = uniqueAddress("copied");
+
+    await inviteOperator({
+      operator: administrator(),
+      subject: { kind: "existing", personId },
+      email,
+      roles: [{ roleCode: "kit_manager" }],
+      callbackUrl: CALLBACK,
+      identity: identity(),
+    });
+
+    const contacts = await observer.query<{ scope: string | null; raw_value: string }>(
+      `select scope::text as scope, raw_value from public.contact_points
+        where person_id = $1 and kind = 'email'`,
+      [personId],
+    );
+    expect(contacts.rows).toEqual([{ scope: "personal", raw_value: email }]);
   });
 
   it("links an existing Person instead of minting a second one", async () => {

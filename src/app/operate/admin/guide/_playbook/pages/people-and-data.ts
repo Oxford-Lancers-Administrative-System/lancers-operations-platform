@@ -37,9 +37,10 @@ export const PEOPLE_AND_DATA_PAGE: PlaybookPage = {
       operator: [
         "Open ",
         screen("People"),
-        " and then the person. The record is one page: who they are, how to reach them, what they study, the restricted fields, their seasons and their history.",
+        " and then the person. The record is one page: Personal information (names, mobile, personal email), Student information (college email, college, course, student number, BAFA number), the restricted fields, their seasons and their history.",
       ],
       then: [
+        "Student information shows for anyone who has ever been a player or a recruit, or once any student fact is recorded. A coach who does not play has none until somebody records one; on Correct this record the section is there, closed, for every person, so a coach's BAFA number can still be entered.",
         "Date of birth and emergency contact are the restricted category. They are absent from the page for a reader without the grant, not merely hidden on it.",
       ],
     },
